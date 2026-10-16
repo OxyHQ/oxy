@@ -5600,8 +5600,19 @@
           "Files"
         ],
         "summary": "List the user's files",
-        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links. Each file says whether an application uses it (`inUse`) and, when none does, since when (`unreferencedSince`) — a file not in use is never removed for you (ADR 0041 D5). `inUse=false` lists only those.\n",
+        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links. Each file says whether an application uses it (`inUse`) and, when none does, since when (`unreferencedSince`) — a file not in use is never removed for you (ADR 0041 D5). `inUse=false` lists only those. The list is your library — `active` files, and `blocked` ones removed after a legal claim — newest first; `status=trash` lists instead the files you moved to trash (`trashedAt`, most recently trashed first), which you can restore (`POST /assets/{id}/restore`) or delete for good.\n",
         "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "trash"
+              ]
+            }
+          },
           {
             "name": "inUse",
             "in": "query",
@@ -9902,8 +9913,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Restore file from trash",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/assets.ts` to fill in summary, description, request/response examples.",
+        "summary": "Restore the owner's file from trash: `active` again, served again,",
+        "description": "`file.restored` to every application using it. 409\n      `FILE_NOT_IN_TRASH` (with the file's `status`) for a file that is not\n      in trash — restored or deleted meanwhile, or `blocked` after a content\n      claim, which only a reinstated claim brings back (ADR 0041 D10).",
         "parameters": [
           {
             "name": "id",

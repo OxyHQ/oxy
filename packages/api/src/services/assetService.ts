@@ -104,6 +104,7 @@ import {
   trashUnreferencedApplicationFile,
   type ApplicationFileCursor,
   type FileReferenceKey,
+  type OwnerFileListing,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -640,7 +641,7 @@ export class AssetService {
     userId: string,
     limit = 50,
     offset = 0,
-    options: { inUse?: boolean } = {},
+    options: { inUse?: boolean; listing?: OwnerFileListing } = {},
   ): Promise<{ files: FileRecord[]; total: number }> {
     try {
       return await listFilesByOwner(userId, limit, offset, options);
@@ -2765,7 +2766,10 @@ export class AssetService {
   }
 
   /**
-   * Restore file from trash
+   * Restore a file from trash. A file that is not in trash — restored or
+   * deleted meanwhile, or `blocked` after a content claim, which only a
+   * reinstated claim brings back (ADR 0041 D10) — is a 409
+   * `FILE_NOT_IN_TRASH`, never a server error.
    */
   async restoreFile(fileId: string): Promise<FileRecord> {
     try {
@@ -2774,13 +2778,11 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      if (file.status !== 'trash') {
-        throw new Error('File is not in trash');
-      }
-
-      const reactivated = await reactivateTrashedFile(fileId);
+      const reactivated = file.status === 'trash' ? await reactivateTrashedFile(fileId) : null;
       if (!reactivated) {
-        throw new Error('File is not in trash');
+        throw new ApiError(409, 'File is not in trash', 'FILE_NOT_IN_TRASH', {
+          status: (await findFileById(fileId))?.status ?? file.status,
+        });
       }
       // Back under `public/` if it is public: trash had taken it off the CDN.
       const restored = await this.enterServing(reactivated);

@@ -210,3 +210,122 @@ describe('POST /assets/:id/trash', () => {
     });
   });
 });
+
+describe('GET /assets — the library and the trash', () => {
+  async function fileWithStatus(
+    ownerUserId: string,
+    status: 'active' | 'trash' | 'blocked' | 'deleted',
+    trashedAt: Date | null = null,
+  ) {
+    const sha = randomBytes(32).toString('hex');
+    const [row] = await getDb()
+      .insert(files)
+      .values({
+        sha256: sha,
+        size: 1,
+        mime: 'image/png',
+        ext: 'png',
+        ownerUserId,
+        storageKey: `content/2026/10/${sha.slice(0, 2)}/${sha}.png`,
+        originalName: `${status}.png`,
+        status,
+        trashedAt,
+      })
+      .returning();
+    return row;
+  }
+
+  it('the library holds active and blocked files, never trashed or deleted ones', async () => {
+    const owner = await account();
+    const active = await fileWithStatus(owner, 'active');
+    const blocked = await fileWithStatus(owner, 'blocked');
+    await fileWithStatus(owner, 'trash', new Date());
+    await fileWithStatus(owner, 'deleted');
+    mockSessionUserId = owner;
+
+    const res = await send('GET', '/assets');
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(2);
+    expect(res.body.data.files.map((file: { id: string }) => file.id).sort()).toEqual(
+      [active.id, blocked.id].sort(),
+    );
+  });
+
+  it('status=trash lists only the owner’s trash, most recently trashed first, paged', async () => {
+    const owner = await account();
+    await fileWithStatus(owner, 'active');
+    await fileWithStatus(owner, 'blocked');
+    const older = await fileWithStatus(owner, 'trash', new Date(Date.now() - 60_000));
+    const newer = await fileWithStatus(owner, 'trash', new Date());
+    // Somebody else's trash is never listed.
+    await fileWithStatus(await account(), 'trash', new Date());
+    mockSessionUserId = owner;
+
+    const res = await send('GET', '/assets?status=trash');
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(2);
+    expect(res.body.data.hasMore).toBe(false);
+    expect(res.body.data.files.map((file: { id: string }) => file.id)).toEqual([
+      newer.id,
+      older.id,
+    ]);
+    expect(res.body.data.files[0]).toMatchObject({ status: 'trash' });
+    expect(res.body.data.files[0].trashedAt).toEqual(expect.any(String));
+
+    const firstPage = await send('GET', '/assets?status=trash&limit=1');
+    expect(firstPage.body.data).toMatchObject({ total: 2, hasMore: true });
+    expect(firstPage.body.data.files.map((file: { id: string }) => file.id)).toEqual([newer.id]);
+    const secondPage = await send('GET', '/assets?status=trash&limit=1&offset=1');
+    expect(secondPage.body.data.files.map((file: { id: string }) => file.id)).toEqual([older.id]);
+  });
+
+  it('refuses a status it does not know', async () => {
+    mockSessionUserId = await account();
+    expect((await send('GET', '/assets?status=deleted')).status).toBe(400);
+  });
+
+  it('a file moved to trash leaves the library for the trash, and restore brings it back', async () => {
+    const owner = await account();
+    const file = await publicFile(owner);
+    mockSessionUserId = owner;
+
+    expect((await send('POST', `/assets/${file.id}/trash`)).status).toBe(200);
+    const ids = async (path: string) =>
+      (await send('GET', path)).body.data.files.map((row: { id: string }) => row.id);
+    expect(await ids('/assets')).not.toContain(file.id);
+    expect(await ids('/assets?status=trash')).toEqual([file.id]);
+
+    expect((await send('POST', `/assets/${file.id}/restore`)).status).toBe(200);
+    expect(await ids('/assets')).toContain(file.id);
+    expect(await ids('/assets?status=trash')).toEqual([]);
+  });
+});
+
+describe('POST /assets/:id/restore on a file that is not in trash', () => {
+  it('is a 409 FILE_NOT_IN_TRASH naming the status, for an active and a blocked file', async () => {
+    const owner = await account();
+    const active = await publicFile(owner);
+    const [blocked] = await getDb()
+      .update(files)
+      .set({ status: 'blocked' })
+      .where(eq(files.id, (await publicFile(owner)).id))
+      .returning();
+    mockSessionUserId = owner;
+
+    const notTrashed = await send('POST', `/assets/${active.id}/restore`);
+    expect(notTrashed.status).toBe(409);
+    expect(notTrashed.body).toMatchObject({
+      error: 'FILE_NOT_IN_TRASH',
+      details: { status: 'active' },
+    });
+
+    const takenDown = await send('POST', `/assets/${blocked.id}/restore`);
+    expect(takenDown.status).toBe(409);
+    expect(takenDown.body).toMatchObject({
+      error: 'FILE_NOT_IN_TRASH',
+      details: { status: 'blocked' },
+    });
+    const [row] = await getDb().select().from(files).where(eq(files.id, blocked.id));
+    expect(row.status).toBe('blocked');
+  });
+});

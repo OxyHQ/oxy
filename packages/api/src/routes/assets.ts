@@ -286,8 +286,18 @@ const completeUploadSchema = z.object({
  *       resized renditions), and any entity links. Each file says whether an
  *       application uses it (`inUse`) and, when none does, since when
  *       (`unreferencedSince`) — a file not in use is never removed for you
- *       (ADR 0041 D5). `inUse=false` lists only those.
+ *       (ADR 0041 D5). `inUse=false` lists only those. The list is your
+ *       library — `active` files, and `blocked` ones removed after a legal
+ *       claim — newest first; `status=trash` lists instead the files you moved
+ *       to trash (`trashedAt`, most recently trashed first), which you can
+ *       restore (`POST /assets/{id}/restore`) or delete for good.
  *     parameters:
+ *       - name: status
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: ['trash']
  *       - name: inUse
  *         in: query
  *         required: false
@@ -342,9 +352,11 @@ router.get(
     const offset = Math.max(0, Number(req.query.offset) || 0);
     const inUseQuery = singleQueryValue(req.query.inUse);
     const inUse = inUseQuery === undefined ? undefined : inUseQuery === 'true';
+    const listing = singleQueryValue(req.query.status) === 'trash' ? 'trash' : 'library';
 
     const { files, total } = await assetService.listFilesByUser(user._id, limit, offset, {
       inUse,
+      listing,
     });
 
     sendSuccess(res, {
@@ -3867,7 +3879,11 @@ router.post(
 
 /**
  * @route POST /api/assets/:id/restore
- * @desc Restore file from trash
+ * @desc Restore the owner's file from trash: `active` again, served again,
+ *       `file.restored` to every application using it. 409
+ *       `FILE_NOT_IN_TRASH` (with the file's `status`) for a file that is not
+ *       in trash — restored or deleted meanwhile, or `blocked` after a content
+ *       claim, which only a reinstated claim brings back (ADR 0041 D10).
  * @access Private — the file's owner only; any other caller gets 404
  */
 router.post(

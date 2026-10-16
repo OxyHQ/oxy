@@ -11,6 +11,11 @@ export const listAssetsQuerySchema = z.object({
   offset: z.string().regex(/^\d+$/).optional(),
   /** `false`: only files no application uses — *not in use* (ADR 0041 D5). */
   inUse: z.enum(['true', 'false']).optional(),
+  /**
+   * `trash`: only the files the owner moved to trash (ADR 0041 D5). Absent:
+   * the library — `active` and `blocked` files, never trashed ones.
+   */
+  status: z.enum(['trash']).optional(),
 });
 
 // GET /assets/admin/lifecycle/sweeps

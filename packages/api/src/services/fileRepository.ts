@@ -383,19 +383,31 @@ export async function findLiveFilesBySha256(
  * clutter to clear while the claim is decided (D10); it is listed again once
  * the claim closes.
  */
+/** Which of an account's files `listFilesByOwner` answers. */
+export type OwnerFileListing = 'library' | 'trash';
+
+/**
+ * One page of an ACCOUNT's files. `library` (the default) is what the person
+ * keeps: `active` files and `blocked` ones (shown as removed after a claim),
+ * newest first. `trash` is what they moved to trash and can restore or delete
+ * for good (ADR 0041 D5), most recently trashed first. A trashed file is never
+ * in the library: it is not served, and listing it among the person's files
+ * would offer actions on something they put away.
+ */
 export async function listFilesByOwner(
   ownerUserId: string,
   limit: number,
   offset: number,
-  options: { inUse?: boolean } = {},
+  options: { inUse?: boolean; listing?: OwnerFileListing } = {},
 ): Promise<{ files: FileRecord[]; total: number }> {
   const db = getDb();
   const referenced = exists(
     db.select({ one: sql`1` }).from(fileReferences).where(eq(fileReferences.fileId, files.id)),
   );
+  const trash = options.listing === 'trash';
   const where = and(
     eq(files.ownerUserId, ownerUserId),
-    ne(files.status, 'deleted'),
+    trash ? eq(files.status, 'trash') : inArray(files.status, ['active', 'blocked']),
     options.inUse === undefined
       ? undefined
       : options.inUse
@@ -407,7 +419,17 @@ export async function listFilesByOwner(
   );
 
   const [rows, [totals]] = await Promise.all([
-    db.select().from(files).where(where).orderBy(desc(files.createdAt)).limit(limit).offset(offset),
+    db
+      .select()
+      .from(files)
+      .where(where)
+      .orderBy(
+        ...(trash ? [sql`${files.trashedAt} desc nulls last`] : []),
+        desc(files.createdAt),
+        desc(files.id),
+      )
+      .limit(limit)
+      .offset(offset),
     db.select({ total: count() }).from(files).where(where),
   ]);
 
