@@ -1,7 +1,7 @@
 # ADR 0041 — Who owns a file, who uses it, and when it goes away
 
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
-  1, 2 and 3 of the rollout are implemented on this branch)
+  1, 2, 3 and 4a of the rollout are implemented on this branch)
 - Date: 2026-10-16
 - Decided by: the owner of Oxy
 - Changes: the `files` owner model of `0124_files_per_owner_live_key`
@@ -242,9 +242,9 @@ application, not with the business's session).
   by a test) — and FAILS naming every value that resolves to no single active
   application. `scripts/file-references-preflight.ts` lists the values a
   database holds before deploying. A trigger mirrors the previous image's
-  `file_links` writes until `0171_drop_file_links` (post; numbered 0168, then
-  0169, until stages 2 and 3 each put their `pre` migration in front of it, so
-  one release can carry all three stages) drops the table.
+  `file_links` writes until `0172_drop_file_links` (post; numbered 0168, then
+  0169, then 0170, as stages 2, 3 and 4a each put their `pre` migration in
+  front of it, so one release can carry all four) drops the table.
   For that window the previous image does not see references the new image
   writes.
 - **Who may reference.** `POST`/`DELETE /assets/service/references` (batch of
@@ -358,7 +358,8 @@ reference or a re-upload restores it until then.
 
 Migration `0170_application_file_events` (pre): `file_sources`,
 `file_event_deliveries`, and three nullable `applications.files_webhook_*`
-columns. The drop of `file_links` moved to `0171_drop_file_links` (post).
+columns. The drop of `file_links` moved to `0171_drop_file_links` (post), and
+then to `0171` (stage 4a).
 
 - **Import by URL (D7).** `POST /assets/service/app/import`
   (`files:app:write`) `{ sourceUrl, visibility, reference?, revalidate? }`;
@@ -470,6 +471,150 @@ columns. The drop of `file_links` moved to `0171_drop_file_links` (post).
   the application (the developer asked); on an account hard delete such a
   row still refuses the cascade, as an account's own file always did. The D2
   growth alert is still not built.
+
+### Stage 4a as built (D10: claims and the takedown)
+
+Migration `0171_content_claims` (pre): six tables, `files.status` gains
+`blocked`, `users.staff_capabilities` admits `content:claims`. The drop of
+`file_links` is now `0172_drop_file_links` (post). The two widened CHECKs are
+added `NOT VALID` (as 0166 did); the three per-owner live uniques are rebuilt
+with `blocked` in their predicate, behind a guard that skips an index already
+rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
+`files`).
+
+- **The intake.** `POST /content-claims` is public — the Oxy website's
+  "Report content" page (OxyHQ/website#173, `src/lib/contentClaims.ts`)
+  posts there; a valid bearer records the submitting account, none is needed
+  (an unusable bearer is simply anonymous). The body is
+  `contentClaimSubmissionSchema` in `@oxy.so/contracts` 4.18.0 (strict; every
+  message a key under `contentClaim.errors.*`, which the website translates
+  and the API answers as its own English sentence): `201 { id, reference }`
+  (`OXY-XXXX-XXXX`, Crockford base32, random), or `400 { error, code:
+  CONTENT_CLAIM_INVALID, fields }` with one sentence per body path. Ten an
+  hour per network (`hashedIpKey`) and five a day per claimant email (an HMAC
+  under its own server key; the address never reaches Redis): 429 with
+  `Retry-After`. CORS is the registry's: `oxy.so` is a first-party
+  application origin, so nothing was added. The claimant's confirmation, with
+  the reference, is queued in the same transaction (below).
+- **What a claim stores.** `content_claims` (kind, relationship, state,
+  submitting account, `deadline_at`, `closed_at`); `content_claim_claimants`
+  — name, email, organization, signature, description and original-work URL,
+  each SEALED with `secretBox` (context `content-claim|<id>|<field>`), opened
+  only for the reviewer and the email worker. Retention: `expires_at` is set
+  when the claim closes, to three years after it (the US limitation period for
+  a copyright action, within the EU's range), and the expiry sweep deletes the
+  row; every read already treats an expired row as erased. The claim keeps
+  its kind, state, targets and trail. A privacy claim by the affected person
+  is the GDPR erasure request: `deadline_at` = received + 30 days (a CHECK
+  ties it to exactly those), and the queue filters and sorts by it.
+- **What a URL names** (`contentClaimUrls.ts`, never fetched — a fetch would
+  make the intake an SSRF probe): `cloud.oxy.so/<id>`, the API's `/cdn/<id>`,
+  `/assets/<id>` (`/stream`, `/download`, `/url`, with or without `/api`) on
+  `api.oxy.so` or the host the claim was posted to, and a stored key
+  (`cloud.oxy.so/content/…`, `/variants/…`: the row whose original or
+  rendition is that key, else by the SHA-256 in it). Any status resolves —
+  the bytes are what matter. Everything else (a Mention post, a Mercaria
+  listing) is an `unresolved` target; the reviewer attaches the files it
+  shows by id (`source = 'staff'`). A target keeps the bytes' `sha256`: the
+  file row can go (`file_id` is `SET NULL`).
+- **The review** (`content:claims`, the fourth graded staff capability —
+  READING is graded too, since a claim holds the claimant's personal data):
+  `GET /content-claims` (`state`, `kind`, `deadline=overdue|due_soon|any`,
+  cursor), `GET /:id`, `POST /:id/review`, `/:id/targets { fileIds, url? }`,
+  `/:id/block { targetIds?, note? }`, `/:id/reject { reason }`,
+  `/:id/counter-notice { note }`, `/:id/reinstate { note? }`,
+  `/:id/uphold { note? }`, `/:id/notes { note }`, and `GET /access` →
+  `{ canReview }` for the console. States: `received → reviewing → actioned
+  | rejected`, `received → rejected`, `actioned → counter_noticed →
+  reinstated | upheld`; each transition is a conditional write under the
+  claim's row lock (409 `CONTENT_CLAIM_STATE_CONFLICT` naming the state it is
+  in). `content_claim_events` is the audit trail — action, actor (no foreign
+  key: the trail outlives the account), from/to state, staff's note, details
+  — append-only (a trigger refuses an UPDATE).
+- **Blocking acts on bytes.** For each chosen target's SHA-256, under the
+  content-hash locks every insert of those bytes takes (sorted, one
+  transaction): a `blocked_content_hashes (sha256, claim_id)` row, EVERY live
+  row holding them — any owner's, `active` or `trash` — set `blocked`
+  (`trashed_at` remembers trash), `file.blocked` queued for the owning and
+  every referencing application (D9), an email for each owning ACCOUNT, and
+  the claimant's "acted on" email the first time. After commit each row
+  leaves serving through the stage-2 machinery (`leaveServing`: off
+  `public/`, CloudFront invalidated, `/<id>` too); the sweep's
+  `unpublishTrashed` step now also retries a `blocked` row left on `public/`,
+  and renditions are now spelled by SERVED status like the original (before,
+  by visibility alone, so one generated for a trashed public file landed on
+  the CDN). `blocked` is live: it keeps its per-owner unique, counts toward
+  quota, and keeps its bytes from the purge.
+- **The bytes stay out, for everyone.** `fileRepository.insertFile` — the
+  one insert of every upload, import and owner copy, always under the
+  content-hash lock — refuses a listed hash: 451 `CONTENT_BLOCKED`. Each upload
+  path also checks before it spends work or writes an object (the streamed
+  path deletes its temp object; a promotion or a re-spelling copy happens
+  only after the check), and refuses handing back the owner's own existing
+  row of those bytes, which is blocked. `POST /assets/init` takes the
+  declared SHA-256 as the content's identity, so it is now required to be hex
+  (lowercased), and EVERY presigned PUT carries it as the checksum S3
+  enforces — before, outside admitted mode, the bytes behind a declared hash
+  were never checked, which would have let an uploader store blocked bytes
+  under another hash.
+- **Reinstating** (`counter_noticed → reinstated`) removes this claim's
+  blocklist rows; bytes no OTHER claim still blocks return to `active` (or
+  `trash`), are served again (`enterServing`, back under `public/`), and
+  `file.unblocked` and the owners' emails are queued. Upheld blocks stand.
+- **Evidence.** Bytes an OPEN claim (`received`, `reviewing`, `actioned`,
+  `counter_noticed`) names — a resolved target or a blocked hash — are
+  evidence: when their last row is deleted by anyone (the owner, an account's
+  or application's deletion, the lifecycle's purge), the storage-deletion
+  worker keeps the bare object, still deletes a `public/` copy, and defers the
+  ledger row (every 6 hours; not a failure) until the claim closes. The
+  reviewer previews any target's bytes, whatever the file's status, on a
+  five-minute HMAC token bound to the claim, target, file and reviewer (`POST
+  /:id/targets/:targetId/preview` → `GET …/content?pt=`, `no-store`, CSP
+  `sandbox`, capability re-checked). A blocked file under an open claim is not
+  listed as *not in use*; the lifecycle's new `purgeBlocked` step tombstones
+  and purges an APPLICATION's blocked file unused for 30 days once no open
+  claim holds it (never through trash, which would serve it on restore). An
+  account's blocked file is its person's to delete.
+- **Emails** (`content_claim_notifications`, an outbox written in the
+  transaction of the change; `contentClaimNotification.worker.ts`, every API
+  task, `CONTENT_CLAIM_EMAIL_WORKER_ENABLED`, default on; at least once,
+  backoff, dead letter after 12): to the claimant — received, actioned,
+  rejected (with the reason), counter-noticed (staff's summary), reinstated,
+  upheld; to each owning account — blocked (its files listed), reinstated,
+  upheld. No address or content is stored: the claimant's address is opened
+  and an account's read at send time, so an erased statement or an account
+  without email dead-letters the row. Neither party is named to the other;
+  replies go to legal@oxy.so with the reference. Rows expire after 90 days.
+- **Console.** "Content claims" under a Staff group, shown when `/access`
+  says so: the queue (state, kind, deadline filters; overdue in red) and a
+  claim's page (the statement or its erasure date, targets with file status
+  and owner kind, previews, attaching files, every action behind a
+  confirmation that says what it does, the trail). The console's CSP admits
+  `https://api.oxy.so` for `img-src`/`media-src`, for the previews.
+- **SDK.** `@oxy.so/core` 4.14.0: `Asset.status` gains `blocked`, the live
+  service views take `AssetLiveStatus`, uploads and imports document 451
+  `CONTENT_BLOCKED`; the file manager shows a blocked file as "Removed after
+  a legal claim". `@oxy.so/contracts` 4.18.0 carries the claim contract.
+- **Not done here (stage 4b).** The API's file cache is per process for five
+  minutes, so another task that cached a file just before it was blocked can
+  still stream it for that long (the CDN is invalidated at once); the
+  cross-task invalidation is stage 4b, with the other 4b items. An owner's
+  counter-notice arrives by email and staff record it; there is no form for
+  it.
+
+### Required changes in other repositories (stage 4a)
+
+- **The website** (OxyHQ/website#173): nothing to change for the contract —
+  its client already matches. When `@oxy.so/contracts` 4.18.0 is published it
+  can replace its local schema with `contentClaimSubmissionSchema` (same keys)
+  and import `CONTENT_CLAIM_LIMITS`, `CONTENT_CLAIM_KINDS` and
+  `CLAIMANT_RELATIONSHIPS` from `@oxy.so/contracts/client`.
+- **Every product that registered a file-events endpoint** handles
+  `file.blocked` (hide or replace what it shows; the file is not served) and
+  `file.unblocked`. A product uploading user content handles 451
+  `CONTENT_BLOCKED`.
+- **Operations:** grant `content:claims` (with `is_staff`) to the people who
+  review claims; make sure legal@oxy.so reaches them.
 
 ### Required changes in other repositories (stage 3)
 

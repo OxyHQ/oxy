@@ -1,16 +1,16 @@
 # Changelog
 
-## [11.8.0] - 2026-10-16
+## [Unreleased]
 
-Needs `@oxy.so/core` 4.17.0 (exact peer) and `@oxy.so/contracts` 4.21.0.
+Needs `@oxy.so/core` 4.15.0 (and so `@oxy.so/contracts` 4.19.0).
 
 ### Added
 
-- Supervision (ADR 0041): `SupervisionScreen`
-  (`showBottomSheet({ screen: 'Supervision', props: { approvalId?, childAccountId? } })`),
-  `useSupervision`, and its entries in Manage Account and Create Account (the
-  personal-root option). Guardians review purchase approvals line by line with
-  fresh reauthentication; children read their own.
+- The file manager marks a file no application uses "Not in use" (ADR 0041
+  D5; informational, nothing is removed for it) and one taken down after a
+  content claim "Removed after a legal claim" (D10; served to nobody).
+- Removing an asset's last link no longer marks it trashed in `assetStore`,
+  which matches a link by `applicationId` (falling back to `app`).
 
 ## [11.7.0] - 2026-10-16
 
