@@ -599,6 +599,19 @@ export class HttpService {
   }
 
   /**
+   * A raw byte body — `Uint8Array` (Node's `Buffer` included), `ArrayBuffer`,
+   * or `Blob` — sent exactly as given, with the caller's `Content-Type`. The
+   * service-token stream uploads (`/assets/service/app`, `/service/user-media`)
+   * take the file's bytes as the whole body, not as JSON or multipart.
+   */
+  private isBinaryBody(data: unknown): data is ArrayBuffer | ArrayBufferView | Blob {
+    if (typeof ArrayBuffer !== 'undefined') {
+      if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) return true;
+    }
+    return typeof Blob !== 'undefined' && data instanceof Blob;
+  }
+
+  /**
    * Main request method - handles everything in one place
    */
   async request<T = unknown>(config: RequestConfig): Promise<T> {
@@ -707,6 +720,7 @@ export class HttpService {
         // Determine if data is FormData using robust detection
         const isFormData = this.isFormData(data);
         const isUrlEncoded = this.isUrlSearchParams(data);
+        const isBinary = !isFormData && this.isBinaryBody(data);
 
         // Build headers - start with defaults
         const headers: Record<string, string> = {
@@ -720,6 +734,9 @@ export class HttpService {
         if (method !== 'GET') {
           if (isUrlEncoded) {
             headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+          } else if (isBinary) {
+            // The caller's `Content-Type` (merged below) names the bytes.
+            headers['Content-Type'] = 'application/octet-stream';
           } else if (!isFormData) {
             headers['Content-Type'] = 'application/json';
           }
@@ -761,7 +778,7 @@ export class HttpService {
         // it here keeps the body identical across every platform.
         const bodyValue =
           method !== 'GET' && data
-            ? isFormData
+            ? isFormData || isBinary
               ? data
               : isUrlEncoded
                 ? data.toString()

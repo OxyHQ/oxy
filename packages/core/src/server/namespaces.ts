@@ -26,10 +26,15 @@ import {
 import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
+  ApplicationFile,
+  ApplicationFilePage,
+  ApplicationFileUpload,
+  FileVisibility,
   Notification,
   ServiceAssetMetadata,
   ServiceAssetMetadataBySha,
   ServiceLinkedDownloadUrl,
+  ServiceUserMediaFile,
 } from '../models/interfaces';
 import { AssetsApi } from '../api/assets';
 import { NotificationsApi } from '../api/notifications';
@@ -58,6 +63,40 @@ const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
 /** Server-side cap of `POST /assets/service/linked-url`. */
 const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+/** A header value fetch accepts on every runtime: printable ASCII only. */
+const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
+
+/** The bytes of a streamed service upload: sent as the whole request body. */
+export type ServiceUploadBody = Uint8Array | ArrayBuffer | Blob;
+
+/** What `uploadAppFile` and `uploadUserMedia` may say about the bytes besides their type. */
+export interface ServiceUploadDescription {
+  /**
+   * Stored as the file's original name. Sent as a header, so only printable
+   * ASCII is sent; any other name is left out and the server names the file.
+   */
+  originalName?: string;
+  /** Intrinsic media metadata (`x-media-metadata`), a JSON object. */
+  metadata?: Record<string, unknown>;
+  /** Abort the upload. */
+  signal?: AbortSignal;
+  /** Per-attempt timeout in ms; the SDK default is short for a file upload. */
+  timeout?: number;
+}
+
+/** The headers both streamed service uploads share. */
+function uploadHeaders(
+  mime: string,
+  description: ServiceUploadDescription,
+): Record<string, string> {
+  return {
+    'Content-Type': mime,
+    ...(description.originalName && HEADER_SAFE_PATTERN.test(description.originalName)
+      ? { 'x-original-name': description.originalName }
+      : {}),
+    ...(description.metadata ? { 'x-media-metadata': JSON.stringify(description.metadata) } : {}),
+  };
+}
 
 const REPUTATION_CACHE_PREFIX = 'GET:/reputation/';
 
@@ -274,6 +313,110 @@ export class ServerAssetsApi extends AssetsApi {
       ),
     );
     return settled.flat();
+  }
+
+  /**
+   * Store a file THIS application owns (`POST /assets/service/app`, scope
+   * `files:app:write`, ADR 0041) — platform artwork no person owns. The owner
+   * is always the calling application; its bytes count against the account
+   * that owns the application. Image or video only, at most 40 MiB.
+   *
+   * `visibility` is required: `public` and `unlisted` are readable by anyone
+   * with the link; `private` by no person — only this application, through
+   * {@link linkedDownloadUrls}. Idempotent per (application, bytes): re-uploading
+   * bytes this application already holds returns that file with
+   * `deduplicated: true`, its visibility unchanged.
+   */
+  async uploadAppFile(
+    bytes: ServiceUploadBody,
+    mime: string,
+    options: ServiceUploadDescription & { visibility: FileVisibility },
+  ): Promise<ApplicationFileUpload> {
+    return lane(this.ctx).request<ApplicationFileUpload>('POST', '/assets/service/app', bytes, {
+      headers: { ...uploadHeaders(mime, options), 'x-visibility': options.visibility },
+      cache: false,
+      retry: false,
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.timeout ? { timeout: options.timeout } : {}),
+    });
+  }
+
+  /**
+   * Change the visibility of one of this application's files
+   * (`PATCH /assets/service/app/:id/visibility`, `files:app:write`). Rejects
+   * with a 404 for a file that is not this application's.
+   */
+  async setAppFileVisibility(fileId: string, visibility: FileVisibility): Promise<ApplicationFile> {
+    const res = await lane(this.ctx).request<{ file: ApplicationFile }>(
+      'PATCH',
+      `/assets/service/app/${encodeURIComponent(fileId)}/visibility`,
+      { visibility },
+      { cache: false },
+    );
+    return res.file;
+  }
+
+  /**
+   * Delete one of this application's files (`DELETE /assets/service/app/:id`,
+   * `files:app:delete`); its storage is purged in the background. Rejects with
+   * a 404 for a file that is not this application's (or is already deleted)
+   * and a 409 `FILE_IN_USE` while somebody else still holds it.
+   */
+  async deleteAppFile(fileId: string): Promise<void> {
+    await lane(this.ctx).request<unknown>(
+      'DELETE',
+      `/assets/service/app/${encodeURIComponent(fileId)}`,
+      undefined,
+      { cache: false },
+    );
+  }
+
+  /**
+   * One page of this application's own files, newest first
+   * (`GET /assets/service/app`, `files:app:write` or `files:app:delete`).
+   * Pass the returned `nextCursor` back as `cursor` for the next page.
+   */
+  async listAppFiles(
+    options: { limit?: number; cursor?: string } = {},
+  ): Promise<ApplicationFilePage> {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.set('limit', String(options.limit));
+    if (options.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return lane(this.ctx).request<ApplicationFilePage>(
+      'GET',
+      `/assets/service/app${query ? `?${query}` : ''}`,
+      undefined,
+      { cache: false },
+    );
+  }
+
+  /**
+   * Store a public file OWNED BY an existing local user
+   * (`POST /assets/service/user-media`, the staff-granted scope
+   * `files:user-media:write`) — e.g. importing a person's media into their own
+   * file space. Image or video only, at most 40 MiB. Rows are per owner: bytes
+   * that user already holds return their existing file.
+   */
+  async uploadUserMedia(
+    ownerUserId: string,
+    bytes: ServiceUploadBody,
+    mime: string,
+    options: ServiceUploadDescription = {},
+  ): Promise<ServiceUserMediaFile> {
+    const res = await lane(this.ctx).request<{ file: ServiceUserMediaFile }>(
+      'POST',
+      '/assets/service/user-media',
+      bytes,
+      {
+        headers: { ...uploadHeaders(mime, options), 'x-owner-user-id': ownerUserId },
+        cache: false,
+        retry: false,
+        ...(options.signal ? { signal: options.signal } : {}),
+        ...(options.timeout ? { timeout: options.timeout } : {}),
+      },
+    );
+    return res.file;
   }
 }
 

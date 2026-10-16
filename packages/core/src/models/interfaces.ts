@@ -578,7 +578,16 @@ export interface Asset {
   mime: string;
   ext: string;
   originalName?: string;
-  ownerUserId: string;
+  /**
+   * The owning account. `null` (or absent) when the file is not an account's:
+   * a system namespace, or an APPLICATION ({@link Asset.ownerApplicationId}).
+   */
+  ownerUserId?: string | null;
+  /**
+   * The Oxy application that owns the file — platform artwork no person owns
+   * (ADR 0041). Present only on an application-owned file.
+   */
+  ownerApplicationId?: string;
   status: 'active' | 'trash' | 'deleted';
   visibility: FileVisibility;
   usageCount: number;
@@ -746,6 +755,55 @@ export interface ServiceAssetMetadata {
    * asset a user attached is really that user's. Absent for every other caller.
    */
   ownerUserId?: string | null;
+  /**
+   * The application that owns the file (ADR 0041), on the same terms as
+   * `ownerUserId`, and only for an application-owned file.
+   */
+  ownerApplicationId?: string;
+}
+
+/**
+ * A file an Oxy APPLICATION owns (ADR 0041), as the `/assets/service/app`
+ * routes return it.
+ */
+export interface ApplicationFile {
+  id: string;
+  sha256: string;
+  size: number;
+  mime: string;
+  ext: string;
+  originalName?: string;
+  ownerApplicationId: string;
+  status: 'active' | 'trash';
+  visibility: FileVisibility;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `POST /assets/service/app`: the stored file, and whether it already existed. */
+export interface ApplicationFileUpload {
+  file: ApplicationFile;
+  /**
+   * True when this application already held these bytes: the existing file
+   * comes back AS IT IS, its visibility included.
+   */
+  deduplicated: boolean;
+}
+
+/** One page of `GET /assets/service/app`, newest first. */
+export interface ApplicationFilePage {
+  files: ApplicationFile[];
+  /** Pass to the next call; absent on the last page. */
+  nextCursor?: string;
+}
+
+/** `POST /assets/service/user-media`: the stored file, owned by the named user. */
+export interface ServiceUserMediaFile {
+  id: string;
+  sha256: string;
+  size: number;
+  mime: string;
+  visibility: FileVisibility;
 }
 
 /**

@@ -54,6 +54,8 @@ export type {
   CapabilityTicketIntrospection,
   CreateExecutionAuthorizationInput,
   ServiceCapabilityCatalog,
+  ServiceUploadBody,
+  ServiceUploadDescription,
 } from './namespaces';
 export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './middleware';
 // Application roles: the app's own permissions, held by people, decided in Oxy.

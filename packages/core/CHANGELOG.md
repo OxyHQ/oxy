@@ -51,6 +51,39 @@ Needs `@oxy.so/contracts` 4.20.0.
   for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
+Needs the Oxy API with application-owned files (ADR 0041, migration
+`0167_application_owned_files`).
+
+### Added
+
+- `OxyServer.assets.uploadAppFile(bytes, mime, { visibility, originalName?, metadata?, signal?, timeout? })`
+  → `ApplicationFileUpload`: stores a file the CALLING APPLICATION owns
+  (`POST /assets/service/app`, scope `files:app:write`). `visibility` is
+  required; a re-upload of the same bytes returns the existing file,
+  `deduplicated: true`, visibility unchanged.
+- `OxyServer.assets.setAppFileVisibility(fileId, visibility)` → `ApplicationFile`,
+  `deleteAppFile(fileId)` (`files:app:delete`; 404 for another application's
+  file, 409 `FILE_IN_USE`), `listAppFiles({ limit?, cursor? })` →
+  `ApplicationFilePage`.
+- `OxyServer.assets.uploadUserMedia(ownerUserId, bytes, mime, { originalName?, metadata?, signal?, timeout? })`
+  → `ServiceUserMediaFile`, over the existing `POST /assets/service/user-media`
+  (`files:user-media:write`).
+- Types `ApplicationFile`, `ApplicationFileUpload`, `ApplicationFilePage`,
+  `ServiceUserMediaFile`; `ServiceUploadBody`, `ServiceUploadDescription` from
+  `@oxy.so/core/server`.
+- `HttpService` sends a `Uint8Array` / `ArrayBuffer` / `Blob` body as raw bytes
+  under the caller's `Content-Type` (default `application/octet-stream`)
+  instead of JSON-encoding it.
+
+### Changed
+
+- `Asset.ownerUserId` is optional and nullable (`string | null`): a file owned
+  by an application or a system namespace has no owning account. New
+  `Asset.ownerApplicationId?` and `ServiceAssetMetadata.ownerApplicationId?`.
+  Code that assumed `ownerUserId: string` must handle its absence.
+
+## 4.15.0
+
 Needs `@oxy.so/contracts` 4.19.0. Additive: nothing existing changes behaviour.
 
 ### Added
