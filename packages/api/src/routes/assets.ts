@@ -2220,9 +2220,12 @@ router.delete(
  *     summary: Get file metadata
  *     description: >
  *       Return metadata for the file (size, MIME, SHA-256, variants, links,
- *       usage count, status). Only the owner can fetch metadata; signed
- *       URLs (`/assets/:id/url` or `/assets/:id/stream`) are the public
- *       access path.
+ *       usage count, status). The owner (the session's subject or its
+ *       operator) gets every link. Anybody else gets a `public` or `unlisted`
+ *       file — one already readable by whoever has its link — with only the
+ *       links they created themselves, and a 404 for a `private` one. Signed
+ *       URLs (`/assets/:id/url` or `/assets/:id/stream`) are the access path
+ *       for bytes.
  *     parameters:
  *       - name: id
  *         in: path
@@ -2258,8 +2261,24 @@ router.get(
       throw new NotFoundError('File not found');
     }
 
+    // Somebody else's PRIVATE file does not exist to this caller. A public or
+    // unlisted one may be described — whoever has the link can read the bytes
+    // anyway, and Mercaria's catalog check reads a store's or a manufacturer's
+    // public file this way — but its links are the owner's record of where it
+    // is used (other people's entity ids, webhook URLs), so a non-owner sees
+    // only the links it created itself.
+    const isOwner = await sessionOwnsFile(req, file);
+    if (!isOwner && file.visibility === 'private') {
+      throw new NotFoundError('File not found');
+    }
     if (!(await assetService.canUserAccessFile(file, user._id)))
       throw new ForbiddenError('Access denied');
+    const operatorId = isOwner ? null : await resolveOperatorId(req);
+    const visibleLinks = isOwner
+      ? file.links
+      : file.links.filter(
+          (link) => link.createdBy === user._id.toString() || link.createdBy === operatorId,
+        );
 
     logger.debug('File metadata retrieved', {
       userId: user._id,
@@ -2284,7 +2303,7 @@ router.get(
         usageCount: file.links.length,
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
-        links: file.links.map(serializeLink),
+        links: visibleLinks.map(serializeLink),
         variants: file.variants.map(serializeVariant),
         metadata: file.metadata,
       },

@@ -7938,7 +7938,7 @@
           "Files"
         ],
         "summary": "Get file metadata",
-        "description": "Return metadata for the file (size, MIME, SHA-256, variants, links, usage count, status). Only the owner can fetch metadata; signed URLs (`/assets/:id/url` or `/assets/:id/stream`) are the public access path.\n",
+        "description": "Return metadata for the file (size, MIME, SHA-256, variants, links, usage count, status). The owner (the session's subject or its operator) gets every link. Anybody else gets a `public` or `unlisted` file — one already readable by whoever has its link — with only the links they created themselves, and a 404 for a `private` one. Signed URLs (`/assets/:id/url` or `/assets/:id/stream`) are the access path for bytes.\n",
         "parameters": [
           {
             "name": "id",

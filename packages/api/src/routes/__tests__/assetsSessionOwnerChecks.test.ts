@@ -275,3 +275,69 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
     expect((await row(id)).status).toBe('trash');
   });
 });
+
+describe('GET /assets/:id — a file’s links are its owner’s; a private file is the owner’s alone', () => {
+  async function linkedBy(fileId: string, createdBy: string, entityId: string) {
+    await getDb()
+      .insert(fileLinks)
+      .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy });
+  }
+
+  it('gives the owner, and the operator acting for another account, every link', async () => {
+    const owner = await account();
+    const other = await account();
+    const id = await fileOf(owner, { visibility: 'private' });
+    await linkedBy(id, owner, 'own-post');
+    await linkedBy(id, other, 'their-post');
+
+    actAs(owner);
+    const own = await send('GET', `/assets/${id}`);
+    expect(own.status).toBe(200);
+    expect((own.body.data?.file as { links: unknown[] }).links).toHaveLength(2);
+
+    actAs(await account(), owner);
+    const operated = await send('GET', `/assets/${id}`);
+    expect((operated.body.data?.file as { links: unknown[] }).links).toHaveLength(2);
+  });
+
+  it('describes a PUBLIC file to anyone — the fields Mercaria’s catalog check reads — with only their own links', async () => {
+    const owner = await account();
+    const reader = await account();
+    const id = await fileOf(owner, { visibility: 'public' });
+    await linkedBy(id, owner, 'owner-post');
+    await linkedBy(id, reader, 'reader-post');
+
+    actAs(reader);
+    const res = await send('GET', `/assets/${id}`);
+
+    expect(res.status).toBe(200);
+    const file = res.body.data?.file as {
+      id: string;
+      ownerUserId: string;
+      status: string;
+      visibility: string;
+      mime: string;
+      size: number;
+      links: Array<{ entityId: string; createdBy: string }>;
+    };
+    expect(file).toMatchObject({
+      id,
+      ownerUserId: owner,
+      status: 'active',
+      visibility: 'public',
+      mime: 'image/png',
+      size: 10,
+    });
+    expect(file.links.map((link) => link.entityId)).toEqual(['reader-post']);
+  });
+
+  it('is 404 for somebody else’s PRIVATE file', async () => {
+    const id = await fileOf(await account(), { visibility: 'private' });
+
+    actAs(await account());
+    const res = await send('GET', `/assets/${id}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.data).toBeUndefined();
+  });
+});
