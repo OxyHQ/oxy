@@ -38,7 +38,6 @@
       "!**/__fixtures__",
       "!**/*.golden.json",
       "!packages/commons/modules/oxy-identity-host/vectors.json",
-      "!.github/scripts/decisions-release-smoke/fixtures.json",
       // Exported Lottie animations.
       "!**/assets/lottie"
     ]

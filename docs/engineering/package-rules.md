@@ -59,6 +59,22 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 ## Publishing
 
+**Releases go through `.github/workflows/release-packages.yml`, never a laptop.** Dispatch it from
+protected `main` with the package's name (`@oxy.so/core`, `create-oxy-app`, … — any workspace
+package that is not `private`), the exact `main` commit to release, and `dry_run` (default `true`).
+The `build` job holds no credential: it installs frozen, builds the package's workspace
+dependencies, runs the package's own `prepublishOnly`, packs with `bun pm pack`, and
+`.github/scripts/release-package.mjs inspect` refuses a tarball that is not that version, still
+carries a `workspace:`/`catalog:` range, lacks a declared entry point, or depends on an
+`@oxy.so/*` range nothing on the registry satisfies yet. The `publish` job (environment `npm`,
+`id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
+`npm publish ./<tgz> --provenance --access public` with npm trusted publishing (OIDC): there is
+no `NPM_TOKEN`. A release that spans packages goes dependency first (contracts → protocol /
+telemetry → core → services); `inspect` refuses a dependent whose dependency is not out yet.
+Each package needs its trusted publisher configured once on npmjs.com (repository `OxyHQ/oxy`,
+workflow `release-packages.yml`, environment `npm`). The publish path is a tarball on purpose;
+the rest of this section is why.
+
 `prepublishOnly` is where `@oxy.so/services` keeps its pre-flight (`assert-bun-publish` → `typescript` → `test` → `build`). It exists, and for `@oxy.so/services@30.0.0` it did not run. Measured 2026-08-17 on npm 10.9.8 / bun 1.3.14 with a probe package whose every lifecycle script appends its own name to a log file:
 
 | command | lifecycle scripts that ran |
