@@ -554,6 +554,35 @@ const PAIRS: Pair[] = [
     samples: [{ query: ' na ' }, { accountIds: ['a', 'b'] }],
   },
   {
+    name: 'appAssertionChallengeResponse',
+    check: client.appAssertionChallengeResponseCheck,
+    schema: contracts.appAssertionChallengeResponseSchema,
+    samples: [
+      { challenge: TICKET, requestHash: TICKET, expiresAt: ISO },
+      {
+        challenge: TICKET,
+        requestHash: TICKET,
+        expiresAt: ISO,
+        cloudProjectNumber: '123456789012',
+      },
+    ],
+  },
+  {
+    name: 'appAttestKeyResponse',
+    check: client.appAttestKeyResponseCheck,
+    schema: contracts.appAttestKeyResponseSchema,
+    samples: [{ keyId: `${'A'.repeat(43)}=` }],
+  },
+  {
+    name: 'appAssertionResponse',
+    check: client.appAssertionResponseCheck,
+    schema: contracts.appAssertionResponseSchema,
+    samples: [
+      { assertion: 'aGVhZA.Ym9keQ.c2ln', applicationId: 'app-1', platform: 'web', expiresAt: ISO },
+      { assertion: 'a.b.c', applicationId: 'app-2', platform: 'ios', expiresAt: ISO_LATER },
+    ],
+  },
+  {
     name: 'safetyPeopleResponse',
     check: client.safetyPeopleResponseCheck,
     schema: contracts.safetyPeopleResponseSchema,

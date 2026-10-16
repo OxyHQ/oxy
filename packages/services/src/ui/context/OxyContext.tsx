@@ -125,6 +125,7 @@ import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
 import { clearSignInFlows } from '../components/signIn/signInFlowStore';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
+import { AppAssertionProvider } from '../appAssertion/AppAssertionContext';
 
 export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
@@ -1742,7 +1743,18 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   return (
     <OxyRuntimeHandleProvider value={runtime}>
       <OxyAuthActionsContext.Provider value={authActionsValue}>
-        <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>
+        <OxyRuntimeContext.Provider value={contextValue}>
+          <AppAssertionProvider
+            oxyServices={oxyServices}
+            clientId={clientId}
+            userId={canUsePrivateApi ? (user?.id ?? null) : null}
+            sessionId={canUsePrivateApi ? activeSessionId : null}
+            storage={storage}
+            storageKeyPrefix={storageKeyPrefix}
+          >
+            {children}
+          </AppAssertionProvider>
+        </OxyRuntimeContext.Provider>
       </OxyAuthActionsContext.Provider>
     </OxyRuntimeHandleProvider>
   );

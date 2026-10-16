@@ -58,6 +58,18 @@ export type {
 } from './ui/runtime';
 export type { LogoutResult, OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
+// This app's Oxy-signed assertion of which app it is (ADR 0045), obtained and
+// refreshed by the provider; attach `getAppAssertionHeaders()` to a request
+// for a service that needs to know the app.
+export {
+  useAppAssertion,
+  AppAssertionProviderMissingError,
+} from './ui/appAssertion/AppAssertionContext';
+export type { UseAppAssertionResult } from './ui/appAssertion/AppAssertionContext';
+export type {
+  AppAssertionSnapshot,
+  AppAssertionStatus,
+} from './ui/appAssertion/appAssertionManager';
 export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './ui/hooks/useAuth';
 export { createDeferredProductAnalytics } from './ui/analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './ui/analytics/productAnalytics';

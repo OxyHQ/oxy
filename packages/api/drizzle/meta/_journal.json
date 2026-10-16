@@ -1247,6 +1247,13 @@
       "when": 1792171998868,
       "tag": "0178_ecosystem_invitations_and_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1792175649203,
+      "tag": "0179_application_agents_and_app_assertions",
+      "breakpoints": true
     }
   ]
 }

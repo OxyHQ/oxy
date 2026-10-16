@@ -16,6 +16,12 @@ export const appCredentialParams = z.object({
   credId: z.string().trim().min(1),
 });
 
+/** Route params with :appId and :agentAccountId (an application's agents, ADR 0044). */
+export const appAgentParams = z.object({
+  appId: z.string().trim().min(1),
+  agentAccountId: z.string().trim().min(1),
+});
+
 /** Route params with :appId and :grantId (application roles). */
 export const appRoleGrantParams = z.object({
   appId: z.string().trim().min(1),

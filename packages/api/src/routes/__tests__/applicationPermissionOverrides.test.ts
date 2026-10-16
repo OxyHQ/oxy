@@ -52,6 +52,7 @@ jest.mock('../../middleware/auth', () => ({
  */
 const mockIsStaffUser = jest.fn(() => false);
 jest.mock('../../middleware/requireStaff', () => ({
+  ...jest.requireActual('../../middleware/requireStaff'),
   isStaffUser: () => mockIsStaffUser(),
 }));
 

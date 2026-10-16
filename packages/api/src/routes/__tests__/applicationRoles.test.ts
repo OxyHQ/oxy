@@ -42,6 +42,7 @@ jest.mock('../../middleware/operator', () => ({
 }));
 
 jest.mock('../../middleware/requireStaff', () => ({
+  ...jest.requireActual('../../middleware/requireStaff'),
   isStaffUser: () => false,
 }));
 

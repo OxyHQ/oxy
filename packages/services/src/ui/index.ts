@@ -37,6 +37,8 @@ export { default as ProfileButton } from './components/ProfileButton';
 
 // Context + hooks
 export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';
+export { useAppAssertion } from './appAssertion/AppAssertionContext';
+export type { UseAppAssertionResult } from './appAssertion/AppAssertionContext';
 export { useAuth } from './hooks/useAuth';
 export type { AuthActions, AuthState, SignInOutcome, UseAuthReturn } from './hooks/useAuth';
 export { useFollow, useSeedFollowStatuses } from './hooks/useFollow';

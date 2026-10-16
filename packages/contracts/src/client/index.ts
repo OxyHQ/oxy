@@ -253,3 +253,16 @@ export {
   isErasureRequest,
   isRightsClaim,
 } from './contentClaims';
+
+export {
+  APP_ASSERTION_CHALLENGE_PURPOSES,
+  APP_ASSERTION_ERROR_CODES,
+  APP_ASSERTION_PLATFORMS,
+  OXY_APP_ASSERTION_AUDIENCE,
+  OXY_APP_ASSERTION_HEADER,
+  OXY_APP_ASSERTION_TTL_SECONDS,
+  OXY_APP_ASSERTION_TYPE,
+  appAssertionChallengeResponseCheck,
+  appAssertionResponseCheck,
+  appAttestKeyResponseCheck,
+} from './appAssertions';

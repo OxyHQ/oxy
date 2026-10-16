@@ -92,6 +92,30 @@ that sends none yields `null`. No header or token claim can move it. A
 financial effect belongs to the effective account, never the operator
 (`attributeFinancialEffect`); which balance FUNDS it is still ADR 0014's walk.
 
+## Which application: the app assertion
+
+A session does not say which app it is serving. Every official app shares one
+device session (ADR 0029), which has no client, and an app's `clientId` is
+public, so a request proves its application with an **app assertion** instead
+(ADR 0045): a five-minute `OXY-APP+JWT` Oxy signs for one person and one
+session after the app proves itself by platform — the browser's `Origin`, a
+Play Integrity verdict or an App Attest assertion. `@oxy.so/services` obtains
+and refreshes it; the app sends it as `X-Oxy-App-Assertion`, and a service reads
+the application only through `verifyAppAssertion(token, { session })` in
+`@oxy.so/core/server`. The registry, the routes, the claims and every refusal:
+[app-assertions.md](./app-assertions.md).
+
+An application's own agent may be confined to its own surfaces (ADR 0044):
+`application_agents` (`anywhere` | `own_application`, one row per agent at
+most) is written only by Oxy staff who may update the application
+(`PUT`/`DELETE /applications/:appId/agents/:agentAccountId`), for an active bot
+under an account the application's owner operates. A coordinator reads it with
+`GET /capabilities/agent-availability/:agentAccountId` (`capabilities:read` +
+`agency:coordinate`; `server.agency.agentAvailability(id)` in core):
+`{ anywhere: true }`, or `{ anywhere: false, applicationIds }`, and opens a
+confined agent only for a request whose verified app assertion names a listed
+application. An agent with no row is available anywhere.
+
 ## Why the pair, and not the account
 
 The same managed account can be reachable through two different people on one

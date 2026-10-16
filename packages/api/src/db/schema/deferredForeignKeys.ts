@@ -52,6 +52,8 @@ import {
  * the type rather than keeping a second copy that could drift from it.
  */
 
+import { appAssertionChallenges } from './appAssertionChallenges';
+import { applicationRecognition } from './applicationRecognition';
 import { accountEvents } from './accountEvents';
 import { storageObjectDeletions } from './storageObjectDeletions';
 import { identityLinkRequests } from './identityLinkRequests';
@@ -151,6 +153,26 @@ const PRICE_VERSION_LABEL_REASON =
   'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: applicationRecognition,
+    column: applicationRecognition.iosTeamId,
+    reason:
+      'An Apple Developer team id (ADR 0045), an identifier in Apple’s namespace, not an Oxy row.',
+  },
+  {
+    table: applicationRecognition,
+    column: applicationRecognition.iosBundleId,
+    reason: 'An Apple bundle id (ADR 0045), an identifier in Apple’s namespace, not an Oxy row.',
+  },
+  {
+    table: appAssertionChallenges,
+    column: appAssertionChallenges.sessionId,
+    reason:
+      'The `sessions.session_id` a two-minute app-assertion challenge may be spent in (ADR 0045). ' +
+      'The burn matches it against the caller’s verified session, so a challenge for a session ' +
+      'that ended is unspendable; the expiry sweep reclaims the row. A constraint would add a ' +
+      'cascade from the session sweep for nothing.',
+  },
   {
     table: supervisionPurchaseLines,
     column: supervisionPurchaseLines.merchantAccountId,

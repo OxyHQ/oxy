@@ -65,6 +65,7 @@ import {
   writeAgentRequesterCeiling,
 } from '../services/agentRequesterCeiling.service';
 import { capabilityAuditIdempotencyKeyHash } from '../services/capabilityAuditCorrelation';
+import { agentAvailability } from '../services/applicationAgents.service';
 import {
   autonomousSensitiveToolLimitError,
   capabilityGrantError,
@@ -1613,6 +1614,60 @@ router.post(
       }),
     );
     response.json({ assignments: assignments.filter((assignment) => assignment !== null) });
+  }),
+);
+
+/**
+ * @openapi
+ * /capabilities/agent-availability/{agentAccountId}:
+ *   get:
+ *     tags: [Capabilities]
+ *     summary: Where an agent is reachable from
+ *     description: >-
+ *       ADR 0044, coordinator service lane (capabilities:read + agency:coordinate). An agent
+ *       confined to its own application answers `{ anywhere: false, applicationIds }`: it is
+ *       reachable only from requests whose verified app assertion (`X-Oxy-App-Assertion`,
+ *       ADR 0045) names a listed application. Every other agent, including one Oxy has no row
+ *       for, answers `{ anywhere: true }`.
+ *     security: [{ serviceTokenAuth: [] }]
+ *     parameters:
+ *       - name: agentAccountId
+ *         in: path
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: The agent's availability (`AgentAvailability` in `@oxy.so/contracts`).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   required: [anywhere]
+ *                   properties:
+ *                     anywhere: { type: boolean, enum: [true] }
+ *                 - type: object
+ *                   required: [anywhere, applicationIds]
+ *                   properties:
+ *                     anywhere: { type: boolean, enum: [false] }
+ *                     applicationIds: { type: array, minItems: 1, items: { type: string } }
+ *       401: { description: No live service principal. }
+ *       403: { description: Missing capabilities:read or the agency:coordinate capability. }
+ */
+router.get(
+  '/agent-availability/:agentAccountId',
+  serviceAuthMiddleware,
+  asyncHandler(async (request: ServiceAuthRequest, response: Response) => {
+    if (
+      !(await livePrincipal(request, response, 'capabilities:read', AGENCY_COORDINATE_CAPABILITY))
+    )
+      return;
+    const agentAccountId = request.params.agentAccountId?.trim();
+    if (!agentAccountId) {
+      response.status(400).json({ error: 'invalid_agent_availability_request' });
+      return;
+    }
+    response.json(await agentAvailability(agentAccountId));
   }),
 );
 
