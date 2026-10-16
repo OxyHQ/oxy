@@ -1550,13 +1550,65 @@ describe('the clarity-kaana relationship (service_token, embeddings only)', () =
     });
   }
 
-  const embeddingsRequest = (modelLine: string, estimatedInputTokens: number) =>
+  const embeddingsRequest = (
+    modelLine: string,
+    estimatedInputTokens: number,
+    embeddingInputs = 4,
+  ) =>
     inferenceRequest({
       credential: clarityToken,
       operation: 'embeddings',
       target: { kind: 'model', modelLine },
-      facts: { estimatedInputTokens, embeddingInputs: 4, declaredTools: 0, stream: false },
+      facts: { estimatedInputTokens, embeddingInputs, declaredTools: 0, stream: false },
     });
+
+  /** Kaana's estimate of a batch: `utf16Length/4 + 1` per input (`internal/publicapi`). */
+  const kaanaEstimate = (inputs: number, characters: number) =>
+    inputs * (Math.floor(characters / 4) + 1);
+
+  // The route below declares a 32,000-token context, as qwen/qwen3-embedding-8b
+  // does in production. A context window bounds EACH input: every input is
+  // embedded on its own, so a batch's total says nothing about whether it fits.
+  it('admits Clarity’s full batch, 128 inputs of 2,000 characters, though their total exceeds the context', async () => {
+    const line = await embeddingLine();
+    onRoute(line);
+    const total = kaanaEstimate(128, 2_000);
+    expect(total).toBe(64_128);
+    const grant = verifiedGrant(await authorize(embeddingsRequest(line.modelLine, total, 128)));
+    expect(grant.operation).toBe('embeddings');
+  });
+
+  it('refuses a single input longer than the route’s context', async () => {
+    jest.mocked(logger.warn).mockClear();
+    const line = await embeddingLine();
+    onRoute(line);
+    const refused = await authorize(embeddingsRequest(line.modelLine, 32_001, 1));
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('context_length_exceeded');
+    expect(refused.body.message).toBe(
+      'No authorized route can fit this request and its output ceiling.',
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'inference.grant.refused',
+      expect.objectContaining({ code: 'context_length_exceeded', reason: 'route-context' }),
+    );
+  });
+
+  it('refuses a batch whose total exceeds the pilot’s budget, though every input fits', async () => {
+    jest.mocked(logger.warn).mockClear();
+    const line = await embeddingLine();
+    onRoute(line);
+    const refused = await authorize(
+      embeddingsRequest(line.modelLine, kaanaEstimate(132, 2_000), 132),
+    );
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('context_length_exceeded');
+    expect(refused.body.message).toBe('The input exceeds the internal pilot budget.');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'inference.grant.refused',
+      expect.objectContaining({ code: 'context_length_exceeded', reason: 'pilot-input' }),
+    );
+  });
 
   it('grants an embeddings request with no hold, on the pilot’s route, under its USD 0.001 ceiling', async () => {
     const line = await embeddingLine();

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed (an embeddings batch is held to the context per input, not in total)
+
+- `POST /internal/kaana/v1/authorizations` for `embeddings` compared the batch's
+  TOTAL estimate with the route's context window, so Clarity's 128 chunks of
+  2,000 characters (64,128 estimated tokens) were refused
+  `context_length_exceeded` by a 32,000-token model that embeds each chunk on
+  its own. The route is now held to the smallest the largest input can be (the
+  batch's mean; exact for one input). The total still answers to the pilot's
+  `maxInputTokens` and prices the request.
+- `inference.grant.refused` names `reason: 'route-context'` or `'route-output'`
+  when no route fits, where it named none.
+
 ### Changed (the public app record is cacheable)
 
 - `GET /auth/oauth/client/:clientId` answers `Cache-Control: public, max-age=60`

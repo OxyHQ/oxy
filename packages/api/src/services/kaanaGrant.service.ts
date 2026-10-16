@@ -360,7 +360,14 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
       return {
         family: 'embeddings',
         modality: { input: 'text', output: 'embedding', apiFormat: 'embeddings' },
-        capacity: { inputTokens: input, outputTokens: 0 },
+        // A context window bounds EACH input: every input is embedded on its
+        // own, so the batch's total is no measure of fit (it still prices the
+        // request and answers to the pilot's budget). The facts carry the total
+        // and the count, not each input, so the route is held to the smallest
+        // the largest input can be: the batch's mean, exact for one input. A
+        // batch refused here holds an input no route can embed; one long input
+        // among short ones is the provider's to refuse.
+        capacity: { inputTokens: Math.ceil(input / embeddings), outputTokens: 0 },
         knownUnits: { input_tokens: input },
         maxOutputTokens: undefined,
         plans: () => [
@@ -1242,6 +1249,7 @@ function refusalForResolution(
             'No authorized route supports that output ceiling.',
             {
               param: 'max_output_tokens',
+              reason: 'route-output',
             },
           )
         : new GrantRefusal(
@@ -1249,6 +1257,7 @@ function refusalForResolution(
             'No authorized route can fit this request and its output ceiling.',
             {
               param: 'input',
+              reason: 'route-context',
             },
           );
     case 'no-published-route':
