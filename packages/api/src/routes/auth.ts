@@ -15,11 +15,12 @@ import type {
 import {
   oauthAuthorizeCodeResponseSchema,
   oauthConsentDecisionSchema,
+  serviceTokenScopesSchema,
 } from '@oxy.so/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
@@ -3607,6 +3608,16 @@ const serviceTokenAddressLimiter = rateLimit({
  *                   `kaana.ai` is the credential for https://kaana.ai/v1 and needs
  *                   `inference:invoke` among the minted scopes; the Kaana control
  *                   audience is reserved to the Kaana application (403 otherwise).
+ *               scopes:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 100
+ *                 uniqueItems: true
+ *                 description: Optional exact subset of the live credential/application grant. Omission preserves the default grant.
+ *                 items:
+ *                   type: string
+ *                   minLength: 1
+ *                   maxLength: 128
  *     responses:
  *       200:
  *         description: Service token issued
@@ -3758,10 +3769,16 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
   // non-privileged grants. Privileged authority must always have been named on
   // the credential itself, where creation applies the staff-only gate.
   const appScopes = app.scopes;
-  const scopes =
+  const grantedScopes =
     credential.scopes.length > 0
       ? intersectScopes(credential.scopes, appScopes)
       : appScopes.filter((scope) => !isPrivilegedScope(scope));
+  const requestedScopes =
+    req.body.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(req.body.scopes);
+  if (requestedScopes?.some((scope) => !grantedScopes.includes(scope))) {
+    throw new ForbiddenError('Requested service scope is not granted');
+  }
+  const scopes = requestedScopes ?? grantedScopes;
   const serviceClaims = {
     appId: app.id,
     appName: app.name,
@@ -3869,12 +3886,12 @@ router.post(
   workloadTokenLimiter,
   validate({ body: workloadServiceTokenSchema }),
   asyncHandler(async (req, res) => {
-    const { provider, nonce, attestation } = req.body;
+    const { provider, nonce, attestation, scopes } = req.body;
     const audience: ServiceTokenAudience = req.body.audience ?? OXY_API_AUDIENCE;
     try {
       sendSuccess(
         res,
-        await exchangeWorkloadAttestation({ provider, nonce, attestation, audience }),
+        await exchangeWorkloadAttestation({ provider, nonce, attestation, audience, scopes }),
       );
     } catch (error: unknown) {
       throw asWorkloadHttpError(error);

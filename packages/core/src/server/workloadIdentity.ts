@@ -1,5 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { trimTrailingSlashes } from '../utils/slashes';
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -39,6 +41,7 @@ const STS_REGION = 'us-east-1';
 const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 
 export interface WorkloadServiceTokenOptions {
+  scopes?: string[];
   /** Oxy's base URL, e.g. `https://api.oxy.so`. */
   baseUrl: string;
   /**
@@ -218,6 +221,8 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
+  const requestedScopes =
+    options.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(options.scopes);
   const fetchImpl = options.fetch ?? fetch;
   const base = trimTrailingSlashes(options.baseUrl);
 
@@ -243,6 +248,7 @@ export async function requestWorkloadServiceToken(
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),
+      ...(requestedScopes ? { scopes: requestedScopes } : {}),
     }),
   });
   if (!tokenResponse.ok) {
@@ -254,6 +260,7 @@ export async function requestWorkloadServiceToken(
   if (!granted?.token || typeof granted.expiresIn !== 'number') {
     throw new Error('Oxy answered the attestation without a usable token.');
   }
+  assertRequestedServiceScopes(granted.token, requestedScopes);
   return { token: granted.token, expiresIn: granted.expiresIn, appName: granted.appName ?? '' };
 }
 

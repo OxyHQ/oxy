@@ -8546,6 +8546,18 @@
                       "oxy-api:kaana-control"
                     ],
                     "description": "The resource server the token is for; `oxy-api` when omitted. `kaana.ai` is the credential for https://kaana.ai/v1 and needs `inference:invoke` among the minted scopes; the Kaana control audience is reserved to the Kaana application (403 otherwise).\n"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "description": "Optional exact subset of the live credential/application grant. Omission preserves the default grant.",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    }
                   }
                 }
               }
@@ -8668,6 +8680,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  },
                   "provider": {
                     "type": "string",
                     "enum": [
