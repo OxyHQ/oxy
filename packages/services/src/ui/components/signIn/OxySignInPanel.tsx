@@ -36,6 +36,11 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
+import type {
+  EmailSignInAccountOption,
+  EmailSignInStepResult,
+  LoginResult,
+} from '@oxy.so/contracts';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
@@ -43,10 +48,7 @@ import {
   TOTP_DIGITS,
   isEmailSignInChooseAccount,
   isSecondFactorRequired,
-  type EmailSignInAccountOption,
-  type EmailSignInStepResult,
-  type LoginResult,
-} from '@oxy.so/contracts';
+} from '@oxy.so/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/OxyContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';

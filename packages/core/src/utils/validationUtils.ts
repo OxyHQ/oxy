@@ -9,7 +9,7 @@ import {
   DISPLAY_NAME_LETTERS_RANGES,
   DISPLAY_NAME_NAME_SEPARATORS_RANGES,
 } from './displayNamePolicyRanges.generated';
-import { usernameSchema } from '@oxy.so/contracts';
+import { checkContract, usernameCheck } from '@oxy.so/contracts/client';
 
 /**
  * Maximum stored length of a display name, in code units after cleaning.
@@ -383,7 +383,7 @@ export function validateAndSanitizeUserInput(
       // The ONE policy, from `@oxy.so/contracts`. This module used to declare a
       // second one (`^[a-zA-Z0-9_-]{3,30}$`) that the server did not enforce, so
       // the SDK could call a name valid and the API 400 it.
-      return usernameSchema.safeParse(sanitized).success ? sanitized : null;
+      return checkContract(usernameCheck, sanitized) === null ? null : sanitized;
     case 'string':
       return isRequiredString(sanitized) ? sanitized : null;
     default:

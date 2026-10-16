@@ -1,5 +1,19 @@
 # Changelog
 
+## [11.6.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.13.0 (and so `@oxy.so/contracts` 4.17.0).
+
+### Changed
+
+- The provider no longer puts the identity stack in an app's startup
+  JavaScript: `KeyManager`, `SignatureService` and `deriveIdentityLinkCode` load
+  from `@oxy.so/core/crypto` with `import()` where a key is read or a signature
+  made (`ui/utils/identityCrypto.ts`).
+- Application classification, the sign-up email, organization forms and the
+  username field check with `@oxy.so/contracts/client` instead of the Zod
+  schemas (same verdicts, outputs and messages), so services ships no Zod.
+
 ## [11.5.0] - 2026-10-15
 
 Needs `@oxy.so/core` 4.10.0. (11.4.0 is #1721's.)

@@ -18,11 +18,11 @@
  * AEAD, signatures) load on first use, never with the client itself.
  */
 import {
+  checkContract,
   IDENTITY_PROOF_ACTIONS,
-  identityLinkCreateResponseSchema,
-  identityLinkStateSchema,
-  safeParseContract,
-} from '@oxy.so/contracts';
+  identityLinkCreateResponseCheck,
+  identityLinkStateCheck,
+} from '@oxy.so/contracts/client';
 import type {
   AuthMethodsResponse,
   BackupStatusResponse,
@@ -150,7 +150,7 @@ export async function signOwnChainRecord(
     undefined,
     { cache: false },
   );
-  const { SignatureService } = await import('../crypto/internal');
+  const { SignatureService } = await import('../crypto/index');
   return SignatureService.signRecordV2(type, buildUserDid(userId), record, {
     seq: head.seq + 1,
     prev: head.headRecordId,
@@ -261,7 +261,7 @@ export class IdentityApi {
     }
 
     const { KeyManager, RecoveryPhraseService, SignatureService, signMessage } = await import(
-      '../crypto/internal'
+      '../crypto/index'
     );
 
     // 1. The NEW identity (in memory only). The UI may pre-derive + pre-show
@@ -467,7 +467,7 @@ export class IdentityLinksApi {
     const res = await this.ctx.request<unknown>('POST', '/identity/link', undefined, {
       cache: false,
     });
-    const parsed = safeParseContract(identityLinkCreateResponseSchema, res);
+    const parsed = checkContract(identityLinkCreateResponseCheck, res);
     if (!parsed) throw new Error('identity/link returned an unexpected response shape');
     return parsed;
   }
@@ -483,7 +483,7 @@ export class IdentityLinksApi {
         skipAuth: true,
       },
     );
-    const parsed = safeParseContract(identityLinkStateSchema, res);
+    const parsed = checkContract(identityLinkStateCheck, res);
     if (!parsed) throw new Error('identity/link returned an unexpected response shape');
     return parsed;
   }
@@ -498,7 +498,7 @@ export class IdentityLinksApi {
     challenge: string,
   ): Promise<{ publicKey: string; code: string; username: string | null }> {
     const { KeyManager, signIdentityProof, deriveIdentityLinkCode } = await import(
-      '../crypto/internal'
+      '../crypto/index'
     );
     const [privateKey, publicKey] = await Promise.all([
       KeyManager.getPrivateKey(),
@@ -706,7 +706,7 @@ export class IdentityBackupApi {
    */
   async create(phrase: string): Promise<BackupStatusResponse> {
     const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } =
-      await import('../crypto/internal');
+      await import('../crypto/index');
     const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
     const privateKey = await RecoveryPhraseService.derivePrivateKeyFromPhrase(phrase);
     const publicKey = KeyManager.derivePublicKey(privateKey);
@@ -766,7 +766,7 @@ export class IdentityBackupApi {
    *   fails authentication (tamper), or an existing identity blocks the import.
    */
   async restore(phrase: string, options?: { overwrite?: boolean }): Promise<string> {
-    const { KeyManager, RecoveryPhraseService, decryptAead } = await import('../crypto/internal');
+    const { KeyManager, RecoveryPhraseService, decryptAead } = await import('../crypto/index');
     const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
 
     const envelope = await this.ctx.request<EncryptedBackupEnvelope>(

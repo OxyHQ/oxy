@@ -9,75 +9,15 @@
  * graph every bundler, Metro included, must include — and asserts none of them
  * is on it. Dynamic `import()` and type-only imports are not edges.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import ts from 'typescript';
+import { join, relative, resolve } from 'node:path';
+import { walkImportGraph } from './fixtures/importGraph';
 
 const SRC = resolve(__dirname, '..');
 const ROOT_ENTRY = join(SRC, 'index.ts');
 
-function isTypeOnly(node: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
-  if (ts.isExportDeclaration(node)) {
-    if (node.isTypeOnly) return true;
-    const clause = node.exportClause;
-    return Boolean(
-      clause &&
-        ts.isNamedExports(clause) &&
-        clause.elements.length > 0 &&
-        clause.elements.every((e) => e.isTypeOnly),
-    );
-  }
-  const clause = node.importClause;
-  if (!clause) return false; // side-effect import: a real edge
-  if (clause.isTypeOnly) return true;
-  if (clause.name) return false;
-  const bindings = clause.namedBindings;
-  return Boolean(
-    bindings &&
-      ts.isNamedImports(bindings) &&
-      bindings.elements.length > 0 &&
-      bindings.elements.every((e) => e.isTypeOnly),
-  );
-}
-
-function staticSpecifiers(file: string): string[] {
-  const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
-  const out: string[] = [];
-  for (const st of sf.statements) {
-    if (
-      (ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) &&
-      st.moduleSpecifier &&
-      ts.isStringLiteral(st.moduleSpecifier)
-    ) {
-      if (!isTypeOnly(st)) out.push(st.moduleSpecifier.text);
-    }
-  }
-  return out;
-}
-
-function resolveRelative(fromFile: string, specifier: string): string {
-  const base = resolve(dirname(fromFile), specifier.replace(/\.js$/, ''));
-  for (const candidate of [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), base]) {
-    if (existsSync(candidate) && !candidate.endsWith('/')) return candidate;
-  }
-  throw new Error(`unresolved relative import '${specifier}' in ${fromFile}`);
-}
-
 function walk(entry: string): { files: Set<string>; external: Set<string> } {
-  const files = new Set<string>();
-  const external = new Set<string>();
-  const queue = [entry];
-  while (queue.length > 0) {
-    const file = queue.shift() as string;
-    if (files.has(file)) continue;
-    files.add(file);
-    if (!file.endsWith('.ts') && !file.endsWith('.tsx')) continue;
-    for (const specifier of staticSpecifiers(file)) {
-      if (specifier.startsWith('.')) queue.push(resolveRelative(file, specifier));
-      else external.add(specifier);
-    }
-  }
-  return { files, external };
+  const graph = walkImportGraph(entry);
+  return { files: graph.files, external: new Set(graph.external.keys()) };
 }
 
 describe('@oxy.so/core root entry graph', () => {
@@ -112,5 +52,35 @@ describe('@oxy.so/core root entry graph', () => {
   it('ships only the English dictionary statically', () => {
     const locales = reached.filter((f) => f.startsWith('i18n/locales/'));
     expect(locales).toEqual(['i18n/locales/en-US.ts']);
+  });
+});
+
+/**
+ * `@oxy.so/core/session` — the cold boot every app runs before first paint —
+ * reaches the identity key only through `import()` where a key operation
+ * happens (`identitySession`'s default binding), so a client without a key
+ * never evaluates secp256k1, bip39 or the AEAD cipher at startup.
+ */
+describe('@oxy.so/core/session entry graph', () => {
+  const { files, external } = walk(join(SRC, 'session/index.ts'));
+  const reached = [...files].map((f) => relative(SRC, f));
+
+  it('reaches the cold boot (the walk is not vacuous)', () => {
+    expect(reached).toContain('boot/sessionColdBoot.ts');
+    expect(reached).toContain('session/identitySession.ts');
+  });
+
+  it.each([
+    'crypto/keyManager.ts',
+    'crypto/signatureService.ts',
+    'crypto/recoveryPhrase.ts',
+    'crypto/aead.ts',
+    'crypto/index.ts',
+  ])('does not statically reach %s', (file) => {
+    expect(reached).not.toContain(file);
+  });
+
+  it('reaches no heavy third-party crypto', () => {
+    expect([...external].filter((spec) => /^@scure\/|^@noble\//.test(spec))).toEqual([]);
   });
 });

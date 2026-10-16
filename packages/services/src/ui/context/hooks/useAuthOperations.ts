@@ -8,9 +8,9 @@ import type { LogoutResult } from '../oxyContextTypes';
 import { DeviceManager } from '@oxy.so/core/session';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
+import { loadIdentityCrypto } from '../../utils/identityCrypto';
 import type { StorageInterface } from '../../utils/storageHelpers';
 import type { OxyServices } from '@oxy.so/core';
-import { SignatureService } from '@oxy.so/core/crypto';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;
@@ -126,6 +126,7 @@ export const useAuthOperations = ({
       // in local storage as 'oxy_biometric_enabled' and can be checked there.
 
       // Sign the challenge
+      const { SignatureService } = await loadIdentityCrypto();
       const { challenge: signature, timestamp } = await SignatureService.signChallenge(challenge);
 
       let fullUser: User;

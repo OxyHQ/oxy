@@ -1,4 +1,5 @@
-import { ORGANIZATION_TYPES, type OrganizationType } from '@oxy.so/contracts';
+import type { OrganizationType } from '@oxy.so/contracts';
+import { ORGANIZATION_TYPES } from '@oxy.so/contracts/client';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';

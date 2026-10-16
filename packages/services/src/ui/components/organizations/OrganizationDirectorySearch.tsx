@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Organization, OrganizationType } from '@oxy.so/contracts';
 import {
-  createOrganizationSchema,
-  organizationClaimInputSchema,
-  type Organization,
-  type OrganizationType,
-} from '@oxy.so/contracts';
+  createOrganizationCheck,
+  organizationClaimInputCheck,
+  parseContract,
+  checkContract,
+} from '@oxy.so/contracts/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -56,7 +57,7 @@ export function OrganizationDirectorySearch({
         throw new Error('An active organization and personal session are required');
       return oxyServices.organizations.claim(
         selected.accountId,
-        organizationClaimInputSchema.parse({ evidenceReference: evidence }),
+        parseContract(organizationClaimInputCheck, { evidenceReference: evidence }),
       );
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] }),
@@ -65,7 +66,7 @@ export function OrganizationDirectorySearch({
     mutationFn: () => {
       if (!personalReady) throw new Error('A personal session is required');
       return oxyServices.organizations.create(
-        createOrganizationSchema.parse({ name: search.trim(), organizationType: type }),
+        parseContract(createOrganizationCheck, { name: search.trim(), organizationType: type }),
       );
     },
     onSuccess: (organization) => {
@@ -210,8 +211,10 @@ export function OrganizationDirectorySearch({
             loading={create.isPending}
             onPress={() => {
               if (
-                !createOrganizationSchema.safeParse({ name: search.trim(), organizationType: type })
-                  .success
+                checkContract(createOrganizationCheck, {
+                  name: search.trim(),
+                  organizationType: type,
+                }) === null
               ) {
                 setValidationError(true);
                 return;

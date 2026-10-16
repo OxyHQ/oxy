@@ -1,8 +1,8 @@
-import { publicApplicationSchema } from '@oxy.so/contracts';
+import { publicApplicationCheck, parseContract } from '@oxy.so/contracts/client';
 import type { OxyServices } from '@oxy.so/core';
 
 export function classifyApplicationSessionLane(metadata: unknown): 'device' | 'oauth' {
-  const application = publicApplicationSchema.parse(metadata);
+  const application = parseContract(publicApplicationCheck, metadata);
   return application.type === 'third_party' && !application.isOfficial && !application.isInternal
     ? 'oauth'
     : 'device';

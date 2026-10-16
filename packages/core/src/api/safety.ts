@@ -1,8 +1,9 @@
+import type { ProfileAccessInput } from '@oxy.so/contracts';
 import {
-  profileAccessInputSchema,
-  profileAccessDecisionSchema,
-  type ProfileAccessInput,
-} from '@oxy.so/contracts';
+  profileAccessDecisionCheck,
+  profileAccessInputCheck,
+  parseContract,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 
 export class SafetyApi {
@@ -11,11 +12,12 @@ export class SafetyApi {
   async profileAccess(input: ProfileAccessInput, options?: { accessToken: string | null }) {
     if (this.ctx.service && options === undefined)
       throw new Error('Server profile access requires an explicit requester bearer or null');
-    return profileAccessDecisionSchema.parse(
+    return parseContract(
+      profileAccessDecisionCheck,
       await this.ctx.request(
         'GET',
         '/safety/profile-access',
-        profileAccessInputSchema.parse(input),
+        parseContract(profileAccessInputCheck, input),
         {
           cache: false,
           ...(options

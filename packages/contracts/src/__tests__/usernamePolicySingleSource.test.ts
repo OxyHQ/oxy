@@ -30,8 +30,9 @@
  * ## What it asserts
  *
  * 1. Every handle-shaped character class in EXECUTABLE code is declared in
- *    `src/username.ts`, or is allow-listed with a reason naming a DIFFERENT
- *    namespace.
+ *    `src/client/username.ts` (the Zod-free half, so client bundles share the
+ *    very same rule; `src/username.ts` builds the Zod schema from it), or is
+ *    allow-listed with a reason naming a DIFFERENT namespace.
  * 2. Every OpenAPI `pattern:` that documents a username quotes the policy
  *    verbatim. Those live in docblocks, which rule 1 does not read — and a
  *    published pattern that drifts is a lie told to every client generated from
@@ -149,8 +150,8 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-/** The one file that may DECLARE the policy. */
-const OWNER = 'packages/contracts/src/username.ts';
+/** The one file that may DECLARE the policy (`src/username.ts` derives its schema from it). */
+const OWNER = 'packages/contracts/src/client/username.ts';
 
 interface Occurrence {
   readonly file: string;

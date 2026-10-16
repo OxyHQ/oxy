@@ -9,6 +9,7 @@ module.exports = {
     // Resolve workspace deps from TypeScript SOURCE so core tests do not depend
     // on packages being built first (mirrors packages/api/jest.config.js).
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts/client$': '<rootDir>/../contracts/src/client/index.ts',
     // Resolve @oxy.so/protocol from its TypeScript SOURCE so core tests do not
     // depend on the protocol package being built first, and so the
     // `jest.mock('@oxy.so/protocol', () => ({ ...jest.requireActual(...) }))`
@@ -16,6 +17,7 @@ module.exports = {
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    '^@oxy.so/protocol/sign$': '<rootDir>/../protocol/src/sign.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
     '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/browser$': '<rootDir>/../telemetry/src/browser.ts',

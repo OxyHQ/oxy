@@ -19,7 +19,7 @@
 
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import type { DidDocument } from '@oxy.so/contracts';
-import * as protocol from '@oxy.so/protocol';
+import * as protocol from '@oxy.so/protocol/sign';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
@@ -115,7 +115,7 @@ describe('OxyServices.rotateKey', () => {
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
       const signSpy = jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
-      // The new-key proof is signed with the pending private key via protocol.signMessage.
+      // The new-key proof is signed with the pending private key via the protocol signer.
       const newKeySignSpy = jest
         .spyOn(protocol, 'signMessage')
         .mockResolvedValue('newkeyproof-hex');

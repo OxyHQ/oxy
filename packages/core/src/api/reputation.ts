@@ -16,7 +16,7 @@ import type {
   ReputationRule,
   ReputationTransaction,
 } from '@oxy.so/contracts';
-import { isFullReputationBalance } from '@oxy.so/contracts';
+import { isFullReputationBalance } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import { OxyAuthenticationError } from '../OxyServices.errors';
 

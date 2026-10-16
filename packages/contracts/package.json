@@ -1,10 +1,17 @@
 {
   "name": "@oxy.so/contracts",
-  "version": "4.16.0",
+  "version": "4.17.0",
   "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "dist/types/client/index.d.ts"
+      ]
+    }
+  },
   "source": "src/index.ts",
   "sideEffects": false,
   "publishConfig": {
@@ -22,6 +29,18 @@
         "default": "./dist/cjs/index.js"
       },
       "default": "./dist/esm/index.js"
+    },
+    "./client": {
+      "react-native": "./dist/esm/client/index.js",
+      "import": {
+        "types": "./dist/types/client/index.d.ts",
+        "default": "./dist/esm/client/index.js"
+      },
+      "require": {
+        "types": "./dist/types/client/index.d.ts",
+        "default": "./dist/cjs/client/index.js"
+      },
+      "default": "./dist/esm/client/index.js"
     },
     "./package.json": "./package.json"
   },

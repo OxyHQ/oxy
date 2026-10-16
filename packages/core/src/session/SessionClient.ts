@@ -1,16 +1,14 @@
+import type { DeviceDirectory, DeviceSessionState, DeviceSessionSync } from '@oxy.so/contracts';
 import {
-  deviceActivateResponseSchema,
-  deviceDirectorySchema,
-  deviceDirectorySyncSchema,
-  deviceSessionStateSchema,
-  deviceSessionSyncSchema,
-  safeParseContract,
+  checkContract,
+  deviceActivateResponseCheck,
+  deviceDirectoryCheck,
+  deviceDirectorySyncCheck,
+  deviceSessionStateCheck,
+  deviceSessionSyncCheck,
   SESSION_ACCOUNTS_CHANGED_EVENT,
-  sessionAccountsChangedEventSchema,
-  type DeviceDirectory,
-  type DeviceSessionState,
-  type DeviceSessionSync,
-} from '@oxy.so/contracts';
+  sessionAccountsChangedEventCheck,
+} from '@oxy.so/contracts/client';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
 import { decodeTokenClaims } from '../utils/tokenClaims';
@@ -334,7 +332,7 @@ export class SessionClient {
     activeToken?: string,
   ): boolean {
     const generation = this.lifecycleGeneration;
-    const next = safeParseContract(deviceSessionStateSchema, raw);
+    const next = checkContract(deviceSessionStateCheck, raw);
     if (!next) {
       logger.warn('[SessionClient] discarded invalid session state');
       return false;
@@ -500,24 +498,22 @@ export class SessionClient {
    * account that is no longer active.
    */
   private async applySync(raw: unknown): Promise<void> {
-    const sync = safeParseContract(deviceSessionSyncSchema, raw);
-    if (!sync) {
-      const parsed = deviceSessionSyncSchema.safeParse(raw);
+    const checked = deviceSessionSyncCheck(raw, []);
+    if (!checked.ok) {
       // Log field-level type diagnostics ONLY — never values. The payload carries tokens and
-      // session ids; issue.path/code and the invalid_type expected/received TYPE names are safe,
-      // but zod messages can embed offending values for other codes, so they are omitted.
-      const issues = parsed.success
-        ? []
-        : parsed.error.issues.map((issue) =>
-            issue.code === 'invalid_type'
-              ? {
-                  path: issue.path.join('.'),
-                  code: issue.code,
-                  expected: issue.expected,
-                  received: issue.received,
-                }
-              : { path: issue.path.join('.'), code: issue.code },
-          );
+      // session ids; the issue's path/code and an invalid_type's expected/received TYPE names
+      // are safe, but messages can embed offending values for other codes, so they are omitted.
+      const { issue } = checked;
+      const issues = [
+        issue.code === 'invalid_type'
+          ? {
+              path: issue.path.join('.'),
+              code: issue.code,
+              expected: issue.expected,
+              received: issue.received,
+            }
+          : { path: issue.path.join('.'), code: issue.code },
+      ];
       const keys = raw && typeof raw === 'object' ? Object.keys(raw) : [];
       logger.warn('[SessionClient] discarded invalid session sync', {
         component: 'SessionClient',
@@ -526,7 +522,7 @@ export class SessionClient {
       });
       return;
     }
-    this.commitSync(sync);
+    this.commitSync(checked.value);
     if (this.fullSignOutPersistence?.state === this.state)
       await this.fullSignOutPersistence.pending;
   }
@@ -595,7 +591,7 @@ export class SessionClient {
    * the publish belongs.
    */
   private applyDirectory(raw: unknown): boolean {
-    const next = safeParseContract(deviceDirectorySchema, raw);
+    const next = checkContract(deviceDirectoryCheck, raw);
     if (!next) {
       logger.warn('[SessionClient] discarded invalid device directory');
       return false;
@@ -797,7 +793,7 @@ export class SessionClient {
       { contextId },
       { cache: false },
     );
-    const activation = safeParseContract(deviceActivateResponseSchema, res);
+    const activation = checkContract(deviceActivateResponseCheck, res);
     if (!activation) {
       logger.warn('[SessionClient] discarded invalid activation response');
       return;
@@ -880,7 +876,7 @@ export class SessionClient {
    * The shared apply path for both context-aware removals.
    *
    * The response is `{directory, state, activeToken}` — its own contract, never
-   * `deviceSessionSyncSchema`, which would strip the directory silently. Both
+   * `deviceSessionSyncCheck`, which would strip the directory silently. Both
    * halves move in one server transition (a removal elects a replacement active
    * context), so both are applied before anything is published: the directory
    * first, so the flat apply's own `settleDirectory` sees a current directory
@@ -897,7 +893,7 @@ export class SessionClient {
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
       cache: false,
     });
-    const removal = safeParseContract(deviceDirectorySyncSchema, res);
+    const removal = checkContract(deviceDirectorySyncCheck, res);
     if (!removal) {
       logger.warn('[SessionClient] discarded invalid device removal response');
       return;
@@ -1110,7 +1106,7 @@ export class SessionClient {
    * the bearer anyway so a race at sign-out can't 401.
    */
   private onSessionAccountsChanged(payload: unknown): void {
-    const event = safeParseContract(sessionAccountsChangedEventSchema, payload);
+    const event = checkContract(sessionAccountsChangedEventCheck, payload);
     if (!event) {
       logger.warn('[SessionClient] discarded invalid session_accounts_changed', {
         component: 'SessionClient',

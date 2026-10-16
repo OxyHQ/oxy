@@ -26,43 +26,27 @@
 import { z } from 'zod';
 import { identityProofSchema } from './identityProof';
 import { emailReauthProofSchema } from './signIn';
-
-export const IDENTITY_LINK_STATUSES = ['pending', 'signed', 'completed', 'cancelled'] as const;
-export type IdentityLinkStatus = (typeof IDENTITY_LINK_STATUSES)[number];
-
-/** The scheme and host Commons routes a link QR to. */
-export const IDENTITY_LINK_QR_PREFIX = 'oxycommons://link';
-
-const LINK_ID = /^[0-9a-f]{32}$/;
-const CHALLENGE = /^[0-9a-f]{64}$/;
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// it is re-exported here so the root entry is unchanged.
+import {
+  IDENTITY_LINK_STATUSES,
+  IDENTITY_LINK_QR_PREFIX,
+  LINK_ID,
+  CHALLENGE,
+  type IdentityLinkStatus,
+} from './client/identityLink';
+export {
+  IDENTITY_LINK_STATUSES,
+  IDENTITY_LINK_QR_PREFIX,
+  buildIdentityLinkQrPayload,
+  parseIdentityLinkQrPayload,
+} from './client/identityLink';
+export type { IdentityLinkStatus } from './client/identityLink';
 
 export const identityLinkIdSchema = z
   .string()
   .trim()
   .regex(LINK_ID, 'linkId must be 32 lowercase hex characters');
-
-/** The QR auth.oxy.so shows: the request's id and the challenge Commons signs. */
-export function buildIdentityLinkQrPayload(linkId: string, challenge: string): string {
-  return `${IDENTITY_LINK_QR_PREFIX}?id=${linkId}&c=${challenge}`;
-}
-
-/** The request a scanned code names, or `null` for anything that is not a link QR. */
-export function parseIdentityLinkQrPayload(
-  raw: string,
-): { linkId: string; challenge: string } | null {
-  const value = raw.trim();
-  if (!value.startsWith(`${IDENTITY_LINK_QR_PREFIX}?`)) return null;
-  // Parsed by hand: React Native's `URLSearchParams` does not implement `get`.
-  const params = new Map<string, string>();
-  for (const pair of value.slice(IDENTITY_LINK_QR_PREFIX.length + 1).split('&')) {
-    const separator = pair.indexOf('=');
-    if (separator > 0) params.set(pair.slice(0, separator), pair.slice(separator + 1));
-  }
-  const linkId = params.get('id') ?? '';
-  const challenge = params.get('c') ?? '';
-  if (!LINK_ID.test(linkId) || !CHALLENGE.test(challenge)) return null;
-  return { linkId, challenge };
-}
 
 /** `POST /identity/link` */
 export interface IdentityLinkCreateResponse {

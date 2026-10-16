@@ -1,0 +1,249 @@
+/**
+ * Product access, plans, checkout and subscription checks, without Zod.
+ * Schemas: `../products/*.ts`.
+ *
+ * Part of `@oxy.so/contracts/client`: never import `zod` here (see `./check.ts`).
+ */
+
+import type { OxyAccountId } from '../inference/identifiers';
+import type { SubjectProductAccess, SubjectProductAccessQuery } from '../products/access';
+import type {
+  CancelProductSubscription,
+  ProductSubscriptionCancellationResult,
+  ProductSubscriptionsResponse,
+  SubscriptionCreditGrantsResponse,
+} from '../products/billing';
+import type { PersonalPlanCheckoutRequest, PersonalPlanCheckoutResult } from '../products/checkout';
+import type { PersonalPlanCatalogue } from '../products/plans';
+import {
+  array,
+  boolean,
+  branded,
+  datetime,
+  discriminatedUnion,
+  exact,
+  int,
+  literal,
+  maxLength,
+  minLength,
+  nonnegative,
+  nullable,
+  number,
+  oneOf,
+  optional,
+  pattern,
+  positive,
+  refine,
+  safe,
+  startsWith,
+  strictObject,
+  string,
+  union,
+  url,
+} from './check';
+
+const identifier = string(minLength(1), maxLength(160));
+const displayName = string(minLength(1), maxLength(100));
+const count = number(int, nonnegative, safe);
+const version = number(int, positive, safe);
+const oxyAccountId = branded<OxyAccountId, string>(string(minLength(1), maxLength(64)));
+const actionKey = string(minLength(8), maxLength(160), pattern(/^[a-zA-Z0-9_-]+$/));
+const combination = oneOf(['maximum', 'sum', 'exclusive']);
+const origin = oneOf(['individual', 'bundle']);
+
+const period = (message: string) =>
+  refine(
+    strictObject({ start: string(datetime), end: string(datetime) }),
+    (value) => Date.parse(value.end) > Date.parse(value.start),
+    message,
+  );
+
+const productBenefit = discriminatedUnion('kind', {
+  capability: strictObject({ kind: literal('capability'), productId: identifier, key: identifier }),
+  quota: strictObject({
+    kind: literal('quota'),
+    productId: identifier,
+    key: identifier,
+    unit: identifier,
+    included: count,
+    combination,
+  }),
+});
+
+export const subjectProductAccessQueryCheck = exact<SubjectProductAccessQuery>()(
+  strictObject({
+    schemaVersion: literal(1),
+    subjectAccountId: oxyAccountId,
+    productId: identifier,
+  }),
+);
+
+export const subjectProductAccessCheck = exact<SubjectProductAccess>()(
+  strictObject({
+    schemaVersion: literal(1),
+    subjectAccountId: oxyAccountId,
+    productId: identifier,
+    evaluatedAt: string(datetime),
+    capabilities: array(strictObject({ key: identifier, grantIds: array(identifier) })),
+    quotas: array(
+      strictObject({
+        key: identifier,
+        unit: identifier,
+        included: count,
+        combination,
+        grantIds: array(identifier),
+      }),
+    ),
+    conflicts: array(
+      strictObject({
+        key: identifier,
+        reason: oneOf([
+          'combination_mismatch',
+          'unit_mismatch',
+          'exclusive_overlap',
+          'unsafe_total',
+        ]),
+        grantIds: array(identifier),
+      }),
+    ),
+  }),
+);
+
+export const personalPlanCatalogueCheck = exact<PersonalPlanCatalogue>()(
+  refine(
+    strictObject({
+      schemaVersion: literal(1),
+      state: oneOf(['unconfigured', 'configured']),
+      purchase: literal('unavailable'),
+      plans: array(
+        strictObject({
+          offerId: identifier,
+          offerVersion: version,
+          displayName,
+          audience: literal('personal'),
+          kind: literal('oxy_one'),
+          price: optional(
+            strictObject({
+              currency: string(pattern(/^[A-Z]{3}$/)),
+              amountMinorUnits: version,
+              interval: literal('month'),
+              trial: literal('none'),
+              taxTreatment: literal('inclusive'),
+              merchantTotal: literal('final'),
+            }),
+          ),
+          benefits: array(strictObject({ displayName, benefit: productBenefit })),
+        }),
+      ),
+    }),
+    (value) => (value.state === 'unconfigured') === (value.plans.length === 0),
+    'Catalogue state must match published plans',
+  ),
+);
+
+export const personalPlanCheckoutRequestCheck = exact<PersonalPlanCheckoutRequest>()(
+  strictObject({
+    expectedSubjectAccountId: oxyAccountId,
+    offerId: identifier,
+    offerVersion: version,
+    idempotencyKey: actionKey,
+  }),
+);
+
+export const personalPlanCheckoutResultCheck = exact<PersonalPlanCheckoutResult>()(
+  discriminatedUnion('state', {
+    unconfigured: strictObject({
+      state: literal('unconfigured'),
+      reason: oneOf(['provider_unconfigured', 'offer_unconfigured', 'price_unconfigured']),
+    }),
+    pending: strictObject({
+      state: literal('pending'),
+      intentId: identifier,
+      checkoutUrl: optional(string(url, startsWith('https://'))),
+    }),
+    closed: strictObject({ state: literal('closed'), intentId: identifier }),
+    fulfilled: strictObject({ state: literal('fulfilled'), intentId: identifier }),
+  }),
+);
+
+const billingPeriod = period('Period end must follow start');
+
+export const productSubscriptionsResponseCheck = exact<ProductSubscriptionsResponse>()(
+  strictObject({
+    subscriptions: array(
+      strictObject({
+        sourceId: identifier,
+        status: oneOf([
+          'active',
+          'trialing',
+          'past_due',
+          'unpaid',
+          'canceled',
+          'paused',
+          'incomplete',
+          'incomplete_expired',
+        ]),
+        period: billingPeriod,
+        cancelAtPeriodEnd: boolean,
+        canCancel: boolean,
+        offers: array(
+          strictObject({
+            segmentId: identifier,
+            offerId: identifier,
+            offerVersion: version,
+            displayName,
+            origin,
+            period: billingPeriod,
+            current: boolean,
+            products: array(strictObject({ id: identifier, displayName })),
+          }),
+        ),
+      }),
+    ),
+  }),
+);
+
+export const subscriptionCreditGrantsResponseCheck = exact<SubscriptionCreditGrantsResponse>()(
+  strictObject({
+    grants: array(
+      refine(
+        strictObject({
+          id: identifier,
+          invoiceId: identifier,
+          origin: oneOf([
+            'subscription_payment',
+            'subscription_proration',
+            'subscription_promotional_grant',
+          ]),
+          period: billingPeriod,
+          granted: count,
+          consumed: count,
+          clawed: count,
+          remaining: count,
+          promotionId: nullable(identifier),
+          createdAt: string(datetime),
+        }),
+        (value) =>
+          BigInt(value.consumed) + BigInt(value.clawed) + BigInt(value.remaining) ===
+          BigInt(value.granted),
+        'Grant conservation differs',
+      ),
+    ),
+  }),
+);
+
+export const cancelProductSubscriptionCheck = exact<CancelProductSubscription>()(
+  strictObject({
+    sourceId: identifier,
+    actionId: optional(actionKey),
+    expectedSubjectAccountId: optional(oxyAccountId),
+  }),
+);
+
+export const productSubscriptionCancellationResultCheck =
+  exact<ProductSubscriptionCancellationResult>()(
+    union(
+      strictObject({ sourceId: identifier, cancelAtPeriodEnd: literal(true) }),
+      strictObject({ sourceId: identifier, reconciliationPending: literal(true) }),
+    ),
+  );

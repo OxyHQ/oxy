@@ -31,7 +31,9 @@ module.exports = {
     '^@oxy.so/core/(session|crypto|civic|inference|server)$': '<rootDir>/../core/src/$1/index.ts',
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
+    '^@oxy.so/protocol/sign$': '<rootDir>/../protocol/src/sign.ts',
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts/client$': '<rootDir>/../contracts/src/client/index.ts',
     // Mock heavy native modules with lightweight stubs.
     '^react-native$': '<rootDir>/__mocks__/react-native.ts',
     '^@react-native-async-storage/async-storage$': '<rootDir>/__mocks__/async-storage.ts',

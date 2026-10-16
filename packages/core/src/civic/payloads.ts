@@ -167,6 +167,6 @@ export async function verifyPublicCardAttestation(
   if (!signature || !publicKey) {
     return false;
   }
-  const { canonicalize, verifySignature } = await import('../crypto/internal');
+  const { canonicalize, verifySignature } = await import('../crypto/index');
   return verifySignature(canonicalize(card), signature, publicKey);
 }

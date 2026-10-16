@@ -15,11 +15,8 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
-import {
-  SIGN_IN_ERROR_CODES,
-  emailAddressSchema,
-  type EmailVerificationConfirmResponse,
-} from '@oxy.so/contracts';
+import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
+import { SIGN_IN_ERROR_CODES, emailAddressCheck, checkContract } from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/OxyContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
@@ -126,13 +123,13 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   };
 
   const submitEmail = () => {
-    const parsed = emailAddressSchema.safeParse(email);
-    if (!parsed.success) {
+    const address = checkContract(emailAddressCheck, email);
+    if (address === null) {
       setError(t('signup.email.invalid'));
       return;
     }
-    setEmail(parsed.data);
-    run(() => sendCode(parsed.data));
+    setEmail(address);
+    run(() => sendCode(address));
   };
 
   // The code step reports this promise's failure in place.

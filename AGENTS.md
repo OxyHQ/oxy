@@ -36,6 +36,8 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - A module naming an OPTIONAL peer never reaches the root barrel: own export subpath.
 - Never hand-write `declare module '<pkg>'` for a package with types or `@types/` — #ambient-shims
 - ESM builds of core and contracts contain no `require()` — #esm-builds
+- Client code (core's client entries, services) imports contract VALUES from `@oxy.so/contracts/client`, never Zod; root schemas are for servers — core `clientEntriesZodFree.test.ts`
+- Client code loads the identity stack only via `import('@oxy.so/core/crypto')` (core: `../crypto/index`), one lazy root — core `rootEntryGraph.test.ts`
 - Peer ranges on third-party packages that ship breaking majors have an UPPER bound; first-party `@oxy.so/bloom` is deliberately open (`>=`) so apps always run the latest — #peer-ranges
 
 **Runtime traps**

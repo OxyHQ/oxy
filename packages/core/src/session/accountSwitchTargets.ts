@@ -16,7 +16,7 @@
  * to manage, not a list of identities the device can become.
  */
 
-import { isOperatorSwitchTargetKind } from '@oxy.so/contracts';
+import { isOperatorSwitchTargetKind } from '@oxy.so/contracts/client';
 import type { AccountRelationship, AccountKind, AccountMember } from '../api/accounts';
 
 /**
