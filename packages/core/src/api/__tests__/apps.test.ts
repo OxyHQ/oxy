@@ -120,11 +120,44 @@ describe('oxy.apps', () => {
       await oxy.apps.get('app1');
       expect(fetchMock).toHaveBeenCalledTimes(4);
 
-      fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
-      await expect(oxy.apps.delete('app1')).resolves.toEqual({ success: true });
+      const deleted = { success: true, filesDeleted: 2, referencesRemoved: 1 };
+      fetchMock.mockResolvedValueOnce(jsonResponse(deleted));
+      await expect(oxy.apps.delete('app1', { confirmName: 'My App' })).resolves.toEqual(deleted);
+      // ADR 0043 D8: the typed name travels in the DELETE body.
+      expect(call(4)).toMatchObject({
+        url: 'http://test.invalid/applications/app1',
+        method: 'DELETE',
+        body: { confirmName: 'My App' },
+      });
       fetchMock.mockResolvedValueOnce(jsonResponse({ credentials: [] }));
       await expect(oxy.apps.credentials.list('app1')).resolves.toEqual([]);
       expect(fetchMock).toHaveBeenCalledTimes(6);
+    });
+
+    it('the file-events endpoint: read, set (secret returned once), removed', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ url: null, verifiedAt: null }));
+      await expect(oxy.apps.getFilesWebhook('app1')).resolves.toEqual({
+        url: null,
+        verifiedAt: null,
+      });
+      const set = {
+        url: 'https://r.example/f',
+        verifiedAt: '2026-10-16T00:00:00.000Z',
+        secret: 'whsec_x',
+      };
+      fetchMock.mockResolvedValueOnce(jsonResponse(set));
+      await expect(oxy.apps.setFilesWebhook('app1', 'https://r.example/f')).resolves.toEqual(set);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+      await oxy.apps.removeFilesWebhook('app1');
+      expect([call(0), call(1), call(2)]).toMatchObject([
+        { url: 'http://test.invalid/applications/app1/files-webhook', method: 'GET' },
+        {
+          url: 'http://test.invalid/applications/app1/files-webhook',
+          method: 'PUT',
+          body: { url: 'https://r.example/f' },
+        },
+        { url: 'http://test.invalid/applications/app1/files-webhook', method: 'DELETE' },
+      ]);
     });
 
     it('usage passes the period only when given', async () => {

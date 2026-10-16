@@ -9,6 +9,18 @@ export const assetIdParams = z.object({
 export const listAssetsQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional(),
   offset: z.string().regex(/^\d+$/).optional(),
+  /** `false`: only files no application uses — *not in use* (ADR 0043 D5). */
+  inUse: z.enum(['true', 'false']).optional(),
+  /**
+   * `trash`: only the files the owner moved to trash (ADR 0043 D5). Absent:
+   * the library — `active` and `blocked` files, never trashed ones.
+   */
+  status: z.enum(['trash']).optional(),
+});
+
+// GET /assets/admin/lifecycle/sweeps
+export const listLifecycleSweepsQuerySchema = z.object({
+  limit: z.string().regex(/^\d+$/).optional(),
 });
 
 // GET /assets/:id/url
@@ -191,7 +203,13 @@ export const assetsBySha256BodySchema = z.object({
   ownerUserId: z.string().trim().min(1).max(64).optional(),
 });
 
-// POST /assets/:id/link — attach a file to an app entity.
+// POST /assets/:id/links — a signed-in owner records that an application uses
+// their file (`file_references`, ADR 0043 D4). `app` names the application: its
+// id, or one of the legacy strings in `utils/legacyFileLinkApplications.ts`; a
+// session bound to one application is recorded as that application.
+// `visibility`, when given, is an explicit change by the OWNER, never inferred.
+// `webhookUrl` is deprecated (D9): accepted for old clients, ignored — file
+// events go to the application's own endpoint now.
 export const linkFileSchema = z.object({
   app: z.string().min(1, 'App name is required'),
   entityType: z.string().min(1, 'Entity type is required'),
@@ -200,9 +218,183 @@ export const linkFileSchema = z.object({
   webhookUrl: z.string().url().optional(),
 });
 
-// POST /assets/:id/unlink — detach a file from an app entity.
+// DELETE /assets/:id/links — remove one application's use of a file.
 export const unlinkFileSchema = z.object({
   app: z.string().min(1, 'App name is required'),
   entityType: z.string().min(1, 'Entity type is required'),
   entityId: z.string().min(1, 'Entity ID is required'),
 });
+
+// GET /assets/service/app — one page of the calling application's own files.
+export const listApplicationFilesQuerySchema = z.object({
+  limit: z.string().regex(/^\d+$/).optional(),
+  cursor: z.string().min(1).max(512).optional(),
+});
+
+/** References per `POST`/`DELETE /assets/service/references` call. */
+export const MAX_SERVICE_REFERENCES = 100;
+
+/**
+ * One reference an application's service token adds or removes. There is no
+ * application field: the application is the token's `appId`, so a body naming
+ * one is refused (`strict`), never read.
+ */
+const serviceReferenceSchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64),
+    entityType: z.string().trim().min(1).max(128),
+    entityId: z.string().trim().min(1).max(256),
+  })
+  .strict();
+
+// POST / DELETE /assets/service/references (ADR 0043 D4).
+export const serviceReferencesBodySchema = z
+  .object({
+    references: z
+      .array(serviceReferenceSchema)
+      .min(1, 'references must not be empty')
+      .max(
+        MAX_SERVICE_REFERENCES,
+        `Cannot send more than ${MAX_SERVICE_REFERENCES} references at once`,
+      ),
+  })
+  .strict();
+
+/** Pairs per `PUT /assets/service/references/reconcile/:sessionId` page (ADR 0043 D6). */
+export const MAX_RECONCILE_PAGE_ITEMS = 1000;
+
+// POST /assets/service/references/reconcile — begin an inventory of one entity type.
+export const beginReconcileBodySchema = z
+  .object({ entityType: z.string().trim().min(1).max(128) })
+  .strict();
+
+// PUT /assets/service/references/reconcile/:sessionId — one page of the inventory.
+export const reconcilePageBodySchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            fileId: z.string().trim().min(1).max(64),
+            entityId: z.string().trim().min(1).max(256),
+          })
+          .strict(),
+      )
+      .min(1, 'items must not be empty')
+      .max(
+        MAX_RECONCILE_PAGE_ITEMS,
+        `Cannot send more than ${MAX_RECONCILE_PAGE_ITEMS} items in one page`,
+      ),
+  })
+  .strict();
+
+// POST /assets/service/references/reconcile/:sessionId/commit
+export const commitReconcileBodySchema = z.object({ dryRun: z.boolean().optional() }).strict();
+
+export const reconcileSessionParams = z.object({
+  sessionId: z.string().trim().min(1).max(64),
+});
+
+/** Imports per `POST /assets/service/app/import/batch` call (ADR 0043 D7). */
+export const MAX_IMPORT_BATCH_ITEMS = 50;
+
+/** The reference an import registers for the calling application in the same request. */
+const importReferenceSchema = z
+  .object({
+    entityType: z.string().trim().min(1).max(128),
+    entityId: z.string().trim().min(1).max(256),
+  })
+  .strict();
+
+const importItemShape = {
+  sourceUrl: z.string().trim().min(1).max(2048),
+  reference: importReferenceSchema.optional(),
+  revalidate: z.boolean().optional(),
+};
+
+// POST /assets/service/app/import — the calling application imports a file by
+// URL and owns it. `visibility` is required, as on `POST /assets/service/app`.
+export const appImportBodySchema = z
+  .object({
+    ...importItemShape,
+    visibility: z.enum(['private', 'public', 'unlisted']),
+  })
+  .strict();
+
+// POST /assets/service/app/import/batch — up to 50 of the above, each answered on its own.
+export const appImportBatchBodySchema = z
+  .object({
+    items: z
+      .array(appImportBodySchema)
+      .min(1, 'items must not be empty')
+      .max(MAX_IMPORT_BATCH_ITEMS, `Cannot import more than ${MAX_IMPORT_BATCH_ITEMS} at once`),
+  })
+  .strict();
+
+// POST /assets/service/user-media/import — import into an ACCOUNT's files (the
+// owner is `x-owner-user-id`, as on `/service/user-media`). Public by default,
+// like the user-media upload.
+export const userMediaImportBodySchema = z
+  .object({
+    ...importItemShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
+// Large uploads (ADR 0043 stage 4b): a resumable S3 multipart upload of any
+// type, up to 8 GiB, opened by an application's service token.
+// ---------------------------------------------------------------------------
+
+/** Part URLs one call hands out (`init` and `POST …/:uploadId/parts`). */
+export const MAX_UPLOAD_PART_URLS_PER_CALL = 100;
+
+const largeUploadShape = {
+  // The content's identity: hex, lowercased (verified against the assembled object).
+  sha256: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'sha256 must be 64 hexadecimal characters')
+    .transform((value) => value.toLowerCase()),
+  size: z.number().int().positive(),
+  mime: z.string().trim().min(1).max(255),
+  filename: z.string().trim().min(1).max(255).optional(),
+  metadata: z.record(z.unknown()).optional(),
+  reference: importReferenceSchema.optional(),
+};
+
+// POST /assets/service/app/uploads — the calling application will own the file.
+export const appLargeUploadBodySchema = z
+  .object({ ...largeUploadShape, visibility: z.enum(['private', 'public', 'unlisted']) })
+  .strict();
+
+// POST /assets/service/user-media/uploads — an account will own it (x-owner-user-id).
+export const userMediaLargeUploadBodySchema = z
+  .object({
+    ...largeUploadShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();
+
+export const largeUploadParams = z.object({
+  uploadId: z.string().trim().min(1).max(64),
+});
+
+// POST …/uploads/:uploadId/parts — presigned URLs for these parts.
+export const largeUploadPartsBodySchema = z
+  .object({
+    partNumbers: z
+      .array(z.number().int().min(1).max(10_000))
+      .min(1)
+      .max(MAX_UPLOAD_PART_URLS_PER_CALL),
+  })
+  .strict();
+
+// POST /assets/service/app/adopt — the calling application takes ownership of a
+// copy of a file it can read, sharing the stored bytes.
+export const appAdoptBodySchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64),
+    visibility: z.enum(['private', 'public', 'unlisted']),
+    reference: importReferenceSchema.optional(),
+  })
+  .strict();

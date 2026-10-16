@@ -3,7 +3,7 @@
  *
  * Every MIME attachment is deposited as a private File owned by the RECIPIENT
  * via `assetService.uploadFileDirect(..., 'private', {source: 'email-inbound'})`
- * and then linked under `app: 'oxy-mail'`. The message keeps only the canonical
+ * and then linked under the Oxy Inbox application. The message keeps only the canonical
  * reference — `{fileId, name, contentType, size, contentId?, isInline}` — never
  * an s3Key or a raw buffer. The asset service is stubbed (it owns S3); the
  * database is not, because what the message ends up carrying is the guarantee.
@@ -65,6 +65,7 @@ import { messages } from '../../db/schema/messages';
 import { normalizedAppEventOutbox } from '../../db/schema/normalizedAppEventOutbox';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
+import { INBOX_APPLICATION_ID } from '../../config/inboxInference';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -235,10 +236,10 @@ describe('storeIncomingMessage — attachment deposit', () => {
     expect(mockLinkFile).toHaveBeenCalledTimes(2);
     for (const fileId of [pdf.id, png.id]) {
       expect(mockLinkFile).toHaveBeenCalledWith(fileId, {
-        app: 'oxy-mail',
+        applicationId: INBOX_APPLICATION_ID,
         entityType: 'message',
         entityId: stored.id,
-        createdBy: user.id,
+        createdByUserId: user.id,
       });
     }
   });

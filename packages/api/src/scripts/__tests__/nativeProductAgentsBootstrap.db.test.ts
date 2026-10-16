@@ -240,10 +240,15 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
       );
     expect(clarityCredentials).toEqual([{ id: clarity.publicCredential.id, secretHash: null }]);
     const [backend] = await getDb()
-      .select({ webhookUrl: applications.webhookUrl })
+      .select({ webhookUrl: applications.webhookUrl, scopes: applications.scopes })
       .from(applications)
       .where(eq(applications.id, clarity.backendApplication.id));
     expect(backend.webhookUrl).toBe(clarity.backendApplication.webhookUrl);
+    // A fresh backend is created holding the reviewed file grant (ADR 0043).
+    expect(backend.scopes).toEqual([
+      ...clarity.backendApplication.scopes,
+      ...clarity.backendApplication.fileScopes,
+    ]);
     const [importer] = await getDb()
       .select()
       .from(applications)
@@ -354,6 +359,88 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
             homiio.organizationImport.workerWorkload.subject,
           ),
         );
+    }
+  });
+  it('widens an existing Clarity backend and its live binding by exactly the file grant (ADR 0043)', async () => {
+    const BASE = [...clarity.backendApplication.scopes];
+    await getDb()
+      .update(applications)
+      .set({ scopes: BASE })
+      .where(eq(applications.id, clarity.backendApplication.id));
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.subject, clarity.workload.subject));
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: clarity.backendApplication.id,
+        provider: 'aws-iam',
+        subject: clarity.workload.subject,
+        scopes: BASE,
+      })
+      .returning({ id: applicationWorkloadIdentities.id });
+    try {
+      const dry = runBootstrap();
+      expect(dry.status).toBe(0);
+      const operations =
+        (dry.result?.plan as { operations: string[] } | undefined)?.operations ?? [];
+      for (const scope of clarity.backendApplication.fileScopes) {
+        expect(operations).toContain(
+          `grant application-scope ${clarity.backendApplication.id}:${scope}`,
+        );
+        expect(operations).toContain(`grant workload-scope ${binding.id}:${scope}`);
+      }
+      const applied = runBootstrap({
+        APPLY: '1',
+        BOOTSTRAP_ACTOR: 'native-agent-db-test',
+        BOOTSTRAP_REASON: 'grant Clarity its file scopes',
+        EXPECTED_PLAN_SHA256: String(dry.result?.planSha256),
+      });
+      expect(applied.status).toBe(0);
+      const [app] = await getDb()
+        .select({ scopes: applications.scopes })
+        .from(applications)
+        .where(eq(applications.id, clarity.backendApplication.id));
+      expect(app.scopes).toEqual([...BASE, ...clarity.backendApplication.fileScopes]);
+      const [bound] = await getDb()
+        .select({ scopes: applicationWorkloadIdentities.scopes })
+        .from(applicationWorkloadIdentities)
+        .where(eq(applicationWorkloadIdentities.id, binding.id));
+      expect(bound.scopes).toEqual([...BASE, ...clarity.backendApplication.fileScopes]);
+
+      // Idempotent: the next run only asserts.
+      const again = runBootstrap();
+      const againOperations =
+        (again.result?.plan as { operations: string[] } | undefined)?.operations ?? [];
+      expect(
+        againOperations.some((operation) => operation.includes('grant application-scope')),
+      ).toBe(false);
+      expect(againOperations).toContain(`assert workload-scope ${binding.id}:files:app:write`);
+    } finally {
+      await getDb()
+        .delete(applicationWorkloadIdentities)
+        .where(eq(applicationWorkloadIdentities.id, binding.id));
+    }
+  });
+  it('still refuses any OTHER scope on the Clarity backend as drift', async () => {
+    const [before] = await getDb()
+      .select({ scopes: applications.scopes })
+      .from(applications)
+      .where(eq(applications.id, clarity.backendApplication.id));
+    await getDb()
+      .update(applications)
+      .set({ scopes: [...before.scopes, 'files:write'] })
+      .where(eq(applications.id, clarity.backendApplication.id));
+    try {
+      expect(runBootstrap().result).toMatchObject({
+        code: 'live_state_drift',
+        target: 'clarity_backend_application',
+      });
+    } finally {
+      await getDb()
+        .update(applications)
+        .set({ scopes: before.scopes })
+        .where(eq(applications.id, clarity.backendApplication.id));
     }
   });
   it('refuses to replace an unrelated existing Clarity webhook', async () => {

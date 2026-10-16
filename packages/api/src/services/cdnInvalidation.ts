@@ -240,6 +240,35 @@ export class CdnInvalidationQueue {
     }
   }
 
+  /**
+   * Invalidate a CDN PATH that is not an object key — the `/<id>` redirect
+   * `GET /cdn/:id` answers, cached at the edge for an hour, when a file leaves
+   * `active` (ADR 0043 D5). Synchronous; never throws.
+   */
+  enqueuePath(path: string): void {
+    try {
+      if (typeof path !== 'string' || !path.startsWith('/') || path.length < 2) return;
+      if (!this.distributionId) {
+        if (!this.warnedUnconfigured) {
+          this.warnedUnconfigured = true;
+          logger.warn(
+            'CDN invalidation disabled: CDN_CLOUDFRONT_DISTRIBUTION_ID is unset, so deleted public objects stay cached at the CDN edge until they expire',
+            { firstPath: path },
+          );
+        }
+        return;
+      }
+      this.pending.add(path);
+      this.enforceCap();
+      this.schedule(this.flushDelayMs);
+    } catch (error) {
+      logger.error('CDN invalidation enqueue failed', {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   /** Send everything pending now (graceful shutdown, tests). Stops at the first failure. */
   async flush(): Promise<void> {
     if (this.timer) {

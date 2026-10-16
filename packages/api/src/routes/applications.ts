@@ -1,4 +1,5 @@
 import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
+import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
@@ -15,8 +16,9 @@ import {
 import {
   type APPLICATION_SCOPES,
   type ApplicationScope,
-  isPaymentsScope,
   isPrivilegedScope,
+  isPrivilegedScopeForApplicationType,
+  isSelfServiceServiceCredentialScope,
 } from '../utils/applicationScopes';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { isStaffUser } from '../middleware/requireStaff';
@@ -57,7 +59,13 @@ import {
   updateApplicationSchema,
   createCredentialSchema,
   rotateCredentialSchema,
+  deleteApplicationBodySchema,
+  filesWebhookBodySchema,
 } from '../schemas/application.schemas';
+import { deleteApplicationContent } from '../services/applicationDeletion.service';
+import { assetService } from '../services/assetServiceSingleton';
+import { newFileWebhookSecret, sealFileWebhookSecret } from '../services/fileEvents.service';
+import { verifyFilesWebhookEndpoint } from '../services/filesWebhookVerification';
 import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
@@ -358,12 +366,20 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
  * Staff callers get an authoritative replace of exactly what they submit,
  * including intentional privileged-scope removal. Returns the validated,
  * deduplicated scope list.
+ *
+ * `type` is the application's type as it will be stored: whether a scope is
+ * privileged can depend on it ({@link isPrivilegedScopeForApplicationType} —
+ * the application file scopes of ADR 0043 are self-service on a `third_party`
+ * application and staff-granted on Oxy's own). A non-staff caller can never
+ * change the type, so for them it is the stored one.
  */
 function authorizeRequestedScopes(
   req: AuthRequest,
   requestedScopes: ApplicationScope[],
   previousScopes: readonly string[],
+  type: string,
 ): ApplicationScope[] {
+  const isPrivileged = (scope: string) => isPrivilegedScopeForApplicationType(scope, type);
   const deduped = Array.from(new Set(requestedScopes));
 
   if (isStaffUser(req)) {
@@ -374,7 +390,7 @@ function authorizeRequestedScopes(
   const requested = new Set<string>(deduped);
 
   const newlyAddedPrivileged = deduped.filter(
-    (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope),
+    (scope) => isPrivileged(scope) && !previouslyGranted.has(scope),
   );
 
   if (newlyAddedPrivileged.length > 0) {
@@ -391,7 +407,8 @@ function authorizeRequestedScopes(
   // revoking a privileged scope is a staff-only mutation, so an omission is
   // treated as "leave it untouched" rather than a silent revoke.
   const preservedPrivileged = Array.from(previouslyGranted).filter(
-    (scope): scope is ApplicationScope => isPrivilegedScope(scope) && !requested.has(scope),
+    (scope): scope is ApplicationScope =>
+      isPrivilegedScope(scope) && isPrivileged(scope) && !requested.has(scope),
   );
   if (preservedPrivileged.length > 0) {
     logger.warn(
@@ -443,6 +460,9 @@ interface SerializedApplication {
   scopes: string[];
   webhookUrl?: string;
   devWebhookUrl?: string;
+  /** The verified file-events endpoint (ADR 0043 D9); its secret is never serialized. */
+  filesWebhookUrl?: string;
+  filesWebhookVerifiedAt?: Date;
   ownerAccountId: string;
   createdByUserId?: string;
   createdAt: Date;
@@ -492,6 +512,8 @@ function serializeApplication(
     scopes: app.scopes,
     webhookUrl: app.webhookUrl ?? undefined,
     devWebhookUrl: app.devWebhookUrl ?? undefined,
+    filesWebhookUrl: app.filesWebhookUrl ?? undefined,
+    filesWebhookVerifiedAt: app.filesWebhookVerifiedAt ?? undefined,
     ownerAccountId: app.ownerAccountId,
     createdByUserId: app.createdByUserId ?? undefined,
     createdAt: app.createdAt,
@@ -823,7 +845,9 @@ router.post(
     }
 
     // Privileged scopes (e.g. federation:write) are NOT self-grantable.
-    const scopes = authorizeRequestedScopes(req, body.scopes ?? [], []);
+    // A new application is `third_party` (the column default; create takes no
+    // type), so the application file scopes are self-service here (ADR 0043).
+    const scopes = authorizeRequestedScopes(req, body.scopes ?? [], [], 'third_party');
 
     const [application] = await getDb()
       .insert(applications)
@@ -932,7 +956,7 @@ router.patch(
     if (body.scopes !== undefined) {
       // Privileged scopes (e.g. federation:write) are staff-only. A non-staff
       // caller may keep an already-granted privileged scope but may not add one.
-      updates.scopes = authorizeRequestedScopes(req, body.scopes, stored.scopes);
+      updates.scopes = authorizeRequestedScopes(req, body.scopes, stored.scopes, stored.type);
     }
     if (body.status !== undefined) updates.status = body.status;
     if (body.devWebhookUrl !== undefined) {
@@ -992,31 +1016,57 @@ router.patch(
 );
 
 /**
- * Soft-delete an application (`app:delete`).
+ * Delete an application (`app:delete`) — and, in the same transaction, every
+ * file it owns and every reference it registered (ADR 0043 D8).
+ *
+ * Body `{ confirmName }`: the application's CURRENT name, typed by the person
+ * (compared trimmed, case-sensitively); anything else is 400 and nothing
+ * changes. The row is soft-deleted (`status = 'deleted'`, the audit record);
+ * its files are tombstoned and owed their purge at once — no 30-day trash —
+ * every application still using one of them is told `file.deleted`, and an
+ * account's file it used only becomes *not in use* for its owner.
  */
 router.delete(
   '/:appId',
   validate({ params: appIdRouteParams }),
   requireAppPermission('app:delete'),
+  // After the permission: a caller who may not delete learns nothing from the body.
+  validate({ body: deleteApplicationBodySchema }),
   asyncHandler(async (req: AppContextRequest, res) => {
     const application = req.application;
     if (!application) {
       throw new NotFoundError('Application not found');
     }
+    const { confirmName } = req.body as { confirmName: string };
+    if (confirmName.trim() !== application.name.trim()) {
+      throw new ApiError(
+        400,
+        "Type the application's name exactly to confirm: its files are deleted with it",
+        'CONFIRM_NAME_MISMATCH',
+      );
+    }
 
-    await getDb().transaction(async (tx) => {
+    const content = await getDb().transaction(async (tx) => {
       // This is the serialization point shared with application-scoped BYOK
       // creation. It closes both race directions: a connection committed first
       // makes deletion refuse, while a deletion committed first makes creation
       // re-read the deleted status and refuse before sending a secret to Kaana.
       const [locked] = await tx
-        .select({ id: applications.id, status: applications.status })
+        .select({ id: applications.id, status: applications.status, name: applications.name })
         .from(applications)
         .where(eq(applications.id, application.id))
         .limit(1)
         .for('update');
       if (!locked || locked.status === 'deleted') {
         throw new NotFoundError('Application not found');
+      }
+      // Renamed since it was read: the person confirmed a name it no longer has.
+      if (confirmName.trim() !== locked.name.trim()) {
+        throw new ApiError(
+          400,
+          "Type the application's name exactly to confirm: its files are deleted with it",
+          'CONFIRM_NAME_MISMATCH',
+        );
       }
 
       const [outstandingCustody] = await tx
@@ -1043,18 +1093,26 @@ router.delete(
       if (!deleted) {
         throw new NotFoundError('Application not found');
       }
+      return deleteApplicationContent(tx, locked.id);
     });
 
     // A deleted app must immediately stop authorising federation signing.
     credentialDomainCache.invalidate(application.id);
     refreshDynamicCorsOrigins();
+    assetService.finishApplicationDeletion(content);
 
     logger.info('Application deleted', {
       userId: requireUserId(req),
       applicationId: application.id,
+      filesDeleted: content.files.length,
+      referencesRemoved: content.referencesRemoved,
     });
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      filesDeleted: content.files.length,
+      referencesRemoved: content.referencesRemoved,
+    });
   }),
 );
 
@@ -1127,9 +1185,11 @@ router.post(
 
     // Service credentials mint bearer service tokens for Oxy-to-Oxy / internal
     // routes. Only platform-trusted applications may hold them — EXCEPT a
-    // narrow Peable carve-out: a non-trusted (`third_party`) application MAY
-    // create a service credential when every requested scope is a payments
-    // scope ({@link isPaymentsScope}, i.e. `payments:read`/`payments:write`).
+    // narrow own-tenant carve-out: a non-trusted (`third_party`) application
+    // MAY create a service credential when every requested scope is
+    // self-service ({@link isSelfServiceServiceCredentialScope}): a payments
+    // scope (`payments:read`/`payments:write`), or one of its own application
+    // file scopes (`files:app:*`, `files:references:write`, ADR 0043 D3).
     // Those two scopes are already non-privileged/self-grantable and bounded
     // to the app's own Peable Gateway tenant (see `applicationScopes.ts`),
     // and the resulting service token's downstream authority is bounded by
@@ -1140,12 +1200,12 @@ router.post(
     // federation/etc. Requesting ANY non-payments scope on a service
     // credential still requires platform trust — the check below is
     // unaffected for that case.
-    const isPaymentsOnlyServiceCredential =
-      requestedScopes.length > 0 && requestedScopes.every(isPaymentsScope);
+    const isSelfServiceServiceCredential =
+      requestedScopes.length > 0 && requestedScopes.every(isSelfServiceServiceCredentialScope);
     if (
       body.type === 'service' &&
       !isTrustedApplication(application) &&
-      !isPaymentsOnlyServiceCredential
+      !isSelfServiceServiceCredential
     ) {
       throw new ForbiddenError('Service credentials are only available to trusted applications');
     }
@@ -1196,7 +1256,9 @@ router.post(
     // thing standing between a member and a privileged credential. The surfaces
     // that matter refuse the machine lane outright (issue #972 §3).
     if (!isStaffUser(req)) {
-      const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
+      const privileged = requestedScopes.filter((scope) =>
+        isPrivilegedScopeForApplicationType(scope, application.type),
+      );
       if (privileged.length > 0) {
         throw new ForbiddenError(
           `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`,
@@ -1547,6 +1609,107 @@ router.get(
 
     const period = (req.query.period as string) || '7d';
     res.json(await getUsageStats(application.id, getStartDate(period)));
+  }),
+);
+
+/**
+ * What the application stores in Oxy Files (ADR 0043 D2/D3): its live files,
+ * their bytes (originals plus renditions) and the account they count against
+ * — the developer's for a third-party application, `null` for Oxy's own, which
+ * are observed rather than metered.
+ */
+router.get(
+  '/:appId/storage',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('usage:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await applicationStoredBytes(getDb(), requireApplication(req).id));
+  }),
+);
+
+// ============================================================================
+// File events (ADR 0043 D9)
+//
+// One endpoint per application, told about the files the application uses or
+// owns. Stored only once it echoed a signed challenge; its HMAC secret is
+// sealed at rest and shown once, on the PUT that sets it.
+// ============================================================================
+
+/** The application's file-events endpoint: `{ url, verifiedAt }`, both null when none. */
+router.get(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('webhooks:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    res.json({
+      url: application.filesWebhookUrl ?? null,
+      verifiedAt: application.filesWebhookVerifiedAt ?? null,
+    });
+  }),
+);
+
+/**
+ * Set (or re-verify) the file-events endpoint: `{ url }`, `https` and a public
+ * address. Oxy sends `{ type: 'webhook.challenge', challenge }` to it and
+ * stores it only when the answer is 2xx `{ challenge }` with the same value
+ * (422 `WEBHOOK_VERIFICATION_FAILED` otherwise, nothing changed). Every
+ * successful PUT issues a NEW signing secret, returned here once and never
+ * again: `{ url, verifiedAt, secret }`. Queued events are signed with it.
+ */
+router.put(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams, body: filesWebhookBodySchema }),
+  requireAppPermission('webhooks:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const { url } = req.body as { url: string };
+    const secret = newFileWebhookSecret();
+    await verifyFilesWebhookEndpoint(url, secret);
+
+    const verifiedAt = new Date();
+    const [updated] = await getDb()
+      .update(applications)
+      .set({
+        filesWebhookUrl: url,
+        filesWebhookSecretCiphertext: sealFileWebhookSecret(application.id, secret),
+        filesWebhookVerifiedAt: verifiedAt,
+      })
+      .where(and(eq(applications.id, application.id), ne(applications.status, 'deleted')))
+      .returning({ id: applications.id });
+    if (!updated) {
+      throw new NotFoundError('Application not found');
+    }
+
+    logger.info('Application file-events endpoint verified', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+      host: new URL(url).host,
+    });
+    res.json({ url, verifiedAt, secret });
+  }),
+);
+
+/** Stop file events: the endpoint and its secret are cleared; queued events are dead-lettered. */
+router.delete(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('webhooks:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    await getDb()
+      .update(applications)
+      .set({
+        filesWebhookUrl: null,
+        filesWebhookSecretCiphertext: null,
+        filesWebhookVerifiedAt: null,
+      })
+      .where(eq(applications.id, application.id));
+    logger.info('Application file-events endpoint removed', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+    });
+    res.json({ success: true });
   }),
 );
 

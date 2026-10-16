@@ -20,6 +20,18 @@
  * others, and completes as `retained_shared` when it kept one. The bytes kept
  * are then that other owner's upload, not the deleted one's
  * ({@link storageSpellingsInUse}).
+ *
+ * ## The evidence hold (ADR 0043 D10)
+ *
+ * Bytes an OPEN content claim names — a target it resolved, or a hash it
+ * blocked — are evidence: the reviewer must be able to see them, and a
+ * reinstatement must be able to serve them again. Whatever tombstoned the row
+ * (its owner, an account's or an application's deletion, the lifecycle's
+ * purge), the worker then keeps the bare spelling, still deletes a `public/`
+ * copy nobody serves (taken-down content must not stay on the CDN), and
+ * DEFERS the row: it comes back every {@link EVIDENCE_HOLD_RECHECK_MS} and is
+ * worked off normally once no open claim holds the bytes. Not a failure: the
+ * attempt count is unchanged.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -37,6 +49,7 @@ import {
 } from '../db/schema/storageObjectDeletions';
 import { logger } from '../utils/logger';
 import { withContentHashLock } from './contentHashLock';
+import { isHeldAsEvidence } from './contentClaims/contentBlocklist';
 import { s3Service } from './s3ServiceSingleton';
 
 export const STORAGE_DELETION_LEASE_MS = 5 * 60_000;
@@ -48,6 +61,9 @@ const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const LIST_PAGE_SIZE = 1000;
 export const STORAGE_DELETION_MAX_LIST_ROUNDS = 20;
 const MAX_RECORDED_ERROR_LENGTH = 500;
+/** How often a row whose bytes an open claim holds is looked at again. */
+export const EVIDENCE_HOLD_RECHECK_MS = 6 * 60 * 60 * 1000;
+const EVIDENCE_HOLD_NOTE = 'Held as evidence by an open content claim; retried when it closes';
 
 /** Delay before attempt `attempts + 1`, after `attempts` failures. */
 export function storageDeletionBackoffMs(attempts: number): number {
@@ -81,6 +97,8 @@ export interface StorageDeletionBatchResult {
   claimed: number;
   deleted: number;
   retainedShared: number;
+  /** Deferred: an open content claim holds the bytes (see the header). */
+  heldAsEvidence: number;
   failed: number;
 }
 
@@ -146,16 +164,23 @@ export interface StorageSpellingsInUse {
  * For an object target `X`:
  *  - `X` is in use when a live row's original or rendition IS `X`;
  *  - `public/X` is in use when a live row's original or rendition is
- *    `public/X`, or when a live PUBLIC row keeps it at the bare `X` — a legacy
- *    public object whose CDN copy is the backfilled `public/X`
- *    (`assetService.getPublicCdnUrl`).
+ *    `public/X`, or when a SERVED public row (public AND `active`) keeps it at
+ *    the bare `X` — a legacy public object whose CDN copy is the backfilled
+ *    `public/X` (`assetService.getPublicCdnUrl`).
  *
  * For a variant directory `D` (`variants/<y>/<m>/<pp>/<sha>/`, which also holds
  * the HLS segments no `file_variants` row names) the answer is by visibility,
  * because renditions may be mid-generation with no row yet: `public/D` while a
- * live PUBLIC row has this content (renditions are written under the spelling
- * of the row's visibility), `D` while a live non-public row has it — and either
- * spelling while a live row's recorded rendition sits under it.
+ * SERVED public row has this content (renditions are written under the
+ * spelling of the row's visibility), `D` while a live row that is not served
+ * publicly has it — and either spelling while a live row's recorded rendition
+ * sits under it.
+ *
+ * "Served", not merely public (ADR 0043 D5): a public row in `trash` has moved
+ * its own objects to the bare spelling (`isServedPublicly`), and must not keep
+ * a CDN copy alive on the strength of a visibility it is no longer served
+ * with. A trashed row still holding a literal `public/` key keeps it — the row
+ * names that object, and restoring it must find it.
  */
 export async function storageSpellingsInUse(
   row: Pick<StorageObjectDeletionRow, 'kind' | 'target' | 'sha256'>,
@@ -163,7 +188,7 @@ export async function storageSpellingsInUse(
 ): Promise<StorageSpellingsInUse> {
   const live = and(eq(files.sha256, row.sha256), inArray(files.status, LIVE_STATUSES));
   const publicTarget = applyPublicPrefix(row.target);
-  const isPublicRow = eq(files.visibility, 'public');
+  const isPublicRow = and(eq(files.visibility, 'public'), eq(files.status, 'active'));
 
   const exists = async (where: ReturnType<typeof and>, viaVariants: boolean): Promise<boolean> => {
     const query = viaVariants
@@ -181,8 +206,10 @@ export async function storageSpellingsInUse(
     const under = (prefix: string) => sql`starts_with(${fileVariants.key}, ${prefix})`;
     return {
       base:
-        (await exists(and(live, sql`${files.visibility} <> 'public'`), false)) ||
-        (await exists(and(live, under(row.target)), true)),
+        (await exists(
+          and(live, sql`not (${files.visibility} = 'public' and ${files.status} = 'active')`),
+          false,
+        )) || (await exists(and(live, under(row.target)), true)),
       public:
         (await exists(and(live, isPublicRow), false)) ||
         (await exists(and(live, under(publicTarget)), true)),
@@ -279,6 +306,7 @@ export async function runStorageDeletionBatch(
     claimed: claimed.length,
     deleted: 0,
     retainedShared: 0,
+    heldAsEvidence: 0,
     failed: 0,
   };
   if (claimed.length === 0) return result;
@@ -300,12 +328,29 @@ export async function runStorageDeletionBatch(
       // done (and then writes its own bytes).
       const outcome = await withContentHashLock(
         row.sha256,
-        async (tx): Promise<StorageObjectDeletionOutcome> => {
+        async (tx): Promise<StorageObjectDeletionOutcome | 'held'> => {
           const inUse = await storageSpellingsInUse(row, tx);
+          if (await isHeldAsEvidence(row.sha256, tx)) {
+            await deleteSpellings(store, row, { base: true, public: inUse.public });
+            return 'held';
+          }
           await deleteSpellings(store, row, inUse);
           return inUse.base || inUse.public ? 'retained_shared' : 'deleted';
         },
       );
+      if (outcome === 'held') {
+        await db
+          .update(storageObjectDeletions)
+          .set({
+            lastError: EVIDENCE_HOLD_NOTE,
+            claimedAt: null,
+            claimedBy: null,
+            nextAttemptAt: new Date(now().getTime() + EVIDENCE_HOLD_RECHECK_MS),
+          })
+          .where(ownedBy(row.id));
+        result.heldAsEvidence += 1;
+        continue;
+      }
       const completed = await db
         .update(storageObjectDeletions)
         .set({

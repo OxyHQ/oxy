@@ -36,7 +36,7 @@ import { revokeServiceActingAs } from '../services/serviceActingAs.service';
 import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from '../services/oauthConsent.service';
 import {
   intersectScopes,
-  isPaymentsScope,
+  isSelfServiceServiceCredentialScope,
   isPrivilegedScope,
   userConsentRequiredScopes,
 } from '../utils/applicationScopes';
@@ -3728,9 +3728,12 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     throw new UnauthorizedError('Invalid credentials');
   }
 
-  const isPaymentsOnlyServiceCredential =
-    credential.scopes.length > 0 && credential.scopes.every(isPaymentsScope);
-  if (!isTrustedApplication(app) && !isPaymentsOnlyServiceCredential) {
+  // ADR 0043 D3 widens the same carve-out to a third-party application's own
+  // file scopes ({@link isSelfServiceServiceCredentialScope}): its own files
+  // and references, metered against its developer's plan.
+  const isSelfServiceServiceCredential =
+    credential.scopes.length > 0 && credential.scopes.every(isSelfServiceServiceCredentialScope);
+  if (!isTrustedApplication(app) && !isSelfServiceServiceCredential) {
     logger.warn('[ServiceToken] Untrusted application attempted service token', {
       credentialId: credential.id,
       applicationId: credential.applicationId,
@@ -3786,7 +3789,7 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     appName: app.name,
     credentialId: credential.id,
     ownerAccountId: app.ownerAccountId,
-    // An untrusted application reaches this line only on the payments-only
+    // An untrusted application reaches this line only on the self-service
     // exception above; it stays external, with its scopes.
     tier: isTrustedApplication(app) ? 'internal' : 'external',
     scopes,

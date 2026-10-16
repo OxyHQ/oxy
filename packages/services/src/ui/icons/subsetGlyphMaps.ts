@@ -9,6 +9,7 @@ export const ioniconsGlyphMap = {
   "arrow-back": 61735,
   "arrow-down": 61741,
   "arrow-forward": 61747,
+  "arrow-undo": 61759,
   "arrow-up": 61765,
   "at": 61771,
   "briefcase-outline": 61874,

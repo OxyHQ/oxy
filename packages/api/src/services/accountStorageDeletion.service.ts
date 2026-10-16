@@ -8,7 +8,13 @@
  *
  * ## Which assets
  *
- * Every asset the account OWNS (`files.owner_user_id`), whatever its status.
+ * Every asset the account OWNS (`files.owner_user_id`), whatever its status,
+ * and every asset owned by an APPLICATION the account owns
+ * (`files.owner_application_id`, ADR 0043). The second set is removed even on
+ * a hard delete, where the account's own rows cascade: the `users` cascade
+ * deletes the applications, and `files.owner_application_id` is `RESTRICT`
+ * precisely so those rows can never vanish without their storage being
+ * recorded — they must be gone before the cascade reaches the applications.
  * System-owned assets are never touched: the federation avatar and remote-media
  * caches (`files.system_owner`) are keyed by a remote URL, not by a local
  * account, and no account's deletion can reach them.
@@ -22,13 +28,15 @@
  * record that uses them, so the archive does not fail on them.
  */
 
-import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { and, eq, inArray, notExists, or, sql } from 'drizzle-orm';
 import type { Transaction } from '../config/postgres';
 import { stripPublicPrefix } from '../config/cdn';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
+import { applications } from '../db/schema/applications';
 import { files } from '../db/schema/files';
 import { fileVariants } from '../db/schema/fileVariants';
 import { messageAttachments } from '../db/schema/messageAttachments';
+import { recordFileEvents } from './fileEvents.service';
 import {
   storageObjectDeletions,
   type StorageObjectDeletionKind,
@@ -113,6 +121,7 @@ export async function recordFileStorageDeletion(
     storageKey: string;
     ownerUserId: string | null;
     systemOwner: string | null;
+    ownerApplicationId: string | null;
   },
   variantKeys: readonly string[],
 ): Promise<string[]> {
@@ -125,6 +134,41 @@ export async function recordFileStorageDeletion(
 }
 
 /**
+ * Record the storage MANY tombstoned assets are owed, inside their tombstone's
+ * transaction — {@link recordFileStorageDeletion} for a batch (an
+ * application's deletion tombstones every file it owns, ADR 0043 D8). Same
+ * reason, same ledger owner per asset, same re-arming. Returns the ledger ids.
+ */
+export async function recordFilesStorageDeletion(
+  tx: Transaction,
+  assets: ReadonlyArray<{
+    sha256: string;
+    storageKey: string;
+    ownerUserId: string | null;
+    systemOwner: string | null;
+    ownerApplicationId: string | null;
+    variantKeys: readonly string[];
+  }>,
+): Promise<string[]> {
+  const byAccount = new Map<string, Map<string, StorageDeletionTarget>>();
+  for (const asset of assets) {
+    const accountId = assetAccountId(asset);
+    const targets = byAccount.get(accountId) ?? new Map<string, StorageDeletionTarget>();
+    for (const target of storageTargetsForAsset(asset, asset.variantKeys)) {
+      targets.set(`${target.kind}:${target.target}`, target);
+    }
+    byAccount.set(accountId, targets);
+  }
+  const ids: string[] = [];
+  for (const [accountId, targets] of byAccount) {
+    for (const batch of chunks([...targets.values()], CHUNK_SIZE)) {
+      ids.push(...(await armStorageTargets(tx, 'file.deleted', accountId, batch)));
+    }
+  }
+  return ids;
+}
+
+/**
  * Record the keys ONE asset stopped using when a visibility change copied its
  * objects to the other spelling (`public/` or not), inside the transaction that
  * repointed the row. Each old key is an OBJECT target — never its directory:
@@ -134,7 +178,12 @@ export async function recordFileStorageDeletion(
  */
 export async function recordFileStorageRelocation(
   tx: Transaction,
-  asset: { sha256: string; ownerUserId: string | null; systemOwner: string | null },
+  asset: {
+    sha256: string;
+    ownerUserId: string | null;
+    systemOwner: string | null;
+    ownerApplicationId: string | null;
+  },
   oldKeys: readonly string[],
 ): Promise<string[]> {
   if (oldKeys.length === 0) return [];
@@ -146,8 +195,20 @@ export async function recordFileStorageRelocation(
   return armStorageTargets(tx, 'file.relocated', assetAccountId(asset), [...targets.values()]);
 }
 
-function assetAccountId(asset: { ownerUserId: string | null; systemOwner: string | null }): string {
-  return asset.ownerUserId ?? `system:${asset.systemOwner ?? 'unknown'}`;
+/**
+ * The ledger's `account_id` for one asset: its owning account, `app:<id>` for
+ * an application-owned asset (ADR 0043), or `system:<namespace>`. Never a
+ * foreign key (`storageObjectDeletions.ts`), so each owner kind gets its own
+ * prefix and two kinds can never collide on one target.
+ */
+export function assetAccountId(asset: {
+  ownerUserId: string | null;
+  systemOwner: string | null;
+  ownerApplicationId: string | null;
+}): string {
+  if (asset.ownerUserId) return asset.ownerUserId;
+  if (asset.ownerApplicationId) return `app:${asset.ownerApplicationId}`;
+  return `system:${asset.systemOwner ?? 'unknown'}`;
 }
 
 async function armStorageTargets(
@@ -187,11 +248,27 @@ export async function recordAccountStorageDeletion(
   options: { removeAssetRows: boolean },
 ): Promise<RecordedAccountStorageDeletion> {
   const owned = await tx
-    .select({ id: files.id, sha256: files.sha256, storageKey: files.storageKey })
+    .select({
+      id: files.id,
+      sha256: files.sha256,
+      storageKey: files.storageKey,
+      ownerUserId: files.ownerUserId,
+      ownerApplicationId: files.ownerApplicationId,
+      status: files.status,
+    })
     .from(files)
     .where(
       and(
-        eq(files.ownerUserId, accountId),
+        or(
+          eq(files.ownerUserId, accountId),
+          inArray(
+            files.ownerApplicationId,
+            tx
+              .select({ id: applications.id })
+              .from(applications)
+              .where(eq(applications.ownerAccountId, accountId)),
+          ),
+        ),
         notExists(
           tx
             .select({ one: sql`1` })
@@ -225,26 +302,54 @@ export async function recordAccountStorageDeletion(
     }
   }
 
-  const targets = new Map<string, StorageDeletionTarget>();
+  // Keyed by ledger owner too: an application's asset is recorded under
+  // `app:<id>`, exactly as its own per-file delete would record it.
+  const targets = new Map<string, StorageDeletionTarget & { accountId: string }>();
   for (const asset of owned) {
+    const ledgerAccountId = asset.ownerApplicationId
+      ? `app:${asset.ownerApplicationId}`
+      : accountId;
     for (const target of storageTargetsForAsset(asset, variantKeys.get(asset.id) ?? [])) {
-      targets.set(`${target.kind}:${target.target}`, target);
+      targets.set(`${ledgerAccountId}:${target.kind}:${target.target}`, {
+        ...target,
+        accountId: ledgerAccountId,
+      });
     }
   }
 
   for (const batch of chunks([...targets.values()], CHUNK_SIZE)) {
     await tx
       .insert(storageObjectDeletions)
-      .values(batch.map((target) => ({ reason: 'account.deleted' as const, accountId, ...target })))
+      .values(batch.map((target) => ({ reason: 'account.deleted' as const, ...target })))
       .onConflictDoNothing();
   }
 
   const fileIds = owned.map((asset) => asset.id);
-  if (options.removeAssetRows) {
-    for (const ids of chunks(fileIds, CHUNK_SIZE)) {
-      // Variants and links cascade with their asset.
-      await tx.delete(files).where(inArray(files.id, ids));
-    }
+
+  // Every application using one of the ACCOUNT's own files is told it is gone
+  // (ADR 0043 D9), in this transaction and while the rows and their references
+  // still stand: the archive removes them below, the hard delete's `users`
+  // cascade after. The account's applications' files were tombstoned — and
+  // their users told — by `deleteAccountApplications` just before; a file
+  // tombstoned earlier was announced then.
+  await recordFileEvents(
+    tx,
+    'file.deleted',
+    owned
+      .filter((asset) => asset.ownerUserId === accountId && asset.status !== 'deleted')
+      .map((asset) => asset.id),
+    { status: 'deleted' },
+  );
+
+  // An application's rows go on EVERY path: no cascade reaches them
+  // (`RESTRICT`), and on a hard delete they must be gone before the `users`
+  // cascade deletes their application.
+  const removable = options.removeAssetRows
+    ? fileIds
+    : owned.filter((asset) => asset.ownerApplicationId !== null).map((asset) => asset.id);
+  for (const ids of chunks(removable, CHUNK_SIZE)) {
+    // Variants and links cascade with their asset.
+    await tx.delete(files).where(inArray(files.id, ids));
   }
 
   return { fileIds, targets: targets.size };

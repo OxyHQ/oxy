@@ -1,0 +1,6 @@
+{
+  "csp": {
+    "imgSrc": ["https://api.oxy.so"],
+    "mediaSrc": ["https://api.oxy.so"]
+  }
+}

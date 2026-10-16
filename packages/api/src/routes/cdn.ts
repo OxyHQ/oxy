@@ -21,7 +21,7 @@ import { assetService } from '../services/assetServiceSingleton';
 import { validate } from '../middleware/validate';
 import { assetIdParams } from '../schemas/assets.schemas';
 import { asyncHandler } from '../utils/asyncHandler';
-import { CDN_REDIRECT_CACHE_CONTROL } from '../config/cdn';
+import { CDN_REDIRECT_CACHE_CONTROL, isServableStatus } from '../config/cdn';
 import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
 import { singleQueryValue } from '../utils/queryString';
@@ -67,7 +67,7 @@ router.get(
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 
-    if (file.status !== 'active') {
+    if (!isServableStatus(file)) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
     }
 

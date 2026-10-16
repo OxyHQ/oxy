@@ -161,6 +161,8 @@ export type {
   PublicApplication,
   ConnectedApp,
   ConnectedMcpClient,
+  ApplicationDeleteResult,
+  ApplicationFilesWebhook,
 } from './api/apps';
 export type { LinkedAccountsApi } from './api/linkedAccounts';
 export type {
@@ -236,6 +238,7 @@ export type { TopicsApi, TopicListOptions } from './api/topics';
 export { OxyAppDataIdentifierError } from './api/appData';
 export type { AppDataApi } from './api/appData';
 export type { ContactsApi, ContactDiscoveryMatch, ContactDiscoveryResponse } from './api/contacts';
+export type { ContentClaimsApi } from './api/contentClaims';
 
 // ---------------------------------------------------------------------------
 // "Sign in with Oxy" delivery helpers
@@ -354,7 +357,23 @@ export type {
   AssetUpdateVisibilityRequest,
   AssetUpdateVisibilityResponse,
   ServiceAssetMetadata,
+  AssetLiveStatus,
   ServiceAssetMetadataBySha,
+  ApplicationFile,
+  ApplicationFileUpload,
+  ApplicationFilePage,
+  ServiceFileReference,
+  ServiceFileReferenceResult,
+  ServiceReferenceInventoryItem,
+  ServiceReferenceReconcileResult,
+  ServiceUserMediaFile,
+  FileImportOutcome,
+  FileImportSource,
+  FileImportOptions,
+  ApplicationFileImport,
+  ApplicationFileImportBatchResult,
+  ApplicationFileAdoption,
+  ServiceUserMediaImport,
   AccountStorageCategoryUsage,
   AccountStorageUsageResponse,
   SecurityEventType,

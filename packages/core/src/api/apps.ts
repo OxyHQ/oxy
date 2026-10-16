@@ -56,6 +56,21 @@ export type ApplicationEnvironment = 'development' | 'staging' | 'production';
 /** Application credential lifecycle status. */
 export type ApplicationCredentialStatus = 'active' | 'deprecated' | 'revoked';
 
+/** `DELETE /applications/:appId`: what went with the application (ADR 0043 D8). */
+export interface ApplicationDeleteResult {
+  success: true;
+  /** Files the application owned, deleted with it. */
+  filesDeleted: number;
+  /** References the application had registered on other owners' files, removed. */
+  referencesRemoved: number;
+}
+
+/** `GET /applications/:appId/files-webhook`. */
+export interface ApplicationFilesWebhook {
+  url: string | null;
+  verifiedAt: string | null;
+}
+
 /**
  * Client-facing Application shape returned by the `/applications` API. An
  * application is the OAuth client; it is OWNED by an account
@@ -81,6 +96,9 @@ export interface Application {
   scopes: string[];
   webhookUrl?: string;
   devWebhookUrl?: string;
+  /** The verified file-events endpoint (ADR 0043 D9); see `apps.setFilesWebhook`. */
+  filesWebhookUrl?: string;
+  filesWebhookVerifiedAt?: string;
   createdByUserId: string;
   /**
    * The account that owns this application (account `_id`). Access to the
@@ -569,14 +587,21 @@ export class AppsApi {
   }
 
   /**
-   * Soft-delete an application.
+   * Delete an application — and with it, at once, every file it owns and
+   * every reference it registered (ADR 0043 D8). `confirmName` must be the
+   * application's current name, as the person typed it (compared trimmed and
+   * case-sensitively); anything else is refused with 400
+   * `CONFIRM_NAME_MISMATCH` and nothing changes.
    * @param applicationId - The application's `_id`.
    */
-  async delete(applicationId: string): Promise<AccountSuccessResult> {
-    const result = await this.ctx.request<AccountSuccessResult>(
+  async delete(
+    applicationId: string,
+    options: { confirmName: string },
+  ): Promise<ApplicationDeleteResult> {
+    const result = await this.ctx.request<ApplicationDeleteResult>(
       'DELETE',
       appPath(applicationId),
-      undefined,
+      { confirmName: options.confirmName },
       {
         cache: false,
       },
@@ -585,6 +610,51 @@ export class AppsApi {
       `GET:${appPath(applicationId)}`,
       `GET:${credentialsPath(applicationId)}`,
     ]);
+    return result;
+  }
+
+  /**
+   * The application's file-events endpoint (ADR 0043 D9), or nulls when none.
+   * Its signing secret is never readable: it is shown once, by
+   * {@link setFilesWebhook}.
+   */
+  async getFilesWebhook(applicationId: string): Promise<ApplicationFilesWebhook> {
+    return this.ctx.request<ApplicationFilesWebhook>(
+      'GET',
+      `${appPath(applicationId)}/files-webhook`,
+      undefined,
+      { cache: false },
+    );
+  }
+
+  /**
+   * Set (or re-verify) the file-events endpoint. Oxy POSTs
+   * `{ type: 'webhook.challenge', challenge }` to `url` and stores it only when
+   * the endpoint answers 2xx `{ challenge }` with the same value (422
+   * `WEBHOOK_VERIFICATION_FAILED` otherwise). Every call issues a NEW signing
+   * secret, returned here ONCE — store it; verify events with
+   * `verifyFileEventSignature` from `@oxy.so/core/server`.
+   */
+  async setFilesWebhook(
+    applicationId: string,
+    url: string,
+  ): Promise<ApplicationFilesWebhook & { url: string; verifiedAt: string; secret: string }> {
+    const result = await this.ctx.request<
+      ApplicationFilesWebhook & { url: string; verifiedAt: string; secret: string }
+    >('PUT', `${appPath(applicationId)}/files-webhook`, { url }, { cache: false });
+    this.invalidateLists([`GET:${appPath(applicationId)}`]);
+    return result;
+  }
+
+  /** Stop file events: the endpoint and its secret are removed. */
+  async removeFilesWebhook(applicationId: string): Promise<AccountSuccessResult> {
+    const result = await this.ctx.request<AccountSuccessResult>(
+      'DELETE',
+      `${appPath(applicationId)}/files-webhook`,
+      undefined,
+      { cache: false },
+    );
+    this.invalidateLists([`GET:${appPath(applicationId)}`]);
     return result;
   }
 

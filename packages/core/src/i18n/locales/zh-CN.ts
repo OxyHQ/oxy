@@ -396,5 +396,59 @@ const dict = {
       row: '登录时的第二步验证',
     },
   },
+  fileManagement: {
+    deleteFile: '删除文件',
+    confirm: '确认',
+    retry: '重试',
+    loadError: {
+      description: '出了点问题。请检查网络连接后重试。',
+    },
+    moveToTrash: '移到回收站',
+    moveToTrashCount: '移到回收站（{{count}}）',
+    trashView: {
+      title: '回收站',
+      subtitle: '恢复文件或将其永久删除',
+      notice: '文件会一直留在回收站中，直到你恢复或删除它们，并且仍会占用你的存储空间。',
+      emptyTitle: '回收站是空的',
+      emptyDescription: '你移到回收站的文件会显示在这里。你可以恢复它们，或将其永久删除。',
+      trashedOn: '于 {{date}} 移到回收站',
+      deleteForever: '永久删除',
+      loadError: '无法加载回收站',
+      a11y: {
+        restore: '恢复 {{name}}',
+        deleteForever: '永久删除 {{name}}',
+      },
+    },
+    a11y: {
+      moveToTrash: '将 {{name}} 移到回收站',
+      deleteFile: '删除 {{name}}',
+      openTrash: '打开回收站',
+    },
+    toasts: {
+      movedToTrash: '已移到回收站。你可以从回收站恢复它。',
+      bulkMovedToTrash: '已将 {{count}} 个文件移到回收站',
+      moveToTrashFailed: '无法将文件移到回收站',
+      restored: '文件已恢复',
+      notInTrash: '此文件已不在回收站中。',
+      restoreFailed: '无法恢复文件',
+      deletedForever: '文件已永久删除',
+      deleteSuccess: '文件已删除',
+      deleteFailed: '无法删除文件',
+      fileNotFound: '找不到文件。它可能已被删除。',
+      noPermission: '你没有删除此文件的权限。',
+      bulkDeleteSuccess: '已删除 {{count}} 个文件',
+      bulkDeleteFailed: '{{count}} 个文件删除失败',
+      bulkDeleteError: '无法删除文件',
+    },
+    confirms: {
+      deleteFile: '确定要删除“{{filename}}”吗？此操作无法撤销。',
+      moveToTrash: '将“{{filename}}”移到回收站？它将不再在任何地方显示，你可以从回收站恢复它。',
+      moveFilesToTrash:
+        '将 {{count}} 个文件移到回收站？它们将不再在任何地方显示，你可以从回收站恢复它们。',
+      deleteForever: '永久删除“{{filename}}”？此操作无法撤销。',
+      deleteForeverInUse:
+        '“{{filename}}”仍在你的应用中的 {{count}} 处使用。删除后，它也会从那里消失。要永久删除吗？',
+    },
+  },
 };
 export default dict;

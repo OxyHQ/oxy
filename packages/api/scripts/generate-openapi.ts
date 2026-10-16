@@ -677,6 +677,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'organizations.ts': ['/organizations'],
   'safety.ts': ['/safety'],
   'supervision.ts': ['/safety'],
+  'contentClaims.ts': ['/content-claims'],
   'devices.ts': ['/devices'],
   'security.ts': ['/security'],
   'subscription.routes.ts': ['/subscription'],
@@ -734,6 +735,7 @@ const TAG_GROUPS: Record<string, string> = {
   '/accounts': 'Users',
   '/organizations': 'Organizations',
   '/safety': 'Safety',
+  '/content-claims': 'Safety',
   '/devices': 'Devices',
   '/security': 'Security',
   '/subscription': 'Subscription',
@@ -881,7 +883,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|ownAssetAuth|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1709,7 +1711,9 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     INBOX_CAPABILITY_CATALOG.tools.some((tool) =>
       catalogInvocationTemplatesEquivalent(tool.invocation, { method: verb, path: openApiPath }),
     );
-  const isAuth = middlewares.includes('authMiddleware');
+  // `ownAssetAuth` (routes/assets.ts) is `authMiddleware` that also lets a
+  // supervised account's session act on its own files: the same bearer.
+  const isAuth = middlewares.includes('authMiddleware') || middlewares.includes('ownAssetAuth');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isEdgeCredential) {
     security.push({ machineCredentialAuth: [] });

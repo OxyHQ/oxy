@@ -162,6 +162,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: LEGACY_PUBLIC_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
       variants: [
         { type: 'thumb', key: 'variants/2026/03/bb/bb7a29b85077cd58d945959b017bc954/thumb.webp' },
@@ -202,6 +203,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: PREFIXED_PUBLIC_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/aaaa.png',
       variants: [],
     });
@@ -220,6 +222,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: PREFIXED_PUBLIC_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/aaaa.png',
       variants: [],
     });
@@ -233,10 +236,53 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
   });
 
+  // ADR 0043 D5, OxyHQ/oxy#1284: the fast path redirected a TRASHED public
+  // file to the CDN because it never looked at the status.
+  it.each(['trash', 'deleted'] as const)(
+    'never serves a %s public file — no CDN redirect, no origin stream, a 404',
+    async (status) => {
+      mockGetFile.mockResolvedValue({
+        _id: PREFIXED_PUBLIC_FILE_ID,
+        visibility: 'public',
+        status,
+        storageKey: 'public/content/2026/06/aa/aaaa.png',
+        variants: [],
+      });
+      mockCanUserAccessFile.mockResolvedValue(true);
+
+      const res = await requestNoFollow(server, `/assets/${PREFIXED_PUBLIC_FILE_ID}/stream`);
+
+      expect(res.status).toBe(404);
+      expect(res.location).toBeUndefined();
+      expect(mockGetPublicCdnUrl).not.toHaveBeenCalled();
+      expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers a trashed file with the placeholder a missing one gets, when one is asked for', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PRIVATE_FILE_ID,
+      visibility: 'private',
+      status: 'trash',
+      storageKey: 'content/2026/06/cc/secret.png',
+      variants: [],
+    });
+
+    const res = await requestNoFollow(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?fallback=placeholderVisible`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toBe('<svg/>');
+    expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
+  });
+
   it('streams a private file through our origin (never a CDN redirect)', async () => {
     mockGetFile.mockResolvedValue({
       _id: PRIVATE_FILE_ID,
       visibility: 'private',
+      status: 'active' as const,
       storageKey: 'content/2026/06/cc/secret.png',
       variants: [],
     });
@@ -262,6 +308,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: PRIVATE_FILE_ID,
       visibility: 'private',
+      status: 'active' as const,
       storageKey: 'content/2026/06/vv/video.mp4',
       mimeType: 'video/mp4',
       variants: [],
@@ -278,6 +325,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: PRIVATE_FILE_ID,
       visibility: 'private',
+      status: 'active' as const,
       storageKey: 'content/2026/06/vv/video.mp4',
       mimeType: 'video/mp4',
       variants: [],
@@ -298,6 +346,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     mockGetFile.mockResolvedValue({
       _id: PROBE_THROWS_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'content/2026/03/dd/legacy.png',
       variants: [],
     });

@@ -31,9 +31,12 @@ import {
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
+  isApplicationFileScope,
+  isPrivilegedScopeForApplicationType,
   isValidApplicationScope,
   type ApplicationScope,
 } from '../../utils/applicationScopes';
+import { isTrustedApplication } from '../../utils/trustedApplication';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
@@ -111,7 +114,7 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  it('plans GoWay as a pinned public sign-in application without service authority', () => {
+  it('plans GoWay as a pinned public sign-in application whose only service authority is its file references', () => {
     const spec = specNamed('GoWay');
     expect(seedApplicationLookupIdentity(spec, PLATFORM_OWNER_ID)).toEqual({
       kind: 'id',
@@ -138,7 +141,8 @@ describe('the canonical official-application registry', () => {
       type: 'first_party',
       isOfficial: true,
       isInternal: false,
-      scopes: ['user:read'],
+      // ADR 0043 D12: claim withdrawal is GoWay's own reference removal.
+      scopes: ['user:read', 'files:references:write'],
       capabilities: [],
     });
     expect(spec.ownerAccountUsername).toBeUndefined();
@@ -161,6 +165,7 @@ describe('the canonical official-application registry', () => {
         'capabilities:read',
         'capability-audit:write',
         'capability-events:publish',
+        'files:references:write',
       ],
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
@@ -223,6 +228,11 @@ describe('the canonical official-application registry', () => {
           'catalogs:write',
           'capabilities:read',
           'capability-audit:write',
+          'files:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+          'files:user-media:write',
         ],
         capabilities: ['catalog:homiio'],
       });
@@ -314,7 +324,20 @@ describe('the canonical official-application registry', () => {
       'accounts:act-as-session',
       'capability-tickets:issue',
     ];
-    const PRIVILEGED_SCOPES: readonly string[] = ['capabilities:read', ...DELEGATION_SCOPES];
+    /** ADR 0043: Alia's own files and a person's uploads (see `ALIA_APPLICATION_SCOPES`). */
+    const FILE_SCOPES: readonly string[] = [
+      'files:read',
+      'files:app:write',
+      'files:app:delete',
+      'files:references:write',
+      'files:user-media:write',
+    ];
+    const PRIVILEGED_SCOPES: readonly string[] = [
+      'capabilities:read',
+      ...DELEGATION_SCOPES,
+      // `files:read` is self-service; the four write scopes are staff-gated.
+      ...FILE_SCOPES.filter((scope) => scope !== 'files:read'),
+    ];
 
     it('declares the argued set and nothing else', () => {
       expect(specNamed('Alia').scopes).toEqual([...ALIA_APPLICATION_SCOPES]);
@@ -354,7 +377,7 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...DELEGATION_SCOPES]));
     });
 
-    it('holds exactly the four argued staff-gated scopes and no others', () => {
+    it('holds exactly the eight argued staff-gated scopes and no others', () => {
       // This REPLACES "holds no staff-gated scope of any family", which was a
       // real gate rather than a formality: the seed is the one path where a
       // staff-only scope reaches an application without a person reviewing a
@@ -403,7 +426,8 @@ describe('the canonical official-application registry', () => {
           scope !== 'capabilities:read' &&
           scope !== 'clarity:search' &&
           scope !== 'clarity:index' &&
-          !DELEGATION_SCOPES.includes(scope),
+          !DELEGATION_SCOPES.includes(scope) &&
+          !FILE_SCOPES.includes(scope),
       );
 
     it('searches and reads pages through Clarity, and registers no site there', () => {
@@ -415,7 +439,12 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).not.toContain('clarity:sites:manage');
     });
 
-    it('grants nothing outside inference, `user:read`, capability read, Clarity search and reads, delegation and coordination', () => {
+    it('carries the ADR 0043 file scopes, each a REAL scope', () => {
+      expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...FILE_SCOPES]));
+      for (const scope of FILE_SCOPES) expect(isValidApplicationScope(scope)).toBe(true);
+    });
+
+    it('grants nothing outside inference, `user:read`, capability read, Clarity search and reads, delegation, coordination and files', () => {
       // This REPLACES "grants nothing outside the inference family except the
       // `user:read` baseline". The exemption list grew by exactly the four scopes
       // argued for above and by nothing else, which is the point: the sentence
@@ -498,6 +527,10 @@ describe('the canonical official-application registry', () => {
         'user:read',
         'catalogs:write',
         'clarity:search',
+        'files:read',
+        'files:app:write',
+        'files:app:delete',
+        'files:references:write',
       ]);
     });
 
@@ -573,6 +606,8 @@ describe('the canonical official-application registry', () => {
         'clarity:index',
         'clarity:sites:manage',
         'capability-tickets:issue',
+        'files:app:write',
+        'files:references:write',
       ]);
       expect(specNamed('Mention').capabilities).toEqual([
         catalogApplicationCapability('mention'),
@@ -607,7 +642,26 @@ describe('the canonical official-application registry', () => {
         'payments:write',
         'files:user-media:write',
         'files:linked:read',
+        'files:app:write',
+        'files:app:delete',
+        'files:references:write',
       ]);
+    });
+
+    it('carries the application file scopes only where staff grant them', () => {
+      // ADR 0043 D11: on Oxy's own applications these are a platform decision
+      // — the files are metered against no one (D2) — so the canonical seed,
+      // run by staff, is where they are granted. Every seeded type is one of
+      // Oxy's own, so each grant here must read as privileged.
+      for (const spec of SEED_APPS) {
+        for (const scope of (spec.scopes ?? []).filter(isApplicationFileScope)) {
+          expect({
+            name: spec.name,
+            scope,
+            privileged: isPrivilegedScopeForApplicationType(scope, spec.type),
+          }).toEqual({ name: spec.name, scope, privileged: true });
+        }
+      }
     });
 
     it('is bound to the Mercaria catalog namespace without coordinator authority', () => {
@@ -615,6 +669,105 @@ describe('the canonical official-application registry', () => {
         catalogApplicationCapability('mercaria'),
       ]);
       expect(specNamed('Mercaria').scopes).not.toContain('capability-tickets:issue');
+    });
+  });
+
+  describe('ADR 0043: every product adopting Oxy Files holds exactly its file scopes', () => {
+    /**
+     * The census: each adopting application's `files:*` scopes, EXACTLY. A file
+     * scope added "while we're here" — or one an adoption needs going missing —
+     * fails here by name rather than at the product's first upload.
+     */
+    const FILE_SCOPE_CENSUS: ReadonlyArray<readonly [string, readonly string[]]> = [
+      ['Nilo', ['files:linked:read', 'files:references:write']],
+      ['Mention', ['files:read', 'files:write', 'files:app:write', 'files:references:write']],
+      ['Moovo', ['files:read', 'files:references:write', 'files:app:write']],
+      ['Peable', ['files:read', 'files:references:write']],
+      ['CrowdSource', ['files:read', 'files:references:write']],
+      [
+        'Mercaria',
+        [
+          'files:user-media:write',
+          // Digital goods (OxyHQ/oxy#1755): files their creators linked to it.
+          'files:linked:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+        ],
+      ],
+      ['GoWay', ['files:references:write']],
+      [
+        'Syra',
+        [
+          'files:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+          'files:user-media:write',
+        ],
+      ],
+      [
+        'Alia',
+        [
+          'files:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+          'files:user-media:write',
+        ],
+      ],
+      [
+        'Homiio',
+        [
+          'files:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+          'files:user-media:write',
+        ],
+      ],
+      [
+        'Oxy Website',
+        ['files:read', 'files:app:write', 'files:app:delete', 'files:references:write'],
+      ],
+    ];
+
+    it.each(FILE_SCOPE_CENSUS)('%s', (name, expected) => {
+      const fileScopes = (specNamed(name).scopes ?? []).filter((scope) =>
+        scope.startsWith('files:'),
+      );
+      expect(fileScopes).toEqual([...expected]);
+    });
+
+    it.each(FILE_SCOPE_CENSUS)(
+      '%s mints internal-tier service tokens (the owner is revealed to Oxy only)',
+      (name) => {
+        // `routes/auth.ts` mints `tier: 'internal'` exactly when
+        // `isTrustedApplication`; the seed declares `type` and the planner derives
+        // the rest, so this runs the planner rather than reading `type`.
+        const { desired } = computeSeedApplicationPlan(null, {
+          description: '',
+          type: specNamed(name).type,
+          ownerAccountId: PLATFORM_OWNER_ID,
+          redirectUris: [],
+          scopes: [],
+          capabilities: [],
+        });
+        expect(isTrustedApplication(desired)).toBe(true);
+        // And by `type` alone, should `isOfficial` ever stop being stamped.
+        expect(isTrustedApplication({ type: desired.type })).toBe(true);
+        expect(isTrustedApplication({ type: 'third_party' })).toBe(false);
+      },
+    );
+
+    it('every census name is a seeded application and every application with a file write scope is in it', () => {
+      const census = new Set(FILE_SCOPE_CENSUS.map(([name]) => name));
+      const writers = SEED_APPS.filter((spec) =>
+        (spec.scopes ?? []).some((scope) => scope.startsWith('files:') && scope !== 'files:read'),
+      ).map((spec) => spec.name);
+      // Oxy Move's `files:write` + `files:user-media:write` predate ADR 0043.
+      expect(writers.filter((name) => !census.has(name))).toEqual(['Oxy Move']);
+      for (const name of census) expect(() => specNamed(name)).not.toThrow();
     });
   });
 

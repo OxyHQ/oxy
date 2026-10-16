@@ -15,6 +15,7 @@ import { accessProviderPeriods, accessProviderEvents } from './productProviderEv
 import { accessProviderRefunds } from './productProviderRefunds';
 import { personalPlanCheckoutIntents } from './personalPlanCheckoutIntents';
 import { storageByteReservations } from './storageByteReservations';
+import { contentClaimEvents } from './contentClaims';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -78,7 +79,10 @@ import { deviceSessionAccounts } from './deviceSessionAccounts';
 import { deviceSessions } from './deviceSessions';
 import { emailOutbox } from './emailOutbox';
 import { federationKeyPairs } from './federationKeyPairs';
-import { fileLinks } from './fileLinks';
+import { fileReferenceReconciliationItems } from './fileReferenceReconciliations';
+import { fileReferences } from './fileReferences';
+import { fileEventDeliveries } from './fileEventDeliveries';
+import { fileUploadSessions } from './fileUploadSessions';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
 import {
@@ -824,12 +828,67 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'Scoped to one message and id-shaped by name only.',
   },
   {
-    table: fileLinks,
-    column: fileLinks.entityId,
+    table: fileReferenceReconciliationItems,
+    column: fileReferenceReconciliationItems.fileId,
     reason:
-      "The entity's id in the CONSUMING application's database (a Mention " +
-      'post, an Alia thread). Meaningful only together with `app` and ' +
-      '`entity_type`, and never resolvable here.',
+      'A file id an application CLAIMS it uses (ADR 0043 D6). A file that does ' +
+      'not exist is an answer the commit reports (`refused`), so a page must ' +
+      'never fail on one stale id; the diff joins `files` itself.',
+  },
+  {
+    table: fileReferenceReconciliationItems,
+    column: fileReferenceReconciliationItems.entityId,
+    reason:
+      "The entity's id in the reconciling application's database, exactly as " +
+      '`file_references.entity_id`: never resolvable here.',
+  },
+  {
+    table: contentClaimEvents,
+    column: contentClaimEvents.actorUserId,
+    reason:
+      'Who acted on a content claim (ADR 0043 D10): the staff member, or the signed-in ' +
+      'claimant. An audit trail that lost its actor when their account was deleted would ' +
+      'not be one, and the trail is append-only (a trigger refuses an UPDATE). Staff-only.',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.eventId,
+    reason:
+      'The id of a file event (ADR 0043 D9), shared by every application told of ' +
+      "the same change: the receiver's dedupe key. There is no events table — " +
+      'each delivery row carries its own payload.',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.fileId,
+    reason:
+      "The file an event is about. An account's deletion removes file rows, and " +
+      'a queued event must still be delivered then: its payload stands alone.',
+  },
+  ...(['ownerUserId', 'ownerApplicationId', 'uploaderApplicationId'] as const).map((key) => ({
+    table: fileUploadSessions,
+    column: fileUploadSessions[key],
+    reason:
+      'A large upload in progress (ADR 0043 stage 4b): this row is what aborts its S3 ' +
+      'multipart upload and releases its storage reservation when nobody finishes it. A ' +
+      "foreign key would let the owner's (or uploader's) deletion take that cleanup away, " +
+      'as `storage_byte_reservations.account_id` has none for the same reason; a session ' +
+      'whose owner is gone fails at finalization, where `insertFile` refuses it.',
+  })),
+  {
+    table: fileUploadSessions,
+    column: fileUploadSessions.s3UploadId,
+    reason:
+      "S3's own `UploadId` of the multipart upload — an opaque handle into the bucket, " +
+      'not a row of this database.',
+  },
+  {
+    table: fileReferences,
+    column: fileReferences.entityId,
+    reason:
+      "The entity's id in the USING application's database (a GoWay " +
+      'place, a mail message). Meaningful only together with `application_id` ' +
+      'and `entity_type`, and never resolvable here.',
   },
   {
     table: signedRecords,

@@ -230,6 +230,23 @@ export function seedApplicationLookupIdentity(
  *    Alia can carry out, one bounded step at a time, what a person authorised
  *    it to coordinate, and nothing else.
  *
+ * GRANTED — files (ADR 0043). Alia's skill bundles and show covers move out of
+ * its own bucket into Oxy Files (rollout stage 4), and a person's uploads to a
+ * chat are that PERSON's files. All four write scopes are staff-gated on Oxy's
+ * own applications (D11), which is why this canonical seed carries them:
+ *
+ *  - `files:read` — read back the metadata of a file Alia was handed
+ *    (`/assets/service/by-ids`), to check whose it is before attaching it.
+ *  - `files:app:write` / `files:app:delete` — store, list, re-publish and
+ *    remove files the ALIA APPLICATION owns (a skill bundle, a show cover).
+ *    Oxy's own application, so not metered (D2); its files are observed by the
+ *    per-application growth alert instead.
+ *  - `files:references:write` — record which agent, skill or message uses which
+ *    file (D4), so a file nothing uses any more is collected (D5) and a takedown
+ *    reaches Alia (D9/D10).
+ *  - `files:user-media:write` — store a file as owned by the PERSON it belongs
+ *    to (an attachment they sent), never as Alia's.
+ *
  * WITHHELD, each for its own reason rather than by omission:
  *
  *  - `inference:routing:write` — STAFF-GATED (`PRIVILEGED_APPLICATION_SCOPES`).
@@ -254,11 +271,12 @@ export function seedApplicationLookupIdentity(
  *    by the application's own owner, with no staff round trip.
  *
  * Nothing outside the `inference:*` family, `user:read`, `capabilities:read`,
- * `clarity:search`, `clarity:index` and those three delegation and coordination
- * scopes is granted. Alia is not a federation peer, does not move reputation,
+ * `clarity:search`, `clarity:index`, those three delegation and coordination
+ * scopes and the five file scopes is granted. Alia is not a federation peer, does not move reputation,
  * writes no signals, sends no notifications and touches no follow graph.
  *
- * These privileged entries — now four: `capabilities:read` and the three above —
+ * These privileged entries — now eight: `capabilities:read`, the three
+ * delegation scopes and the four file write scopes above —
  * are why `__tests__/seedOxyApplicationsSpecs.test.ts` pins the privileged subset
  * BY NAME instead of asserting it is empty. "Alia holds no staff-gated scope of
  * any family" was a real gate, not a formality, so the replacement has to bite in
@@ -278,7 +296,28 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'acting-as:offline',
   'accounts:act-as-session',
   'capability-tickets:issue',
+  'files:read',
+  'files:app:write',
+  'files:app:delete',
+  'files:references:write',
+  'files:user-media:write',
 ];
+
+/**
+ * The scopes over files an Oxy product owns or uses (ADR 0043 D11), for an
+ * application whose own content moves into Oxy Files: read a file's metadata
+ * back (`files:read`), store and remove the APPLICATION's own files
+ * (`files:app:write`, `files:app:delete` — Oxy's own application, not metered,
+ * D2) and record which of its records use which file (`files:references:write`,
+ * D4). Every write scope here is staff-granted on a first-party application,
+ * which is what this canonical seed is.
+ */
+const PRODUCT_FILE_SCOPES = [
+  'files:read',
+  'files:app:write',
+  'files:app:delete',
+  'files:references:write',
+] as const satisfies readonly ApplicationScope[];
 
 /**
  * The username of the project account Alia's application is owned by, and
@@ -445,6 +484,13 @@ export const SEED_APPS: SeedAppSpec[] = [
       'clarity:sites:manage',
       // I05 foreground only: requester session and read-only tools remain independently checked.
       'capability-tickets:issue',
+      // ADR 0043: the GIF library moves out of the evictable federation cache
+      // into files the MENTION APPLICATION owns (`files:app:write`; Oxy's own,
+      // so not metered — D2), and every post records the media it shows
+      // (`files:references:write`, D4) so a takedown or a deletion reaches
+      // Mention (D9) and a file no post uses is collected (D5).
+      'files:app:write',
+      'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('mention'), AGENCY_COORDINATE_CAPABILITY],
   },
@@ -468,6 +514,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     //   and serves its internal MCP to Alia, re-authorising and auditing each
     //   ticket (`capabilities:read`, `capability-audit:write`); its public OAuth
     //   MCP is mcp.homiio.oxy.so.
+    // ADR 0043: Homiio's own bucket (and its ~950 orphans) ends — listing
+    // photos a person uploads are THAT person's (`files:user-media:write`),
+    // platform artwork is the Homiio application's own (PRODUCT_FILE_SCOPES),
+    // and every listing records the files it shows (references).
     scopes: [
       'user:read',
       'reputation:write',
@@ -476,6 +526,8 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      ...PRODUCT_FILE_SCOPES,
+      'files:user-media:write',
     ],
     capabilities: [catalogApplicationCapability('homiio')],
   },
@@ -521,6 +573,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://syra.fm',
     type: 'first_party',
     redirectUris: ['https://syra.fm'],
+    // ADR 0043 rollout stage 4: Syra's catalogue artwork moves out of its own
+    // bucket into files the SYRA APPLICATION owns, and what a person uploads
+    // (a playlist cover) is that person's (`files:user-media:write`).
+    scopes: ['user:read', ...PRODUCT_FILE_SCOPES, 'files:user-media:write'],
   },
   {
     name: 'TNP',
@@ -542,7 +598,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     // they are authored in Mention and indexed by Clarity, and the website
     // stores none of them. The mint intersects credential scopes with these, so
     // without it Clarity answers `scope_missing` for every job search.
-    scopes: ['user:read', 'catalogs:write', 'clarity:search'],
+    // ADR 0043 rollout stage 4: the website's media (post covers, team photos)
+    // leaves its own bucket and `storage_cleanups` for files the WEBSITE
+    // application owns, referenced by the post or page that shows them.
+    scopes: ['user:read', 'catalogs:write', 'clarity:search', ...PRODUCT_FILE_SCOPES],
     capabilities: [catalogApplicationCapability('website')],
   },
   {
@@ -551,7 +610,16 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://peable.to',
     type: 'first_party',
     redirectUris: ['https://peable.to'],
-    scopes: ['user:read', 'payments:read', 'payments:write'],
+    // ADR 0043 D4: Peable records which of its records (a receipt, a
+    // merchant logo) use a person's file and reads its metadata back; it owns
+    // no files of its own.
+    scopes: [
+      'user:read',
+      'payments:read',
+      'payments:write',
+      'files:read',
+      'files:references:write',
+    ],
   },
   {
     name: 'Noted',
@@ -599,6 +667,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     // their execution audit; it receives no coordinator or ticket-mint scope.
     // Staff-approved media import stores durable public product photos for the
     // persisted store owner. Ordinary files:write does not authorize that act-as.
+    // Platform artwork that belongs to no store (category tiles) is Mercaria's
+    // own: `files:app:*` stores, lists, re-publishes and removes files the
+    // APPLICATION owns — not metered, Mercaria is Oxy's (ADR 0043 D2) — and
+    // `files:references:write` records which listings use which files (D4).
     scopes: [
       'user:read',
       'catalogs:write',
@@ -613,6 +685,9 @@ export const SEED_APPS: SeedAppSpec[] = [
       // bought what, then mints short-lived download URLs for them through
       // `/assets/service/linked-url`. Only files their own owners linked here.
       'files:linked:read',
+      'files:app:write',
+      'files:app:delete',
+      'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
@@ -622,6 +697,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://moovo.now',
     type: 'first_party',
     redirectUris: ['https://moovo.now', 'https://go.moovo.now', 'https://hub.moovo.now'],
+    // ADR 0043: category art is the MOOVO APPLICATION's own file
+    // (`files:app:write`; no hotlinked supplier URLs), and every record that
+    // shows a file — Moovo's own or a person's — references it (D4).
+    scopes: ['user:read', 'files:read', 'files:references:write', 'files:app:write'],
   },
   {
     id: MEDIA_WORKER_APPLICATION_ID,
@@ -680,7 +759,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://goway.to',
     type: 'first_party',
     redirectUris: ['https://goway.to'],
-    scopes: ['user:read'],
+    // `files:references:write`: GoWay records and withdraws its own uses of
+    // files (a contributor's photo on a place) with its service token — the
+    // claim withdrawal a business's session can no longer perform (ADR 0043
+    // D12) — and reconciles them (D6). Staff-granted: GoWay is Oxy's (D11).
+    scopes: ['user:read', 'files:references:write'],
   },
   {
     id: NILO_APPLICATION_ID,
@@ -713,6 +796,10 @@ export const SEED_APPS: SeedAppSpec[] = [
       'capabilities:read',
       'capability-audit:write',
       'capability-events:publish',
+      // ADR 0043 D4: Nilo registers and removes the page→attachment
+      // references with its OWN token (it did through the person's session),
+      // and reconciles them (D6).
+      'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('noted')],
   },
@@ -763,11 +850,19 @@ export const SEED_APPS: SeedAppSpec[] = [
     // deep-link scheme is registered here when a native build actually ships —
     // an unused redirect surface is authority nobody asked for.
     redirectUris: ['https://crowdsource.oxy.so', 'https://console.crowdsource.oxy.so'],
-    // Sign-in ONLY, so the default `['user:read']`. CrowdSource must never
-    // carry `reputation:write`: it never moves an Oxy Trust figure itself, it
-    // emits a decision and Oxy Trust's own consequence engine decides the
-    // effect. Granting it here would also widen every device sign-in grant,
-    // because a device sign-in's granted scopes ARE the application's scopes
-    // (`routes/auth.ts` — `scopes = appScopes` when there is no OAuth request).
+    // CrowdSource must never carry `reputation:write`: it never moves an Oxy
+    // Trust figure itself, it emits a decision and Oxy Trust's own consequence
+    // engine decides the effect. Granting it here would also widen every
+    // device sign-in grant, because a device sign-in's granted scopes ARE the
+    // application's scopes (`routes/auth.ts` — `scopes = appScopes` when there
+    // is no OAuth request).
+    //
+    // The two file scopes are SERVICE-token scopes only (`/assets/service/*`
+    // checks them on the verified service token), so a session carrying them
+    // gains nothing: CrowdSource reads the metadata of the evidence a case
+    // shows (`files:read`) and records that a case uses it
+    // (`files:references:write`, ADR 0043 D4), so evidence is not collected
+    // under a case and a takedown of it reaches CrowdSource (D9).
+    scopes: ['user:read', 'files:read', 'files:references:write'],
   },
 ];

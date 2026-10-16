@@ -731,7 +731,9 @@ describe('AssetService visibility relocation', () => {
     // Mine moved to the bare spelling by COPY; the shared public object stays
     // for the other owner — nothing was moved out from under them.
     expect(relocated.storageKey).toBe(publicKey.slice('public/'.length));
-    expect(copyFile).toHaveBeenCalledWith(publicKey, publicKey.slice('public/'.length));
+    expect(copyFile).toHaveBeenCalledWith(publicKey, publicKey.slice('public/'.length), {
+      sizeHint: 4,
+    });
     expect(deleteFile).not.toHaveBeenCalled();
     expect(existingKeys.has(publicKey)).toBe(true);
   });

@@ -18,6 +18,7 @@ import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { purgeAlternativeBodyAttachments } from '../purge-alternative-body-attachments';
+import { INBOX_APPLICATION_ID } from '../../config/inboxInference';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -122,8 +123,16 @@ describe('purgeAlternativeBodyAttachments', () => {
       .from(messages)
       .where(eq(messages.id, message.id));
     expect(after.size).toBe(1050);
-    expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, 'oxy-mail', 'message', message.id);
-    expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, 'oxy-mail', 'message', message.messageId);
+    expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, {
+      applicationId: INBOX_APPLICATION_ID,
+      entityType: 'message',
+      entityId: message.id,
+    });
+    expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, {
+      applicationId: INBOX_APPLICATION_ID,
+      entityType: 'message',
+      entityId: message.messageId,
+    });
 
     // Idempotent.
     expect((await purgeAlternativeBodyAttachments({ apply: true })).removed).toBe(0);

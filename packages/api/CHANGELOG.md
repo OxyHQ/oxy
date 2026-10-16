@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Added (ADR 0043 — who owns a file, who uses it, and when it goes away)
+
+The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4b; its
+"Release runbook" gives the deploy order). Migrations `0170`–`0176` (pre) and
+`0177_drop_file_links` (post).
+
+- An application can own files (`/assets/service/app`, `files:app:*`);
+  third-party applications' files count toward their developer's plan.
+- `file_references` replaces `file_links`: applications register and reconcile
+  their own uses (`/assets/service/references`, `…/reconcile`).
+- The lifecycle sweep (report → enforce) collects applications' unused files;
+  only `active` files are served; owners' trash (`POST /assets/:id/trash`,
+  `GET /assets?status=trash`).
+- Import by URL (`/assets/service/app/import`, `/service/user-media/import`),
+  application deletion by typed name (D8), file events to a verified endpoint
+  (D9).
+- Content claims and the takedown (`/content-claims`, blocked bytes refused
+  everywhere with 451), the owner's counter-notice
+  (`POST /content-claims/counter-notices`).
+- Large, any-type, resumable uploads verified by hash
+  (`/assets/service/{app,user-media}/uploads`), adoption
+  (`POST /assets/service/app/adopt`), non-media served as sandboxed
+  attachments, profile avatars referenced, per-application storage growth
+  metrics, cross-task file-cache invalidation over Redis.
+
 ### Added (a service asks whether a person may act for an account)
 
 - `GET /internal/accounts/:accountId/access/:userId` → always 200

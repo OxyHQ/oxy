@@ -4,8 +4,9 @@
  *
  * ## What is actually being guarded
  *
- * The route's authorization is a single predicate — "a `file_links` row whose
- * `app` is the caller's and whose `created_by` is the file's `owner_user_id`" —
+ * The route's authorization is a single predicate — "a `file_references` row
+ * whose `application_id` is the caller's and whose `created_by_user_id` is the
+ * file's `owner_user_id`" —
  * and every plausible weaker spelling of it is an escalation, so each one is
  * refused here by its own case:
  *
@@ -96,10 +97,10 @@ import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 
 interface TestLink {
-  app: string;
+  applicationId: string;
   entityType: string;
   entityId: string;
-  createdBy: string;
+  createdByUserId: string | null;
 }
 
 interface LinkedUrlEntry {
@@ -140,7 +141,14 @@ function fileRow(
 function ownerLinked(id: string) {
   return fileRow(id, {
     ownerUserId: OWNER_ID,
-    links: [{ app: CALLER_APP, entityType: 'asset_file', entityId: 'av_1', createdBy: OWNER_ID }],
+    links: [
+      {
+        applicationId: CALLER_APP,
+        entityType: 'asset_file',
+        entityId: 'av_1',
+        createdByUserId: OWNER_ID,
+      },
+    ],
   });
 }
 
@@ -242,7 +250,12 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
       row: fileRow('f_attack', {
         ownerUserId: OWNER_ID,
         links: [
-          { app: CALLER_APP, entityType: 'asset_file', entityId: 'av_x', createdBy: ATTACKER_ID },
+          {
+            applicationId: CALLER_APP,
+            entityType: 'asset_file',
+            entityId: 'av_x',
+            createdByUserId: ATTACKER_ID,
+          },
         ],
       }),
     },
@@ -251,7 +264,31 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
       why: 'the owner consented to a DIFFERENT application, not to this one',
       row: fileRow('f_otherapp', {
         ownerUserId: OWNER_ID,
-        links: [{ app: OTHER_APP, entityType: 'avatar', entityId: 'u_1', createdBy: OWNER_ID }],
+        links: [
+          {
+            applicationId: OTHER_APP,
+            entityType: 'avatar',
+            entityId: 'u_1',
+            createdByUserId: OWNER_ID,
+          },
+        ],
+      }),
+    },
+    {
+      name: 'referencedByTheAppItself',
+      why:
+        "an application's own service-made reference has no creator, so it is " +
+        'never the owner granting the application anything (ADR 0043 D4)',
+      row: fileRow('f_selfref', {
+        ownerUserId: OWNER_ID,
+        links: [
+          {
+            applicationId: CALLER_APP,
+            entityType: 'asset_file',
+            entityId: 'av_s',
+            createdByUserId: null,
+          },
+        ],
       }),
     },
     {
@@ -263,11 +300,16 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
       name: 'systemOwned',
       why:
         'a federation-cache entry has no owner, so nobody could have consented; ' +
-        '`created_by` is NOT NULL so no link can ever match a NULL owner',
+        'a NULL owner never equals any creator, NULL included',
       row: fileRow('f_system', {
         ownerUserId: null,
         links: [
-          { app: CALLER_APP, entityType: 'asset_file', entityId: 'av_y', createdBy: ATTACKER_ID },
+          {
+            applicationId: CALLER_APP,
+            entityType: 'asset_file',
+            entityId: 'av_y',
+            createdByUserId: ATTACKER_ID,
+          },
         ],
       }),
     },
@@ -278,7 +320,12 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
         ownerUserId: OWNER_ID,
         status: 'deleted',
         links: [
-          { app: CALLER_APP, entityType: 'asset_file', entityId: 'av_z', createdBy: OWNER_ID },
+          {
+            applicationId: CALLER_APP,
+            entityType: 'asset_file',
+            entityId: 'av_z',
+            createdByUserId: OWNER_ID,
+          },
         ],
       }),
     },

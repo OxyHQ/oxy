@@ -211,7 +211,7 @@ describe('AssetService.initUpload dedupe signing', () => {
     );
 
     const privateKey = publicKey.slice('public/'.length);
-    expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey);
+    expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey, { sizeHint: 123 });
     expect(await rowOf(result.fileId)).toMatchObject({
       ownerUserId: callerId,
       storageKey: privateKey,
@@ -259,9 +259,12 @@ describe('AssetService.initUpload dedupe signing', () => {
       'image/png',
     );
 
+    // The declared hash is enforced on the PUT as its checksum (ADR 0043 D10):
+    // bytes that do not hash to it cannot land under it.
     expect(fakeS3.getPresignedUploadUrl).toHaveBeenCalledWith(VICTIM_KEY, {
       contentType: 'image/png',
       expiresIn: 3600,
+      checksumSHA256: Buffer.from(contentHash, 'hex').toString('base64'),
     });
     expect(result.uploadUrl).toBe('owner-repair-url');
   });

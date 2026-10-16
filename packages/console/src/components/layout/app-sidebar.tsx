@@ -6,6 +6,7 @@ import {
   CommandIcon,
   Doc01Icon,
   Home09Icon,
+  JusticeScale01Icon,
   Key01Icon,
   Login01Icon,
   Money01Icon,
@@ -26,6 +27,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { useContentClaimsAccess } from '@/hooks/use-content-claims';
 import config from '@/lib/config';
 
 const mainNavItems = [
@@ -149,8 +151,23 @@ const settingsNavItems = [
   },
 ];
 
+/*
+ * The content-claim queue (ADR 0043 D10) is for the staff who hold the
+ * `content:claims` capability. The entry appears only once
+ * `/content-claims/access` says the signed-in account may review: everyone
+ * else never sees it, and the API refuses the routes regardless.
+ */
+const staffNavItems = [
+  {
+    title: 'Content claims',
+    url: '/claims',
+    icon: JusticeScale01Icon,
+  },
+];
+
 export function AppSidebar() {
   const { isAuthenticated, signIn } = useAuth();
+  const claimsAccess = useContentClaimsAccess();
 
   return (
     <Sidebar collapsible="icon">
@@ -163,6 +180,7 @@ export function AppSidebar() {
         <NavApps />
         <NavMain items={resourceNavItems} label="Resources" />
         <NavMain items={settingsNavItems} label="Settings" />
+        {claimsAccess.data?.canReview === true && <NavMain items={staffNavItems} label="Staff" />}
       </SidebarContent>
 
       <SidebarFooter>

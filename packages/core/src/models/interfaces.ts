@@ -467,6 +467,22 @@ export interface FileMetadata {
   length: number;
   chunkSize: number;
   uploadDate: string;
+  /**
+   * Whether any application uses the file. `false` is shown as "not in use";
+   * such a file is never removed for its owner (ADR 0043 D5). Absent when the
+   * server did not say.
+   */
+  inUse?: boolean;
+  /**
+   * `blocked`: taken down after a content claim (ADR 0043 D10) — shown to its
+   * owner as such, served to nobody. Absent when the server did not say.
+   */
+  status?: AssetLiveStatus;
+  /**
+   * When the owner moved the file to trash (ISO 8601); set on a file listed by
+   * `assets.list({ status: 'trash' })`. Absent when the server did not say.
+   */
+  trashedAt?: string | null;
   metadata?: {
     userId?: string;
     description?: string;
@@ -551,12 +567,23 @@ export type AssetUploadInput = File | Blob | RNFileDescriptor;
  */
 export type FileVisibility = 'private' | 'public' | 'unlisted';
 
+/**
+ * One application's use of an asset (`file_references`, ADR 0043 D4).
+ *
+ * `app` keeps its key but, since the Oxy API's `0171_file_references`, holds
+ * the using application's ID — the same value as `applicationId`, never a free
+ * text name. `createdBy` is absent on a reference an application made with its
+ * own service token.
+ */
 export interface AssetLink {
   app: string;
+  applicationId?: string;
   entityType: string;
   entityId: string;
-  createdBy: string;
+  createdBy?: string;
   createdAt: string;
+  /** @deprecated Per-reference webhooks move to the application (ADR 0043 D9). */
+  webhookUrl?: string;
 }
 
 export type AssetMetadata = Record<string, string | number | boolean | null | undefined>;
@@ -578,10 +605,35 @@ export interface Asset {
   mime: string;
   ext: string;
   originalName?: string;
-  ownerUserId: string;
-  status: 'active' | 'trash' | 'deleted';
+  /**
+   * The owning account. `null` (or absent) when the file is not an account's:
+   * a system namespace, or an APPLICATION ({@link Asset.ownerApplicationId}).
+   */
+  ownerUserId?: string | null;
+  /**
+   * The Oxy application that owns the file — platform artwork no person owns
+   * (ADR 0043). Present only on an application-owned file.
+   */
+  ownerApplicationId?: string;
+  /**
+   * `blocked`: taken down after a content claim (ADR 0043 D10) — not served
+   * anywhere and its bytes cannot be uploaded again (451 `CONTENT_BLOCKED`);
+   * only Oxy staff lift it. Like `trash`, never served.
+   */
+  status: 'active' | 'trash' | 'blocked' | 'deleted';
   visibility: FileVisibility;
   usageCount: number;
+  /**
+   * Whether any application uses the file (has a reference to it). A file not
+   * in use is never removed for its owner (ADR 0043 D5). Present on the
+   * owner's own view (`assets.list`, `assets.get`) from the Oxy API with
+   * migration `0172_file_lifecycle`.
+   */
+  inUse?: boolean;
+  /** Since when no application uses the file (ISO 8601); `null` while one does. */
+  unreferencedSince?: string | null;
+  /** When the file entered trash (ISO 8601); `null` outside it. */
+  trashedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   links: AssetLink[];
@@ -711,12 +763,18 @@ export interface ServiceLinkedDownloadUrl {
   sha256: string;
 }
 
+/**
+ * A file's status while it still holds its bytes: `active`, `trash`, or
+ * `blocked` (taken down after a content claim, ADR 0043 D10 — never served).
+ */
+export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
+
 export interface ServiceAssetMetadata {
   id: string;
   sha256: string;
   mime: string;
   size: number;
-  status: 'active' | 'trash';
+  status: AssetLiveStatus;
   /** Intrinsic width in pixels when variant/metadata extraction has run. */
   width?: number;
   /** Intrinsic height in pixels when variant/metadata extraction has run. */
@@ -746,6 +804,175 @@ export interface ServiceAssetMetadata {
    * asset a user attached is really that user's. Absent for every other caller.
    */
   ownerUserId?: string | null;
+  /**
+   * The application that owns the file (ADR 0043), on the same terms as
+   * `ownerUserId`, and only for an application-owned file.
+   */
+  ownerApplicationId?: string;
+}
+
+/**
+ * A file an Oxy APPLICATION owns (ADR 0043), as the `/assets/service/app`
+ * routes return it.
+ */
+export interface ApplicationFile {
+  id: string;
+  sha256: string;
+  size: number;
+  mime: string;
+  ext: string;
+  originalName?: string;
+  ownerApplicationId: string;
+  status: AssetLiveStatus;
+  visibility: FileVisibility;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `POST /assets/service/app`: the stored file, and whether it already existed. */
+export interface ApplicationFileUpload {
+  file: ApplicationFile;
+  /**
+   * True when this application already held these bytes: the existing file
+   * comes back AS IT IS, its visibility included.
+   */
+  deduplicated: boolean;
+}
+
+/** One page of `GET /assets/service/app`, newest first. */
+export interface ApplicationFilePage {
+  files: ApplicationFile[];
+  /** Pass to the next call; absent on the last page. */
+  nextCursor?: string;
+}
+
+/**
+ * One use of a file by the CALLING application, as `OxyServer.assets.references`
+ * adds or removes it (ADR 0043 D4). There is no application field: the
+ * application is always the service token's.
+ */
+export interface ServiceFileReference {
+  fileId: string;
+  /** The entity class in the application, e.g. `listing`, `place`. */
+  entityType: string;
+  /** The entity's id in the application's own database. */
+  entityId: string;
+}
+
+/**
+ * The outcome of one {@link ServiceFileReference} in a batch:
+ * - add: `created`, `exists` (already referenced), or `not_found` — the file
+ *   does not exist OR this application may not reference it (another
+ *   application's private file, a person's private file they did not attach
+ *   to this application, a trashed file it does not own); the two are
+ *   deliberately indistinguishable.
+ * - remove: `removed`, or `not_found` (this application held no such reference).
+ */
+export type ServiceFileReferenceResult = ServiceFileReference & {
+  result: 'created' | 'exists' | 'removed' | 'not_found';
+};
+
+/** One pair of an inventory sent to `OxyServer.assets.references.reconcile`. */
+export interface ServiceReferenceInventoryItem {
+  fileId: string;
+  /** The entity's id in the application's own database. */
+  entityId: string;
+}
+
+/**
+ * What a reconciliation did (or, with `dryRun`, would do) to the calling
+ * application's references of one entity type (ADR 0043 D6):
+ * - `added`: references the inventory lists and Oxy did not hold;
+ * - `removed`: references Oxy held, created before the reconciliation began,
+ *   that the inventory does not list (a file is never trashed for it);
+ * - `unchanged`: in both;
+ * - `refused`: listed pairs whose file does not exist or that this application
+ *   may not reference — the rules of `references.add`.
+ */
+export interface ServiceReferenceReconcileResult {
+  sessionId: string;
+  entityType: string;
+  dryRun: boolean;
+  added: number;
+  removed: number;
+  unchanged: number;
+  refused: number;
+}
+
+/**
+ * How an import by URL was answered (ADR 0043 D7):
+ * - `downloaded`: the bytes were fetched (first import, changed source, or a
+ *   source whose file was no longer active); `deduplicated` says whether the
+ *   owner already held them.
+ * - `existing`: this owner imported this URL before; nothing was fetched.
+ * - `not_modified`: revalidated; the source answered 304.
+ */
+export type FileImportOutcome = 'downloaded' | 'existing' | 'not_modified';
+
+/** What an import says about its source — never the URL, which the caller sent. */
+export interface FileImportSource {
+  host: string;
+  fetchedAt: string;
+  etag?: string;
+  lastModified?: string;
+}
+
+/** Options of an import by URL. */
+export interface FileImportOptions {
+  /**
+   * Register the CALLING application's use of the imported file in the same
+   * request (needs `files:references:write`), so a crash after the import never
+   * leaves it unreferenced.
+   */
+  reference?: { entityType: string; entityId: string };
+  /** Ask the source again (conditionally, ETag / Last-Modified) even if imported before. */
+  revalidate?: boolean;
+}
+
+/** `POST /assets/service/app/import`: the application's file and how it was obtained. */
+export interface ApplicationFileImport {
+  file: ApplicationFile;
+  outcome: FileImportOutcome;
+  deduplicated: boolean;
+  source: FileImportSource;
+  /** Present when a reference was asked for: `not_found` when it was refused. */
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
+/**
+ * `POST /assets/service/app/adopt` (ADR 0043 stage 4b): this application's own
+ * file of the bytes another file holds, sharing the stored object.
+ */
+export interface ApplicationFileAdoption {
+  file: ApplicationFile;
+  /** `existing`: the application already held these bytes (or the file was its own). */
+  outcome: 'adopted' | 'existing';
+  deduplicated: boolean;
+  /** Present when a reference was asked for: `not_found` when it was refused. */
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
+/** One item of `POST /assets/service/app/import/batch`, answered on its own. */
+export type ApplicationFileImportBatchResult =
+  | ({ index: number; ok: true } & ApplicationFileImport)
+  | { index: number; ok: false; error: { status: number; code: string; message: string } };
+
+/** `POST /assets/service/user-media/import`: the account's file and how it was obtained. */
+export interface ServiceUserMediaImport {
+  file: ServiceUserMediaFile & { status: AssetLiveStatus };
+  outcome: FileImportOutcome;
+  deduplicated: boolean;
+  source: FileImportSource;
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
+/** `POST /assets/service/user-media`: the stored file, owned by the named user. */
+export interface ServiceUserMediaFile {
+  id: string;
+  sha256: string;
+  size: number;
+  mime: string;
+  visibility: FileVisibility;
 }
 
 /**
@@ -768,7 +995,7 @@ export interface ServiceAssetMetadataBySha {
   id: string;
   mime: string;
   size: number;
-  status: 'active' | 'trash';
+  status: AssetLiveStatus;
   url?: string;
   width?: number;
   height?: number;

@@ -139,6 +139,9 @@ interface BootstrapObservations {
   clarityApplicationExists: boolean;
   clarityCredentialExists: boolean;
   clarityBackendApplicationExists: boolean;
+  clarityBackendApplicationScopes: string[];
+  /** The backend's live workload binding, when there is one to widen. */
+  clarityBackendWorkload: { id: string; scopes: string[] } | null;
   clarityBackendWebhookUrl: string | null;
   clarityBackendCredential: RetiredServiceCredentialObservation;
   clarityApplicationBefore: unknown;
@@ -866,11 +869,19 @@ async function observeBootstrap(
   if (clarityBackendApplication?.webhookUrl && clarityBackendApplication.webhookUrl !== clarity.backendApplication.webhookUrl) {
     throw new Error("Clarity backend already declares another webhook; review its routing before replacing it");
   }
+  const clarityFileScopes: readonly string[] = clarity.backendApplication.fileScopes;
   if (clarityBackendApplication) {
     assertExact(
       "clarity_backend_application",
       `Clarity backend application ${clarity.backendApplication.id}`,
-      clarityBackendApplication,
+      {
+        ...clarityBackendApplication,
+        // The reviewed file grant (ADR 0043) is the one addition the bootstrap
+        // makes to an existing row; any OTHER scope is drift, as before.
+        scopes: clarityBackendApplication.scopes.filter(
+          (scope) => !clarityFileScopes.includes(scope),
+        ),
+      },
       {
         id: clarity.backendApplication.id,
         name: clarity.backendApplication.name,
@@ -885,6 +896,34 @@ async function observeBootstrap(
         createdByUserId: root,
       },
     );
+  }
+
+  // The backend's live workload binding (ADR 0026), widened by the same file
+  // grant. Absent (a fresh environment, or not yet bound) leaves nothing to
+  // widen: the operator's bind names every scope (the runbook).
+  const clarityBinding = clarityBackendApplication
+    ? await resolveLiveAgencyWorkload(
+        clarity.backendApplication.id,
+        clarity.workload.provider,
+        clarity.workload.subject,
+        new Date(),
+        tx,
+      )
+    : null;
+  let clarityBackendWorkload: BootstrapObservations["clarityBackendWorkload"] = null;
+  if (clarityBinding) {
+    const [bindingRow] = await tx
+      .select({ id: applicationWorkloadIdentities.id, scopes: applicationWorkloadIdentities.scopes })
+      .from(applicationWorkloadIdentities)
+      .where(
+        and(
+          eq(applicationWorkloadIdentities.provider, clarity.workload.provider),
+          eq(applicationWorkloadIdentities.subject, clarity.workload.subject),
+          eq(applicationWorkloadIdentities.applicationId, clarity.backendApplication.id),
+        ),
+      )
+      .for("update");
+    if (bindingRow) clarityBackendWorkload = { id: bindingRow.id, scopes: [...bindingRow.scopes] };
   }
 
   // Observed after its application: a credential row cannot exist without it,
@@ -914,6 +953,8 @@ async function observeBootstrap(
     clarityApplicationExists: clarityApplication !== undefined,
     clarityCredentialExists: clarityCredential !== undefined,
     clarityBackendApplicationExists: clarityBackendApplication !== undefined,
+    clarityBackendApplicationScopes: [...(clarityBackendApplication?.scopes ?? [])],
+    clarityBackendWorkload,
     clarityBackendWebhookUrl: clarityBackendApplication?.webhookUrl ?? null,
     clarityBackendCredential,
     clarityApplicationBefore: clarityApplication ?? null,
@@ -961,6 +1002,18 @@ function bootstrapOperations(observed: BootstrapObservations): string[] {
     `${observed.clarityApplicationExists ? "assert" : "insert"} application ${clarity.application.id}`,
     `${observed.clarityCredentialExists ? "assert" : "insert"} credential ${clarity.publicCredential.id}`,
     `${observed.clarityBackendApplicationExists ? "assert" : "insert"} application ${clarity.backendApplication.id}`,
+    ...clarity.backendApplication.fileScopes.map((scope) =>
+      observed.clarityBackendApplicationExists &&
+      observed.clarityBackendApplicationScopes.includes(scope)
+        ? `assert application-scope ${clarity.backendApplication.id}:${scope}`
+        : `grant application-scope ${clarity.backendApplication.id}:${scope}`,
+    ),
+    ...(observed.clarityBackendWorkload
+      ? clarity.backendApplication.fileScopes.map(
+          (scope) =>
+            `${observed.clarityBackendWorkload?.scopes.includes(scope) ? "assert" : "grant"} workload-scope ${observed.clarityBackendWorkload?.id}:${scope}`,
+        )
+      : []),
     `${observed.clarityBackendWebhookUrl ? "assert" : "register"} webhook ${clarity.backendApplication.id}=${clarity.backendApplication.webhookUrl}`,
     retiredCredentialOperation(observed.clarityBackendCredential),
   ];
@@ -1045,10 +1098,32 @@ async function applyBootstrap(
       isInternal: true,
       capabilities: [],
       redirectUris: [],
-      scopes: [...clarity.backendApplication.scopes],
+      scopes: [...clarity.backendApplication.scopes, ...clarity.backendApplication.fileScopes],
       ownerAccountId: clarity.project.id,
       createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
     });
+  } else {
+    const missing = clarity.backendApplication.fileScopes.filter(
+      (scope) => !observed.clarityBackendApplicationScopes.includes(scope),
+    );
+    if (missing.length > 0) {
+      await tx
+        .update(applications)
+        .set({ scopes: [...observed.clarityBackendApplicationScopes, ...missing] })
+        .where(eq(applications.id, clarity.backendApplication.id));
+    }
+  }
+  if (observed.clarityBackendWorkload) {
+    const binding = observed.clarityBackendWorkload;
+    const missing = clarity.backendApplication.fileScopes.filter(
+      (scope) => !binding.scopes.includes(scope),
+    );
+    if (missing.length > 0) {
+      await tx
+        .update(applicationWorkloadIdentities)
+        .set({ scopes: [...binding.scopes, ...missing] })
+        .where(eq(applicationWorkloadIdentities.id, binding.id));
+    }
   }
   if (observed.clarityBackendApplicationExists && observed.clarityBackendWebhookUrl === null) {
     await tx.update(applications).set({webhookUrl:clarity.backendApplication.webhookUrl}).where(eq(applications.id,clarity.backendApplication.id));

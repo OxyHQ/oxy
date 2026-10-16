@@ -256,6 +256,28 @@ describe('VariantService imageVariants — w128 variant', () => {
     });
   });
 
+  it('keeps the renditions of a public file that is not served off the CDN (trash, blocked)', async () => {
+    const original = await makeSquarePng(256);
+    for (const status of ['trash', 'blocked'] as const) {
+      const fakeS3 = makeFakeS3(original);
+      const service = new VariantService(fakeS3 as unknown as S3Service);
+      const file = { ...(await makeFile()), status };
+
+      const variant = await service.ensureImageVariant(file, 'w128');
+
+      // Written in the spelling the file is SERVED in (ADR 0043 D5, D10): a
+      // public file out of `active` is not on the CDN, and neither is its rendition.
+      expect(variant.key.startsWith('public/')).toBe(false);
+      expect(fakeS3.uploads.map((upload) => upload.key)).toEqual([variant.key]);
+    }
+    const served = makeFakeS3(original);
+    const live = await new VariantService(served as unknown as S3Service).ensureImageVariant(
+      await makeFile(),
+      'w128',
+    );
+    expect(live.key.startsWith('public/variants/')).toBe(true);
+  });
+
   it('rejects a variant key that is not in the imageVariants config', async () => {
     const original = await makeSquarePng(512);
     const service = new VariantService(makeFakeS3(original) as unknown as S3Service);

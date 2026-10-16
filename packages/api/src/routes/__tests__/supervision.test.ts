@@ -257,7 +257,8 @@ it('lets supervised people list and upload only their own private files without 
   const listedBody = await listed.json();
   expect(listedBody.data.files.map((file: { id: string }) => file.id)).toEqual([own.id]);
   expect((await fetch(`${origin}/assets/${own.id}`, { headers })).status).toBe(200);
-  expect((await fetch(`${origin}/assets/${other.id}`, { headers })).status).toBe(403);
+  // Somebody else's private file does not exist to the caller (ADR 0043 D12): 404, not 403.
+  expect((await fetch(`${origin}/assets/${other.id}`, { headers })).status).toBe(404);
   const setVisibility = async (id: string, visibility: string) =>
     fetch(`${origin}/assets/${id}/visibility`, {
       method: 'PATCH',
