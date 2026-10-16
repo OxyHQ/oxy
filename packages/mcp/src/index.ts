@@ -18,7 +18,7 @@ export type { AuthorizationHeaders } from './http';
 export { createCatalogMcpHttpService } from './httpTransport';
 export { createInternalCatalogMcpHttpService } from './internalTransport';
 export type { InternalCatalogMcpHttpServiceOptions } from './internalTransport';
-export { createInternalCatalogMcpClient } from './internalClient';
+export { createInternalCatalogMcpClient, InternalMcpRefusedError } from './internalClient';
 export type { InternalCatalogMcpClientOptions } from './internalClient';
 export {
   registerCatalogWithInvocationPrincipal,
