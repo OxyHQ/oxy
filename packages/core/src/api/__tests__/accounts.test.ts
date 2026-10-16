@@ -267,36 +267,28 @@ describe('oxy.accounts', () => {
       expect(call(0).url).toBe('http://test.invalid/accounts/acc1/members');
     });
 
-    it('invite / update / remove hit their routes and bust every roster (inherited rows)', async () => {
+    it('update / remove hit their routes and bust every roster (inherited rows)', async () => {
       // A DESCENDANT's roster carries rows inherited from acc1 — it must go too.
       fetchMock.mockResolvedValueOnce(jsonResponse({ members: [member] }));
       await oxy.accounts.members.list('child1');
 
-      fetchMock.mockResolvedValueOnce(jsonResponse({ member }));
-      await expect(
-        oxy.accounts.members.invite('acc1', { usernameOrEmail: 'bob', role: 'viewer' }),
-      ).resolves.toEqual(member);
       fetchMock.mockResolvedValueOnce(jsonResponse({ member }));
       await oxy.accounts.members.update('acc1', 'm/1', { role: 'admin' });
       fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
       await oxy.accounts.members.remove('acc1', 'm1');
 
       expect(call(1)).toMatchObject({
-        url: 'http://test.invalid/accounts/acc1/members',
-        method: 'POST',
-      });
-      expect(call(2)).toMatchObject({
         url: 'http://test.invalid/accounts/acc1/members/m%2F1',
         method: 'PATCH',
       });
-      expect(call(3)).toMatchObject({
+      expect(call(2)).toMatchObject({
         url: 'http://test.invalid/accounts/acc1/members/m1',
         method: 'DELETE',
       });
 
       fetchMock.mockResolvedValueOnce(jsonResponse({ members: [] }));
       await expect(oxy.accounts.members.list('child1')).resolves.toEqual([]);
-      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
   });
 

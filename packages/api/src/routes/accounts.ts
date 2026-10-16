@@ -14,7 +14,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ForbiddenError, NotFoundError } from '../utils/error';
+import { ApiError, ForbiddenError, NotFoundError } from '../utils/error';
 import {
   accountService,
   type AccountMemberRow,
@@ -35,7 +35,6 @@ import { broadcastDeviceState } from '../utils/socket';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { logger } from '../utils/logger';
 import type { SessionAuthResponse } from '../types/session';
-import { resolveUserByIdentifier } from '../utils/resolveUserIdentifier';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { formatUserResponse } from '../utils/userTransform';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
@@ -57,7 +56,6 @@ import {
   createAccountSchema,
   updateAccountSchema,
   moveAccountSchema,
-  inviteAccountMemberSchema,
   updateAccountMemberSchema,
   transferAccountOwnershipSchema,
 } from '../schemas/account.schemas';
@@ -829,55 +827,21 @@ router.get(
 );
 
 /**
- * Deprecated: add a member by username/email (`members:invite`) immediately.
+ * Retired: adding a member directly, without the recipient's consent.
  *
- * Access is granted without the recipient's confirmation. `POST /:id/invitations`
- * is the consent-based replacement. This stays only until the SDK consumers that
- * still call `accounts.members.invite` (Alia, Mercaria, older services builds)
- * have moved to invitations; it is then retired with HTTP 410.
+ * `POST /:id/invitations` replaced it: the recipient is emailed and gets access
+ * only after accepting (`POST /accounts/invitations/accept`). Every first-party
+ * consumer has moved, so this answers 410 Gone with a pointer for any caller
+ * still on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.
  */
-router.post(
-  '/:id/members',
-  membersLimiter,
-  validate({ params: accountIdRouteParams, body: inviteAccountMemberSchema }),
-  requireAccountPermission('members:invite'),
-  asyncHandler(async (req: AccountContextRequest, res) => {
-    const account = req.account;
-    const access = req.access;
-    if (!account || !access) {
-      throw new NotFoundError('Account not found');
-    }
-    const { usernameOrEmail, role, inherit } = req.body as {
-      usernameOrEmail: string;
-      role: Exclude<AccountRole, 'owner'>;
-      inherit?: boolean;
-    };
-
-    // A role is itself a bundle of grants. Checking only `members:invite`
-    // would let a narrowed admin restore one of their revoked permissions on a
-    // confederate by choosing a role whose baseline contains it.
-    requireConferredPermissions(access.permissions, resolveEffectivePermissions(role, [], []));
-
-    const targetUser = await resolveUserByIdentifier(usernameOrEmail);
-    if (!targetUser) {
-      throw new NotFoundError('User not found');
-    }
-
-    const member = await accountService.addMember(
-      account.id,
-      // The inviter is a person. While operating an organization that person is
-      // the operator, not the organization.
-      requireOperatorId(req),
-      targetUser.id,
-      role,
-      inherit,
-    );
-
-    // `addMember` writes on `account.id`, so the row is direct by construction —
-    // `inherit` governs whether it cascades to CHILDREN, not where it lives.
-    res.status(201).json({ member: serializeMember(member, 'direct') });
-  }),
-);
+router.post('/:id/members', membersLimiter, validate({ params: accountIdRouteParams }), () => {
+  throw new ApiError(
+    410,
+    'Adding a member directly is retired. Invite them by email with POST /accounts/:id/invitations; they get access once they accept.',
+    'MEMBER_ADD_RETIRED',
+    { replacement: 'POST /accounts/:id/invitations' },
+  );
+});
 
 router.post(
   '/invitations/preview',

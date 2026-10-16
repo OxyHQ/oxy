@@ -60,3 +60,13 @@ test('preview never consumes and has no-store response', async () => {
   expect(res.headers['cache-control']).toBe('no-store');
   expect(accountInvitationService.accept).not.toHaveBeenCalled();
 });
+test('the retired direct add answers 410 and points to invitations', async () => {
+  const res = await request(app)
+    .post('/accounts/org-1/members')
+    .send({ usernameOrEmail: 'someone', role: 'viewer' });
+  expect(res.status).toBe(410);
+  expect(res.body).toMatchObject({
+    error: 'MEMBER_ADD_RETIRED',
+    details: { replacement: 'POST /accounts/:id/invitations' },
+  });
+});

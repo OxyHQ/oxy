@@ -2611,8 +2611,8 @@
         "tags": [
           "Users"
         ],
-        "summary": "Deprecated: add a member by username/email (`members:invite`) immediately.",
-        "description": "Access is granted without the recipient's confirmation. `POST /:id/invitations`\nis the consent-based replacement. This stays only until the SDK consumers that\nstill call `accounts.members.invite` (Alia, Mercaria, older services builds)\nhave moved to invitations; it is then retired with HTTP 410.",
+        "summary": "Retired: adding a member directly, without the recipient's consent.",
+        "description": "`POST /:id/invitations` replaced it: the recipient is emailed and gets access\nonly after accepting (`POST /accounts/invitations/accept`). Every first-party\nconsumer has moved, so this answers 410 Gone with a pointer for any caller\nstill on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.",
         "parameters": [
           {
             "name": "id",
@@ -2684,39 +2684,6 @@
             "bearerAuth": []
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "usernameOrEmail": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "admin",
-                      "editor",
-                      "developer",
-                      "billing",
-                      "viewer"
-                    ]
-                  },
-                  "inherit": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "usernameOrEmail",
-                  "role"
-                ]
-              }
-            }
-          }
-        },
         "operationId": "postAccountsIdMembers"
       }
     },
