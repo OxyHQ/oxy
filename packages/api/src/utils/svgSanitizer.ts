@@ -292,19 +292,77 @@ purify.addHook('afterSanitizeAttributes', (node) => {
 // The document
 // ---------------------------------------------------------------------------
 
-/** Strip the prolog constructs that never stay (see the header, step 2). */
+/** A markup declaration that never stays (`<!ENTITY …>`, `<!ELEMENT …>`, …). */
+const MARKUP_DECLARATION = /^<!(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i;
+
+/**
+ * One left-to-right pass of {@link stripProlog}: every DOCTYPE (with its
+ * internal subset), stray markup declaration, processing instruction (the XML
+ * declaration included) and comment is dropped. A construct with no end is
+ * left as it is, and the XML parser refuses the document.
+ *
+ * A scanner, not regular expressions: it runs in linear time on any input
+ * (a DOCTYPE pattern that can match whitespace two ways backtracks
+ * exponentially on `<!DOCTYPE[][][]…`).
+ */
+function stripPrologOnce(text: string): string {
+  let out = '';
+  let index = 0;
+  while (index < text.length) {
+    const open = text.indexOf('<', index);
+    if (open === -1) {
+      out += text.slice(index);
+      break;
+    }
+    out += text.slice(index, open);
+    let end = -1;
+    if (text.startsWith('<!--', open)) {
+      const close = text.indexOf('-->', open + 4);
+      end = close === -1 ? -1 : close + 3;
+    } else if (text.startsWith('<?', open)) {
+      const close = text.indexOf('?>', open + 2);
+      end = close === -1 ? -1 : close + 2;
+    } else if (text.slice(open, open + 9).toUpperCase() === '<!DOCTYPE') {
+      // Up to the first `>` outside the internal subset (`[ … ]`).
+      let cursor = open + 9;
+      while (cursor < text.length && text[cursor] !== '>') {
+        if (text[cursor] === '[') {
+          const subsetEnd = text.indexOf(']', cursor + 1);
+          if (subsetEnd === -1) break;
+          cursor = subsetEnd;
+        }
+        cursor++;
+      }
+      end = cursor < text.length && text[cursor] === '>' ? cursor + 1 : -1;
+    } else if (MARKUP_DECLARATION.test(text.slice(open, open + 11))) {
+      const close = text.indexOf('>', open);
+      end = close === -1 ? -1 : close + 1;
+    } else {
+      out += '<';
+      index = open + 1;
+      continue;
+    }
+    if (end === -1) {
+      out += text.slice(open);
+      break;
+    }
+    index = end;
+  }
+  return out;
+}
+
+/**
+ * Strip the prolog constructs that never stay (see the header, step 2). Dropping
+ * one can join its neighbours into another (`<!<!-- -->-- …`); a document that
+ * still holds one after the pass is refused rather than stripped again, which
+ * keeps this linear and no well-formed SVG ever needs.
+ */
 function stripProlog(text: string): string {
-  return (
-    text
-      // A DOCTYPE, with its internal subset if it has one.
-      .replace(/<!DOCTYPE(?:[^[>]|\[[\s\S]*?\]\s*)*>/gi, '')
-      // Any stray markup declaration (`<!ENTITY …>`, `<!ELEMENT …>`, …).
-      .replace(/<!(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b[\s\S]*?>/gi, '')
-      // Processing instructions, the XML declaration included.
-      .replace(/<\?[\s\S]*?\?>/g, '')
-      // Comments.
-      .replace(/<!--[\s\S]*?-->/g, '')
-  );
+  const stripped = stripPrologOnce(text);
+  if (/<!--|<\?|<!DOCTYPE|<!(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i.test(stripped)) {
+    throw invalidSvg('The SVG is not well-formed');
+  }
+  return stripped;
 }
 
 /** Decode UTF-8 strictly (a BOM is dropped); any other encoding is refused. */

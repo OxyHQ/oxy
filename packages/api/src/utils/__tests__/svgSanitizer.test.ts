@@ -199,6 +199,27 @@ describe('sanitizeSvg — the attack corpus', () => {
     expect(output).not.toMatch(/<!--|<\?xml|alert/);
   });
 
+  it('refuses a comment or declaration that dropping another one would assemble', () => {
+    // One pass drops `<!---->`, leaving `<!--` + `<script>…`: never stripped twice.
+    expect(refusal(`<!<!---->-- --><svg ${NS}><rect/></svg>`).code).toBe('INVALID_SVG');
+    expect(refusal(`<svg ${NS}><<!---->?x?><rect/></svg>`).code).toBe('INVALID_SVG');
+    expect(refusal(`<svg ${NS}><!-- unterminated<rect/></svg>`).code).toBe('INVALID_SVG');
+  });
+
+  it('strips a hostile DOCTYPE in linear time', () => {
+    const started = Date.now();
+    for (const body of [
+      '<!doctype[' + ']['.repeat(50_000),
+      '<!doctype[]' + '\t[]'.repeat(50_000),
+    ]) {
+      expect(refusal(`${body}<svg ${NS}/>`).code).toBe('INVALID_SVG');
+    }
+    expect(
+      clean(`<!DOCTYPE svg [${'<!ENTITY a "b">'.repeat(1000)}]><svg ${NS}><rect/></svg>`),
+    ).toContain('<rect/>');
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
   it('refuses what is not a UTF-8, well-formed SVG document', () => {
     expect(refusal(`<html><body><svg ${NS}/></body></html>`).code).toBe('INVALID_SVG');
     expect(refusal(`<div xmlns="http://www.w3.org/1999/xhtml"><svg ${NS}/></div>`).code).toBe(
