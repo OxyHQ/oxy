@@ -218,6 +218,65 @@ application, not with the business's session).
    collection). Allo's end-to-end-encrypted chat blobs stay where they are: they
    are ciphertext with a 7-day contract, not media.
 
+### Stage 1 as built (D2, D3, D4, D11; D12 earlier)
+
+- **Metering.** `storageAccountForOwner` attributes an application's file to
+  `applications.owner_account_id` only when the application is `third_party`,
+  read live (a transfer or reclassification moves the bytes at once); Oxy's
+  own applications attribute to no one. Per-application stored bytes are
+  `applicationStoredBytes` and `GET /applications/:appId/storage`
+  (`usage:read`); the growth alert of D2 is not built yet.
+- **Scopes.** `files:references:write` joins `files:app:write` and
+  `files:app:delete`. `isPrivilegedScopeForApplicationType` makes the three
+  staff-only on `first_party`/`internal`/`system` and self-service on
+  `third_party`, on create, update and credential creation; a `third_party`
+  application may hold a SERVICE credential (and mint a token) carrying only
+  these and the payments pair. Type-blind readers of the privileged set (the
+  legacy scopeless-credential fallback, workload bindings) still treat them as
+  privileged. The routes re-check live only that the application is `active`.
+- **`file_references`.** Migration `0168_file_references` (pre) creates the
+  table, copies every `file_links` row with its `app` resolved by
+  `oxy_file_link_application_id` — `goway` → GoWay, `mercaria` → Mercaria,
+  `nilo` → Nilo, `oxy-mail` → Oxy Inbox, `profiles` → Oxy Accounts, or an
+  application id itself (`src/utils/legacyFileLinkApplications.ts`, held equal
+  by a test) — and FAILS naming every value that resolves to no single active
+  application. `scripts/file-references-preflight.ts` lists the values a
+  database holds before deploying. A trigger mirrors the previous image's
+  `file_links` writes until `0169_drop_file_links` (post) drops the table.
+  For that window the previous image does not see references the new image
+  writes.
+- **Who may reference.** `POST`/`DELETE /assets/service/references` (batch of
+  100, per-item `created`/`exists`/`removed`/`not_found`) as D4 says; a
+  refusal answers like a missing file. A service-made reference has no
+  creator, so it can never satisfy ADR 0021's owner-linked predicate.
+- **The session surface** (`POST`/`DELETE /assets/:id/links`) stays as a
+  compatibility path. A session bound to one application records that
+  application; the shared first-party session cannot name its application, so
+  its body `app` is resolved like the migration (id or legacy name; anything
+  else is 400). Only the owner may add; `visibility` in the body is the
+  owner's explicit change and nothing is inferred. A non-owner may remove only
+  a reference it created, and that never trashes the owner's file.
+- **Not changed yet (D5).** An OWNER's session removing the last reference
+  still moves their file to trash, as before; references added to a trashed
+  file still restore it. An application's service-token removal never trashes.
+- **Webhook URL** stays on the reference row, deprecated, until D9.
+
+### Required changes in other repositories (stage 1)
+
+- **GoWay** withdraws a contributor's photo from a place with the business's
+  session today (`placeFiles.detach`). Since the D12 restriction that call is
+  refused (best effort: GoWay logs it and the contributor's reference stays,
+  keeping the file alive and changing nothing visible). GoWay must call
+  `OxyServer.assets.references.remove([{ fileId, entityType: 'place',
+  entityId }])` with its own token, which needs staff to grant GoWay
+  `files:references:write`. No compatibility path was kept: the lingering
+  reference is harmless and reconciliation (D6) removes it.
+- **Mercaria**: review media are no longer made private by their link (the
+  link carried no visibility and the old inference chose `private`); the
+  digital-asset link (`services/digital/storage.ts`, sent from the server
+  client with no user session, which the session route does not accept) must
+  move to `assets.references.add`.
+
 ## Alternatives rejected
 
 - **A system namespace per product.** A schema change per product and nothing
