@@ -75,11 +75,13 @@ async function rows(f: Awaited<ReturnType<typeof fixture>>) {
     .where(eq(applicationCredentials.applicationId, f.app.id));
   return { app, credentials };
 }
-it('canonical Mercaria ceiling retains billing, the separately approved media import and digital downloads', () => {
+it('canonical Mercaria ceiling retains billing, the separately approved media import, digital downloads and its own files', () => {
   expect(SEED_APPS.find((x) => x.name === 'Mercaria')?.scopes).toEqual([
     ...NEXT,
     'files:user-media:write',
     'files:linked:read',
+    'files:app:write',
+    'files:app:delete',
   ]);
 });
 it('prepare is read-only; apply and exact rollback preserve every unrelated field and credential', async () => {
