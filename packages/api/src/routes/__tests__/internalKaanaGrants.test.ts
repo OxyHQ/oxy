@@ -1441,6 +1441,35 @@ describe('the alia-kaana relationship (service_token, internal_metered)', () => 
       'no_route_available',
     );
   });
+
+  it('grants a transcription whose line prices the duration alone, as xAI grok-voice-transcribe does', async () => {
+    // Kaana's xAI adapter settles only `audio_input_milliseconds`, and its
+    // catalogue publishes no `requests` price. The hold must not demand one:
+    // it did, and every dictation was refused `no_admissible_line`.
+    const durationOnly = await addModelLine(alia.accountId, {
+      prices: { audio_input_milliseconds: { amount: '0.10', per: 3_600_000 } },
+      inputModalities: ['audio'],
+      outputModalities: ['text'],
+      apiFormats: ['audio_transcriptions'],
+    });
+    const grant = verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential: aliaToken,
+          operation: 'audio_transcriptions',
+          target: { kind: 'model', modelLine: durationOnly.modelLine },
+          facts: { declaredTools: 0, stream: false, audioInputMilliseconds: 3_178 },
+        }),
+      ),
+    );
+    expect(grant).toMatchObject({
+      operation: 'audio_transcriptions',
+      economics: { treatment: 'internal_metered' },
+    });
+    expect(grant.steps[0].limits.admittedModelLines).toEqual([
+      expect.objectContaining({ modelLine: durationOnly.modelLine }),
+    ]);
+  });
 });
 
 /* -------------------------------------------------------------------------- */
