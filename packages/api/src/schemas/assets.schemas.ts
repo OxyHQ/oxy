@@ -383,3 +383,13 @@ export const largeUploadPartsBodySchema = z
       .max(MAX_UPLOAD_PART_URLS_PER_CALL),
   })
   .strict();
+
+// POST /assets/service/app/adopt — the calling application takes ownership of a
+// copy of a file it can read, sharing the stored bytes.
+export const appAdoptBodySchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64),
+    visibility: z.enum(['private', 'public', 'unlisted']),
+    reference: importReferenceSchema.optional(),
+  })
+  .strict();

@@ -6129,6 +6129,125 @@
         "operationId": "getAssetsServiceApp"
       }
     },
+    "/assets/service/app/adopt": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The CALLING APPLICATION takes ownership of a file it can read,",
+        "description": "without uploading it again (ADR 0041 stage 4b): `{ fileId,\n      visibility, reference? }` → its own row of the same bytes (the stored\n      object is shared; a server-side copy only when the spelling the\n      visibility needs does not exist yet). Readable means what a reference\n      may name: any owner's active `public` or `unlisted` file, an account's\n      private file its owner attached to this application (ADR 0021), or the\n      application's own file (answered as it is). The copy may not be MORE\n      visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`): a\n      person's private file shared with the application stays private.\n      Anything else is 404, like no file; blocked bytes are 451. The\n      application's existing file of the same bytes answers\n      `deduplicated: true`, visibility unchanged. Answer `{ file, outcome:\n      'adopted' | 'existing', deduplicated, reference? }`. The adopted file\n      is the application's: it outlives the source (whose owner may delete\n      it), is collected when unused (D5) and counts toward a third-party\n      application's plan (D3).\n        for `reference`), on an active application",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public",
+                      "unlisted"
+                    ]
+                  },
+                  "reference": {
+                    "type": "object",
+                    "properties": {
+                      "entityType": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "entityId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "entityType",
+                      "entityId"
+                    ]
+                  }
+                },
+                "required": [
+                  "fileId",
+                  "visibility"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceAppAdopt"
+      }
+    },
     "/assets/service/app/import": {
       "post": {
         "tags": [

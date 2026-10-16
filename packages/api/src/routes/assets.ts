@@ -68,9 +68,11 @@ import {
   userMediaLargeUploadBodySchema,
   largeUploadParams,
   largeUploadPartsBodySchema,
+  appAdoptBodySchema,
 } from '../schemas/assets.schemas';
 import type { LargeUploadOwner, LargeUploadView } from '../services/fileUploadSession.service';
 import { fileUploadSessionService } from '../services/fileUploadSessionSingleton';
+import { ContentBlockedError } from '../services/contentClaims/contentBlocklist';
 import { contentDispositionFor } from '../utils/fileContentPolicy';
 import { FileImportService, type ImportResult } from '../services/fileImport.service';
 import {
@@ -2043,6 +2045,106 @@ router.delete(
   appFileManageLimiter,
   validate({ params: largeUploadParams }),
   userMediaLargeUpload.abort,
+);
+
+/** How widely each visibility shows a file: an adopted copy may not show it wider. */
+const VISIBILITY_REACH: Record<FileVisibility, number> = { private: 0, unlisted: 1, public: 2 };
+
+/**
+ * @route POST /api/assets/service/app/adopt
+ * @desc The CALLING APPLICATION takes ownership of a file it can read,
+ *       without uploading it again (ADR 0041 stage 4b): `{ fileId,
+ *       visibility, reference? }` → its own row of the same bytes (the stored
+ *       object is shared; a server-side copy only when the spelling the
+ *       visibility needs does not exist yet). Readable means what a reference
+ *       may name: any owner's active `public` or `unlisted` file, an account's
+ *       private file its owner attached to this application (ADR 0021), or the
+ *       application's own file (answered as it is). The copy may not be MORE
+ *       visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`): a
+ *       person's private file shared with the application stays private.
+ *       Anything else is 404, like no file; blocked bytes are 451. The
+ *       application's existing file of the same bytes answers
+ *       `deduplicated: true`, visibility unchanged. Answer `{ file, outcome:
+ *       'adopted' | 'existing', deduplicated, reference? }`. The adopted file
+ *       is the application's: it outlives the source (whose owner may delete
+ *       it), is collected when unused (D5) and counts toward a third-party
+ *       application's plan (D3).
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         for `reference`), on an active application
+ */
+router.post(
+  '/service/app/adopt',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appAdoptBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const body = req.body as z.infer<typeof appAdoptBodySchema>;
+    const appId = await admitAppImport(req, body.reference !== undefined);
+
+    const source = await assetService.getFile(body.fileId);
+    if (!source || source.status === 'deleted') throw new NotFoundError('File not found');
+    // Taken-down bytes answer as such whoever holds them (ADR 0041 D10).
+    if (
+      source.status === 'blocked' &&
+      mayApplicationReference({ ...source, status: 'active' }, appId)
+    ) {
+      throw new ContentBlockedError();
+    }
+    if (!mayApplicationReference(source, appId)) throw new NotFoundError('File not found');
+
+    let result: { file: FileRecord; deduplicated: boolean };
+    let outcome: 'adopted' | 'existing';
+    if (source.ownerApplicationId === appId) {
+      result = {
+        file: await assetService.reuseOwnLiveFile(source, {
+          ownerUserId: null,
+          systemOwner: null,
+          ownerApplicationId: appId,
+        }),
+        deduplicated: true,
+      };
+      outcome = 'existing';
+    } else {
+      if (VISIBILITY_REACH[body.visibility] > VISIBILITY_REACH[source.visibility]) {
+        throw new ApiError(
+          400,
+          `The adopted file cannot be more visible than the source (${source.visibility})`,
+          'VISIBILITY_WIDER_THAN_SOURCE',
+        );
+      }
+      result = await assetService.adoptFileForApplication(source, appId, body.visibility);
+      outcome = result.deduplicated ? 'existing' : 'adopted';
+    }
+
+    let reference: 'created' | 'exists' | 'not_found' | undefined;
+    if (body.reference) {
+      if (mayApplicationReference(result.file, appId)) {
+        const { created } = await assetService.linkFile(result.file.id, {
+          applicationId: appId,
+          entityType: body.reference.entityType,
+          entityId: body.reference.entityId,
+          createdByUserId: null,
+        });
+        reference = created ? 'created' : 'exists';
+        result.file = (await assetService.getFile(result.file.id)) ?? result.file;
+      } else {
+        reference = 'not_found';
+      }
+    }
+
+    logger.info('Application file adopted', {
+      appId,
+      sourceFileId: source.id,
+      fileId: result.file.id,
+      outcome,
+    });
+    sendSuccess(res, {
+      file: serializeApplicationFile(result.file),
+      outcome,
+      deduplicated: result.deduplicated,
+      ...(reference ? { reference: { result: reference } } : {}),
+    });
+  }),
 );
 
 /** One item of a reference batch, as the body names it. */

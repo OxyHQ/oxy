@@ -1343,6 +1343,106 @@ export class AssetService {
   }
 
   /**
+   * Give `applicationId` its own row of the bytes `source` holds (ADR 0041
+   * stage 4b), without moving a byte through the API: the row shares the
+   * stored object (content-addressed), in the spelling `visibility` needs —
+   * copied server-side when no object of that spelling exists yet. The CALLER
+   * decided the application may read `source`.
+   *
+   * The application's existing live row of these bytes is returned instead
+   * (`deduplicated`, visibility unchanged), as a re-upload would. Blocked
+   * bytes are refused (451), under the content-hash lock. With storage
+   * admission on and a metered (third-party) application, a copy is reserved
+   * against its developer's plan first, as an upload is (D3).
+   */
+  async adoptFileForApplication(
+    source: FileRecord,
+    applicationId: string,
+    visibility: FileVisibility,
+  ): Promise<StreamedMediaResult> {
+    const owner: FileOwner = {
+      ownerUserId: null,
+      systemOwner: null,
+      ownerApplicationId: applicationId,
+    };
+    let outcome: { kind: 'existing' | 'created'; file: FileRecord };
+    try {
+      outcome = await withContentHashLock(source.sha256, async (tx) => {
+        await assertContentNotBlocked(source.sha256, tx);
+        const own = await findLiveFileBySha256ForOwner(source.sha256, owner, tx);
+        if (own) return { kind: 'existing' as const, file: own };
+
+        const holder = await findLiveStorageSourceBySha256(source.sha256, visibility, tx);
+        const target = this.targetKeyForVisibility(
+          holder?.storageKey ?? source.storageKey,
+          visibility,
+        );
+        if (!(await this.s3Service.fileExists(target))) {
+          const from = (await this.s3Service.fileExists(source.storageKey))
+            ? source.storageKey
+            : holder && (await this.s3Service.fileExists(holder.storageKey))
+              ? holder.storageKey
+              : null;
+          if (!from) {
+            throw new ApiError(
+              409,
+              "The file's stored content is unavailable; it cannot be adopted",
+              'FILE_CONTENT_UNAVAILABLE',
+            );
+          }
+          const catalogue = await loadProductBillingCatalogue();
+          const accountId = catalogue.storageAdapter
+            ? await storageAccountForOwner(tx, owner)
+            : null;
+          if (accountId) {
+            await reserveStorageBytesWithinTransaction(tx, {
+              accountId,
+              sha256: source.sha256,
+              objectKey: target,
+              size: source.size,
+              kind: 'server',
+            });
+          }
+          await this.s3Service.copyFile(from, target, { sizeHint: source.size });
+        }
+        const file = await insertFile(
+          {
+            sha256: source.sha256,
+            size: source.size,
+            mime: source.mime,
+            ext: source.ext,
+            ...owner,
+            purpose: 'user',
+            status: 'active',
+            storageKey: target,
+            originalName: source.originalName,
+            visibility,
+            metadata: { serviceAppId: applicationId, adoptedFromFileId: source.id },
+          },
+          tx,
+        );
+        return { kind: 'created' as const, file };
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const raced = await findLiveFileBySha256ForOwner(source.sha256, owner);
+      if (!raced) throw error;
+      outcome = { kind: 'existing', file: raced };
+    }
+    if (outcome.kind === 'existing') {
+      return { file: await this.reuseOwnLiveFile(outcome.file, owner), deduplicated: true };
+    }
+    this.queueVariantGeneration(outcome.file);
+    logger.info('Application adopted a file', {
+      applicationId,
+      fileId: outcome.file.id,
+      sourceFileId: source.id,
+      visibility,
+    });
+    return { file: outcome.file, deduplicated: false };
+  }
+
+  /**
    * Store one of a sticker's files — its Lottie animation or its static
    * fallback — in the `__stickers__` namespace. Public and content-addressed,
    * so the CDN serves it forever; the caller has already validated the bytes
