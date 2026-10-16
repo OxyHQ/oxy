@@ -6,6 +6,9 @@
   grant, and an agent's unattended run gets its requester from the bot's live
   parent (see "Addendum: an agent acts as itself")
 - Amended: 2026-10-16 — an agent acts for a present non-owner requester under its owner's published ceiling (ADR 0042)
+- Amended: 2026-10-16 — an app's external MCP lives on the app's OWN domain
+  (`mcp.mention.earth`, `mcp.homiio.com`, `mcp.mercaria.co`, `mcp.clarity.surf`),
+  never under `oxy.so`; the `mcp.<app>.oxy.so` default below is retired (owner decision)
 - Scope: Oxy authority, Alia coordination, app execution, and external MCP access
 
 ## Context
