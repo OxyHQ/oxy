@@ -1140,12 +1140,15 @@ describe('settlement', () => {
   it('closes a grant nothing settled, and a late settlement still settles it once', async () => {
     const customer = await textCustomer();
     const grant = await grantFor(customer);
+    // One clock read: `execute_by` may be at most 60 s after `issued_at`
+    // (kaana_grants_window_check), and two reads a millisecond apart broke it.
+    const now = Date.now();
     await getDb()
       .update(kaanaGrants)
       .set({
-        issuedAt: new Date(Date.now() - 30 * 60_000),
-        executeBy: new Date(Date.now() - 29 * 60_000),
-        expiresAt: new Date(Date.now() - 10 * 60_000),
+        issuedAt: new Date(now - 30 * 60_000),
+        executeBy: new Date(now - 29 * 60_000),
+        expiresAt: new Date(now - 10 * 60_000),
       })
       .where(eq(kaanaGrants.id, grant.grantId));
     expect(await expireLapsedGrants()).toBeGreaterThanOrEqual(1);
