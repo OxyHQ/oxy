@@ -146,14 +146,22 @@ describe('the canonical official-application registry', () => {
     expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
-  it('registers Nilo by exact identity, with inference and linked-file reads and nothing more', () => {
+  it('registers Nilo by exact identity: inference, linked-file reads and the notes catalog', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
       id: NILO_APPLICATION_ID,
       websiteUrl: 'https://nilo.so',
       redirectUris: ['https://nilo.so'],
       type: 'first_party',
-      scopes: ['user:read', 'inference:invoke', 'files:linked:read'],
+      scopes: [
+        'user:read',
+        'inference:invoke',
+        'files:linked:read',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+        'capability-events:publish',
+      ],
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
     expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
@@ -162,7 +170,7 @@ describe('the canonical official-application registry', () => {
       id: NILO_APPLICATION_ID,
     });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
-    expect(nilo.capabilities ?? []).toEqual([]);
+    expect(nilo.capabilities).toEqual(['catalog:noted']);
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
