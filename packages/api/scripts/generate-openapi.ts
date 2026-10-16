@@ -883,7 +883,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|ownAssetAuth|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1711,7 +1711,9 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     INBOX_CAPABILITY_CATALOG.tools.some((tool) =>
       catalogInvocationTemplatesEquivalent(tool.invocation, { method: verb, path: openApiPath }),
     );
-  const isAuth = middlewares.includes('authMiddleware');
+  // `ownAssetAuth` (routes/assets.ts) is `authMiddleware` that also lets a
+  // supervised account's session act on its own files: the same bearer.
+  const isAuth = middlewares.includes('authMiddleware') || middlewares.includes('ownAssetAuth');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isEdgeCredential) {
     security.push({ machineCredentialAuth: [] });

@@ -6826,6 +6826,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -6838,7 +6848,9 @@
           }
         },
         "security": [
-          {}
+          {
+            "bearerAuth": []
+          }
         ],
         "requestBody": {
           "required": true,
@@ -10592,6 +10604,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -10614,7 +10636,9 @@
           }
         },
         "security": [
-          {}
+          {
+            "bearerAuth": []
+          }
         ],
         "operationId": "deleteAssetsId"
       }
@@ -11191,6 +11215,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -11213,7 +11247,9 @@
           }
         },
         "security": [
-          {}
+          {
+            "bearerAuth": []
+          }
         ],
         "operationId": "postAssetsIdUploadDirect"
       }
@@ -11321,6 +11357,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -11343,7 +11389,9 @@
           }
         },
         "security": [
-          {}
+          {
+            "bearerAuth": []
+          }
         ],
         "operationId": "patchAssetsIdVisibility"
       }
