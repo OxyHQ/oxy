@@ -63,6 +63,7 @@ import {
   serviceReferencesBodySchema,
   appImportBodySchema,
   appImportBatchBodySchema,
+  MAX_IMPORT_BATCH_ITEMS,
   userMediaImportBodySchema,
   appLargeUploadBodySchema,
   userMediaLargeUploadBodySchema,
@@ -1665,7 +1666,14 @@ router.post(
   appFileUploadLimiter,
   validate({ body: appImportBatchBodySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
-    const { items } = req.body as { items: AppImportItem[] };
+    const { items: requested } = req.body as { items: unknown };
+    // The schema already bounds the batch; restated here so the loop below is
+    // bounded by a real array of at most MAX_IMPORT_BATCH_ITEMS, never by a
+    // length the request body claims.
+    if (!Array.isArray(requested) || requested.length > MAX_IMPORT_BATCH_ITEMS) {
+      throw new BadRequestError(`items must be an array of at most ${MAX_IMPORT_BATCH_ITEMS}`);
+    }
+    const items: AppImportItem[] = requested;
     const appId = await admitAppImport(
       req,
       items.some((item) => item.reference !== undefined),
