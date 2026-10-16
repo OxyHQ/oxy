@@ -98,6 +98,10 @@ export type {
   AssetUploadOptions,
   AssetLinkTarget,
   AssetDeleteResult,
+  CompletedAssetUpload,
+  LargeUploadOptions,
+  LargeUploadProgress,
+  LargeUploadResult,
 } from './api/assets';
 export { buildUserDid } from './api/identity';
 export type {

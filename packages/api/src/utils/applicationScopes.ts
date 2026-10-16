@@ -111,6 +111,17 @@
  *   `account:act_as` on the account graph, re-read from `account_members` on
  *   every mint and re-checked on every validate and refresh, so a member losing
  *   it kills the live session rather than merely refusing the next one.
+ * - `accounts:membership:read` permits a service credential to ask whether a
+ *   named person may act FOR a named account, and with what effective role and
+ *   permissions — `GET /internal/accounts/:accountId/access/:userId`. It is how a
+ *   first-party app publishing to a `channel` with its OWN credential checks that
+ *   the member it publishes for really is one, with no session of theirs in the
+ *   request (Oxy Move imports for hours on a service token). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *
+ *   It ANSWERS A QUESTION; it mints nothing and grants nothing. It is not
+ *   `accounts:act-as-session` and does not lead to it: a channel can never be
+ *   acted AS, and this scope is what lets an app avoid ever needing to.
  * - `files:linked:read` permits a service credential to mint a short-lived,
  *   direct download URL for a file THE FILE'S OWN OWNER attached to THIS
  *   application. It is the only scope in this vocabulary that reaches BYTES
@@ -211,6 +222,7 @@ export const APPLICATION_SCOPES = [
   'chains:read',
   'acting-as:offline',
   'accounts:act-as-session',
+  'accounts:membership:read',
   'podcasts:write',
   'linked-accounts:read',
   'files:user-media:write',
@@ -311,6 +323,18 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   is a decision and not an omission — the reasoning is recorded on that
  *   constant, because the question it asks is answered on a different lane.
  *
+ * - `accounts:membership:read` reads, for an arbitrary person and an arbitrary
+ *   account, whether that person is an active member and with what permissions.
+ *   That is sensitive for one kind above all: a `channel` is ANONYMOUS — it
+ *   publishes in its own voice, without its members' names — so "is this person
+ *   behind that channel" is precisely the fact the channel exists to withhold. A
+ *   self-granting owner could otherwise unmask every channel by sweeping the
+ *   people it can name. Staff grant it to the first-party services that publish
+ *   to channels on a member's behalf (Mention, Oxy Move). Deliberately NOT
+ *   consent-required: it is read off a SERVICE TOKEN on a lane that never meets
+ *   the consent screen, and the decision it reports — the membership itself —
+ *   was made, and is revocable, on the account's own members surface.
+ *
  * - `linked-accounts:read` reads, for an arbitrary user, which Mastodon and
  *   Bluesky accounts that person has proven they own. That is cross-tenant
  *   identity data a self-granting owner could otherwise harvest to correlate
@@ -375,6 +399,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'inference:byok:validate',
   'acting-as:offline',
   'accounts:act-as-session',
+  'accounts:membership:read',
   'capabilities:read',
   'catalogs:write',
   'capability-tickets:issue',
@@ -548,6 +573,16 @@ export function userConsentRequiredScopes(requested: readonly string[]): string[
  * reads as if it still measures something.
  */
 export const SERVICE_ACCOUNT_SWITCH_SCOPE: ApplicationScope = 'accounts:act-as-session';
+
+/**
+ * The one scope `GET /internal/accounts/:accountId/access/:userId` requires.
+ * Typed `ApplicationScope` for the reason {@link SERVICE_ACCOUNT_SWITCH_SCOPE}
+ * is: renaming the vocabulary entry must break this line, not the gate. Spelled
+ * as a literal rather than imported from `@oxy.so/contracts`
+ * (`ACCOUNTS_MEMBERSHIP_READ_SCOPE`) so this module stays dependency-free; the
+ * scope tests pin the two to the same string.
+ */
+export const ACCOUNT_MEMBERSHIP_READ_SCOPE: ApplicationScope = 'accounts:membership:read';
 
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
   PRIVILEGED_APPLICATION_SCOPES,

@@ -1,5 +1,30 @@
 # Changelog — `@oxy.so/core`
 
+## 4.14.0
+
+Needs `@oxy.so/contracts` 4.18.0.
+
+### Added
+
+- `OxyServer.accounts.accessFor(accountId, userId)` (`ServerAccountsApi`):
+  may this person act for that account, and with what? Calls
+  `GET /internal/accounts/:accountId/access/:userId` with the service's own
+  token (the application needs `accounts:membership:read`) and returns the
+  parsed `AccountAccessVerdict`. Never cached; anything but a valid 200 verdict
+  throws, so callers fail closed.
+- `oxy.assets.initUpload(...)` and `oxy.assets.completeUpload(...)`: the two
+  steps of the direct-to-storage upload (`POST /assets/init`,
+  `POST /assets/complete`).
+- `oxy.assets.uploadLarge(blob, { mime, name, visibility, metadata, onProgress })`:
+  hashes the file in 8 MiB slices (SHA-256, loaded lazily from `@oxy.so/core/crypto`, which now also exports `createContentHasher`), then init → PUT
+  to the presigned URL → complete, so no byte passes through the API and the
+  file is never held whole in memory. Hashing comes first because the presigned
+  URL is short-lived. An empty `uploadUrl` (bytes already stored) skips the PUT
+  and answers `deduplicated: true`. On the web the PUT uses `XMLHttpRequest`,
+  so `onProgress({ phase, loaded, total })` sees bytes sent; elsewhere `fetch`.
+  Types: `LargeUploadOptions`, `LargeUploadProgress`, `LargeUploadResult`,
+  `CompletedAssetUpload`.
+
 ## 4.13.0
 
 Needs `@oxy.so/contracts` 4.17.0 and `@oxy.so/protocol` 1.3.0. Smaller

@@ -57,5 +57,8 @@ export { deriveIdentityLinkCode } from './identityLink';
 // The registration proof-of-work and the protocol signing primitives the
 // namespaces use, so they load with the rest of the identity stack.
 export { solveRegistrationPow } from './registrationPow';
+// Content addressing for direct-to-storage uploads (`oxy.assets.uploadLarge`).
+export { createContentHasher } from './contentHash';
+export type { ContentHasher } from './contentHash';
 export { canonicalize, loadCommonsIdentityBridge } from '@oxy.so/protocol';
 export { signMessage, verifySignature } from '@oxy.so/protocol/sign';

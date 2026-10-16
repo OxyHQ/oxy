@@ -247,6 +247,38 @@ delegated to some other app — is accepted and logged. Every negative answer is
 byte-identical (`{ authorized: false, scopes: [] }`, always 200, never 404), so
 the endpoint is not an oracle for which users or applications exist.
 
+## Asking whether a person may act for an account
+
+```
+GET /internal/accounts/<accountId>/access/<userId>
+→ { "accountId": "…", "kind": "channel" | … | null,
+    "access": { "role": "…", "permissions": ["…"], "status": "active",
+                "source": "direct" | "inherited" | "self" } | null }
+```
+
+A Mention channel is an account of kind `channel`, which can never be acted AS
+(`isDelegatedActAsEligibleKind`). An app publishes to one with its OWN
+credential, on behalf of a member Oxy vouches for here — so the invariant holds
+and nobody holds a bearer that speaks as the channel. The user-facing
+`GET /accounts/:id/members` needs the person's own session; a long server-side
+import (Oxy Move) has only a service token, so this is its question.
+
+- **Gates:** the `/internal` service-token and trust gates, plus the privileged
+  `accounts:membership:read`. The scope is for the DISCLOSURE: a channel is
+  anonymous, so who is behind it is what trust alone must not hand every
+  first-party service. Staff add it to an application's ceiling (the canonical
+  seed, `packages/api/src/scripts/seedOxyApplicationsSpecs.ts`).
+- **Answer:** always 200. The effective access `accountService` resolves for
+  every other membership check — inherited memberships count, invited and
+  removed ones do not, a per-member revoke shows in `permissions`, a personal
+  account is its own `owner` (`source: 'self'`). `access` is `null` for no
+  active membership and for an archived, unknown or unclaimed directory
+  account; `kind` is `null` only for an unknown one.
+- **Bounds:** 600/minute per calling application; nothing cached on either side
+  (`@oxy.so/core`'s `oxy.accounts.accessFor` throws on anything but a valid
+  verdict); each answer logged with caller, account and outcome, never the
+  person asked about. It mints and grants nothing.
+
 ## Security
 
 - Service tokens are signed with Ed25519 and carry an exact `kid`; external
@@ -271,7 +303,7 @@ the endpoint is not an oracle for which users or applications exist.
 | File | Purpose |
 |------|---------|
 | `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint; `GET`/`DELETE /auth/grants` |
-| `packages/api/src/routes/internal.ts` | `/internal` router + `GET /internal/service-acting-as/verify` |
+| `packages/api/src/routes/internal.ts` | `/internal` router + `GET /internal/service-acting-as/verify` + `GET /internal/accounts/:accountId/access/:userId` |
 | `packages/api/src/services/serviceActingAs.service.ts` | resolves the delegation grant; `acting-as:offline` |
 | `packages/api/src/db/schema/appGrants.ts` | `app_grants` — the revocable per-(user, app) consent row |
 | `packages/api/src/utils/applicationScopes.ts` | the scope vocabulary, privileged and consent-required sets |

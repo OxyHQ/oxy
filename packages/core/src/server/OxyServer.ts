@@ -70,6 +70,7 @@ import {
   type VerifyAccountEventOptions,
 } from './middleware';
 import {
+  ServerAccountsApi,
   ServerAppsApi,
   ServerAgencyApi,
   ServerAssetsApi,
@@ -250,6 +251,7 @@ export class OxyServer extends OxyServices {
 
   // ── Server-side namespaces ───────────────────────────────────────────────
 
+  private _serverAccounts?: ServerAccountsApi;
   private _serverAssets?: ServerAssetsApi;
   private _serverNotifications?: ServerNotificationsApi;
   private _serverLinkedAccounts?: ServerLinkedAccountsApi;
@@ -257,6 +259,11 @@ export class OxyServer extends OxyServices {
   private _serverApps?: ServerAppsApi;
   private _serverReputation?: ServerReputationApi;
 
+  /** The account graph, plus the service-only `accessFor` membership verdict. */
+  override get accounts(): ServerAccountsApi {
+    if (!this._serverAccounts) this._serverAccounts = new ServerAccountsApi(this.context);
+    return this._serverAccounts;
+  }
   /** Files, plus the service-only metadata and linked-URL lookups. */
   override get assets(): ServerAssetsApi {
     if (!this._serverAssets) this._serverAssets = new ServerAssetsApi(this.context);

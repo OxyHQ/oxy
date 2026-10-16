@@ -18,6 +18,8 @@ import type { OxyContext } from '../client/context';
 import { logger } from '../logger';
 import type {
   AccountStorageUsageResponse,
+  AssetCompleteRequest,
+  AssetInitRequest,
   AssetInitResponse,
   Asset,
   AssetDeleteSummary,
@@ -99,6 +101,97 @@ export interface AssetUploadOptions {
   timeout?: number;
 }
 
+/** What `POST /assets/complete` answers: the committed asset. */
+export interface CompletedAssetUpload {
+  assetId: string;
+  file: Pick<
+    Asset,
+    | 'id'
+    | 'sha256'
+    | 'size'
+    | 'mime'
+    | 'status'
+    | 'usageCount'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'links'
+    | 'variants'
+  > & { originalName?: string };
+}
+
+/** One progress report from {@link AssetsApi.uploadLarge}. */
+export interface LargeUploadProgress {
+  /** `hash` reads the bytes once to address them; `upload` sends them. */
+  phase: 'hash' | 'upload';
+  /** Bytes done in this phase. */
+  loaded: number;
+  /** The file's size. */
+  total: number;
+}
+
+export interface LargeUploadOptions {
+  /** Defaults to the Blob's own `type`; one of the two is required. */
+  mime?: string;
+  /** Defaults to a `File`'s name, else `file`. */
+  name?: string;
+  /** Server default: `private`. */
+  visibility?: FileVisibility;
+  metadata?: AssetMetadata;
+  onProgress?: (progress: LargeUploadProgress) => void;
+}
+
+/** The committed asset, and whether the bytes were already stored (no PUT). */
+export type LargeUploadResult = CompletedAssetUpload & { deduplicated: boolean };
+
+/**
+ * How much of the file is held in memory at once while hashing, in bytes. The
+ * whole point of the large-upload path is that the file never is.
+ */
+const LARGE_UPLOAD_HASH_CHUNK_BYTES = 8 * 1024 * 1024;
+
+const PRESIGNED_UPLOAD_HEADERS = [
+  'if-none-match',
+  'content-type',
+  'x-amz-checksum-sha256',
+  'cache-control',
+];
+
+/**
+ * The URL and headers of a presigned PUT, refused unless HTTPS and unless every
+ * header the API asked for is one a bucket needs — so an Oxy bearer, a cookie or
+ * anything else can never ride along to storage.
+ */
+function presignedUploadRequest(
+  init: AssetInitResponse,
+  body: Blob,
+): { target: URL; headers: Headers } {
+  const target = new URL(init.uploadUrl);
+  if (target.protocol !== 'https:') throw new Error('Presigned uploads require HTTPS');
+  const headers = new Headers(init.requiredHeaders);
+  headers.forEach((_value, name) => {
+    if (!PRESIGNED_UPLOAD_HEADERS.includes(name.toLowerCase()))
+      throw new Error('Unsupported required upload header');
+  });
+  if (body.type && !headers.has('Content-Type')) headers.set('Content-Type', body.type);
+  return { target, headers };
+}
+
+/**
+ * SHA-256 of a Blob, read a chunk at a time, as lowercase hex. The hasher loads
+ * through the identity stack's one lazy root (`../crypto/index`), after its
+ * polyfill, so it costs an app's startup nothing.
+ */
+async function sha256OfBlob(blob: Blob, onChunk?: (loaded: number) => void): Promise<string> {
+  const { createContentHasher } = await import('../crypto/index');
+  const hash = createContentHasher();
+  for (let offset = 0; offset < blob.size; offset += LARGE_UPLOAD_HASH_CHUNK_BYTES) {
+    const end = Math.min(offset + LARGE_UPLOAD_HASH_CHUNK_BYTES, blob.size);
+    hash.update(new Uint8Array(await blob.slice(offset, end).arrayBuffer()));
+    onChunk?.(end);
+  }
+  return hash.digestHex();
+}
+
 export interface AssetLinkTarget {
   app: string;
   entityType: string;
@@ -117,18 +210,7 @@ export class AssetsApi {
   /** Upload already-admitted bytes. Sends required bucket headers, never an Oxy bearer. */
   async putPresignedUpload(init: AssetInitResponse, body: Blob): Promise<void> {
     if (!init.uploadUrl) return; // bytes already exist for this account
-    const target = new URL(init.uploadUrl);
-    if (target.protocol !== 'https:') throw new Error('Presigned uploads require HTTPS');
-    const headers = new Headers(init.requiredHeaders);
-    headers.forEach((_value, name) => {
-      if (
-        !['if-none-match', 'content-type', 'x-amz-checksum-sha256', 'cache-control'].includes(
-          name.toLowerCase(),
-        )
-      )
-        throw new Error('Unsupported required upload header');
-    });
-    if (body.type && !headers.has('Content-Type')) headers.set('Content-Type', body.type);
+    const { target, headers } = presignedUploadRequest(init, body);
     const result = await fetch(target.toString(), {
       method: 'PUT',
       body,
@@ -139,7 +221,120 @@ export class AssetsApi {
     if (!result.ok) throw new Error(`Presigned upload failed (${result.status})`);
   }
 
+  /**
+   * The same PUT as {@link putPresignedUpload}, through `XMLHttpRequest` so the
+   * browser reports bytes sent. Refuses a redirect: the bytes go to exactly the
+   * URL the API presigned.
+   */
+  private putPresignedUploadWithProgress(
+    init: AssetInitResponse,
+    body: Blob,
+    onProgress: (loaded: number) => void,
+  ): Promise<void> {
+    const { target, headers } = presignedUploadRequest(init, body);
+    const url = target.toString();
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url);
+      xhr.withCredentials = false;
+      headers.forEach((value, name) => {
+        xhr.setRequestHeader(name, value);
+      });
+      xhr.upload.onprogress = (event) => onProgress(event.loaded);
+      xhr.onload = () => {
+        if (xhr.responseURL && xhr.responseURL !== url) {
+          reject(new Error('Presigned upload was redirected'));
+        } else if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Presigned upload failed (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Presigned upload failed (network)'));
+      xhr.onabort = () => reject(new Error('Presigned upload aborted'));
+      xhr.send(body);
+    });
+  }
+
   // ── Upload ───────────────────────────────────────────────────────────────
+
+  /**
+   * Step one of the direct-to-storage upload (`POST /assets/init`): address the
+   * bytes by their SHA-256 and get a presigned PUT URL for them.
+   *
+   * An EMPTY `uploadUrl` means the bytes are already stored for this account:
+   * skip the PUT and go straight to {@link completeUpload}. The URL is short-lived
+   * (a minute where storage is metered), so hash first and call this last.
+   */
+  async initUpload(input: AssetInitRequest): Promise<AssetInitResponse> {
+    return this.ctx.request<AssetInitResponse>('POST', '/assets/init', input, { cache: false });
+  }
+
+  /**
+   * Step two (`POST /assets/complete`), after the PUT or after an init that
+   * needed none: commit the name, size, MIME, visibility and metadata.
+   */
+  async completeUpload(input: AssetCompleteRequest): Promise<CompletedAssetUpload> {
+    return this.ctx.request<CompletedAssetUpload>('POST', '/assets/complete', input, {
+      cache: false,
+    });
+  }
+
+  /**
+   * Upload a large file straight to storage, never through the API: hash →
+   * {@link initUpload} → presigned PUT → {@link completeUpload}.
+   *
+   * The file is hashed in {@link LARGE_UPLOAD_HASH_CHUNK_BYTES} slices, so it is
+   * never held in memory whole, and it is hashed BEFORE `init` because the
+   * presigned URL must be used within the init's short expiry. When the bytes
+   * are already stored, `init` answers an empty URL and the PUT is skipped
+   * (`deduplicated: true`). On the web the PUT goes through `XMLHttpRequest`, so
+   * `onProgress` sees bytes sent; elsewhere it uses `fetch` and reports the
+   * upload once, when it finishes.
+   *
+   * Needs a Blob that supports `slice` and `arrayBuffer` (browsers, Node, Bun).
+   * On React Native use {@link upload} with a file descriptor instead.
+   */
+  async uploadLarge(blob: Blob, options: LargeUploadOptions = {}): Promise<LargeUploadResult> {
+    const size = blob.size;
+    if (size === 0) throw new Error('Cannot upload an empty file');
+    const mime = options.mime || blob.type;
+    if (!mime) throw new Error('uploadLarge needs a MIME type');
+    const name =
+      options.name ||
+      (typeof File !== 'undefined' && blob instanceof File && blob.name ? blob.name : 'file');
+    const report = (phase: LargeUploadProgress['phase'], loaded: number) =>
+      options.onProgress?.({ phase, loaded, total: size });
+
+    report('hash', 0);
+    const digest = await sha256OfBlob(blob, (loaded) => report('hash', loaded));
+
+    const init = await this.initUpload({ sha256: digest, size, mime });
+    const deduplicated = !init.uploadUrl;
+    if (deduplicated) {
+      report('upload', size);
+    } else {
+      // The PUT carries the declared MIME, which is what the URL was signed for.
+      const body = blob.type === mime ? blob : blob.slice(0, size, mime);
+      report('upload', 0);
+      if (typeof XMLHttpRequest !== 'undefined' && !isReactNative()) {
+        await this.putPresignedUploadWithProgress(init, body, (loaded) => report('upload', loaded));
+      } else {
+        await this.putPresignedUpload(init, body);
+      }
+      report('upload', size);
+    }
+
+    const completed = await this.completeUpload({
+      fileId: init.fileId,
+      originalName: name,
+      size,
+      mime,
+      ...(options.visibility ? { visibility: options.visibility } : {}),
+      ...(options.metadata ? { metadata: options.metadata } : {}),
+    });
+    return { ...completed, deduplicated };
+  }
 
   /**
    * Upload a file. Accepts a web `File`/`Blob` or a React Native

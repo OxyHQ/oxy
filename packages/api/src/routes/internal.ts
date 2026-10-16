@@ -52,6 +52,14 @@ import { OXY_SERVICE_ENVIRONMENTS } from '@oxy.so/core/server';
  * this whole router: the endpoint carries its own staff-granted scope on top,
  * and its docblock records why that scope is a new one rather than the existing
  * `acting-as:offline`. A future endpoint of that weight owes the same.
+ *
+ * `GET /accounts/:accountId/access/:userId` is the other kind, and carries a
+ * scope (`accounts:membership:read`) for a different reason. Its weight is
+ * bounded because it ANSWERS A QUESTION — may this person act for that account,
+ * with what effective permissions — and mints, grants and changes nothing. The
+ * scope is there for the DISCLOSURE, not the authority: a channel is anonymous,
+ * so its membership is exactly what trust alone must not hand every first-party
+ * service.
  */
 
 import express from 'express';
@@ -64,7 +72,7 @@ import {
 import { publishPlatformActivity } from '../services/platformActivity.service';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import { type AccountAccessVerdict, isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -84,7 +92,10 @@ import { requesterAssertionRuntime } from '../services/nativeRequesterAssertion.
 import { resolveServiceActingAsGrant } from '../services/serviceActingAs.service';
 import sessionService from '../services/session.service';
 import type { SessionAuthResponse } from '../types/session';
-import { SERVICE_ACCOUNT_SWITCH_SCOPE } from '../utils/applicationScopes';
+import {
+  ACCOUNT_MEMBERSHIP_READ_SCOPE,
+  SERVICE_ACCOUNT_SWITCH_SCOPE,
+} from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { formatUserResponse } from '../utils/userTransform';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -424,6 +435,115 @@ router.post(
       jti: result.jti,
     });
     sendSuccess(res, result);
+  }),
+);
+
+/**
+ * Keyed on the CALLING application, with the same fail-closed `unknown` bucket
+ * as every limiter here. No caller caches the answer (each publish asks), so
+ * the number is sized for a long import publishing one post per call: 600 a
+ * minute is ten a second per application, above a healthy import's pace and far
+ * below what sweeping the account graph for channel members would need.
+ */
+const accountAccessLimiter = rateLimit({
+  prefix: 'rl:internal:account-access:',
+  windowMs: 60 * 1000,
+  max: 600,
+  keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+/**
+ * Bounded, never format-checked, for the reason the verify query's ids are: two
+ * live id shapes (legacy 24-hex and uuid v7), and nothing longer reaches a query.
+ */
+const accountAccessParams = z.object({
+  accountId: z.string().trim().min(1).max(128),
+  userId: z.string().trim().min(1).max(128),
+});
+
+/**
+ * `GET /internal/accounts/:accountId/access/:userId`
+ *
+ * May `userId` act FOR `accountId`, and with what? The service-lane twin of the
+ * membership checks an app makes with the person's own bearer
+ * (`GET /accounts/:id/members`), for a caller that has no such bearer: Oxy Move
+ * imports for hours on a service token and `X-Oxy-User-Id`, and that router
+ * refuses both.
+ *
+ * It is what keeps the channel invariant intact rather than an exception to it.
+ * Nobody acts AS a channel (`isDelegatedActAsEligibleKind`); an app publishes to
+ * one with ITS OWN credential, on behalf of a member Oxy vouches for HERE. So no
+ * session, grant or bearer comes out of this — only the answer.
+ *
+ * ## The answer is the one every other membership check reads
+ *
+ * `accountService.effectiveAccessForAccount` — the resolution behind
+ * `requireAccountPermission`, `verifyActingAs` and the members roster — so this
+ * cannot disagree with the user-facing lane about the same person: an inherited
+ * membership counts, an invited or removed one does not, a per-member revoke is
+ * honoured in `permissions`, a personal account is its own owner, and an
+ * unclaimed directory account grants nobody anything.
+ *
+ * ## Always 200
+ *
+ * `{ accountId, kind, access }`. `access` is `null` for no active membership,
+ * an archived account, an unknown account and an unclaimed directory account,
+ * so a caller learns "no" and nothing about why. `kind` is `null` only when the
+ * account does not exist — the same existence disclosure, to the same
+ * staff-controlled audience, that `service-switch` accepts and records below.
+ *
+ * Not cached here, and the SDK does not cache it either: a removed member must
+ * stop being able to publish on the next call, not on the next TTL.
+ */
+router.get(
+  '/accounts/:accountId/access/:userId',
+  accountAccessLimiter,
+  validate({ params: accountAccessParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const serviceApp = req.serviceApp;
+    if (!serviceApp) {
+      throw new UnauthorizedError('Service authentication required');
+    }
+    if (!serviceApp.scopes?.includes(ACCOUNT_MEMBERSHIP_READ_SCOPE)) {
+      throw new ForbiddenError(`This endpoint requires the ${ACCOUNT_MEMBERSHIP_READ_SCOPE} scope`);
+    }
+
+    // The person asked about is the would-be OPERATOR: the human who acts for
+    // the account, never its subject. Named so, as every access resolution is.
+    const { accountId, userId: operatorId } = accountAccessParams.parse(req.params);
+    const [account] = await getDb()
+      .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, accountId))
+      .limit(1);
+
+    const resolved =
+      account && account.accountStatus !== 'archived'
+        ? await accountService.effectiveAccessForAccount(operatorId, account)
+        : null;
+
+    const verdict: AccountAccessVerdict = {
+      accountId,
+      kind: account?.kind ?? null,
+      access: resolved
+        ? {
+            role: resolved.role,
+            permissions: [...resolved.permissions],
+            status: 'active',
+            source: resolved.source,
+          }
+        : null,
+    };
+
+    // Logged on both outcomes, and never with the person asked about: a log of
+    // who is behind which channel would be the disclosure this scope guards.
+    logger.info('[internal] account access verdict', {
+      callerAppId: serviceApp.appId,
+      accountId,
+      authorized: verdict.access !== null,
+    });
+
+    sendSuccess(res, verdict);
   }),
 );
 

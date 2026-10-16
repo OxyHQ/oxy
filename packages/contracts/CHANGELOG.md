@@ -1,5 +1,21 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.18.0
+
+Additive only: no export removed.
+
+### Added
+
+- `accountAccess.ts`, the wire contract of
+  `GET /internal/accounts/:accountId/access/:userId`:
+  `accountAccessVerdictSchema` / `AccountAccessVerdict`
+  (`{ accountId, kind, access }`), `accountAccessGrantSchema` /
+  `AccountAccessGrant` (`{ role, permissions, status: 'active', source }`),
+  `ACCOUNT_ACCESS_SOURCES` / `accountAccessSourceSchema` / `AccountAccessSource`
+  (`self` | `direct` | `inherited`), and `ACCOUNTS_MEMBERSHIP_READ_SCOPE`
+  (`accounts:membership:read`, privileged). `role` and `permissions` are open
+  strings so an older consumer keeps reading new ones.
+
 ## 4.17.0
 
 Additive only: no export removed or changed in the root entry.

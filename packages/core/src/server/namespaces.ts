@@ -20,6 +20,8 @@ import {
   type AwardReputationInput,
   type ReputationTransaction,
   type ServiceLinkedAccountListResponse,
+  accountAccessVerdictSchema,
+  type AccountAccessVerdict,
 } from '@oxy.so/contracts';
 import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
@@ -40,6 +42,7 @@ import {
 } from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { AppsApi } from '../api/apps';
+import { AccountsApi } from '../api/accounts';
 import {
   isOxyAliaMachinePrincipal,
   type AliaMachineCredentialIntrospection,
@@ -271,6 +274,44 @@ export class ServerAssetsApi extends AssetsApi {
       ),
     );
     return settled.flat();
+  }
+}
+
+export class ServerAccountsApi extends AccountsApi {
+  constructor(private readonly serverCtx: OxyContext) {
+    super(serverCtx);
+  }
+
+  /**
+   * May `userId` act FOR `accountId`, and with what effective role and
+   * permissions? `GET /internal/accounts/:accountId/access/:userId`, with this
+   * service's own token; the application must be platform-trusted and hold the
+   * privileged `accounts:membership:read`.
+   *
+   * The check an app makes before publishing to a `channel` on a member's
+   * behalf with its own credential — nobody can act AS a channel, so this is how
+   * a service with no session of that member (a long import) learns it may.
+   *
+   * `access` is `null` for no active membership, an archived, unknown or
+   * unclaimed directory account. FAIL CLOSED: anything but a 200 carrying a
+   * valid verdict throws, so a caller cannot read an outage as a "yes" — or as a
+   * "no" that it then caches. Never cached: a removed member must lose the
+   * right on the next call. Gate on `access.permissions`, not on `access.role`.
+   */
+  async accessFor(accountId: string, userId: string): Promise<AccountAccessVerdict> {
+    if (!accountId || !userId)
+      throw new Error('accounts.accessFor needs an accountId and a userId');
+    const answer = await lane(this.serverCtx).request<unknown>(
+      'GET',
+      `/internal/accounts/${encodeURIComponent(accountId)}/access/${encodeURIComponent(userId)}`,
+      undefined,
+      { cache: false },
+    );
+    const verdict = accountAccessVerdictSchema.safeParse(answer);
+    if (!verdict.success || verdict.data.accountId !== accountId) {
+      throw new Error('Invalid account access verdict');
+    }
+    return verdict.data;
   }
 }
 
