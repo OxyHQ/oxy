@@ -1,3 +1,10 @@
+import {
+  supervisionProfiles,
+  supervisionInvitations,
+  supervisionContacts,
+  supervisionPurchaseApprovals,
+  supervisionAudit,
+} from './supervision';
 /**
  * Columns That Must Not Reach a Client
  *
@@ -337,6 +344,16 @@ export const SIGNIN_SECOND_FACTOR_CHALLENGES_PROTECTED_COLUMNS = ['challengeHash
  * own doc comment for exactly what widening it would cost).
  */
 export const PROTECTED_COLUMNS_BY_TABLE = {
+  supervision_profiles: ['guardianAccountId', 'sessionsValidAfter'] as const,
+  supervision_invitations: ['childAccountId', 'guardianAccountId'] as const,
+  supervision_contacts: ['approvedByAccountId'] as const,
+  supervision_purchase_approvals: [
+    'cartFingerprint',
+    'paymentFingerprint',
+    'reviewedByAccountId',
+  ] as const,
+  supervision_audit: ['actorAccountId', 'relatedAccountId', 'evidenceReference'] as const,
+
   organization_claims: [
     'evidenceReference',
     'reviewEvidenceReference',
@@ -375,6 +392,37 @@ export interface ProtectedColumn {
  * the test asserts the two agree, so neither can drift.
  */
 export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
+  ...(['guardianAccountId', 'sessionsValidAfter'] as const).map((key) => ({
+    table: supervisionProfiles,
+    column: supervisionProfiles[key],
+    reason:
+      'Private supervision authority or approval evidence; only explicit authorized safety reads may select it.',
+  })),
+  ...(['childAccountId', 'guardianAccountId'] as const).map((key) => ({
+    table: supervisionInvitations,
+    column: supervisionInvitations[key],
+    reason:
+      'Private supervision authority or approval evidence; only explicit authorized safety reads may select it.',
+  })),
+  ...(['approvedByAccountId'] as const).map((key) => ({
+    table: supervisionContacts,
+    column: supervisionContacts[key],
+    reason:
+      'Private supervision authority or approval evidence; only explicit authorized safety reads may select it.',
+  })),
+  ...(['cartFingerprint', 'paymentFingerprint', 'reviewedByAccountId'] as const).map((key) => ({
+    table: supervisionPurchaseApprovals,
+    column: supervisionPurchaseApprovals[key],
+    reason:
+      'Private supervision authority or approval evidence; only explicit authorized safety reads may select it.',
+  })),
+  ...(['actorAccountId', 'relatedAccountId', 'evidenceReference'] as const).map((key) => ({
+    table: supervisionAudit,
+    column: supervisionAudit[key],
+    reason:
+      'Private supervision authority or approval evidence; only explicit authorized safety reads may select it.',
+  })),
+
   ...(['evidenceReference', 'reviewEvidenceReference', 'reviewedByUserId'] as const).map((key) => ({
     table: organizationClaims,
     column: organizationClaims[key],

@@ -93,6 +93,10 @@ jest.mock('../../utils/validation', () => ({
   isValidObjectId: (id: string) => /^[a-fA-F0-9]{24}$/.test(id),
 }));
 
+jest.mock('../../services/supervisionPolicy.service', () => ({
+  createSupervisedAssetPolicy: jest.fn(async () => () => null),
+}));
+
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     getFile: (...args: unknown[]) => mockGetFile(...args),
@@ -425,7 +429,12 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
     expect(pub.url).not.toContain('mt=');
 
     // A bare label context carries no entity gate (parsed to undefined).
-    expect(mockCanUserAccessFile).toHaveBeenCalledWith(expect.any(Object), VIEWER_ID, undefined);
+    expect(mockCanUserAccessFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      VIEWER_ID,
+      undefined,
+      expect.any(Function),
+    );
   });
 
   it('omits a url for a file the caller cannot access, and the batch still 200s', async () => {

@@ -1,4 +1,81 @@
 const dict = {
+  supervision: {
+    exactHandleHint: 'For a private guardian, enter the exact username they shared with you.',
+    setupOwn: 'Set up supervision for this personal account',
+    setupOwnDescription:
+      'Use the account to be supervised. Inviting a guardian makes it private; cancelling the invitation keeps it private.',
+    title: 'Supervision',
+    entryDescription: 'Guardian, approved contacts and purchase approvals',
+    description:
+      'Agree on protections together. This records consent to account supervision, not legal guardianship.',
+    yourAccount: 'Your account',
+    active: 'Supervised by {{name}}',
+    activeDescription:
+      'Your profile stays private. Approved contacts, content restrictions and purchase approval apply in supported apps. Other account activities may be unavailable.',
+    orphaned: 'Supervision remains active, but the guardian is unavailable.',
+    notActive: 'Supervision is not active.',
+    invite: 'Invite a guardian',
+    inviteConsent:
+      'Invite {{name}} to supervise this account. Sending the invitation makes this profile private, even if you later cancel it. If they accept, existing sessions end, and protected activities require approved contacts or purchase approval.',
+    pending: 'Pending invitations',
+    pendingDescription:
+      'An invitation alone does not activate supervision. Both people must consent.',
+    expires: 'Expires {{date}}',
+    accept: 'Accept supervision',
+    acceptConsent:
+      'Agree to supervise {{name}}. You will manage approved contacts and review purchases. This does not give you sign-in access to their account.',
+    cancelInvitation: 'Cancel invitation',
+    children: 'Accounts you supervise',
+    contacts: 'Approved contacts for {{name}}',
+    contactsDescription:
+      'An approved contact can interact within supported apps. Blocks and the other person’s protections still apply.',
+    removeContact: 'Remove contact',
+    removeConsent:
+      'Remove approval for {{name}}. Existing conversations will be checked again before further access.',
+    addContact: 'Approve a contact',
+    addConsent: 'Approve {{name}} as a contact for this supervised account.',
+    noContacts: 'No contacts approved yet.',
+    purchases: 'Purchase approvals',
+    noPurchases: 'No purchase approvals.',
+    more: 'More purchases',
+    firstPage: 'First page',
+    approvePurchase: 'Approve purchase',
+    rejectPurchase: 'Reject purchase',
+    purchaseConsent:
+      'Review every item, option, merchant and total below. Your decision applies only to this exact purchase.',
+    purchaseBound:
+      'Approval applies to this purchase only. Changes require a new approval; a cancelled approval cannot be reused.',
+    quantity: 'Quantity: {{quantity}}',
+    shipping: 'Shipping',
+    tax: 'Tax',
+    discount: 'Discount',
+    rounding: 'Currency rounding adjustment',
+    total: 'Total',
+    merchantUnavailable:
+      'Merchant identity unavailable. Approval is unavailable until it can be verified.',
+    personalOnly: 'Supervision is managed from a personal account.',
+    account: 'Account',
+    retry: 'Try again',
+    saved: 'Changes saved.',
+    loadError: 'Could not verify current access. Try again.',
+    changeError: 'Could not save this change. Check current access and try again.',
+    reauthSetup:
+      'Set up a password or verified email in account settings before confirming this change.',
+    accountSettings: 'Account settings',
+    confirm: 'Confirm',
+    transitionHelp: 'Get help changing or ending supervision',
+    searchLabel: 'Username',
+    search: 'Search',
+    noPeople: 'No eligible people found.',
+    status: {
+      pending: 'Awaiting guardian review',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      reserved: 'Purchase in progress',
+      confirmed: 'Purchase completed',
+      cancelled: 'Cancelled',
+    },
+  },
   organizationDirectory: {
     invalidName: 'Use a plain-text organization name (up to 300 characters).',
     review: {

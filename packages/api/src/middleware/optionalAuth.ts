@@ -1,3 +1,4 @@
+import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 /**
  * Optional Authentication Middleware
  *
@@ -28,7 +29,7 @@ export async function optionalAuthMiddleware(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, false);
+    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, true);
 
     if (user) {
       req.user = user;
@@ -41,6 +42,20 @@ export async function optionalAuthMiddleware(
 
     next();
   } catch (error) {
+    if (error instanceof OptionalAuthenticationPolicyError) {
+      res.status(error.status).json({
+        error: {
+          code:
+            error.status === 403
+              ? 'forbidden'
+              : error.status === 401
+                ? 'unauthorized'
+                : 'service_unavailable',
+          message: error.message,
+        },
+      });
+      return;
+    }
     logger.error('Optional auth middleware error:', error);
     // Even on error, continue without blocking the request
     next();
@@ -169,7 +184,7 @@ export async function optionalUserOrServiceAuth(
       // safely yields anonymous when the token is not a valid session token.
     }
 
-    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, false);
+    const { user, source, sessionId } = await authenticateRequestNonBlocking(req, true);
     if (user) {
       req.user = user;
       req.sessionId = sessionId;
@@ -180,6 +195,20 @@ export async function optionalUserOrServiceAuth(
     }
     next();
   } catch (error) {
+    if (error instanceof OptionalAuthenticationPolicyError) {
+      res.status(error.status).json({
+        error: {
+          code:
+            error.status === 403
+              ? 'forbidden'
+              : error.status === 401
+                ? 'unauthorized'
+                : 'service_unavailable',
+          message: error.message,
+        },
+      });
+      return;
+    }
     logger.error('Optional dual auth middleware error:', error);
     // Never block — degrade to anonymous.
     next();

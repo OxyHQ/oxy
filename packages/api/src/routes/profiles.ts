@@ -1,3 +1,4 @@
+import { optionalUserOrServiceAuth } from '../middleware/optionalAuth';
 /**
  * Profile Routes
  *
@@ -15,11 +16,7 @@ import { appUserSignals } from '../db/schema/appUserSignals';
 import { userFollows } from '../db/schema/userFollows';
 import { users } from '../db/schema/users';
 import { authMiddleware } from '../middleware/auth';
-import {
-  optionalUserOrServiceAuth,
-  resolveViewerId,
-  type OptionalUserOrServiceRequest,
-} from '../middleware/optionalAuth';
+import { resolveViewerId, type OptionalUserOrServiceRequest } from '../middleware/optionalAuth';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../utils/error';
@@ -90,6 +87,7 @@ interface PaginationQuery {
 }
 
 const router = Router();
+router.use(optionalUserOrServiceAuth);
 import { PAGINATION } from '../utils/constants';
 import { resolveOperatorId } from '../middleware/operator';
 
@@ -360,7 +358,6 @@ const LOCAL_USERNAME_LOOKUP = /^[a-zA-Z0-9._-]+$/;
  */
 router.get(
   '/username/:username',
-  optionalUserOrServiceAuth,
   validate({ params: usernameParams }),
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const raw = req.params.username;
@@ -605,7 +602,6 @@ router.get(
  */
 router.get(
   '/resolve',
-  optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     // Normalize handle input: trim, strip optional `acct:` prefix, and remove a
     // single leading `@` so `@user@host` matches the stored `user@host` username.
@@ -1445,7 +1441,6 @@ export async function buildRecommendations(
  */
 router.get(
   '/recommendations',
-  optionalUserOrServiceAuth,
   validatePagination,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const {
@@ -1491,7 +1486,6 @@ router.get(
  */
 router.post(
   '/recommendations',
-  optionalUserOrServiceAuth,
   validate({ body: recommendationRequestSchema }),
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const currentUserId = resolveViewerId(req);

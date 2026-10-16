@@ -6,7 +6,14 @@
  * token belongs to: validating it, listing the sessions beside it, signing out.
  */
 import { jwtDecode } from 'jwt-decode';
-import type { AccountActorChain, DeviceProof } from '@oxy.so/contracts';
+import {
+  safetySessionInputSchema,
+  safetySessionValidationSchema,
+  type SupervisedAction,
+  type UserResponse,
+  type AccountActorChain,
+  type DeviceProof,
+} from '@oxy.so/contracts';
 import type { OxyContext } from '../client/context';
 import type { ClientSession } from '../models/session';
 import type { User } from '../models/interfaces';
@@ -23,7 +30,7 @@ export interface SessionValidation {
   valid: boolean;
   expiresAt: string;
   lastActivity: string;
-  user: User;
+  user: UserResponse & { id: string };
   sessionId?: string;
   source?: string;
   /** Who acted, and as whom, read off the session row (issue #1520). */
@@ -174,17 +181,54 @@ export class SessionApi {
   /** Validate a session by id and return it with its user. */
   async validate(
     sessionId: string,
-    options: { deviceFingerprint?: string; useHeaderValidation?: boolean } = {},
+    options: {
+      deviceFingerprint?: string;
+      useHeaderValidation?: boolean;
+      accessToken?: string;
+      supervisedAction?: SupervisedAction;
+    } = {},
   ): Promise<SessionValidation> {
-    const params: Record<string, string> = {};
-    if (options.deviceFingerprint) params.deviceFingerprint = options.deviceFingerprint;
-    if (options.useHeaderValidation) params.useHeaderValidation = 'true';
     try {
+      if (options.supervisedAction) {
+        if (!this.ctx.service?.available || !options.accessToken)
+          throw new Error(
+            'Reviewed supervision validation requires service identity and the original bearer',
+          );
+        const validation = safetySessionValidationSchema.parse(
+          await this.ctx.service.request(
+            'POST',
+            '/safety/service/session',
+            safetySessionInputSchema.parse({
+              sessionId,
+              accessToken: options.accessToken,
+              action: options.supervisedAction,
+            }),
+            { cache: false, retry: false, serviceTokenScopes: ['safety:decide'] },
+          ),
+        );
+        return { ...validation, user: normalizeUserIdentity(validation.user) };
+      }
+      const originalBearer = options.accessToken ?? this.ctx.http.getAccessToken();
       const validation = await this.ctx.request<SessionValidation>(
         'GET',
-        `/session/validate/${sessionId}`,
-        params,
-        { cache: false },
+        originalBearer
+          ? `/session/validate-header/${encodeURIComponent(sessionId)}`
+          : `/session/validate/${encodeURIComponent(sessionId)}`,
+        undefined,
+        {
+          cache: false,
+          ...(originalBearer
+            ? {
+                skipAuth: true,
+                headers: {
+                  Authorization: `Bearer ${originalBearer}`,
+                  ...(options.deviceFingerprint
+                    ? { 'x-device-fingerprint': options.deviceFingerprint }
+                    : {}),
+                },
+              }
+            : {}),
+        },
       );
       return { ...validation, user: normalizeUserIdentity(validation.user) };
     } catch (error) {

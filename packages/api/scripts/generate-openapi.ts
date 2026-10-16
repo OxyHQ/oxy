@@ -676,6 +676,7 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'accounts.ts': ['/accounts'],
   'organizations.ts': ['/organizations'],
   'safety.ts': ['/safety'],
+  'supervision.ts': ['/safety'],
   'devices.ts': ['/devices'],
   'security.ts': ['/security'],
   'subscription.routes.ts': ['/subscription'],
@@ -1033,19 +1034,27 @@ function readCallArgs(source: string, argsStart: number): string {
  * Express applies a pathless `use` only to what is registered AFTER it, and
  * several files rely on exactly that — `accounts.ts` registers its public
  * routes above `router.use(authMiddleware)` deliberately. So the offset is part
- * of the fact, not decoration. A PATH-SCOPED `router.use('/x', …)` is skipped
- * rather than guessed at: it gates a subtree this walker does not resolve, and
- * claiming a gate that may not apply is as wrong as missing one.
+ * of the fact, not decoration. Static path-scoped uses apply only to the exact
+ * prefix or its slash-delimited descendants. Dynamic patterns remain skipped
+ * rather than guessed at; they require a separately resolved route tree.
  */
-function routerLevelGates(source: string): Array<{ from: number; middlewares: string[] }> {
-  const gates: Array<{ from: number; middlewares: string[] }> = [];
+function routerLevelGates(
+  source: string,
+): Array<{ from: number; middlewares: string[]; prefix?: string }> {
+  const gates: Array<{ from: number; middlewares: string[]; prefix?: string }> = [];
   const useRe = /router\.use\s*\(/g;
   let match: RegExpExecArray | null;
   while ((match = useRe.exec(source)) !== null) {
     const args = readCallArgs(source, useRe.lastIndex);
-    if (/^\s*['"`]/.test(args)) continue;
+    const prefixMatch = /^\s*(['"])(\/[A-Za-z0-9_/-]*)\1\s*,/.exec(args);
+    if (/^\s*['"`]/.test(args) && !prefixMatch) continue;
     const middlewares = middlewareTokens(args);
-    if (middlewares.length > 0) gates.push({ from: useRe.lastIndex, middlewares });
+    if (middlewares.length > 0)
+      gates.push({
+        from: useRe.lastIndex,
+        middlewares,
+        ...(prefixMatch ? { prefix: prefixMatch[2].replace(/\/$/, '') } : {}),
+      });
   }
   return gates;
 }
@@ -1316,6 +1325,8 @@ export function parseRoutesFromFile(
     const middlewares = middlewareTokens(args);
     for (const gate of gates) {
       if (gate.from > argsStart) continue;
+      if (gate.prefix && pathSuffix !== gate.prefix && !pathSuffix.startsWith(`${gate.prefix}/`))
+        continue;
       for (const token of gate.middlewares) {
         if (!middlewares.includes(token)) middlewares.push(token);
       }
@@ -1737,6 +1748,10 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   const responses: Record<string, unknown> = {};
   const successTags = route.responseTags.filter((tag) => tag.status.startsWith('2'));
   for (const tag of route.responseTags) {
+    if (tag.status === '204' && tag.schemaRef === 'none') {
+      responses[tag.status] = { description: tag.description || 'No content' };
+      continue;
+    }
     let schema: Record<string, unknown>;
     if (tag.schemaRef === 'binary') {
       schema = { type: 'string', format: 'binary' };

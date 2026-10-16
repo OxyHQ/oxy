@@ -94,6 +94,13 @@ import { isPublicGraphTarget } from '../utils/profileQuery';
 
 // Initialize router and controller
 const router = Router();
+router.use((req, res, next) => {
+  // Reading/editing one's own profile does not authorize product activity.
+  // Supervision is a separate protected policy; changing DOB cannot remove it.
+  if (req.path === '/me' && ['GET', 'PUT'].includes(req.method))
+    res.locals.supervisedSelfOperation = true;
+  next();
+});
 const usersController = new UsersController();
 
 // ============================================================================
@@ -1173,6 +1180,7 @@ router.put(
  */
 router.post(
   '/search',
+  optionalUserOrServiceAuth,
   validate({ body: searchUsersBodySchema }),
   asyncHandler(async (req: Request, res: Response) => {
     await usersController.searchUsers(req, res, () => {});

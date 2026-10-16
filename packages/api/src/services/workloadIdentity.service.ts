@@ -11,6 +11,7 @@ import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
+import { isSupervised } from './supervisionPolicy.service';
 import {
   audienceRefusal,
   OXY_API_AUDIENCE,
@@ -280,6 +281,12 @@ export async function exchangeWorkloadAttestation(input: {
    * holding a line, it was making ADR 0026's clean cut impossible for exactly
    * the services it was written for.
    */
+  if (await isSupervised(binding.ownerAccountId))
+    throw new WorkloadIdentityError(
+      403,
+      'owner_restricted',
+      'This owner cannot authorize service credentials.',
+    );
   const grantedScopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
   const requestedScopes =
     input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
