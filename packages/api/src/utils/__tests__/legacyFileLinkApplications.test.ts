@@ -1,7 +1,7 @@
 /**
  * The legacy `file_links.app` table names real, official applications.
  *
- * Its twin inside migration 0167 is held equal to it by
+ * Its twin inside migration 0169 is held equal to it by
  * `db/schema/__tests__/fileReferencesMigration.test.ts`; this pins it to the
  * seed, so a renamed or re-identified official application cannot leave an
  * alias resolving to nothing.

@@ -24,13 +24,13 @@
 --
 -- ## LOCKS
 --
--- One transaction (the migrator runs every pending migration in one), as 0167
+-- One transaction (the migrator runs every pending migration in one), as 0168
 -- explains: CONCURRENTLY and a separate VALIDATE are unavailable here.
 --
 --  * CREATE TABLE: the foreign keys take SHARE ROW EXCLUSIVE on `users` and
 --    `files` for the instant the constraint is added (the new tables are empty).
 --  * files_status_check and users_staff_capabilities_check are re-added NOT
---    VALID, as 0167 did: enforced on every write from here on, without the
+--    VALID, as 0168 did: enforced on every write from here on, without the
 --    full-table scan a validating ADD runs under ACCESS EXCLUSIVE. Safe
 --    because each only WIDENS, so every existing row, which passed the old
 --    one, passes it. `VALIDATE CONSTRAINT` can be run later, out of band.

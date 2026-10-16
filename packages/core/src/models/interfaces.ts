@@ -570,7 +570,7 @@ export type FileVisibility = 'private' | 'public' | 'unlisted';
 /**
  * One application's use of an asset (`file_references`, ADR 0043 D4).
  *
- * `app` keeps its key but, since the Oxy API's `0168_file_references`, holds
+ * `app` keeps its key but, since the Oxy API's `0169_file_references`, holds
  * the using application's ID — the same value as `applicationId`, never a free
  * text name. `createdBy` is absent on a reference an application made with its
  * own service token.
@@ -627,7 +627,7 @@ export interface Asset {
    * Whether any application uses the file (has a reference to it). A file not
    * in use is never removed for its owner (ADR 0043 D5). Present on the
    * owner's own view (`assets.list`, `assets.get`) from the Oxy API with
-   * migration `0169_file_lifecycle`.
+   * migration `0170_file_lifecycle`.
    */
   inUse?: boolean;
   /** Since when no application uses the file (ISO 8601); `null` while one does. */

@@ -1,11 +1,11 @@
 -- oxy:deploy-phase=post
 --
--- ADR 0043 D4, second half: `file_references` (0168) replaced `file_links`, and
+-- ADR 0043 D4, second half: `file_references` (0169) replaced `file_links`, and
 -- the image now serving reads and writes only the new table.
 --
 --  * the rollout-window mirror trigger and its function go first, so nothing
 --    fires while the table is dropped;
---  * `file_links` is dropped. Its rows were copied by 0168 and every write the
+--  * `file_links` is dropped. Its rows were copied by 0169 and every write the
 --    previous image made since was mirrored, so nothing is lost;
 --  * the resolver `oxy_file_link_application_id` goes too: its runtime twin is
 --    `src/utils/legacyFileLinkApplications.ts`.

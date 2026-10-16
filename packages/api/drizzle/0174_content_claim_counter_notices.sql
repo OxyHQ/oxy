@@ -15,7 +15,7 @@
 -- column are new and the image still serving never touches them, and the
 -- three CHECKs only widen (the new one holds for every existing row, whose
 -- `counter_notice_id` is NULL and whose kind is none of the three). The two
--- tables they constrain were created by 0171, in the same release, and hold
+-- tables they constrain were created by 0172, in the same release, and hold
 -- few rows, so the CHECKs are validated in place.
 CREATE TABLE "content_claim_counter_notices" (
 	"id" text PRIMARY KEY NOT NULL,

@@ -37,7 +37,7 @@
 --
 -- ## LOCKS
 --
--- One transaction (the migrator runs every pending migration in one), as 0167
+-- One transaction (the migrator runs every pending migration in one), as 0168
 -- explains.
 --
 --  * ADD COLUMN (nullable, no default) is a catalogue change, no rewrite.
@@ -57,7 +57,7 @@
 --   (with the column added first, as below) and this one finds nothing left.
 --  * Each CREATE INDEX holds SHARE on `files` for its build (reads continue,
 --    writes block for a time proportional to the table). The same out-of-band
---    route as 0167 applies, and `IF NOT EXISTS` is what lets this migration
+--    route as 0168 applies, and `IF NOT EXISTS` is what lets this migration
 --    find the work done —
 --
 --   ALTER TABLE files ADD COLUMN IF NOT EXISTS unreferenced_since timestamptz;

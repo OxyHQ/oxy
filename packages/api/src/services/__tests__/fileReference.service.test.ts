@@ -1,5 +1,5 @@
 /**
- * `resolveReferenceApplicationId` — the runtime twin of migration 0167's
+ * `resolveReferenceApplicationId` — the runtime twin of migration 0169's
  * resolver — against a REAL Postgres.
  *
  * Every application seeded here carries a random name except the ones a case
