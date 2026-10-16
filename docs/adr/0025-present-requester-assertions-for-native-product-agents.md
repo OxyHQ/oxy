@@ -1,6 +1,6 @@
 # ADR 0025 — A present requester reaches a native product agent through a one-use Oxy assertion, not through offline delegation
 
-- Status: accepted
+- Status: superseded by ADR 0042 (2026-10-16) — present-requester assertions and the native-product-agent lane are retired; a public agent acts for the person present under its owner's ceiling
 - Date: 2026-09-17
 - Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
   "One entry point, two proofs")

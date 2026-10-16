@@ -5,6 +5,7 @@
 - Amended: 2026-10-06 — an agent acts AS ITSELF on its own bot account without a
   grant, and an agent's unattended run gets its requester from the bot's live
   parent (see "Addendum: an agent acts as itself")
+- Amended: 2026-10-16 — an agent acts for a present non-owner requester under its owner's published ceiling (ADR 0042)
 - Scope: Oxy authority, Alia coordination, app execution, and external MCP access
 
 ## Context
