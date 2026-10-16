@@ -4,6 +4,8 @@ export const SAFETY_CONSUMERS = {
   clarity: {
     applicationId: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
     ownerAccountId: '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
+    // Clarity's applications belong to its project account, not a person.
+    ownerKind: 'project',
     type: 'internal',
     roles: ['oxy-clarity-task'],
     // Experience only: privacy plus unrated-content refusal; no inference or general Clarity content support.
@@ -12,6 +14,7 @@ export const SAFETY_CONSUMERS = {
   mention: {
     applicationId: '6a2f851751b784a86fd0e916',
     ownerAccountId: root,
+    ownerKind: 'personal',
     type: 'first_party',
     roles: ['oxy-mention-task', 'oxy-mention-mcp-task'],
     candidateActions: ['profile', 'content', 'content-publication'],
@@ -19,6 +22,7 @@ export const SAFETY_CONSUMERS = {
   allo: {
     applicationId: '6a2f851751b784a86fd0e92b',
     ownerAccountId: root,
+    ownerKind: 'personal',
     type: 'first_party',
     roles: ['oxy-allo-task'],
     candidateActions: ['profile', 'messaging', 'messaging-delivery'],
@@ -26,6 +30,7 @@ export const SAFETY_CONSUMERS = {
   mercaria: {
     applicationId: '6a37d0cc5d4b5f15482a9340',
     ownerAccountId: root,
+    ownerKind: 'personal',
     type: 'first_party',
     roles: ['oxy-mercaria-task'],
     candidateActions: ['content', 'purchases'],
