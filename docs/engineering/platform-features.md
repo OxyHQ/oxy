@@ -294,3 +294,29 @@ Threat model: state-actor harassment of users. The platform must **never persist
 - **"In memory" is not an exemption to the invariant.** `packages/protocol/src/node/rateLimit.ts` (the self-hosted / managed node's own limiter, in the PUBLISHED `@oxy.so/protocol`) keyed its in-process window `Map` on a raw `req.ip ?? 'unknown'` — never Redis, never disk, the mildest form of the problem and still the form. It now keys on `clientRateLimitKey`, an HMAC under a 256-bit salt drawn from `randomBytes` at module load and held only in memory. The salt is deliberately EPHEMERAL: a rate-limit window is short-lived and process-local, so nothing needs a key that survives a restart or means anything on another node — which makes a per-process salt both sufficient and better than a configured one (nothing to distribute, nothing to rotate, nothing to leak, and the mapping dies with the process). A node operator supplies no salt and cannot. Note the reach: `@oxy.so/protocol` is published, so this lands for consumers only on its next publish.
 - **The one sanctioned exception:** inbound-email `Received:` headers (third-party SMTP sender IPs, not Oxy users) stored in `Message.headers` — standard email practice, owner-approved.
 - Do NOT re-add IP capture "for security" (audit trails, anomaly detection, sybil resistance, etc.) — this was a deliberate trade-off, not an oversight. Design + rollout: `docs/superpowers/specs/2026-07-14-no-ip-storage-design.md`.
+
+## Account invitations
+
+`oxy.accounts.invitations` is the shared Console / Accounts / Services contract:
+`create(accountId, { email, role, inherit? })`, `list(accountId)`,
+`resend(accountId, invitationId)`, `cancel(accountId, invitationId)`,
+`preview(token)` and `accept(token, selectedUserId)`. Email is delivery metadata,
+not an identity constraint. The authenticated personal account shown on the
+acceptance screen receives the membership only after confirmation; the server
+requires the selected id to match the verified session subject.
+
+The separate `account_invitations` rows hold hashed, seven-day, single-use tokens.
+The email points to `https://accounts.oxy.so/invitation#<token>`: the token stays
+out of request URLs, referrers and persistent query caches. Resending rotates the
+secret; cancellation and consumption serialize on the invitation row. Acceptance
+locks the inviter's membership rows and rechecks the role's full permission set
+inside the same transaction that creates the membership. Existing active grants
+are never overwritten. Expired invitations remain manageable for thirty days.
+Mail delivery errors are surfaced; the manager can resend the retained row.
+
+`POST /accounts/:id/members` and `accounts.members.invite` still grant access
+immediately and are deprecated. They stay until the SDK consumers that call them
+(Alia's organization route, Mercaria's store people, services builds before
+11.10.0) have moved to invitations; the route is then retired with HTTP 410.
+Apply migration 0178 before rollout. SMTP delivery and the public acceptance URL
+require an environment smoke test; automated tests use the real database and a mocked mail transport.

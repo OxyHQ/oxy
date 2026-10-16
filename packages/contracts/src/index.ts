@@ -1617,6 +1617,8 @@ export {
 export {
   personalPlanDisplayPriceSchema,
   personalPlanCatalogueSchema,
+  productPlanCatalogueSchema,
+  type ProductPlanCatalogue,
   type PersonalPlanCatalogue,
 } from './products/plans';
 export * from './products/checkout';

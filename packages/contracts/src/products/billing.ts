@@ -27,6 +27,7 @@ export const productSubscriptionSummarySchema = z
     period,
     cancelAtPeriodEnd: z.boolean(),
     canCancel: z.boolean(),
+    canRenew: z.boolean().optional(),
     offers: z.array(
       z
         .object({

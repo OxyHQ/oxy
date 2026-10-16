@@ -30,6 +30,9 @@ export const peablePersonalManagementConfigurationSchema = z
             offerVersion: z.number().int().positive(),
             planId: z.string().min(1),
             providerPriceId: z.string().min(1),
+            kind: z.enum(['oxy_one', 'existing_product']).optional(),
+            amountMinorUnits: z.number().int().positive().safe().optional(),
+            interval: z.enum(['month', 'year']).optional(),
           })
           .strict(),
       )
@@ -37,6 +40,8 @@ export const peablePersonalManagementConfigurationSchema = z
   })
   .strict();
 export async function loadPeablePersonalManagement() {
+  const runtime = (await import('./peablePersonalRuntime.service.js')).getPeablePersonalRuntime();
+  if (runtime) return runtime.management;
   const path = process.env.OXY_ONE_PEABLE_MANAGEMENT_FILE;
   if (!path || !process.env.OXY_ONE_PEABLE_PUBLIC_KEY || !process.env.OXY_ONE_PEABLE_SECRET)
     return undefined;
@@ -75,8 +80,7 @@ export async function cancelStoredPeablePersonalSource(
       ),
     );
   if (
-    !source ||
-    source.provider !== 'peable' ||
+    source?.provider !== 'peable' ||
     source.beneficiaryAccountId !== accountId ||
     source.providerAccountRef !== cfg.merchantId ||
     source.mode !== cfg.namespace.mode ||
@@ -106,7 +110,7 @@ export async function cancelStoredPeablePersonalSource(
   const historical = segments
     .filter(
       (v) =>
-        v.origin === 'bundle' &&
+        v.origin === (mapping.kind === 'existing_product' ? 'individual' : 'bundle') &&
         v.offerId === mapping.offerId &&
         v.offerVersion === mapping.offerVersion &&
         v.periodStart.getTime() <= Date.parse(observed.currentPeriodStart) &&
@@ -137,7 +141,9 @@ export async function cancelStoredPeablePersonalSource(
   const prices = catalogue.prices.filter(
     (v) =>
       v.provider === 'peable' &&
-      v.kind === 'oxy_one' &&
+      v.kind === (mapping.kind ?? 'oxy_one') &&
+      v.amountMinorUnits ===
+        (mapping.kind === 'existing_product' ? mapping.amountMinorUnits : 2999) &&
       v.providerAccountId === cfg.merchantId &&
       v.mode === cfg.namespace.mode &&
       v.environment === cfg.namespace.environment &&

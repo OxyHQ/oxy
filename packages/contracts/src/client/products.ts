@@ -13,12 +13,18 @@ import type {
   ProductSubscriptionsResponse,
   SubscriptionCreditGrantsResponse,
 } from '../products/billing';
-import type { PersonalPlanCheckoutRequest, PersonalPlanCheckoutResult } from '../products/checkout';
-import type { PersonalPlanCatalogue } from '../products/plans';
+import type {
+  PersonalPlanCheckoutRequest,
+  PersonalPlanCheckoutResult,
+  ProductPlanCheckoutRequest,
+  ProductSubscriptionRenewalRequest,
+} from '../products/checkout';
+import type { PersonalPlanCatalogue, ProductPlanCatalogue } from '../products/plans';
 import {
   array,
   boolean,
   branded,
+  type Check,
   datetime,
   discriminatedUnion,
   exact,
@@ -50,6 +56,16 @@ const oxyAccountId = branded<OxyAccountId, string>(string(minLength(1), maxLengt
 const actionKey = string(minLength(8), maxLength(160), pattern(/^[a-zA-Z0-9_-]+$/));
 const combination = oneOf(['maximum', 'sum', 'exclusive']);
 const origin = oneOf(['individual', 'bundle']);
+const purchase = oneOf(['unavailable', 'available']);
+const displayPrice = <I>(interval: Check<I>) =>
+  strictObject({
+    currency: string(pattern(/^[A-Z]{3}$/)),
+    amountMinorUnits: version,
+    interval,
+    trial: literal('none'),
+    taxTreatment: literal('inclusive'),
+    merchantTotal: literal('final'),
+  });
 
 const period = (message: string) =>
   refine(
@@ -114,7 +130,7 @@ export const personalPlanCatalogueCheck = exact<PersonalPlanCatalogue>()(
     strictObject({
       schemaVersion: literal(1),
       state: oneOf(['unconfigured', 'configured']),
-      purchase: literal('unavailable'),
+      purchase,
       plans: array(
         strictObject({
           offerId: identifier,
@@ -122,16 +138,7 @@ export const personalPlanCatalogueCheck = exact<PersonalPlanCatalogue>()(
           displayName,
           audience: literal('personal'),
           kind: literal('oxy_one'),
-          price: optional(
-            strictObject({
-              currency: string(pattern(/^[A-Z]{3}$/)),
-              amountMinorUnits: version,
-              interval: literal('month'),
-              trial: literal('none'),
-              taxTreatment: literal('inclusive'),
-              merchantTotal: literal('final'),
-            }),
-          ),
+          price: optional(displayPrice(literal('month'))),
           benefits: array(strictObject({ displayName, benefit: productBenefit })),
         }),
       ),
@@ -141,11 +148,42 @@ export const personalPlanCatalogueCheck = exact<PersonalPlanCatalogue>()(
   ),
 );
 
+export const productPlanCatalogueCheck = exact<ProductPlanCatalogue>()(
+  strictObject({
+    schemaVersion: literal(1),
+    productId: identifier,
+    purchase,
+    plans: array(
+      strictObject({
+        productId: identifier,
+        offerId: identifier,
+        offerVersion: version,
+        displayName,
+        price: displayPrice(oneOf(['month', 'year'])),
+      }),
+    ),
+  }),
+);
+
+const checkoutRequestShape = {
+  expectedSubjectAccountId: oxyAccountId,
+  offerId: identifier,
+  offerVersion: version,
+  idempotencyKey: actionKey,
+};
+
 export const personalPlanCheckoutRequestCheck = exact<PersonalPlanCheckoutRequest>()(
+  strictObject(checkoutRequestShape),
+);
+
+export const productPlanCheckoutRequestCheck = exact<ProductPlanCheckoutRequest>()(
+  strictObject({ ...checkoutRequestShape, productId: identifier }),
+);
+
+export const productSubscriptionRenewalRequestCheck = exact<ProductSubscriptionRenewalRequest>()(
   strictObject({
     expectedSubjectAccountId: oxyAccountId,
-    offerId: identifier,
-    offerVersion: version,
+    sourceId: identifier,
     idempotencyKey: actionKey,
   }),
 );
@@ -186,6 +224,7 @@ export const productSubscriptionsResponseCheck = exact<ProductSubscriptionsRespo
         period: billingPeriod,
         cancelAtPeriodEnd: boolean,
         canCancel: boolean,
+        canRenew: optional(boolean),
         offers: array(
           strictObject({
             segmentId: identifier,

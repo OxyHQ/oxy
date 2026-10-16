@@ -1,4 +1,9 @@
 import {
+  productSubscriptionRenewalRequestSchema,
+  productPlanCheckoutRequestSchema,
+  productPlanCatalogueSchema,
+} from '@oxy.so/contracts';
+import {
   cancelStoredPeablePersonalSource,
   loadPeablePersonalManagement,
 } from '../services/peablePersonalManagement.service';
@@ -9,7 +14,10 @@ import {
 import { ApiError } from '../utils/error';
 import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
 import { getPeablePersonalRuntime } from '../services/peablePersonalRuntime.service';
-import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
+import {
+  startPersonalPlanCheckout,
+  startProductPlanCheckout,
+} from '../services/personalPlanCheckout.service';
 import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import {
@@ -40,11 +48,11 @@ import { accessProviderPeriods } from '../db/schema/productProviderEvidence';
 import { type AuthRequest, authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import {
-  cancelCreditSubscriptionSchema,
   namedProductCancellationResponseSchema,
   pendingProductCancellationResponseSchema,
   creditSubscriptionsResponseSchema,
   namedCreditCancellationResponseSchema,
+  cancelCreditSubscriptionSchema,
   checkoutCreditsSchema,
   checkoutSubscriptionSchema,
   portalSchema,
@@ -342,10 +350,80 @@ router.post(
   },
 );
 
+router.post(
+  '/product-subscriptions/renew',
+  authMiddleware,
+  validate({ body: productSubscriptionRenewalRequestSchema }),
+  async (req: AuthRequest, res: Response) => {
+    const subject = req.user?._id?.toString();
+    const input = productSubscriptionRenewalRequestSchema.parse(req.body);
+    res.set('Cache-Control', 'no-store');
+    if (!subject || subject !== input.expectedSubjectAccountId)
+      return res.status(403).json({ error: 'SUBJECT_CHANGED' });
+    const runtime = getPeablePersonalRuntime();
+    if (!runtime?.checkoutProvider)
+      return res.json({ state: 'unconfigured', reason: 'provider_unconfigured' });
+    try {
+      return res.json(await runtime.renew(subject, input.sourceId, input.idempotencyKey));
+    } catch (error) {
+      if (error instanceof ApiError)
+        return res.status(error.statusCode).json({ error: error.code });
+      return res.status(409).json({ error: 'RENEWAL_UNAVAILABLE' });
+    }
+  },
+);
+
+router.post(
+  '/checkout/product-plan',
+  authMiddleware,
+  validate({ body: productPlanCheckoutRequestSchema }),
+  async (req: AuthRequest, res: Response) => {
+    const subject = req.user?._id?.toString();
+    if (!subject) return res.status(401).json({ error: 'Authentication required' });
+    res.set('Cache-Control', 'no-store');
+    try {
+      return res.json(
+        await startProductPlanCheckout(subject, productPlanCheckoutRequestSchema.parse(req.body), {
+          provider: getPeablePersonalRuntime()?.checkoutProvider,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof ApiError)
+        return res.status(error.statusCode).json({ error: error.code });
+      return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
+    }
+  },
+);
+router.get('/product-plans/:productId', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const catalogue = await loadProductBillingCatalogue();
+    const plans = catalogue.productPlans.filter((plan) => plan.productId === req.params.productId);
+    return res.json(
+      productPlanCatalogueSchema.parse({
+        schemaVersion: 1,
+        productId: req.params.productId,
+        purchase:
+          plans.length && getPeablePersonalRuntime()?.checkoutProvider
+            ? 'available'
+            : 'unavailable',
+        plans,
+      }),
+    );
+  } catch {
+    return res.status(503).json({ error: 'Plan catalogue is temporarily unavailable' });
+  }
+});
+
 router.get('/personal-plans', async (_req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   try {
-    return res.json(readPersonalPlanCatalogue(await loadProductBillingCatalogue()));
+    return res.json(
+      readPersonalPlanCatalogue(
+        await loadProductBillingCatalogue(),
+        !!getPeablePersonalRuntime()?.checkoutProvider,
+      ),
+    );
   } catch {
     return res.status(503).json({ error: 'Plan catalogue is temporarily unavailable' });
   }
@@ -425,6 +503,16 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           status: source.status,
           period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
           cancelAtPeriodEnd: source.cancelAtPeriodEnd,
+          canRenew:
+            source.provider === 'peable' &&
+            source.providerSubscriptionId.startsWith('sub_fair') &&
+            source.payerAccountId === userId &&
+            source.beneficiaryAccountId === userId &&
+            !source.cancelAtPeriodEnd &&
+            ['active', 'past_due', 'unpaid'].includes(source.status) &&
+            source.periodEnd.getTime() - now <= 7 * 86_400_000 &&
+            !!getPeablePersonalRuntime()?.checkoutProvider &&
+            source.providerAccountRef === getPeablePersonalRuntime()?.configuration.merchantId,
           canCancel:
             source.payerAccountId === userId &&
             (source.provider === 'stripe' ||
@@ -533,8 +621,7 @@ router.post(
       }
       const namespace = await assertBillingDatabaseNamespace(getDb());
       if (
-        !source ||
-        source.provider !== 'stripe' ||
+        source?.provider !== 'stripe' ||
         source.mode !== namespace.mode ||
         source.environment !== namespace.environment
       )
@@ -638,7 +725,7 @@ router.post(
       }
 
       const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
-      if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
+      if (!plan?.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
 
       const idempotencyKey = checkoutIdempotencyKey(req, 'subscription', userId);
       if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
@@ -1090,7 +1177,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  const metadataCredits = Number.parseInt(metadata.credits || '0');
+  const metadataCredits = Number.parseInt(metadata.credits || '0', 10);
   if (metadataCredits !== pkg.credits) {
     logger.warn('Webhook checkout: credits mismatch between metadata and package', {
       metadataCredits,

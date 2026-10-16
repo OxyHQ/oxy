@@ -1,3 +1,4 @@
+import { monthlyQuotaWindows } from './productQuotaWindows';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
 import {
@@ -311,6 +312,8 @@ export async function recordProductAccessPeriod(
     expectedConfiguration?: ProductAccessConfigurationExpectation;
     /** Only the internal verified paid-evidence adapter may retain a past segment. */
     allowHistoricalPaidSegment?: boolean;
+    /** Verified annual payment only: quota resets monthly within this immutable segment. */
+    quotaWindow?: 'month';
   },
   transaction?: Transaction,
 ): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> {
@@ -478,33 +481,38 @@ export async function recordProductAccessPeriod(
       .from(accessOfferSegments)
       .where(eq(accessOfferSegments.id, segment.id));
     same(segmentDto(storedSegment), segment);
-    const grantIds = offer.benefits.map(
-      (_, index) =>
-        `grant_${createHash('sha256')
-          .update(JSON.stringify([segment.id, index]))
+    if (input.quotaWindow && segment.origin !== 'individual')
+      throw new ConflictError('Monthly quota windows require an individual annual offer');
+    const windows = input.quotaWindow ? monthlyQuotaWindows(segment.period) : null;
+    const grantRows = offer.benefits.flatMap((benefit, benefitIndex) =>
+      (benefit.kind === 'quota' && windows ? windows : [segment.period]).map((period) => ({
+        id: `grant_${createHash('sha256')
+          .update(
+            JSON.stringify(
+              windows && benefit.kind === 'quota'
+                ? [segment.id, benefitIndex, period.start]
+                : [segment.id, benefitIndex],
+            ),
+          )
           .digest('hex')}`,
+        sourceSegmentId: segment.id,
+        beneficiaryAccountId: segment.beneficiaryAccountId,
+        offerId: segment.offerId,
+        offerVersion: segment.offerVersion,
+        origin: segment.origin,
+        benefitIndex,
+        productId: benefit.productId,
+        periodStart: new Date(period.start),
+        periodEnd: new Date(period.end),
+      })),
     );
-    if (inserted.length && grantIds.length) {
-      await tx.insert(accessGrants).values(
-        offer.benefits.map((benefit, benefitIndex) => ({
-          id: grantIds[benefitIndex],
-          sourceSegmentId: segment.id,
-          beneficiaryAccountId: segment.beneficiaryAccountId,
-          offerId: segment.offerId,
-          offerVersion: segment.offerVersion,
-          origin: segment.origin,
-          benefitIndex,
-          productId: benefit.productId,
-          periodStart: new Date(segment.period.start),
-          periodEnd: new Date(segment.period.end),
-        })),
-      );
-    }
+    const grantIds = grantRows.map((row) => row.id);
+    if (inserted.length && grantIds.length) await tx.insert(accessGrants).values(grantRows);
     const persisted = await tx
       .select({ id: accessGrants.id })
       .from(accessGrants)
       .where(eq(accessGrants.sourceSegmentId, segment.id))
-      .orderBy(accessGrants.benefitIndex);
+      .orderBy(accessGrants.benefitIndex, accessGrants.periodStart);
     if (
       persisted.length !== grantIds.length ||
       persisted.some((grant, index) => grant.id !== grantIds[index])

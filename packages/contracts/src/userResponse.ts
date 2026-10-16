@@ -313,6 +313,10 @@ export const userResponseSchema = z
      * so it is present on the current-user DTO (`GET /users/me`,
      * `GET /session/user/:sessionId`) and absent until the user sets it.
      */
+    userPreferences: z
+      .object({ displayCurrency: z.enum(['USD', 'EUR', 'FAIR']).optional() })
+      .catchall(z.unknown())
+      .optional(),
     themePreference: themePreferenceSchema.optional(),
     personalization: z
       .object({
@@ -378,7 +382,10 @@ export const userProfileUpdateSchema = z
     languages: z.array(z.string()).optional(),
     accountExpiresAfterInactivityDays: z.number().nullable().optional(),
     notificationPreferences: z.record(z.unknown()).optional(),
-    userPreferences: z.record(z.unknown()).optional(),
+    userPreferences: z
+      .object({ displayCurrency: z.enum(['USD', 'EUR', 'FAIR']).optional() })
+      .catchall(z.unknown())
+      .optional(),
     privacySettings: z.record(z.unknown()).optional(),
     /**
      * Portable theme preference. Written through the same `PUT /users/me`

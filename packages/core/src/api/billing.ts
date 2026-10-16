@@ -14,7 +14,10 @@ import type {
   PersonalPlanCatalogue,
   PersonalPlanCheckoutRequest,
   PersonalPlanCheckoutResult,
+  ProductPlanCatalogue,
+  ProductPlanCheckoutRequest,
   ProductSubscriptionCancellationResult,
+  ProductSubscriptionRenewalRequest,
   ProductSubscriptionSummary,
   SubjectProductAccess,
   SubjectProductAccessQuery,
@@ -26,7 +29,10 @@ import {
   personalPlanCatalogueCheck,
   personalPlanCheckoutRequestCheck,
   personalPlanCheckoutResultCheck,
+  productPlanCatalogueCheck,
+  productPlanCheckoutRequestCheck,
   productSubscriptionCancellationResultCheck,
+  productSubscriptionRenewalRequestCheck,
   productSubscriptionsResponseCheck,
   subjectProductAccessCheck,
   subjectProductAccessQueryCheck,
@@ -127,6 +133,46 @@ export interface WalletTransactionsPage {
 
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  async renewProductSubscription(
+    request: ProductSubscriptionRenewalRequest,
+  ): Promise<PersonalPlanCheckoutResult> {
+    return parseContract(
+      personalPlanCheckoutResultCheck,
+      await this.ctx.request<unknown>(
+        'POST',
+        '/billing/product-subscriptions/renew',
+        parseContract(productSubscriptionRenewalRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
+
+  async startProductPlanCheckout(
+    request: ProductPlanCheckoutRequest,
+  ): Promise<PersonalPlanCheckoutResult> {
+    return parseContract(
+      personalPlanCheckoutResultCheck,
+      await this.ctx.request<unknown>(
+        'POST',
+        '/billing/checkout/product-plan',
+        parseContract(productPlanCheckoutRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
+
+  async productPlans(productId: string): Promise<ProductPlanCatalogue> {
+    return parseContract(
+      productPlanCatalogueCheck,
+      await this.ctx.request<unknown>(
+        'GET',
+        `/billing/product-plans/${encodeURIComponent(productId)}`,
+        undefined,
+        { cache: false },
+      ),
+    );
+  }
 
   async startPersonalPlanCheckout(
     request: PersonalPlanCheckoutRequest,

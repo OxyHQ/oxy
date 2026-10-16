@@ -5,6 +5,7 @@ import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { UserPreferences } from '@oxy.so/core';
 import { getNativeLanguageName } from '@oxy.so/core';
+import { DisplayCurrencySelector } from '../components/DisplayCurrencySelector';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
@@ -158,6 +159,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
         </SettingsListGroup>
 
         <SettingsListGroup title={t('preferences.sections.region') || 'Region'}>
+          <DisplayCurrencySelector />
           <SettingsListItem
             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.info} />}
             title={t('preferences.items.timezone.title') || 'Timezone'}

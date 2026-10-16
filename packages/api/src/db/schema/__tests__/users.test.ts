@@ -257,6 +257,7 @@ describe('closed value sets and value constraints', () => {
     ['type', 'daemon'],
     ['reputation_tier', 'legendary'],
     ['preference_theme', 'sepia'],
+    ['preference_display_currency', 'XXX'],
     ['organization_category', 'syndicate'],
   ])('rejects an undeclared %s from a raw write', async (column, value) => {
     // Raw SQL on purpose: the typed column refuses this at compile time, so
@@ -277,6 +278,8 @@ describe('closed value sets and value constraints', () => {
     ['type', 'federated'],
     ['reputation_tier', 'high_trust'],
     ['preference_theme', 'dark'],
+    ['preference_display_currency', 'EUR'],
+    ['preference_display_currency', 'FAIR'],
     ['organization_category', 'cooperative'],
   ])(
     'accepts a declared %s (guards against a check that rejects everything)',

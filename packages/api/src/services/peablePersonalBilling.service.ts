@@ -11,20 +11,19 @@ export const PEABLE_ONE_READINESS = Object.freeze({
   primaryMethod: 'faircoin',
   purchase: 'unavailable',
   blockers: [
-    'faircoin_recurring_payment_contract',
-    'peable_sdk_adoption_and_recurring_observation_delivery',
+    'configured_watch_only_merchant_and_verified_chain_access',
     'authoritative_inclusive_tax_and_seller_configuration',
-    'authoritative_expiring_faircoin_fx_quote',
+    'live_faircoin_fx_provider_access',
   ] as const,
 });
-/** Review contract. Current Peable SDK does not supply complete invoice evidence.
+/** Verified signed invoice contract supplied by the configured Peable SDK.
  * No zero-tax, FX or seller defaults. Gross is the final advertised merchant total.
  * External wallet/network charges are separate from this invoice total. */
 export const personalFinalInvoiceSchema = z
   .object({
     platform: z.literal('peable'),
     currency: z.literal('USD'),
-    grossMinorUnits: z.literal(2999),
+    grossMinorUnits: z.number().int().positive().safe(),
     netMinorUnits: z.number().int().nonnegative().safe(),
     taxMinorUnits: z.number().int().nonnegative().safe(),
     merchantFeeMinorUnits: z.literal(0),
@@ -151,8 +150,12 @@ export function validatePersonalInvoiceForAction(
   context: z.infer<typeof personalFinalInvoiceSchema>['context'],
   method: 'faircoin' | 'card',
   now: Date,
+  paidAt?: Date,
+  expectedAmountMinorUnits = 2999,
 ) {
   const v = personalFinalInvoiceSchema.parse(raw);
+  if (v.grossMinorUnits !== expectedAmountMinorUnits)
+    throw new Error('Invoice differs from the declared commercial price');
   const n = now.getTime();
   if (
     !billingNamespaceSchema.safeParse({ mode: context.mode, environment: context.environment })
@@ -168,9 +171,15 @@ export function validatePersonalInvoiceForAction(
     throw new Error('Current invoice context differs');
   if (method === 'faircoin' && !v.faircoinQuote)
     throw new Error('Authoritative Faircoin quote required');
+  // New payment actions require a current quote; paid-evidence recovery binds
+  // the original quote to the verified payment instant instead of delivery time.
+  const quoteInstant = paidAt?.getTime() ?? n;
   if (
     v.faircoinQuote &&
-    (Date.parse(v.faircoinQuote.quotedAt) > n || Date.parse(v.faircoinQuote.expiresAt) <= n)
+    (!Number.isFinite(quoteInstant) ||
+      quoteInstant > n ||
+      Date.parse(v.faircoinQuote.quotedAt) > quoteInstant ||
+      Date.parse(v.faircoinQuote.expiresAt) <= quoteInstant)
   )
     throw new Error('Current Faircoin quote unavailable');
   return v;

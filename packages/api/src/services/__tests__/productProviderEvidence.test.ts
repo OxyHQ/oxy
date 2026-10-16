@@ -18,6 +18,7 @@ import {
 } from '../productAccessPersistence.service';
 import {
   recordProductProviderPeriod,
+  revokeProductProviderPaidPeriod,
   type ProductProviderPeriodInput,
 } from '../productProviderEvidence.service';
 
@@ -679,4 +680,61 @@ it('old paid invoice replay accepts the actual renewed then canceled source with
       .from(accessOfferSegments)
       .where(eq(accessOfferSegments.subscriptionId, first.sourceId)),
   ).toHaveLength(2);
+});
+
+it('a verified annual financial segment creates twelve independently active quota windows and replays immutably', async () => {
+  const f = await fixture();
+  f.input.subscription.provider = 'peable';
+  f.input.subscription.beneficiaryAccountId = f.payer;
+  const start = new Date(f.now);
+  start.setUTCMonth(0, 31);
+  const end = new Date(start);
+  end.setUTCFullYear(start.getUTCFullYear() + 1);
+  const period = { start: start.toISOString(), end: end.toISOString() };
+  f.input.subscription.period = period;
+  f.input.paidLine.period = period;
+  const options = { verifiedHistoricalPaidEvidence: true, quotaWindow: 'month' as const };
+  const first = await recordProductProviderPeriod(f.input, undefined, options);
+  expect(first.grantIds).toHaveLength(12);
+  expect(await recordProductProviderPeriod(f.input, undefined, options)).toMatchObject({
+    status: 'replayed',
+    grantIds: first.grantIds,
+  });
+  const rows = await getDb()
+    .select()
+    .from(accessGrants)
+    .where(eq(accessGrants.sourceSegmentId, first.segmentId))
+    .orderBy(accessGrants.periodStart);
+  expect(rows).toHaveLength(12);
+  for (const row of rows) {
+    const access = await readSubjectProductAccess(f.payer, f.products[0].id, row.periodStart);
+    expect(access.quotas[0].included).toBe(10);
+    expect(access.quotas[0].grantIds).toEqual([row.id]);
+  }
+  expect((await readSubjectProductAccess(f.payer, f.products[0].id, end)).quotas).toEqual([]);
+  await expect(recordProductProviderPeriod(f.input)).rejects.toThrow();
+  await revokeProductProviderPaidPeriod({
+    binding: f.input.binding,
+    accountId: f.payer,
+    subscriptionId: f.input.subscription.providerSubscriptionId,
+    invoiceId: f.input.paidLine.invoiceId,
+    lineId: f.input.paidLine.lineId,
+    priceId: f.input.paidLine.priceId,
+    paymentIntentId: 'pi_syntheticannual',
+    chargeId: 'ch_syntheticannual',
+    period,
+    observedAt: f.now,
+  });
+  const revoked = await getDb()
+    .select()
+    .from(accessGrants)
+    .where(eq(accessGrants.sourceSegmentId, first.segmentId));
+  expect(revoked).toHaveLength(12);
+  expect(revoked.every((row) => row.revokedAt !== null)).toBe(true);
+  expect(
+    (await readSubjectProductAccess(f.payer, f.products[0].id, rows[11].periodStart)).quotas,
+  ).toEqual([]);
+  await expect(recordProductProviderPeriod(f.input, undefined, options)).rejects.toThrow(
+    'terminal full refund',
+  );
 });

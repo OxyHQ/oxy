@@ -419,7 +419,14 @@
       "pending": "Cancellation accepted. Account reconciliation is pending.",
       "scheduled": "Cancellation scheduled for the end of the current period.",
       "failed": "Cancellation could not be confirmed. Refresh before trying again.",
-      "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected."
+      "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected.",
+      "checkout": "Continue to payment",
+      "renew": "Pay the next period with FairCoin",
+      "checkoutComplete": "Payment confirmed. Your access is refreshed.",
+      "checkoutClosed": "This checkout is closed. If funds were sent, check its status before requesting another payment.",
+      "checkoutFailed": "Checkout could not be confirmed. Retry to recover the same payment; if funds were sent, check its status before paying again.",
+      "paymentReview": "Payment needs review in Peable. Do not send funds again.",
+      "reviewPayment": "Review payment in Peable"
     },
     "title": "Payments & subscriptions",
     "subtitle": "Manage your payment methods, subscriptions, and wallets.",

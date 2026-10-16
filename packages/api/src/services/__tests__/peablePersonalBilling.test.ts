@@ -127,7 +127,7 @@ it('does not substitute one-off Faircoin for recurring purchase', () => {
   expect(PEABLE_ONE_READINESS.platform).toBe('peable');
   expect(PEABLE_ONE_READINESS.purchase).toBe('unavailable');
   expect(PEABLE_ONE_READINESS.blockers).toContain(
-    'peable_sdk_adoption_and_recurring_observation_delivery',
+    'configured_watch_only_merchant_and_verified_chain_access',
   );
 });
 
@@ -219,3 +219,36 @@ it.each(['past_due', 'unpaid'])(
     ).toBe(true);
   },
 );
+
+it('recovers a paid invoice after FX expiry without authorizing a new stale-quote payment', () => {
+  const fresh = {
+    ...invoice,
+    faircoinQuote: {
+      id: 'fx',
+      amountBaseUnits: '1234',
+      quotedAt: '2026-10-05T00:00:00Z',
+      expiresAt: '2026-10-05T00:01:00Z',
+      roundingEvidenceId: 'round',
+    },
+  };
+  const now = new Date('2026-10-05T00:02:00Z');
+  expect(
+    validatePersonalInvoiceForAction(
+      fresh,
+      context,
+      'faircoin',
+      now,
+      new Date('2026-10-05T00:00:30Z'),
+    ),
+  ).toMatchObject({ faircoinQuote: { id: 'fx' } });
+  expect(() => validatePersonalInvoiceForAction(fresh, context, 'faircoin', now)).toThrow('quote');
+  expect(() =>
+    validatePersonalInvoiceForAction(
+      fresh,
+      context,
+      'faircoin',
+      now,
+      new Date(fresh.faircoinQuote.expiresAt),
+    ),
+  ).toThrow('quote');
+});

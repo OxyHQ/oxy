@@ -847,7 +847,7 @@ const PAIRS: Pair[] = [
       {
         schemaVersion: 1,
         state: 'configured',
-        purchase: 'unavailable',
+        purchase: 'available',
         plans: [
           {
             offerId: 'o',
@@ -886,6 +886,54 @@ const PAIRS: Pair[] = [
     ],
   },
   {
+    name: 'productPlanCatalogue',
+    check: client.productPlanCatalogueCheck,
+    schema: contracts.productPlanCatalogueSchema,
+    samples: [
+      {
+        schemaVersion: 1,
+        productId: 'alia',
+        purchase: 'available',
+        plans: [
+          {
+            productId: 'alia',
+            offerId: 'o',
+            offerVersion: 1,
+            displayName: 'Alia Pro',
+            price: {
+              currency: 'USD',
+              amountMinorUnits: 9590,
+              interval: 'year',
+              trial: 'none',
+              taxTreatment: 'inclusive',
+              merchantTotal: 'final',
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'productPlanCheckoutRequest',
+    check: client.productPlanCheckoutRequestCheck,
+    schema: contracts.productPlanCheckoutRequestSchema,
+    samples: [
+      {
+        expectedSubjectAccountId: 'acc',
+        offerId: 'o',
+        offerVersion: 2,
+        idempotencyKey: 'key_1234',
+        productId: 'alia',
+      },
+    ],
+  },
+  {
+    name: 'productSubscriptionRenewalRequest',
+    check: client.productSubscriptionRenewalRequestCheck,
+    schema: contracts.productSubscriptionRenewalRequestSchema,
+    samples: [{ expectedSubjectAccountId: 'acc', sourceId: 's', idempotencyKey: 'key_1234' }],
+  },
+  {
     name: 'personalPlanCheckoutResult',
     check: client.personalPlanCheckoutResultCheck,
     schema: contracts.personalPlanCheckoutResultSchema,
@@ -910,6 +958,7 @@ const PAIRS: Pair[] = [
             period,
             cancelAtPeriodEnd: false,
             canCancel: true,
+            canRenew: true,
             offers: [
               {
                 segmentId: 'g',

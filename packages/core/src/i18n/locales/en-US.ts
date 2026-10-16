@@ -1585,6 +1585,14 @@ const dict = {
     },
   },
   preferences: {
+    displayCurrency: {
+      label: 'Display currency',
+      saveFailed: 'Could not save display currency. Please try again.',
+      unavailable: 'Equivalent in {{currency}} unavailable',
+      approximate: 'Approx. {{amount}}',
+      estimate: 'Display estimate. The final payable amount is quoted in FAIR at checkout.',
+    },
+
     title: 'Preferences',
     subtitle: 'Theme, motion, and regional settings',
     sections: {

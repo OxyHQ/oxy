@@ -264,6 +264,8 @@ export interface NotificationPreferences {
  * Persisted on the User document.
  */
 export interface UserPreferences {
+  /** Preferred display units only; never changes a payment's denomination. */
+  displayCurrency?: 'USD' | 'EUR' | 'FAIR';
   /** BCP-47 language tag, e.g. "en-US", "es-ES". Empty string = follow device. */
   language?: string;
   /** Theme mode preference. */

@@ -3,6 +3,7 @@ import { billingNamespaceSchema } from '../config/billingNamespace';
 import { readFile } from 'node:fs/promises';
 import {
   productDefinitionSchema,
+  productPlanCatalogueSchema,
   personalPlanDisplayPriceSchema,
   productOfferSchema,
   productSubscriptionSourceSchema,
@@ -33,11 +34,12 @@ export const productBillingPriceSchema = z
     amountMinorUnits: z.number().int().positive().safe(),
     /** API credit purchase is a separate existing product, never an Oxy One benefit. */
     offerKind: z.enum(['individual', 'bundle']),
+    interval: z.enum(['month', 'year']).default('month'),
     kind: z.enum(['existing_product', 'oxy_one']),
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.kind === 'oxy_one' && value.provider !== 'peable')
+    if (value.kind === 'oxy_one' && (value.provider !== 'peable' || value.interval !== 'month'))
       context.addIssue({ code: 'custom', message: 'Oxy One payments require Peable' });
     if (value.provider === 'peable' && !/^merch_[a-zA-Z0-9_]+$/.test(value.providerAccountId))
       context.addIssue({ code: 'custom', message: 'Peable merchant binding differs' });
@@ -71,6 +73,7 @@ export const productBillingCatalogueSchema = z
       .strict()
       .nullable()
       .default(null),
+    productPlans: productPlanCatalogueSchema.shape.plans.default([]),
     personalPlans: z
       .array(
         z
@@ -126,6 +129,26 @@ export const productBillingCatalogueSchema = z
         code: 'custom',
         message: 'Personalization adapter requires a registered product',
       });
+    const individualPublications = new Set<string>();
+    for (const plan of value.productPlans) {
+      const key = `${plan.offerId}@${plan.offerVersion}`;
+      const offer = offers.get(key);
+      if (
+        individualPublications.has(key) ||
+        !products.has(plan.productId) ||
+        !offer ||
+        offer.kind !== 'individual' ||
+        !offer.benefits.length ||
+        offer.benefits.some((benefit) => benefit.productId !== plan.productId) ||
+        plan.price.currency !== 'USD'
+      )
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Published product plan requires a unique declared individual product offer and USD price',
+        });
+      individualPublications.add(key);
+    }
     const published = new Set<string>();
     for (const plan of value.personalPlans) {
       const key = `${plan.offerId}@${plan.offerVersion}`;
@@ -251,6 +274,7 @@ export const EMPTY_PRODUCT_BILLING_CATALOGUE: ProductBillingCatalogue = {
   offers: [],
   prices: [],
   personalPlans: [],
+  productPlans: [],
   storageAdapter: null,
   personalizationAdapter: null,
   subscriptions: [],

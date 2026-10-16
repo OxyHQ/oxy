@@ -209,3 +209,4 @@ export * from './storageByteReservations';
 export * from './productProviderRefunds';
 export * from './organizationProfiles';
 export * from './supervision';
+export * from './accountInvitations';

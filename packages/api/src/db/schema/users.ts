@@ -626,6 +626,8 @@ export const users = pgTable(
     preferenceReduceMotion: boolean().notNull().default(false),
     /** Absent is NULL, never `''`. */
     preferenceTimezone: text(),
+    /** Display only; settlement currency and catalogue prices are unchanged. */
+    preferenceDisplayCurrency: text({ enum: ['USD', 'EUR', 'FAIR'] }),
 
     // ---- portable theme preference ----------------------------------------
     /**
@@ -643,6 +645,10 @@ export const users = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    check(
+      'users_display_currency_check',
+      sql`${t.preferenceDisplayCurrency} IN ('USD', 'EUR', 'FAIR')`,
+    ),
     // ---- identity uniqueness (trimmed, case-insensitive) ------------------
     // `lower(btrim(...))` and not `lower(...)`: the stored values are ALREADY
     // trimmed and lower-cased, so the two are equivalent on existing data —

@@ -209,3 +209,17 @@ export const accountBillingAuditQuerySchema = z
     cursor: z.string().min(1).optional(),
   })
   .strict();
+
+/** Invitation credentials are opaque base64url tokens. */
+export const accountInvitationTokenSchema = z.object({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
+export const accountInvitationInputSchema = z.object({
+  email: z.string().trim().email().max(254),
+  role: z.enum(['admin', 'editor', 'developer', 'billing', 'viewer']),
+  inherit: z.boolean().optional(),
+});
+export const accountInvitationAcceptanceSchema = accountInvitationTokenSchema.extend({
+  confirmed: z.literal(true),
+  selectedUserId: z.string().min(1),
+});

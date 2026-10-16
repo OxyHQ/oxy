@@ -201,6 +201,65 @@ describe('oxy.accounts', () => {
     });
   });
 
+  describe('invitations', () => {
+    it('sends email and role, then previews without accepting', async () => {
+      const invitation = {
+        id: 'inv1',
+        accountId: 'acc1',
+        email: 'new@example.com',
+        role: 'viewer',
+      };
+      fetchMock.mockResolvedValueOnce(jsonResponse({ invitation }));
+      await expect(
+        oxy.accounts.invitations.create('acc1', { email: 'new@example.com', role: 'viewer' }),
+      ).resolves.toEqual(invitation);
+      expect(call(0)).toMatchObject({
+        method: 'POST',
+        url: 'http://test.invalid/accounts/acc1/invitations',
+        body: { email: 'new@example.com', role: 'viewer' },
+      });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ invitation, account: { id: 'acc1' } }));
+      await oxy.accounts.invitations.preview('secret');
+      expect(call(1)).toMatchObject({
+        method: 'POST',
+        url: 'http://test.invalid/accounts/invitations/preview',
+        body: { token: 'secret' },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    it('lists without caching and confirms selected identity while evicting account lists', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ accounts: [] }));
+      await oxy.accounts.list();
+      for (let i = 0; i < 2; i++) {
+        fetchMock.mockResolvedValueOnce(jsonResponse({ invitations: [] }));
+        await oxy.accounts.invitations.list('acc1');
+      }
+      fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, accountId: 'acc1' }));
+      await oxy.accounts.invitations.accept('secret', 'me');
+      expect(call(3)).toMatchObject({
+        method: 'POST',
+        body: { token: 'secret', selectedUserId: 'me', confirmed: true },
+      });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ accounts: [node] }));
+      await expect(oxy.accounts.list()).resolves.toEqual([node]);
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+    });
+    it('resends and cancels a scoped invitation', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ invitation: { id: 'inv1' } }));
+      await oxy.accounts.invitations.resend('acc1', 'inv1');
+      expect(call(0)).toMatchObject({
+        method: 'POST',
+        url: 'http://test.invalid/accounts/acc1/invitations/inv1/resend',
+      });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+      await oxy.accounts.invitations.cancel('acc1', 'inv1');
+      expect(call(1)).toMatchObject({
+        method: 'DELETE',
+        url: 'http://test.invalid/accounts/acc1/invitations/inv1',
+      });
+    });
+  });
+
   describe('members', () => {
     it('lists, caching, and defaults to []', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse({}));

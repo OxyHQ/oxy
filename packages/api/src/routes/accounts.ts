@@ -1,4 +1,5 @@
 import type { OrganizationType } from '@oxy.so/contracts';
+import { accountInvitationService } from '../services/accountInvitation.service';
 import express from 'express';
 import type { Request } from 'express';
 import { and, count, eq, ne } from 'drizzle-orm';
@@ -45,6 +46,9 @@ import {
   type AccountRole,
 } from '../utils/accountRoles';
 import {
+  accountInvitationInputSchema,
+  accountInvitationTokenSchema,
+  accountInvitationAcceptanceSchema,
   accountAuditQuerySchema,
   accountBillingAuditQuerySchema,
   accountIdRouteParams,
@@ -824,7 +828,14 @@ router.get(
   }),
 );
 
-/** Add a member by username/email (`members:invite`). */
+/**
+ * Deprecated: add a member by username/email (`members:invite`) immediately.
+ *
+ * Access is granted without the recipient's confirmation. `POST /:id/invitations`
+ * is the consent-based replacement. This stays only until the SDK consumers that
+ * still call `accounts.members.invite` (Alia, Mercaria, older services builds)
+ * have moved to invitations; it is then retired with HTTP 410.
+ */
 router.post(
   '/:id/members',
   membersLimiter,
@@ -865,6 +876,79 @@ router.post(
     // `addMember` writes on `account.id`, so the row is direct by construction —
     // `inherit` governs whether it cascades to CHILDREN, not where it lives.
     res.status(201).json({ member: serializeMember(member, 'direct') });
+  }),
+);
+
+router.post(
+  '/invitations/preview',
+  readLimiter,
+  validate({ body: accountInvitationTokenSchema }),
+  asyncHandler(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await accountInvitationService.preview(req.body.token));
+  }),
+);
+router.post(
+  '/invitations/accept',
+  membersLimiter,
+  validate({
+    body: accountInvitationAcceptanceSchema,
+  }),
+  asyncHandler(async (req: AuthRequest, res) => {
+    const subject = resolveSubjectId(req);
+    if (subject !== req.body.selectedUserId)
+      throw new ForbiddenError('Selected account changed; review the invitation again');
+    res.json(await accountInvitationService.accept(req.body.token, subject));
+  }),
+);
+router.get(
+  '/:id/invitations',
+  readLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      invitations: await accountInvitationService.list(req.params.id, await resolveOperatorId(req)),
+    });
+  }),
+);
+router.post(
+  '/:id/invitations',
+  membersLimiter,
+  validate({ body: accountInvitationInputSchema }),
+  asyncHandler(async (req: AuthRequest, res) => {
+    res.status(201).json({
+      invitation: await accountInvitationService.create(
+        req.params.id,
+        await resolveOperatorId(req),
+        req.body,
+      ),
+    });
+  }),
+);
+router.post(
+  '/:id/invitations/:invitationId/resend',
+  membersLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    res.json({
+      invitation: await accountInvitationService.resend(
+        req.params.id,
+        await resolveOperatorId(req),
+        req.params.invitationId,
+      ),
+    });
+  }),
+);
+router.delete(
+  '/:id/invitations/:invitationId',
+  membersLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    res.json(
+      await accountInvitationService.cancel(
+        req.params.id,
+        await resolveOperatorId(req),
+        req.params.invitationId,
+      ),
+    );
   }),
 );
 

@@ -419,7 +419,14 @@
       "pending": "Cancelación aceptada. La conciliación de la cuenta está pendiente.",
       "scheduled": "Cancelación programada para el final del período actual.",
       "failed": "No se pudo confirmar la cancelación. Actualiza antes de intentarlo de nuevo.",
-      "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada."
+      "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada.",
+      "checkout": "Continuar al pago",
+      "renew": "Pagar el siguiente período con FairCoin",
+      "checkoutComplete": "Pago confirmado. Se ha actualizado el acceso.",
+      "checkoutClosed": "Este pago está cerrado. Si enviaste fondos, consulta su estado antes de solicitar otro pago.",
+      "checkoutFailed": "No se pudo confirmar el pago. Reintenta para recuperar el mismo pago; si enviaste fondos, consulta su estado antes de volver a pagar.",
+      "paymentReview": "El pago necesita revisión en Peable. No vuelvas a enviar fondos.",
+      "reviewPayment": "Revisar el pago en Peable"
     },
     "title": "Pagos y suscripciones",
     "subtitle": "Gestiona tus métodos de pago, suscripciones y monederos.",
