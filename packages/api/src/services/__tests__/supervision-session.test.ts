@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import httpRequest from 'supertest';
 import { optionalAuthMiddleware } from '../../middleware/optionalAuth';
 import profilesRouter from '../../routes/profiles';
@@ -147,6 +148,16 @@ it('optional profile reads never downgrade supervised, invalid or unverifiable b
     deviceId: randomUUID(),
   });
   const app = express();
+  // Bound synthetic loopback requests before auth, without storing IPs.
+  app.use(
+    rateLimit({
+      windowMs: 60_000,
+      limit: 128,
+      keyGenerator: () => 'synthetic-supervision-fixture',
+      standardHeaders: true,
+      legacyHeaders: false,
+    }),
+  );
   app.get('/profile', optionalAuthMiddleware, (_req, res) => res.json({ bio: 'public content' }));
   expect((await httpRequest(app).get('/profile')).status).toBe(200);
   expect(
