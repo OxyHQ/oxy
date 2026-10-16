@@ -48,7 +48,8 @@ const DRIZZLE = join(__dirname, '..', '..', '..', '..', 'drizzle');
  */
 const DROP_FILE_LINKS = (() => {
   const found = readdirSync(DRIZZLE).filter((name) => name.endsWith('_drop_file_links.sql'));
-  if (found.length !== 1) throw new Error(`expected one *_drop_file_links.sql, found ${found.length}`);
+  if (found.length !== 1)
+    throw new Error(`expected one *_drop_file_links.sql, found ${found.length}`);
   return found[0];
 })();
 

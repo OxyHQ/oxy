@@ -364,9 +364,7 @@ describe('Mercaria reads the digital goods their creators linked to it (OxyHQ/ox
         ids: [linkedGood, unlinkedGood],
       });
       expect(res.status).toBe(200);
-      expect((res.body.data as Array<{ id: string }>).map((item) => item.id)).toEqual([
-        linkedGood,
-      ]);
+      expect((res.body.data as Array<{ id: string }>).map((item) => item.id)).toEqual([linkedGood]);
     } finally {
       await getDb()
         .update(applications)

@@ -366,7 +366,7 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     table: 'file_upload_sessions',
     column: 'reference',
     holds:
-      "the one (entityType ≤128 chars, entityId ≤256 chars) reference a large upload registers for its application once it is a file (ADR 0043 D4); strict schema, nothing else",
+      'the one (entityType ≤128 chars, entityId ≤256 chars) reference a large upload registers for its application once it is a file (ADR 0043 D4); strict schema, nothing else',
   },
   {
     table: 'file_variants',
