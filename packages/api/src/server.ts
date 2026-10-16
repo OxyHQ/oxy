@@ -162,6 +162,7 @@ import {
   stopStorageDeletionWorker,
 } from './services/accountStorageDeletion.worker';
 import { flushCdnInvalidations } from './services/cdnInvalidation';
+import { startFileLifecycleWorker, stopFileLifecycleWorker } from './services/fileLifecycle.worker';
 import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
@@ -574,6 +575,7 @@ async function gracefulShutdown(signal: string) {
   await stopPeablePersonalRuntime();
   stopAccountEventWebhookWorker();
   stopStorageDeletionWorker();
+  stopFileLifecycleWorker();
   await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -1467,6 +1469,10 @@ export async function bootstrap(
   // Delete a deleted account's stored uploads (OxyHQ/Mention#1178). ON by
   // default: see `startStorageDeletionWorker`.
   startStorageDeletionWorker();
+  // Collect applications' unused files and never-completed uploads (ADR 0041
+  // D5). REPORT-ONLY by default: it acts once FILE_LIFECYCLE_MODE=enforce,
+  // after an operator has reviewed a week of its reports.
+  startFileLifecycleWorker();
   // Repair partially applied moderation consequences — by the system, on a
   // schedule, never by a person choosing whose standing to touch.
 

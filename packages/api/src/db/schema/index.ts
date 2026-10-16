@@ -75,6 +75,8 @@ export * from './emailSuppressions';
 export * from './emailSavedSearches';
 export * from './emailUnsubscribedSenders';
 export * from './federationKeyPairs';
+export * from './fileLifecycleSweeps';
+export * from './fileReferenceReconciliations';
 export * from './fileReferences';
 export * from './fileVariants';
 export * from './files';

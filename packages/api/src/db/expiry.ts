@@ -66,6 +66,14 @@ import {
   storageObjectDeletions,
 } from './schema/storageObjectDeletions';
 import {
+  FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
+  fileLifecycleSweeps,
+} from './schema/fileLifecycleSweeps';
+import {
+  FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+  fileReferenceReconciliations,
+} from './schema/fileReferenceReconciliations';
+import {
   CREDENTIAL_AUDIT_RETENTION_SECONDS,
   applicationCredentialAuditEvents,
 } from './schema/applicationCredentialAuditEvents';
@@ -378,5 +386,23 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'removed, keyed on COMPLETION: an unfinished row has a NULL ' +
       '`completed_at`, which no range predicate matches, so a deletion still ' +
       'retrying is never swept away with its keys.',
+  },
+  {
+    table: fileReferenceReconciliations,
+    column: fileReferenceReconciliations.expiresAt,
+    retentionSeconds: FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+    reason:
+      'Housekeeping only — every read of a reconciliation session filters ' +
+      '`expires_at > now()` itself. The day of grace answers a late page ' +
+      '"expired" rather than "unknown"; its items go with it (CASCADE).',
+  },
+  {
+    table: fileLifecycleSweeps,
+    column: fileLifecycleSweeps.createdAt,
+    retentionSeconds: FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
+    reason:
+      'Ninety days of lifecycle-sweep reports, the record an operator reviews ' +
+      'before and after switching the sweep to enforce. The schedule reads only ' +
+      'the newest few rows.',
   },
 ];

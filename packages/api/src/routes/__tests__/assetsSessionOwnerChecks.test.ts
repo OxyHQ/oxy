@@ -445,17 +445,19 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
     expect((await row(id)).status).toBe('active');
   });
 
-  it('still trashes the owner’s file when its last reference goes', async () => {
+  it('never trashes the owner’s file when its last reference goes: it is only not in use (ADR 0041 D5)', async () => {
     const owner = await account();
     const id = await fileOf(owner);
     const target = { app: 'goway', entityType: 'place', entityId: 'place-2' };
     actAs(owner);
     await send('POST', `/assets/${id}/links`, target);
+    expect((await row(id)).unreferencedSince).toBeNull();
 
     const res = await send('DELETE', `/assets/${id}/links`, target);
 
     expect(res.status).toBe(200);
-    expect((await row(id)).status).toBe('trash');
+    expect((await row(id)).status).toBe('active');
+    expect((await row(id)).unreferencedSince).toBeInstanceOf(Date);
     expect(await referencesOf(id)).toEqual([]);
   });
 });
@@ -523,7 +525,7 @@ describe('DELETE /assets/:id/links — a non-owner removes only what it made (AD
 
     expect(res.status).toBe(200);
     expect(await referencesOf(id)).toEqual([]);
-    expect((await row(id)).status).toBe('trash');
+    expect((await row(id)).status).toBe('active');
   });
 });
 
@@ -596,5 +598,54 @@ describe('GET /assets/:id — a file’s links are its owner’s; a private file
 
     expect(res.status).toBe(404);
     expect(res.body.data).toBeUndefined();
+  });
+});
+
+describe('GET /assets — the owner sees which files are in use (ADR 0041 D5)', () => {
+  type Listed = {
+    id: string;
+    inUse: boolean;
+    unreferencedSince: string | null;
+    status: string;
+  };
+
+  it('reports inUse and unreferencedSince, and filters on inUse', async () => {
+    const owner = await account();
+    const used = await fileOf(owner);
+    const unused = await fileOf(owner, { unreferencedSince: new Date('2026-10-01T00:00:00Z') });
+    actAs(owner);
+    await send('POST', `/assets/${used}/links`, {
+      app: 'goway',
+      entityType: 'place',
+      entityId: 'place-listed',
+    });
+
+    const all = await send('GET', '/assets?limit=100');
+    const listed = (all.body.data as { files: Listed[] }).files;
+    expect(listed.find((file) => file.id === used)).toMatchObject({
+      inUse: true,
+      unreferencedSince: null,
+    });
+    expect(listed.find((file) => file.id === unused)).toMatchObject({
+      inUse: false,
+      unreferencedSince: '2026-10-01T00:00:00.000Z',
+      status: 'active',
+    });
+
+    const notInUse = await send('GET', '/assets?inUse=false&limit=100');
+    expect((notInUse.body.data as { files: Listed[] }).files.map((file) => file.id)).toEqual([
+      unused,
+    ]);
+    const inUse = await send('GET', '/assets?inUse=true&limit=100');
+    expect((inUse.body.data as { files: Listed[] }).files.map((file) => file.id)).toEqual([used]);
+  });
+
+  it('a file in trash has no URL, even for its owner (it is never served)', async () => {
+    const owner = await account();
+    const id = await fileOf(owner, { status: 'trash', trashedAt: new Date() });
+    actAs(owner);
+
+    expect((await send('GET', `/assets/${id}/url`)).status).toBe(404);
+    expect((await send('GET', `/assets/${id}`)).status).toBe(200);
   });
 });

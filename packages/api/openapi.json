@@ -5371,8 +5371,20 @@
           "Files"
         ],
         "summary": "List the user's files",
-        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links.\n",
+        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links. Each file says whether an application uses it (`inUse`) and, when none does, since when (`unreferencedSince`) — a file not in use is never removed for you (ADR 0041 D5). `inUse=false` lists only those.\n",
         "parameters": [
+          {
+            "name": "inUse",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
           {
             "name": "limit",
             "in": "query",
@@ -5425,6 +5437,77 @@
           }
         },
         "operationId": "getAssets"
+      }
+    },
+    "/assets/admin/lifecycle/sweeps": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The file lifecycle sweep's newest runs (ADR 0041 D5): per step",
+        "description": "(`purge`, `trash`, `staleUploads`, `unpublishTrashed`) how many files\n      were DUE at the run's instant and how many were acted on, with up to\n      100 named per step. In `report` mode nothing is acted on: this is what\n      an operator reviews before switching the sweep to `enforce`. `limit`\n      1–50, default 10.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getAssetsAdminLifecycleSweeps"
       }
     },
     "/assets/batch-access": {
@@ -7068,6 +7151,425 @@
         "operationId": "deleteAssetsServiceReferences"
       }
     },
+    "/assets/service/references/reconcile": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Begin reconciling the calling application's references of ONE entity",
+        "description": "type (ADR 0041 D6): `{ entityType }` → `{ sessionId, entityType,\n      expiresAt }`. Then send the full inventory with `PUT\n      …/reconcile/:sessionId` and apply it with `POST …/commit`. One session\n      per (application, entity type) at a time: 409\n      `RECONCILIATION_IN_PROGRESS` while another is open. A session expires\n      an hour after its last page.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entityType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "entityType"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceReferencesReconcile"
+      }
+    },
+    "/assets/service/references/reconcile/{sessionId}": {
+      "put": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "One page of the inventory: `{ items: [{ fileId, entityId }] }`, 1–1000",
+        "description": "pairs. A pair sent twice counts once. Answers `{ accepted, total,\n      expiresAt }`; each page moves the deadline an hour ahead. 404 for no\n      such session of this application, 410 `RECONCILIATION_EXPIRED`, 409\n      `RECONCILIATION_NOT_OPEN` once committed, 413 past 500,000 pairs.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fileId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "entityId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "fileId",
+                        "entityId"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 1000
+                  }
+                },
+                "required": [
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putAssetsServiceReferencesReconcileSessionId"
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Release an open session without committing it, so the next `begin`",
+        "description": "for its entity type need not wait for it to expire. 404 when this\n      application holds no such open session.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceReferencesReconcileSessionId"
+      }
+    },
+    "/assets/service/references/reconcile/{sessionId}/commit": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Diff the inventory against this application's references of the",
+        "description": "session's entity type and apply it: add each missing reference the\n      application may hold (the rules of `POST /assets/service/references`;\n      a file it may not reference, or none, is `refused`), remove each\n      reference created before the session began that the inventory does\n      not list — which never trashes or deletes a file — and count the rest\n      `unchanged`. `{ dryRun: true }` counts the same and changes nothing,\n      leaving the session open. Answers `{ sessionId, entityType, dryRun,\n      added, removed, unchanged, refused }`.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceReferencesReconcileSessionIdCommit"
+      }
+    },
     "/assets/service/user-media": {
       "post": {
         "tags": [
@@ -7518,7 +8020,7 @@
           "Files"
         ],
         "summary": "Remove one application's use of a file. The file's OWNER may remove",
-        "description": "any reference to it; anybody else only a reference they created\n      themselves (404 otherwise), and that never trashes the owner's file.\n      An application removes the references it holds with its own token\n      (`DELETE /assets/service/references`) — how GoWay must withdraw a\n      contributor's photo from a place (ADR 0041 D12).",
+        "description": "any reference to it; anybody else only a reference they created\n      themselves (404 otherwise). Removing a reference never trashes or\n      deletes the file — not even the owner's last one (ADR 0041 D5): the\n      file stays `active` and is reported `inUse: false`.\n      An application removes the references it holds with its own token\n      (`DELETE /assets/service/references`) — how GoWay must withdraw a\n      contributor's photo from a place (ADR 0041 D12).",
         "parameters": [
           {
             "name": "id",

@@ -40,9 +40,11 @@ import {
   applyPublicPrefix,
   stripPublicPrefix,
   isPublicKey,
+  isServedPublicly,
   storageKeyForVisibility,
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
+import { getCdnInvalidationQueue } from './cdnInvalidation';
 import { logger } from '../utils/logger';
 import { ApiError, ForbiddenError } from '../utils/error';
 import type {
@@ -81,9 +83,12 @@ import {
   classifyApplicationFileDeleteRefusal,
   classifyFederatedDeleteRefusal,
   listFilesByApplication,
+  reactivateTrashedFile,
   tombstoneApplicationFile,
   tombstoneFederatedFileForApp,
   tombstoneFile,
+  tombstoneFileIfDue,
+  trashUnreferencedApplicationFile,
   type ApplicationFileCursor,
   type FileReferenceKey,
   updateFile,
@@ -534,14 +539,25 @@ export class AssetService {
     }
   }
 
-  /** A reused federated row that had fallen to `trash` (unlinked) is in use again. */
+  /**
+   * A reused row that had fallen to `trash` is in use again when its uploader
+   * sends the same bytes back: a federated row from the same application (it
+   * was unlinked), and an APPLICATION's own file (the lifecycle sweep trashed
+   * it, ADR 0041 D5) — which also restarts its 24-hour clock, as a new upload
+   * would. It is published again if it is public.
+   */
   private async prepareExistingStreamedMediaFile(
     file: FileRecord,
     options: StreamedMediaOptions,
   ): Promise<FileRecord> {
-    if (file.status === 'trash' && isSameFederatedUpload(file, options)) {
-      const reactivated = await updateFile(file.id, { status: 'active' });
-      return reactivated ? this.cacheFile(reactivated) : file;
+    const ownApplicationFile =
+      file.ownerApplicationId !== null &&
+      file.ownerApplicationId === (options.owner.ownerApplicationId ?? null);
+    if (file.status === 'trash' && (ownApplicationFile || isSameFederatedUpload(file, options))) {
+      const reactivated = await reactivateTrashedFile(file.id, {
+        restartUnreferencedClock: ownApplicationFile,
+      });
+      return reactivated ? this.enterServing(reactivated) : file;
     }
     return file;
   }
@@ -608,9 +624,10 @@ export class AssetService {
     userId: string,
     limit = 50,
     offset = 0,
+    options: { inUse?: boolean } = {},
   ): Promise<{ files: FileRecord[]; total: number }> {
     try {
-      return await listFilesByOwner(userId, limit, offset);
+      return await listFilesByOwner(userId, limit, offset, options);
     } catch (error) {
       logger.error('Error listing files by user:', error);
       throw error;
@@ -1688,7 +1705,8 @@ export class AssetService {
    * public file private (Mercaria's review media) and an avatar link made a
    * private one public. Only the owner changes visibility, explicitly
    * (`updateFileVisibility`). A trashed file is brought back to `active`, as a
-   * link always did.
+   * link always did, and served again (`enterServing`); the reference clears
+   * its `unreferenced_since` in the same transaction (D5).
    *
    * Authorization is the caller's: the session route admits only the file's
    * owner, the service route only what ADR 0041 D4 lets an application use.
@@ -1712,7 +1730,7 @@ export class AssetService {
       // duplicate is refused by the database rather than by a read-then-write
       // two concurrent requests could both pass — which matters because a
       // duplicate would inflate the usage count that decides `trash`.
-      const created = await insertFileReference(fileId, {
+      const { created, restored } = await insertFileReference(fileId, {
         applicationId: request.applicationId,
         entityType: request.entityType,
         entityId: request.entityId,
@@ -1725,14 +1743,11 @@ export class AssetService {
         return { file, created: false };
       }
 
-      const updated =
-        file.status === 'trash'
-          ? await updateFile(fileId, { status: 'active' })
-          : await findFileById(fileId);
-      if (!updated) {
+      const reread = await findFileById(fileId);
+      if (!reread) {
         throw new Error('File not found');
       }
-      this.cacheFile(updated);
+      const updated = restored ? await this.enterServing(reread) : this.cacheFile(reread);
 
       logger.info('File referenced', {
         fileId,
@@ -1822,15 +1837,19 @@ export class AssetService {
    * reference was actually there.
    *
    * `createdByUserIds` narrows the removal to a reference one of those people
-   * created (a session that does not own the file). `trashWhenUnused` keeps
-   * the session surface's legacy rule — the LAST reference going moves an
-   * account's file to trash — and is off for an application's service token,
-   * which never trashes a person's file behind their back (ADR 0041 D5).
+   * created (a session that does not own the file).
+   *
+   * NEVER trashes or deletes the file, on any path (ADR 0041 D5). The last
+   * reference going stamps `unreferenced_since` in the same transaction: an
+   * account's file is then *not in use* for its person, who alone moves it to
+   * trash or deletes it; an application's file is collected 24 hours later by
+   * `fileLifecycle.worker.ts`. (Until stage 2 an owner's session removing the
+   * last link moved the file to trash.)
    */
   async unlinkFile(
     fileId: string,
     key: FileReferenceKey,
-    options: { createdByUserIds?: readonly string[]; trashWhenUnused?: boolean } = {},
+    options: { createdByUserIds?: readonly string[] } = {},
   ): Promise<{ file: FileRecord; removed: boolean }> {
     try {
       const file = await findFileById(fileId);
@@ -1840,23 +1859,7 @@ export class AssetService {
 
       const removed = await deleteFileReference(fileId, key, options.createdByUserIds);
 
-      const remaining = await findFileById(fileId);
-      if (!remaining) {
-        throw new Error('File not found');
-      }
-
-      // Only a removal can make a file unused: an unlink that matched nothing
-      // changes no usage (it used to trash any never-linked file, anybody's,
-      // for the price of naming its id). An application-owned file is never
-      // trashed by a reference going (ADR 0041 D5 collects those).
-      const updated =
-        removed &&
-        (options.trashWhenUnused ?? true) &&
-        remaining.links.length === 0 &&
-        remaining.status === 'active' &&
-        !remaining.ownerApplicationId
-          ? await updateFile(fileId, { status: 'trash' })
-          : remaining;
+      const updated = await findFileById(fileId);
       if (!updated) {
         throw new Error('File not found');
       }
@@ -2038,6 +2041,11 @@ export class AssetService {
     return visibility === 'public' ? applyPublicPrefix(key) : stripPublicPrefix(key);
   }
 
+  /** The spelling a key needs for how the file is SERVED (`isServedPublicly`). */
+  private targetKeyForServing(key: string, file: Pick<FileRecord, 'visibility' | 'status'>) {
+    return isServedPublicly(file) ? applyPublicPrefix(key) : stripPublicPrefix(key);
+  }
+
   /**
    * Make every key of the file (original and renditions) the spelling its
    * visibility needs — under `public/` for public, bare otherwise — so a
@@ -2057,7 +2065,9 @@ export class AssetService {
    * the row's key itself does not change.
    */
   private async relocateAllForVisibility(file: FileRecord): Promise<FileRecord> {
-    const wantPublic = file.visibility === 'public';
+    // The SERVED spelling: a public file outside `active` is off the CDN too
+    // (ADR 0041 D5, OxyHQ/oxy#1284) — its visibility is kept for its restore.
+    const wantPublic = isServedPublicly(file);
     const keys = [
       { variantId: null as string | null, key: file.storageKey, hlsRendition: false },
       ...file.variants.map((variant) => ({
@@ -2069,7 +2079,7 @@ export class AssetService {
     const moves = keys
       .map((entry) => ({
         ...entry,
-        target: this.targetKeyForVisibility(entry.key, file.visibility),
+        target: this.targetKeyForServing(entry.key, file),
       }))
       .filter((entry) => entry.target !== entry.key);
 
@@ -2479,11 +2489,12 @@ export class AssetService {
         throw new Error('File is not in trash');
       }
 
-      const restored = await updateFile(fileId, { status: 'active' });
-      if (!restored) {
-        throw new Error('File not found');
+      const reactivated = await reactivateTrashedFile(fileId);
+      if (!reactivated) {
+        throw new Error('File is not in trash');
       }
-      this.cacheFile(restored);
+      // Back under `public/` if it is public: trash had taken it off the CDN.
+      const restored = await this.enterServing(reactivated);
 
       logger.info('File restored from trash', { fileId });
 
@@ -2492,6 +2503,153 @@ export class AssetService {
       logger.error('Error restoring file:', error);
       throw error;
     }
+  }
+
+  /**
+   * The file just came back to `active` (a restore, a new reference, a
+   * re-upload): if it is public, move its objects back under `public/` so the
+   * CDN serves it again. Best effort — a failed copy is logged, and until it
+   * succeeds the origin stream route serves the bytes (a public object at a
+   * bare key is streamed through origin, never refused).
+   */
+  async enterServing(file: FileRecord): Promise<FileRecord> {
+    this.cacheFile(file);
+    if (!isServedPublicly(file)) return file;
+    try {
+      return await this.relocateAllForVisibility(file);
+    } catch (error) {
+      logger.error('Restored public file could not be republished to the CDN', {
+        fileId: file.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return file;
+    }
+  }
+
+  /**
+   * The file just left `active` (ADR 0041 D5): take its objects off the
+   * CDN-reachable `public/` prefix — the CDN's origin is the bucket, so an
+   * object left there is served whatever the row says — and invalidate every
+   * path the CDN may have cached for it: each `public/` spelling of its
+   * original and renditions, and the `/<id>` redirect `GET /cdn/:id` answers.
+   * The relocation owes the old spelling a delete through
+   * `storage_object_deletions`, whose `S3Service.deleteFile` queues the same
+   * invalidations again; queueing a path twice costs nothing.
+   *
+   * Best effort, never throws: the status is already committed and every read
+   * path refuses a non-active file, so what is left is CDN hygiene, which the
+   * sweep's `unpublishTrashed` step retries.
+   */
+  async leaveServing(file: FileRecord): Promise<FileRecord> {
+    fileCache.invalidate(file.id);
+    this.invalidateServedPaths(file);
+    try {
+      return await this.relocateAllForVisibility(file);
+    } catch (error) {
+      logger.error('File left active but its public objects could not be moved off the CDN', {
+        fileId: file.id,
+        status: file.status,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return file;
+    }
+  }
+
+  /**
+   * Queue a CloudFront invalidation for every path the CDN may hold for this
+   * file. Only a PUBLIC file was ever on the CDN (a private or unlisted one is
+   * streamed through origin), so only one costs invalidation paths.
+   */
+  private invalidateServedPaths(file: FileRecord): void {
+    if (file.visibility !== 'public') return;
+    const queue = getCdnInvalidationQueue();
+    for (const key of [file.storageKey, ...file.variants.map((variant) => variant.key)]) {
+      // A bare key may have a backfilled `public/` copy the CDN served.
+      queue.enqueueDeletedKey(applyPublicPrefix(key));
+    }
+    queue.enqueuePath(`/${file.id}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // The lifecycle sweep's actions (ADR 0041 D5, `fileLifecycle.worker.ts`).
+  // Each is ONE conditional write that re-checks the step's whole condition
+  // at the moment it acts, so a reference, restore or upload that landed
+  // after the candidate was listed wins.
+  // -------------------------------------------------------------------------
+
+  /** An application's file unused for 24 hours → trash, off the CDN. `null`: no longer due. */
+  async trashUnusedApplicationFile(fileId: string, now: Date): Promise<FileRecord | null> {
+    const trashed = await trashUnreferencedApplicationFile(fileId, now);
+    if (!trashed) return null;
+    logger.info('Application file moved to trash: unused for 24 hours', {
+      fileId,
+      ownerApplicationId: trashed.ownerApplicationId,
+    });
+    return this.leaveServing(trashed);
+  }
+
+  /**
+   * An application's file in trash for 30 days → tombstoned, its storage owed
+   * and purged through the `storage_object_deletions` ledger. `false`: no
+   * longer due (restored, re-referenced, already gone).
+   */
+  async purgeTrashedApplicationFile(fileId: string, now: Date): Promise<boolean> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'purge', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return false;
+    this.invalidateServedPaths(tombstoned);
+    await this.notifyLinks(tombstoned, 'deleted', { reason: 'application_file_expired' });
+    logger.info('Application file purged: 30 days in trash', {
+      fileId,
+      ownerApplicationId: tombstoned.ownerApplicationId,
+    });
+    return true;
+  }
+
+  /**
+   * An upload `POST /assets/init` created and nobody completed, 24 hours old:
+   * tombstoned when the store holds NO object at its key (ADR 0041 D5, "uploads
+   * that never completed"). One that does hold an object is the account's bytes
+   * and is left alone (`has_object`) — counted in the report, never deleted.
+   */
+  async sweepStaleUpload(
+    fileId: string,
+    now: Date,
+  ): Promise<'tombstoned' | 'has_object' | 'not_due'> {
+    const file = await findFileById(fileId);
+    if (!file) return 'not_due';
+    if (await this.s3Service.fileExists(file.storageKey)) return 'has_object';
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'staleUploads', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return 'not_due';
+    logger.info('Stale upload removed: initialised 24 hours ago, never completed, no object', {
+      fileId,
+      ownerUserId: tombstoned.ownerUserId,
+    });
+    return 'tombstoned';
+  }
+
+  /** Whether the store holds an object at this file's key (the stale-upload report). */
+  async storedObjectExists(fileId: string): Promise<boolean> {
+    const file = await findFileById(fileId);
+    return file ? this.s3Service.fileExists(file.storageKey) : false;
+  }
+
+  /**
+   * A public file that entered trash before trash left the CDN: move its
+   * objects off `public/` now. `false` when it is no longer a trashed public file.
+   */
+  async unpublishTrashedFile(fileId: string): Promise<boolean> {
+    const file = await findFileById(fileId);
+    if (!file || file.status !== 'trash' || file.visibility !== 'public') return false;
+    this.invalidateServedPaths(file);
+    // Throws on a failed copy: the sweep counts it as failed and retries.
+    await this.relocateAllForVisibility(file);
+    return true;
   }
 
   /**

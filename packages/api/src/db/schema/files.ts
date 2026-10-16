@@ -66,11 +66,22 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { applications } from './applications';
 import { users } from './users';
 
-/** Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row. */
+/**
+ * Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row.
+ *
+ * Only `active` is ever served (ADR 0041 D5): `trash` and `deleted` are refused
+ * by every read path and leave the CDN (`assetService.isServableStatus`).
+ *
+ * STAGE 4 HOOK (ADR 0041 D10): `blocked` — a takedown — joins this set then,
+ * with its CHECK migration. Every serving gate already reads "anything but
+ * `active`", so it is refused from the moment it exists; what stage 4 decides
+ * is whether it holds a live claim on its hash (`FILE_LIVE_STATUSES`, whose
+ * partial-unique predicates are literal and need their own rebuild).
+ */
 export const FILE_STATUSES = ['active', 'trash', 'deleted'] as const;
 
 /**
@@ -195,6 +206,27 @@ export const files = pgTable(
     originalName: text(),
     /** Intrinsic media metadata (dimensions, duration, …) — genuinely shape-less. */
     metadata: jsonb().$type<Record<string, unknown>>(),
+    /**
+     * Since when NO `file_references` row names this file, or NULL while one
+     * does (ADR 0041 D5). Maintained in the transaction that changes the
+     * reference set (`fileRepository.ts`): set when the last reference goes
+     * and at insert (a new file is used by nothing yet), cleared by any new
+     * reference. Under a row lock on the file, so two concurrent removals of
+     * its last two references cannot both read the other's as still there.
+     *
+     * What it means depends on the owner. An ACCOUNT's file is only marked
+     * *not in use* for its person (never trashed or deleted for it); an
+     * APPLICATION's file is collected by `fileLifecycle.worker.ts` 24 hours
+     * after this instant. The worker re-checks the reference set itself, so a
+     * stale value can delay a collection but never cause a wrong one.
+     */
+    unreferencedSince: timestamptz(),
+    /**
+     * When the file entered `trash`, or NULL outside it. An application's file
+     * is purged 30 days after this (ADR 0041 D5); an account's trash never
+     * expires, and this is only shown.
+     */
+    trashedAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -231,6 +263,26 @@ export const files = pgTable(
     index('files_owner_application_id_created_at_idx')
       .on(t.ownerApplicationId, t.createdAt.desc(), t.id.desc())
       .where(sql`${t.ownerApplicationId} is not null`),
+    // The lifecycle sweep (`fileLifecycle.worker.ts`, ADR 0041 D5). Each is
+    // partial to exactly the rows one step reads, so the account-owned 99% of
+    // the table costs them nothing:
+    //  - an application's active file nobody uses, oldest first (→ trash);
+    //  - an application's trashed file, oldest first (→ purge after 30 days);
+    //  - an upload `POST /assets/init` created and `/complete` never finished
+    //    (no name, no metadata) — swept after 24 hours when it holds no object.
+    index('files_application_unreferenced_since_idx')
+      .on(t.unreferencedSince)
+      .where(
+        sql`${t.ownerApplicationId} is not null and ${t.status} = 'active' and ${t.unreferencedSince} is not null`,
+      ),
+    index('files_application_trashed_at_idx')
+      .on(t.trashedAt)
+      .where(sql`${t.ownerApplicationId} is not null and ${t.status} = 'trash'`),
+    index('files_pending_upload_created_at_idx')
+      .on(t.createdAt)
+      .where(
+        sql`${t.status} = 'active' and ${t.ownerUserId} is not null and ${t.originalName} is null and ${t.metadata} is null`,
+      ),
     // No single-column indexes: `sha256`, `owner_user_id`, `visibility` and
     // `purpose` are each covered by a compound that leads with them. `status`
     // and `mime` are not, and get none: no query filters on either alone (every

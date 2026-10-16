@@ -78,6 +78,7 @@ import { deviceSessionAccounts } from './deviceSessionAccounts';
 import { deviceSessions } from './deviceSessions';
 import { emailOutbox } from './emailOutbox';
 import { federationKeyPairs } from './federationKeyPairs';
+import { fileReferenceReconciliationItems } from './fileReferenceReconciliations';
 import { fileReferences } from './fileReferences';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
@@ -822,6 +823,21 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       'The MIME `Content-ID` header, which an HTML body references as `cid:`. ' +
       'Scoped to one message and id-shaped by name only.',
+  },
+  {
+    table: fileReferenceReconciliationItems,
+    column: fileReferenceReconciliationItems.fileId,
+    reason:
+      'A file id an application CLAIMS it uses (ADR 0041 D6). A file that does ' +
+      'not exist is an answer the commit reports (`refused`), so a page must ' +
+      'never fail on one stale id; the diff joins `files` itself.',
+  },
+  {
+    table: fileReferenceReconciliationItems,
+    column: fileReferenceReconciliationItems.entityId,
+    reason:
+      "The entity's id in the reconciling application's database, exactly as " +
+      '`file_references.entity_id`: never resolvable here.',
   },
   {
     table: fileReferences,

@@ -7,6 +7,14 @@ import { s3Service } from '../services/s3ServiceSingleton';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
 import { resolveOperatorId } from '../middleware/operator';
+import { requireStaff } from '../middleware/requireStaff';
+import {
+  abandonReconciliation,
+  beginReconciliation,
+  commitReconciliation,
+  putReconciliationItems,
+} from '../services/fileReferenceReconciliation.service';
+import { fileLifecycleMode, listFileLifecycleSweeps } from '../services/fileLifecycle.worker';
 import { mediaHeadersMiddleware } from '../middleware/mediaHeaders';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -33,6 +41,11 @@ import { validate } from '../middleware/validate';
 import {
   assetIdParams,
   listAssetsQuerySchema,
+  listLifecycleSweepsQuerySchema,
+  beginReconcileBodySchema,
+  commitReconcileBodySchema,
+  reconcilePageBodySchema,
+  reconcileSessionParams,
   assetUrlQuerySchema,
   updateVisibilitySchema,
   batchAccessSchema,
@@ -60,6 +73,7 @@ import {
   buildCdnUrl,
   stripPublicPrefix,
   isPublicKey,
+  isServableStatus,
   CDN_REDIRECT_CACHE_CONTROL,
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
@@ -133,6 +147,19 @@ function serializeVariant(variant: FileVariantRecord) {
     ...(variant.readyAt === null ? {} : { readyAt: variant.readyAt }),
     ...(variant.size === null ? {} : { size: variant.size }),
     ...(variant.metadata === null ? {} : { metadata: variant.metadata }),
+  };
+}
+
+/**
+ * Whether any application uses the file, and since when none has (ADR 0041
+ * D5). The owner's view: an account's file not in use is shown as such and
+ * never removed for them; `trashedAt` is when it entered trash.
+ */
+function serializeLifecycle(file: FileRecord) {
+  return {
+    inUse: file.links.length > 0,
+    unreferencedSince: file.links.length > 0 ? null : (file.unreferencedSince ?? null),
+    trashedAt: file.trashedAt ?? null,
   };
 }
 
@@ -237,8 +264,17 @@ const completeUploadSchema = z.object({
  *     description: >
  *       Paginated list of files owned by the authenticated user, including
  *       upload status, deduplication info (`sha256`), variants (thumbnails,
- *       resized renditions), and any entity links.
+ *       resized renditions), and any entity links. Each file says whether an
+ *       application uses it (`inUse`) and, when none does, since when
+ *       (`unreferencedSince`) — a file not in use is never removed for you
+ *       (ADR 0041 D5). `inUse=false` lists only those.
  *     parameters:
+ *       - name: inUse
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: ['true', 'false']
  *       - name: limit
  *         in: query
  *         required: false
@@ -285,8 +321,12 @@ router.get(
 
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
     const offset = Math.max(0, Number(req.query.offset) || 0);
+    const inUseQuery = singleQueryValue(req.query.inUse);
+    const inUse = inUseQuery === undefined ? undefined : inUseQuery === 'true';
 
-    const { files, total } = await assetService.listFilesByUser(user._id, limit, offset);
+    const { files, total } = await assetService.listFilesByUser(user._id, limit, offset, {
+      inUse,
+    });
 
     sendSuccess(res, {
       files: files.map((file) => ({
@@ -299,6 +339,7 @@ router.get(
         ownerUserId: file.ownerUserId,
         status: file.status,
         usageCount: file.links.length,
+        ...serializeLifecycle(file),
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
         links: file.links.map(serializeLink),
@@ -307,6 +348,41 @@ router.get(
       })),
       total,
       hasMore: offset + files.length < total,
+    });
+  }),
+);
+
+/**
+ * @route GET /api/assets/admin/lifecycle/sweeps
+ * @desc The file lifecycle sweep's newest runs (ADR 0041 D5): per step
+ *       (`purge`, `trash`, `staleUploads`, `unpublishTrashed`) how many files
+ *       were DUE at the run's instant and how many were acted on, with up to
+ *       100 named per step. In `report` mode nothing is acted on: this is what
+ *       an operator reviews before switching the sweep to `enforce`. `limit`
+ *       1–50, default 10.
+ * @access Oxy platform staff
+ */
+router.get(
+  '/admin/lifecycle/sweeps',
+  authMiddleware,
+  requireStaff,
+  validate({ query: listLifecycleSweepsQuerySchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const rawLimit = singleQueryValue(req.query.limit);
+    const limit = Math.min(Math.max(rawLimit ? Number.parseInt(rawLimit, 10) : 10, 1), 50);
+    const sweeps = await listFileLifecycleSweeps(limit);
+    sendSuccess(res, {
+      mode: fileLifecycleMode(),
+      sweeps: sweeps.map((sweep) => ({
+        id: sweep.id,
+        mode: sweep.mode,
+        status: sweep.status,
+        startedAt: sweep.startedAt,
+        finishedAt: sweep.finishedAt,
+        counts: sweep.counts,
+        samples: sweep.samples,
+        ...(sweep.error ? { error: sweep.error } : {}),
+      })),
     });
   }),
 );
@@ -1525,11 +1601,11 @@ router.delete(
     for (const item of references) {
       let removed = false;
       try {
-        ({ removed } = await assetService.unlinkFile(
-          item.fileId,
-          { applicationId: appId, entityType: item.entityType, entityId: item.entityId },
-          { trashWhenUnused: false },
-        ));
+        ({ removed } = await assetService.unlinkFile(item.fileId, {
+          applicationId: appId,
+          entityType: item.entityType,
+          entityId: item.entityId,
+        }));
       } catch (error) {
         if (!(error instanceof Error && error.message === 'File not found')) throw error;
       }
@@ -1543,6 +1619,122 @@ router.delete(
     });
 
     sendSuccess(res, { results });
+  }),
+);
+
+/**
+ * Its own limiter: an inventory of a large entity type is hundreds of pages,
+ * and must not starve the same application's per-write reference calls.
+ */
+const appReferenceReconcileLimiter = rateLimit({
+  prefix: 'rl:asset-app:reconcile:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many reconciliation requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:reconcile:${serviceApp.appId}`;
+    }
+    return `asset-app:reconcile:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * @route POST /api/assets/service/references/reconcile
+ * @desc Begin reconciling the calling application's references of ONE entity
+ *       type (ADR 0041 D6): `{ entityType }` → `{ sessionId, entityType,
+ *       expiresAt }`. Then send the full inventory with `PUT
+ *       …/reconcile/:sessionId` and apply it with `POST …/commit`. One session
+ *       per (application, entity type) at a time: 409
+ *       `RECONCILIATION_IN_PROGRESS` while another is open. A session expires
+ *       an hour after its last page.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.post(
+  '/service/references/reconcile',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ body: beginReconcileBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { entityType } = req.body as z.infer<typeof beginReconcileBodySchema>;
+    const session = await beginReconciliation(appId, entityType);
+    logger.info('Reference reconciliation begun', { appId, entityType, sessionId: session.id });
+    sendSuccess(res, {
+      sessionId: session.id,
+      entityType: session.entityType,
+      expiresAt: session.expiresAt,
+    });
+  }),
+);
+
+/**
+ * @route PUT /api/assets/service/references/reconcile/:sessionId
+ * @desc One page of the inventory: `{ items: [{ fileId, entityId }] }`, 1–1000
+ *       pairs. A pair sent twice counts once. Answers `{ accepted, total,
+ *       expiresAt }`; each page moves the deadline an hour ahead. 404 for no
+ *       such session of this application, 410 `RECONCILIATION_EXPIRED`, 409
+ *       `RECONCILIATION_NOT_OPEN` once committed, 413 past 500,000 pairs.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.put(
+  '/service/references/reconcile/:sessionId',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams, body: reconcilePageBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { items } = req.body as z.infer<typeof reconcilePageBodySchema>;
+    const result = await putReconciliationItems(appId, req.params.sessionId, items);
+    sendSuccess(res, { sessionId: req.params.sessionId, ...result });
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/references/reconcile/:sessionId/commit
+ * @desc Diff the inventory against this application's references of the
+ *       session's entity type and apply it: add each missing reference the
+ *       application may hold (the rules of `POST /assets/service/references`;
+ *       a file it may not reference, or none, is `refused`), remove each
+ *       reference created before the session began that the inventory does
+ *       not list — which never trashes or deletes a file — and count the rest
+ *       `unchanged`. `{ dryRun: true }` counts the same and changes nothing,
+ *       leaving the session open. Answers `{ sessionId, entityType, dryRun,
+ *       added, removed, unchanged, refused }`.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.post(
+  '/service/references/reconcile/:sessionId/commit',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams, body: commitReconcileBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { dryRun } = req.body as z.infer<typeof commitReconcileBodySchema>;
+    const result = await commitReconciliation(appId, req.params.sessionId, { dryRun });
+    sendSuccess(res, result);
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/references/reconcile/:sessionId
+ * @desc Release an open session without committing it, so the next `begin`
+ *       for its entity type need not wait for it to expire. 404 when this
+ *       application holds no such open session.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.delete(
+  '/service/references/reconcile/:sessionId',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    if (!(await abandonReconciliation(appId, req.params.sessionId))) {
+      throw new NotFoundError('Reconciliation session not found');
+    }
+    sendSuccess(res, { sessionId: req.params.sessionId, status: 'abandoned' });
   }),
 );
 
@@ -2036,7 +2228,8 @@ router.post(
 
     const data = await Promise.all(
       files
-        .filter((file) => file.status !== 'deleted' && isOwnerReferencedToApp(file, appId))
+        // Only an `active` file is ever served (ADR 0041 D5): trash is not.
+        .filter((file) => isServableStatus(file) && isOwnerReferencedToApp(file, appId))
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
@@ -2315,7 +2508,9 @@ router.post(
  * @route DELETE /api/assets/:id/links
  * @desc Remove one application's use of a file. The file's OWNER may remove
  *       any reference to it; anybody else only a reference they created
- *       themselves (404 otherwise), and that never trashes the owner's file.
+ *       themselves (404 otherwise). Removing a reference never trashes or
+ *       deletes the file — not even the owner's last one (ADR 0041 D5): the
+ *       file stays `active` and is reported `inUse: false`.
  *       An application removes the references it holds with its own token
  *       (`DELETE /assets/service/references`) — how GoWay must withdraw a
  *       contributor's photo from a place (ADR 0041 D12).
@@ -2360,7 +2555,7 @@ router.delete(
         entityType: validatedData.entityType,
         entityId: validatedData.entityId,
       },
-      isOwner ? {} : { createdByUserIds: creators, trashWhenUnused: false },
+      isOwner ? {} : { createdByUserIds: creators },
     );
     if (!isOwner && !removed) {
       throw new NotFoundError('Reference not found');
@@ -2483,6 +2678,8 @@ router.get(
         status: file.status,
         visibility: file.visibility,
         usageCount: file.links.length,
+        // The owner's record of whether the file is in use; not anybody else's.
+        ...(isOwner ? serializeLifecycle(file) : {}),
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
         links: visibleLinks.map(serializeLink),
@@ -2560,7 +2757,8 @@ router.get(
     const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // A file in trash (or deleted) is never served, so it has no URL (ADR 0041 D5).
+    if (!file || !isServableStatus(file)) {
       throw new NotFoundError('File not found');
     }
 
@@ -2704,7 +2902,11 @@ router.get(
     const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
 
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // Only an `active` file is served — never one in trash or deleted, by
+    // origin OR by the CDN redirect below (ADR 0041 D5, OxyHQ/oxy#1284: the
+    // fast path used to redirect a trashed public file to the CDN). It answers
+    // exactly like a missing one.
+    if (!file || !isServableStatus(file)) {
       if (fallback === 'placeholderVisible' || fallback === 'icon') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
@@ -2920,9 +3122,9 @@ router.get(
     const { id: fileId } = req.params;
     const { variant, expiresIn } = req.query;
 
-    // Get file and check permissions
+    // Get file and check permissions. Never a file in trash or deleted (D5).
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    if (!file || !isServableStatus(file)) {
       throw new NotFoundError('File not found');
     }
 
@@ -3181,7 +3383,8 @@ router.post(
     await Promise.all(
       requests.map(async ({ fileId, variant }) => {
         const file = filesById.get(fileId);
-        if (!file) {
+        // A file in trash or deleted is never served (ADR 0041 D5).
+        if (!file || !isServableStatus(file)) {
           results[fileId] = { allowed: false, error: 'File not found' };
           return;
         }

@@ -26,7 +26,7 @@
  */
 
 import { getEnvVar } from './env';
-import type { FileVisibility } from '../db/schema/files';
+import type { FILE_STATUSES, FileVisibility } from '../db/schema/files';
 import { trimLeadingSlashes, trimTrailingSlashes } from '../utils/slashes';
 
 /**
@@ -133,6 +133,33 @@ export function applyPublicPrefix(storageKey: string): string {
  */
 export function stripPublicPrefix(storageKey: string): string {
   return isPublicKey(storageKey) ? storageKey.slice(PUBLIC_KEY_PREFIX.length) : storageKey;
+}
+
+/**
+ * Whether a file may be served AT ALL — its bytes streamed, a URL minted, the
+ * CDN redirected to (ADR 0041 D5). Only `active`: `trash` and `deleted` never
+ * are, and neither is any status added later (stage 4's `blocked`), because
+ * this names the one that is rather than the ones that are not.
+ */
+export function isServableStatus(file: { status: (typeof FILE_STATUSES)[number] }): boolean {
+  return file.status === 'active';
+}
+
+/**
+ * Whether a file is SERVED publicly: `public`, AND `active` (ADR 0041 D5).
+ *
+ * The key spelling follows THIS, not visibility alone. A public file that
+ * leaves `active` (trash; stage 4's `blocked`) keeps its visibility — restoring
+ * it must publish it again — but its objects leave the CDN-reachable `public/`
+ * prefix, because the CDN's origin is the bucket and consults no database: an
+ * object left under `public/` is served whatever the row says, invalidation
+ * or not. Restoring it to `active` moves them back.
+ */
+export function isServedPublicly(file: {
+  visibility: FileVisibility;
+  status: (typeof FILE_STATUSES)[number];
+}): boolean {
+  return file.visibility === 'public' && isServableStatus(file);
 }
 
 /**

@@ -146,16 +146,23 @@ export interface StorageSpellingsInUse {
  * For an object target `X`:
  *  - `X` is in use when a live row's original or rendition IS `X`;
  *  - `public/X` is in use when a live row's original or rendition is
- *    `public/X`, or when a live PUBLIC row keeps it at the bare `X` — a legacy
- *    public object whose CDN copy is the backfilled `public/X`
- *    (`assetService.getPublicCdnUrl`).
+ *    `public/X`, or when a SERVED public row (public AND `active`) keeps it at
+ *    the bare `X` — a legacy public object whose CDN copy is the backfilled
+ *    `public/X` (`assetService.getPublicCdnUrl`).
  *
  * For a variant directory `D` (`variants/<y>/<m>/<pp>/<sha>/`, which also holds
  * the HLS segments no `file_variants` row names) the answer is by visibility,
  * because renditions may be mid-generation with no row yet: `public/D` while a
- * live PUBLIC row has this content (renditions are written under the spelling
- * of the row's visibility), `D` while a live non-public row has it — and either
- * spelling while a live row's recorded rendition sits under it.
+ * SERVED public row has this content (renditions are written under the
+ * spelling of the row's visibility), `D` while a live row that is not served
+ * publicly has it — and either spelling while a live row's recorded rendition
+ * sits under it.
+ *
+ * "Served", not merely public (ADR 0041 D5): a public row in `trash` has moved
+ * its own objects to the bare spelling (`isServedPublicly`), and must not keep
+ * a CDN copy alive on the strength of a visibility it is no longer served
+ * with. A trashed row still holding a literal `public/` key keeps it — the row
+ * names that object, and restoring it must find it.
  */
 export async function storageSpellingsInUse(
   row: Pick<StorageObjectDeletionRow, 'kind' | 'target' | 'sha256'>,
@@ -163,7 +170,7 @@ export async function storageSpellingsInUse(
 ): Promise<StorageSpellingsInUse> {
   const live = and(eq(files.sha256, row.sha256), inArray(files.status, LIVE_STATUSES));
   const publicTarget = applyPublicPrefix(row.target);
-  const isPublicRow = eq(files.visibility, 'public');
+  const isPublicRow = and(eq(files.visibility, 'public'), eq(files.status, 'active'));
 
   const exists = async (where: ReturnType<typeof and>, viaVariants: boolean): Promise<boolean> => {
     const query = viaVariants
@@ -181,8 +188,10 @@ export async function storageSpellingsInUse(
     const under = (prefix: string) => sql`starts_with(${fileVariants.key}, ${prefix})`;
     return {
       base:
-        (await exists(and(live, sql`${files.visibility} <> 'public'`), false)) ||
-        (await exists(and(live, under(row.target)), true)),
+        (await exists(
+          and(live, sql`not (${files.visibility} = 'public' and ${files.status} = 'active')`),
+          false,
+        )) || (await exists(and(live, under(row.target)), true)),
       public:
         (await exists(and(live, isPublicRow), false)) ||
         (await exists(and(live, under(publicTarget)), true)),

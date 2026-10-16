@@ -37,12 +37,17 @@ import { withStorageQuota } from './storageQuota.service';
  * `file_references.id`.
  */
 
-import { and, asc, eq, gt, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { fileReferences, files, fileVariants, messageAttachments, messages } from '../db/schema';
 import type { FileRecord } from '../types/file.types';
 import { withContentHashLock } from './contentHashLock';
-import { findFileById, findLiveFileBySha256ForOwner, insertFile } from './fileRepository';
+import {
+  findFileById,
+  findLiveFileBySha256ForOwner,
+  insertFile,
+  refreshUnreferencedSinceAfterMove,
+} from './fileRepository';
 
 export type FileOwnerSplitMode = 'report' | 'create-rows' | 'repoint-links';
 
@@ -189,6 +194,14 @@ export async function ensureOwnerRowFor(
 async function repointLinks(linkIds: readonly string[], targetFileId: string): Promise<number> {
   return getDb().transaction(async (tx) => {
     let moved = 0;
+    // Lock both ends' file rows FIRST, in the order every reference write takes
+    // them (file, then reference), so this never deadlocks against one.
+    const sources = await tx
+      .select({ fileId: fileReferences.fileId })
+      .from(fileReferences)
+      .where(inArray(fileReferences.id, [...linkIds]));
+    const touched = new Set<string>([targetFileId, ...sources.map((row) => row.fileId)]);
+    await refreshUnreferencedSinceAfterMove(tx, [...touched]);
     for (const linkId of linkIds) {
       const [link] = await tx
         .select()
@@ -196,6 +209,7 @@ async function repointLinks(linkIds: readonly string[], targetFileId: string): P
         .where(eq(fileReferences.id, linkId))
         .for('update');
       if (!link) continue;
+      touched.add(link.fileId);
       const [clash] = await tx
         .select({ id: fileReferences.id })
         .from(fileReferences)
@@ -217,6 +231,9 @@ async function repointLinks(linkIds: readonly string[], targetFileId: string): P
       }
       moved += 1;
     }
+    // Both ends' usage changed: the source may now be unused, the target is
+    // used (ADR 0041 D5).
+    await refreshUnreferencedSinceAfterMove(tx, [...touched]);
     return moved;
   });
 }

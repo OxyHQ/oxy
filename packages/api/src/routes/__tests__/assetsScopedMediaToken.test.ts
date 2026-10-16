@@ -191,6 +191,7 @@ async function postJson(server: http.Server, path: string, payload: unknown): Pr
 const PRIVATE_FILE = {
   id: PRIVATE_FILE_ID,
   visibility: 'private' as const,
+  status: 'active' as const,
   storageKey: 'content/2026/06/aa/secret.png',
   variants: [],
 };
@@ -253,6 +254,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
     mockGetFile.mockResolvedValue({
       id: PUBLIC_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
     });
@@ -281,6 +283,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
     mockGetFile.mockResolvedValue({
       id: PUBLIC_FILE_ID,
       visibility: 'public',
+      status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
     });
@@ -380,6 +383,7 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
   const PUBLIC_FILE = {
     id: PUBLIC_FILE_ID,
     visibility: 'public' as const,
+    status: 'active' as const,
     storageKey: 'public/content/2026/06/aa/pub.png',
     mime: 'image/png',
     variants: [],

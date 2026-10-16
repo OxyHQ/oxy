@@ -9,6 +9,13 @@ export const assetIdParams = z.object({
 export const listAssetsQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional(),
   offset: z.string().regex(/^\d+$/).optional(),
+  /** `false`: only files no application uses — *not in use* (ADR 0041 D5). */
+  inUse: z.enum(['true', 'false']).optional(),
+});
+
+// GET /assets/admin/lifecycle/sweeps
+export const listLifecycleSweepsQuerySchema = z.object({
+  limit: z.string().regex(/^\d+$/).optional(),
 });
 
 // GET /assets/:id/url
@@ -246,3 +253,38 @@ export const serviceReferencesBodySchema = z
       ),
   })
   .strict();
+
+/** Pairs per `PUT /assets/service/references/reconcile/:sessionId` page (ADR 0041 D6). */
+export const MAX_RECONCILE_PAGE_ITEMS = 1000;
+
+// POST /assets/service/references/reconcile — begin an inventory of one entity type.
+export const beginReconcileBodySchema = z
+  .object({ entityType: z.string().trim().min(1).max(128) })
+  .strict();
+
+// PUT /assets/service/references/reconcile/:sessionId — one page of the inventory.
+export const reconcilePageBodySchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            fileId: z.string().trim().min(1).max(64),
+            entityId: z.string().trim().min(1).max(256),
+          })
+          .strict(),
+      )
+      .min(1, 'items must not be empty')
+      .max(
+        MAX_RECONCILE_PAGE_ITEMS,
+        `Cannot send more than ${MAX_RECONCILE_PAGE_ITEMS} items in one page`,
+      ),
+  })
+  .strict();
+
+// POST /assets/service/references/reconcile/:sessionId/commit
+export const commitReconcileBodySchema = z.object({ dryRun: z.boolean().optional() }).strict();
+
+export const reconcileSessionParams = z.object({
+  sessionId: z.string().trim().min(1).max(64),
+});
