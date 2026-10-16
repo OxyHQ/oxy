@@ -33,6 +33,7 @@ the five distinct meanings of "sign out":
 | The IdP's own shape | [README.md](./README.md) | shipped |
 | The native cross-app device credential | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot | built, not verified on a device |
 | The account switcher on the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
+| Application roles: app-declared permissions, granted in Oxy, read by the app's backend | [application-roles.md](./application-roles.md) | built, not deployed |
 
 ## Why it is shaped this way
 

@@ -62,6 +62,7 @@ and in any third-party verifier — using the exact same `@oxy.so/core` code.
 | [auth/README.md](auth/README.md) | Auth & session entry point: device-first model, sign-in surfaces, the IdP's role |
 | [auth/device-session.md](auth/device-session.md) | DeviceSession API (`/session/device/*`), `session_state` socket sync, multi-account switching, `SessionClient` |
 | [auth/integration-guide.md](auth/integration-guide.md) | "Sign in with Oxy" for third-party apps: Console registration, OAuth 2.0 + PKCE (SPA / server / native), `OxySignInButton`, consent, grant revocation |
+| [auth/application-roles.md](auth/application-roles.md) | Application roles: an app declares its own permissions (`payments.operate`), its owners grant them to people, its backend gates on them with `requireAppPermission` — no operator allow-lists in app environments |
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
 | [identity/instance-fetch.md](identity/instance-fetch.md) | Oxy's instance actor signs one ActivityPub GET for a first-party service (`federation:instance-fetch`), so Oxy Move can read authorized-fetch servers without a key |
 | [identity/organization-directory.md](identity/organization-directory.md) | Canonical organization identity, neutral entries, reviewed claims and service ingestion |
