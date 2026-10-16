@@ -12,7 +12,8 @@
  *   ones — read from these rows, so every task agrees without a clock of its own.
  * - **Report.** `counts` says, per step, how many files are DUE and how many
  *   were acted on; `samples` names up to a hundred of each with their owner and
- *   dates. In `report` mode nothing is acted on: the rows are what an operator
+ *   dates. The `deletedApplications` step counts and names APPLICATIONS (with
+ *   how many files and references each still has) instead. In `report` mode nothing is acted on: the rows are what an operator
  *   reviews before switching the sweep to `enforce`
  *   (`GET /assets/admin/lifecycle/sweeps`, staff only).
  *
@@ -61,6 +62,18 @@ export interface FileLifecycleSample {
   since: string | null;
 }
 
+/** One deleted application named in a report (the `deletedApplications` step). */
+export interface DeletedApplicationSample {
+  applicationId: string;
+  /** Live files it still owns, and their original bytes. */
+  files: number;
+  bytes: number;
+  /** References it still holds. */
+  references: number;
+  /** When the application row last changed — normally its deletion. */
+  since: string | null;
+}
+
 export const fileLifecycleSweeps = pgTable(
   'file_lifecycle_sweeps',
   {
@@ -74,7 +87,10 @@ export const fileLifecycleSweeps = pgTable(
     startedAt: timestamptz().notNull(),
     finishedAt: timestamptz(),
     counts: jsonb().$type<Record<string, FileLifecycleStepCounts>>().notNull().default({}),
-    samples: jsonb().$type<Record<string, FileLifecycleSample[]>>().notNull().default({}),
+    samples: jsonb()
+      .$type<Record<string, Array<FileLifecycleSample | DeletedApplicationSample>>>()
+      .notNull()
+      .default({}),
     /** The error a `failed` run stopped on, truncated. Never a file's name or content. */
     error: text(),
     createdAt: createdAt(),

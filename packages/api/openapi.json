@@ -5674,7 +5674,7 @@
           "Files"
         ],
         "summary": "The file lifecycle sweep's newest runs (ADR 0041 D5): per step",
-        "description": "(`purge`, `trash`, `staleUploads`, `unpublishTrashed`) how many files\n      were DUE at the run's instant and how many were acted on, with up to\n      100 named per step. In `report` mode nothing is acted on: this is what\n      an operator reviews before switching the sweep to `enforce`. `limit`\n      1–50, default 10.",
+        "description": "(`purge`, `purgeBlocked`, `trash`, `staleUploads`,\n      `unpublishTrashed`) how many files were DUE at the run's instant and\n      how many were acted on, with up to 100 named per step; the\n      `deletedApplications` step (D8 for an application deleted before D8\n      shipped) counts and names applications, with the files and\n      references each still has. In `report` mode nothing is acted on: this is what\n      an operator reviews before switching the sweep to `enforce`. `limit`\n      1–50, default 10.",
         "parameters": [
           {
             "name": "limit",

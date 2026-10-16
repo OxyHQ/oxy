@@ -374,9 +374,12 @@ router.get(
 /**
  * @route GET /api/assets/admin/lifecycle/sweeps
  * @desc The file lifecycle sweep's newest runs (ADR 0041 D5): per step
- *       (`purge`, `trash`, `staleUploads`, `unpublishTrashed`) how many files
- *       were DUE at the run's instant and how many were acted on, with up to
- *       100 named per step. In `report` mode nothing is acted on: this is what
+ *       (`purge`, `purgeBlocked`, `trash`, `staleUploads`,
+ *       `unpublishTrashed`) how many files were DUE at the run's instant and
+ *       how many were acted on, with up to 100 named per step; the
+ *       `deletedApplications` step (D8 for an application deleted before D8
+ *       shipped) counts and names applications, with the files and
+ *       references each still has. In `report` mode nothing is acted on: this is what
  *       an operator reviews before switching the sweep to `enforce`. `limit`
  *       1–50, default 10.
  * @access Oxy platform staff

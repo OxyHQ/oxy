@@ -64,6 +64,7 @@ import {
   storageObjectDeletions,
   users,
 } from '../../db/schema';
+import { purgeDeletedApplicationContent } from '../applicationDeletion.service';
 import { AssetService } from '../assetService';
 import {
   addFileReferences,
@@ -143,6 +144,12 @@ function harness() {
     sweepStaleUpload: (id, now) => service.sweepStaleUpload(id, now),
     storedObjectExists: (id) => service.storedObjectExists(id),
     unpublishTrashedFile: (id) => service.unpublishTrashedFile(id),
+    purgeBlockedApplicationFile: (id, now) => service.purgeBlockedApplicationFile(id, now),
+    purgeDeletedApplication: async (id) => {
+      const content = await purgeDeletedApplicationContent(id);
+      if (content) service.finishApplicationDeletion(content);
+      return content;
+    },
   };
   return { bucket, service, actions };
 }

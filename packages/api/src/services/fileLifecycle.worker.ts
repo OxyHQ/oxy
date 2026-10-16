@@ -4,6 +4,7 @@
  *
  * | Step | Condition | Action (`enforce`) |
  * |---|---|---|
+ * | `deletedApplications` | a `deleted` APPLICATION that still owns live files or holds references (deleted before D8 shipped) | ADR 0041 D8, as the console's delete runs it |
  * | `purge` | an APPLICATION's file in trash for 30 days | tombstone + purge through `storage_object_deletions` |
  * | `purgeBlocked` | an APPLICATION's blocked file (D10) unused for 30 days, no open claim holding it | tombstone + purge |
  * | `trash` | an APPLICATION's active file unreferenced for 24 hours | trash, off the CDN |
@@ -64,6 +65,7 @@ import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { getEnvNumber, getEnvVar } from '../config/env';
 import { getDb } from '../config/postgres';
 import {
+  type DeletedApplicationSample,
   type FileLifecycleSample,
   type FileLifecycleStepCounts,
   type FileLifecycleSweepMode,
@@ -74,6 +76,13 @@ import {
   type ApplicationStorageSummary,
   observeAndPublishApplicationStorage,
 } from './applicationStorageObservation';
+import {
+  countDeletedApplicationsWithContent,
+  type DeletedApplicationContent,
+  type DeletedApplicationResidue,
+  listDeletedApplicationsWithContent,
+  purgeDeletedApplicationContent,
+} from './applicationDeletion.service';
 import { assetService } from './assetServiceSingleton';
 import {
   countFileLifecycleCandidates,
@@ -88,6 +97,11 @@ export const FILE_LIFECYCLE_MODES: readonly FileLifecycleMode[] = ['off', 'repor
 
 /** Files acted on per step per run in `enforce`. */
 export const DEFAULT_BATCH_SIZE = 200;
+/**
+ * Deleted applications cleaned per run in `enforce`: each is ONE transaction
+ * over everything it left (as the console's delete is), so they are few.
+ */
+export const DELETED_APPLICATIONS_PER_RUN = 10;
 /** Files named per step in a report. */
 export const SAMPLE_SIZE = 100;
 /** A run is due this long after the last completed one. */
@@ -101,8 +115,16 @@ const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_RECORDED_ERROR_LENGTH = 500;
 const METRIC_NAMESPACE = 'Oxy/FileLifecycle';
 
-/** Enforce order: what has waited 30 days goes before what has waited 24 hours. */
-export const FILE_LIFECYCLE_STEPS: readonly FileLifecycleStep[] = [
+/** A step of a run: the per-file steps, and the per-application clean-up. */
+export type FileLifecycleSweepStep = 'deletedApplications' | FileLifecycleStep;
+
+/**
+ * Enforce order: a deleted application's content first (its developer asked
+ * for that long ago; it also leaves the per-file steps nothing of it to
+ * trash), then what has waited 30 days before what has waited 24 hours.
+ */
+export const FILE_LIFECYCLE_STEPS: readonly FileLifecycleSweepStep[] = [
+  'deletedApplications',
   'purge',
   'purgeBlocked',
   'trash',
@@ -138,6 +160,11 @@ export interface FileLifecycleActions {
   sweepStaleUpload(fileId: string, now: Date): Promise<'tombstoned' | 'has_object' | 'not_due'>;
   storedObjectExists(fileId: string): Promise<boolean>;
   unpublishTrashedFile(fileId: string): Promise<boolean>;
+  /**
+   * ADR 0041 D8 on an application already `deleted`, committed and then
+   * finished (CDN, cache, the purge started); `null` when it is not deleted.
+   */
+  purgeDeletedApplication(applicationId: string): Promise<DeletedApplicationContent | null>;
 }
 
 export interface FileLifecycleSweepOptions {
@@ -154,12 +181,17 @@ export interface FileLifecycleSweepOptions {
   observeStorage?: (now: Date) => Promise<ApplicationStorageSummary>;
 }
 
+/** Per step, what a report names: files, or (for `deletedApplications`) applications. */
+export type FileLifecycleSamples = Record<FileLifecycleStep, FileLifecycleSample[]> & {
+  deletedApplications: DeletedApplicationSample[];
+};
+
 export interface FileLifecycleSweepReport {
   id: string;
   mode: FileLifecycleSweepMode;
   startedAt: Date;
-  counts: Record<FileLifecycleStep, FileLifecycleStepCounts>;
-  samples: Record<FileLifecycleStep, FileLifecycleSample[]>;
+  counts: Record<FileLifecycleSweepStep, FileLifecycleStepCounts>;
+  samples: FileLifecycleSamples;
   /** What the storage observation published, or `null` when it failed (logged). */
   storage: ApplicationStorageSummary | null;
 }
@@ -254,6 +286,72 @@ function describeError(error: unknown): string {
     : message;
 }
 
+function applicationSample(residue: DeletedApplicationResidue): DeletedApplicationSample {
+  return {
+    applicationId: residue.applicationId,
+    files: residue.files,
+    bytes: residue.bytes,
+    references: residue.references,
+    since: residue.since ? residue.since.toISOString() : null,
+  };
+}
+
+/**
+ * The `deletedApplications` step: count the deleted applications that still
+ * have content (and how many files and references in all), name them, and —
+ * in `enforce` — run D8 on up to {@link DELETED_APPLICATIONS_PER_RUN}.
+ */
+async function runDeletedApplicationsStep(
+  mode: FileLifecycleSweepMode,
+  batchSize: number,
+  actions: FileLifecycleActions,
+): Promise<{ counts: FileLifecycleStepCounts; samples: DeletedApplicationSample[] }> {
+  const due = await countDeletedApplicationsWithContent();
+  const residues =
+    due.applications === 0
+      ? []
+      : await listDeletedApplicationsWithContent(
+          mode === 'enforce' ? Math.min(batchSize, DELETED_APPLICATIONS_PER_RUN) : SAMPLE_SIZE,
+        );
+  const counts: FileLifecycleStepCounts = {
+    due: due.applications,
+    acted: 0,
+    skipped: 0,
+    failed: 0,
+    files: due.files,
+    references: due.references,
+    filesDeleted: 0,
+    referencesRemoved: 0,
+  };
+  const samples = residues.slice(0, SAMPLE_SIZE).map(applicationSample);
+  if (mode === 'report') return { counts, samples };
+
+  for (const residue of residues) {
+    try {
+      const content = await actions.purgeDeletedApplication(residue.applicationId);
+      if (content && (content.files.length > 0 || content.referencesRemoved > 0)) {
+        counts.acted += 1;
+        counts.filesDeleted += content.files.length;
+        counts.referencesRemoved += content.referencesRemoved;
+        logger.info('[FileLifecycle] Deleted application content removed (ADR 0041 D8)', {
+          applicationId: residue.applicationId,
+          filesDeleted: content.files.length,
+          referencesRemoved: content.referencesRemoved,
+        });
+      } else {
+        counts.skipped += 1;
+      }
+    } catch (error) {
+      counts.failed += 1;
+      logger.warn('[FileLifecycle] Deleted application clean-up failed; the next run retries it', {
+        applicationId: residue.applicationId,
+        error: describeError(error),
+      });
+    }
+  }
+  return { counts, samples };
+}
+
 /** Run one step at `now`: count, sample, and — in `enforce` — act on one batch. */
 async function runStep(
   step: FileLifecycleStep,
@@ -328,6 +426,11 @@ const defaultActions: FileLifecycleActions = {
   sweepStaleUpload: (fileId, now) => assetService.sweepStaleUpload(fileId, now),
   storedObjectExists: (fileId) => assetService.storedObjectExists(fileId),
   unpublishTrashedFile: (fileId) => assetService.unpublishTrashedFile(fileId),
+  purgeDeletedApplication: async (applicationId) => {
+    const content = await purgeDeletedApplicationContent(applicationId);
+    if (content) assetService.finishApplicationDeletion(content);
+    return content;
+  },
 };
 
 /** The run as CloudWatch metrics (embedded metric format), one line. */
@@ -372,8 +475,8 @@ export async function runFileLifecycleSweep(
   );
   const leaseMs = options.leaseMs ?? SWEEP_LEASE_MS;
   const actions = options.actions ?? defaultActions;
-  const counts = {} as Record<FileLifecycleStep, FileLifecycleStepCounts>;
-  const samples = {} as Record<FileLifecycleStep, FileLifecycleSample[]>;
+  const counts = {} as Record<FileLifecycleSweepStep, FileLifecycleStepCounts>;
+  const samples = {} as FileLifecycleSamples;
   const ownRow = and(
     eq(fileLifecycleSweeps.id, claimed.id),
     eq(fileLifecycleSweeps.status, 'running'),
@@ -381,9 +484,15 @@ export async function runFileLifecycleSweep(
 
   try {
     for (const step of FILE_LIFECYCLE_STEPS) {
-      const result = await runStep(step, options.mode, now, batchSize, actions);
-      counts[step] = result.counts;
-      samples[step] = result.samples;
+      if (step === 'deletedApplications') {
+        const result = await runDeletedApplicationsStep(options.mode, batchSize, actions);
+        counts[step] = result.counts;
+        samples[step] = result.samples;
+      } else {
+        const result = await runStep(step, options.mode, now, batchSize, actions);
+        counts[step] = result.counts;
+        samples[step] = result.samples;
+      }
       // Renew the lease and save progress: a long step must not read as dead.
       await getDb()
         .update(fileLifecycleSweeps)
