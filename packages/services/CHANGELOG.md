@@ -2,7 +2,7 @@
 
 ## [11.8.0] - 2026-10-16
 
-Needs `@oxy.so/core` 4.16.0 (exact peer) and `@oxy.so/contracts` 4.20.0.
+Needs `@oxy.so/core` 4.17.0 (exact peer) and `@oxy.so/contracts` 4.21.0.
 
 ### Added
 
