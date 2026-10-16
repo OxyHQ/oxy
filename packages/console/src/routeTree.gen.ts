@@ -23,6 +23,8 @@ import { Route as LayoutBillingBudgetsRouteImport } from './routes/_layout/billi
 import { Route as LayoutBillingChargesRouteImport } from './routes/_layout/billing/charges'
 import { Route as LayoutBillingPlansRouteImport } from './routes/_layout/billing/plans'
 import { Route as LayoutBillingSpendRouteImport } from './routes/_layout/billing/spend'
+import { Route as LayoutClaimsIndexRouteImport } from './routes/_layout/claims/index'
+import { Route as LayoutClaimsClaimIdRouteImport } from './routes/_layout/claims/$claimId'
 import { Route as LayoutClarityIndexRouteImport } from './routes/_layout/clarity/index'
 import { Route as LayoutClaritySectionRouteImport } from './routes/_layout/clarity/$section'
 import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
@@ -106,6 +108,16 @@ const LayoutBillingPlansRoute = LayoutBillingPlansRouteImport.update({
 const LayoutBillingSpendRoute = LayoutBillingSpendRouteImport.update({
   id: '/billing/spend',
   path: '/billing/spend',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutClaimsIndexRoute = LayoutClaimsIndexRouteImport.update({
+  id: '/claims/',
+  path: '/claims/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutClaimsClaimIdRoute = LayoutClaimsClaimIdRouteImport.update({
+  id: '/claims/$claimId',
+  path: '/claims/$claimId',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutClarityIndexRoute = LayoutClarityIndexRouteImport.update({
@@ -202,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
   '/billing/spend': typeof LayoutBillingSpendRoute
+  '/claims/$claimId': typeof LayoutClaimsClaimIdRoute
   '/clarity/$section': typeof LayoutClaritySectionRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -212,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/billing/': typeof LayoutBillingIndexRoute
+  '/claims/': typeof LayoutClaimsIndexRoute
   '/clarity/': typeof LayoutClarityIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
@@ -232,6 +246,7 @@ export interface FileRoutesByTo {
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
   '/billing/spend': typeof LayoutBillingSpendRoute
+  '/claims/$claimId': typeof LayoutClaimsClaimIdRoute
   '/clarity/$section': typeof LayoutClaritySectionRoute
   '/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -242,6 +257,7 @@ export interface FileRoutesByTo {
   '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/billing': typeof LayoutBillingIndexRoute
+  '/claims': typeof LayoutClaimsIndexRoute
   '/clarity': typeof LayoutClarityIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
   '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
@@ -264,6 +280,7 @@ export interface FileRoutesById {
   '/_layout/billing/charges': typeof LayoutBillingChargesRoute
   '/_layout/billing/plans': typeof LayoutBillingPlansRoute
   '/_layout/billing/spend': typeof LayoutBillingSpendRoute
+  '/_layout/claims/$claimId': typeof LayoutClaimsClaimIdRoute
   '/_layout/clarity/$section': typeof LayoutClaritySectionRoute
   '/_layout/documentation/authentication': typeof LayoutDocumentationAuthenticationRoute
   '/_layout/documentation/chat-completions': typeof LayoutDocumentationChatCompletionsRoute
@@ -274,6 +291,7 @@ export interface FileRoutesById {
   '/_layout/settings/audit': typeof LayoutSettingsAuditRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/billing/': typeof LayoutBillingIndexRoute
+  '/_layout/claims/': typeof LayoutClaimsIndexRoute
   '/_layout/clarity/': typeof LayoutClarityIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
   '/_layout/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
@@ -296,6 +314,7 @@ export interface FileRouteTypes {
     | '/billing/charges'
     | '/billing/plans'
     | '/billing/spend'
+    | '/claims/$claimId'
     | '/clarity/$section'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
@@ -306,6 +325,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/apps/'
     | '/billing/'
+    | '/claims/'
     | '/clarity/'
     | '/documentation/'
     | '/apps/$appId/inference'
@@ -326,6 +346,7 @@ export interface FileRouteTypes {
     | '/billing/charges'
     | '/billing/plans'
     | '/billing/spend'
+    | '/claims/$claimId'
     | '/clarity/$section'
     | '/documentation/authentication'
     | '/documentation/chat-completions'
@@ -336,6 +357,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/apps'
     | '/billing'
+    | '/claims'
     | '/clarity'
     | '/documentation'
     | '/apps/$appId/inference'
@@ -357,6 +379,7 @@ export interface FileRouteTypes {
     | '/_layout/billing/charges'
     | '/_layout/billing/plans'
     | '/_layout/billing/spend'
+    | '/_layout/claims/$claimId'
     | '/_layout/clarity/$section'
     | '/_layout/documentation/authentication'
     | '/_layout/documentation/chat-completions'
@@ -367,6 +390,7 @@ export interface FileRouteTypes {
     | '/_layout/settings/audit'
     | '/_layout/apps/'
     | '/_layout/billing/'
+    | '/_layout/claims/'
     | '/_layout/clarity/'
     | '/_layout/documentation/'
     | '/_layout/apps/$appId/inference'
@@ -479,6 +503,20 @@ declare module '@tanstack/react-router' {
       path: '/billing/spend'
       fullPath: '/billing/spend'
       preLoaderRoute: typeof LayoutBillingSpendRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/claims/': {
+      id: '/_layout/claims/'
+      path: '/claims'
+      fullPath: '/claims/'
+      preLoaderRoute: typeof LayoutClaimsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/claims/$claimId': {
+      id: '/_layout/claims/$claimId'
+      path: '/claims/$claimId'
+      fullPath: '/claims/$claimId'
+      preLoaderRoute: typeof LayoutClaimsClaimIdRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/clarity/': {
@@ -600,6 +638,7 @@ interface LayoutRouteChildren {
   LayoutBillingChargesRoute: typeof LayoutBillingChargesRoute
   LayoutBillingPlansRoute: typeof LayoutBillingPlansRoute
   LayoutBillingSpendRoute: typeof LayoutBillingSpendRoute
+  LayoutClaimsClaimIdRoute: typeof LayoutClaimsClaimIdRoute
   LayoutClaritySectionRoute: typeof LayoutClaritySectionRoute
   LayoutDocumentationAuthenticationRoute: typeof LayoutDocumentationAuthenticationRoute
   LayoutDocumentationChatCompletionsRoute: typeof LayoutDocumentationChatCompletionsRoute
@@ -610,6 +649,7 @@ interface LayoutRouteChildren {
   LayoutSettingsAuditRoute: typeof LayoutSettingsAuditRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutBillingIndexRoute: typeof LayoutBillingIndexRoute
+  LayoutClaimsIndexRoute: typeof LayoutClaimsIndexRoute
   LayoutClarityIndexRoute: typeof LayoutClarityIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
   LayoutAppsAppIdInferenceRoute: typeof LayoutAppsAppIdInferenceRoute
@@ -630,6 +670,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutBillingChargesRoute: LayoutBillingChargesRoute,
   LayoutBillingPlansRoute: LayoutBillingPlansRoute,
   LayoutBillingSpendRoute: LayoutBillingSpendRoute,
+  LayoutClaimsClaimIdRoute: LayoutClaimsClaimIdRoute,
   LayoutClaritySectionRoute: LayoutClaritySectionRoute,
   LayoutDocumentationAuthenticationRoute:
     LayoutDocumentationAuthenticationRoute,
@@ -642,6 +683,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutSettingsAuditRoute: LayoutSettingsAuditRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutBillingIndexRoute: LayoutBillingIndexRoute,
+  LayoutClaimsIndexRoute: LayoutClaimsIndexRoute,
   LayoutClarityIndexRoute: LayoutClarityIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
   LayoutAppsAppIdInferenceRoute: LayoutAppsAppIdInferenceRoute,
