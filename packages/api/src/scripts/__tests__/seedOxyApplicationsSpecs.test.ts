@@ -686,7 +686,14 @@ describe('the canonical official-application registry', () => {
       ['CrowdSource', ['files:read', 'files:references:write']],
       [
         'Mercaria',
-        ['files:user-media:write', 'files:app:write', 'files:app:delete', 'files:references:write'],
+        [
+          'files:user-media:write',
+          // Digital goods (OxyHQ/oxy#1755): files their creators linked to it.
+          'files:linked:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+        ],
       ],
       ['GoWay', ['files:references:write']],
       [
