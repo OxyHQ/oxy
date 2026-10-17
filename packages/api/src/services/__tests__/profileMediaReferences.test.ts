@@ -9,6 +9,11 @@
  *  3. A second `--apply` finds nothing to do.
  *  4. An avatar naming another account's file is reported as unreferenceable
  *     and never referenced.
+ *  5. The summary says WHY each reference goes and what each unreferenceable
+ *     avatar names — the numbers a production report is read by.
+ *  6. A batch larger than one account plans and writes every account in it.
+ *  7. `addFileReferences`' owner rule, now one statement for many references,
+ *     still fills only a NULL creator and only with the file's own owner.
  *
  * The run scans the worker's whole database, so assertions read only the
  * records of the accounts this file created.
@@ -18,6 +23,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications, fileReferences, files, users } from '../../db/schema';
+import { addFileReferences } from '../fileRepository';
 import {
   PROFILE_AVATAR_ENTITY_TYPE,
   listProfileAvatarReferences,
@@ -121,12 +127,16 @@ describe('runProfileMediaReconciliation', () => {
     // D: an avatar that is someone else's file.
     const d = await person();
     await setAvatar(d, aAvatar);
+    // E: an avatar that is a URL, with a reference to a file it used to show.
+    const e = await person('https://example.com/me.png');
+    const eOld = await photo(e);
+    await reference(eOld, e);
     // An account that no longer exists.
     const goneFile = await photo(a);
     const goneId = `gone-${randomUUID()}`;
     await reference(goneFile, goneId);
 
-    const mine = new Set([a, b, c, d]);
+    const mine = new Set([a, b, c, d, e]);
     const report = await run(false);
     const reported = report.records.filter((record) => mine.has(record.userId));
     expect(report.summary.mode).toBe('report');
@@ -137,8 +147,28 @@ describe('runProfileMediaReconciliation', () => {
         expect.objectContaining({ userId: a, add: aAvatar, remove: [], applied: false }),
         expect.objectContaining({ userId: b, add: null, remove: [bOld], applied: false }),
         expect.objectContaining({ userId: c, add: null, remove: [cOld], applied: false }),
+        expect.objectContaining({
+          userId: e,
+          unreferenceable: 'not_a_file',
+          add: null,
+          remove: [eOld],
+          applied: false,
+        }),
       ]),
     );
+    // The worker's database is shared with earlier files: floors, not equalities.
+    expect(report.summary.referencesRemovedByReason.replaced).toBeGreaterThanOrEqual(1);
+    expect(report.summary.referencesRemovedByReason.cleared).toBeGreaterThanOrEqual(1);
+    expect(report.summary.referencesRemovedByReason.unreferenceable).toBeGreaterThanOrEqual(1);
+    expect(report.summary.unreferenceableByReason.not_owner).toBeGreaterThanOrEqual(1);
+    expect(report.summary.unreferenceableByReason.not_a_file).toBeGreaterThanOrEqual(1);
+    expect(
+      Object.values(report.summary.referencesRemovedByReason).reduce((sum, n) => sum + n, 0),
+    ).toBe(report.summary.referencesRemoved);
+    expect(
+      Object.values(report.summary.unreferenceableByReason).reduce((sum, n) => sum + n, 0),
+    ).toBe(report.summary.unreferenceable);
+    expect(report.summary.batches).toBeGreaterThanOrEqual(3);
     // D needs nothing (it holds no reference) but is never referenced.
     expect(reported.find((record) => record.userId === d)).toBeUndefined();
     // Nothing was written.
@@ -154,7 +184,7 @@ describe('runProfileMediaReconciliation', () => {
     const applied = await run(true);
     expect(applied.summary.mode).toBe('apply');
     expect(applied.summary.unreferenceable).toBeGreaterThanOrEqual(1);
-    const after = await listProfileAvatarReferences(accountsAppId, [a, b, c, d, goneId]);
+    const after = await listProfileAvatarReferences(accountsAppId, [a, b, c, d, e, goneId]);
     expect(after).toEqual(
       expect.arrayContaining([
         { fileId: aAvatar, entityId: a, createdByUserId: a },
@@ -166,7 +196,8 @@ describe('runProfileMediaReconciliation', () => {
     const state = await getDb()
       .select({ id: files.id, status: files.status, unreferencedSince: files.unreferencedSince })
       .from(files)
-      .where(inArray(files.id, [bOld, cOld, goneFile]));
+      .where(inArray(files.id, [bOld, cOld, eOld, goneFile]));
+    expect(state).toHaveLength(4);
     for (const row of state) {
       expect(row.status).toBe('active');
       expect(row.unreferencedSince).toBeInstanceOf(Date);
@@ -179,6 +210,40 @@ describe('runProfileMediaReconciliation', () => {
     expect(again.summary.orphanReferences).toBe(0);
   });
 
+  it('plans and writes a whole batch of accounts at once', async () => {
+    const accounts = await Promise.all(Array.from({ length: 7 }, () => person()));
+    const avatars = new Map<string, string>();
+    for (const account of accounts) {
+      const avatar = await photo(account);
+      await setAvatar(account, avatar);
+      avatars.set(account, avatar);
+    }
+    // One of them already holds a service-made reference to its avatar: it
+    // needs nothing, and the creator it has is left alone.
+    await reference(avatars.get(accounts[0]) as string, accounts[0]);
+
+    const mine = new Set(accounts);
+    const records: Array<ProfileAvatarReferenceChange & { applied: boolean }> = [];
+    const summary = await runProfileMediaReconciliation({
+      apply: true,
+      batchSize: 1000,
+      emit: (record) => records.push(record),
+    });
+    expect(summary.complete).toBe(true);
+    expect(
+      records
+        .filter((record) => mine.has(record.userId))
+        .map((r) => r.userId)
+        .sort(),
+    ).toEqual(accounts.slice(1).sort());
+    const held = await listProfileAvatarReferences(accountsAppId, accounts);
+    expect(held).toHaveLength(accounts.length);
+    for (const row of held) {
+      expect(row.fileId).toBe(avatars.get(row.entityId));
+      expect(row.createdByUserId).toBe(row.entityId === accounts[0] ? null : row.entityId);
+    }
+  });
+
   it('resumes after an account id and stops after a bounded number of batches', async () => {
     const summary = await runProfileMediaReconciliation({
       apply: false,
@@ -187,5 +252,38 @@ describe('runProfileMediaReconciliation', () => {
     });
     expect(summary.complete).toBe(false);
     expect(summary.accountsScanned).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('addFileReferences owner rule over many references', () => {
+  it('records the owner on each creator-less twin, and never a non-owner', async () => {
+    const owner = await person();
+    const stranger = await person();
+    const ownTwin = await photo(owner);
+    const strangerTwin = await photo(owner);
+    const fresh = await photo(owner);
+    await reference(ownTwin, `entity-${owner}`);
+    await reference(strangerTwin, `entity-${owner}`);
+
+    const key = { applicationId: accountsAppId, entityType: PROFILE_AVATAR_ENTITY_TYPE };
+    const added = await addFileReferences([
+      { ...key, fileId: ownTwin, entityId: `entity-${owner}`, createdByUserId: owner },
+      { ...key, fileId: strangerTwin, entityId: `entity-${owner}`, createdByUserId: stranger },
+      { ...key, fileId: fresh, entityId: `entity-${owner}`, createdByUserId: owner },
+    ]);
+    expect(added.createdFileIds).toEqual([fresh]);
+    expect(added.ownerRecordedFileIds).toEqual([ownTwin]);
+
+    const rows = await getDb()
+      .select({ fileId: fileReferences.fileId, createdByUserId: fileReferences.createdByUserId })
+      .from(fileReferences)
+      .where(eq(fileReferences.entityId, `entity-${owner}`));
+    expect(new Map(rows.map((row) => [row.fileId, row.createdByUserId]))).toEqual(
+      new Map([
+        [ownTwin, owner],
+        [strangerTwin, null],
+        [fresh, owner],
+      ]),
+    );
   });
 });

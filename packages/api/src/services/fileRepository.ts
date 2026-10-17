@@ -1042,31 +1042,38 @@ export async function addFileReferences(
  * the creator of its EXISTING creator-less twin, only when that creator is the
  * file's owning account. A row this call just inserted already carries its
  * creator, so it never matches. Returns the files whose reference changed.
+ *
+ * One statement per {@link OWNER_RECORD_CHUNK} references, not one per
+ * reference: a batch caller (the profile-avatar back-fill adds hundreds per
+ * transaction) would otherwise pay a round trip for every row. The condition
+ * is the same per row — the key matches, the creator is NULL, and the creator
+ * named is `files.owner_user_id` — so the creator written is that owner.
  */
 async function recordOwnerOnServiceReferences(
   tx: Transaction,
   references: readonly (NewFileReference & { fileId: string })[],
 ): Promise<string[]> {
+  const named = references.filter((reference) => reference.createdByUserId);
   const changed = new Set<string>();
-  for (const reference of references) {
-    const creator = reference.createdByUserId;
-    if (!creator) continue;
+  for (let start = 0; start < named.length; start += OWNER_RECORD_CHUNK) {
+    const keys = sql.join(
+      named
+        .slice(start, start + OWNER_RECORD_CHUNK)
+        .map(
+          (reference) =>
+            sql`(${reference.fileId}, ${reference.applicationId}, ${reference.entityType}, ${reference.entityId}, ${reference.createdByUserId})`,
+        ),
+      sql`, `,
+    );
     const rows = await tx
       .update(fileReferences)
-      .set({ createdByUserId: creator })
+      .set({ createdByUserId: sql`${files.ownerUserId}` })
+      .from(files)
       .where(
         and(
-          eq(fileReferences.fileId, reference.fileId),
-          eq(fileReferences.applicationId, reference.applicationId),
-          eq(fileReferences.entityType, reference.entityType),
-          eq(fileReferences.entityId, reference.entityId),
+          eq(files.id, fileReferences.fileId),
           isNull(fileReferences.createdByUserId),
-          exists(
-            tx
-              .select({ one: sql`1` })
-              .from(files)
-              .where(and(eq(files.id, reference.fileId), eq(files.ownerUserId, creator))),
-          ),
+          sql`(${fileReferences.fileId}, ${fileReferences.applicationId}, ${fileReferences.entityType}, ${fileReferences.entityId}, ${files.ownerUserId}) in (${keys})`,
         ),
       )
       .returning({ fileId: fileReferences.fileId });
@@ -1074,6 +1081,9 @@ async function recordOwnerOnServiceReferences(
   }
   return [...changed];
 }
+
+/** References per owner-recording statement: 5 parameters each, far below Postgres' 65,535. */
+const OWNER_RECORD_CHUNK = 1000;
 
 /**
  * Record that an application uses this asset — {@link addFileReferences} for
@@ -1139,33 +1149,37 @@ export async function deleteFileReference(
  * Drop references by id, in ONE transaction, stamping `unreferenced_since` on
  * every file left with none — reconciliation's removal of stale references
  * (ADR 0043 D6). Never changes a file's status. Returns the ids removed.
+ * Inside `db` when it is a transaction, else in a transaction of its own.
  */
 export async function deleteFileReferencesByIds(
   referenceIds: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<string[]> {
   if (referenceIds.length === 0) return [];
-  return getDb().transaction(async (tx) => {
-    const targets = await tx
-      .select({ id: fileReferences.id, fileId: fileReferences.fileId })
-      .from(fileReferences)
-      .where(inArray(fileReferences.id, [...referenceIds]));
-    const fileIds = targets.map((row) => row.fileId);
-    await lockFilesForReferences(tx, fileIds);
-    const removed = await tx
-      .delete(fileReferences)
-      .where(
-        inArray(
-          fileReferences.id,
-          targets.map((row) => row.id),
-        ),
-      )
-      .returning({ id: fileReferences.id, fileId: fileReferences.fileId });
-    await refreshUnreferencedSince(
-      tx,
-      removed.map((row) => row.fileId),
-    );
-    return removed.map((row) => row.id);
-  });
+  if (db === getDb()) {
+    return getDb().transaction((tx) => deleteFileReferencesByIds(referenceIds, tx));
+  }
+  const tx = db as Transaction;
+  const targets = await tx
+    .select({ id: fileReferences.id, fileId: fileReferences.fileId })
+    .from(fileReferences)
+    .where(inArray(fileReferences.id, [...referenceIds]));
+  const fileIds = targets.map((row) => row.fileId);
+  await lockFilesForReferences(tx, fileIds);
+  const removed = await tx
+    .delete(fileReferences)
+    .where(
+      inArray(
+        fileReferences.id,
+        targets.map((row) => row.id),
+      ),
+    )
+    .returning({ id: fileReferences.id, fileId: fileReferences.fileId });
+  await refreshUnreferencedSince(
+    tx,
+    removed.map((row) => row.fileId),
+  );
+  return removed.map((row) => row.id);
 }
 
 /**

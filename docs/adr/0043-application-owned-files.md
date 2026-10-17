@@ -711,7 +711,8 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   account goes (the replaced or cleared one becomes *not in use*, never
   trashed). `users` has no banner or cover column, so the avatar is the only
   profile media. `scripts/reconcile-profile-media-references.ts` (preview by
-  default, `--apply`; `--batch-size`, `--after`, `--max-batches`; idempotent)
+  default, `--apply`; `--batch-size`, `--after`, `--max-batches`, `--sample`;
+  a fixed number of statements per batch; idempotent)
   backfills profiles set before this stage and the other avatar writers (the
   organization directory, account creation), and removes references naming
   accounts that no longer exist.
@@ -1227,7 +1228,10 @@ adds. In order; each step names how to know it worked before the next.
 11. **Backfills — dry run, then apply**:
     - `bun run packages/api/scripts/reconcile-profile-media-references.ts`
       (preview), then `--apply`; a second `--apply` reports 0 added, 0 removed,
-      0 orphans.
+      0 orphans. In production dispatch
+      `.github/workflows/reconcile-profile-media-references.yml` from `main`
+      (`mode=report`, then `apply`, then `report` again): it runs inside the
+      VPC as an ECS one-shot — over the SSM tunnel the pass takes hours.
     - Every product runs `OxyServer.assets.references.reconcile(entityType,
       items, { dryRun: true })` per entity type, reviews `{ added, removed,
       refused }`, then runs it for real, and schedules it (nightly).
