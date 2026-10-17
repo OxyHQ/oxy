@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed (a reference reconciliation's commit runs under a lease — ADR 0043 D6)
+
+Migration `0183_reconcile_commit_lease` (pre). A commit of a large inventory
+outlasted the load balancer's 60 seconds; it now runs under a lease renewed
+after every batch. `POST …/reconcile/:sessionId/commit` takes `{ background:
+true }` and answers 202 while the commit runs; `GET …/reconcile/:sessionId`
+reads its `status`, `result` and `error`. A commit whose task dies is resumed by
+the large-upload worker. Without `background` the request waits, as before. A
+page, and `POST`/`DELETE /assets/service/references`, accept a `fileId` up to
+256 characters (it was 64), so an id that names no file is that pair's answer
+(`refused`, `not_found`) instead of failing the whole page or batch with 400.
+
 ### Added (ADR 0043 — who owns a file, who uses it, and when it goes away)
 
 The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4c; its

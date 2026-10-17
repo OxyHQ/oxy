@@ -242,7 +242,9 @@ export const MAX_SERVICE_REFERENCES = 100;
  */
 const serviceReferenceSchema = z
   .object({
-    fileId: z.string().trim().min(1).max(64),
+    // As long as an entity id: an id that names no file is that reference's
+    // answer (`not_found`), never a batch that fails.
+    fileId: z.string().trim().min(1).max(256),
     entityType: z.string().trim().min(1).max(128),
     entityId: z.string().trim().min(1).max(256),
   })
@@ -276,7 +278,9 @@ export const reconcilePageBodySchema = z
       .array(
         z
           .object({
-            fileId: z.string().trim().min(1).max(64),
+            // As long as an entity id: an id that names no file is an answer
+            // (`refused` at commit), never a page that fails.
+            fileId: z.string().trim().min(1).max(256),
             entityId: z.string().trim().min(1).max(256),
           })
           .strict(),
@@ -290,7 +294,13 @@ export const reconcilePageBodySchema = z
   .strict();
 
 // POST /assets/service/references/reconcile/:sessionId/commit
-export const commitReconcileBodySchema = z.object({ dryRun: z.boolean().optional() }).strict();
+export const commitReconcileBodySchema = z
+  .object({
+    dryRun: z.boolean().optional(),
+    /** Answer 202 if the commit is still running after a short wait; read it back with GET. */
+    background: z.boolean().optional(),
+  })
+  .strict();
 
 export const reconcileSessionParams = z.object({
   sessionId: z.string().trim().min(1).max(64),

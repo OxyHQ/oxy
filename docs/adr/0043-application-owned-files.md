@@ -129,6 +129,14 @@ Oxy diffs against stored references, adds the missing, removes the stale, and
 reports both counts. Products run it on a schedule; the first run of each product
 is how existing data enters the model.
 
+A commit can outlast a request — tens of thousands of pairs against a cold
+cache take longer than the load balancer's 60 seconds — so it runs as a job
+under a lease (`lease_expires_at`, renewed after every batch, migration `0183`).
+A client asking for `{ background: true }` gets `202` while it runs and reads
+the outcome with `GET …/reconcile/:sessionId`; a commit whose task dies (a
+deploy) is resumed by the large-upload worker once the lease passes. Every step
+is idempotent, so a resumed or repeated commit converges on the same state.
+
 ### D7 — Import by URL happens in Oxy, once
 
 `POST /assets/service/app/import` (and the account-owned equivalent behind
@@ -324,6 +332,14 @@ application, not with the business's session).
   expired one answers 410 and is retired by the next `begin`. SDK:
   `OxyServer.assets.references.reconcile(entityType, items, { dryRun })`,
   `@oxy.so/core` 4.18.0 (4.12.0 through 4.17.0 went to `main` first).
+  Since `0183` and core 5.4.0 the commit runs under a lease: `{ background:
+  true }` answers 202 when it is still running after ten seconds, `GET
+  …/:sessionId` reads `{ status, result, error }`, and the SDK polls it; a
+  failed commit is `open` with `error` and can be committed again. A `fileId`
+  may be up to 256 characters here and in `/assets/service/references`, so an
+  id that names no file is that pair's answer rather than failing its page or
+  batch. The SDK releases a dry run's session (it used
+  to stay open until expiry, refusing the entity type's next run with 409).
 - **GoWay** holds `files:references:write` in the seed.
 
 #### Switching the sweep to enforce

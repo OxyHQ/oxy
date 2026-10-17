@@ -272,6 +272,18 @@ describe('POST /assets/service/references — what an application may reference'
     expect((await stored(foreign)).visibility).toBe('private');
   });
 
+  it('answers an id longer than any file id not_found, without failing the batch', async () => {
+    const appId = await application();
+    actAs(appId);
+    const own = await file({ ownerApplicationId: appId });
+    const notAFile = `cache/thumb/${'a'.repeat(32)}/${'b'.repeat(40)}.jpg`;
+
+    const res = await add(item(own), item(notAFile));
+
+    expect(res.status).toBe(200);
+    expect(res.body.data?.results?.map((r) => r.result)).toEqual(['created', 'not_found']);
+  });
+
   it('references an account’s private file only where its OWNER attached it to this application (ADR 0021)', async () => {
     const appId = await application();
     const otherApp = await application();

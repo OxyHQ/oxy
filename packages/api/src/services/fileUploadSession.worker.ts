@@ -4,7 +4,8 @@
  * Each tick verifies the `verifying` uploads whose lease is free — the ones a
  * `complete` request handed off after its wait, and any whose verifier died —
  * and aborts the `uploading` ones nobody completed by their deadline (S3
- * discards their parts; a storage reservation is released). Leases make it
+ * discards their parts; a storage reservation is released). It also resumes a
+ * reference reconciliation commit whose task died (ADR 0043 D6). Leases make it
  * safe on every task at once (`FileUploadSessionService.verify`).
  *
  * ON by default: there is nothing to do until an application opens an upload.
@@ -18,6 +19,7 @@ import { logger } from '../utils/logger';
 import { fileUploadSessionService } from './fileUploadSessionSingleton';
 import { fileIngestService } from './fileIngestSingleton';
 import { refetchLargeImport } from './fileImport.service';
+import { resumeStalledReconciliationCommits } from './fileReferenceReconciliation.service';
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
@@ -39,6 +41,10 @@ async function tick(): Promise<void> {
     if (ingests.verified > 0 || ingests.resumed > 0 || ingests.expired > 0) {
       logger.info('[FileUploads] Ingest sweep', ingests);
     }
+    // A reconciliation commit outlives its request under a lease; one whose
+    // task died (a deploy) is taken over here once the lease has passed.
+    const commits = await resumeStalledReconciliationCommits();
+    if (commits > 0) logger.info('[FileUploads] Reconciliation commits resumed', { commits });
   } catch (error) {
     logger.error(
       '[FileUploads] Sweep failed',

@@ -17,6 +17,17 @@
  * expired while open is retired (`abandoned`) by the next `begin` before it
  * inserts, so an abandoned client blocks nothing past its expiry.
  *
+ * ## A commit runs under a lease
+ *
+ * A commit can outlast an HTTP request (a large inventory against a cold
+ * cache), so it holds `lease_expires_at` — the database's clock, renewed
+ * after every batch — while `committing`. The request that starts it may hand
+ * it off (`background`) and the client reads the outcome back; a commit whose
+ * task died (a deploy) stops renewing, and the large-upload worker resumes it
+ * once the lease has passed. Every step is idempotent: the diff is recomputed.
+ * `commit_dry_run` says which kind of commit is running, `commit_error` why
+ * the last one failed (cleared when the next one starts).
+ *
  * ## Expiry
  *
  * `expires_at` is a sliding deadline (each page extends it). Every read of a
@@ -27,6 +38,7 @@
 
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   index,
   integer,
@@ -84,6 +96,12 @@ export const fileReferenceReconciliations = pgTable(
     committedAt: timestamptz(),
     /** The last commit's counts (a dry run's too, which leaves the session open). */
     result: jsonb().$type<FileReferenceReconciliationCounts & { dryRun: boolean }>(),
+    /** While `committing`: the running commit's lease (see "A commit runs under a lease"). */
+    leaseExpiresAt: timestamptz(),
+    /** While `committing`: whether the running commit is a dry run. */
+    commitDryRun: boolean(),
+    /** Why the last commit failed; cleared when the next one starts. */
+    commitError: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -95,6 +113,10 @@ export const fileReferenceReconciliations = pgTable(
           FILE_REFERENCE_RECONCILIATION_ACTIVE_STATUSES.map((value) => `'${value}'`).join(', '),
         )})`,
       ),
+    // The worker's scan for a commit whose task died.
+    index('file_reference_reconciliations_committing_lease_idx')
+      .on(t.leaseExpiresAt)
+      .where(sql`${t.status} = 'committing'`),
     // The expiry sweep's range scan (`db/expiry.ts`).
     index('file_reference_reconciliations_expires_at_idx').on(t.expiresAt),
     check(

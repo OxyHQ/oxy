@@ -14,7 +14,9 @@ import {
   abandonReconciliation,
   beginReconciliation,
   commitReconciliation,
+  getReconciliation,
   putReconciliationItems,
+  startReconciliationCommit,
 } from '../services/fileReferenceReconciliation.service';
 import { fileLifecycleMode, listFileLifecycleSweeps } from '../services/fileLifecycle.worker';
 import { mediaHeadersMiddleware } from '../middleware/mediaHeaders';
@@ -2940,6 +2942,13 @@ router.put(
  *       `unchanged`. `{ dryRun: true }` counts the same and changes nothing,
  *       leaving the session open. Answers `{ sessionId, entityType, dryRun,
  *       added, removed, unchanged, refused }`.
+ *
+ *       A large inventory can take longer than a request may: with
+ *       `{ background: true }` the commit answers 202 `{ sessionId,
+ *       entityType, dryRun, status: 'committing' }` when it is still running
+ *       after a few seconds, goes on under a lease (resumed by another task if
+ *       this one dies), and `GET …/reconcile/:sessionId` reads the outcome.
+ *       Without it, the request waits for the commit however long it takes.
  * @access Service token only: `files:references:write`, on an active application
  */
 router.post(
@@ -2949,9 +2958,39 @@ router.post(
   validate({ params: reconcileSessionParams, body: commitReconcileBodySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     const appId = await requireActiveApplication(req, ['files:references:write']);
-    const { dryRun } = req.body as z.infer<typeof commitReconcileBodySchema>;
-    const result = await commitReconciliation(appId, req.params.sessionId, { dryRun });
-    sendSuccess(res, result);
+    const { dryRun, background } = req.body as z.infer<typeof commitReconcileBodySchema>;
+    if (!background) {
+      sendSuccess(res, await commitReconciliation(appId, req.params.sessionId, { dryRun }));
+      return;
+    }
+    const started = await startReconciliationCommit(appId, req.params.sessionId, { dryRun });
+    if (!started.pending) {
+      sendSuccess(res, started.result);
+      return;
+    }
+    const { sessionId, entityType } = started;
+    sendSuccess(res, { sessionId, entityType, dryRun: started.dryRun, status: 'committing' }, 202);
+  }),
+);
+
+/**
+ * @route GET /api/assets/service/references/reconcile/:sessionId
+ * @desc Read a session back: `{ sessionId, entityType, status, itemCount,
+ *       expiresAt, dryRun, result, error }`. While a `background` commit runs
+ *       `status` is `committing` (`dryRun` says which kind); once it is done, a
+ *       real commit is `committed` and a dry run `open`, each with `result`
+ *       (the commit's counts); a failed commit is `open` with `error`, and can
+ *       be committed again. 404 for no such session of this application.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.get(
+  '/service/references/reconcile/:sessionId',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    sendSuccess(res, await getReconciliation(appId, req.params.sessionId));
   }),
 );
 

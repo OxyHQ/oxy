@@ -100,6 +100,12 @@ const SERVICE_IMPORT_BATCH_SIZE = 50;
 const SERVICE_IMPORT_TIMEOUT_MS = 90_000;
 /** Server-side cap of one `PUT /assets/service/references/reconcile/:sessionId` page. */
 const SERVICE_RECONCILE_PAGE_SIZE = 1000;
+/** A page is a thousand rows written in one transaction: more than the default request budget. */
+const SERVICE_RECONCILE_PAGE_TIMEOUT_MS = 30_000;
+/** The commit request answers within seconds (202 while still running): its own budget. */
+const SERVICE_RECONCILE_COMMIT_TIMEOUT_MS = 30_000;
+/** How long `reconcile` waits for a commit Oxy runs in the background. */
+const SERVICE_RECONCILE_COMMIT_WAIT_MS = 60 * 60_000;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 /** A header value fetch accepts on every runtime: printable ASCII only. */
 const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
@@ -378,6 +384,7 @@ export class ServerAssetsApi extends AssetsApi {
     options: { dryRun?: boolean },
   ): Promise<ServiceReferenceReconcileResult> {
     const service = lane(this.ctx);
+    const dryRun = options.dryRun === true;
     const { sessionId } = await service.request<{ sessionId: string }>(
       'POST',
       '/assets/service/references/reconcile',
@@ -387,32 +394,50 @@ export class ServerAssetsApi extends AssetsApi {
       { cache: false, retry: false },
     );
     const path = `/assets/service/references/reconcile/${encodeURIComponent(sessionId)}`;
+    const release = () =>
+      service.request('DELETE', path, undefined, { cache: false }).catch(() => undefined);
+    let result: ServiceReferenceReconcileResult;
     try {
       let page: ServiceReferenceInventoryItem[] = [];
       const flush = async () => {
         if (page.length === 0) return;
         const items = page;
         page = [];
-        await service.request('PUT', path, { items }, { cache: false });
+        await service.request(
+          'PUT',
+          path,
+          { items },
+          { cache: false, timeout: SERVICE_RECONCILE_PAGE_TIMEOUT_MS },
+        );
       };
       for await (const { fileId, entityId } of items) {
         page.push({ fileId, entityId });
         if (page.length === SERVICE_RECONCILE_PAGE_SIZE) await flush();
       }
       await flush();
-      return await service.request<ServiceReferenceReconcileResult>(
+      // A large inventory can take longer than a request may: Oxy answers 202
+      // while it is still committing, and the outcome is read back.
+      const answer = await service.request<
+        ServiceReferenceReconcileResult | { status: 'committing' }
+      >(
         'POST',
         `${path}/commit`,
-        { dryRun: options.dryRun === true },
-        { cache: false, retry: false },
+        { dryRun, background: true },
+        { cache: false, retry: false, timeout: SERVICE_RECONCILE_COMMIT_TIMEOUT_MS },
       );
+      result = isCommitting(answer) ? await waitForCommit(service, path, sessionId) : answer;
     } catch (error) {
       // Release the slot so the next attempt need not wait for it to expire.
-      // Best effort: a commit that failed part-way left it open, and an
-      // already-committed or expired session answers 404, which is fine.
-      await service.request('DELETE', path, undefined, { cache: false }).catch(() => undefined);
+      // Best effort: a session still committing is not released (Oxy finishes
+      // it), and an already-committed or expired one answers 404, which is fine.
+      await release();
       throw error;
     }
+    // A dry run leaves the session open for a real commit this API never makes:
+    // release it, or the entity type's next reconciliation is refused (409)
+    // until the session expires.
+    if (dryRun) await release();
+    return result;
   }
 
   private async sendReferences(
@@ -1427,5 +1452,70 @@ export class ServerReputationApi extends ReputationApi {
     );
     this.ctx.oxy.cache.deletePrefix(REPUTATION_CACHE_PREFIX);
     return res.transaction;
+  }
+}
+
+/** Whether a commit answer is the 202 of a commit Oxy still runs. */
+function isCommitting(answer: unknown): answer is { status: 'committing' } {
+  return (
+    typeof answer === 'object' &&
+    answer !== null &&
+    (answer as Record<string, unknown>).status === 'committing'
+  );
+}
+
+/** `GET /assets/service/references/reconcile/:sessionId`. */
+interface ReconcileSessionAnswer {
+  sessionId: string;
+  entityType: string;
+  status: 'open' | 'committing' | 'committed' | 'abandoned';
+  result: Omit<ServiceReferenceReconcileResult, 'sessionId' | 'entityType'> | null;
+  error: { code: string; message: string } | null;
+}
+
+/**
+ * Poll a commit Oxy runs in the background until it settles: `committed` (or
+ * `open` with a dry run's counts) resolves to the counts; a failed commit
+ * rejects with its code (`RECONCILIATION_COMMIT_FAILED`); waiting past
+ * {@link SERVICE_RECONCILE_COMMIT_WAIT_MS} rejects with
+ * `RECONCILIATION_WAIT_TIMEOUT` — Oxy finishes the commit regardless.
+ */
+async function waitForCommit(
+  service: ServiceLane,
+  path: string,
+  sessionId: string,
+): Promise<ServiceReferenceReconcileResult> {
+  const deadline = Date.now() + SERVICE_RECONCILE_COMMIT_WAIT_MS;
+  let interval = ASSET_JOB_POLL_INITIAL_MS;
+  for (;;) {
+    if (Date.now() + interval > deadline) {
+      throw new OxyApiError('Oxy is still committing the reconciliation', {
+        status: 0,
+        code: 'RECONCILIATION_WAIT_TIMEOUT',
+        details: { sessionId },
+        timeout: true,
+      });
+    }
+    await sleep(interval);
+    interval = nextPollInterval(interval);
+    const state = await service.request<ReconcileSessionAnswer>('GET', path, undefined, {
+      cache: false,
+    });
+    if (state.status === 'committing') continue;
+    if (state.error) {
+      throw new OxyApiError(state.error.message, {
+        status: 500,
+        code: state.error.code,
+        details: { sessionId },
+      });
+    }
+    if (state.result) {
+      return { sessionId: state.sessionId, entityType: state.entityType, ...state.result };
+    }
+    throw new OxyApiError(`The reconciliation ended ${state.status} without a result`, {
+      status: 409,
+      code: 'RECONCILIATION_NOT_OPEN',
+      details: { sessionId },
+    });
   }
 }
