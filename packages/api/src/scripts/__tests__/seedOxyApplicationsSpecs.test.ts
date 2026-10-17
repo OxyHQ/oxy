@@ -46,6 +46,7 @@ import {
   ALIA_APPLICATION_SCOPES,
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
   INBOX_APPLICATION_ID,
   KAANA_APPLICATION_ID,
@@ -100,13 +101,11 @@ describe('the canonical official-application registry', () => {
       publicClient: false,
     });
     expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
-    expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual([
-      OXY_PROFILE_REGISTRAR_SPEC,
-    ]);
+    // The two machine-only applications: this registrar and Clarity's backend.
+    const machineOnly = [OXY_PROFILE_REGISTRAR_SPEC, specNamed('Clarity Backend')];
+    expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual(machineOnly);
     expect(
-      SEED_APPS.filter((spec) => spec !== OXY_PROFILE_REGISTRAR_SPEC).every(
-        requiresPublicSeedCredential,
-      ),
+      SEED_APPS.filter((spec) => !machineOnly.includes(spec)).every(requiresPublicSeedCredential),
     ).toBe(true);
     expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({
       kind: 'id',
@@ -795,8 +794,34 @@ describe('the canonical official-application registry', () => {
       // Not a style rule: two applications sharing an owner account are
       // indistinguishable in the cost-centre report, so every additional one
       // here is a reporting decision somebody has to make on purpose.
+      // Clarity's backend was created under Clarity's own project account and
+      // stays there: the seed pins that owner rather than moving it.
       const dedicated = SEED_APPS.filter((spec) => spec.ownerAccountUsername !== undefined);
-      expect(dedicated.map((spec) => spec.name)).toEqual(['Alia']);
+      expect(dedicated.map((spec) => spec.name)).toEqual(['Alia', 'Clarity Backend']);
+    });
+
+    it("Clarity's backend is pinned by id, has no public client, and carries its catalogue", () => {
+      const spec = specNamed('Clarity Backend');
+      expect(spec).toMatchObject({
+        id: CLARITY_BACKEND_APPLICATION_ID,
+        type: 'internal',
+        redirectUris: [],
+        publicClient: false,
+        ownerAccountUsername: 'clarity',
+        capabilities: [catalogApplicationCapability('clarity')],
+      });
+      expect([...(spec.scopes ?? [])].sort()).toEqual([
+        'capabilities:read',
+        'capability-audit:write',
+        'catalogs:write',
+        'inference:invoke',
+        'safety:decide',
+        'user:read',
+      ]);
+      expect(seedApplicationLookupIdentity(spec, PLATFORM_OWNER_ID)).toEqual({
+        kind: 'id',
+        id: CLARITY_BACKEND_APPLICATION_ID,
+      });
     });
   });
 
