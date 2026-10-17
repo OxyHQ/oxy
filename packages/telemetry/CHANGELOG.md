@@ -1,8 +1,8 @@
 # Changelog: `@oxy.so/telemetry`
 
-## Unreleased
+## 2.0.0
 
-### Removed (breaking — the next release is a major)
+### Removed (breaking)
 
 - The `@oxy.so/telemetry/edge` entry point (`observeEdgeRequest`,
   `EdgeActivityEnv`). It published Worker/Pages request activity with a per-app
