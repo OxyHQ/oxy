@@ -53,7 +53,7 @@ const controller = {
 
 const closeAccountDialog = jest.fn();
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     accountDialogController: controller,
@@ -96,18 +96,17 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     jest.clearAllMocks();
   });
 
-  it('brands the accounts view with the Oxy wordmark instead of a title, and no back', () => {
+  it('leaves the accounts bar clear for the compact identity card below', () => {
     render(<OxyAccountDialogScreen />);
 
-    // The account MENU is branded, not titled: a `titleContent` node owns the
-    // nav bar centre and Bloom then suppresses the large in-content title.
-    expect(lastHeader()?.titleContent).toBeTruthy();
+    // Account identity belongs to the first card; the bar only owns controls.
+    expect(lastHeader()?.titleContent).toBeUndefined();
     expect(lastHeader()?.title).toBeUndefined();
     expect(lastHeader()?.subtitle).toBeUndefined();
     expect(lastHeader()?.onBack).toBeUndefined();
   });
 
-  it('keeps the wordmark even with an account signed in — the HERO names the account, not the bar', () => {
+  it('keeps the signed-in account name in the card, not the bar', () => {
     snapshot = makeSnapshot({
       activeAccountId: 'a',
       accounts: [
@@ -127,7 +126,7 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     });
     render(<OxyAccountDialogScreen />);
 
-    expect(lastHeader()?.titleContent).toBeTruthy();
+    expect(lastHeader()?.titleContent).toBeUndefined();
     expect(lastHeader()?.title).toBeUndefined();
   });
 

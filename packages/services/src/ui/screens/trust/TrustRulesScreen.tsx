@@ -3,16 +3,15 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Chip } from '@oxy.so/bloom/chip';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { reputationCategoryLabel } from '@oxy.so/core';
 import type { ReputationRule, ReputationCategory } from '@oxy.so/contracts';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../../hooks/useI18n';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 
 /** Stable display order for rule category sections. */
@@ -71,9 +70,7 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
 
   return (
     <>
-      {isLoading ? (
-        <Loading size="lg" color={bloomTheme.colors.primary} />
-      ) : error ? (
+      {isLoading ? null : error ? (
         <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
           {error}
         </Text>
@@ -84,9 +81,9 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
       ) : (
         <View className="px-screen-margin pb-space-24 pt-space-12">
           {groupedRules.map(({ category, items }) => (
-            <SettingsListGroup key={category} title={reputationCategoryLabel(locale, category)}>
+            <GroupedSection key={category} title={reputationCategoryLabel(locale, category)}>
               {items.map((rule) => (
-                <SettingsListItem
+                <GroupedSectionItem
                   key={rule.actionType}
                   title={rule.description}
                   showChevron={false}
@@ -102,7 +99,7 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
                   accessibilityLabel={`${rule.description}, ${rule.points > 0 ? '+' : ''}${rule.points} ${t('trust.center.balance') || 'reputation points'}`}
                 />
               ))}
-            </SettingsListGroup>
+            </GroupedSection>
           ))}
         </View>
       )}

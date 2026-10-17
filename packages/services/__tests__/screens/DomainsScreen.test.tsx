@@ -26,7 +26,7 @@ const domains = {
   remove: jest.fn(async (_domain: string) => ({ success: true })),
 };
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     user: { id: 'u1' },

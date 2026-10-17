@@ -217,7 +217,7 @@ export class FollowsApi {
   }
 
   /**
-   * A user's followers. `sort` is `recent` (default) or `oldest`; each
+   * A user's followers in stable non-chronological order; each
    * `limit`/`offset`/`sort` combination is its own cache entry (2 minutes).
    */
   async followers(userId: string, params?: FollowGraphParams): Promise<UserPage<'followers'>> {

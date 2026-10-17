@@ -62,6 +62,18 @@ export interface OxyProviderProps {
   oxyServices?: unknown;
   children?: ReactNode;
   onAuthStateChange?: (user: unknown) => void;
+  /** Opens the app's embedded Alia UI from Help & Support. The account dialog
+   * stays mounted so Bloom can stack Alia above it. The host owns sign-in
+   * and the Alia sheet/route.
+   * Omitted, support keeps the email action for apps without Alia.
+   */
+  onAskAlia?: () => void | Promise<void>;
+  /** App-specific documentation; defaults to https://oxy.so/developers/docs/. */
+  documentationUrl?: string;
+  /** Official AliaAvatar supplied by hosts that integrate Alia. */
+  aliaAvatar?: ReactNode;
+  /** Optional animated Oxy One artwork, e.g. OxyOneVideo from /ui/one-video. */
+  oxyOneArtwork?: ReactNode;
   /** Optional, non-blocking product analytics sink. Receives no profile data. */
   productAnalytics?: ProductAnalytics;
   storageKeyPrefix?: string;

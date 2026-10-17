@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { useOptionalOxy } from '../context/OxyContext';
+import { useOptionalOxy } from '../context/oxyRuntimeContext';
 import { getLocalesVersion, subscribeLocales, translate } from '@oxy.so/core';
 
 /**

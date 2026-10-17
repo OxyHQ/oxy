@@ -29,21 +29,13 @@ export interface PaginationParams {
   offset?: number;
 }
 
-/**
- * Ordering accepted by the follow-graph list endpoints
- * (`/users/:id/followers`, `/users/:id/following`, `/users/:id/mutuals`).
- *
- * `recent` (newest follow edge first) is the default and the historical
- * behaviour. Both orderings sort on the follow edge's own `createdAt`, so they
- * are served from the same index; an ordering that sorted on a JOINED user
- * field (alphabetical, follower count) would not be, which is why none is
- * offered here.
+/** Public graph lists always use stable, non-chronological ordering.
+ * `recent` / `oldest` are deprecated compatibility aliases for `stable`;
+ * neither may reveal follow timestamps or insertion order.
  */
-export const FOLLOW_GRAPH_SORTS = ['recent', 'oldest'] as const;
-
+export const FOLLOW_GRAPH_SORTS = ['stable', 'recent', 'oldest'] as const;
 export type FollowGraphSort = (typeof FOLLOW_GRAPH_SORTS)[number];
-
-export const DEFAULT_FOLLOW_GRAPH_SORT: FollowGraphSort = 'recent';
+export const DEFAULT_FOLLOW_GRAPH_SORT: FollowGraphSort = 'stable';
 
 /** Narrow an untrusted query value to a supported sort. */
 export function isFollowGraphSort(value: unknown): value is FollowGraphSort {
@@ -90,7 +82,7 @@ export interface FollowActionResult {
  * hydrated DTOs and no `_count` — because the consumer hydrates/ranks itself.
  */
 export interface ViewerGraph {
-  /** Accounts the viewer follows (most-recent first, bounded). */
+  /** Accounts the viewer follows (stable non-chronological order, bounded). */
   followingIds: string[];
   /** Accounts the viewer follows that ALSO follow the viewer back (bounded). */
   mutualIds: string[];

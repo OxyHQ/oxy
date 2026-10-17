@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ApiError, User, SupportedLanguage } from '@oxy.so/core';
 import {
   FALLBACK_LOCALE,
@@ -35,8 +35,8 @@ export interface UseLanguageManagementResult {
    */
   currentLanguage: string;
   /**
-   * The ordered account locales (primary first) when signed in, or the single
-   * guest override when signed out. Empty only before the guest override loads
+   * The ordered account locales (primary first) when signed in, or the locally
+   * persisted selection when signed out. Empty only before the guest override loads
    * and no device locale resolves.
    */
   languages: string[];
@@ -50,6 +50,8 @@ export interface UseLanguageManagementResult {
    * then follows the refreshed `user`.
    */
   setLanguage: (locale: string) => Promise<void>;
+  /** Persist an ordered guest selection, primary first. */
+  setLanguages: (locales: readonly string[]) => Promise<void>;
   hydrateLanguage: () => Promise<void>;
 }
 
@@ -150,21 +152,35 @@ export const useLanguageManagement = ({
   // The device locale is fixed for the lifetime of the runtime.
   const deviceLanguage = useMemo(resolveDeviceLocale, []);
 
-  // The locally-owned guest override (a single locale). `null` until loaded
-  // from storage or explicitly set; the derived locale falls back to the device
-  // locale while it is `null`.
-  const [guestLanguage, setGuestLanguage] = useState<string | null>(null);
+  // The guest selection is persisted in order, with the first locale primary.
+  // Until it loads, the UI uses the device locale.
+  const [guestLanguages, setGuestLanguages] = useState<string[]>([]);
+  const selectionVersion = useRef(0);
 
   const loadLanguageFromStorage = useCallback(async (): Promise<void> => {
     if (!storage) {
       return;
     }
 
+    const version = selectionVersion.current;
     try {
       const savedLanguageRaw = await storage.getItem(languageKey);
-      const normalized = savedLanguageRaw ? normalizeLocale(savedLanguageRaw) : undefined;
-      if (normalized) {
-        setGuestLanguage(normalized);
+      // Migrate the former single locale without discarding existing preferences.
+      let stored: unknown = savedLanguageRaw;
+      if (savedLanguageRaw?.startsWith('[')) {
+        stored = JSON.parse(savedLanguageRaw);
+      }
+      const entries = Array.isArray(stored) ? stored : [stored];
+      const normalized = [
+        ...new Set(
+          entries.flatMap((entry) => {
+            const locale = typeof entry === 'string' ? normalizeLocale(entry) : undefined;
+            return locale ? [locale] : [];
+          }),
+        ),
+      ];
+      if (normalized.length && version === selectionVersion.current) {
+        setGuestLanguages(normalized);
       }
     } catch (error) {
       const message = extractErrorMessage(error, 'Failed to load language preference');
@@ -189,20 +205,26 @@ export const useLanguageManagement = ({
     });
   }, [loadLanguageFromStorage, logger]);
 
-  const setLanguage = useCallback(
-    async (locale: string): Promise<void> => {
+  const setLanguages = useCallback(
+    async (locales: readonly string[]): Promise<void> => {
       if (!storage) {
         throw new Error('Storage not initialized');
       }
 
-      const normalized = normalizeLocale(locale);
-      if (!normalized) {
-        throw new Error(`Unsupported locale: ${locale}`);
-      }
-
+      const normalized = [
+        ...new Set(
+          locales.map((locale) => {
+            const canonical = normalizeLocale(locale);
+            if (!canonical) throw new Error(`Unsupported locale: ${locale}`);
+            return canonical;
+          }),
+        ),
+      ];
+      if (!normalized.length) throw new Error('At least one language is required');
+      const version = ++selectionVersion.current;
       try {
-        await storage.setItem(languageKey, normalized);
-        setGuestLanguage(normalized);
+        await storage.setItem(languageKey, JSON.stringify(normalized));
+        if (version === selectionVersion.current) setGuestLanguages(normalized);
       } catch (error) {
         const message = extractErrorMessage(error, 'Failed to save language preference');
         onError?.({
@@ -221,19 +243,21 @@ export const useLanguageManagement = ({
     [languageKey, logger, onError, storage],
   );
 
+  const setLanguage = useCallback((locale: string) => setLanguages([locale]), [setLanguages]);
+
   const languages = useMemo<string[]>(() => {
     if (user) {
       return getUserLanguages(user);
     }
-    return guestLanguage ? [guestLanguage] : [];
-  }, [user, guestLanguage]);
+    return guestLanguages;
+  }, [user, guestLanguages]);
 
   const currentLanguage = useMemo<string>(() => {
     if (user) {
       return getPrimaryLanguage(user) ?? FALLBACK_LOCALE;
     }
-    return guestLanguage ?? deviceLanguage;
-  }, [user, guestLanguage, deviceLanguage]);
+    return guestLanguages[0] ?? deviceLanguage;
+  }, [user, guestLanguages, deviceLanguage]);
 
   const metadata = useMemo(() => getLanguageMetadata(currentLanguage), [currentLanguage]);
   const languageName = useMemo(() => getLanguageName(currentLanguage), [currentLanguage]);
@@ -249,6 +273,7 @@ export const useLanguageManagement = ({
     languageName,
     nativeLanguageName,
     setLanguage,
+    setLanguages,
     hydrateLanguage: loadLanguageFromStorage,
   };
 };

@@ -33,6 +33,7 @@
       "packages/test-app-vite"
     ],
     "catalog": {
+      "@alia.onl/sdk": "^13.2.0",
       "@hugeicons/core-free-icons": "^3.3.0",
       "@lottiefiles/dotlottie-react": "^0.19.9",
       "@noble/curves": "^1.9.7",
@@ -116,7 +117,8 @@
       "vite-plugin-react-native-web": "^3.2.0",
       "zustand": "^5.0.14",
       "@oxy.so/core": "^4.21.0 || ^5.0.0",
-      "@typescript-eslint/parser": "^8.70.0"
+      "@typescript-eslint/parser": "^8.70.0",
+      "expo-video": "~57.0.3"
     }
   },
   "scripts": {
@@ -221,5 +223,8 @@
     "expo-splash-screen": "~58.0.10",
     "is-arrayish": "^0.3.4",
     "react-native-worklets": "catalog:"
+  },
+  "patchedDependencies": {
+    "@oxy.so/bloom@10.4.0": "patches/@oxy.so%2Fbloom@10.4.0.patch"
   }
 }

@@ -15,10 +15,13 @@ import {
   getNormalizedUserHandle,
 } from '@oxy.so/core';
 import { useAuth } from '../hooks/useAuth';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { registerAccountDialogConsumerHooks } from '../navigation/accountDialogManager';
-import type { AccountDialogMenuItem } from '../navigation/accountDialogManager';
+import type {
+  AccountDialogMenuItem,
+  AccountDialogMenuSection,
+} from '../navigation/accountDialogManager';
 
 export interface ProfileButtonProps {
   /**
@@ -38,6 +41,8 @@ export interface ProfileButtonProps {
   onNavigateProfile?: () => void;
   /** App-owned actions rendered in the shared account menu. */
   menuItems?: readonly AccountDialogMenuItem[];
+  /** App-owned cards, in display order, below the Oxy account actions. */
+  menuSections?: readonly AccountDialogMenuSection[];
   /**
    * Retained for source compatibility. The trigger now opens the unified
    * `OxyAccountDialogScreen` (a centered / bottom-sheet modal) rather than an
@@ -62,6 +67,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   onAddAccount,
   onNavigateProfile,
   menuItems,
+  menuSections,
   className,
   style,
 }) => {
@@ -77,7 +83,13 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   }, [openAccountDialog]);
 
   useEffect(() => {
-    if (!onNavigateManage && !onAddAccount && !onNavigateProfile && !menuItems?.length) {
+    if (
+      !onNavigateManage &&
+      !onAddAccount &&
+      !onNavigateProfile &&
+      !menuItems?.length &&
+      !menuSections?.length
+    ) {
       return undefined;
     }
     return registerAccountDialogConsumerHooks({
@@ -85,8 +97,9 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
       onAddAccount,
       onNavigateProfile,
       menuItems,
+      menuSections,
     });
-  }, [onNavigateManage, onAddAccount, onNavigateProfile, menuItems]);
+  }, [onNavigateManage, onAddAccount, onNavigateProfile, menuItems, menuSections]);
 
   const avatarUrl = useMemo(
     () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),

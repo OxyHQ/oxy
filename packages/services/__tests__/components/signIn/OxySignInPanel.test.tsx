@@ -152,7 +152,7 @@ const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const openAccountDialog = jest.fn();
 const invalidateQueries = jest.fn();
 
-jest.mock('../../../src/ui/context/OxyContext', () => ({
+jest.mock('../../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     accountDialogController: controller,

@@ -10,14 +10,28 @@
  * view) from a non-React call site.
  */
 
+import type { ReactNode } from 'react';
 import type { AccountDialogView } from '@oxy.so/core/session';
 
 /** An app-owned action rendered inside the shared account menu. */
 export interface AccountDialogMenuItem {
   key: string;
   label: string;
-  icon?: string;
+  /** An icon name or an app-owned icon element. */
+  icon?: ReactNode;
+  description?: string;
+  badge?: string;
+  disabled?: boolean;
+  /** Default false: close the account dialog before navigating. */
+  keepOpen?: boolean;
   onPress: () => void;
+}
+
+/** App-owned group, rendered as one rounded card in the account menu. */
+export interface AccountDialogMenuSection {
+  key: string;
+  title?: string;
+  items: readonly AccountDialogMenuItem[];
 }
 
 /**
@@ -40,6 +54,7 @@ export interface AccountDialogConsumerHooks {
   onAddAccount?: () => void;
   onNavigateProfile?: () => void;
   menuItems?: readonly AccountDialogMenuItem[];
+  menuSections?: readonly AccountDialogMenuSection[];
 }
 
 let controls: AccountDialogControls | null = null;

@@ -1,4 +1,9 @@
 import '../global.css';
+import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
+import { AliaAvatar, ALIA_CHARACTER_RUNTIME_URL } from '@alia.onl/sdk';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+import { useRef, useCallback } from 'react';
+import { AliaSupport, type AliaSupportRef } from '../components/AliaSupport';
 import * as Linking from 'expo-linking';
 import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +15,7 @@ import { OxyProvider } from '@oxy.so/services';
 import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4100';
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 // Public OAuth client id (the registered `ApplicationCredential` publicKey) —
 // drives the app-identity flow when passed to `OxyProvider`. Env-with-default
@@ -26,6 +31,8 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const aliaSupportRef = useRef<AliaSupportRef>(null);
+  const openAlia = useCallback(() => aliaSupportRef.current?.present(), []);
   return (
     // BloomProvider owns the theme. OxyProvider does NOT mount its own
     // (by design, to avoid duplicate contexts), so this wraps the tree —
@@ -36,11 +43,19 @@ export default function RootLayout() {
         <BloomThemeProvider mode="system">
           <ConnectionStatusToasts />
           <OxyProvider
+            onAskAlia={openAlia}
+            oxyOneArtwork={<OxyOneVideo />}
+            aliaAvatar={
+              <AgentAvatarProvider runtimeUrl={ALIA_CHARACTER_RUNTIME_URL}>
+                <AliaAvatar size={32} portrait />
+              </AgentAvatarProvider>
+            }
             baseURL={API_URL}
             clientId={OXY_CLIENT_ID}
             authRedirectUri={AUTH_REDIRECT_URI}
           >
             <RootNavigator />
+            <AliaSupport ref={aliaSupportRef} />
           </OxyProvider>
         </BloomThemeProvider>
       </SafeAreaProvider>
@@ -58,7 +73,6 @@ function RootNavigator() {
     <ThemeProvider value={navTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="profile-cards" options={{ title: 'Profile preview cards' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

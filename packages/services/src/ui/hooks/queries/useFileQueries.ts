@@ -16,7 +16,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import type { FileApplicationAccess, FileMetadata } from '@oxy.so/core';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { queryKeys } from './queryKeys';
 
 /** Files fetched per page. */

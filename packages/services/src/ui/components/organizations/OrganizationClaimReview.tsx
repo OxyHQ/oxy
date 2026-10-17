@@ -8,7 +8,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 
 /** The queue is requested only after an explicit action; the server rechecks staff authority. */

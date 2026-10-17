@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { authenticatedApiCall } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import type { Subscription, Payment, Wallet, WalletTransactionsResponse } from './paymentTypes';
 
 /**

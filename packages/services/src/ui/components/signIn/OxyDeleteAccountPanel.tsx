@@ -13,7 +13,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { surfaces } from '@oxy.so/bloom/surfaces';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';

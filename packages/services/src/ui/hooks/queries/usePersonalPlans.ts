@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { authenticatedApiCall } from '@oxy.so/core';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 
 /** Public discovery; deliberately outside persisted customer payment queries. */
 export function usePersonalPlans() {

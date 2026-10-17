@@ -8,7 +8,7 @@ let mockState = {
   activeSessionId: 'session-one',
   oxyServices: { billing: { productSubscriptions: mockRead, personalPlans: jest.fn() } },
 };
-jest.mock('../../src/ui/context/OxyContext', () => ({ useOxy: () => mockState }));
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({ useOxy: () => mockState }));
 jest.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (_svc: unknown, _session: unknown, run: () => unknown) => run(),
 }));

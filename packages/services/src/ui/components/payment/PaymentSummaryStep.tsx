@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { View, Animated } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Button } from '@oxy.so/bloom/button';
 import { createPaymentStyles } from './paymentStyles';
 import { getCurrencySymbol, CURRENCY_SYMBOLS } from './constants';
@@ -91,9 +91,9 @@ const PaymentSummaryStep: React.FC<PaymentSummaryStepProps> = ({
             {paymentItems.length > 0 ? (
               <>
                 <View style={styles.summaryCardItems}>
-                  <SettingsListGroup>
+                  <GroupedSection>
                     {paymentItems.map((item) => (
-                      <SettingsListItem
+                      <GroupedSectionItem
                         key={`${item.type}-${item.name}-${item.price}-${item.period ?? ''}`}
                         icon={
                           <Ionicons
@@ -118,7 +118,7 @@ const PaymentSummaryStep: React.FC<PaymentSummaryStepProps> = ({
                         }
                       />
                     ))}
-                  </SettingsListGroup>
+                  </GroupedSection>
                 </View>
 
                 <View style={styles.summaryCardDivider} />

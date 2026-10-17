@@ -1,8 +1,9 @@
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Button } from '@oxy.so/bloom/button';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
-  TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   FlatList,
   Platform,
@@ -14,7 +15,6 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '../../icons/Ionicons';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { FileMetadata } from '@oxy.so/core';
 import { computePhotoGridLayout } from './photoGridLayout';
 import FileLibraryError from './FileLibraryError';
@@ -110,7 +110,7 @@ export interface PhotoPickerViewProps {
   loadingMore: boolean;
   /**
    * Initial-load flag. While `true` AND no photos have arrived yet, the picker
-   * renders its OWN loading skeleton (placement-aware grid of shimmer tiles)
+   * keeps its toolbar and grid mounted while the query resolves
    * instead of the empty state — so the loading UI matches the picker's shape
    * and container width, not the browse file-manager chrome.
    */
@@ -155,18 +155,6 @@ const RING_SPRING_TENSION = 120;
  */
 const CELL_CORNER_RADIUS = 8; // `rounded-radius-8`
 const SELECTION_RING_WIDTH = 3; // `border-[3px]`
-
-/**
- * Loading-skeleton tile fill. The picker's backdrop is ALWAYS black regardless
- * of theme, so we cannot use Bloom `Skeleton.Box`'s theme default (`contrast50`,
- * which is a near-black gray on a dark theme → invisible on this backdrop). A
- * neutral dark gray reads as a photo placeholder on black; Bloom's shimmer still
- * pulses the tile opacity on top of it. `Skeleton.Box` applies `style` after its
- * own base, so this override wins while the animated opacity is preserved.
- */
-const SKELETON_TILE_COLOR = '#26262A';
-/** Minimum skeleton rows so the grid never looks empty on a very short panel. */
-const SKELETON_MIN_ROWS = 4;
 
 type PhotoPickerCellProps = {
   photo: FileMetadata;
@@ -299,8 +287,7 @@ const PhotoPickerCell = React.memo(function PhotoPickerCell(props: PhotoPickerCe
         opacity,
       }}
     >
-      <TouchableOpacity
-        activeOpacity={0.85}
+      <PressableScale
         onPress={onPress}
         onLongPress={onLongPress}
         className="flex-1"
@@ -347,7 +334,7 @@ const PhotoPickerCell = React.memo(function PhotoPickerCell(props: PhotoPickerCe
             </Text>
           </View>
         )}
-      </TouchableOpacity>
+      </PressableScale>
     </Animated.View>
   );
 });
@@ -412,18 +399,6 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
     () => computePhotoGridLayout(effectiveWidth),
     [effectiveWidth],
   );
-
-  // How many shimmer tiles the loading skeleton renders: enough FULL rows to
-  // fill the panel down to (but never past) its `maxHeight` cap, so the panel
-  // hugs the skeleton content instead of overflowing or scrolling. `floor`
-  // keeps the last row whole; `SKELETON_MIN_ROWS` guards a very short panel.
-  const skeletonTileCount = useMemo(() => {
-    const rowHeight = cellSize + gutter;
-    if (rowHeight <= 0) return columns * SKELETON_MIN_ROWS;
-    const available = Math.max(0, panelHeight - FLOATING_NAV_BAR_HEIGHT);
-    const rows = Math.max(SKELETON_MIN_ROWS, Math.floor(available / rowHeight));
-    return rows * columns;
-  }, [cellSize, gutter, columns, panelHeight]);
 
   // Map selectedIds → 1-based selection order for the badge. We freeze a
   // stable order at the time of selection: the order is the insertion
@@ -519,7 +494,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
     if (!loadingMore) return null;
     return (
       <View className="py-space-16 items-center">
-        <ActivityIndicator size="small" color="#FFFFFF" />
+        <SpinnerIcon size={16} color="#FFFFFF" />
       </View>
     );
   }, [loadingMore]);
@@ -560,34 +535,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
               descriptionColor="rgba(255,255,255,0.7)"
             />
           </View>
-        ) : isEmpty && loading ? (
-          /* Loading skeleton — the picker's OWN shape: shimmer tiles laid
-                       out with the SAME placement-aware geometry the real grid uses
-                       (`computePhotoGridLayout(effectiveWidth)`), edge-to-edge under
-                       the floating bar. `flexWrap` breaks rows exactly at `columns`
-                       because the last tile in each row carries no right margin (a
-                       full row + gutters fits the measured width by construction). */
-          <View
-            style={{ flexDirection: 'row', flexWrap: 'wrap', pointerEvents: 'none' }}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            {Array.from({ length: skeletonTileCount }, (_, index) => (
-              <Skeleton.Box
-                // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
-                key={`skeleton-${index}`}
-                width={cellSize}
-                height={cellSize}
-                borderRadius={CELL_CORNER_RADIUS}
-                style={{
-                  marginRight: (index + 1) % columns === 0 ? 0 : gutter,
-                  marginBottom: gutter,
-                  backgroundColor: SKELETON_TILE_COLOR,
-                }}
-              />
-            ))}
-          </View>
-        ) : isEmpty ? (
+        ) : isEmpty && !loading ? (
           <View className="flex-1 items-center justify-center px-space-32">
             <View className="opacity-30 mb-space-16">
               <MaterialCommunityIcons name="image-outline" size={64} color="#FFFFFF" />
@@ -599,26 +547,15 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
               {t('fileManagement.photoPicker.emptySubtitle')}
             </Text>
             {isOwner && allowUpload && (
-              <TouchableOpacity
-                className="flex-row items-center gap-space-8 px-[22px] py-space-12 rounded-full"
-                style={{ backgroundColor: primaryColor }}
+              <Button
+                appearance="solid"
+                tone="accent"
                 onPress={onUpload}
-                disabled={uploading || isPickingDocument}
-                accessibilityRole="button"
-                accessibilityLabel={t('fileManagement.uploadPhoto')}
-                accessibilityState={{ busy: uploading || isPickingDocument }}
+                loading={uploading || isPickingDocument}
+                icon={<Ionicons name="cloud-upload" size={18} />}
               >
-                {uploading || isPickingDocument ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="cloud-upload" size={18} color="#FFFFFF" />
-                    <Text className="text-white text-[15px] font-semibold">
-                      {t('fileManagement.uploadPhoto')}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                {t('fileManagement.uploadPhoto')}
+              </Button>
             )}
           </View>
         ) : (

@@ -1,34 +1,23 @@
 import type React from 'react';
-import { View, type ViewStyle } from 'react-native';
-import { H4, Text } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Card } from '@oxy.so/bloom/card';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import AvatarCameraBadge from './AvatarCameraBadge';
 
-/**
- * ProfileSummaryCard — the shared "who am I" summary block rendered at the top
- * of {@link ManageAccountScreen} and {@link EditProfileScreen}.
- *
- * A Bloom filled {@link Card} containing a centered {@link Avatar}, the display
- * name and any number of secondary lines (handle, email, …). When
- * `onAvatarPress` is supplied the avatar becomes a {@link PressableScale} entry
- * point (used to open the avatar picker) and can render an optional camera
- * badge overlay.
- */
+/** Shared identity row; Bloom owns its material, geometry and full-row interaction. */
 export interface ProfileSummaryCardProps {
-  /** Primary display name shown under the avatar. */
+  /** Primary display name shown beside the avatar. */
   displayName: string;
   /** Resolved avatar thumbnail URL (undefined → initials fallback). */
   avatarUri?: string;
-  /** Avatar diameter in px. Defaults to 72. */
+  /** Avatar diameter in px. Defaults to 56. */
   avatarSize?: number;
   /**
    * Secondary lines rendered beneath the name (e.g. `@handle`, email).
    * Falsy entries are skipped so callers can pass conditional values inline.
    */
   lines?: Array<string | null | undefined | false>;
-  /** When provided, the avatar is pressable (e.g. opens the avatar picker). */
+  /** When provided, the summary row is pressable (e.g. opens the avatar picker). */
   onAvatarPress?: () => void;
   /** Render the camera badge overlay. Only meaningful with `onAvatarPress`. */
   showCameraBadge?: boolean;
@@ -36,64 +25,34 @@ export interface ProfileSummaryCardProps {
   avatarAccessibilityLabel?: string;
 }
 
-const cardStyle: ViewStyle = {
-  marginBottom: 16,
-};
-
-const pressableStyle: ViewStyle = {
-  position: 'relative',
-};
-
 const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
   displayName,
   avatarUri,
-  avatarSize = 72,
+  avatarSize = 56,
   lines,
   onAvatarPress,
   showCameraBadge = false,
   avatarAccessibilityLabel,
-}) => {
-  const avatar = <Avatar source={avatarUri} name={displayName} size={avatarSize} />;
-
-  const avatarNode = onAvatarPress ? (
-    <PressableScale
+}) => (
+  <GroupedSection style={{ marginBottom: 16 }}>
+    <GroupedSectionItem
+      icon={
+        <View style={{ position: 'relative' }}>
+          <Avatar source={avatarUri} name={displayName} size={avatarSize} />
+          {onAvatarPress && showCameraBadge ? <AvatarCameraBadge /> : null}
+        </View>
+      }
+      title={displayName}
+      description={
+        (lines ?? [])
+          .filter((line): line is string => typeof line === 'string' && line.length > 0)
+          .join('\n') || undefined
+      }
       onPress={onAvatarPress}
-      accessibilityRole="button"
-      accessibilityLabel={avatarAccessibilityLabel}
-      style={pressableStyle}
-      className="mb-space-12"
-    >
-      {avatar}
-      {showCameraBadge ? <AvatarCameraBadge /> : null}
-    </PressableScale>
-  ) : (
-    <View className="mb-space-12">{avatar}</View>
-  );
-
-  const subtitleLines = (lines ?? []).filter(
-    (line): line is string => typeof line === 'string' && line.length > 0,
-  );
-
-  return (
-    <Card appearance="subtle" radius="radius-20" style={cardStyle}>
-      <View className="items-center px-space-20 py-space-24">
-        {avatarNode}
-        <H4 className="text-text" numberOfLines={1}>
-          {displayName}
-        </H4>
-        {subtitleLines.map((line, index) => (
-          <Text
-            // biome-ignore lint/suspicious/noArrayIndexKey: subtitle order is stable within a render; index keys are safe here.
-            key={`${index}-${line}`}
-            className="text-text-secondary text-sm mt-space-2"
-            numberOfLines={1}
-          >
-            {line}
-          </Text>
-        ))}
-      </View>
-    </Card>
-  );
-};
+      accessibilityLabel={onAvatarPress ? avatarAccessibilityLabel : undefined}
+      showChevron={false}
+    />
+  </GroupedSection>
+);
 
 export default ProfileSummaryCard;

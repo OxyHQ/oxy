@@ -322,3 +322,22 @@ Mercaria (OxyHQ/Mercaria#1106) moved to invitations first. An app still on
 services before 11.10.0 gets the 410 from its members screen until it upgrades.
 Apply migration 0178 before rollout. SMTP delivery and the public acceptance URL
 require an environment smoke test; automated tests use the real database and a mocked mail transport.
+
+## Public follow-list ordering
+
+`GET /users/:id/followers`, `/following`, and `/mutuals` must not expose the
+chronology of relationships. `paginateActiveFollowUserIds` in
+`packages/api/src/services/user.service.ts` orders by a deterministic hash of
+counterparty account identity, then identity to resolve hash collisions, before
+pagination. Follow timestamps and re-following do not affect an account's place.
+`sort=stable` is the default; `recent` and `oldest` are deprecated compatibility
+aliases with the same result. There is no public chronological override.
+
+This preserves stable pagination for an unchanged graph, not snapshot isolation
+across graph mutations. Public membership remains observable: comparing separate
+snapshots can reveal additions/removals. Hashing determines presentation order;
+it does not make public relationships secret. The query still filters by the
+indexed edge owner, but must sort the eligible set instead of using the old
+chronological covering index. Regression evidence: `user.service.followGraphSort.test.ts`
+(reversed timestamps, replaced edge ids, re-follow, all sort aliases and three
+list directions) and `user.service.graph.pg.test.ts` (pagination and visibility).

@@ -1,4 +1,5 @@
-import { ActivityIndicator, View } from 'react-native';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { View } from 'react-native';
 import { useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { isWebBrowser } from '../utils/isWebBrowser';
@@ -32,7 +33,7 @@ export function OxyOAuthCallback({ redirectTo = '/' }: OxyOAuthCallbackProps) {
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator />
+      <SpinnerIcon />
     </View>
   );
 }

@@ -11,7 +11,7 @@ import { LanguageBridge } from '../LanguageBridge';
  */
 
 let mockCurrentLanguage = 'en-US';
-jest.mock('../../context/OxyContext', () => ({
+jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({ currentLanguage: mockCurrentLanguage }),
 }));
 

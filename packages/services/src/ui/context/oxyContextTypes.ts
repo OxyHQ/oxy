@@ -142,6 +142,7 @@ export interface OxyContextState {
   removeSession: (sessionId: string) => Promise<LogoutResult>;
   refreshSessions: () => Promise<void>;
   setLanguage: (languageId: string) => Promise<void>;
+  setLanguages: (languageIds: readonly string[]) => Promise<void>;
   getDeviceSessions: () => Promise<
     Array<{
       sessionId: string;

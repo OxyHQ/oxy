@@ -1645,3 +1645,5 @@ export * from './applicationRoles';
 export * from './contentClaims';
 
 export * from './appAssertions';
+
+export * from './products/one';

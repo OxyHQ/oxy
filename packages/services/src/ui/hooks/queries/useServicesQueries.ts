@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { authenticatedApiCall } from '@oxy.so/core';
 import type { AccountStorageUsageResponse, ClientSession } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { fetchSessionsWithFallback, mapSessionsToClient } from '../../utils/sessionHelpers';
 
 // Per-account query scope. In the real-session switch model the active session

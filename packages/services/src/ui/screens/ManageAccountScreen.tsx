@@ -1,14 +1,15 @@
 import { OrganizationClaimReview } from '../components/organizations/OrganizationClaimReview';
 import { OrganizationClaims } from '../components/organizations/OrganizationClaims';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
+import { View, StyleSheet, Linking, Platform } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
   getAccountDisplayName,
   getAccountFallbackHandle,
@@ -22,7 +23,7 @@ import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { presentDeleteAccount } from '../components/modals/DeleteAccountModal';
 import { runAccountDeletionHandoff } from '../utils/accountDeletionHandoff';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { isWebBrowser } from '../utils/isWebBrowser';
@@ -33,7 +34,6 @@ import { deviceSessionTitle } from '../utils/deviceSessionTitle';
 
 type DeviceSessionRow = DeviceLinkedSession;
 
-const AVATAR_SIZE = 88;
 
 const formatRelative = (dateString?: string): string => {
   if (!dateString) {
@@ -72,11 +72,22 @@ const formatRelative = (dateString?: string): string => {
  * device, and security/destructive actions for THIS account. Multi-account
  * surface lives in the unified `OxyAccountDialogScreen` — keep these concerns separate.
  */
-const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate }) => {
+interface ManageAccountScreenProps extends BaseScreenProps {
+  section?: 'data';
+}
+
+const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
+  onClose,
+  goBack,
+  navigate,
+  section,
+}) => {
   const bloomTheme = useTheme();
   const { t, locale } = useI18n();
 
-  useSurfaceHeader({ title: t('manageAccount.title') || 'Manage your Oxy Account' });
+  useSurfaceHeader({
+    title: section === 'data' ? t('accountMenu.data') : t('manageAccount.title'),
+  });
   const {
     user: contextUser,
     isAuthenticated,
@@ -337,74 +348,72 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
     );
   }
 
-  if (userLoading && !user) {
-    return (
-      <>
-        <View className="items-center py-space-40">
-          <ActivityIndicator color={bloomTheme.colors.primary} size="large" />
-        </View>
-      </>
-    );
-  }
-
   const deviceRows: DeviceSessionRow[] = (deviceSessions ?? []) as DeviceSessionRow[];
   const otherDevices = deviceRows.filter((d) => !d.isCurrent);
 
   return (
     <>
       <View className="px-screen-margin pb-space-24">
-        {/* Profile card */}
-        <ProfileSummaryCard
-          displayName={displayName}
-          avatarUri={avatarUri}
-          avatarSize={AVATAR_SIZE}
-          onAvatarPress={openAvatarPicker}
-          showCameraBadge
-          avatarAccessibilityLabel={t('editProfile.changeAvatar') || 'Change avatar'}
-          lines={[handle ? (user?.username ? `@${handle}` : handle) : null, user?.email || null]}
-        />
+        {section !== 'data' ? (
+          <>
+            {/* Profile card */}
+            <ProfileSummaryCard
+              displayName={displayName}
+              avatarUri={avatarUri}
+              onAvatarPress={openAvatarPicker}
+              showCameraBadge
+              avatarAccessibilityLabel={t('editProfile.changeAvatar') || 'Change avatar'}
+              lines={[
+                handle ? (user?.username ? `@${handle}` : handle) : null,
+                user?.email || null,
+              ]}
+            />
 
-        {/* Profile section */}
-        <SettingsListGroup title={t('manageAccount.sections.profile') || 'Profile'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="account-circle" color={bloomTheme.colors.primary} />}
-            title={t('manageAccount.items.editProfile.title') || 'Edit profile'}
-            description={
-              t('manageAccount.items.editProfile.subtitle') || 'Name, username, bio, links'
-            }
-            onPress={() => navigate?.('EditProfile')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="palette" color={bloomTheme.colors.info} />}
-            title={t('manageAccount.items.theme.title') || 'Theme color'}
-            description={t('manageAccount.items.theme.subtitle') || 'Personalize your Bloom color'}
-            onPress={() => navigate?.('Preferences')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="eye" color={bloomTheme.colors.success} />}
-            title={t('editProfile.items.previewProfile.title') || 'Preview profile'}
-            description={
-              t('editProfile.items.previewProfile.subtitle') ||
-              'See how your profile looks to others'
-            }
-            onPress={() => (user?.id ? navigate?.('Profile', { userId: user.id }) : undefined)}
-            disabled={!user?.id}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="check-circle" color={bloomTheme.colors.primary} />}
-            title={t('editProfile.items.verifyAccount.title') || 'Verify account'}
-            description={t('editProfile.items.verifyAccount.subtitle') || 'Get a verified badge'}
-            onPress={() => navigate?.('AccountVerification')}
-          />
-        </SettingsListGroup>
+            {/* Profile section */}
+            <GroupedSection title={t('manageAccount.sections.profile') || 'Profile'}>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="account-circle" color={bloomTheme.colors.primary} />}
+                title={t('manageAccount.items.editProfile.title') || 'Edit profile'}
+                description={
+                  t('manageAccount.items.editProfile.subtitle') || 'Name, username, bio, links'
+                }
+                onPress={() => navigate?.('EditProfile')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="palette" color={bloomTheme.colors.info} />}
+                title={t('manageAccount.items.theme.title') || 'Theme color'}
+                description={
+                  t('manageAccount.items.theme.subtitle') || 'Personalize your Bloom color'
+                }
+                onPress={() => navigate?.('Preferences')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="eye" color={bloomTheme.colors.success} />}
+                title={t('editProfile.items.previewProfile.title') || 'Preview profile'}
+                description={
+                  t('editProfile.items.previewProfile.subtitle') ||
+                  'See how your profile looks to others'
+                }
+                onPress={() => (user?.id ? navigate?.('Profile', { userId: user.id }) : undefined)}
+                disabled={!user?.id}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="check-circle" color={bloomTheme.colors.primary} />}
+                title={t('editProfile.items.verifyAccount.title') || 'Verify account'}
+                description={
+                  t('editProfile.items.verifyAccount.subtitle') || 'Get a verified badge'
+                }
+                onPress={() => navigate?.('AccountVerification')}
+              />
+            </GroupedSection>
 
         {user?.kind === 'organization' ? (
-          <SettingsListGroup title={t('organizationDirectory.title')}>
-            <SettingsListItem
+          <GroupedSection title={t('organizationDirectory.title')}>
+            <GroupedSectionItem
               title={t('organizationDirectory.view')}
               onPress={() => navigate?.('AccountSettings', { accountId: user.id })}
             />
-          </SettingsListGroup>
+          </GroupedSection>
         ) : null}
 
         {user?.kind === 'personal' ? (
@@ -415,134 +424,145 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
         ) : null}
 
         {user?.kind === 'personal' ? (
-          <SettingsListGroup title={t('supervision.title')}>
-            <SettingsListItem
+          <GroupedSection title={t('supervision.title')}>
+            <GroupedSectionItem
               title={t('supervision.title')}
               description={t('supervision.entryDescription')}
               onPress={() => navigate?.('Supervision')}
             />
-          </SettingsListGroup>
+          </GroupedSection>
         ) : null}
 
-        {/* Sessions section */}
-        <SettingsListGroup title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>
-          {deviceSessionsLoading ? (
-            <SettingsListItem
-              icon={<SettingsIcon name="sync" color={bloomTheme.colors.primary} />}
-              title={t('manageAccount.sessions.loading') || 'Loading sessions…'}
-              rightElement={<ActivityIndicator color={bloomTheme.colors.primary} size="small" />}
-              showChevron={false}
-              disabled
-            />
-          ) : deviceRows.length === 0 ? (
-            <SettingsListItem
-              icon={<SettingsIcon name="cellphone" color={bloomTheme.colors.textTertiary} />}
-              title={t('manageAccount.sessions.empty') || 'No active sessions'}
-              showChevron={false}
-              disabled
-            />
-          ) : (
-            deviceRows.map((device) => (
-              <SettingsListItem
-                key={`device-${device.sessionId}`}
-                icon={
-                  <SettingsIcon
-                    name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
-                    color={device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary}
-                  />
-                }
-                title={deviceSessionTitle(device, t)}
-                description={
-                  t('manageAccount.sessions.lastActive', {
-                    relative: formatRelative(device.lastActive),
-                  }) || `Last active ${formatRelative(device.lastActive)}`
-                }
-                onPress={device.isCurrent ? undefined : () => confirmRemoveDevice(device)}
-                disabled={device.isCurrent || removingDeviceId === device.sessionId}
-                rightElement={
-                  !device.isCurrent ? (
-                    removingDeviceId === device.sessionId ? (
-                      <ActivityIndicator color={bloomTheme.colors.error} size="small" />
-                    ) : (
-                      <Ionicons name="log-out-outline" size={18} color={bloomTheme.colors.error} />
-                    )
-                  ) : undefined
-                }
-                showChevron={false}
-              />
-            ))
-          )}
-          {otherDevices.length > 0 ? (
-            <SettingsListItem
-              icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
-              title={
-                t('manageAccount.sessions.signOutAllOnThisDevice') ||
-                'Sign out of all other devices'
-              }
-              description={
-                t('manageAccount.sessions.signOutAllSubtitle', {
-                  count: otherDevices.length,
-                }) || `End ${otherDevices.length} other device session(s)`
-              }
-              onPress={handleSignOutAllDevices}
-              destructive
-              showChevron={false}
-              disabled={signingOutAllDevices}
-              rightElement={
-                signingOutAllDevices ? (
-                  <ActivityIndicator color={bloomTheme.colors.error} size="small" />
-                ) : undefined
-              }
-            />
-          ) : null}
-        </SettingsListGroup>
 
-        {/* Security section */}
-        <SettingsListGroup title={t('manageAccount.sections.security') || 'Security'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-            title={t('manageAccount.items.security.title') || 'Security settings'}
-            description={t('manageAccount.items.security.subtitle') || 'Password, 2FA, recovery'}
-            onPress={() => navigate?.('PrivacySettings')}
-          />
-          {user && !user.publicKey ? (
-            <>
-              <SettingsListItem
-                icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
-                title={t('signInSecurity.password.title')}
-                description={t('signInSecurity.password.row')}
-                onPress={() => navigate?.('SignInPassword')}
-              />
-              <SettingsListItem
+            {/* Sessions section */}
+            <GroupedSection title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>
+              {deviceSessionsLoading ? (
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="sync" color={bloomTheme.colors.primary} />}
+                  title={t('manageAccount.sessions.loading') || 'Loading sessions…'}
+                  rightElement={null}
+                  showChevron={false}
+                  disabled
+                />
+              ) : deviceRows.length === 0 ? (
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="cellphone" color={bloomTheme.colors.textTertiary} />}
+                  title={t('manageAccount.sessions.empty') || 'No active sessions'}
+                  showChevron={false}
+                  disabled
+                />
+              ) : (
+                deviceRows.map((device) => (
+                  <GroupedSectionItem
+                    key={`device-${device.sessionId}`}
+                    icon={
+                      <SettingsIcon
+                        name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
+                        color={
+                          device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary
+                        }
+                      />
+                    }
+                    title={deviceSessionTitle(device, t)}
+                    description={
+                      t('manageAccount.sessions.lastActive', {
+                        relative: formatRelative(device.lastActive),
+                      }) || `Last active ${formatRelative(device.lastActive)}`
+                    }
+                    onPress={device.isCurrent ? undefined : () => confirmRemoveDevice(device)}
+                    disabled={device.isCurrent || removingDeviceId === device.sessionId}
+                    rightElement={
+                      !device.isCurrent ? (
+                        removingDeviceId === device.sessionId ? (
+                          <SpinnerIcon color={bloomTheme.colors.error} size={16} />
+                        ) : (
+                          <Ionicons
+                            name="log-out-outline"
+                            size={18}
+                            color={bloomTheme.colors.error}
+                          />
+                        )
+                      ) : undefined
+                    }
+                    showChevron={false}
+                  />
+                ))
+              )}
+              {otherDevices.length > 0 ? (
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
+                  title={
+                    t('manageAccount.sessions.signOutAllOnThisDevice') ||
+                    'Sign out of all other devices'
+                  }
+                  description={
+                    t('manageAccount.sessions.signOutAllSubtitle', {
+                      count: otherDevices.length,
+                    }) || `End ${otherDevices.length} other device session(s)`
+                  }
+                  onPress={handleSignOutAllDevices}
+                  destructive
+                  showChevron={false}
+                  disabled={signingOutAllDevices}
+                  rightElement={
+                    signingOutAllDevices ? (
+                      <SpinnerIcon color={bloomTheme.colors.error} size={16} />
+                    ) : undefined
+                  }
+                />
+              ) : null}
+            </GroupedSection>
+
+            {/* Security section */}
+            <GroupedSection title={t('manageAccount.sections.security') || 'Security'}>
+              <GroupedSectionItem
                 icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-                title={t('signInSecurity.totp.title')}
-                description={t('signInSecurity.totp.row')}
-                onPress={() => navigate?.('SignInAuthenticator')}
+                title={t('manageAccount.items.security.title') || 'Security settings'}
+                description={
+                  t('manageAccount.items.security.subtitle') || 'Password, 2FA, recovery'
+                }
+                onPress={() => navigate?.('PrivacySettings')}
               />
-              <SettingsListItem
-                icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
-                title={t('linkCommons.title')}
-                description={t('linkCommons.row')}
-                onPress={() => navigate?.('LinkCommons')}
-              />
-            </>
-          ) : null}
-          {user?.isPremium || subscription?.status === 'active' ? (
-            <SettingsListItem
-              icon={<SettingsIcon name="credit-card" color={bloomTheme.colors.success} />}
-              title={t('manageAccount.items.billing.title') || 'Billing'}
-              description={
-                t('manageAccount.items.billing.subtitle') ||
-                'Manage subscription and payment methods'
-              }
-              onPress={() => navigate?.('PaymentGateway')}
-            />
-          ) : null}
-        </SettingsListGroup>
+              {user && !user.publicKey ? (
+                <>
+                  <GroupedSectionItem
+                    icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
+                    title={t('signInSecurity.password.title')}
+                    description={t('signInSecurity.password.row')}
+                    onPress={() => navigate?.('SignInPassword')}
+                  />
+                  <GroupedSectionItem
+                    icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+                    title={t('signInSecurity.totp.title')}
+                    description={t('signInSecurity.totp.row')}
+                    onPress={() => navigate?.('SignInAuthenticator')}
+                  />
+                  <GroupedSectionItem
+                    icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
+                    title={t('linkCommons.title')}
+                    description={t('linkCommons.row')}
+                    onPress={() => navigate?.('LinkCommons')}
+                  />
+                </>
+              ) : null}
+              {user?.isPremium || subscription?.status === 'active' ? (
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="credit-card" color={bloomTheme.colors.success} />}
+                  title={t('manageAccount.items.billing.title') || 'Billing'}
+                  description={
+                    t('manageAccount.items.billing.subtitle') ||
+                    'Manage subscription and payment methods'
+                  }
+                  onPress={() => navigate?.('PaymentGateway')}
+                />
+              ) : null}
+            </GroupedSection>
+          </>
+        ) : null}
 
         {/* Account & data */}
-        <SettingsListGroup title={t('accountOverview.sections.quickActions') || 'Account & data'}>
-          <SettingsListItem
+        <GroupedSection title={t('accountOverview.sections.quickActions') || 'Account & data'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="clock" color={bloomTheme.colors.primary} />}
             title={t('accountOverview.items.history.title') || 'History'}
             description={
@@ -550,7 +570,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
             }
             onPress={() => navigate?.('HistoryView')}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="folder" color={bloomTheme.colors.info} />}
             title={t('accountCenter.items.fileManagement.title') || 'Files'}
             description={
@@ -559,7 +579,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
             }
             onPress={() => navigate?.('FileManagement')}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="download" color={bloomTheme.colors.primary} />}
             title={t('accountOverview.items.downloadData.title') || 'Download your data'}
             description={
@@ -568,154 +588,165 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
             }
             onPress={handleDownloadData}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
-        {/* Accounts (unified account graph) */}
-        {accounts.length > 0 || isAuthenticated ? (
-          <SettingsListGroup title={t('accountCenter.sections.accounts') || 'Accounts'}>
-            <SettingsListItem
-              icon={<SettingsIcon name="account-switch" color={bloomTheme.colors.info} />}
-              title={t('accounts.manage.switch.title') || 'Switch account'}
-              description={
-                accounts.length > 0
-                  ? // One account is "1 account", not "1 accounts".
-                    t(
-                      accounts.length === 1
-                        ? 'accounts.manage.switch.countOne'
-                        : 'accounts.manage.switch.count',
-                      { count: accounts.length },
-                    )
-                  : t('accounts.manage.switch.empty') || 'Accounts you own or share'
-              }
-              onPress={() => openAccountDialog('accounts')}
-            />
-            <SettingsListItem
-              icon={<SettingsIcon name="account-plus" color={bloomTheme.colors.primary} />}
-              title={t('accounts.create.title') || 'Create account'}
-              description={
-                t('accounts.manage.create.subtitle') || 'Add an organization, project, or bot'
-              }
-              onPress={() => navigate?.('CreateAccount')}
-            />
-          </SettingsListGroup>
+        {section !== 'data' ? (
+          <>
+            {/* Accounts (unified account graph) */}
+            {accounts.length > 0 || isAuthenticated ? (
+              <GroupedSection title={t('accountCenter.sections.accounts') || 'Accounts'}>
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="account-switch" color={bloomTheme.colors.info} />}
+                  title={t('accounts.manage.switch.title') || 'Switch account'}
+                  description={
+                    accounts.length > 0
+                      ? // One account is "1 account", not "1 accounts".
+                        t(
+                          accounts.length === 1
+                            ? 'accounts.manage.switch.countOne'
+                            : 'accounts.manage.switch.count',
+                          { count: accounts.length },
+                        )
+                      : t('accounts.manage.switch.empty') || 'Accounts you own or share'
+                  }
+                  onPress={() => openAccountDialog('accounts')}
+                />
+                <GroupedSectionItem
+                  icon={<SettingsIcon name="account-plus" color={bloomTheme.colors.primary} />}
+                  title={t('accounts.create.title') || 'Create account'}
+                  description={
+                    t('accounts.manage.create.subtitle') || 'Add an organization, project, or bot'
+                  }
+                  onPress={() => navigate?.('CreateAccount')}
+                />
+              </GroupedSection>
+            ) : null}
+
+            {/* Preferences */}
+            <GroupedSection title={t('manageAccount.sections.preferences') || 'Preferences'}>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="cog" color={bloomTheme.colors.info} />}
+                title={t('preferences.title') || 'Preferences'}
+                description={t('preferences.subtitle') || 'Theme, motion, and regional settings'}
+                onPress={() => navigate?.('Preferences')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="bell" color={bloomTheme.colors.primary} />}
+                title={t('notifications.title') || 'Notifications'}
+                description={
+                  t('notifications.subtitle') || 'Manage push, email, and security alerts'
+                }
+                onPress={() => navigate?.('Notifications')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="translate" color={bloomTheme.colors.primary} />}
+                title={t('language.title') || 'Language'}
+                description={t('language.subtitle') || 'Choose your preferred language'}
+                onPress={() => navigate?.('LanguageSelector')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="apps" color={bloomTheme.colors.info} />}
+                title={t('connectedApps.title') || 'Connected apps'}
+                description={t('connectedApps.subtitle') || 'Manage third-party app access'}
+                onPress={() => navigate?.('ConnectedApps')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
+                title={t('domains.title')}
+                description={t('domains.subtitle')}
+                onPress={() => navigate?.('Domains')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="magnify" color={bloomTheme.colors.primary} />}
+                title={t('accountOverview.items.searchSettings.title') || 'Search settings'}
+                description={
+                  t('accountOverview.items.searchSettings.subtitle') ||
+                  'SafeSearch and personalization'
+                }
+                onPress={() => navigate?.('SearchSettings')}
+              />
+            </GroupedSection>
+
+            {/* Support */}
+            <GroupedSection title={t('accountOverview.sections.support') || 'Support'}>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="help-circle" color={bloomTheme.colors.primary} />}
+                title={t('accountOverview.items.help.title') || 'Help & support'}
+                description={
+                  t('accountOverview.items.help.subtitle') || 'Get help and contact support'
+                }
+                onPress={() => navigate?.('HelpSupport')}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="information" color={bloomTheme.colors.success} />}
+                title={t('accountOverview.items.about.title') || 'About'}
+                description={
+                  t('accountOverview.items.about.subtitle') || 'Version and system details'
+                }
+                onPress={() => navigate?.('AppInfo')}
+              />
+            </GroupedSection>
+
+            {/* Legal */}
+            <GroupedSection title={t('manageAccount.sections.legal') || 'Legal'}>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+                title={t('accountOverview.items.privacyPolicy.title') || 'Privacy policy'}
+                description={
+                  t('accountOverview.items.privacyPolicy.subtitle') || 'How we handle your data'
+                }
+                onPress={() => navigate?.('LegalDocuments', { initialStep: 1 })}
+              />
+              <GroupedSectionItem
+                icon={<SettingsIcon name="file-document" color={bloomTheme.colors.primary} />}
+                title={t('accountOverview.items.termsOfService.title') || 'Terms of service'}
+                description={
+                  t('accountOverview.items.termsOfService.subtitle') ||
+                  'Terms and conditions of use'
+                }
+                onPress={() => navigate?.('LegalDocuments', { initialStep: 2 })}
+              />
+            </GroupedSection>
+
+            {/* Danger zone */}
+            <GroupedSection title={t('manageAccount.sections.dangerZone') || 'Danger zone'}>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="delete" color={bloomTheme.colors.error} />}
+                title={t('accountOverview.items.deleteAccount.title') || 'Delete account'}
+                description={
+                  t('accountOverview.items.deleteAccount.subtitle') ||
+                  'Permanently delete your account and all data'
+                }
+                onPress={handleDeleteAccount}
+                destructive
+              />
+            </GroupedSection>
+
+            {/* Sign out of this account */}
+            <GroupedSection>
+              <GroupedSectionItem
+                icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
+                title={t('manageAccount.signOutOfThisAccount') || 'Sign out of this account'}
+                onPress={handleSignOut}
+                destructive
+                showChevron={false}
+                disabled={signingOut}
+                rightElement={
+                  signingOut ? (
+                    <SpinnerIcon color={bloomTheme.colors.error} size={16} />
+                  ) : undefined
+                }
+              />
+            </GroupedSection>
+
+            <View className="items-center mt-space-12 mb-space-8">
+              <Text className="text-text-tertiary text-xs">
+                {t('accountCenter.version', { version: packageInfo.version }) ||
+                  `Version ${packageInfo.version}`}
+              </Text>
+            </View>
+          </>
         ) : null}
-
-        {/* Preferences */}
-        <SettingsListGroup title={t('manageAccount.sections.preferences') || 'Preferences'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="cog" color={bloomTheme.colors.info} />}
-            title={t('preferences.title') || 'Preferences'}
-            description={t('preferences.subtitle') || 'Theme, motion, and regional settings'}
-            onPress={() => navigate?.('Preferences')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="bell" color={bloomTheme.colors.primary} />}
-            title={t('notifications.title') || 'Notifications'}
-            description={t('notifications.subtitle') || 'Manage push, email, and security alerts'}
-            onPress={() => navigate?.('Notifications')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="translate" color={bloomTheme.colors.primary} />}
-            title={t('language.title') || 'Language'}
-            description={t('language.subtitle') || 'Choose your preferred language'}
-            onPress={() => navigate?.('LanguageSelector')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="apps" color={bloomTheme.colors.info} />}
-            title={t('connectedApps.title') || 'Connected apps'}
-            description={t('connectedApps.subtitle') || 'Manage third-party app access'}
-            onPress={() => navigate?.('ConnectedApps')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
-            title={t('domains.title')}
-            description={t('domains.subtitle')}
-            onPress={() => navigate?.('Domains')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="magnify" color={bloomTheme.colors.primary} />}
-            title={t('accountOverview.items.searchSettings.title') || 'Search settings'}
-            description={
-              t('accountOverview.items.searchSettings.subtitle') || 'SafeSearch and personalization'
-            }
-            onPress={() => navigate?.('SearchSettings')}
-          />
-        </SettingsListGroup>
-
-        {/* Support */}
-        <SettingsListGroup title={t('accountOverview.sections.support') || 'Support'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="help-circle" color={bloomTheme.colors.primary} />}
-            title={t('accountOverview.items.help.title') || 'Help & support'}
-            description={t('accountOverview.items.help.subtitle') || 'Get help and contact support'}
-            onPress={() => navigate?.('HelpSupport')}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="information" color={bloomTheme.colors.success} />}
-            title={t('accountOverview.items.about.title') || 'About'}
-            description={t('accountOverview.items.about.subtitle') || 'Version and system details'}
-            onPress={() => navigate?.('AppInfo')}
-          />
-        </SettingsListGroup>
-
-        {/* Legal */}
-        <SettingsListGroup title={t('manageAccount.sections.legal') || 'Legal'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-            title={t('accountOverview.items.privacyPolicy.title') || 'Privacy policy'}
-            description={
-              t('accountOverview.items.privacyPolicy.subtitle') || 'How we handle your data'
-            }
-            onPress={() => navigate?.('LegalDocuments', { initialStep: 1 })}
-          />
-          <SettingsListItem
-            icon={<SettingsIcon name="file-document" color={bloomTheme.colors.primary} />}
-            title={t('accountOverview.items.termsOfService.title') || 'Terms of service'}
-            description={
-              t('accountOverview.items.termsOfService.subtitle') || 'Terms and conditions of use'
-            }
-            onPress={() => navigate?.('LegalDocuments', { initialStep: 2 })}
-          />
-        </SettingsListGroup>
-
-        {/* Danger zone */}
-        <SettingsListGroup title={t('manageAccount.sections.dangerZone') || 'Danger zone'}>
-          <SettingsListItem
-            icon={<SettingsIcon name="delete" color={bloomTheme.colors.error} />}
-            title={t('accountOverview.items.deleteAccount.title') || 'Delete account'}
-            description={
-              t('accountOverview.items.deleteAccount.subtitle') ||
-              'Permanently delete your account and all data'
-            }
-            onPress={handleDeleteAccount}
-            destructive
-          />
-        </SettingsListGroup>
-
-        {/* Sign out of this account */}
-        <SettingsListGroup>
-          <SettingsListItem
-            icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
-            title={t('manageAccount.signOutOfThisAccount') || 'Sign out of this account'}
-            onPress={handleSignOut}
-            destructive
-            showChevron={false}
-            disabled={signingOut}
-            rightElement={
-              signingOut ? (
-                <ActivityIndicator color={bloomTheme.colors.error} size="small" />
-              ) : undefined
-            }
-          />
-        </SettingsListGroup>
-
-        <View className="items-center mt-space-12 mb-space-8">
-          <Text className="text-text-tertiary text-xs">
-            {t('accountCenter.version', { version: packageInfo.version }) ||
-              `Version ${packageInfo.version}`}
-          </Text>
-        </View>
-
         <View style={styles.footerSpacer} />
       </View>
     </>

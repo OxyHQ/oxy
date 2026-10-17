@@ -5,8 +5,8 @@
     "ionicons": {
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
-      "bytes": 43160,
-      "sha256": "d96ec296f01cc237bf8e087401879aeef569c82871f40e4447d63bc8a9eaab3e",
+      "bytes": 42552,
+      "sha256": "3e5edc36624f9eca140e1d6160dd3111fabcf79b3e3d2c51ad182e7af3261c73",
       "names": [
         "add",
         "add-circle-outline",
@@ -75,7 +75,6 @@
         "footsteps",
         "gift",
         "gift-outline",
-        "globe-outline",
         "grid",
         "hand-left",
         "hardware-chip-outline",
@@ -102,6 +101,7 @@
         "location-outline",
         "lock-closed",
         "log-out-outline",
+        "mail",
         "musical-notes",
         "navigate",
         "open",
@@ -152,8 +152,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29292,
-      "sha256": "a3bef5c42424d459860676f20d7f1e9aaea4f7295aba3d5361ca2195d8f1d59c",
+      "bytes": 29112,
+      "sha256": "ed3d93958134c776949a7e9cc27e97dcb4d5010b36f48b68f61689d94bda8864",
       "names": [
         "account",
         "account-circle",
@@ -161,7 +161,6 @@
         "account-eye-outline",
         "account-group",
         "account-multiple",
-        "account-multiple-outline",
         "account-outline",
         "account-plus",
         "account-search",
@@ -250,6 +249,7 @@
         "folder-open-outline",
         "folder-outline",
         "folder-zip-outline",
+        "forward",
         "function",
         "ghost",
         "gift",
@@ -263,6 +263,7 @@
         "image",
         "image-multiple-outline",
         "image-outline",
+        "inbox",
         "information",
         "information-outline",
         "key",
@@ -275,6 +276,7 @@
         "lock-outline",
         "logout",
         "magnify",
+        "mail",
         "map-marker",
         "map-marker-multiple",
         "map-marker-outline",
@@ -286,7 +288,6 @@
         "network",
         "null",
         "numeric",
-        "opacity",
         "open-in-app",
         "openid",
         "palette",
@@ -318,7 +319,6 @@
         "shield-search",
         "signature",
         "solid",
-        "sort",
         "sort-alphabetical-variant",
         "sort-numeric-variant",
         "star",
@@ -353,5 +353,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "b0a3d21006a83bf10deac1c8e5bb1a4dacac3c0afe9d445ed856f766f49b6c01"
+  "glyphMapsSha256": "181517f80b06fce5f3c35a0a27bd7a66472b9af560923f9719b5c3e942b21081"
 }

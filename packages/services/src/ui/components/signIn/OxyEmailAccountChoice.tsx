@@ -18,7 +18,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import type { EmailSignInAccountOption } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 
 /** The list scrolls past this height (`max-h-96`). */
 const LIST_MAX_HEIGHT = 384;

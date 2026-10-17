@@ -21,7 +21,7 @@ let user: { id: string; username: string; publicKey?: string } = {
   publicKey: '04ab',
 };
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     user,

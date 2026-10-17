@@ -1,10 +1,11 @@
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
-import { View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, ScrollView, RefreshControl } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import type { FileMetadata } from '@oxy.so/core';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { useTheme } from '@oxy.so/bloom/theme';
 
 type ThemeColors = ReturnType<typeof useTheme>['colors'];
@@ -94,9 +95,9 @@ const FileListSection: React.FC<FileListSectionProps> = ({
         renderEmptyState()
       ) : (
         <>
-          <SettingsListGroup>
+          <GroupedSection>
             {items.map((item) => (
-              <SettingsListItem
+              <GroupedSectionItem
                 key={item.id}
                 icon={item.icon}
                 title={item.title}
@@ -106,10 +107,10 @@ const FileListSection: React.FC<FileListSectionProps> = ({
                 rightElement={item.rightElement}
               />
             ))}
-          </SettingsListGroup>
+          </GroupedSection>
           {paging.loadingMore && (
             <View className="flex-row items-center justify-center py-space-12 gap-space-8">
-              <ActivityIndicator size="small" color={colors.primary} />
+              <SpinnerIcon size={16} color={colors.primary} />
               <Text className="text-[13px] font-medium" style={{ color: colors.text }}>
                 {t('fileManagement.loadingMore')}
               </Text>

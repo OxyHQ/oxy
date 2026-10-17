@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SafetyPerson } from '@oxy.so/contracts';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { AccountFlowField, AccountFlowNote } from '../signIn/accountFlowParts';
 export function PersonPicker({

@@ -34,7 +34,7 @@ jest.mock(
 );
 
 const assetGetUrl = jest.fn();
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     user: { avatar: 'file-current', username: 'nate' },

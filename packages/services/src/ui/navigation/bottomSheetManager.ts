@@ -1,7 +1,7 @@
 import type { RouteName } from './routes';
 import { isValidRoute } from './routes';
 import { getSurfaceConfig } from './surfaceRegistry';
-import { closeAllRouteSurfaces, presentRoute, topRouteSurface } from './surfaces';
+import { closeAllRouteSurfaces, presentRoute, topMorphableSurface } from './surfaces';
 
 /**
  * Bottom-sheet manager — the INTERNAL adapter that keeps the historical
@@ -37,7 +37,7 @@ export const showBottomSheet = (
     return;
   }
 
-  const top = topRouteSurface();
+  const top = topMorphableSurface();
   if (top && !getSurfaceConfig(screen, props).stacks) {
     top.navigate(screen, props);
   } else {
@@ -55,6 +55,6 @@ export const closeBottomSheet = (): void => {
  * frame was popped, `false` when the surface is already at its root frame.
  */
 export const goBack = (): boolean => {
-  const top = topRouteSurface();
+  const top = topMorphableSurface();
   return top ? top.goBack() : false;
 };

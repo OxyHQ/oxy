@@ -1,14 +1,14 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import Ionicons from '../../icons/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H1, H4, H5, Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { darkenColor, lightenColor } from '../../utils/colorUtils';
 
@@ -310,7 +310,10 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
                     styles.badgeValueText,
                     {
                       color: lightTone,
-                      textShadowColor: darkTone,
+                      ...Platform.select({
+                        web: { textShadow: `0px 2px 4px ${darkTone}` },
+                        default: { textShadowColor: darkTone },
+                      }),
                     },
                   ]}
                 >
@@ -541,8 +544,10 @@ const styles = StyleSheet.create({
   badgeValueText: {
     fontSize: 32,
     fontWeight: 'bold',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    ...Platform.select({
+      web: {},
+      default: { textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+    }),
     letterSpacing: -1,
   },
   rarityBadge: {

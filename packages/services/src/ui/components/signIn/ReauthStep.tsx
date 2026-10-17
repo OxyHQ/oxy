@@ -8,9 +8,11 @@
 
 import type React from 'react';
 import { useState } from 'react';
+import { View } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
 import type { ReauthAction, ReauthProof } from '@oxy.so/contracts';
 import { EMAIL_CODE_LENGTH, TOTP_DIGITS } from '@oxy.so/contracts/client';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
@@ -188,13 +190,29 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         </>
       ) : null}
       {error ? <AccountFlowErrorLine message={error} /> : null}
-      <AccountFlowAction
-        label={needsCode ? t('reauth.sendCode') : submitLabel}
-        onPress={submit}
-        pending={pending}
-        destructive={destructive && !needsCode}
-        testID={needsCode ? 'reauth-send-code' : 'reauth-submit'}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        {secondary ? (
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="lg"
+            onPress={secondary.onPress}
+            disabled={pending}
+            testID="reauth-cancel"
+          >
+            {secondary.label}
+          </Button>
+        ) : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AccountFlowAction
+            label={needsCode ? t('reauth.sendCode') : submitLabel}
+            onPress={submit}
+            pending={pending}
+            destructive={destructive && !needsCode}
+            testID={needsCode ? 'reauth-send-code' : 'reauth-submit'}
+          />
+        </View>
+      </View>
       {mode === 'email' && verificationId ? (
         <SubtleLink
           label={t('emailCode.resend')}
@@ -212,14 +230,6 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
           }}
           disabled={pending}
           testID="reauth-switch-method"
-        />
-      ) : null}
-      {secondary ? (
-        <SubtleLink
-          label={secondary.label}
-          onPress={secondary.onPress}
-          disabled={pending}
-          testID="reauth-cancel"
         />
       ) : null}
     </OxyAuthScreen>

@@ -58,7 +58,7 @@ const defaultMockState = (): MockOxyState => ({
 
 let mockState: MockOxyState = defaultMockState();
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => mockState,
   useOxyAuthActions: () => mockState,

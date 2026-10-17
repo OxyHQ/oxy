@@ -1,6 +1,7 @@
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useMemo, useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, Image, StyleSheet } from 'react-native';
+import { View, ScrollView, Image, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
@@ -8,7 +9,7 @@ import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { FileMetadata } from '@oxy.so/core';
 import { formatFileSize } from '../../utils/fileManagement';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 
 interface FileViewerProps {
   file: FileMetadata;
@@ -238,7 +239,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
       >
         {loadingFileContent ? (
           <View className="flex-1 justify-center items-center">
-            <ActivityIndicator size="large" color={colors.primary} />
+            <SpinnerIcon size={32} color={colors.primary} />
             <Text className="text-text text-[16px] mt-[16px]">Loading file content...</Text>
           </View>
         ) : isImage && fileContent ? (
@@ -370,9 +371,9 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         {showFileDetailsInViewer && (
           <>
             <View className="px-[12px] pb-[8px]">
-              <SettingsListGroup>
+              <GroupedSection>
                 {fileDetailItems.map((item) => (
-                  <SettingsListItem
+                  <GroupedSectionItem
                     key={item.id}
                     icon={
                       <MaterialCommunityIcons
@@ -386,7 +387,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     showChevron={false}
                   />
                 ))}
-              </SettingsListGroup>
+              </GroupedSection>
             </View>
 
             {isOwner && (

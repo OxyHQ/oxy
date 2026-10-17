@@ -40,6 +40,11 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOptionalOxy: () => ({ currentLanguage: 'en-US' }),
 }));
 
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
+  useOxy: () => ({ currentLanguage: 'en-US' }),
+  useOptionalOxy: () => ({ currentLanguage: 'en-US' }),
+}));
+
 const createQueryClientMock = jest.fn(() => new QueryClient());
 const attachQueryPersistenceMock = jest.fn(() => ({
   restored: Promise.resolve(),

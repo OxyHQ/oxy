@@ -63,7 +63,7 @@ let mockState: MockOxyState = {
   isAuthenticated: true,
 };
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => mockState,
 }));

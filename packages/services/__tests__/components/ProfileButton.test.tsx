@@ -15,7 +15,7 @@ let auth = {
   signIn,
 };
 jest.mock('../../src/ui/hooks/useAuth', () => ({ useAuth: () => auth }));
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({ openAccountDialog, oxyServices: { assets: { publicUrl: () => '' } } }),
 }));
 jest.mock('../../src/ui/hooks/useI18n', () => ({

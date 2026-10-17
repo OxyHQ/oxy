@@ -1,27 +1,21 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, type TextInputProps } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Image, StyleSheet, type TextInputProps } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import {
-  Select,
-  SelectContent,
-  SelectIcon,
-  SelectItem,
-  SelectItemIndicator,
-  SelectItemText,
-  SelectTrigger,
-  SelectValue,
-} from '@oxy.so/bloom/select';
-import { normalizeTheme } from '@oxy.so/core';
+import { TextField, TextFieldInput, TextFieldLabel, TextFieldHint } from '@oxy.so/bloom/text-field';
+import { PhoneInput, COUNTRIES, findCountry } from '@oxy.so/bloom/phone-input';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { DatePicker } from '@oxy.so/bloom/date-picker';
+import { Field } from '@oxy.so/bloom/field';
+import { usernameSchema, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { SurfaceHeaderAction } from '../components/SurfaceHeaderAction';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
 import { toast } from '@oxy.so/bloom/toast';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
@@ -66,58 +60,6 @@ interface FieldConfig {
  * value this picker can produce is never one the API would reject.
  */
 const MIN_BIRTH_YEAR = 1900;
-
-/** `MIN_BIRTH_YEAR` through the current year, most recent first. */
-function birthYearOptions(): Array<{ value: string; label: string }> {
-  const currentYear = new Date().getUTCFullYear();
-  const years: Array<{ value: string; label: string }> = [];
-  for (let year = currentYear; year >= MIN_BIRTH_YEAR; year--) {
-    years.push({ value: String(year), label: String(year) });
-  }
-  return years;
-}
-
-/**
- * Month names are not run through `t()` here: this SDK has no existing
- * calendar-month translation catalogue to hook into, and inventing one is out
- * of scope for wiring up the date picker itself. English month names are a
- * known, deliberate limitation of this pass.
- */
-const MONTH_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '01', label: 'January' },
-  { value: '02', label: 'February' },
-  { value: '03', label: 'March' },
-  { value: '04', label: 'April' },
-  { value: '05', label: 'May' },
-  { value: '06', label: 'June' },
-  { value: '07', label: 'July' },
-  { value: '08', label: 'August' },
-  { value: '09', label: 'September' },
-  { value: '10', label: 'October' },
-  { value: '11', label: 'November' },
-  { value: '12', label: 'December' },
-];
-
-/**
- * Real Gregorian days in `month` (1-12) of `year`, leap years included — the
- * same rule `dateOfBirthSchema` (`@oxy.so/contracts`) applies server-side,
- * written a second time here because a picker's OWN day list must bound
- * itself before the value ever reaches it.
- */
-function daysInMonth(year: number, month: number): number {
-  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const DAYS_PER_MONTH = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return DAYS_PER_MONTH[month - 1];
-}
-
-/** Day options for the current year/month selection — 31 while either is unset. */
-function dayOptions(year: string, month: string): Array<{ value: string; label: string }> {
-  const count = year && month ? daysInMonth(Number(year), Number(month)) : 31;
-  return Array.from({ length: count }, (_, index) => {
-    const day = String(index + 1).padStart(2, '0');
-    return { value: day, label: day };
-  });
-}
 
 interface EditProfileFieldScreenProps extends BaseScreenProps {
   /** The field type to edit */
@@ -227,7 +169,6 @@ function buildInitialProfileState(
 const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
   goBack,
   onClose,
-  theme,
   fieldType = 'displayName',
 }) => {
   // Editing "my" profile targets the ACTIVE account — writes authenticate as
@@ -238,7 +179,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
   const { t } = useI18n();
   const { saveProfile, updateField, isSaving } = useProfileEditing();
   const bloomTheme = useTheme();
-  const normalizedTheme = normalizeTheme(theme);
 
   // State for field values — seeded ONCE from the active account snapshot at
   // mount via lazy initializers. See buildInitialProfileState: no effect
@@ -253,6 +193,25 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     () => buildInitialProfileState(user, fieldType).listItems,
   );
   const [newItemValue, setNewItemValue] = useState('');
+
+  const [phoneCountry, setPhoneCountry] = useState(() => {
+    const phone = fieldValues.phone?.replace(/[\s()-]/g, '') || '';
+    return (
+      [...COUNTRIES]
+        .sort((a, b) => b.dial.length - a.dial.length)
+        .find((country) => phone.startsWith(`+${country.dial}`))?.iso2 || 'US'
+    );
+  });
+  const phoneDial = findCountry(phoneCountry)?.dial || '1';
+  const phoneValue = fieldValues.phone || '';
+  const phoneNumber = phoneValue.startsWith(`+${phoneDial}`)
+    ? phoneValue.slice(phoneDial.length + 1).trimStart()
+    : phoneValue;
+
+  const usernameCheck = useUsernameAvailability(
+    fieldValues.username || '',
+    fieldType === 'username',
+  );
 
   // Get field configuration based on fieldType
   const fieldConfig = useMemo((): FieldConfig => {
@@ -298,16 +257,8 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               label: t('editProfile.items.username.label') || 'Username',
               placeholder: t('editProfile.items.username.placeholder') || 'Choose a username',
               validation: (value) => {
-                if (!value.trim()) {
-                  return t('editProfile.items.username.required') || 'Username is required';
-                }
-                if (value.length < 3) {
-                  return (
-                    t('editProfile.items.username.tooShort') ||
-                    'Username must be at least 3 characters'
-                  );
-                }
-                return undefined;
+                const parsed = usernameSchema.safeParse(value);
+                return parsed.success ? undefined : parsed.error.issues[0]?.message;
               },
               inputProps: {
                 autoCapitalize: 'none',
@@ -374,10 +325,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
         return {
           title: t('editProfile.items.birthday.title') || 'Birthday',
           subtitle: t('editProfile.items.birthday.subtitle') || 'Your date of birth',
-          // One entry, naming the field `handleSave`'s generic branch writes
-          // (`fieldConfig.fields[0]?.key`) — `renderBirthdayPicker` renders the
-          // actual day/month/year controls; this array is never mapped through
-          // `renderField` for this field type (see `isDatePicker` below).
+          // The shared date picker writes the same date-only API field.
           fields: [
             {
               key: 'dateOfBirth',
@@ -419,70 +367,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
       }
     },
     [fieldErrors],
-  );
-
-  // The birthday picker's three pieces, seeded once from the same
-  // one-time-mount value `fieldValues.dateOfBirth` already carries (empty
-  // string parts when unset). Kept separate from `fieldValues` because a
-  // `Select` needs its OWN current value per control; each change handler
-  // below composes the three back into the single `dateOfBirth` field
-  // `handleSave` actually writes, in the event handler itself rather than
-  // an effect.
-  const [dobYear, setDobYear] = useState(() => (fieldValues.dateOfBirth || '').split('-')[0] || '');
-  const [dobMonth, setDobMonth] = useState(
-    () => (fieldValues.dateOfBirth || '').split('-')[1] || '',
-  );
-  const [dobDay, setDobDay] = useState(() => (fieldValues.dateOfBirth || '').split('-')[2] || '');
-
-  // A partial selection (e.g. year and month but no day yet) writes ''`,
-  // which `updateField`/the API's `dateOfBirth` write path already treats
-  // as "clear" — the same behaviour a fully-erased text field would have
-  // had. There is deliberately no separate "incomplete date" error: the
-  // three controls are either all filled (a real date) or the field is
-  // unset, and both are valid states to save.
-  const commitDateOfBirth = useCallback(
-    (year: string, month: string, day: string) => {
-      handleFieldChange('dateOfBirth', year && month && day ? `${year}-${month}-${day}` : '');
-    },
-    [handleFieldChange],
-  );
-
-  // Changing the year or month can strand a selected day past the new
-  // month's length (31 March -> April has none) — clamped down to the new
-  // last day rather than left pointing at a day `dayOptions` no longer
-  // lists, the same way a native date picker behaves.
-  const handleDobYearChange = useCallback(
-    (year: string) => {
-      const clampedDay =
-        dobDay && dobMonth && Number(dobDay) > daysInMonth(Number(year), Number(dobMonth))
-          ? String(daysInMonth(Number(year), Number(dobMonth))).padStart(2, '0')
-          : dobDay;
-      setDobYear(year);
-      setDobDay(clampedDay);
-      commitDateOfBirth(year, dobMonth, clampedDay);
-    },
-    [dobMonth, dobDay, commitDateOfBirth],
-  );
-
-  const handleDobMonthChange = useCallback(
-    (month: string) => {
-      const clampedDay =
-        dobDay && dobYear && Number(dobDay) > daysInMonth(Number(dobYear), Number(month))
-          ? String(daysInMonth(Number(dobYear), Number(month))).padStart(2, '0')
-          : dobDay;
-      setDobMonth(month);
-      setDobDay(clampedDay);
-      commitDateOfBirth(dobYear, month, clampedDay);
-    },
-    [dobYear, dobDay, commitDateOfBirth],
-  );
-
-  const handleDobDayChange = useCallback(
-    (day: string) => {
-      setDobDay(day);
-      commitDateOfBirth(dobYear, dobMonth, day);
-    },
-    [dobYear, dobMonth, commitDateOfBirth],
   );
 
   // Validate all fields
@@ -533,6 +417,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 
   // Save handler
   const handleSave = async () => {
+    if (isSaving || (fieldType === 'username' && !usernameCheck.canSave)) return;
     if (fieldConfig.isList) {
       let success = false;
       if (fieldType === 'locations') {
@@ -574,7 +459,10 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
       } else {
         const key = fieldConfig.fields[0]?.key;
         if (key) {
-          success = await updateField(key, fieldValues[key]);
+          success = await updateField(
+            key,
+            key === 'username' ? usernameCheck.candidate : fieldValues[key],
+          );
         }
       }
 
@@ -585,38 +473,100 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     }
   };
 
-  // Contribute the field title/subtitle + a Save action into the Dialog's own
-  // nav header (this screen renders no header of its own). `handleSave` closes
-  // over the live form values, so route it through a ref to keep the Save node
-  // stable across keystrokes (only re-created when the saving state flips).
-  const handleSaveRef = useRef(handleSave);
-  handleSaveRef.current = handleSave;
-  const onSavePress = useCallback(() => {
-    void handleSaveRef.current();
-  }, []);
-  const saveAction = useMemo(
-    () => (
-      <SurfaceHeaderAction
-        label={isSaving ? t('common.saving') || 'Saving…' : t('common.save') || 'Save'}
-        onPress={onSavePress}
-        loading={isSaving}
-        disabled={isSaving}
-      />
-    ),
-    [isSaving, onSavePress, t],
-  );
-  useSurfaceHeader({ title: fieldConfig.title, subtitle: fieldConfig.subtitle, right: saveAction });
+  const saveDisabled = isSaving || (fieldType === 'username' && !usernameCheck.canSave);
+  useSurfaceHeader({
+    title: fieldConfig.title,
+    subtitle: fieldConfig.subtitle,
+    primaryAction: {
+      label: t('common.save') || 'Save',
+      onPress: () => void handleSave(),
+      loading: isSaving,
+      disabled: saveDisabled,
+    },
+  });
 
   // Render a single field input
   const renderField = (field: FieldConfig['fields'][0], index: number) => {
-    const error = fieldErrors[field.key];
+    const error =
+      fieldErrors[field.key] ||
+      (field.key === 'username'
+        ? usernameCheck.status === 'invalid'
+          ? usernameCheck.invalid
+          : usernameCheck.status === 'taken'
+            ? t('accounts.create.username.taken')
+            : usernameCheck.status === 'error'
+              ? t('accounts.create.username.checkFailed')
+              : undefined
+        : undefined);
+
+    if (field.key === 'phone') {
+      return (
+        <PhoneInput
+          key={field.key}
+          label={field.label}
+          placeholder={field.placeholder}
+          country={phoneCountry}
+          value={phoneNumber}
+          disabled={isSaving}
+          isInvalid={Boolean(error)}
+          hint={error}
+          onCountryChange={(iso2, country) => {
+            setPhoneCountry(iso2);
+            handleFieldChange('phone', phoneNumber.trim() ? `+${country.dial}${phoneNumber}` : '');
+          }}
+          onValueChange={(value) => {
+            const trimmed = value.trim();
+            if (trimmed.startsWith('+')) {
+              const international = trimmed.replace(/[\s()-]/g, '');
+              const country = [...COUNTRIES]
+                .sort((a, b) => b.dial.length - a.dial.length)
+                .find((candidate) => international.startsWith(`+${candidate.dial}`));
+              if (country) setPhoneCountry(country.iso2);
+              handleFieldChange('phone', international);
+            } else {
+              handleFieldChange('phone', trimmed ? `+${phoneDial}${value}` : '');
+            }
+          }}
+        />
+      );
+    }
+    if (field.type === 'textarea') {
+      return (
+        <Textarea
+          key={field.key}
+          label={field.label}
+          placeholder={field.placeholder}
+          value={fieldValues[field.key] || ''}
+          onValueChange={(value) => handleFieldChange(field.key, value)}
+          rows={field.key === 'bio' ? 6 : 3}
+          disabled={isSaving}
+          isInvalid={Boolean(error)}
+          hint={error}
+          autoFocus={index === 0}
+        />
+      );
+    }
 
     return (
-      <View key={field.key} className="gap-space-8">
-        <TextField isInvalid={Boolean(error)}>
+      <Field
+        key={field.key}
+        label={field.label}
+        error={error}
+        disabled={isSaving}
+        description={
+          field.key === 'username'
+            ? usernameCheck.status === 'checking'
+              ? t('editProfile.items.username.checking')
+              : usernameCheck.status === 'available'
+                ? t('accounts.create.username.available')
+                : USERNAME_INVALID_MESSAGE
+            : undefined
+        }
+      >
+        <TextField>
           <TextFieldInput
-            floatingLabel
             label={field.label}
+            placeholder={field.placeholder}
             value={fieldValues[field.key] || ''}
             onChangeText={(value) => handleFieldChange(field.key, value)}
             isInvalid={Boolean(error)}
@@ -624,79 +574,36 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
             {...field.inputProps}
           />
         </TextField>
-        {error && (
-          <Text className="text-caption px-space-4" style={{ color: bloomTheme.colors.negative }}>
-            {error}
-          </Text>
-        )}
-      </View>
+      </Field>
     );
   };
 
-  // Render the birthday picker: three `Select`s (day, month, year) rather
-  // than a native date-picker dependency. Neither this app nor
-  // `@oxy.so/bloom` has one installed, and `Select` is already this
-  // design system's cross-platform choice control (a bottom sheet on
-  // native, an anchored dropdown on web — see its own docs) with no new
-  // dependency to add and no native linking to carry across platforms.
-  const renderBirthdayPicker = () => (
-    <View className="flex-row gap-space-8">
-      <View className="flex-1">
-        <Select value={dobMonth} onValueChange={handleDobMonthChange}>
-          <SelectTrigger label={t('editProfile.items.birthday.month') || 'Month'}>
-            <SelectValue placeholder={t('editProfile.items.birthday.month') || 'Month'} />
-            <SelectIcon />
-          </SelectTrigger>
-          <SelectContent
-            label={t('editProfile.items.birthday.month') || 'Month'}
-            items={MONTH_OPTIONS}
-            renderItem={(item) => (
-              <SelectItem value={item.value} label={item.label}>
-                <SelectItemIndicator />
-                <SelectItemText>{item.label}</SelectItemText>
-              </SelectItem>
-            )}
-          />
-        </Select>
+  // Keep birthdays date-only: local calendar components avoid UTC day shifts.
+  const renderBirthdayPicker = () => {
+    const value = fieldValues.dateOfBirth;
+    const parts = value ? value.split('-').map(Number) : null;
+    return (
+      <View className="gap-space-8">
+        <TextFieldLabel>{fieldConfig.title}</TextFieldLabel>
+        <DatePicker
+          value={parts ? new Date(parts[0], parts[1] - 1, parts[2]) : null}
+          minDate={new Date(MIN_BIRTH_YEAR, 0, 1)}
+          maxDate={new Date()}
+          accessibilityLabel={fieldConfig.title}
+          placeholder={fieldConfig.fields[0].placeholder}
+          disabled={isSaving}
+          onChange={(date) =>
+            handleFieldChange(
+              'dateOfBirth',
+              date
+                ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+                : '',
+            )
+          }
+        />
       </View>
-      <View className="flex-1">
-        <Select value={dobDay} onValueChange={handleDobDayChange}>
-          <SelectTrigger label={t('editProfile.items.birthday.day') || 'Day'}>
-            <SelectValue placeholder={t('editProfile.items.birthday.day') || 'Day'} />
-            <SelectIcon />
-          </SelectTrigger>
-          <SelectContent
-            label={t('editProfile.items.birthday.day') || 'Day'}
-            items={dayOptions(dobYear, dobMonth)}
-            renderItem={(item) => (
-              <SelectItem value={item.value} label={item.label}>
-                <SelectItemIndicator />
-                <SelectItemText>{item.label}</SelectItemText>
-              </SelectItem>
-            )}
-          />
-        </Select>
-      </View>
-      <View className="flex-1">
-        <Select value={dobYear} onValueChange={handleDobYearChange}>
-          <SelectTrigger label={t('editProfile.items.birthday.year') || 'Year'}>
-            <SelectValue placeholder={t('editProfile.items.birthday.year') || 'Year'} />
-            <SelectIcon />
-          </SelectTrigger>
-          <SelectContent
-            label={t('editProfile.items.birthday.year') || 'Year'}
-            items={birthYearOptions()}
-            renderItem={(item) => (
-              <SelectItem value={item.value} label={item.label}>
-                <SelectItemIndicator />
-                <SelectItemText>{item.label}</SelectItemText>
-              </SelectItem>
-            )}
-          />
-        </Select>
-      </View>
-    </View>
-  );
+    );
+  };
 
   // Render list content (locations or links)
   const renderListContent = () => {
@@ -713,9 +620,9 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
       <>
         <View className="flex-row items-center gap-space-8">
           <View className="flex-1">
-            <TextField>
+            <TextFieldLabel>{addLabel}</TextFieldLabel>
+            <TextField disabled={isSaving}>
               <TextFieldInput
-                floatingLabel
                 label={addLabel}
                 value={newItemValue}
                 onChangeText={setNewItemValue}
@@ -729,7 +636,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
           </View>
           <Button
             onPress={handleAddItem}
-            disabled={!newItemValue.trim()}
+            disabled={isSaving || !newItemValue.trim()}
             accessibilityLabel={addLabel}
             icon={<Ionicons name="add" size={20} color={bloomTheme.colors.primaryForeground} />}
             iconOnly
@@ -739,42 +646,33 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
         </View>
 
         {listItems.length > 0 && (
-          <View className="mt-space-8 gap-space-12">
-            <Text className="text-sectionTitle font-sectionTitle text-text">
-              {listTitle} ({listItems.length})
-            </Text>
+          <GroupedSection title={`${listTitle} (${listItems.length})`}>
             {listItems.map((item) => (
-              <View
+              <GroupedSectionItem
                 key={item.id}
-                className="flex-row items-center gap-space-12 p-space-16 rounded-radius-12 border-hairline border-border-image bg-fill"
-              >
-                {fieldType === 'links' && item.image && (
-                  <Image source={{ uri: item.image }} style={styles.linkImage} />
-                )}
-                <View className="flex-1 gap-space-4">
-                  <Text className="text-subtitle font-subtitle text-text" numberOfLines={1}>
-                    {fieldType === 'locations' ? item.name : item.title || item.url}
-                  </Text>
-                  {fieldType === 'links' && (
-                    <Text
-                      className="text-bodySmall font-bodySmall text-text-secondary"
-                      numberOfLines={1}
-                    >
-                      {item.url}
-                    </Text>
-                  )}
-                </View>
-                <TouchableOpacity
-                  onPress={() => handleRemoveItem(item.id)}
-                  className="p-space-8"
-                  accessibilityRole="button"
-                  accessibilityLabel={t('common.remove') || 'Remove'}
-                >
-                  <Ionicons name="trash-outline" size={18} color={bloomTheme.colors.negative} />
-                </TouchableOpacity>
-              </View>
+                title={String(fieldType === 'locations' ? item.name : item.title || item.url)}
+                description={fieldType === 'links' ? String(item.url) : undefined}
+                icon={
+                  fieldType === 'links' && item.image ? (
+                    <Image source={{ uri: item.image }} style={styles.linkImage} />
+                  ) : undefined
+                }
+                rightElement={
+                  <Button
+                    onPress={() => handleRemoveItem(item.id)}
+                    disabled={isSaving}
+                    accessibilityLabel={`${t('common.remove') || 'Remove'} ${fieldType === 'locations' ? item.name : item.title || item.url}`}
+                    icon={
+                      <Ionicons name="trash-outline" size={18} color={bloomTheme.colors.negative} />
+                    }
+                    iconOnly
+                    tone="danger"
+                    appearance="plain"
+                  />
+                }
+              />
             ))}
-          </View>
+          </GroupedSection>
         )}
       </>
     );
@@ -782,13 +680,22 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 
   return (
     <View className="px-screen-margin pt-space-16 pb-space-32 gap-space-24">
-      {/* Form Content */}
-      <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
+      <View style={{ gap: 20 }}>
         {fieldConfig.isList
           ? renderListContent()
           : fieldConfig.isDatePicker
             ? renderBirthdayPicker()
             : fieldConfig.fields.map(renderField)}
+        {fieldType === 'username' && (
+          <View style={{ gap: 12 }}>
+            {usernameCheck.status === 'error' && (
+              <Button appearance="plain" tone="neutral" onPress={usernameCheck.retry}>
+                {t('common.retry')}
+              </Button>
+            )}
+            <TextFieldHint>{t('editProfile.items.username.changeHint')}</TextFieldHint>
+          </View>
+        )}
       </View>
     </View>
   );

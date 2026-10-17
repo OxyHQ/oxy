@@ -15,6 +15,11 @@
 /// <reference path="../types/react-native-classname.d.ts" />
 /// <reference path="../types/react-native-web-style.d.ts" />
 
+import { registerScreens } from './navigation/routes';
+import { screenComponents } from './navigation/screenComponents';
+
+registerScreens(screenComponents);
+
 // Components
 export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';

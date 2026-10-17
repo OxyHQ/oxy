@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authenticatedApiCall, type UserPreferences } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useCurrentUser } from './queries/useAccountQueries';
 import { queryKeys } from './queries/queryKeys';
 import { useAuthStore } from '../stores/authStore';

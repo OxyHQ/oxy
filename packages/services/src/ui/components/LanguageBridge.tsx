@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { coerceToSupportedLocale } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import type { OxyLanguageConfig } from '../types/navigation';
 
 /**

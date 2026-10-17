@@ -9,7 +9,7 @@ import { BloomLocaleBridge } from '../BloomLocaleBridge';
  */
 
 let mockCurrentLanguage = 'es-ES';
-jest.mock('../../context/OxyContext', () => ({
+jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({ currentLanguage: mockCurrentLanguage }),
 }));
 

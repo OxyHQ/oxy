@@ -1,3 +1,8 @@
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { LinkButton } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiSubtractLine } from '@oxy.so/bloom/icons/RiSubtractLine';
 /**
  * AvatarCropScreen
  *
@@ -28,15 +33,7 @@
 
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  Platform,
-  AccessibilityInfo,
-  Pressable,
-} from 'react-native';
+import { View, StyleSheet, Image, Platform, AccessibilityInfo } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -51,7 +48,7 @@ import Animated, {
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
@@ -336,7 +333,6 @@ async function hapticSelection(): Promise<void> {
 
 const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
   dismiss,
-  goBack,
   imageUri,
   imageFileId,
   sourceWidth,
@@ -871,19 +867,17 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
     [t, handleConfirm, isProcessing, baseFit],
   );
 
-  // No bar of our own: the surface owns the chrome. `goBack` pops back to the
-  // ChangeAvatar source list (and dismisses the surface if this is somehow the
-  // root frame), which is exactly Cancel.
+  // The host derives Back from real route history; a cold root only shows Close.
   useSurfaceHeader({
     title: t('editProfile.crop.title'),
     largeTitle: false,
     primaryAction: donePrimaryAction,
-    onBack: goBack,
   });
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
+        footerPointerEvents: { pointerEvents: 'box-none' },
         container: {
           backgroundColor: theme.colors.background,
         },
@@ -993,15 +987,6 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
           textAlign: 'center',
           maxWidth: 320,
         },
-        resetLink: {
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-        },
-        resetLinkText: {
-          fontSize: 13,
-          color: theme.colors.primary,
-          textDecorationLine: 'underline',
-        },
         emptyState: {
           alignItems: 'center',
           justifyContent: 'center',
@@ -1018,7 +1003,6 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
 
   // Reset link reveal — only show when the image is not at the default
   // transform. Use derived display state to avoid mounting/unmounting jank.
-  const resetLinkOpacity = isModified ? 1 : 0;
 
   // Zoom-button state is derived from `zoomLabel` (reactive state, set on every
   // commit) rather than the committed-scale ref, so it stays correct across
@@ -1069,16 +1053,16 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
                   resizeMode="cover"
                 />
               ) : (
-                <ActivityIndicator color="#ffffff" />
+                <SpinnerIcon color="#ffffff" />
               )}
             </View>
           </GestureDetector>
 
           {/* White ring + inner shadow around the circle. */}
-          <View pointerEvents="none" style={styles.ringOverlay} />
+          <View style={[styles.ringOverlay, { pointerEvents: 'none' }]} />
 
           {/* Rule-of-thirds grid overlay (fades in during gesture). */}
-          <Animated.View pointerEvents="none" style={[styles.gridOverlay, gridAnimatedStyle]}>
+          <Animated.View style={[styles.gridOverlay, gridAnimatedStyle, { pointerEvents: 'none' }]}>
             <View style={[styles.gridLineH, { top: VIEWPORT_SIZE / 3 }]} />
             <View style={[styles.gridLineH, { top: (VIEWPORT_SIZE * 2) / 3 }]} />
             <View style={[styles.gridLineV, { left: VIEWPORT_SIZE / 3 }]} />
@@ -1086,7 +1070,9 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
           </Animated.View>
 
           {/* Floating zoom chip during pinch. */}
-          <Animated.View pointerEvents="none" style={[styles.zoomChip, zoomChipAnimatedStyle]}>
+          <Animated.View
+            style={[styles.zoomChip, zoomChipAnimatedStyle, { pointerEvents: 'none' }]}
+          >
             <Text style={styles.zoomChipText}>
               {t('editProfile.crop.zoom', { value: zoomLabel })}
             </Text>
@@ -1098,50 +1084,40 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
                     aesthetic; the full-width row is `box-none` so only the pill
                     takes pointer events and the rest of the circle stays pannable. */}
         {showZoomControls ? (
-          <View className="absolute bottom-4 left-0 right-0 items-center" pointerEvents="box-none">
-            <View className="flex-row overflow-hidden rounded-full bg-black/70">
-              <Pressable
-                accessibilityRole="button"
+          <View
+            className="absolute bottom-4 left-0 right-0 items-center"
+            style={styles.footerPointerEvents}
+          >
+            <ButtonGroup>
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={RiSubtractLine}
                 accessibilityLabel={t('editProfile.crop.zoomOut')}
-                accessibilityState={{ disabled: zoomOutDisabled }}
                 disabled={zoomOutDisabled}
                 onPress={() => applyZoom(-1)}
-                className={`h-10 w-[52px] items-center justify-center active:bg-white/10${
-                  zoomOutDisabled ? ' opacity-40' : ''
-                }`}
-              >
-                <Text className="text-white text-[22px] font-medium leading-[24px]">{'−'}</Text>
-              </Pressable>
-              <View className="w-px self-stretch bg-white/25" />
-              <Pressable
-                accessibilityRole="button"
+              />
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={RiAddLine}
                 accessibilityLabel={t('editProfile.crop.zoomIn')}
-                accessibilityState={{ disabled: zoomInDisabled }}
                 disabled={zoomInDisabled}
                 onPress={() => applyZoom(1)}
-                className={`h-10 w-[52px] items-center justify-center active:bg-white/10${
-                  zoomInDisabled ? ' opacity-40' : ''
-                }`}
-              >
-                <Text className="text-white text-[22px] font-medium leading-[24px]">{'+'}</Text>
-              </Pressable>
-            </View>
+              />
+            </ButtonGroup>
           </View>
         ) : null}
       </View>
 
       <View style={styles.helperBlock}>
         <Text style={styles.helper}>{t('editProfile.crop.helper')}</Text>
-        <Pressable
+        <LinkButton
           accessibilityLabel={t('editProfile.crop.a11yReset')}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !isModified || isProcessing }}
           onPress={resetTransform}
           disabled={!isModified || isProcessing}
-          style={[styles.resetLink, { opacity: isProcessing ? 0.3 : resetLinkOpacity }]}
+          size="sm"
         >
-          <Text style={styles.resetLinkText}>{t('editProfile.crop.resetToCenter')}</Text>
-        </Pressable>
+          {t('editProfile.crop.resetToCenter')}
+        </LinkButton>
       </View>
     </View>
   );

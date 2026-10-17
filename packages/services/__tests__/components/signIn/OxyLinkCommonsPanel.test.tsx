@@ -40,7 +40,7 @@ const oxyServices = {
 };
 let user: { id: string; username: string; publicKey?: string } = { id: 'user-1', username: 'ada' };
 
-jest.mock('../../../src/ui/context/OxyContext', () => ({
+jest.mock('../../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({ oxyServices, user }),
   useOptionalOxy: () => null,

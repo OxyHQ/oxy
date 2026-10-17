@@ -37,7 +37,7 @@ function installEscapeHandler(): void {
     'keydown',
     (event) => {
       if (event.key !== 'Escape' || handlerStack.length === 0) return;
-      invokeTopHandler();
+      if (!invokeTopHandler()) return;
       event.stopImmediatePropagation();
       event.preventDefault();
     },

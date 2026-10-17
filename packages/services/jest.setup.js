@@ -107,3 +107,8 @@ afterEach(() => {
 });
 
 jest.setTimeout(10000);
+
+// Runtime/provider suites exercise navigation state without mounting every
+// platform screen. Screen suites import their component directly; the browser
+// check exercises the complete synchronous registry with real platform modules.
+jest.mock('./src/ui/navigation/screenComponents', () => ({ screenComponents: {} }));

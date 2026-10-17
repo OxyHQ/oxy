@@ -4,7 +4,7 @@ import { authenticatedApiCall } from '@oxy.so/core';
 import type { ConnectedApp, User } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
 import { mutationKeys } from '../mutations/mutationKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAuthStore } from '../../stores/authStore';
 
 /**
@@ -70,11 +70,13 @@ export const useUserProfiles = (sessionIds: string[], options?: { enabled?: bool
  * handler is responsible for writing the final value to the store.
  */
 export const useCurrentUser = (options?: { enabled?: boolean }) => {
-  const { oxyServices, activeSessionId, isAuthenticated } = useOxy();
+  const { oxyServices, activeSessionId, isAuthenticated, user } = useOxy();
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: queryKeys.accounts.current(activeSessionId),
+    initialData: isAuthenticated && user ? user : undefined,
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
       return await oxyServices.users.me();
     },

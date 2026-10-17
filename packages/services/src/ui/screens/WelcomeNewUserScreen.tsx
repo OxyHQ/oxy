@@ -11,7 +11,7 @@ import { H1, Text } from '@oxy.so/bloom/typography';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useUpdateProfile } from '../hooks/mutations/useAccountMutations';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 

@@ -1,6 +1,8 @@
+import { Search } from '@oxy.so/bloom/search';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type React from 'react';
-import { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
@@ -10,7 +12,7 @@ import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { logger, getNormalizedUserHandle, getAccountFallbackHandle } from '@oxy.so/core';
 import type { User, FollowGraphSort } from '@oxy.so/core';
 
@@ -20,11 +22,7 @@ interface UserListScreenProps extends BaseScreenProps {
   userId: string;
   mode: ListMode;
   initialCount?: number;
-  /**
-   * Ordering of the list — `recent` (newest follow first) or `oldest`.
-   * Omitted ⇒ the server default (`recent`). Changing it re-fetches from
-   * offset 0, since a page boundary is meaningless across two orderings.
-   */
+  /** @deprecated Ordering is server-owned and never chronological. */
   sort?: FollowGraphSort;
 }
 
@@ -40,16 +38,12 @@ const ERROR_ICON_SIZE = 48;
 const resolveUserId = (user: User): string =>
   user.id || (typeof user._id === 'string' ? user._id : '');
 
-const UserListScreen: React.FC<UserListScreenProps> = ({
-  userId,
-  mode,
-  initialCount,
-  sort,
-  navigate,
-}) => {
+const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, navigate }) => {
   const { oxyServices, user: currentUser } = useOxy();
   const [users, setUsers] = useState<User[]>([]);
-  const [total, setTotal] = useState(initialCount ?? 0);
+  const fetching = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -69,6 +63,8 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         return;
       }
 
+      if (fetching.current) return;
+      fetching.current = true;
       try {
         if (isRefresh) {
           setIsRefreshing(true);
@@ -80,7 +76,6 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         setError(null);
 
         let newUsers: User[];
-        let total: number;
         let hasMore: boolean;
 
         if (mode === 'followers') {
@@ -90,7 +85,6 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
             sort,
           });
           newUsers = result.followers;
-          total = result.total;
           hasMore = result.hasMore;
         } else {
           const result = await oxyServices.follows.following(userId, {
@@ -99,7 +93,6 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
             sort,
           });
           newUsers = result.following;
-          total = result.total;
           hasMore = result.hasMore;
         }
 
@@ -109,8 +102,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
           setUsers((prev) => [...prev, ...newUsers]);
         }
 
-        setTotal(total);
-        setHasMore(hasMore);
+        setHasMore(hasMore && newUsers.length > 0);
       } catch (err) {
         logger.error(
           `Failed to fetch ${mode}`,
@@ -121,14 +113,12 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         );
         setError(`Failed to load ${mode}. Please try again.`);
       } finally {
+        fetching.current = false;
         setIsLoading(false);
         setIsLoadingMore(false);
         setIsRefreshing(false);
       }
     },
-    // `sort` belongs here: without it the callback would close over the first
-    // ordering forever, and the mount effect below (keyed on `fetchUsers`)
-    // would never re-run — flipping the control would change nothing.
     [userId, mode, sort, oxyServices],
   );
 
@@ -160,7 +150,8 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
     ({ item }: { item: User }) => {
       const itemUserId = resolveUserId(item);
       const isCurrentUser = itemUserId === currentUserId;
-      const description = typeof item.description === 'string' ? item.description : '';
+      const description =
+        item.bio || (typeof item.description === 'string' ? item.description : '');
       const displayName = item.name?.displayName ?? getNormalizedUserHandle(item) ?? '';
       const handle = getAccountFallbackHandle(item);
 
@@ -199,8 +190,44 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
     [handleUserPress, currentUserId, oxyServices],
   );
 
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visibleUsers = useMemo(
+    () =>
+      normalizedSearch
+        ? users.filter((user) =>
+            [user.name?.displayName, getNormalizedUserHandle(user)].some((value) =>
+              value?.toLocaleLowerCase().includes(normalizedSearch),
+            ),
+          )
+        : users,
+    [users, normalizedSearch],
+  );
+
+  // Search walks the remaining pages too: a match after the first page must
+  // not be reported as absent. One page at a time, stopping on error/clear.
+  useEffect(() => {
+    if (normalizedSearch && hasMore && !isLoading && !isLoadingMore && !isRefreshing && !error) {
+      void fetchUsers(users.length);
+    }
+  }, [
+    normalizedSearch,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isRefreshing,
+    error,
+    users.length,
+    fetchUsers,
+  ]);
+
   const renderEmpty = useCallback(() => {
-    if (isLoading) return null;
+    if (isLoading || (normalizedSearch && (hasMore || isLoadingMore) && !error)) return null;
+    if (normalizedSearch)
+      return (
+        <View className="px-space-24 py-space-24">
+          <Text>{t('userList.noSearchResults')}</Text>
+        </View>
+      );
     return (
       <View style={styles.emptyContainer} className="px-space-32 gap-space-8">
         <Ionicons
@@ -222,34 +249,29 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         </Text>
       </View>
     );
-  }, [isLoading, mode, bloomTheme, t]);
-
-  const renderFooter = useCallback(() => {
-    if (!isLoadingMore) return null;
-    return (
-      <View style={styles.footerLoader} className="py-space-16">
-        <ActivityIndicator size="small" color={bloomTheme.colors.primary} />
-      </View>
-    );
-  }, [isLoadingMore, bloomTheme]);
+  }, [isLoading, mode, bloomTheme, t, normalizedSearch, hasMore, isLoadingMore, error]);
 
   const title =
     mode === 'followers'
       ? t('userList.followers') || 'Followers'
       : t('userList.following') || 'Following';
 
-  const headerSubtitle = total > 0 ? String(total) : undefined;
-  useSurfaceHeader({ title, subtitle: headerSubtitle });
-
-  if (isLoading && users.length === 0) {
-    return (
-      <View className="flex-1 bg-bg">
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={bloomTheme.colors.primary} />
-        </View>
-      </View>
-    );
-  }
+  useSurfaceHeader({
+    title,
+    subtitle: t(
+      mode === 'followers' ? 'userList.followersDescription' : 'userList.followingDescription',
+    ),
+    actions: [
+      {
+        icon: RiSearchLine,
+        accessibilityLabel: t('userList.search'),
+        onPress: () => {
+          setSearchOpen((open) => !open);
+          setSearch('');
+        },
+      },
+    ],
+  });
 
   if (error) {
     return (
@@ -266,17 +288,26 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
   }
 
   return (
-    <View className="flex-1 bg-bg">
+    <View style={{ flex: 1, minHeight: 0 }}>
+      {searchOpen ? (
+        <View className="px-screen-margin pb-space-12" style={{ flexShrink: 0 }}>
+          <Search
+            label={t('userList.search')}
+            placeholder={t('userList.searchPlaceholder')}
+            value={search}
+            onValueChange={setSearch}
+            autoFocus
+          />
+        </View>
+      ) : null}
       <FlatList
-        data={users}
+        style={{ flex: 1 }}
+        data={visibleUsers}
         renderItem={renderUser}
         keyExtractor={(item, index) => resolveUserId(item) || `user-${index}`}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => (
-          <View style={styles.separator} className="border-b border-border" />
-        )}
+        ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
         ListEmptyComponent={renderEmpty}
-        ListFooterComponent={renderFooter}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.3}
         refreshControl={
@@ -307,19 +338,11 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
-  // Inset the hairline separator to align with the start of the user's text
-  // content (avatar width + screen margin + gap).
-  separator: {
-    marginLeft: 72,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 80,
-  },
-  footerLoader: {
-    alignItems: 'center',
   },
 });
 

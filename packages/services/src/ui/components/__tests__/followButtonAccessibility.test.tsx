@@ -50,7 +50,7 @@ jest.mock('../../hooks/useFollow', () => ({
   }),
 }));
 
-jest.mock('../../context/OxyContext', () => ({
+jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({ oxyServices: {}, canUsePrivateApi: true, user: { id: 'viewer' } }),
 }));
 

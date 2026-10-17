@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { AuthMethodEntry, AuthMethodsResponse, SignInMethods } from '@oxy.so/contracts';
 import { queryKeys } from './queryKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 
 /** Stable empty list so the derived selectors keep a stable reference while loading. */
 const EMPTY_METHODS: readonly AuthMethodEntry[] = Object.freeze([]);

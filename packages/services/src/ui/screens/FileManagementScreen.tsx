@@ -1,25 +1,19 @@
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
 import { Button } from '@oxy.so/bloom/button';
 import type React from 'react';
 import { type ComponentRef, useState, useCallback, useMemo, useRef } from 'react';
-import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  RefreshControl,
-  useWindowDimensions,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import type { FileManagementScreenProps } from '../types/fileManagement';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import Ionicons from '../icons/Ionicons';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
-import { Pressable } from 'react-native';
 import type { FileMetadata } from '@oxy.so/core';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import {
@@ -28,10 +22,9 @@ import {
   patchFileMetadataInCache,
 } from '../hooks/queries/useFileQueries';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
-import { SurfaceHeaderAction } from '../components/SurfaceHeaderAction';
 import JustifiedPhotoGrid from '../components/photogrid/JustifiedPhotoGrid';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useUploadFile } from '../hooks/mutations/useAccountMutations';
@@ -57,21 +50,6 @@ import { SegmentedControl, SegmentedControlItem } from '@oxy.so/bloom/segmented-
 import { Search } from '@oxy.so/bloom/search';
 
 // Photo tiles use expo-image dimensions; controls use Bloom primitives.
-// Nav-header slot layout for this screen's action row + review-mode back button.
-const fmHeaderStyles = StyleSheet.create({
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-
 const screenStyles = StyleSheet.create({
   justifiedPhotoImage: { width: '100%', height: '100%', borderRadius: 6 },
 });
@@ -118,8 +96,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     () => filesQuery.data?.pages.flatMap((page) => page.files) ?? [],
     [filesQuery.data],
   );
-  // No owner resolved yet reads as "loading" (matches the old skeleton-until-
-  // first-load behaviour); `isLoading` is the first-page fetch only.
+  // No owner resolved yet counts as pending to avoid an incorrect empty state.
   const isLoadingFiles = !targetUserId || filesQuery.isLoading;
   const isRefreshingFiles = filesQuery.isRefetching;
   const isFetchingMore = filesQuery.isFetchingNextPage;
@@ -825,7 +802,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       const downloadUrl = thumbSourceFor(photo);
 
       return (
-        <TouchableOpacity
+        <PressableScale
           key={photo.id}
           className="rounded-[6px] overflow-hidden relative"
           style={{
@@ -839,7 +816,6 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
               : {}),
           }}
           onPress={() => handleFileOpen(photo)}
-          activeOpacity={0.8}
         >
           <View className="w-full h-full relative rounded-[6px] overflow-hidden">
             <ExpoImage
@@ -866,7 +842,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       );
     },
     [
@@ -880,7 +856,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     ],
   );
 
-  // SettingsListItem-based file items (for 'all' view)
+  // GroupedSectionItem-based file items (for 'all' view)
   const groupedFileItems: FileListItem[] = useMemo(() => {
     // filteredFiles is already sorted, so just use it directly
     const sortedFiles = filteredFiles;
@@ -1163,95 +1139,30 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       </View>
     );
 
-  // Loading state — Bloom's shared `Skeleton` primitives own the shimmer, so
-  // this is pure layout: the top chrome (header / controls / search) plus a
-  // photo grid of shimmering tiles sized with the same 3-per-row geometry the
-  // real photo grid uses. No hand-rolled `Animated` shimmer.
-  //
-  // The image-only picker owns its OWN loading skeleton (rendered by
-  // `PhotoPickerView` when its photo list is still loading), so it inherits the
-  // picker's placement-aware container width / columns / tile size and the
-  // Dialog-vs-bottom-sheet sizing. Skipping the browse chrome here is what keeps
-  // the picker from flashing the wrong (file-manager) skeleton inside the Dialog.
-  // The Dialog owns the nav header; this screen contributes its state-dependent
-  // title/subtitle + action slots. The image-only picker mode is headerless
-  // (PhotoPickerView owns its own bar), so this config is simply ignored there.
-  const fmHeaderRight = useMemo<React.ReactNode>(() => {
-    const actions =
-      selectMode && multiSelect
-        ? [
-            {
-              key: 'clear',
-              label: t('fileManagement.clear'),
-              onPress: () => setSelectedIds(new Set()),
-              disabled: selectedIds.size === 0,
-            },
-            {
-              key: 'confirm',
-              label: t('fileManagement.confirm'),
-              onPress: confirmMultiSelection,
-              disabled: selectedIds.size === 0,
-            },
-          ]
-        : !selectMode && selectedIds.size > 0
-          ? [
-              {
-                key: 'clear',
-                label: t('fileManagement.clear'),
-                onPress: () => setSelectedIds(new Set()),
-                disabled: false,
-              },
-              {
-                key: 'delete',
-                label: t('fileManagement.moveToTrashCount', { count: selectedIds.size }),
-                onPress: confirmBulkDelete,
-                disabled: false,
-              },
-              {
-                key: 'visibility',
-                label: t('fileManagement.visibility'),
-                onPress: handleVisibilityChange,
-                disabled: false,
-              },
-            ]
-          : [];
-    if (actions.length === 0) return undefined;
-    return (
-      <View style={fmHeaderStyles.actionsRow}>
-        {actions.map((a) => (
-          <SurfaceHeaderAction
-            key={a.key}
-            label={a.label}
-            onPress={a.onPress}
-            disabled={a.disabled}
-          />
-        ))}
-      </View>
-    );
-  }, [
-    selectMode,
-    multiSelect,
-    selectedIds,
-    t,
-    confirmMultiSelection,
-    confirmBulkDelete,
-    handleVisibilityChange,
-  ]);
-
-  const fmHeaderBack = useMemo<React.ReactNode>(
-    () => (
-      <Pressable
-        onPress={handleCancelUpload}
-        accessibilityRole="button"
-        accessibilityLabel={t('common.back') || 'Back'}
-        hitSlop={8}
-        style={fmHeaderStyles.backButton}
-      >
-        <Ionicons name="chevron-back" size={20} color={colors.text} />
-      </Pressable>
-    ),
-    [handleCancelUpload, colors.text, t],
-  );
+  // Bloom renders the shared action group and primary selection CTA.
+  const fileHeaderActions = useMemo<SurfaceHeaderContent['actions']>(() => {
+    if (!(selectMode && multiSelect) && (selectMode || selectedIds.size === 0)) return undefined;
+    const clear = {
+      icon: RiCloseLine,
+      accessibilityLabel: t('fileManagement.clear'),
+      onPress: () => setSelectedIds(new Set()),
+      disabled: selectedIds.size === 0,
+    };
+    if (selectMode) return [clear];
+    return [
+      clear,
+      {
+        icon: RiDeleteBinLine,
+        accessibilityLabel: t('fileManagement.moveToTrashCount', { count: selectedIds.size }),
+        onPress: confirmBulkDelete,
+      },
+      {
+        icon: RiEyeLine,
+        accessibilityLabel: t('fileManagement.visibility'),
+        onPress: handleVisibilityChange,
+      },
+    ];
+  }, [selectMode, multiSelect, selectedIds.size, t, confirmBulkDelete, handleVisibilityChange]);
 
   // --- Image-only picker: shared-header chrome -----------------------------
   // The flagship photo picker now rides the SAME Dialog nav header as every
@@ -1260,22 +1171,6 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // empty-state upload button.
   const isOwner = user?.id === targetUserId;
   const allowUpload = isOwner && allowUploadInSelectMode;
-
-  // Cancel = the nav bar's back affordance. A forward-nav picker (`onPicked`,
-  // e.g. the avatar flow) pops its own frame; legacy callback callers keep their
-  // close/back behaviour; a promise-based picker dismisses its surface.
-  const pickerCancel = useCallback(() => {
-    if (onPicked) {
-      // Forward-nav picker: Cancel/back pops THIS frame, returning to the
-      // frame that opened the picker — never closes the whole session.
-      goBack?.();
-    } else if (onSelect || onConfirmSelection) {
-      if (onClose) onClose();
-      else goBack?.();
-    } else {
-      dismiss?.();
-    }
-  }, [onPicked, onSelect, onConfirmSelection, onClose, goBack, dismiss]);
 
   // The picker's ONE trailing CTA, declared through the Dialog header's
   // `primaryAction` (a proper Bloom Button with loading/disabled) — the
@@ -1315,7 +1210,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       ? {
           title: t('fileManagement.reviewFiles'),
           subtitle: t('fileManagement.readyToUpload', { count: pendingFiles.length }),
-          left: fmHeaderBack,
+          onBack: handleCancelUpload,
           largeTitle: false,
         }
       : isImageOnlyPicker
@@ -1324,7 +1219,6 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             // `onImage` tone so the chrome stays legible over the black grid.
             title: t('fileManagement.choosePhoto'),
             largeTitle: false,
-            onBack: pickerCancel,
             primaryAction: pickerPrimaryAction,
             tone: 'onImage',
           }
@@ -1348,73 +1242,18 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
               : filteredFiles.length === 1
                 ? t('fileManagement.itemCount', { count: filteredFiles.length })
                 : t('fileManagement.itemCount_plural', { count: filteredFiles.length }),
-            right: fmHeaderRight,
+            actions: fileHeaderActions,
+            primaryAction:
+              selectMode && multiSelect
+                ? {
+                    label: t('fileManagement.confirm'),
+                    onPress: confirmMultiSelection,
+                    disabled: selectedIds.size === 0,
+                  }
+                : undefined,
             largeTitle: false,
           },
   );
-
-  if (isLoadingFiles && !isImageOnlyPicker) {
-    const GRID_PADDING = 10;
-    const TILE_GAP = 4;
-    const GRID_COLUMNS = 3;
-    const GRID_ROWS = 6;
-    const tileSize = Math.floor(
-      (safeContainerWidth - GRID_PADDING * 2 - TILE_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS,
-    );
-
-    return (
-      <View className="flex-1" style={{ backgroundColor }}>
-        {/* Header */}
-        <View
-          className="flex-row items-center justify-between px-[16px] py-[12px]"
-          style={{ borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth }}
-        >
-          <Skeleton.Box width={44} height={44} borderRadius={12} />
-          <Skeleton.Col style={{ alignItems: 'center', marginHorizontal: 16, gap: 6 }}>
-            <Skeleton.Box width={140} height={20} />
-            <Skeleton.Box width={100} height={14} />
-          </Skeleton.Col>
-          <Skeleton.Box width={44} height={44} borderRadius={12} />
-        </View>
-
-        {/* Controls bar */}
-        <Skeleton.Row
-          style={{
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 12,
-            paddingVertical: 12,
-          }}
-        >
-          <Skeleton.Box width={100} height={36} borderRadius={18} />
-          <Skeleton.Box width={44} height={44} borderRadius={22} />
-        </Skeleton.Row>
-
-        {/* Search bar */}
-        <View className="mx-[12px] mb-[12px]">
-          <Skeleton.Box width="100%" height={44} borderRadius={22} />
-        </View>
-
-        {/* Photo grid — static skeleton placeholders; index keys are stable */}
-        <View style={{ padding: GRID_PADDING, gap: TILE_GAP }}>
-          {Array.from({ length: GRID_ROWS }, (_, row) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
-            <Skeleton.Row key={`skeleton-row-${row}`} style={{ gap: TILE_GAP }}>
-              {Array.from({ length: GRID_COLUMNS }, (_, col) => (
-                <Skeleton.Box
-                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
-                  key={`skeleton-${row}-${col}`}
-                  width={tileSize}
-                  height={tileSize}
-                  borderRadius={6}
-                />
-              ))}
-            </Skeleton.Row>
-          ))}
-        </View>
-      </View>
-    );
-  }
 
   // Dedicated flagship-style photo picker view used in the avatar-picker
   // context (selectMode + image-only filter). The picker is intentionally

@@ -4,6 +4,9 @@ Status: accepted for implementation under Nate's approval of the documented I06/
 
 References: [I06](https://github.com/OxyHQ/oxy/issues/1524), [I07](https://github.com/OxyHQ/oxy/issues/1525), [period proposal](../billing/proposals/i06-period-rules.md), [product proposal](../billing/proposals/i07-product-access.md), ADR 0014.
 
+The exclusion of API credits from Oxy One is superseded as product direction by
+[ADR 0046](0046-oxy-one-catalogue-and-shared-credits.md); runtime activation remains pending.
+
 ## Decision
 
 P1 uses integer arithmetic and floors a paid upgrade's credit difference multiplied by the paid period's remaining fraction. The period cap is the highest paid plan's full allowance, with the verified base allowance reserved even when its delivery is late. A downgrade creates no top-up and no automatic clawback. Attribution follows a complete, verified paid-invoice set ordered by payment time and invoice ID; committed receipts are immutable. If a newly discovered backdated invoice would change an existing assignment, reconciliation rejects before writes and reports the discrepancy. Repeated paginated provider reads improve detection of changes but do not prove an atomic remote snapshot or the absence of omitted history.

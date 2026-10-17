@@ -6,7 +6,7 @@ import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
 const restoreFollowInheritance = jest.fn().mockResolvedValue({ ok: true });
 const setFollowApplicationMode = jest.fn().mockResolvedValue({ ok: true, mode: 'disabled' });
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     canUsePrivateApi: true,
     oxyServices: {

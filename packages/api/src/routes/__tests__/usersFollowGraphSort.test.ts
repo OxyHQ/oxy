@@ -4,7 +4,7 @@
  * Pins down that the ordering a client asks for actually reaches the service,
  * that an unsupported ordering is REJECTED rather than silently coerced to the
  * default (a client asking for something we do not implement must find out),
- * and that omitting `sort` leaves the historical `recent` default in force.
+ * and that omitting `sort` leaves the stable non-chronological default in force.
  */
 
 import express from 'express';
@@ -146,14 +146,17 @@ describe.each([
     return call[call.length - 1] as Record<string, unknown>;
   };
 
-  it.each(['recent', 'oldest'] as const)('forwards sort=%s to the service', async (sort) => {
-    const mock = getMock();
-    const res = await getJson(server, `/users/${TARGET}${suffix}?sort=${sort}`);
+  it.each(['stable', 'recent', 'oldest'] as const)(
+    'forwards sort=%s to the service',
+    async (sort) => {
+      const mock = getMock();
+      const res = await getJson(server, `/users/${TARGET}${suffix}?sort=${sort}`);
 
-    expect(res.status).toBe(200);
-    expect(mock).toHaveBeenCalledTimes(1);
-    expect(paramsArg(mock).sort).toBe(sort);
-  });
+      expect(res.status).toBe(200);
+      expect(mock).toHaveBeenCalledTimes(1);
+      expect(paramsArg(mock).sort).toBe(sort);
+    },
+  );
 
   it('leaves sort undefined when the client omits it, keeping the server default', async () => {
     const mock = getMock();
@@ -174,7 +177,7 @@ describe.each([
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_SORT');
-    expect(res.body.message).toBe('sort must be one of: recent, oldest');
+    expect(res.body.message).toBe('sort must be one of: stable, recent, oldest');
     // The request must not reach the service at all.
     expect(mock).not.toHaveBeenCalled();
   });

@@ -12,7 +12,10 @@ export interface UploadBarProps {
 
 /** Upload state is app-owned; surface, spinner and determinate meter are Bloom. */
 const UploadBar: React.FC<UploadBarProps> = ({ uploadProgress, t }) => (
-  <View pointerEvents="none" className="absolute top-[72px] left-0 right-0 items-center z-50">
+  <View
+    style={{ pointerEvents: 'none' }}
+    className="absolute top-[72px] left-0 right-0 items-center z-50"
+  >
     <Card
       appearance="solid"
       elevation="s"

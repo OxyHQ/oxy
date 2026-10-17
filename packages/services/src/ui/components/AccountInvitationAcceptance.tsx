@@ -4,7 +4,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import type { AccountInvitationPreview } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 
 /** The link never grants access on navigation, preview, sign-in or account switching. */
 export function AccountInvitationAcceptance({ token }: { token: string }) {

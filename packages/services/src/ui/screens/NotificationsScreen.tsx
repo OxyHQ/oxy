@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { NotificationPreferences } from '@oxy.so/core';
@@ -8,7 +8,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUpdateNotificationPreferences } from '../hooks/mutations/useAccountMutations';
 import { useSettingToggles } from '../hooks/useSettingToggle';
@@ -73,8 +73,8 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
   return (
     <>
       <View className="px-screen-margin pb-space-24">
-        <SettingsListGroup title={t('notifications.sections.channels') || 'Channels'}>
-          <SettingsListItem
+        <GroupedSection title={t('notifications.sections.channels') || 'Channels'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="bell" color={bloomTheme.colors.primary} />}
             title={t('notifications.items.push.title') || 'Push notifications'}
             description={
@@ -89,7 +89,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="email" color={bloomTheme.colors.info} />}
             title={t('notifications.items.emailDigest.title') || 'Email digest'}
             description={
@@ -105,10 +105,10 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
-        <SettingsListGroup title={t('notifications.sections.alerts') || 'Alerts'}>
-          <SettingsListItem
+        <GroupedSection title={t('notifications.sections.alerts') || 'Alerts'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.success} />}
             title={t('notifications.items.securityAlerts.title') || 'Security alerts'}
             description={
@@ -124,10 +124,10 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
-        <SettingsListGroup title={t('notifications.sections.marketing') || 'Marketing'}>
-          <SettingsListItem
+        <GroupedSection title={t('notifications.sections.marketing') || 'Marketing'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="bullhorn" color={bloomTheme.colors.secondary} />}
             title={t('notifications.items.marketingEmails.title') || 'Marketing emails'}
             description={
@@ -143,7 +143,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
     </>
   );

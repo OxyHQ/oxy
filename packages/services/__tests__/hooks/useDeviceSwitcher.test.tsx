@@ -112,7 +112,7 @@ const controller = {
 };
 let mockController: typeof controller | null = controller;
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     accountDialogController: mockController,

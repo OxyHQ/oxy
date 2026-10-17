@@ -23,21 +23,12 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import type { BaseScreenProps } from '../types/navigation';
-import LogoText from './logo/LogoText';
 import OxyAuthChooser from './OxyAuthChooser';
 import { useAccountDialogSnapshot } from '../hooks/accountDialogSnapshot';
-
-/**
- * The account MENU's nav bar carries the Oxy wordmark instead of a title — the
- * surface IS the Oxy account, so naming it in prose is redundant. A module-level
- * element: it takes no props, so its identity is stable forever and the header's
- * identity-compared slot never thrashes.
- */
-const NAV_LOGO = <LogoText height={20} />;
 
 /**
  * The unified account dialog BODY — the header + `OxyAuthChooser` chooser.
@@ -75,12 +66,10 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   const backsToHost = !showBack && (canGoBack?.() ?? false);
   // The sign-in and sign-up screens carry their own header — the Oxy mark and
   // the large title auth.oxy.so shows — so the bar holds only the way back.
-  // The account MENU is branded with the wordmark (the hero under it names the
-  // account); the active request is titled, route-agnostically, because Oxy
-  // picks how it travels (issue #691).
+  // The account menu names the account in its first card; only back/close
+  // belong in its bar. Active sign-in requests keep their informative title.
 
   useSurfaceHeader({
-    titleContent: view === 'accounts' ? NAV_LOGO : undefined,
     title: view === 'qr' ? t('accountSwitcher.signInWithOxy') : undefined,
     onBack: showBack ? goBack : backsToHost ? closeAccountDialog : undefined,
   });

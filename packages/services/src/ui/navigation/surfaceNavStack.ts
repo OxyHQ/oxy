@@ -28,6 +28,8 @@ export interface NavFrame {
 export interface NavStackState {
   /** Bottom → top; the last frame is the visible screen. */
   frames: NavFrame[];
+  /** Direction of the last in-dialog navigation for Bloom's content transition. */
+  direction: 'forward' | 'backward' | 'none';
   /** Flipped once a dismiss is requested; the host resolves the Bloom surface. */
   closing: boolean;
   /** The value the surface's `present()` promise resolves with on dismissal. */
@@ -40,7 +42,7 @@ export interface SurfaceNavStack {
   navigate(route: RouteName, props?: Record<string, unknown>): void;
   /** Swap the top frame in place (no history entry). */
   replace(route: RouteName, props?: Record<string, unknown>): void;
-  /** Pop one frame. Returns `false` when already at the root frame. */
+  /** Return to the prior wizard step, then pop a frame. False at the root with no prior step. */
   goBack(): boolean;
   /** Whether a back is possible (a deeper frame OR a prior wizard step). */
   canGoBack(): boolean;
@@ -88,6 +90,7 @@ export function createSurfaceNavStack(
 ): SurfaceNavStack {
   const store = createStore<NavStackState>(() => ({
     frames: [makeFrame(route, props)],
+    direction: 'none',
     closing: false,
     closeResult: undefined,
   }));
@@ -117,9 +120,17 @@ export function createSurfaceNavStack(
 
   const goBack = (): boolean => {
     const { frames } = store.getState();
+    const current = frames[frames.length - 1];
+    if (current.step > 0) {
+      store.setState({
+        frames: [...frames.slice(0, -1), { ...current, step: current.step - 1 }],
+        direction: 'backward',
+      });
+      return true;
+    }
     if (frames.length <= 1) return false;
     const nextLength = frames.length - 1;
-    store.setState({ frames: frames.slice(0, -1) });
+    store.setState({ frames: frames.slice(0, -1), direction: 'backward' });
     // Backing out past a sub-flow's entry frame cancels it (resolve undefined).
     // A single pop crosses at most one boundary, but loop for safety.
     while (flowStack.length && nextLength <= flowStack[flowStack.length - 1].returnLength) {
@@ -134,11 +145,15 @@ export function createSurfaceNavStack(
     requestDismiss,
     goBack,
     navigate(nextRoute, nextProps) {
-      store.setState((state) => ({ frames: [...state.frames, makeFrame(nextRoute, nextProps)] }));
+      store.setState((state) => ({
+        frames: [...state.frames, makeFrame(nextRoute, nextProps)],
+        direction: 'forward',
+      }));
     },
     replace(nextRoute, nextProps) {
       store.setState((state) => ({
         frames: [...state.frames.slice(0, -1), makeFrame(nextRoute, nextProps)],
+        direction: 'forward',
       }));
     },
     canGoBack() {
@@ -149,13 +164,22 @@ export function createSurfaceNavStack(
       store.setState((state) => {
         const frames = state.frames.slice();
         const index = frames.length - 1;
+        const direction =
+          step === frames[index].step
+            ? state.direction
+            : step < frames[index].step
+              ? 'backward'
+              : 'forward';
         frames[index] = { ...frames[index], step };
-        return { frames };
+        return { frames, direction };
       });
     },
     beginFlow(nextRoute, nextProps) {
       const returnLength = store.getState().frames.length;
-      store.setState((state) => ({ frames: [...state.frames, makeFrame(nextRoute, nextProps)] }));
+      store.setState((state) => ({
+        frames: [...state.frames, makeFrame(nextRoute, nextProps)],
+        direction: 'forward',
+      }));
       return new Promise<unknown>((resolve) => {
         flowStack.push({ returnLength, resolve });
       });
@@ -167,7 +191,10 @@ export function createSurfaceNavStack(
         requestDismiss(result);
         return;
       }
-      store.setState((state) => ({ frames: state.frames.slice(0, flow.returnLength) }));
+      store.setState((state) => ({
+        frames: state.frames.slice(0, flow.returnLength),
+        direction: 'backward',
+      }));
       flow.resolve(result);
     },
     abandonActiveFlow() {

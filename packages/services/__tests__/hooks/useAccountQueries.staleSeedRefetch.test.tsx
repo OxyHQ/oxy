@@ -48,7 +48,7 @@ const FULL_PROFILE: User = {
 
 let mockState: MockOxyState;
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => mockState,
 }));

@@ -1,3 +1,4 @@
+import type { AppColorName } from '@oxy.so/bloom/theme';
 import type { ReactNode } from 'react';
 import type { AccountDialogView } from '@oxy.so/core/session';
 import type { FileMetadata } from '@oxy.so/core';
@@ -42,10 +43,11 @@ export interface SurfaceRegistry {
   /** The person's trash (ADR 0043 D5), opened from the file manager. */
   FileTrash: SurfaceRoute;
   HelpSupport: SurfaceRoute;
+  ReportBug: SurfaceRoute;
+  OxyOne: SurfaceRoute;
   LegalDocuments: SurfaceRoute;
   AppInfo: SurfaceRoute;
   WelcomeNewUser: SurfaceRoute;
-  UserLinks: SurfaceRoute;
   HistoryView: SurfaceRoute;
   EditProfile: SurfaceRoute;
   EditProfileField: SurfaceRoute;
@@ -136,6 +138,9 @@ export type SurfacePresentation = 'sheet' | 'center' | 'drawer' | 'fullScreen';
 export interface SurfaceRouteConfig {
   /** Which surface hosts the route. */
   presentation: SurfacePresentation;
+  /** Scoped Bloom recipe for the full panel, including navigation chrome. */
+  colorPreset?: AppColorName;
+  typography?: 'default' | 'system';
   /**
    * When `false`, the route owns its own scroll container (a FlatList /
    * SectionList / VirtualizedList, or its own ScrollView) and the host must not
@@ -263,6 +268,7 @@ export const getSurfaceConfig = (
   route: RouteName,
   props: Record<string, unknown>,
 ): SurfaceRouteConfig => {
+  if (route === 'OxyOne') return { ...DEFAULT_SURFACE_CONFIG, colorPreset: 'blue' };
   if (route === 'FileManagement' && isFileManagementImageOnlyPicker(props)) {
     // The flagship photo picker MORPHS in place like every other screen. It is an
     // own-scroller (`PhotoPickerView`'s FlatList) that paints its full-bleed black
