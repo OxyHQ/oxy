@@ -122,7 +122,7 @@ const router = express.Router();
  * `POST /:id/invitations` replaced it: the recipient is emailed and gets access
  * only after accepting (`POST /accounts/invitations/accept`). Every first-party
  * consumer has moved, so this answers 410 Gone with a pointer for any caller
- * still on a pre-11.10.0 `@oxy.so/services` or a pre-5.1.0 `@oxy.so/core`.
+ * still on a pre-11.10.0 `@oxy.so/services` or a pre-5.2.0 `@oxy.so/core`.
  * Mounted before authentication: the route is gone for everyone, and the
  * answer is static, so it reads nothing and needs no limiter.
  */

@@ -317,7 +317,7 @@ Mail delivery errors are surfaced; the manager can resend the retained row.
 Nobody is added to an account without their consent. The direct add,
 `POST /accounts/:id/members`, is retired: it answers 410 Gone with code
 `MEMBER_ADD_RETIRED` and `details.replacement: "POST /accounts/:id/invitations"`.
-`accounts.members.invite` was removed in core 5.1.0. Alia (OxyHQ/Alia#824) and
+`accounts.members.invite` was removed in core 5.2.0. Alia (OxyHQ/Alia#824) and
 Mercaria (OxyHQ/Mercaria#1106) moved to invitations first. An app still on
 services before 11.10.0 gets the 410 from its members screen until it upgrades.
 Apply migration 0178 before rollout. SMTP delivery and the public acceptance URL
