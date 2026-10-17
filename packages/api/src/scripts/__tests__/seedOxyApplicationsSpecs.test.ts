@@ -761,6 +761,9 @@ describe('the canonical official-application registry', () => {
         'Oxy Website',
         ['files:read', 'files:app:write', 'files:app:delete', 'files:references:write'],
       ],
+      // OxyHQ/Clarity#118: imports and uploads its crawler images and records
+      // their uses; it reads no metadata back and deletes nothing itself.
+      ['Clarity Backend', ['files:app:write', 'files:references:write']],
     ];
 
     it.each(FILE_SCOPE_CENSUS)('%s', (name, expected) => {
@@ -842,6 +845,8 @@ describe('the canonical official-application registry', () => {
         'capabilities:read',
         'capability-audit:write',
         'catalogs:write',
+        'files:app:write',
+        'files:references:write',
         'inference:invoke',
         'safety:decide',
         'user:read',
