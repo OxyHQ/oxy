@@ -1,10 +1,13 @@
 {
   "name": "@oxy.so/db",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Oxy Postgres substrate — drizzle column and naming helpers, driver-error predicates, the migration ledger and deploy-phase planner, the TTL-replacement sweep, an ephemeral-database harness, and the schema-convention gates every Oxy backend is held to.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
+  "bin": {
+    "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js"
+  },
   "source": "src/index.ts",
   "sideEffects": false,
   "publishConfig": {

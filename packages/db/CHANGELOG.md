@@ -1,5 +1,36 @@
 # Changelog: `@oxy.so/db`
 
+## 1.3.0
+
+### Fix: 1.2.0 silently skipped a migration whose journal `when` goes backwards
+
+**Do not run 1.2.0 against a journal whose `when` values are not strictly
+increasing** (two branches generate migrations; the one generated first merges
+second). 1.2.0 applies one migration per transaction, and drizzle applies only
+entries newer than the newest recorded `created_at` — so the out-of-order entry
+was stepped over, and the run still logged `Applied N` because the post-apply
+check compared against the high-water mark. 1.3.0 applies such entries together
+in one transaction and re-checks the ledger by membership, so a skipped entry
+fails the run. Check a journal with: every `entries[i].when` > every earlier one.
+
+### The migration lock gate ships with the package: `oxy-db-check-migration-locks`
+
+1.2.0 bounds a lock to one migration; the gate that keeps that one migration
+short lived only in oxy's `scripts/`. It is now in the package, so every app
+runs the same rules oxy-api does:
+
+- **`oxy-db-check-migration-locks`** (bin): `--migrations=<drizzle folder>`
+  (default `drizzle`), `--after=<n>` (required: migrations numbered at or below
+  it are already applied and not checked), `--hot-tables=a,b` (the tables read
+  on nearly every request). Exits 1 listing every problem. Rules: a foreign key
+  onto an existing table is `NOT VALID` (validated later); a migration that
+  takes ACCESS EXCLUSIVE on a hot table does no backfill or index build in the
+  same file; an index on a hot table is `IF NOT EXISTS`; statement-timeout
+  markers are legible. Waiver: `-- oxy:lock-review=<reason>` in the file.
+- New exports from `@oxy.so/db/migrate`: `checkMigrationLocks`,
+  `migrationLockProblems`, `LOCK_REVIEW_WAIVER`. Node builtins only, so a gate
+  can import the source before `bun install`.
+
 ## 1.2.0
 
 ### `runMigrations` commits each migration on its own, under `lock_timeout`

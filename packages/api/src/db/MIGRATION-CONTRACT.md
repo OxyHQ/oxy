@@ -132,7 +132,9 @@ What the migrator does (`@oxy.so/db` ≥ 1.2.0, `migrate/locks.ts`):
   also alters a hot table.
 
 What the author does (`scripts/check-migration-locks.mjs` enforces the first three
-for every migration after 0179):
+for every migration after 0179; the rules are `@oxy.so/db`'s `checkMigrationLocks`,
+which every other app runs as the `oxy-db-check-migration-locks` bin with its own
+baseline and hot tables):
 
 - **Foreign keys onto existing tables are added `NOT VALID`** and validated in a
   LATER migration with `ALTER TABLE … VALIDATE CONSTRAINT …` (SHARE UPDATE

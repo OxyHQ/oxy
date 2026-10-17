@@ -63,3 +63,10 @@ export {
   statementTimeoutMarkerLine,
   type MigrationTimeoutReadResult,
 } from './locks';
+export {
+  LOCK_REVIEW_WAIVER,
+  checkMigrationLocks,
+  migrationLockProblems,
+  type CheckMigrationLocksOptions,
+  type CheckMigrationLocksResult,
+} from './lockGate';
