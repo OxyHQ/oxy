@@ -227,7 +227,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "3.2.1",
+      "version": "3.2.2",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
@@ -509,7 +509,7 @@
     },
     "packages/create-oxy-app": {
       "name": "create-oxy-app",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "bin": {
         "create-oxy-app": "dist/index.js",
       },
@@ -541,14 +541,14 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
       },
     },
     "packages/expo-splash": {
       "name": "@oxy.so/expo-splash",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "@expo/image-utils": ">=0.7.0",
         "xml2js": "^0.6.2",
@@ -629,7 +629,7 @@
     },
     "packages/protocol": {
       "name": "@oxy.so/protocol",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "dependencies": {
         "@noble/curves": "catalog:",
         "@oxy.so/contracts": "workspace:^",
@@ -784,7 +784,7 @@
     },
     "packages/ship": {
       "name": "@oxy.so/ship",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "bin": {
         "oxy-ship": "dist/cli.js",
       },
@@ -799,7 +799,7 @@
     },
     "packages/stickers": {
       "name": "@oxy.so/stickers",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
       },
@@ -826,7 +826,7 @@
     },
     "packages/telemetry": {
       "name": "@oxy.so/telemetry",
-      "version": "1.2.0",
+      "version": "2.0.0",
       "devDependencies": {
         "@types/jest": "^30.0.0",
         "jest": "^30.5.1",
