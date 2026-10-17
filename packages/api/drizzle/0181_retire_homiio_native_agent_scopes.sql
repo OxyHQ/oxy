@@ -1,5 +1,5 @@
 -- oxy:deploy-phase=post
--- ADR 0042 retired the native-product-agent lane. Homiio no longer relays
+-- ADR 0042 retired ADR 0025's native agent lane. Homiio no longer relays
 -- Sindi's chat: Sindi is an ordinary Alia agent that reaches Homiio through its
 -- capability catalogue, so the Homiio application holds no inference or
 -- acting-as authority of its own. The seed only ever UNIONs scopes, so the
