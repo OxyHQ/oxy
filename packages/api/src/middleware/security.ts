@@ -203,7 +203,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
 
 interface RequestWithUserPrincipal extends Request {
-  [USER_PRINCIPAL]?: { userId?: string };
+  [USER_PRINCIPAL]?: { userId?: string; clientId?: string };
 }
 
 /**
@@ -228,35 +228,63 @@ interface RequestWithUserPrincipal extends Request {
  * its own bucket either.
  */
 function userPrincipal(req: Request): string | undefined {
-  const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
-  if (cached) return cached.userId;
+  return verifiedSession(req).userId;
+}
 
-  const resolve = (): string | undefined => {
+function verifiedSession(req: Request): { userId?: string; clientId?: string } {
+  const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
+  if (cached) return cached;
+
+  const resolve = (): { userId?: string; clientId?: string } => {
     const secret = process.env.ACCESS_TOKEN_SECRET;
     const authHeader = req.headers.authorization;
-    if (!secret || !authHeader?.startsWith('Bearer ')) return undefined;
+    if (!secret || !authHeader?.startsWith('Bearer ')) return {};
     try {
       const decoded = jwt.verify(authHeader.slice('Bearer '.length), secret);
-      if (typeof decoded !== 'object' || decoded === null) return undefined;
+      if (typeof decoded !== 'object' || decoded === null) return {};
       const claims = decoded as {
         sessionId?: unknown;
         userId?: unknown;
         id?: unknown;
         _id?: unknown;
+        azp?: unknown;
       };
-      if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return undefined;
+      if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return {};
+      const clientId =
+        typeof claims.azp === 'string' && claims.azp.length > 0 ? claims.azp : undefined;
       for (const candidate of [claims.userId, claims.id, claims._id]) {
-        if (typeof candidate === 'string' && candidate.length > 0) return candidate;
+        if (typeof candidate === 'string' && candidate.length > 0) {
+          return { userId: candidate, clientId };
+        }
       }
-      return undefined;
+      return {};
     } catch {
-      return undefined;
+      return {};
     }
   };
 
-  const userId = resolve();
-  (req as RequestWithUserPrincipal)[USER_PRINCIPAL] = { userId };
-  return userId;
+  const session = resolve();
+  (req as RequestWithUserPrincipal)[USER_PRINCIPAL] = session;
+  return session;
+}
+
+/**
+ * WHICH APPLICATION a request came from, as metrics labels.
+ *
+ * `caller` is `service:<appId>` for a verified service token, `session` for a
+ * user session and `anonymous` otherwise; `client` is the registered client a
+ * session is bound to (`azp`). Every value comes from a verified credential, so
+ * a caller cannot mint new ones. `caller` is small enough to be a billed
+ * CloudWatch dimension (one value per service application); `client` grows with
+ * every registered app and so stays a log property. Both caches above are
+ * reused, so a request a limiter already resolved costs nothing more.
+ */
+export function requestCaller(req: Request): { caller: string; client?: string } {
+  const service = servicePrincipal(req);
+  if (service) return { caller: `service:${service.appId}` };
+  const session = verifiedSession(req);
+  if (!session.userId) return { caller: 'anonymous' };
+  return session.clientId ? { caller: 'session', client: session.clientId } : { caller: 'session' };
 }
 
 /**
