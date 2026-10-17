@@ -9,6 +9,7 @@ import {
 import { getDb } from '../config/postgres';
 import { users, blocks, supervisionProfiles, supervisionContacts } from '../db/schema';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
+import { createAuthorityCache } from '../utils/authorityCache';
 import { visibleOrganizationIdentityPredicate } from '../utils/profileQuery';
 
 export const safetyDecision = (
@@ -25,19 +26,41 @@ export function consumerSupports(
     principal.capabilities.includes(`safety:${action}:v1`)
   );
 }
-/** Always live: cached pre-enrollment identities and revoked consumer grants cannot suppress this policy. */
+/**
+ * The `sessionsValidAfter` of every non-ended supervision profile naming
+ * `accountId` as the child — empty when the account is not supervised.
+ *
+ * Read through a 5 s per-task authority cache (`utils/authorityCache.ts`):
+ * every authenticated request and every service request asks this, for a
+ * small set of accounts. Enrolment and its end invalidate it on every task at
+ * once (`invalidateSupervision`, Redis broadcast); the TTL bounds a lost
+ * broadcast. Errors are never cached, so a failed read still fails closed.
+ */
+const supervisionCache = createAuthorityCache<readonly Date[]>('supervision');
+
+export function supervisionValidAfter(accountId: string): Promise<readonly Date[]> {
+  return supervisionCache.get(accountId, async () => {
+    const rows = await getDb()
+      .select({ sessionsValidAfter: supervisionProfiles.sessionsValidAfter })
+      .from(supervisionProfiles)
+      .where(
+        and(
+          eq(supervisionProfiles.childAccountId, accountId),
+          ne(supervisionProfiles.status, 'ended'),
+        ),
+      );
+    return rows.map((row) => row.sessionsValidAfter);
+  });
+}
+
+/** Call after any write to `supervision_profiles` for `childAccountId`. */
+export function invalidateSupervision(childAccountId: string): void {
+  supervisionCache.invalidate(childAccountId);
+}
+
+/** Pre-enrollment identities cannot suppress this policy: the profile row decides, at most 5 s old. */
 export async function isSupervised(accountId: string): Promise<boolean> {
-  const [row] = await getDb()
-    .select({ id: supervisionProfiles.childAccountId })
-    .from(supervisionProfiles)
-    .where(
-      and(
-        eq(supervisionProfiles.childAccountId, accountId),
-        ne(supervisionProfiles.status, 'ended'),
-      ),
-    )
-    .limit(1);
-  return !!row;
+  return (await supervisionValidAfter(accountId)).length > 0;
 }
 export async function loadSafetyGraph(ids: string[]) {
   const unique = [...new Set(ids)];

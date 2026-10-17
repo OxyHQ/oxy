@@ -70,12 +70,11 @@ import {
   infrastructureHeartbeatSchema,
 } from '../services/platformActivity.schema';
 import { publishPlatformActivity } from '../services/platformActivity.service';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { type AccountAccessVerdict, isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
-import { applications } from '../db/schema/applications';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
@@ -96,7 +95,7 @@ import {
   ACCOUNT_MEMBERSHIP_READ_SCOPE,
   SERVICE_ACCOUNT_SWITCH_SCOPE,
 } from '../utils/applicationScopes';
-import { isTrustedApplication } from '../utils/trustedApplication';
+import { isActiveTrustedApplication } from '../services/applicationTrust.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
@@ -146,20 +145,12 @@ const requireTrustedServiceApp = asyncHandler(async (req: ServiceAuthRequest, _r
 
   // Re-read the application rather than trusting a claim about its trust: the
   // token lives an hour, and an application demoted out of the trusted set
-  // must lose this router immediately rather than when its last token expires.
-  // The token carries `scopes` but nothing about trust, so there is no claim
-  // to read even if that were acceptable.
-  const [app] = await getDb()
-    .select({
-      type: applications.type,
-      isOfficial: applications.isOfficial,
-      isInternal: applications.isInternal,
-    })
-    .from(applications)
-    .where(and(eq(applications.id, serviceApp.appId), eq(applications.status, 'active')))
-    .limit(1);
+  // must lose this router promptly rather than when its last token expires —
+  // at once on every task when the demotion invalidates, within 5 s otherwise
+  // (`services/applicationTrust.service.ts`).
+  const trusted = await isActiveTrustedApplication(serviceApp.appId);
 
-  if (!app || !isTrustedApplication(app)) {
+  if (!trusted) {
     logger.warn('[internal] Untrusted application refused', {
       appId: serviceApp.appId,
       credentialId: serviceApp.credentialId,
