@@ -2533,7 +2533,7 @@
           "Users"
         ],
         "summary": "Retired: adding a member directly, without the recipient's consent.",
-        "description": "`POST /:id/invitations` replaced it: the recipient is emailed and gets access\nonly after accepting (`POST /accounts/invitations/accept`). Every first-party\nconsumer has moved, so this answers 410 Gone with a pointer for any caller\nstill on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.\nMounted before authentication: the route is gone for everyone, and the\nanswer is static, so it reads nothing and needs no limiter.",
+        "description": "`POST /:id/invitations` replaced it: the recipient is emailed and gets access\nonly after accepting (`POST /accounts/invitations/accept`). Every first-party\nconsumer has moved, so this answers 410 Gone with a pointer for any caller\nstill on a pre-11.10.0 `@oxy.so/services` or a pre-5.1.0 `@oxy.so/core`.\nMounted before authentication: the route is gone for everyone, and the\nanswer is static, so it reads nothing and needs no limiter.",
         "parameters": [
           {
             "name": "id",
