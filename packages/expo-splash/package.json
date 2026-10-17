@@ -70,7 +70,7 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
-    "@expo/image-utils": ">=0.7.0",
+    "@expo/image-utils": ">=0.12.4",
     "xml2js": "^0.6.2"
   },
   "peerDependencies": {
@@ -83,7 +83,7 @@
     "@types/react": "*",
     "expo": "catalog:",
     "expo-splash-screen": "*",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "react": "*",
     "react-native": "*",
     "typescript": "^5.9.2"

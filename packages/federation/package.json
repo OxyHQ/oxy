@@ -95,9 +95,9 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",
     "express": "catalog:",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "supertest": "catalog:",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.14",
     "typescript": "^5.9.2"
   }
 }
