@@ -30,7 +30,8 @@
  * `signature` is the whole trust boundary at the manifest level; each provider
  * also checks the calling package and its certificate itself.
  */
-const { withAndroidManifest } = require('@expo/config-plugins');
+// The app's own Expo SDK copy, never one this package ships (Expo's guidance for library plugins).
+const { withAndroidManifest } = require('expo/config-plugins');
 
 const IDENTITY_PERMISSION = 'so.oxy.permission.IDENTITY';
 const DEVICE_SESSION_PERMISSION = 'so.oxy.permission.DEVICE_SESSION';

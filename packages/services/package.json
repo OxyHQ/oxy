@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "11.14.0",
+  "version": "11.14.1",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -139,7 +139,6 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
   },
   "dependencies": {
-    "@expo/config-plugins": "catalog:",
     "@oxy.so/contracts": "workspace:^",
     "color": "^5.0.3",
     "@peable.to/sdk": "0.4.1"
