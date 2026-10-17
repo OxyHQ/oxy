@@ -173,8 +173,13 @@ function seriesKey(metric: MetricDefinition, labels: Record<string, string>): st
   return `${metric.name}\u0000${pairs.join('\u0000')}`;
 }
 
+interface StdoutHost {
+  process?: { stdout?: { write?: (chunk: string) => unknown } };
+}
+
+/** One line on stdout. Reached through `globalThis`: this package carries no Node types. */
 function defaultWrite(line: string): void {
-  if (typeof process !== 'undefined' && process.stdout?.write) process.stdout.write(`${line}\n`);
+  (globalThis as StdoutHost).process?.stdout?.write?.(`${line}\n`);
 }
 
 export function createEmfPublisher(options: EmfPublisherOptions): EmfPublisher {
