@@ -11751,7 +11751,7 @@
           "Files"
         ],
         "summary": "Open a play session over a file's HLS ladder (ADR 0043 stage 4c): a",
-        "description": "short-lived, revocable set of URLs for ONE file, optionally for one\n      end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default\n      3600), encryption? ('aes-128' default | 'none'), keyAuthorization?\n      ('none' default | 'webhook') }`. The file must be the calling\n      application's own, or a person's file the application may read (it\n      stored it for them, or they attached it to it, and did not revoke\n      that — `files:linked:read`); anything else is 404, like no file. 409\n      `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,\n      fileId, kind: 'video' | 'audio', status: 'active', encryption,\n      keyAuthorization, endUserId, expiresAt, masterUrl, renditions: [{\n      type, url, bandwidth }], previewUrl?, waveformUrl? }` — the URLs are\n      bearer authority for this session only and are shown once. Every\n      request under them re-checks the session, so revoking it (`DELETE`),\n      the owner revoking the application's access, or the file leaving\n      `active` stops the next segment. With `aes-128` the segments are\n      encrypted as served under a key of this session, released at\n      `<base>/key`; with `keyAuthorization: 'webhook'` only after the\n      application's verified file-events endpoint answers `{ \"allow\": true\n      }` to a signed `stream.key_authorization` request (409\n      `FILES_WEBHOOK_REQUIRED` without one).\n        `files:app:write` (the application's own), on an active application",
+        "description": "short-lived, revocable set of URLs for ONE file, optionally for one\n      end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default\n      3600), encryption? ('aes-128' default | 'none'), keyAuthorization?\n      ('none' default | 'webhook'), renditions? }`. `renditions` is an\n      allow-list of the ladder's rungs (`hls_a64` | `hls_a128` | `hls_a256`\n      | `hls_360p` | `hls_720p` | `hls_1080p`): the master lists only those,\n      and any other rung's playlist, segment or key is 404 for this session\n      (409 `STREAM_RENDITIONS_NOT_READY` when the file has none of them\n      ready); omitted, the whole ladder. The file must be the calling\n      application's own, or a person's file the application may read (it\n      stored it for them, or they attached it to it, and did not revoke\n      that — `files:linked:read`); anything else is 404, like no file. 409\n      `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,\n      fileId, kind: 'video' | 'audio', status: 'active', encryption,\n      keyAuthorization, endUserId, expiresAt, allowedRenditions, masterUrl,\n      renditions: [{ type, url, bandwidth }], previewUrl?, waveformUrl? }`\n      (`renditions`: the ready rungs the session serves) — the URLs are\n      bearer authority for this session only and are shown once. Every\n      request under them re-checks the session, so revoking it (`DELETE`),\n      the owner revoking the application's access, or the file leaving\n      `active` stops the next segment. With `aes-128` the segments are\n      encrypted as served under a key of this session, released at\n      `<base>/key`; with `keyAuthorization: 'webhook'` only after the\n      application's verified file-events endpoint answers `{ \"allow\": true\n      }` to a signed `stream.key_authorization` request (409\n      `FILES_WEBHOOK_REQUIRED` without one).\n        `files:app:write` (the application's own), on an active application",
         "parameters": [],
         "responses": {
           "200": {
@@ -11848,6 +11848,22 @@
                       "none",
                       "webhook"
                     ]
+                  },
+                  "renditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "hls_a64",
+                        "hls_a128",
+                        "hls_a256",
+                        "hls_360p",
+                        "hls_720p",
+                        "hls_1080p"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
                   }
                 },
                 "required": [
@@ -13379,7 +13395,7 @@
           "Files"
         ],
         "summary": "What a play session's URLs name (ADR 0043 stage 4c): `master.m3u8`,",
-        "description": "a rendition playlist, a segment it lists, `key` (the AES-128 key, 16\n      bytes), `preview.m4a` and `waveform.json` (audio). The token is\n      `<sessionId>.<secret>`; every request checks the session (live, not\n      revoked, not expired), the file (`active`) and that the application\n      may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An\n      encrypted session's rendition playlists declare the key and its\n      segments are AES-128-CBC encrypted as served (IV = media sequence\n      number). The key with key authorization: 403\n      `KEY_AUTHORIZATION_DENIED` unless the application allowed it. CORS is\n      open (`*`, no credentials): the URL is the credential.",
+        "description": "a rendition playlist, a segment it lists, `key` (the AES-128 key, 16\n      bytes), `preview.m4a` and `waveform.json` (audio). A session with a\n      rendition allow-list serves only those rungs — the master lists only\n      them, any other rung's playlist or segment is 404 — and has one key\n      per rung, `<rung>.key` (its own `key` is 404). The token is\n      `<sessionId>.<secret>`; every request checks the session (live, not\n      revoked, not expired), the file (`active`) and that the application\n      may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An\n      encrypted session's rendition playlists declare the key and its\n      segments are AES-128-CBC encrypted as served (IV = media sequence\n      number). The key with key authorization: 403\n      `KEY_AUTHORIZATION_DENIED` unless the application allowed it. CORS is\n      open (`*`, no credentials): the URL is the credential.",
         "parameters": [
           {
             "name": "token",

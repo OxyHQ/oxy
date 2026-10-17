@@ -133,6 +133,27 @@ describe('OxyServer.assets — stage 4c', () => {
       expect(options).toMatchObject({ cache: false, retry: false });
     });
 
+    it('create sends a rendition allow-list, and refuses an empty one before any request', async () => {
+      serviceRequestSpy.mockResolvedValueOnce({
+        ...session,
+        allowedRenditions: ['hls_a64', 'hls_a128'],
+      });
+      const created = await oxy.assets.streams.create('file-1', {
+        endUserId: 'user-9',
+        renditions: ['hls_a64', 'hls_a128'],
+      });
+      expect(created.allowedRenditions).toEqual(['hls_a64', 'hls_a128']);
+      expect(serviceRequestSpy.mock.calls[0][2]).toEqual({
+        fileId: 'file-1',
+        endUserId: 'user-9',
+        renditions: ['hls_a64', 'hls_a128'],
+      });
+      await expect(oxy.assets.streams.create('file-1', { renditions: [] })).rejects.toThrow(
+        RangeError,
+      );
+      expect(serviceRequestSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('create sends only the file when no option is given', async () => {
       serviceRequestSpy.mockResolvedValueOnce(session);
       await oxy.assets.streams.create('file-1');

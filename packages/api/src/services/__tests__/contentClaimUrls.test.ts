@@ -13,7 +13,11 @@ import {
   verifyClaimPreviewToken,
 } from '../contentClaims/claimPreviewToken';
 import { newClaimReference } from '../contentClaims/contentClaim.service';
-import { renderContentClaimMail } from '../contentClaims/contentClaim.mail';
+import {
+  COUNTER_NOTICE_PAGE_URL,
+  counterNoticeUrl,
+  renderContentClaimMail,
+} from '../contentClaims/contentClaim.mail';
 
 const LEGACY_ID = '64f1a2b3c4d5e6f708192a3b';
 const UUID_ID = '0192f0c4-8b3a-7c1d-9e2f-0a1b2c3d4e5f';
@@ -121,6 +125,54 @@ describe('references and emails', () => {
     expect(mail.text).toContain('- and 2 more');
     expect(mail.text).toContain('legal@oxy.so');
     expect(mail.html).toContain('<p style="margin:0 0 16px">- photo-0.png</p>');
+  });
+
+  it('sends an owner to the counter-notice page with the reference filled in, legal@ as the fallback', () => {
+    const mail = renderContentClaimMail('content_blocked', {
+      reference: 'OXY-7K3M-9Q2D',
+      claimKind: 'copyright',
+      greetingName: '@ada',
+      note: null,
+      fileNames: ['photo.png'],
+      targetCount: 0,
+    });
+    // The website's route (OxyHQ/website#176), which reads `?reference=`.
+    expect(COUNTER_NOTICE_PAGE_URL).toBe('https://oxy.so/transparency/legal/counter-notice/');
+    const url = 'https://oxy.so/transparency/legal/counter-notice/?reference=OXY-7K3M-9Q2D';
+    expect(counterNoticeUrl('OXY-7K3M-9Q2D')).toBe(url);
+    expect(mail.text).toContain(
+      `you can send a counter-notice explaining why the content should be restored: ${url}`,
+    );
+    // The counter-notice link comes before the mail fallback, which still quotes the reference.
+    expect(mail.text.indexOf(url)).toBeLessThan(mail.text.indexOf('legal@oxy.so'));
+    expect(mail.text).toContain(
+      'If the form does not work for you, write to legal@oxy.so quoting the reference OXY-7K3M-9Q2D.',
+    );
+    expect(mail.text).not.toContain('send a counter-notice: write to');
+    // A real link in the HTML part, exactly once.
+    expect(mail.html).toContain(`<a href="${url}">${url}</a>`);
+    expect(mail.html.split('<a href=')).toHaveLength(2);
+  });
+
+  it('encodes a reference into the counter-notice link', () => {
+    expect(counterNoticeUrl('OXY 1&x=<y>')).toBe(
+      'https://oxy.so/transparency/legal/counter-notice/?reference=OXY%201%26x%3D%3Cy%3E',
+    );
+  });
+
+  it('links nothing in the emails that do not dispute a removal', () => {
+    for (const kind of ['claim_received', 'content_upheld', 'counter_notice_received'] as const) {
+      const mail = renderContentClaimMail(kind, {
+        reference: 'OXY-7K3M-9Q2D',
+        claimKind: 'copyright',
+        greetingName: null,
+        note: null,
+        fileNames: ['photo.png'],
+        targetCount: 1,
+      });
+      expect(mail.html).not.toContain('<a ');
+      expect(mail.text).toContain('legal@oxy.so');
+    }
   });
 
   it('escapes what staff wrote in the HTML part', () => {

@@ -7,15 +7,28 @@
  * party: the owner is never told who complained, and the claimant is never
  * told whose content it was — staff summarize a counter-notice in their own
  * words. Replies about a claim go to {@link LEGAL_CONTACT}, quoting the
- * reference.
+ * reference; an owner disputes a removal on the website's counter-notice page
+ * ({@link counterNoticeUrl}), which carries the reference in its link.
  */
 
 import { COUNTER_NOTICE_STATEMENTS, type ContentClaimKind } from '@oxy.so/contracts';
 import type { ContentClaimNotificationKind } from '../../db/schema';
-import { htmlPage } from '../accountEmail.mail';
+import { escapeHtml, htmlPage } from '../accountEmail.mail';
 
 /** Where a claimant or an owner writes about a claim. */
 export const LEGAL_CONTACT = 'legal@oxy.so';
+
+/**
+ * The website's counter-notice form (OxyHQ/website#176). It reads `reference`
+ * from the query and fills it in; a signed-in owner sends the notice from
+ * there (`POST /content-claims/counter-notices`).
+ */
+export const COUNTER_NOTICE_PAGE_URL = 'https://oxy.so/transparency/legal/counter-notice/';
+
+/** The counter-notice form with the claim's reference filled in. */
+export function counterNoticeUrl(reference: string): string {
+  return `${COUNTER_NOTICE_PAGE_URL}?reference=${encodeURIComponent(reference)}`;
+}
 
 /** File names an owner email lists before "and N more". */
 export const MAX_LISTED_FILES = 20;
@@ -70,13 +83,19 @@ function fileList(names: readonly string[]): string[] {
   return shown;
 }
 
-function write(subject: string, paragraphs: string[]): ContentClaimMail {
+function write(
+  subject: string,
+  paragraphs: string[],
+  links: readonly string[] = [],
+): ContentClaimMail {
   // A list is one block of lines in the text part and one paragraph per line in HTML.
-  return {
-    subject,
-    text: paragraphs.join('\n\n'),
-    html: htmlPage(paragraphs.flatMap((paragraph) => paragraph.split('\n'))),
-  };
+  let html = htmlPage(paragraphs.flatMap((paragraph) => paragraph.split('\n')));
+  // A URL this module built is a link in the HTML part (the text part shows it bare).
+  for (const url of links) {
+    const escaped = escapeHtml(url);
+    html = html.replaceAll(escaped, `<a href="${escaped}">${escaped}</a>`);
+  }
+  return { subject, text: paragraphs.join('\n\n'), html };
 }
 
 /** Render one email. */
@@ -130,14 +149,21 @@ export function renderContentClaimMail(
         'After reviewing the response to your report, the content stays removed.',
         quote,
       ]);
-    case 'content_blocked':
-      return write('Some of your content on Oxy was removed', [
-        greeting,
-        `We removed the following from Oxy after ${what} (reference ${context.reference}):`,
-        fileList(context.fileNames).join('\n'),
-        'It is no longer shown on any Oxy service and cannot be uploaded again. It stays in your account, where you can delete it.',
-        `If you believe this is a mistake, you can send a counter-notice: write to ${LEGAL_CONTACT} quoting the reference ${context.reference}, and explain why the content should be restored.`,
-      ]);
+    case 'content_blocked': {
+      const form = counterNoticeUrl(context.reference);
+      return write(
+        'Some of your content on Oxy was removed',
+        [
+          greeting,
+          `We removed the following from Oxy after ${what} (reference ${context.reference}):`,
+          fileList(context.fileNames).join('\n'),
+          'It is no longer shown on any Oxy service and cannot be uploaded again. It stays in your account, where you can delete it.',
+          `If you believe this is a mistake, you can send a counter-notice explaining why the content should be restored: ${form}`,
+          `Sign in with the account that posted the content; the reference is filled in for you. If the form does not work for you, write to ${LEGAL_CONTACT} quoting the reference ${context.reference}.`,
+        ],
+        [form],
+      );
+    }
     case 'content_reinstated':
       return write('Your content on Oxy is back', [
         greeting,

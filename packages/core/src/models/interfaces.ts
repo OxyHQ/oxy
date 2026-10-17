@@ -1048,6 +1048,19 @@ export interface FileApplicationAccessRevocation {
   streamsRevoked: number;
 }
 
+/**
+ * A rung of a file's HLS ladder: the audio ladder's AAC rungs (64, 128 and 256
+ * kb/s; a rung exists only when the source carries that much) and the video
+ * ladder's 360p, 720p and 1080p.
+ */
+export type PlaySessionRendition =
+  | 'hls_a64'
+  | 'hls_a128'
+  | 'hls_a256'
+  | 'hls_360p'
+  | 'hls_720p'
+  | 'hls_1080p';
+
 /** Options of `OxyServer.assets.streams.create`. */
 export interface PlaySessionOptions {
   /** The end user the play is for — passed to your key authorization and revocable by it. */
@@ -1061,6 +1074,16 @@ export interface PlaySessionOptions {
    * endpoint (`stream.key_authorization`, see `verifyStreamKeyAuthorization`).
    */
   keyAuthorization?: 'none' | 'webhook';
+  /**
+   * Limit the session to these rungs of the ladder — e.g. `['hls_a64',
+   * 'hls_a128']` for a listener capped at 128 kb/s. The master playlist then
+   * lists only those, and Oxy refuses (404) any other rung's playlist,
+   * segments and key for this session, however its URLs are edited; with
+   * `aes-128` each allowed rung has its own key. A rung the file lacks is
+   * simply not served; none of them ready is 409 `STREAM_RENDITIONS_NOT_READY`.
+   * Omitted: the whole ladder.
+   */
+  renditions?: PlaySessionRendition[];
 }
 
 /** A revocable play session of one file (ADR 0043 stage 4c), `POST /assets/service/streams`. */
@@ -1074,6 +1097,8 @@ export interface PlaySessionState {
   endUserId: string | null;
   expiresAt: string;
   revokedAt?: string | null;
+  /** The rungs the session may serve (its `renditions` allow-list), or `null`: the whole ladder. */
+  allowedRenditions?: PlaySessionRendition[] | null;
 }
 
 /**
@@ -1088,6 +1113,7 @@ export interface PlaySession extends PlaySessionState {
    * request: revoking it stops playback at the next request.
    */
   masterUrl: string;
+  /** The ready rungs this session serves (only the allowed ones with a `renditions` list). */
   renditions: Array<{ type: string; url: string; bandwidth: number | null }>;
   /** Audio only: the 30-second preview clip. */
   previewUrl?: string;

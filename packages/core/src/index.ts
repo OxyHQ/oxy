@@ -380,6 +380,7 @@ export type {
   PlaySession,
   PlaySessionState,
   PlaySessionOptions,
+  PlaySessionRendition,
   RecordingTarget,
   RecordingTargetOptions,
   RecordingTargetCredentials,

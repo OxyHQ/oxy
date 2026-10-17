@@ -21,6 +21,14 @@
  * that file's record is invalidated (`fileCache.onInvalidate`), and every
  * revocation here ends with `fileCache.invalidate(fileId)` after its commit.
  * Without Redis the bound is the TTL.
+ *
+ * ## A rendition allow-list
+ *
+ * `renditions` limits a session to some rungs of the ladder (a product capping
+ * a free listener at `hls_a64`/`hls_a128`). It is stored on the row, so the
+ * serving path enforces it on EVERY request (`hlsStreamServing.ts`): the
+ * master lists only those rungs, and any other rung's playlist, segment or key
+ * is 404. NULL — no list — is the whole ladder.
  */
 
 import crypto from 'node:crypto';
@@ -31,8 +39,10 @@ import { applications } from '../db/schema';
 import {
   filePlaySessions,
   type FilePlaySessionRow,
+  PLAY_SESSION_RENDITIONS,
   type PlaySessionEncryption,
   type PlaySessionKeyAuthorization,
+  type PlaySessionRendition,
   type PlaySessionRevoker,
 } from '../db/schema/filePlaySessions';
 import type { FileRecord, FileVariantRecord } from '../types/file.types';
@@ -77,6 +87,25 @@ export interface OpenPlaySessionInput {
   ttlSeconds: number;
   encryption: PlaySessionEncryption;
   keyAuthorization: PlaySessionKeyAuthorization;
+  /** The rungs the session may serve ({@link normalizeRenditionAllowList}), or `null` for all. */
+  renditions: PlaySessionRendition[] | null;
+}
+
+/**
+ * An allow-list as stored: distinct, in ladder order. `undefined` (none asked)
+ * is `null`, the whole ladder.
+ */
+export function normalizeRenditionAllowList(
+  renditions: readonly PlaySessionRendition[] | undefined,
+): PlaySessionRendition[] | null {
+  if (renditions === undefined) return null;
+  const asked = new Set(renditions);
+  return PLAY_SESSION_RENDITIONS.filter((type) => asked.has(type));
+}
+
+/** A session's allow-list as the serving path checks it: `null` for the whole ladder. */
+export function renditionAllowList(row: FilePlaySessionRow): ReadonlySet<string> | null {
+  return row.renditions ? new Set(row.renditions) : null;
 }
 
 /** `active` until it is revoked or expires. */
@@ -130,6 +159,10 @@ export async function openPlaySession(
     }
   }
 
+  if (input.renditions !== null && input.renditions.length === 0) {
+    throw new BadRequestError('renditions must name at least one rendition');
+  }
+
   const id = crypto.randomUUID();
   const secret = crypto.randomBytes(32).toString('base64url');
   const contentKey =
@@ -147,6 +180,7 @@ export async function openPlaySession(
         encryption: input.encryption,
         keyAuthorization: input.keyAuthorization,
         contentKeyCiphertext: contentKey ? sealSecret(contentKey, keyContext(id)) : null,
+        renditions: input.renditions,
         expiresAt: sql`now() + make_interval(secs => ${input.ttlSeconds})`,
       })
       .returning();
@@ -169,6 +203,7 @@ export async function openPlaySession(
     applicationId: row.applicationId,
     encryption: row.encryption,
     keyAuthorization: row.keyAuthorization,
+    renditions: row.renditions,
   });
   return { row, secret };
 }
@@ -256,6 +291,8 @@ export interface ServingSession {
   applicationActive: boolean;
   /** The AES-128 key, for an encrypted session. */
   contentKey: Buffer | null;
+  /** The rungs it may serve, or `null` for the whole ladder ({@link renditionAllowList}). */
+  allowedRenditions: ReadonlySet<string> | null;
 }
 
 interface CachedSession {
@@ -345,6 +382,7 @@ export async function resolveServingSession(token: string): Promise<ServingSessi
       contentKey: row.contentKeyCiphertext
         ? Buffer.from(openSecret(row.contentKeyCiphertext, keyContext(row.id)), 'base64')
         : null,
+      allowedRenditions: renditionAllowList(row),
     };
     if (!fileCache.wasInvalidatedSince(row.fileId, readStartedAt)) {
       rememberSession(session, readStartedAt);

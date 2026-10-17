@@ -119,10 +119,12 @@ import {
 import {
   authorizeKeyRelease,
   loadApplicationPlaySession,
+  normalizeRenditionAllowList,
   PLAY_SESSION_DEFAULT_TTL_SECONDS,
   openPlaySession,
   playSessionStatus,
   readyMasterPlaylist,
+  renditionAllowList,
   resolveServingSession,
   revokePlaySession,
   revokePlaySessionsWhere,
@@ -134,7 +136,10 @@ import {
   MASTER_PLAYLIST_NAME,
   PREVIEW_NAME,
   readyRenditions,
+  renditionContentKey,
+  renditionKeyName,
   resolveStreamObject,
+  restrictedMasterPlaylist,
   segmentCipher,
   streamContentType,
   WAVEFORM_NAME,
@@ -3712,11 +3717,13 @@ function serializePlaySession(row: FilePlaySessionRow, file: FileRecord | null, 
     keyAuthorization: row.keyAuthorization,
     endUserId: row.endUserId,
     expiresAt: row.expiresAt,
+    /** The rungs this session may serve; `null`: the whole ladder. */
+    allowedRenditions: row.renditions ?? null,
     ...(row.revokedAt ? { revokedAt: row.revokedAt } : {}),
     ...(base && file
       ? {
           masterUrl: `${base}${MASTER_PLAYLIST_NAME}`,
-          renditions: readyRenditions(file).map((variant) => ({
+          renditions: readyRenditions(file, renditionAllowList(row)).map((variant) => ({
             type: variant.type,
             url: `${base}${playlistBasename(variant.key)}`,
             bandwidth: variantBandwidth(variant),
@@ -3738,14 +3745,20 @@ function serializePlaySession(row: FilePlaySessionRow, file: FileRecord | null, 
  *       short-lived, revocable set of URLs for ONE file, optionally for one
  *       end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default
  *       3600), encryption? ('aes-128' default | 'none'), keyAuthorization?
- *       ('none' default | 'webhook') }`. The file must be the calling
+ *       ('none' default | 'webhook'), renditions? }`. `renditions` is an
+ *       allow-list of the ladder's rungs (`hls_a64` | `hls_a128` | `hls_a256`
+ *       | `hls_360p` | `hls_720p` | `hls_1080p`): the master lists only those,
+ *       and any other rung's playlist, segment or key is 404 for this session
+ *       (409 `STREAM_RENDITIONS_NOT_READY` when the file has none of them
+ *       ready); omitted, the whole ladder. The file must be the calling
  *       application's own, or a person's file the application may read (it
  *       stored it for them, or they attached it to it, and did not revoke
  *       that — `files:linked:read`); anything else is 404, like no file. 409
  *       `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,
  *       fileId, kind: 'video' | 'audio', status: 'active', encryption,
- *       keyAuthorization, endUserId, expiresAt, masterUrl, renditions: [{
- *       type, url, bandwidth }], previewUrl?, waveformUrl? }` — the URLs are
+ *       keyAuthorization, endUserId, expiresAt, allowedRenditions, masterUrl,
+ *       renditions: [{ type, url, bandwidth }], previewUrl?, waveformUrl? }`
+ *       (`renditions`: the ready rungs the session serves) — the URLs are
  *       bearer authority for this session only and are shown once. Every
  *       request under them re-checks the session, so revoking it (`DELETE`),
  *       the owner revoking the application's access, or the file leaving
@@ -3774,6 +3787,14 @@ router.post(
     if (!readyMasterPlaylist(file)) {
       throw new ApiError(409, 'This file has no streaming renditions yet', 'STREAM_NOT_READY');
     }
+    const renditions = normalizeRenditionAllowList(body.renditions);
+    if (renditions && readyRenditions(file, new Set(renditions)).length === 0) {
+      throw new ApiError(
+        409,
+        'None of the requested renditions is ready for this file',
+        'STREAM_RENDITIONS_NOT_READY',
+      );
+    }
     const { row, secret } = await openPlaySession({
       file,
       applicationId: appId,
@@ -3781,6 +3802,7 @@ router.post(
       ttlSeconds: body.ttlSeconds ?? PLAY_SESSION_DEFAULT_TTL_SECONDS,
       encryption: body.encryption ?? 'aes-128',
       keyAuthorization: body.keyAuthorization ?? 'none',
+      renditions,
     });
     const host = req.get('host') ?? '';
     const base = `${req.protocol}://${host}${req.baseUrl}/streams/${row.id}.${secret}/`;
@@ -3858,7 +3880,10 @@ function invalidPlaySession(): ApiError {
  * @route GET /api/assets/streams/:token/:name
  * @desc What a play session's URLs name (ADR 0043 stage 4c): `master.m3u8`,
  *       a rendition playlist, a segment it lists, `key` (the AES-128 key, 16
- *       bytes), `preview.m4a` and `waveform.json` (audio). The token is
+ *       bytes), `preview.m4a` and `waveform.json` (audio). A session with a
+ *       rendition allow-list serves only those rungs — the master lists only
+ *       them, any other rung's playlist or segment is 404 — and has one key
+ *       per rung, `<rung>.key` (its own `key` is 404). The token is
  *       `<sessionId>.<secret>`; every request checks the session (live, not
  *       revoked, not expired), the file (`active`) and that the application
  *       may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An
@@ -3894,7 +3919,8 @@ router.get(
       res.setHeader('Cache-Control', 'no-store');
       throw invalidPlaySession();
     }
-    const object = await resolveStreamObject(file, req.params.name, readStoredPlaylist);
+    const allowed = session.allowedRenditions;
+    const object = await resolveStreamObject(file, req.params.name, readStoredPlaylist, allowed);
     if (!object) {
       res.setHeader('Cache-Control', 'no-store');
       throw new NotFoundError('Not part of this stream');
@@ -3910,17 +3936,28 @@ router.get(
           'KEY_AUTHORIZATION_DENIED',
         );
       }
+      const key = object.rendition
+        ? renditionContentKey(session.contentKey, object.rendition)
+        : session.contentKey;
       res.setHeader('Content-Type', streamContentType(object));
-      res.setHeader('Content-Length', String(session.contentKey.length));
-      return res.status(200).end(session.contentKey);
+      res.setHeader('Content-Length', String(key.length));
+      return res.status(200).end(key);
     }
 
     if (object.kind === 'master' || object.kind === 'rendition') {
       const playlist = await readStoredPlaylist(object.variant.key);
-      const text =
-        object.kind === 'rendition' && session.contentKey
-          ? encryptedRenditionPlaylist(playlist.text)
-          : playlist.text;
+      let text = playlist.text;
+      if (object.kind === 'master' && allowed) {
+        const names = new Set(
+          readyRenditions(file, allowed).map((variant) => playlistBasename(variant.key)),
+        );
+        text = restrictedMasterPlaylist(text, names);
+      } else if (object.kind === 'rendition' && session.contentKey) {
+        text = encryptedRenditionPlaylist(
+          text,
+          allowed ? renditionKeyName(object.variant.type) : undefined,
+        );
+      }
       res.setHeader('Cache-Control', 'no-store');
       res.setHeader('Content-Type', streamContentType(object));
       return res.status(200).end(text);
@@ -3945,7 +3982,10 @@ router.get(
         res.setHeader('Content-Length', String(encryptedLength(stored.contentLength)));
       }
       res.status(200);
-      const cipher = segmentCipher(session.contentKey, object.mediaSequence);
+      const segmentKey = allowed
+        ? renditionContentKey(session.contentKey, object.rendition)
+        : session.contentKey;
+      const cipher = segmentCipher(segmentKey, object.mediaSequence);
       const body = stored.body as unknown as NodeJS.ReadableStream;
       body.on('error', (error: Error) => cipher.destroy(error));
       cipher.on('error', (error: Error) => {

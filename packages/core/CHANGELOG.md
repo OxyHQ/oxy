@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 5.3.0
+
+Needs the Oxy API with migration `0182_play_session_renditions` (a rendition
+allow-list on play sessions); an older API refuses the new option with 400.
+Needs `@oxy.so/protocol` 1.4.0 (as 5.1.0). Same `@oxy.so/contracts`.
+
+### Added
+
+- `server.assets.streams.create(fileId, { renditions })` (ADR 0043 stage 4c):
+  limit a play session to some rungs of the ladder, e.g. `['hls_a64',
+  'hls_a128']` for a listener capped at 128 kb/s. The master playlist lists
+  only those rungs and Oxy refuses (404) any other rung's playlist, segments
+  and key for that session on every request; with `aes-128` each allowed rung
+  has its own key. A rung the file lacks is not served; none of them ready is
+  409 `STREAM_RENDITIONS_NOT_READY`. An empty list is a `RangeError` before any
+  request. The `PlaySessionRendition` type names the rungs, and
+  `PlaySessionState.allowedRenditions` reports the list (`null`: the whole
+  ladder).
+
 ## 5.2.0
 
 Needs no API change. Same `@oxy.so/contracts`.
