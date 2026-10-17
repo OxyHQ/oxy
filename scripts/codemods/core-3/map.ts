@@ -304,8 +304,6 @@ export const METHOD_MAP: Record<string, Entry> = {
   listCapabilityExecutionAuthorizations: e('agency.authorizations.list'),
   revokeCapabilityExecutionAuthorization: e('agency.authorizations.revoke'),
   listCapabilityAuditEvents: e('agency.auditEvents'),
-  mintRequesterAssertion: e('server:agency.mintRequesterAssertion'),
-  introspectRequesterAssertion: e('server:agency.introspectRequesterAssertion'),
 
   // ── store ────────────────────────────────────────────────────────────────
   listStoreCategories: e('store.categories'),

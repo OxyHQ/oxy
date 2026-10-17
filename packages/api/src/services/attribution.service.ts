@@ -394,8 +394,7 @@ export interface ServiceTokenPrincipal {
   /**
    * The presented service identity: the credential's row id on the credential
    * path, the `wl_…` handle on the attested one. What CALLED, never what the
-   * application also happens to hold — see PR #1351 for the same decision on
-   * the native product agent assertion's `cid`.
+   * application also happens to hold (PR #1351).
    */
   readonly credentialId: string;
   readonly applicationId: string;

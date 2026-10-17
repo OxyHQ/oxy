@@ -136,8 +136,6 @@ describe('OxyServer service-only namespace methods', () => {
     expect('forUser' in plain.linkedAccounts).toBe(false);
     expect('award' in plain.reputation).toBe(false);
     expect('metadataByIds' in plain.assets).toBe(false);
-    expect('mintRequesterAssertion' in plain.agency).toBe(false);
-    expect('introspectRequesterAssertion' in plain.agency).toBe(false);
   });
 
   it('keeps one namespace instance per server', () => {

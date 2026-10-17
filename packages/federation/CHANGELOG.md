@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.4.1
+
+### Changed
+
+- The `@oxy.so/core` dependency admits 5.x. Core 5.0.0 removes only the
+  retired present-requester assertion calls, which this package never used.
+
 ## 2.3.0
 
 ### Added

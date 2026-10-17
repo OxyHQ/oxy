@@ -323,7 +323,7 @@ export class OxyServer extends OxyServices {
       this._serverLinkedAccounts = new ServerLinkedAccountsApi(this.context);
     return this._serverLinkedAccounts;
   }
-  /** Delegated capabilities, plus `introspectRequesterAssertion`. */
+  /** Delegated capabilities, with the service-only authority calls. */
   override get agency(): ServerAgencyApi {
     if (!this._serverAgency) this._serverAgency = new ServerAgencyApi(this.context);
     return this._serverAgency;

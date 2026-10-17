@@ -502,8 +502,8 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
      * on to spend, and the usage ledger names that identity with a foreign key to
      * `application_credentials.id`; without the materialised row the first
      * reservation fails a constraint half way through an authenticated request.
-     * A caller resolved by the ARN declared it itself (a native product agent
-     * entry point) and does not spend, so that path is left alone.
+     * A caller resolved by the ARN declared it itself and does not spend, so
+     * that path is left alone.
      */
     const fixture = await bothFixture();
     await getDb()

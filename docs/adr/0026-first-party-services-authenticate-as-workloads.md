@@ -178,10 +178,11 @@ attestation, then drop the credential id.
 An Oxy lane that PINS a specific credential migrates differently: it declares the
 IAM role beside the credential and derives the handle with
 `workloadAttestationHandle`, so what it admits stays reviewable and stays
-computable from a task definition. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS` (ADR 0025)
-is the first; its `workload` field is deliberately written out rather than read
-from `application_workload_identities`, because binding a role is a routine
-deploy step and must never be, by itself, a grant of a pinned lane.
+computable from a task definition. ADR 0025's entry points were the first such
+lane (retired with it by ADR 0042); their `workload` field was deliberately
+written out rather than read from `application_workload_identities`, because
+binding a role is a routine deploy step and must never be, by itself, a grant of
+a pinned lane.
 
 ### A binding row, not a naming convention
 

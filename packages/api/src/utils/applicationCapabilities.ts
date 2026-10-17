@@ -30,7 +30,11 @@ export const APPLICATION_CAPABILITIES = [
 
 export type BuiltInApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
 export type CatalogApplicationCapability = `catalog:${string}`;
-export type ApplicationCapability = BuiltInApplicationCapability | CatalogApplicationCapability;
+export type OrganizationImportApplicationCapability = `organizations:import:${string}`;
+export type ApplicationCapability =
+  | BuiltInApplicationCapability
+  | CatalogApplicationCapability
+  | OrganizationImportApplicationCapability;
 
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
@@ -52,6 +56,23 @@ export function catalogApplicationCapability(appId: string): CatalogApplicationC
     );
   }
   return `catalog:${appId}`;
+}
+
+/**
+ * Bind one application to the organization-import namespace it may write
+ * (docs/identity/organization-directory.md). Paired with the
+ * `organizations:import` scope on the importing workload; the route checks
+ * both.
+ */
+export function organizationImportApplicationCapability(
+  namespace: string,
+): OrganizationImportApplicationCapability {
+  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(namespace)) {
+    throw new Error(
+      'Organization import namespace must be lowercase alphanumeric with optional dashes or underscores',
+    );
+  }
+  return `organizations:import:${namespace}`;
 }
 
 /**

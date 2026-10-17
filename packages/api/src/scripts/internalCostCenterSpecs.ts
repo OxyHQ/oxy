@@ -61,7 +61,7 @@ export interface InternalCostCenterSpec {
 }
 
 /**
- * The five workloads #972 workstream 14 names, and nothing else.
+ * The five workloads #972 workstream 14 names, and the two product projects.
  *
  * Flat under the platform owner rather than nested beneath an intermediate
  * "Alia" organization. An intermediate level would only earn its keep by being a
@@ -71,6 +71,10 @@ export interface InternalCostCenterSpec {
  * a child with no centre of its own". Five siblings have no such ambiguity: an
  * application either has one of these owners or it has none, and "none" is the
  * correct answer for every Oxy application that is not one of these workloads.
+ *
+ * `homiio` and `clarity` are the two product projects: Clarity's client and
+ * backend applications are owned by `clarity` (`seedOxyApplicationsSpecs.ts`),
+ * so its metered search embeddings are reported on their own line.
  *
  * `Codea`, `research`, `voice` and `evaluations` are registered here ahead of
  * the applications that will book to them. That ordering is deliberate and is
@@ -113,6 +117,20 @@ export const INTERNAL_COST_CENTERS: InternalCostCenterSpec[] = [
     description:
       'Model evaluation and benchmarking runs — spend that must never be read as customer ' +
       'traffic.',
+  },
+  {
+    name: 'homiio',
+    label: 'Homiio',
+    displayName: 'Homiio',
+    description: 'Homiio, the housing platform — its project account and reported spend.',
+  },
+  {
+    name: 'clarity',
+    label: 'Clarity',
+    displayName: 'Clarity',
+    description:
+      'Clarity, the search engine — owner of its client and backend applications, whose ' +
+      'search embeddings are metered inference.',
   },
 ];
 

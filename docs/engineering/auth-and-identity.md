@@ -137,16 +137,14 @@ changed no identity, and it is not derivable without a production query.
 
 **An Oxy lane that pins one credential needs its own line, not just a binding.**
 A check comparing `credentialId` to a fixed UUID refuses an attested caller
-however good its binding is. `NATIVE_PRODUCT_AGENT_ENTRY_POINTS`
-(`config/nativeProductAgents.ts`, ADR 0025) is the one such lane today: an entry
-declares the canonical IAM role and derives the handle with
-`workloadAttestationHandle`, so the value is reviewable and computable from a
-task definition rather than a digest nobody can check. It has completed the
-migration: the credential it used to pin as a second proof is retired, and the
-entry admits the workload alone. The role is written out
-in that file and NOT read from `application_workload_identities` — binding a role
-is a routine deploy step, and it must never be, by itself, a grant of a pinned
-lane. An attested caller then re-reads its BINDING as the live ceiling
+however good its binding is. Such a lane declares the canonical IAM role and
+derives the handle with `workloadAttestationHandle`, so the value is reviewable
+and computable from a task definition rather than a digest nobody can check. The
+role is written out in reviewed source and NOT read from
+`application_workload_identities` — binding a role is a routine deploy step, and
+it must never be, by itself, a grant of a pinned lane. (ADR 0025's entry points
+were the one such lane; ADR 0042 retired it.) An attested caller then re-reads
+its BINDING as the live ceiling
 (`resolveLiveAgencyWorkload`), on the same grounds a credential-minted one
 re-reads its credential.
 

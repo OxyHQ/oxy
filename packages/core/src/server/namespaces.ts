@@ -74,12 +74,7 @@ import {
 import { NotificationsApi } from '../api/notifications';
 import { OxyApiError } from '../OxyServices.errors';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
-import {
-  AgencyApi,
-  type CapabilityExecutionAuthorization,
-  type RequesterAssertionGrant,
-  type RequesterAssertionIntrospection,
-} from '../api/agency';
+import { AgencyApi, type CapabilityExecutionAuthorization } from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { AppsApi } from '../api/apps';
 import { AccountsApi } from '../api/accounts';
@@ -1405,42 +1400,6 @@ export class ServerAgencyApi extends AgencyApi {
       agencyAuthorityOptions(options.signal),
     );
     return result.authorization;
-  }
-
-  /**
-   * Product backend → Oxy: trade the signed-in requester's access token for a
-   * one-use assertion naming `agentId` (ADR 0025), authenticated with this
-   * service's credential. `subjectToken` goes to Oxy only, in the body; never
-   * forward it anywhere else. Not retried: a refusal is an answer, and the
-   * caller mints per turn.
-   */
-  async mintRequesterAssertion(input: {
-    agentId: string;
-    subjectToken: string;
-  }): Promise<RequesterAssertionGrant> {
-    return lane(this.ctx).request<RequesterAssertionGrant>(
-      'POST',
-      '/internal/native-agents/requester-assertions',
-      { agentId: input.agentId, subjectToken: input.subjectToken },
-      { retry: false, timeout: 5000 },
-    );
-  }
-
-  /**
-   * Audience → Oxy: verify, live-revalidate and CONSUME a present-requester
-   * assertion (ADR 0025). A second call with the same assertion answers
-   * `active: false`. Authenticated with the audience's own service credential.
-   */
-  async introspectRequesterAssertion(input: {
-    assertion: string;
-    presenter: { applicationId: string; credentialId: string };
-  }): Promise<RequesterAssertionIntrospection> {
-    return lane(this.ctx).request<RequesterAssertionIntrospection>(
-      'POST',
-      '/internal/native-agents/requester-assertions/introspect',
-      { assertion: input.assertion, presenter: input.presenter },
-      { retry: false, timeout: 5000 },
-    );
   }
 }
 

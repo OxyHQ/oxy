@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-16
+- Amended: 2026-10-17 — the retirement below has shipped. Clarity's backend keeps `inference:invoke`: it is its metered search-embeddings relationship (`clarity-kaana`), not the retired lane. What the bootstrap used to provision is now reviewed seed source (Clarity's two applications, Homiio's organization-import grant, the `homiio` and `clarity` cost centres), and Homiio's application row loses the two scopes through migration `0181` (post), because the seed only ever unions scopes.
 - Amends: ADR 0018 (adds the addendum "an agent acts for a present non-owner requester")
 - Supersedes: ADR 0025 (present-requester assertions for native product agents)
 - Scope: Oxy authority for Alia agents used by people other than their owner; retirement of the native-product-agent lane

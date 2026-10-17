@@ -1,5 +1,5 @@
 import express from 'express';
-import { NATIVE_PRODUCT_AGENTS } from '../../config/nativeProductAgents';
+import { CLARITY_BACKEND_APPLICATION_ID } from '../../config/firstPartyApplications';
 import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +8,7 @@ jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../middleware/auth', () => ({
   serviceAuthMiddleware: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = {
-      appId: NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id,
+      appId: CLARITY_BACKEND_APPLICATION_ID,
     };
     next();
   },

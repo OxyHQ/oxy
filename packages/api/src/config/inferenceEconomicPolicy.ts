@@ -66,7 +66,7 @@ export const ALIA_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e934'
 
 /**
  * Clarity's BACKEND application, pinned. A test compares it to
- * `NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id`, the application whose
+ * `CLARITY_BACKEND_APPLICATION_ID` (`config/firstPartyApplications.ts`), the application whose
  * workload-attested service token Clarity calls `kaana.ai/v1` with.
  */
 export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
