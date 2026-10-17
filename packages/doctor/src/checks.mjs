@@ -74,18 +74,85 @@ export async function findRepositoryRoot(start = process.cwd()) {
   }
 }
 
-async function collectManifests(directory, depth = 0) {
-  if (depth > 4) return [];
-  const ignored = new Set(['.git', '.expo', '.turbo', '.worktrees', 'dist', 'lib', 'node_modules']);
-  const entries = await readdir(directory, { withFileTypes: true });
-  const manifests = [];
-  for (const entry of entries) {
-    if (entry.isFile() && entry.name === 'package.json')
-      manifests.push(join(directory, entry.name));
-    if (entry.isDirectory() && !ignored.has(entry.name))
-      manifests.push(...(await collectManifests(join(directory, entry.name), depth + 1)));
+const IGNORED_DIRECTORIES = new Set([
+  '.git',
+  '.expo',
+  '.turbo',
+  '.worktrees',
+  'dist',
+  'lib',
+  'node_modules',
+]);
+
+async function childDirectories(directory) {
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  return entries
+    .filter((entry) => entry.isDirectory() && !IGNORED_DIRECTORIES.has(entry.name))
+    .map((entry) => join(directory, entry.name));
+}
+
+/** Directories matching one Bun workspace pattern (`dir`, `dir/*`, `dir/**`). */
+async function expandWorkspacePattern(directory, segments) {
+  if (segments.length === 0) return [directory];
+  const [segment, ...rest] = segments;
+  if (segment === '**') {
+    const here = await expandWorkspacePattern(directory, rest);
+    const deeper = await Promise.all(
+      (await childDirectories(directory)).map((child) => expandWorkspacePattern(child, segments)),
+    );
+    return [...here, ...deeper.flat()];
   }
-  return manifests;
+  if (segment.includes('*')) {
+    const matcher = new RegExp(
+      `^${segment.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+    );
+    const children = (await childDirectories(directory)).filter((child) =>
+      matcher.test(child.slice(directory.length + 1)),
+    );
+    return (await Promise.all(children.map((child) => expandWorkspacePattern(child, rest)))).flat();
+  }
+  return expandWorkspacePattern(join(directory, segment), rest);
+}
+
+/**
+ * The manifests Bun installs from: the root and its workspaces. A package.json
+ * outside them (a frozen copy kept as audit evidence, a fixture) is not
+ * installed from this lockfile, so it is not this repository's dependency state.
+ */
+async function collectManifests(root, rootManifest) {
+  const workspaces = rootManifest.workspaces;
+  const patterns = Array.isArray(workspaces) ? workspaces : (workspaces?.packages ?? []);
+  const directories = new Set([root]);
+  const excluded = new Set();
+  for (const pattern of patterns) {
+    const negated = pattern.startsWith('!');
+    const segments = (negated ? pattern.slice(1) : pattern)
+      .replace(/^\.\//, '')
+      .split('/')
+      .filter(Boolean);
+    for (const directory of await expandWorkspacePattern(root, segments))
+      (negated ? excluded : directories).add(directory);
+  }
+  return [...directories]
+    .filter((directory) => !excluded.has(directory))
+    .map((directory) => join(directory, 'package.json'))
+    .filter((path) => existsSync(path))
+    .sort();
+}
+
+/** `catalog:` / `catalog:<name>` resolved against the root manifest's catalogs. */
+function catalogEntries(rootManifest) {
+  const workspaces = Array.isArray(rootManifest.workspaces) ? {} : (rootManifest.workspaces ?? {});
+  const rows = [];
+  const add = (section, catalog) => {
+    for (const [name, range] of Object.entries(catalog ?? {})) rows.push({ section, name, range });
+  };
+  add('catalog', workspaces.catalog ?? rootManifest.catalog);
+  for (const [catalogName, catalog] of Object.entries(
+    workspaces.catalogs ?? rootManifest.catalogs ?? {},
+  ))
+    add(`catalogs.${catalogName}`, catalog);
+  return rows;
 }
 
 /**
@@ -98,8 +165,15 @@ export async function inspectRepository(
   fetchLatest,
   { graceDays = DEFAULT_GRACE_DAYS, now = new Date() } = {},
 ) {
-  const manifestPaths = await collectManifests(root);
+  const rootManifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const manifestPaths = await collectManifests(root, rootManifest);
   const usages = new Map();
+  for (const { section, name, range } of catalogEntries(rootManifest)) {
+    if (!isFirstPartyPackage(name)) continue;
+    const rows = usages.get(name) ?? [];
+    rows.push({ manifest: 'package.json', section, range });
+    usages.set(name, rows);
+  }
   for (const path of manifestPaths) {
     const manifest = JSON.parse(await readFile(path, 'utf8'));
     for (const section of [
@@ -109,7 +183,12 @@ export async function inspectRepository(
       'optionalDependencies',
     ]) {
       for (const [name, range] of Object.entries(manifest[section] ?? {})) {
-        if (!isFirstPartyPackage(name) || range === 'workspace:*' || range === 'catalog:') continue;
+        if (
+          !isFirstPartyPackage(name) ||
+          range.startsWith('workspace:') ||
+          range.startsWith('catalog:')
+        )
+          continue;
         const rows = usages.get(name) ?? [];
         rows.push({ manifest: path.slice(root.length + 1), section, range });
         usages.set(name, rows);
