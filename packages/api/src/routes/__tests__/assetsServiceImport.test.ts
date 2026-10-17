@@ -26,7 +26,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, randomBytes } from 'node:crypto';
 import { PassThrough, type Readable } from 'node:stream';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 const mockServiceAuthMiddleware = jest.fn();
 const mockObjects = new Map<string, Buffer>();
@@ -765,6 +765,53 @@ describe('large imports by URL', () => {
       .from(fileAccessGrants)
       .where(eq(fileAccessGrants.fileId, done.body.data?.file.id as string));
     expect(grant).toMatchObject({ applicationId: appId, state: 'granted', source: 'upload' });
+  });
+
+  it('leases an import on the database clock, so a task whose clock is behind never loses it early', async () => {
+    // The sweep reads `lease_expires_at` against the database's `now()`. Two
+    // hours behind: a lease computed from this task's clock (65 minutes ahead
+    // of IT) would already be over there, and another task would take the
+    // import over while this one is still receiving it.
+    const appId = await application();
+    const url = `https://podcasts.example/${randomBytes(6).toString('hex')}/slow.mp3`;
+    const response = new PassThrough();
+    const controller = new AbortController();
+    const realNow = Date.now.bind(Date);
+    const behind = jest.spyOn(Date, 'now').mockImplementation(() => realNow() - 2 * 60 * 60_000);
+    let id: string;
+    try {
+      ({ id } = await fileIngestService.startLargeImport(
+        {
+          owner: { kind: 'application', applicationId: appId },
+          creatorApplicationId: appId,
+          source: { url, host: 'podcasts.example', sha256: randomBytes(32).toString('hex') },
+          visibility: 'private',
+          metadata: {},
+          originalName: 'slow.mp3',
+          mime: 'audio/mpeg',
+          etag: null,
+          lastModified: null,
+          declaredLength: null,
+        },
+        response as unknown as Parameters<typeof fileIngestService.startLargeImport>[1],
+        controller,
+      ));
+    } finally {
+      behind.mockRestore();
+    }
+    try {
+      const [row] = await getDb()
+        .select({
+          leaseLive: sql<boolean>`${fileIngests.leaseExpiresAt} > now() + interval '1 hour'`,
+          live: sql<boolean>`${fileIngests.expiresAt} > now() + interval '23 hours'`,
+        })
+        .from(fileIngests)
+        .where(eq(fileIngests.id, id));
+      expect(row).toEqual({ leaseLive: true, live: true });
+    } finally {
+      controller.abort();
+      response.destroy();
+    }
   });
 
   it('never stores a body cut short, and the worker fetches it again', async () => {

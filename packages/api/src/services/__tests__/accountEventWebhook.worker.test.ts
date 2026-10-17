@@ -177,6 +177,27 @@ describe('account event webhook worker', () => {
     ).toHaveLength(0);
   });
 
+  it('sends a fresh delivery at once, even from a task whose clock is behind the database', async () => {
+    // `next_attempt_at` defaults to the database's now(), in microseconds; the
+    // worker's clock is JavaScript's, in milliseconds, and may run behind it.
+    // A minute behind stands for both, deterministically.
+    const seeded = await seedDeletion('https://rp.example/behind');
+    const sent: string[] = [];
+    await runFor(
+      seeded.applicationId,
+      async (request) => {
+        if (request.url === 'https://rp.example/behind') sent.push(request.eventId);
+        return 202;
+      },
+      () => new Date(Date.now() - 60_000),
+    );
+    expect(sent).toEqual([seeded.eventId]);
+    expect(await delivery(seeded.eventId, seeded.applicationId)).toMatchObject({
+      attempts: 1,
+      lastStatus: 202,
+    });
+  });
+
   it('retries a non-2xx with exponential backoff, re-sending the same event id', async () => {
     const seeded = await seedDeletion('https://rp.example/flaky');
     const sent: string[] = [];

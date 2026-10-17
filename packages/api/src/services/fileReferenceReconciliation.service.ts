@@ -31,7 +31,7 @@
  * open, so the real commit can follow.
  */
 
-import { and, asc, count, eq, exists, gt, lt, lte, not, sql } from 'drizzle-orm';
+import { and, asc, count, eq, exists, gt, lte, not, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
   type FileReferenceReconciliationCounts,
@@ -291,7 +291,11 @@ async function* stalePairs(session: ReconcileSession) {
       .where(
         and(
           sessionReference(session),
-          lt(fileReferences.createdAt, session.createdAt),
+          // Against the session's STORED instant, never `session.createdAt`:
+          // both columns are the database's microseconds, and the JavaScript
+          // Date rounds the bound down to its millisecond, which would keep a
+          // reference made in that millisecond before `begin`.
+          sql`${fileReferences.createdAt} < (select ${fileReferenceReconciliations.createdAt} from ${fileReferenceReconciliations} where ${fileReferenceReconciliations.id} = ${session.id})`,
           after === null ? undefined : gt(fileReferences.id, after),
           not(
             exists(

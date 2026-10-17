@@ -57,6 +57,17 @@ export const LARGE_IMPORT_TOTAL_TIMEOUT_MS = Number(
 export const LARGE_IMPORT_IDLE_TIMEOUT_MS = 60_000;
 /** An import nobody finished is abandoned this long after it began. */
 export const LARGE_IMPORT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The lease a fetching task holds on an import: its whole time budget and five
+ * minutes more. Written on the DATABASE's clock, like every other lease here,
+ * because the sweep reads it against `now()` there: a deadline computed from
+ * this task's clock would arrive early by however far that clock is behind,
+ * and another task would take over an import still being received.
+ */
+function importLeaseDeadline() {
+  return sql`now() + make_interval(secs => ${(LARGE_IMPORT_TOTAL_TIMEOUT_MS + 5 * 60_000) / 1000})`;
+}
 /** Fetch or verification attempts before an ingest fails. */
 export const INGEST_MAX_ATTEMPTS = 5;
 /** How long a recording target's `complete` waits for verification before answering 202. */
@@ -340,8 +351,9 @@ export class FileIngestService {
         lastModified: input.lastModified,
         attempts: 1,
         leaseOwner: LEASE_OWNER,
-        leaseExpiresAt: new Date(Date.now() + LARGE_IMPORT_TOTAL_TIMEOUT_MS + 5 * 60_000),
-        expiresAt: new Date(Date.now() + LARGE_IMPORT_TTL_MS),
+        leaseExpiresAt: importLeaseDeadline(),
+        // On the database's clock too: every reader compares it with `now()` there.
+        expiresAt: sql`now() + make_interval(secs => ${LARGE_IMPORT_TTL_MS / 1000})`,
       })
       .returning();
     logger.info('Large import started', {
@@ -448,7 +460,7 @@ export class FileIngestService {
       .update(fileIngests)
       .set({
         leaseOwner: LEASE_OWNER,
-        leaseExpiresAt: new Date(Date.now() + LARGE_IMPORT_TOTAL_TIMEOUT_MS + 5 * 60_000),
+        leaseExpiresAt: importLeaseDeadline(),
         attempts: sql`${fileIngests.attempts} + 1`,
       })
       .where(

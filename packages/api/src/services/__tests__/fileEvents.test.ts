@@ -353,6 +353,21 @@ describe('the delivery worker', () => {
     expect(after).toMatchObject({ attempts: 1, lastStatus: 204, lastError: null });
   });
 
+  it('sends a fresh delivery at once, even from a task whose clock is behind the database', async () => {
+    // `next_attempt_at` defaults to the database's now(), in microseconds; the
+    // worker's clock is JavaScript's, in milliseconds, and may run behind it.
+    // A minute behind stands for both, deterministically.
+    const { row } = await queued();
+    const { seen, after } = await deliverOnly(
+      row.id,
+      async () => 204,
+      () => new Date(Date.now() - 60_000),
+    );
+    expect(seen).toHaveLength(1);
+    expect(after.deliveredAt).not.toBeNull();
+    expect(after).toMatchObject({ attempts: 1, lastStatus: 204 });
+  });
+
   it('backs off on a failure, and dead-letters after the last attempt', async () => {
     const { row } = await queued();
     const start = new Date();

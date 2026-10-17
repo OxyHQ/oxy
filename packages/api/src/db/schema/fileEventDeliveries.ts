@@ -81,7 +81,11 @@ export const fileEventDeliveries = pgTable(
     payload: jsonb().$type<Record<string, unknown>>().notNull(),
     occurredAt: timestamptz().notNull(),
     attempts: integer().notNull().default(0),
-    /** Earliest time the next attempt may be made; the backoff lives here. */
+    /**
+     * Earliest time the next attempt may be tried, after a failed attempt's backoff
+     * (written from the worker's clock). Not read while `attempts` is 0: a row
+     * never attempted is due at once, whatever this database-clock default says.
+     */
     nextAttemptAt: timestamptz().notNull().default(sql`now()`),
     claimedAt: timestamptz(),
     claimedBy: text(),

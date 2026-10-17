@@ -281,10 +281,15 @@ describe('POST /content-claims', () => {
       expect.objectContaining({ kind: 'claim_received', recipient: 'claimant', sentAt: null }),
     ]);
 
-    // The worker sends it to the claimant, with the reference.
+    // The worker sends it to the claimant, with the reference — at once, even
+    // from a task whose clock is behind the database's: `next_attempt_at`
+    // defaults to the database's now() (microseconds), the worker's clock is
+    // JavaScript's (milliseconds). A minute behind stands for both.
     const sent: Array<{ to: string; subject: string; text: string }> = [];
+    const behind = () => new Date(Date.now() - 60_000);
     let result = await runContentClaimNotificationBatch({
       ownerId: 'test',
+      now: behind,
       send: async (message) => {
         sent.push(message);
       },
@@ -293,6 +298,7 @@ describe('POST /content-claims', () => {
     while (result.claimed > 0 && !sent.some((message) => message.to === body.claimant.email)) {
       result = await runContentClaimNotificationBatch({
         ownerId: 'test',
+        now: behind,
         send: async (message) => {
           sent.push(message);
         },

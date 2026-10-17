@@ -97,7 +97,15 @@ function claimable(db: Database, now: Date, claimedBefore: Date, limit: number) 
       and(
         isNull(contentClaimNotifications.sentAt),
         isNull(contentClaimNotifications.failedAt),
-        lte(contentClaimNotifications.nextAttemptAt, now),
+        // Never attempted: due at once. `next_attempt_at` defaults to the
+        // DATABASE's now() (microseconds); `now` is this task's clock
+        // (milliseconds, possibly behind it), so a fresh row compared with it
+        // can read as not yet due. Only a failed attempt's backoff — written
+        // from this same clock — is read against `now`.
+        or(
+          eq(contentClaimNotifications.attempts, 0),
+          lte(contentClaimNotifications.nextAttemptAt, now),
+        ),
         or(
           isNull(contentClaimNotifications.claimedAt),
           lt(contentClaimNotifications.claimedAt, claimedBefore),

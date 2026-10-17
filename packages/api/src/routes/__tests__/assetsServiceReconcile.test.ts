@@ -18,7 +18,7 @@ import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomBytes } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 const mockServiceAuthMiddleware = jest.fn();
 
@@ -302,6 +302,31 @@ describe('reconciliation: the diff', () => {
 
     expect(res.body.data).toMatchObject({ removed: 0, added: 0 });
     expect(await referencesFor(appId, type)).toEqual([`${late}/created-during`]);
+  });
+
+  it('removes a stale reference created in the same millisecond as, but before, begin', async () => {
+    // Both instants are the database's, in microseconds. Pinned inside ONE
+    // millisecond, the reference 56 µs earlier: a bound read back into a
+    // JavaScript Date (…123) would find …123400 not before it and keep it.
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const stale = await file({ ownerApplicationId: appId });
+    await reference(stale, appId, type, 'same-ms');
+    const { sessionId } = (await begin(type)).body.data;
+    await getDb()
+      .update(fileReferences)
+      .set({ createdAt: sql`'2026-10-17 06:10:40.1234+00'::timestamptz` })
+      .where(and(eq(fileReferences.applicationId, appId), eq(fileReferences.entityType, type)));
+    await getDb()
+      .update(fileReferenceReconciliations)
+      .set({ createdAt: sql`'2026-10-17 06:10:40.123456+00'::timestamptz` })
+      .where(eq(fileReferenceReconciliations.id, sessionId));
+
+    const res = await commit(sessionId);
+
+    expect(res.body.data).toMatchObject({ removed: 1, added: 0 });
+    expect(await referencesFor(appId, type)).toEqual([]);
   });
 
   it('a reconciled reference brings a trashed file of its own back', async () => {
