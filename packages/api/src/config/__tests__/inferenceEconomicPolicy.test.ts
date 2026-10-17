@@ -14,7 +14,7 @@ import {
   resolveEconomicTreatment,
   type EconomicTreatmentPrincipal,
 } from '../inferenceEconomicPolicy';
-import { NATIVE_PRODUCT_AGENTS } from '../nativeProductAgents';
+import { CLARITY_BACKEND_APPLICATION_ID } from '../firstPartyApplications';
 import { ALIA_APPLICATION_ID } from '../../scripts/seedOxyApplicationsSpecs';
 
 const alia: EconomicTreatmentPrincipal = {
@@ -138,9 +138,7 @@ describe('clarity-kaana: Clarity search embeddings, and nothing else', () => {
   };
 
   it('pins the backend application Clarity calls kaana.ai with', () => {
-    expect(CLARITY_INFERENCE_CONSUMER_APPLICATION_ID).toBe(
-      NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id,
-    );
+    expect(CLARITY_INFERENCE_CONSUMER_APPLICATION_ID).toBe(CLARITY_BACKEND_APPLICATION_ID);
   });
 
   it('treats Clarity’s production service token as internal_metered under it, and nothing else', () => {

@@ -76,13 +76,10 @@ describe('Alia-only machine credential contract', () => {
     });
     expect(JSON.stringify(body)).not.toContain(token);
   });
-  it.each(['x-oxy-user-id', 'x-oxy-requester-assertion'])(
-    'rejects claimed person authority via %s before introspection',
-    async (header) => {
-      expect((await send({ [header]: 'untrusted-person' })).status).toBe(403);
-      expect(introspect).not.toHaveBeenCalled();
-    },
-  );
+  it('rejects claimed person authority via x-oxy-user-id before introspection', async () => {
+    expect((await send({ 'x-oxy-user-id': 'untrusted-person' })).status).toBe(403);
+    expect(introspect).not.toHaveBeenCalled();
+  });
   it('revalidates every request, including revocation after an accepted request', async () => {
     expect((await send()).status).toBe(200);
     introspect.mockResolvedValueOnce({ active: false });

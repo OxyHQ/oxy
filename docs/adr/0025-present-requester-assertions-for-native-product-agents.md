@@ -1,6 +1,7 @@
 # ADR 0025 — A present requester reaches a native product agent through a one-use Oxy assertion, not through offline delegation
 
 - Status: superseded by ADR 0042 (2026-10-16) — present-requester assertions and the native-product-agent lane are retired; a public agent acts for the person present under its owner's ceiling
+- Retired: 2026-10-17 — the routes, the service, the reviewed manifest, the bootstrap with its workflow and runbook, and `@oxy.so/core`'s client and verifier are deleted (core 5.0.0). Nothing in this record describes running code; it is kept as the history of the decision.
 - Date: 2026-09-17
 - Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
   "One entry point, two proofs")

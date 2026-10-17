@@ -1261,6 +1261,13 @@
       "when": 1792179483142,
       "tag": "0180_file_access_streams_ingests",
       "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1792202494474,
+      "tag": "0181_retire_homiio_native_agent_scopes",
+      "breakpoints": true
     }
   ]
 }

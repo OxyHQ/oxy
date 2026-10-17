@@ -193,13 +193,15 @@ describe('computeCostCenterPlan', () => {
   });
 
   describe('the registered cost centres', () => {
-    it('covers the five workloads #972 workstream 14 names', () => {
+    it('covers the five workloads #972 workstream 14 names and the two product projects', () => {
       expect(INTERNAL_COST_CENTERS.map((center) => center.name)).toEqual([
         'alia-production-chat',
         'codea',
         'alia-research',
         'alia-voice',
         'alia-evaluations',
+        'homiio',
+        'clarity',
       ]);
     });
 

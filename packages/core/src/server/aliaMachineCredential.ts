@@ -96,16 +96,13 @@ export function createOxyAliaMachineCredentialAuth(
       user?: unknown;
       userId?: unknown;
       serviceApp?: unknown;
-      oxyRequester?: unknown;
     };
     if (
       existing.user ||
       existing.userId ||
       existing.serviceApp ||
-      existing.oxyRequester ||
       (req as OxyAliaMachineRequest).machineCredential ||
-      req.headers['x-oxy-user-id'] !== undefined ||
-      req.headers['x-oxy-requester-assertion'] !== undefined
+      req.headers['x-oxy-user-id'] !== undefined
     ) {
       res.status(403).json({ error: 'MACHINE_USER_DELEGATION_UNSUPPORTED' });
       return;

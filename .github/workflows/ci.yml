@@ -982,9 +982,6 @@ jobs:
           bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
-          node --test packages/api/scripts/validate-native-product-bootstrap-report.test.mjs
-          bash .github/scripts/test-run-native-product-agent-bootstrap.sh
-          bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
           bash .github/scripts/test-smoke-service-token-jwks.sh
           bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
@@ -1005,7 +1002,6 @@ jobs:
           node scripts/test-service-credential-handoff.mjs
           node scripts/test-service-credential-two-phase.mjs
           node scripts/test-seed-oxy-applications-workflow.mjs
-          node scripts/test-native-product-agent-bootstrap-workflow.mjs
           node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
@@ -1097,6 +1093,14 @@ jobs:
       # drift, the vacuity floor on a pair of sets that agree perfectly, and a
       # permission named only in an apostrophe-heavy doc comment, which is what a
       # regex census reads as a match that does not exist.
+      # ADR 0042 retired ADR 0025's native agent lane with no
+      # deprecation window; its vocabulary may not return to tracked source.
+      - name: 'Retired native-agent lane: fixture tests'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/test-check-retired-native-agent-lane.mjs
+      - name: 'Retired native-agent lane: check'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/check-retired-native-agent-lane.mjs
       - name: 'Permission Vocabulary: fixture tests'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun scripts/test-check-permission-vocabulary.mjs

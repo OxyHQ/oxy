@@ -23,7 +23,7 @@ import {
   type AppAssertionPlatform,
 } from '@oxy.so/contracts';
 import { z } from 'zod';
-import { createOxyJwksKeyResolver } from './requesterAssertion';
+import { createOxyJwksKeyResolver } from './jwks';
 
 export const OXY_APP_ASSERTION_DEFAULT_ISSUER = 'https://api.oxy.so';
 /** The lowercase spelling Node gives `req.headers`. */

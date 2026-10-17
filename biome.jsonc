@@ -119,12 +119,11 @@
         "packages/mcp/src/internalTransport.ts",
         "packages/api/src/services/externalProfileInspection.service.ts",
         // Read as text by the Guards job's deploy-script tests: scripts/test-service-
-        // credential-{workflow-ids,two-phase}.mjs, test-native-product-agent-bootstrap-
-        // workflow.mjs, test-kaana-catalogue-bootstrap-workflow.mjs and the
+        // credential-{workflow-ids,two-phase}.mjs, test-kaana-catalogue-bootstrap-
+        // workflow.mjs and the
         // check-kaana-{request-v2-rollout,signed-canary,catalogue-bootstrap-workflow},
         // check-inbox-routing-profile-readback gates (and their tests).
         "packages/api/scripts/bootstrap-kaana-catalogue.ts",
-        "packages/api/scripts/bootstrap-native-product-agents.ts",
         "packages/api/scripts/create-service-credential.ts",
         "packages/api/scripts/finalize-service-credential.ts",
         "packages/api/scripts/readback-inbox-routing-profile.ts",

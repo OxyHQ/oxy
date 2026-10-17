@@ -336,9 +336,9 @@ export async function resolveLiveAgencyWorkload(
 /**
  * The same live ceiling, addressed by the HANDLE a minted token carries.
  *
- * {@link resolveLiveAgencyWorkload} takes the role because its caller declared
- * one — a native product agent entry point names the ARN it admits. Every other
- * consumer of an attested token has only what the token says: `credentialId` is
+ * {@link resolveLiveAgencyWorkload} takes the role, for a caller that declared
+ * the ARN it admits. A consumer of an attested token has only what the token
+ * says: `credentialId` is
  * `workloadAttestationHandle(subject)`, and the handle is SHA-256, so the
  * subject cannot be read back out of it. This resolves the other way round —
  * find the binding whose subject DERIVES to this handle — and then asks

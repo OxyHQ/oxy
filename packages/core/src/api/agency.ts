@@ -103,25 +103,6 @@ export interface CapabilityExecutionAuthorization {
   updatedAt: string;
 }
 
-/** A present-requester assertion minted for a product backend (ADR 0025). */
-export interface RequesterAssertionGrant {
-  assertion: string;
-  expiresAt: string;
-  requesterAccountId: string;
-  agentId: string;
-}
-
-/** Oxy's live answer to the audience that consumed an assertion (ADR 0025). */
-export interface RequesterAssertionIntrospection {
-  active: boolean;
-  requesterAccountId?: string;
-  agentId?: string;
-  applicationId?: string;
-  credentialId?: string;
-  jti?: string;
-  expiresAt?: string;
-}
-
 function query(path: string, key: string, value: string): string {
   return `${path}?${key}=${enc(value)}`;
 }

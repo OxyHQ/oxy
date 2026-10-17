@@ -18,8 +18,13 @@ import {
   catalogApplicationCapability,
   IDENTITY_APPROVAL_CAPABILITY,
   KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY,
+  organizationImportApplicationCapability,
 } from '../utils/applicationCapabilities';
 import type { ApplicationScope } from '../utils/applicationScopes';
+import {
+  CLARITY_APPLICATION_ID,
+  CLARITY_BACKEND_APPLICATION_ID,
+} from '../config/firstPartyApplications';
 import { INBOX_APPLICATION_ID } from '../config/inboxInference';
 export { INBOX_APPLICATION_ID } from '../config/inboxInference';
 
@@ -333,13 +338,6 @@ const PRODUCT_FILE_SCOPES = [
  */
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
-/**
- * Clarity's backend application. Created under Clarity's own project account
- * (`clarity`), not the platform owner, and pinned by id because Clarity's API
- * matches it byte for byte (`clarity-identity.ts`).
- */
-export const CLARITY_BACKEND_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
-
 /** New identities: seed these exact entries before provisioning their activity lanes. */
 /** GoWay public sign-in identity; registration is an explicit operator step. */
 export const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
@@ -363,6 +361,15 @@ export const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
 
 /** Exact opaque identity already assigned to Homiio in production. */
 export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
+
+/**
+ * Clarity's two applications, pinned by id (`config/firstPartyApplications.ts`):
+ * Oxy's resource-authority routes and Clarity's API (`clarity-identity.ts`)
+ * match the backend's byte for byte.
+ */
+export { CLARITY_APPLICATION_ID, CLARITY_BACKEND_APPLICATION_ID };
+/** Clarity's own project account: both applications' owner and its cost centre. */
+export const CLARITY_OWNER_ACCOUNT_USERNAME = 'clarity';
 
 /** Exact opaque identity read back from the active production Mention row. */
 export const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
@@ -519,13 +526,16 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://homiio.com', 'homiio://oauth/consent'],
     // Homiio awards Oxy Trust on lease lifecycle events via its service credential.
     // `reputation:write` is staff-gated — the seed script grants it to official apps.
-    // Interactive Sindi uses Homiio's service token plus X-Oxy-User-Id. The
-    // delegation verifier requires this app/credential ceiling explicitly.
     // - The `homiio` capability catalog (Alia ADR 0020, Homiio docs/sindi.md):
     //   Homiio's API registers it at startup (`catalogs:write`, `catalog:homiio`)
     //   and serves its internal MCP to Alia, re-authorising and auditing each
     //   ticket (`capabilities:read`, `capability-audit:write`); its public OAuth
-    //   MCP is mcp.homiio.oxy.so.
+    //   MCP is mcp.homiio.com. Sindi is an ordinary Alia agent that reaches
+    //   Homiio through that catalogue, so Homiio holds no inference or
+    //   acting-as authority of its own (ADR 0042 retired the native lane).
+    // - Neutral company ingestion (docs/identity/organization-directory.md): the
+    //   Homiio WORKER's attested role imports source-stable companies into the
+    //   `homiio` namespace (`organizations:import`, `organizations:import:homiio`).
     // ADR 0043: Homiio's own bucket (and its ~950 orphans) ends — listing
     // photos a person uploads are THAT person's (`files:user-media:write`),
     // platform artwork is the Homiio application's own (PRODUCT_FILE_SCOPES),
@@ -535,8 +545,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     scopes: [
       'user:read',
       'reputation:write',
-      'inference:invoke',
-      'acting-as:offline',
+      'organizations:import',
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
@@ -544,7 +553,21 @@ export const SEED_APPS: SeedAppSpec[] = [
       'files:user-media:write',
       'files:linked:read',
     ],
-    capabilities: [catalogApplicationCapability('homiio')],
+    capabilities: [
+      catalogApplicationCapability('homiio'),
+      organizationImportApplicationCapability('homiio'),
+    ],
+  },
+  {
+    id: CLARITY_APPLICATION_ID,
+    name: 'Clarity',
+    description: 'Official Clarity product client',
+    websiteUrl: 'https://clarity.surf',
+    type: 'first_party',
+    redirectUris: ['https://clarity.surf', 'https://clarity.oxy.so', 'clarity://'],
+    scopes: ['user:read'],
+    // Clarity's spend is reported on its own line (`internalCostCenterSpecs.ts`).
+    ownerAccountUsername: CLARITY_OWNER_ACCOUNT_USERNAME,
   },
   {
     name: 'Allo',
@@ -914,6 +937,6 @@ export const SEED_APPS: SeedAppSpec[] = [
       'capability-audit:write',
     ],
     capabilities: [catalogApplicationCapability('clarity')],
-    ownerAccountUsername: 'clarity',
+    ownerAccountUsername: CLARITY_OWNER_ACCOUNT_USERNAME,
   },
 ];

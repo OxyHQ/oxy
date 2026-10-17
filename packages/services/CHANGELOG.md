@@ -1,5 +1,13 @@
 # Changelog
 
+## [11.13.0] - 2026-10-17
+
+### Changed
+
+- The `@oxy.so/core` peer admits 5.x as well as 4.x (`^4.21.0 || ^5.0.0`).
+  Core 5.0.0 removes only the retired present-requester assertion calls (oxy
+  ADR 0042), which this package never used.
+
 ## [11.12.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.21.0 (and so `@oxy.so/contracts` 4.24.0) and the Oxy

@@ -14,7 +14,7 @@ import { verifyServiceToken, type ServiceTier } from '../middleware/serviceToken
 import { applications } from '../db/schema/applications';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { validate } from '../middleware/validate';
-import { NATIVE_PRODUCT_AGENTS } from '../config/nativeProductAgents';
+import { CLARITY_BACKEND_APPLICATION_ID } from '../config/firstPartyApplications';
 import { getDb } from '../config/postgres';
 import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 
@@ -57,7 +57,7 @@ function requireCanonicalClarityBackend(
   response: express.Response,
   next: express.NextFunction,
 ): void {
-  if (request.serviceApp?.appId === NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id) {
+  if (request.serviceApp?.appId === CLARITY_BACKEND_APPLICATION_ID) {
     next();
     return;
   }

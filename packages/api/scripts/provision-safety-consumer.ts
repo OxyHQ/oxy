@@ -17,7 +17,7 @@ import {
   safetyConsumerPlan,
   type SafetyConsumerObservation,
 } from '../src/scripts/safetyConsumerPlan';
-import { requireNativeProductBootstrapApproval } from '../src/scripts/nativeProductAgentsBootstrapPlan';
+import { requireReviewedPlanApproval } from '../src/scripts/reviewedPlanApproval';
 const consumer = process.env.SAFETY_CONSUMER;
 const stage = process.env.SAFETY_STAGE;
 if (
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       };
       const result = safetyConsumerPlan(selected, selectedStage, actions, before);
       if (process.env.APPLY === '1') {
-        const approval = requireNativeProductBootstrapApproval(result.planSha256, process.env);
+        const approval = requireReviewedPlanApproval(result.planSha256, process.env);
         const after = result.plan.after;
         if (
           JSON.stringify(application.scopes) !== JSON.stringify(after.application.scopes) ||

@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## 5.0.0
+
+Needs nothing new from the Oxy API; the routes these methods called are deleted
+with this release (oxy ADR 0042). Same `@oxy.so/contracts`.
+
+### Removed
+
+- The present-requester assertion lane (ADR 0025, superseded by ADR 0042):
+  `server.agency.mintRequesterAssertion` and `introspectRequesterAssertion`,
+  their `RequesterAssertionGrant` / `RequesterAssertionIntrospection` types, and
+  everything `@oxy.so/core/server` exported for it — `createOxyRequesterAssertionAuth`,
+  `signOxyRequesterAssertion`, `verifyOxyRequesterAssertion`,
+  `readOxyRequesterAssertionKeyId`, `oxyRequesterAssertionClaimsSchema`,
+  `OxyRequesterAssertionError`, the `OXY_REQUESTER_ASSERTION_*` constants and
+  the `OxyRequesterAssertion*` / `OxyRequesterContext` types. A product's agent
+  is an ordinary Alia agent: the person present opens it with their own session,
+  and it reaches the product through the product's capability catalogue under
+  its owner's ceiling. There is no replacement call.
+- `createOxyAliaMachineAuth` no longer refuses an `X-Oxy-Requester-Assertion`
+  header: nothing reads it any more. It still refuses `X-Oxy-User-Id`.
+
+### Unchanged
+
+- `createOxyJwksKeyResolver` and `OxyJwksKeyResolverOptions` stay exported from
+  `@oxy.so/core/server`; they now live in `server/jwks.ts` beside the app
+  assertion verifier that uses them.
+
 ## 4.21.1
 
 No API or contracts requirement.

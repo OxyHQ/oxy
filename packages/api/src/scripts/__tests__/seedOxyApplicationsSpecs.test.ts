@@ -37,6 +37,7 @@ import {
   type ApplicationScope,
 } from '../../utils/applicationScopes';
 import { isTrustedApplication } from '../../utils/trustedApplication';
+import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
@@ -46,6 +47,7 @@ import {
   ALIA_APPLICATION_SCOPES,
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
   INBOX_APPLICATION_ID,
@@ -110,6 +112,25 @@ describe('the canonical official-application registry', () => {
     expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({
       kind: 'id',
       id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+    });
+  });
+
+  it("pins Clarity's client by id under the clarity project, beside its backend", () => {
+    expect(specNamed('Clarity')).toMatchObject({
+      id: CLARITY_APPLICATION_ID,
+      type: 'first_party',
+      scopes: ['user:read'],
+      ownerAccountUsername: 'clarity',
+    });
+    expect(requiresPublicSeedCredential(specNamed('Clarity'))).toBe(true);
+    expect(specNamed('Clarity Backend').webhookUrl).toBe(
+      'https://api.clarity.surf/webhooks/oxy/account-events',
+    );
+    // The backend is the `clarity-kaana` metered consumer: one id, everywhere.
+    expect(CLARITY_BACKEND_APPLICATION_ID).toBe(CLARITY_INFERENCE_CONSUMER_APPLICATION_ID);
+    expect(seedApplicationLookupIdentity(specNamed('Clarity'), PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: CLARITY_APPLICATION_ID,
     });
   });
 
@@ -222,8 +243,7 @@ describe('the canonical official-application registry', () => {
         scopes: [
           'user:read',
           'reputation:write',
-          'inference:invoke',
-          'acting-as:offline',
+          'organizations:import',
           'catalogs:write',
           'capabilities:read',
           'capability-audit:write',
@@ -234,9 +254,14 @@ describe('the canonical official-application registry', () => {
           'files:user-media:write',
           'files:linked:read',
         ],
-        capabilities: ['catalog:homiio'],
+        capabilities: ['catalog:homiio', 'organizations:import:homiio'],
       });
       expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    });
+
+    it('holds no inference or acting-as authority: Sindi is an ordinary Alia agent (ADR 0042)', () => {
+      expect(specNamed('Homiio').scopes).not.toContain('inference:invoke');
+      expect(specNamed('Homiio').scopes).not.toContain('acting-as:offline');
     });
 
     it('drives the production seed lookup by id, never by the Homiio display name', () => {
@@ -787,17 +812,20 @@ describe('the canonical official-application registry', () => {
       // a slug renamed in `internalCostCenterSpecs.ts` and not here fails the
       // production run rather than the build. This moves that failure forward.
       const slugs = INTERNAL_COST_CENTERS.map((center) => center.name);
-      expect(slugs).toContain(ALIA_OWNER_ACCOUNT_USERNAME);
+      for (const spec of SEED_APPS) {
+        if (spec.ownerAccountUsername !== undefined)
+          expect(slugs).toContain(spec.ownerAccountUsername);
+      }
     });
 
-    it('no other seeded application claims a dedicated owner account', () => {
+    it('only Alia and Clarity claim a dedicated owner account', () => {
       // Not a style rule: two applications sharing an owner account are
       // indistinguishable in the cost-centre report, so every additional one
       // here is a reporting decision somebody has to make on purpose.
-      // Clarity's backend was created under Clarity's own project account and
-      // stays there: the seed pins that owner rather than moving it.
+      // Clarity's two applications were created under Clarity's own project
+      // account and stay there: one product, one line, client and backend.
       const dedicated = SEED_APPS.filter((spec) => spec.ownerAccountUsername !== undefined);
-      expect(dedicated.map((spec) => spec.name)).toEqual(['Alia', 'Clarity Backend']);
+      expect(dedicated.map((spec) => spec.name)).toEqual(['Clarity', 'Alia', 'Clarity Backend']);
     });
 
     it("Clarity's backend is pinned by id, has no public client, and carries its catalogue", () => {
