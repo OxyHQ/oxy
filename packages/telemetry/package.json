@@ -122,7 +122,7 @@
     "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:types": "tsc -p tsconfig.types.json",
+    "build:types": "tsc -p tsconfig.types.json && node scripts/mark-types-cjs.mjs",
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest",
