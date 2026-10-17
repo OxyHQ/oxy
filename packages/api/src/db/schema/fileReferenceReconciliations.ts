@@ -94,7 +94,7 @@ export const fileReferenceReconciliations = pgTable(
     /** Sliding: each accepted page moves it forward. */
     expiresAt: timestamptz().notNull(),
     committedAt: timestamptz(),
-    /** The last commit's counts (a dry run's too, which leaves the session open). */
+    /** The last commit's counts (a dry run's too, which releases the session). */
     result: jsonb().$type<FileReferenceReconciliationCounts & { dryRun: boolean }>(),
     /** While `committing`: the running commit's lease (see "A commit runs under a lease"). */
     leaseExpiresAt: timestamptz(),
