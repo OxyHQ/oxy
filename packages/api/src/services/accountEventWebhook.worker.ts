@@ -103,7 +103,12 @@ function claimableDeliveries(db: Database, now: Date, claimedBefore: Date, limit
       and(
         isNull(accountEventDeliveries.deliveredAt),
         isNull(accountEventDeliveries.failedAt),
-        lte(accountEventDeliveries.nextAttemptAt, now),
+        // Never attempted: due at once. `next_attempt_at` defaults to the
+        // DATABASE's now() (microseconds); `now` is this task's clock
+        // (milliseconds, possibly behind it), so a fresh row compared with it
+        // can read as not yet due. Only a failed attempt's backoff — written
+        // from this same clock — is read against `now`.
+        or(eq(accountEventDeliveries.attempts, 0), lte(accountEventDeliveries.nextAttemptAt, now)),
         or(
           isNull(accountEventDeliveries.claimedAt),
           lt(accountEventDeliveries.claimedAt, claimedBefore),

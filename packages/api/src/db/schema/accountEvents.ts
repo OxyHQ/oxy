@@ -101,7 +101,11 @@ export const accountEventDeliveries = pgTable(
       .references(() => applications.id, { onDelete: 'cascade' }),
     /** Push attempts made so far. */
     attempts: integer().notNull().default(0),
-    /** Earliest time the next push may be tried; the backoff lives here. */
+    /**
+     * Earliest time the next push may be tried, after a failed attempt's backoff
+     * (written from the worker's clock). Not read while `attempts` is 0: a row
+     * never attempted is due at once, whatever this database-clock default says.
+     */
     nextAttemptAt: timestamptz().notNull().default(sql`now()`),
     claimedAt: timestamptz(),
     claimedBy: text(),
