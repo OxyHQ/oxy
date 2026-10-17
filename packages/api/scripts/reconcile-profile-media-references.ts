@@ -12,10 +12,16 @@
  * trashed. References naming an account that no longer exists go too.
  *
  * Options: `--batch-size=<n>` (default 200, max 1000), `--after=<user id>` to
- * resume, `--max-batches=<n>` for a bounded run. Prints one JSON line per
- * account that needs (or, with `--apply`, got) a change and a final
- * `{"summary": …}` whose `lastUserId` resumes an unfinished run. Nothing is
- * written without `--apply`; a second `--apply` run changes nothing.
+ * resume, `--max-batches=<n>` for a bounded run, `--sample=<n>` to print only
+ * the first n account records (the summary still counts every account). Prints
+ * one JSON line per account that needs (or, with `--apply`, got) a change, a
+ * `{"progress": …}` line every 25 batches, and a final `{"summary": …}` whose
+ * `lastUserId` resumes an unfinished run — as does the last progress line's,
+ * should the run die. Nothing is written without `--apply`; a second `--apply`
+ * run changes nothing.
+ *
+ * In production it runs inside the VPC as an ECS one-shot:
+ * `.github/workflows/reconcile-profile-media-references.yml`.
  */
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import { runProfileMediaReconciliation } from '../src/services/profileMediaReferences.service';
@@ -25,21 +31,36 @@ function flag(name: string): string | undefined {
   return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length);
 }
 
-function positiveInt(name: string, fallback: number | undefined, max: number): number | undefined {
+function boundedInt(
+  name: string,
+  fallback: number | undefined,
+  min: number,
+  max: number,
+): number | undefined {
   const raw = flag(name);
   if (raw === undefined) return fallback;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1 || value > max) {
-    throw new Error(`--${name} must be an integer between 1 and ${max}`);
+  if (!/^\d+$/.test(raw) || !Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`--${name} must be an integer between ${min} and ${max}`);
   }
   return value;
 }
 
+/** A progress line every this many batches. */
+const PROGRESS_EVERY_BATCHES = 25;
+
+const KNOWN_ARGUMENT = /^--(apply|(batch-size|after|max-batches|sample)=.*)$/;
+
 async function main(): Promise<void> {
+  // A misspelled option would otherwise be ignored, and a bounded run unbounded.
+  const unknown = process.argv.slice(2).filter((value) => !KNOWN_ARGUMENT.test(value));
+  if (unknown.length > 0) throw new Error(`unknown argument(s): ${unknown.join(' ')}`);
   if (flag('apply') !== undefined) throw new Error('--apply takes no value');
   const apply = process.argv.includes('--apply');
-  const batchSize = positiveInt('batch-size', 200, 1000) ?? 200;
-  const maxBatches = positiveInt('max-batches', undefined, 1_000_000);
+  const batchSize = boundedInt('batch-size', 200, 1, 1000) ?? 200;
+  const maxBatches = boundedInt('max-batches', undefined, 1, 1_000_000);
+  const sample = boundedInt('sample', undefined, 0, 1_000_000);
+  let printed = 0;
   await connectPostgres();
   try {
     const summary = await runProfileMediaReconciliation({
@@ -47,7 +68,16 @@ async function main(): Promise<void> {
       batchSize,
       after: flag('after'),
       maxBatches,
-      emit: (record) => console.log(JSON.stringify(record)),
+      emit: (record) => {
+        if (sample !== undefined && printed >= sample) return;
+        printed += 1;
+        console.log(JSON.stringify(record));
+      },
+      progress: (totals) => {
+        if (totals.batches % PROGRESS_EVERY_BATCHES === 0) {
+          console.log(JSON.stringify({ progress: totals }));
+        }
+      },
     });
     console.log(JSON.stringify({ summary }));
   } finally {
@@ -55,7 +85,18 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+// Exit once stdout and stderr are flushed: as an ECS one-shot, a handle left
+// open by an imported module would otherwise keep the task running.
+void main()
+  .catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  })
+  .then(async () => {
+    await Promise.all(
+      [process.stdout, process.stderr].map(
+        (stream) => new Promise<void>((resolve) => stream.write('', () => resolve())),
+      ),
+    );
+    process.exit(process.exitCode ?? 0);
+  });

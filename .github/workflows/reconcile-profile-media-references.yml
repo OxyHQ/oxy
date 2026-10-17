@@ -1,0 +1,339 @@
+name: Reconcile profile media references
+
+# Runs `packages/api/scripts/reconcile-profile-media-references.ts` against
+# production: the back-fill of Oxy Accounts' `avatar` file references (ADR 0043
+# D4, stage 4b; the release runbook's "Backfills — dry run, then apply").
+#
+# WHY THIS EXISTS AS A WORKFLOW RATHER THAN A COMMAND SOMEBODY TYPES: the
+# database is on a PRIVATE VPC address. Over the SSM tunnel every statement pays
+# the tunnel's round trip, and the pass measured ~6 minutes per 200 accounts —
+# about 60 hours for the ~124k accounts with an avatar. Inside the VPC, and with
+# the pass now a fixed handful of statements per batch rather than five per
+# account, it is minutes. So it runs as an ECS task INSIDE the VPC ("Fargate
+# one-shot"), the shape `seed-oxy-applications.yml`, `run-postgres-migrations.yml`
+# and `run-hls-master-repair.yml` use: the LIVE service's task definition — same
+# secrets, role, subnets and security groups — with only the image and the
+# command overridden, so nothing the running API uses is touched.
+#
+# ALWAYS run `mode=report` FIRST (the default). It writes nothing and prints the
+# same summary an apply would. Read it:
+#   - `referencesAdded` is the back-fill itself (one per account whose own avatar
+#     file is not yet referenced) — expect most accounts with an avatar;
+#   - `referencesRemovedByReason`: `replaced` (a former avatar of the account),
+#     `cleared` (the account shows no avatar), `unreferenceable` (the avatar is a
+#     URL, another owner's file or a deleted one) — a removal never trashes a
+#     file, it only becomes "not in use" for its person (D5);
+#   - `unreferenceableByReason` and `orphanReferences` (references naming an
+#     account that no longer exists) explain the rest.
+# Then `mode=apply`, then `mode=report` again: it must show 0 added, 0 removed
+# and 0 orphans — the pass is idempotent, and a second report is how you prove
+# the apply landed.
+#
+# The log prints the first 200 per-account records, a `{"progress": …}` line
+# every 25 batches and a final `{"summary": …}`. A run that dies resumes from the
+# last `lastUserId` it printed, passed as `after`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'report = write nothing, print what apply would do; apply = write'
+        required: true
+        type: choice
+        options: [report, apply]
+        default: report
+      after:
+        description: 'Resume after this user id (the `lastUserId` of a previous summary or progress line)'
+        required: false
+        type: string
+      max_batches:
+        description: 'Stop after this many batches (a bounded run); empty = the whole table'
+        required: false
+        type: string
+      batch_size:
+        description: 'Accounts per batch transaction (1-1000)'
+        required: true
+        type: string
+        default: '500'
+
+concurrency:
+  # Two passes over the same accounts would race on the same references.
+  group: profile-media-reconcile
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: oxy-api
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  DOCKERFILE: Dockerfile
+  SCRIPT: packages/api/scripts/reconcile-profile-media-references.ts
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  reconcile:
+    # This job receives production credentials. Only the protected main branch
+    # may select the code that runs in the production VPC.
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The immutable reviewed commit on protected main that dispatched this.
+          ref: ${{ github.sha }}
+
+      - name: Reject a malformed mode, cursor, bound or batch size
+        env:
+          MODE: ${{ inputs.mode }}
+          AFTER: ${{ inputs.after }}
+          MAX_BATCHES: ${{ inputs.max_batches }}
+          BATCH_SIZE: ${{ inputs.batch_size }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" != "report" ] && [ "$MODE" != "apply" ]; then
+            echo "::error::mode must be report or apply; got '$MODE'."
+            exit 1
+          fi
+          # A user id is a uuid (uuidv7 today) or a legacy 24-hex ObjectId.
+          if [ -n "$AFTER" ] && ! [[ "$AFTER" =~ ^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24})$ ]]; then
+            echo "::error::after must be a user id (uuid or 24-hex); got '$AFTER'."
+            exit 1
+          fi
+          if [ -n "$MAX_BATCHES" ] && ! [[ "$MAX_BATCHES" =~ ^[1-9][0-9]{0,5}$ ]]; then
+            echo "::error::max_batches must be a positive integer (1-999999); got '$MAX_BATCHES'."
+            exit 1
+          fi
+          if ! [[ "$BATCH_SIZE" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$BATCH_SIZE" -gt 1000 ]; then
+            echo "::error::batch_size must be an integer between 1 and 1000; got '$BATCH_SIZE'."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the reconcile image (its own tag; never `latest`)
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="profile-media-reconcile-$(git rev-parse --short HEAD)"
+          IMG="$ECR_REGISTRY/oxy/$APP:$TAG"
+          docker build -f "$DOCKERFILE" -t "$IMG" .
+          docker push "$IMG"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "Built $IMG"
+
+      - name: Assert the image carries this script
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          # A task that cannot find or parse its script fails INSIDE the VPC,
+          # where the only evidence is a CloudWatch stream. The script validates
+          # its arguments before it reads DATABASE_URL, so this needs no database.
+          docker run --rm --entrypoint sh -e SCRIPT="$SCRIPT" "$IMAGE" -c '
+            test -f "$SCRIPT" || { echo "$SCRIPT is not in the image"; exit 1; }
+            bun run "$SCRIPT" --not-an-option 2>&1 | grep -q "unknown argument" \
+              || { echo "$SCRIPT in this image does not validate its arguments"; exit 1; }
+            echo "$SCRIPT present and parsing its arguments"
+          '
+
+      - name: Run the reconciliation as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          MODE: ${{ inputs.mode }}
+          AFTER: ${{ inputs.after }}
+          MAX_BATCHES: ${{ inputs.max_batches }}
+          BATCH_SIZE: ${{ inputs.batch_size }}
+        run: |
+          set -euo pipefail
+
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot even
+          # pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # A throwaway revision differing from the live one ONLY by the image.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > reconcile-taskdef.json
+
+          RECONCILE_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://reconcile-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "reconcile task definition: $RECONCILE_TASK_DEF"
+
+          # Only `--apply` writes. `--sample` bounds the per-account records the
+          # log carries; the summary counts every account either way.
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg script "$SCRIPT" \
+            --arg mode "$MODE" \
+            --arg after "$AFTER" \
+            --arg max "$MAX_BATCHES" \
+            --arg batch "$BATCH_SIZE" \
+            '{containerOverrides:[{
+               name: $name,
+               command: (["bun","run",$script,"--batch-size=" + $batch,"--sample=200"] +
+                 (if $mode == "apply" then ["--apply"] else [] end) +
+                 (if $after != "" then ["--after=" + $after] else [] end) +
+                 (if $max != "" then ["--max-batches=" + $max] else [] end))
+             }]}')
+          echo "command: $(jq -c '.containerOverrides[0].command' <<<"$OVERRIDES")"
+
+          # The cluster runs at the edge of its Fargate on-demand vCPU quota, so a
+          # one-shot competing with a rollout is refused outright (`RESOURCE:CPU`).
+          # That is a queue, not a failure. Bounded: after START_MAX_WAIT_SECS the
+          # run fails loudly rather than hanging on a quota that is not coming back.
+          START_MAX_WAIT_SECS=600
+          POLL_INTERVAL=20
+          start_waited=0
+          while :; do
+            RUN_JSON=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$RECONCILE_TASK_DEF" \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+              --overrides "$OVERRIDES" \
+              --started-by "gh-profile-media-reconcile")
+            if [ "$(jq '.failures | length' <<<"$RUN_JSON")" = "0" ]; then
+              break
+            fi
+            if ! jq -e '
+              all(
+                .failures[];
+                (.reason // "") == "RESOURCE:CPU"
+                or ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus you can run concurrently"))
+              )
+            ' <<<"$RUN_JSON" >/dev/null; then
+              echo "::error::ECS refused to start the reconcile task."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            if [ "$start_waited" -ge "$START_MAX_WAIT_SECS" ]; then
+              echo "::error::Fargate vCPU capacity never freed up within ${START_MAX_WAIT_SECS}s."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            echo "::warning::Fargate vCPU capacity refused the reconcile task; retrying in ${POLL_INTERVAL}s."
+            sleep "$POLL_INTERVAL"
+            start_waited=$((start_waited + POLL_INTERVAL))
+          done
+
+          TASK_ARN=$(jq -r '.tasks[0].taskArn' <<<"$RUN_JSON")
+          echo "task: $TASK_ARN"
+
+          # `aws ecs wait tasks-stopped` gives up after 10 minutes (100 polls of
+          # 6s), and a full pass may run longer than that. Poll until STOPPED,
+          # bounded below the job's own timeout.
+          RUN_MAX_WAIT_SECS=$((220 * 60))
+          run_waited=0
+          echo "Waiting for the task to stop…"
+          while :; do
+            STATUS=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' --output text)
+            if [ "$STATUS" = "STOPPED" ]; then
+              break
+            fi
+            if [ "$run_waited" -ge "$RUN_MAX_WAIT_SECS" ]; then
+              echo "::error::The reconcile task was still $STATUS after ${RUN_MAX_WAIT_SECS}s; it is left running. Stop it with: aws ecs stop-task --cluster $CLUSTER --task $TASK_ARN"
+              exit 1
+            fi
+            sleep 30
+            run_waited=$((run_waited + 30))
+          done
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+          LOG_STREAM="$LOG_PREFIX/$CONTAINER/$TASK_ID"
+
+          # One page of get-log-events holds at most 10,000 events / 1 MB, and the
+          # summary is the LAST line: page forward until the token stops moving.
+          : > reconcile.log
+          TOKEN=""
+          for _ in $(seq 1 200); do
+            if [ -z "$TOKEN" ]; then
+              PAGE=$(aws logs get-log-events --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LOG_STREAM" --start-from-head --output json) || break
+            else
+              PAGE=$(aws logs get-log-events --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LOG_STREAM" --next-token "$TOKEN" --output json) || break
+            fi
+            jq -r '.events[].message' <<<"$PAGE" >> reconcile.log
+            NEXT=$(jq -r '.nextForwardToken' <<<"$PAGE")
+            if [ "$NEXT" = "$TOKEN" ]; then
+              break
+            fi
+            TOKEN="$NEXT"
+          done
+
+          echo "──────── reconcile output ────────"
+          if [ -s reconcile.log ]; then cat reconcile.log; else echo "(no logs retrieved)"; fi
+          echo "──────────────────────────────────"
+
+          SUMMARY=$(grep -E '^\{"summary":' reconcile.log | tail -n 1 || true)
+          {
+            echo "### Profile media references — \`$MODE\`"
+            echo
+            if [ -n "$SUMMARY" ]; then
+              echo '```json'
+              jq '.summary' <<<"$SUMMARY"
+              echo '```'
+            else
+              LAST_PROGRESS=$(grep -E '^\{"progress":' reconcile.log | tail -n 1 || true)
+              echo "No summary was printed. Last progress line (resume from its \`lastUserId\`):"
+              echo
+              echo '```json'
+              if [ -n "$LAST_PROGRESS" ]; then jq '.progress' <<<"$LAST_PROGRESS"; else echo 'null'; fi
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A reconciliation whose result you cannot see is one you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Reconcile task exited with $EXIT_CODE"
+            exit 1
+          fi
+          if [ -z "$SUMMARY" ]; then
+            echo "::error::The task exited 0 but printed no summary."
+            exit 1
+          fi
