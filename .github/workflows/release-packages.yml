@@ -32,10 +32,10 @@ on:
         type: string
         default: latest
 
-# The shared workflow's publish job is the only one that keeps id-token.
-permissions:
-  contents: read
-  id-token: write
+# Nothing at the workflow level: the calling job grants the shared workflow
+# exactly what its jobs need. Only its publish job keeps id-token, and only its
+# tag job (`<name>@<version>` at the released commit) writes contents.
+permissions: {}
 
 concurrency:
   group: release-packages
@@ -43,6 +43,9 @@ concurrency:
 
 jobs:
   release:
+    permissions:
+      contents: write
+      id-token: write
     uses: ./.github/workflows/npm-release.yml
     with:
       package: ${{ inputs.package }}

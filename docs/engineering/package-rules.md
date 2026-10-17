@@ -81,7 +81,12 @@ ships a `.tsbuildinfo`, or depends on a range nothing on the registry satisfies 
 workflow's own commit of OxyHQ/oxy, never from the caller's tree. The `publish` job (environment
 `npm`, `id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
 `npm publish <tgz> --provenance --access public --tag <dist_tag>` with npm trusted publishing
-(OIDC): there is no `NPM_TOKEN` in any repository. A release that spans packages goes dependency
+(OIDC): there is no `NPM_TOKEN` in any repository. The `tag` job (`contents: write`, nothing else)
+then creates the annotated tag `<name>@<version>` at the released commit — the website's docs sync
+pins packages by that tag — and, when the package's `CHANGELOG.md` has a section for the version,
+a GitHub release with it; an existing tag must already name that commit or the job fails. The
+caller grants `contents: write` and `id-token: write` on its calling job, nothing at the workflow
+level. A release that spans packages goes dependency
 first (contracts → protocol / telemetry → core → services); `inspect` refuses a dependent whose
 dependency is not out yet.
 

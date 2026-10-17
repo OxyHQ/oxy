@@ -9,7 +9,8 @@ name: npm release
 # npm checks the trusted publisher against the CALLING workflow, so every
 # package's trusted publisher on npmjs.com is: organization `OxyHQ`, its
 # repository, workflow `release-packages.yml`, environment `npm`. The caller
-# grants `id-token: write`; only the publish job keeps it.
+# grants `id-token: write` and `contents: write` on its calling job; only the
+# publish job keeps the first and only the tag job the second.
 #
 #   build    the caller's tree at the exact reviewed commit: frozen install, the
 #            builds of the workspace packages it links, the package's own
@@ -27,6 +28,12 @@ name: npm release
 #            repacks; the result must equal the trusted bytes, the version must
 #            still be absent, and only then `npm publish`. npm exchanges this
 #            job's OIDC token for a one-use publish credential.
+#   tag      `contents: write`, nothing else. Tags the released commit
+#            `<name>@<version>` (annotated) — the docs sync and every
+#            consumer that pins a release by tag reads it — and, when the
+#            package's CHANGELOG.md has a section for the version, publishes
+#            it as a GitHub release. Idempotent: an existing tag must already
+#            name `expected_source_sha`, or the job fails.
 #
 # The checks run from this workflow's own commit of OxyHQ/oxy
 # (`job.workflow_repository`@`job.workflow_sha`), checked out beside the
@@ -75,6 +82,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      package_dir: ${{ steps.registry.outputs.package_dir }}
+      version: ${{ steps.registry.outputs.version }}
     defaults:
       run:
         working-directory: source
@@ -132,6 +142,7 @@ jobs:
           (cd "$RUNNER_TEMP/release" && sha512sum "$(basename "$tarball")" | tee SHA512SUMS)
 
       - name: the version is not on the registry yet, and the dist-tag is sane
+        id: registry
         run: |
           version="$(node -p "require('./$PACKAGE_DIR/package.json').version")"
           if npm view "$PACKAGE_NAME@$version" version --userconfig /dev/null >/dev/null 2>&1; then
@@ -139,6 +150,8 @@ jobs:
             exit 1
           fi
           node "$RELEASE_PACKAGE" dist-tag "$PACKAGE_NAME" "$version" "$DIST_TAG"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package_dir=$PACKAGE_DIR" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -232,3 +245,111 @@ jobs:
           # shorthand `user/repo` and tries to clone it (Kaana's 5.0.0 release
           # failed exactly so).
           npm publish "${trusted[0]}" --provenance --access public --tag "$DIST_TAG"
+
+  tag:
+    name: tag the released commit
+    needs: [build, publish]
+    if: inputs.dry_run == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PACKAGE_DIR: ${{ needs.build.outputs.package_dir }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: tag <name>@<version> at the released commit
+        run: |
+          tag="$PACKAGE_NAME@$VERSION"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+          # The commit refs/tags/$tag names, peeled through annotated tags;
+          # nothing when the tag does not exist. Any other API error fails
+          # (explicitly: a command substitution does not inherit `-e`).
+          tagged_commit() {
+            local object
+            if ! object="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type + " " + .object.sha' 2>"$RUNNER_TEMP/ref-error")"; then
+              grep -q 'HTTP 404' "$RUNNER_TEMP/ref-error" && return 0
+              cat "$RUNNER_TEMP/ref-error" >&2
+              return 1
+            fi
+            while [ "${object%% *}" = tag ]; do
+              object="$(gh api "repos/$GH_REPO/git/tags/${object#* }" --jq '.object.type + " " + .object.sha')" || return 1
+            done
+            echo "${object#* }"
+          }
+
+          # Already tagged (a re-run, or a hand tag): fine only at this commit.
+          check_existing() {
+            if [ "$1" != "$EXPECTED_SOURCE_SHA" ]; then
+              echo "::error::$tag already exists at $1, not at the released commit $EXPECTED_SOURCE_SHA"
+              exit 1
+            fi
+            echo "$tag already names $EXPECTED_SOURCE_SHA"
+          }
+
+          existing="$(tagged_commit)"
+          if [ -n "$existing" ]; then
+            check_existing "$existing"
+            exit 0
+          fi
+
+          tag_object="$(gh api "repos/$GH_REPO/git/tags" \
+            -f tag="$tag" \
+            -f object="$EXPECTED_SOURCE_SHA" \
+            -f type=commit \
+            -f message="$tag
+
+          Published to npm with provenance by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --jq .sha)"
+          if ! gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" --silent; then
+            # Lost a race with another writer: the tag it made must agree.
+            existing="$(tagged_commit)"
+            [ -n "$existing" ] || exit 1
+            check_existing "$existing"
+            exit 0
+          fi
+          echo "tagged $tag at $EXPECTED_SOURCE_SHA"
+
+      - name: publish the changelog section as a GitHub release
+        run: |
+          if gh api "repos/$GH_REPO/releases/tags/$TAG" --silent 2>/dev/null; then
+            echo "$TAG already has a GitHub release"
+            exit 0
+          fi
+          changelog="${PACKAGE_DIR#./}/CHANGELOG.md"
+          [ "$PACKAGE_DIR" = . ] && changelog=CHANGELOG.md
+          if ! gh api "repos/$GH_REPO/contents/$changelog?ref=$EXPECTED_SOURCE_SHA" \
+            -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/CHANGELOG.md" 2>/dev/null; then
+            echo "$changelog does not exist at $EXPECTED_SOURCE_SHA; no GitHub release"
+            exit 0
+          fi
+          # The section whose heading is `## <version>` or `## [<version>] …`,
+          # up to the next `## ` heading.
+          node -e '
+            const [file, version] = process.argv.slice(1);
+            const lines = require("fs").readFileSync(file, "utf8").split("\n");
+            const heading = (line) => line.match(/^## \[?([^\]\s]+)/)?.[1];
+            const start = lines.findIndex((line) => heading(line) === version);
+            if (start === -1) process.exit(0);
+            let end = lines.findIndex((line, i) => i > start && line.startsWith("## "));
+            if (end === -1) end = lines.length;
+            process.stdout.write(lines.slice(start + 1, end).join("\n").trim());
+          ' "$RUNNER_TEMP/CHANGELOG.md" "$VERSION" > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "$changelog has no section for $VERSION; no GitHub release"
+            exit 0
+          fi
+          prerelease=false
+          case "$VERSION" in *-*) prerelease=true ;; esac
+          make_latest=false
+          [ "$DIST_TAG" = latest ] && make_latest=true
+          gh api "repos/$GH_REPO/releases" \
+            -f tag_name="$TAG" \
+            -f name="$PACKAGE_NAME $VERSION" \
+            -F body=@"$RUNNER_TEMP/notes.md" \
+            -F prerelease="$prerelease" \
+            -f make_latest="$make_latest" \
+            --jq .html_url
