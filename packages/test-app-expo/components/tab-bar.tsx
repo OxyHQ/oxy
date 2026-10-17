@@ -25,7 +25,7 @@ const TAB_BAR_MAX_WIDTH = 440;
  * driven by the tab navigator's own state. Colors come from the surrounding
  * `BloomThemeProvider`, so it follows light/dark and the active preset.
  */
-export function TestAppTabBar({ state, navigation }: BottomTabBarProps) {
+export function TestAppTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const items = useMemo<TabBarItem[]>(
     () => [
       {
@@ -50,10 +50,12 @@ export function TestAppTabBar({ state, navigation }: BottomTabBarProps) {
 
   const handleIndexChange = useCallback(
     (index: number) => {
-      const route = TAB_ROUTES[index];
-      if (route !== undefined) navigation.navigate(route);
+      const name = TAB_ROUTES[index];
+      // Expo Router 58's tab bar navigates by route KEY, not by name.
+      const route = state.routes.find((candidate) => candidate.name === name);
+      if (route !== undefined) navigateToTab(route.key);
     },
-    [navigation],
+    [state.routes, navigateToTab],
   );
 
   return (

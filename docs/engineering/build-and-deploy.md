@@ -152,7 +152,7 @@ bun run dev                      # Dev mode across workspaces
 bun install                      # Install all workspace deps
 ```
 
-**Shared dependency versions live in `workspaces.catalog` (root `package.json`), not in the manifests.** A package shared by two or more workspaces is declared there once and referenced as `"catalog:"` everywhere it is used, root `overrides` included — an override reading `"catalog:"` still rewrites transitive resolutions. Bumping one is a single edit plus `bun install`. A package with a range that legitimately differs per workspace (`packages/core` and `packages/protocol` target Expo SDK 56 while the apps are on 57) stays literal, because a catalog entry would be asserting an agreement that does not exist.
+**Shared dependency versions live in `workspaces.catalog` (root `package.json`), not in the manifests.** A package shared by two or more workspaces is declared there once and referenced as `"catalog:"` everywhere it is used, root `overrides` included — an override reading `"catalog:"` still rewrites transitive resolutions. Bumping one is a single edit plus `bun install`. A package with a range that legitimately differs per workspace (`packages/core` and `packages/protocol` target Expo SDK 56 while the apps are on 58) stays literal, because a catalog entry would be asserting an agreement that does not exist.
 
 This is safe for PUBLISHED packages only because of `scripts/assert-bun-publish.mjs`: `bun pm pack` substitutes a `catalog:` reference to the catalog's own range, while `npm pack` ships the literal string `catalog:`, which no consumer can resolve — the exact failure that broke `@oxy.so/core@12.10.1` with `workspace:`, one protocol later. Verified on the real `@oxy.so/core` and `@oxy.so/services` tarballs.
 

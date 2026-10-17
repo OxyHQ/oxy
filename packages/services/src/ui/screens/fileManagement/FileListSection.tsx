@@ -20,7 +20,7 @@ export interface FileListItem {
 }
 
 export interface FileListSectionProps {
-  scrollViewRef: React.RefObject<ScrollView | null>;
+  scrollViewRef: React.RefObject<React.ComponentRef<typeof ScrollView> | null>;
   filteredFiles: FileMetadata[];
   searchQuery: string;
   items: FileListItem[];

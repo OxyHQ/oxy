@@ -1,6 +1,6 @@
 import { Button } from '@oxy.so/bloom/button';
 import type React from 'react';
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { type ComponentRef, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -227,8 +227,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // init) — there is no prop→state sync effect, since no caller mutates it
   // after mount.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(initialSelectedIds));
-  const scrollViewRef = useRef<ScrollView>(null);
-  const photoScrollViewRef = useRef<ScrollView>(null);
+  // `ComponentRef` names the scroll handle on both react-native type surfaces:
+  // the class instance before RN 0.88, the `ScrollViewInstance` after it.
+  const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const photoScrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
 
   // Scroll the browse list/grid to a just-selected file. Driven directly from
   // the selection event handler (double-rAF so the selection re-render has
@@ -1106,7 +1108,9 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         refreshControl={
           <RefreshControl
             refreshing={isRefreshingFiles}
-            onRefresh={() => filesQuery.refetch()}
+            onRefresh={() => {
+              void filesQuery.refetch();
+            }}
             tintColor={colors.primary}
           />
         }

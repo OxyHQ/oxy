@@ -15,7 +15,17 @@
 
 import { type FC, useMemo } from 'react';
 
-import { Canvas, Group, LinearGradient, Path, PathOp, Skia, vec } from '@shopify/react-native-skia';
+import {
+  Canvas,
+  Group,
+  LinearGradient,
+  Path,
+  PathOp,
+  Skia,
+  type SkMatrix,
+  type SkPath,
+  vec,
+} from '@shopify/react-native-skia';
 import { useDerivedValue } from 'react-native-reanimated';
 
 import { useTilt } from './tilt-context';
@@ -50,15 +60,13 @@ const ASPECT = OXY_VIEWBOX.width / OXY_VIEWBOX.height;
  * marks (drawn white on top). The inner two carry the source's translate(465,188).
  */
 const buildOxyParts = (size: number) => {
-  const outer = Skia.Path.MakeFromSVGString(OXY_OUTER_PATH);
-  const inner = Skia.Path.MakeFromSVGString(OXY_INNER_PATH);
-  const letters = Skia.Path.MakeFromSVGString(OXY_LETTERS_PATH);
-  if (!outer || !inner || !letters) return null;
+  const outerSource = Skia.Path.MakeFromSVGString(OXY_OUTER_PATH);
+  const innerSource = Skia.Path.MakeFromSVGString(OXY_INNER_PATH);
+  const lettersSource = Skia.Path.MakeFromSVGString(OXY_LETTERS_PATH);
+  if (!outerSource || !innerSource || !lettersSource) return null;
 
   // Inner paths are drawn under translate(465,188) in LogoIcon.
   const offset = Skia.Matrix([1, 0, OXY_INNER_OFFSET.x, 0, 1, OXY_INNER_OFFSET.y, 0, 0, 1]);
-  inner.transform(offset);
-  letters.transform(offset);
 
   // viewBox → padded size-box (uniform scale, top-left origin).
   const s = size / OXY_VIEWBOX.height;
@@ -73,17 +81,26 @@ const buildOxyParts = (size: number) => {
     0,
     1,
   ]);
-  outer.transform(scale);
-  inner.transform(scale);
-  letters.transform(scale);
+  // An SkPath is immutable (Skia 2.x): each transform goes through a builder,
+  // applied in order — the inner offset first, then the viewBox scale.
+  const transformed = (path: SkPath, ...matrices: SkMatrix[]): SkPath => {
+    const builder = Skia.PathBuilder.MakeFromPath(path);
+    for (const matrix of matrices) {
+      builder.transform(matrix);
+    }
+    return builder.build();
+  };
+  const outer = transformed(outerSource, scale);
+  const inner = transformed(innerSource, offset, scale);
+  const letters = transformed(lettersSource, offset, scale);
 
   // Merge the silhouette + inner detail into one foil body so it fills with a
   // single gradient. A true UNION (not addPath) makes the single fill identical
   // to painting both layers — no winding cancellation where they overlap.
-  if (!outer.op(inner, PathOp.Union)) {
-    outer.addPath(inner);
-  }
-  return { body: outer, letters };
+  const body =
+    Skia.Path.MakeFromOp(outer, inner, PathOp.Union) ??
+    Skia.PathBuilder.MakeFromPath(outer).addPath(inner).build();
+  return { body, letters };
 };
 
 interface HolographicLogoProps {

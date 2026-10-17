@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Platform,
   type ColorValue,
-  type NativeMethods,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -15,9 +14,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 
-// ScrollView's runtime ref inherits native instance methods (measure, etc.)
-// that aren't reflected on the React.Component type, so we intersect them in.
-type ScrollViewRef = ScrollView & NativeMethods;
+// The ScrollView ref is a host instance, so it carries `measure` and friends.
+type ScrollViewRef = React.ComponentRef<typeof ScrollView>;
 
 interface HorizontalScrollSectionProps {
   children: React.ReactNode;

@@ -55,6 +55,25 @@ The iOS and build-property pieces are overridable:
 }]
 ```
 
+##### Dropping React Native's GIF / WebP decoders (opt-in, Expo SDK 58+)
+
+An app that renders no GIF and no animated WebP through react-native's own
+`Image`/`ImageBackground` (Bloom included — `expo-image` decodes on its own) can
+leave Fresco's GIF and WebP decoders out of the Android build, about 340 KB of
+download and 870 KB installed with R8:
+
+```js
+['@oxy.so/app-preset', {
+  android: { gifEnabled: false, webpEnabled: false }, // deep-merges over the defaults
+}]
+```
+
+The keys pass straight through to `expo-build-properties`, which writes
+`expo.gif.enabled=false` / `expo.webp.enabled=false` to `gradle.properties`. This
+is **not a default**: an app that still shows a GIF or an animated WebP through
+react-native's `Image` renders nothing for it, with no error. The keys exist from
+`expo-build-properties` 58 (Expo SDK 58); older versions ignore them silently.
+
 The `sharedUserId` and `sharedIdentityReader` options were removed in 3.0.0 and
 throw if passed. `@oxy.so/services` 11+ is a required peer.
 
@@ -215,5 +234,10 @@ factories throw a clear, actionable error if a required peer is missing.
 
 ## Compatibility
 
-Requires **Expo SDK 56+**; validated against **Expo SDK 57 / React Native 0.86**
-(the current Oxy ecosystem target) via `test-app-expo`.
+Requires **Expo SDK 56+**; validated against **Expo SDK 58 / React Native 0.88**
+(the current Oxy ecosystem target) with a clean `expo prebuild` of `test-app-expo`,
+`accounts` and `commons` (Android and iOS). SDK 58's Android template already
+uses `proguard-android-optimize.txt` and turns R8 on through `gradle.properties`
+(`android.enableMinifyInReleaseBuilds`), so on SDK 58 `withOxyAndroidRelease`
+only adds the release signing config; on SDK 56/57 it also swaps in the
+`-optimize` ProGuard file.

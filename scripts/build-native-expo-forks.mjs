@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const vendor = path.join(root, 'vendor/expo-native');
-const original = path.join(vendor, 'expo-cli-57.0.23-upstream.tgz');
+const original = path.join(vendor, 'expo-cli-58.1.11-upstream.tgz');
 const expected = JSON.parse(fs.readFileSync(path.join(vendor, 'upstream-integrity.json'), 'utf8'));
 const bytes = fs.readFileSync(original);
 assert.equal(`sha512-${createHash('sha512').update(bytes).digest('base64')}`, expected.integrity);
@@ -20,16 +20,21 @@ try {
   const manifest = path.join(fork, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
   assert.equal(pkg.name, '@expo/cli');
-  assert.equal(pkg.version, '57.0.23');
-  assert.equal(pkg.dependencies['node-forge'], '^1.3.3');
+  assert.equal(pkg.version, '58.1.11');
+  assert.equal(pkg.dependencies['node-forge'], '^1.4.0');
   pkg.dependencies = Object.fromEntries(
     Object.entries(pkg.dependencies).filter(([name]) => name !== 'node-forge'),
   );
+  // Upstream 58 ships LICENSE-third-party outside its `files` list; npm packs
+  // it as a LICENSE* file, bun pm pack does not. Name it so the notice ships.
+  assert(!pkg.files.includes('LICENSE-third-party'));
+  assert(fs.existsSync(path.join(fork, 'LICENSE-third-party')));
+  pkg.files = [...pkg.files, 'LICENSE-third-party'];
   pkg.name = '@oxy.so/expo-cli-native';
-  pkg.version = '57.0.23+oxy.native.3';
+  pkg.version = '58.1.11+oxy.native.1';
   pkg.oxyUpstream = {
     name: '@expo/cli',
-    version: '57.0.23',
+    version: '58.1.11',
     integrity: expected.integrity,
   };
   fs.writeFileSync(manifest, `${JSON.stringify(pkg, null, 2)}\n`);

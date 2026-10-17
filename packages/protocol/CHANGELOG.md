@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.4.0
+
+Same `@oxy.so/contracts`.
+
+### Changed
+
+- The optional `expo-crypto`, `expo-secure-store` and `expo-modules-core` peers
+  admit Expo SDK 58 (`<59.0.0`; they were `<58.0.0`).
+
 ## 1.3.0
 
 Needs `@oxy.so/contracts` 4.17.0.

@@ -19,14 +19,14 @@ function fixture(fn) {
       const files = {
         'package.json': JSON.stringify({
           name,
-          version: name === '@oxy.so/expo-cli-native' ? '57.0.23+oxy.native.3' : '0.1.2',
+          version: name === '@oxy.so/expo-cli-native' ? '58.1.11+oxy.native.1' : '0.1.2',
         }),
         'index.cjs': 'module.exports = {}',
       };
       for (const [file, bytes] of Object.entries(files))
         fs.writeFileSync(path.join(dir, file), bytes);
       expected[name] = {
-        version: name === '@oxy.so/expo-cli-native' ? '57.0.23+oxy.native.3' : '0.1.2',
+        version: name === '@oxy.so/expo-cli-native' ? '58.1.11+oxy.native.1' : '0.1.2',
         files: Object.fromEntries(Object.entries(files).map(([file, bytes]) => [file, sha(bytes)])),
       };
     }
@@ -73,11 +73,11 @@ test('historical archive cannot override the exact manifest selection', () => {
   const root = path.resolve(import.meta.dirname, '..');
   assert(
     fs.existsSync(
-      path.join(root, 'vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz'),
+      path.join(root, 'vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'),
     ),
   );
   const expected = readDeclaredNativePackageInventory(root);
-  assert.equal(expected['@oxy.so/expo-cli-native'].version, '57.0.23+oxy.native.3');
+  assert.equal(expected['@oxy.so/expo-cli-native'].version, '58.1.11+oxy.native.1');
   assert.equal(expected['@oxy.so/expo-code-signing-native'].version, '0.1.2');
 });
 
@@ -106,7 +106,7 @@ test('declared archive must be local, present and have the exact package identit
 
 test('old declared version cannot accept newly installed CLI bytes', () =>
   fixture((root, expected) => {
-    expected['@oxy.so/expo-cli-native'].version = '57.0.23+oxy.native.1';
+    expected['@oxy.so/expo-cli-native'].version = '57.0.23+oxy.native.3';
     assert.throws(() => inspectImage(root, expected), /strictly equal/);
   }));
 

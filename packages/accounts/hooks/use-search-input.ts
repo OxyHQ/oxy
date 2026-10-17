@@ -15,7 +15,7 @@ import { Platform, type TextInput } from 'react-native';
 interface UseSearchInputOptions {
   searchQuery: string;
   onSearchChange: (text: string) => void;
-  searchInputRef?: React.RefObject<TextInput | null>;
+  searchInputRef?: React.RefObject<React.ComponentRef<typeof TextInput> | null>;
   isSearchScreen: boolean;
 }
 

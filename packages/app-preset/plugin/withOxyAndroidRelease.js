@@ -15,6 +15,8 @@
  *    only meaningful line is `-dontoptimize`. Swapping to the `-optimize`
  *    variant drops that and adds `-allowaccessmodification`, which is what lets
  *    R8 inline and merge classes. Worth a few MB of dex on a typical Oxy app.
+ *    Expo SDK 58's template already generates the `-optimize` file, so on SDK
+ *    58 this step is a no-op and only the signing config below changes.
  *
  * 2. Release signing
  *    Expo generates `signingConfig signingConfigs.debug` for release, and Play

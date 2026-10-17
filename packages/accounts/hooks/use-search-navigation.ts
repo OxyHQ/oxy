@@ -14,7 +14,7 @@ import { useRouter, usePathname, useLocalSearchParams } from 'expo-router';
 import { Platform, type TextInput } from 'react-native';
 
 interface UseSearchNavigationOptions {
-  searchInputRef: React.RefObject<TextInput | null>;
+  searchInputRef: React.RefObject<React.ComponentRef<typeof TextInput> | null>;
 }
 
 interface UseSearchNavigationReturn {

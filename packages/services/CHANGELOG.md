@@ -1,5 +1,27 @@
 # Changelog
 
+## [11.14.0] - 2026-10-17
+
+Supports Expo SDK 58 (React Native 0.88, React 19.3) as well as SDK 56 and 57.
+Same `@oxy.so/core` and `@oxy.so/contracts`.
+
+### Changed
+
+- Peers admit Expo SDK 58: `expo`, `@expo/app-integrity`, `expo-constants`,
+  `expo-document-picker`, `expo-file-system`, `expo-haptics`,
+  `expo-image-manipulator`, `expo-image-picker`, `expo-linear-gradient`,
+  `expo-notifications` and `expo-web-browser` are `>=56.0.0 <59.0.0`,
+  `expo-image` `>=2.0.0 <59.0.0`, `expo-modules-core` `<59.0.0`,
+  `react-native` `>=0.85.0 <0.89.0`, and `react-native-gesture-handler`
+  `>=2.31.1 <4.0.0` (SDK 58 ships 3.3). The gesture code (`GestureHandlerRootView`,
+  the `Gesture.Pan`/`Pinch`/`Simultaneous` builders and `GestureDetector`) is
+  unchanged: Gesture Handler 3 keeps that API beside its new hooks.
+- Compiles under React Native 0.88's strict TypeScript API: the file browser's
+  `ScrollView` refs are typed `ComponentRef<typeof ScrollView>` (the class
+  instance before 0.88, the `ScrollViewInstance` after it), and the
+  pull-to-refresh handlers no longer hand a query's `refetch` promise to
+  `RefreshControl.onRefresh`. No runtime change.
+
 ## [11.13.0] - 2026-10-17
 
 ### Changed

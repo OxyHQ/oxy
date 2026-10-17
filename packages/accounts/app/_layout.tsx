@@ -234,8 +234,9 @@ function AppStackContent() {
   // the user as needing auth and render `(auth)`; the sign-in screen shows a
   // neutral backdrop during that window so a returning user does not flash the
   // sign-in form before their session is restored. Once resolved, the swap is
-  // driven by `isAuthenticated` alone. Expo Router resolves redirects to the
-  // first non-redirecting sibling, so exactly one group is active at any time.
+  // driven by `isAuthenticated` alone. Each group sits under a `Stack.Protected`
+  // guard (Expo Router 58 removed `Stack.Screen redirect`), and exactly one
+  // guard is true at any time, so exactly one group is reachable.
   const needsAuth = isAuthResolved ? !isAuthenticated : true;
 
   // No `<SafeAreaProvider>` here: this subtree renders inside the provider
@@ -245,8 +246,12 @@ function AppStackContent() {
     <ScrollProvider>
       <ThemeProvider value={navTheme}>
         <Stack>
-          <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
+          <Stack.Protected guard={!needsAuth}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack.Protected>
+          <Stack.Protected guard={needsAuth}>
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          </Stack.Protected>
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

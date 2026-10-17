@@ -55,3 +55,23 @@ test('does nothing — and needs no peer — when both platforms are disabled', 
   const config = { name: 'app', _internal: { projectRoot: join(tmpdir(), 'no-such-app') } };
   assert.equal(withOxyBuildProperties(config, { ios: false, android: false }), config);
 });
+
+test('passes the opt-in GIF/WebP decoder switches through beside the Android defaults', () => {
+  const root = fakeApp();
+  try {
+    const result = withOxyBuildProperties(
+      { name: 'app', _internal: { projectRoot: root } },
+      { android: { gifEnabled: false, webpEnabled: false } },
+    );
+    assert.deepEqual(result.appliedBuildProperties.android, {
+      ...withOxyBuildProperties.DEFAULTS.android,
+      gifEnabled: false,
+      webpEnabled: false,
+    });
+    // Opt-in only: the defaults never switch a decoder off.
+    assert.equal('gifEnabled' in withOxyBuildProperties.DEFAULTS.android, false);
+    assert.equal('webpEnabled' in withOxyBuildProperties.DEFAULTS.android, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
