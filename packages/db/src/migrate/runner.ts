@@ -85,11 +85,9 @@ import {
   type JournalEntry,
   MIGRATIONS_SCHEMA,
   MIGRATIONS_TABLE,
-  pendingEntries,
   planLedgerRun,
   readAppliedMillis,
   readJournal,
-  readLastAppliedMillis,
 } from './ledger';
 import { type MigrationRun, planMigrationRun, readMigrationPhases } from './phases';
 import { assertMigrationTarget } from './targetDatabase';
@@ -334,15 +332,16 @@ ${timeouts.problems.map((problem) => `  - ${problem}`).join('\n')}`,
     // A migrator that reports success while leaving work pending is worse
     // than one that fails, so re-read the ledger rather than trusting the
     // call. Measured against what THIS run undertook — anything it
-    // deliberately deferred is still pending on purpose.
-    const stillPending = pendingEntries(entries, await readLastAppliedMillis(client));
-    const remaining = plan.apply.filter((entry) =>
-      stillPending.some((pendingEntry) => pendingEntry.tag === entry.tag),
-    );
+    // deliberately deferred is still pending on purpose — and by membership,
+    // not against the high-water: in a journal whose `when` goes backwards
+    // a missing entry sits BELOW the newest recorded row, where a high-water
+    // comparison cannot see it.
+    const recorded = new Set(await readAppliedMillis(client));
+    const remaining = plan.apply.filter((entry) => !recorded.has(entry.when));
     if (remaining.length > 0) {
       throw new Error(
-        `Migration reported success but ${remaining.length} migration(s) are still ` +
-          `pending: ${remaining.map((entry) => entry.tag).join(', ')}`,
+        `Migration reported success but ${remaining.length} migration(s) are not ` +
+          `recorded in the ledger: ${remaining.map((entry) => entry.tag).join(', ')}`,
       );
     }
 
