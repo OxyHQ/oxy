@@ -11,6 +11,7 @@ Redis, React, React Native or Expo.
 - `@oxy.so/telemetry/collector` — bounded HTTP/custom-transport flow aggregation.
 - `@oxy.so/telemetry/server` — pure validation, route bucketing and cardinality
   keys/interfaces.
+- `@oxy.so/telemetry/metrics` — operational metrics as CloudWatch EMF lines.
 
 Browser code must import the browser entry point explicitly. Server code must
 import the server entry point explicitly; the root entry point has no platform
@@ -135,6 +136,35 @@ explicit infrastructure coordinates) and one of three ways to authenticate: an
 `OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` pair, or no credential at all
 where the process can attest its workload identity (ADR 0026). Credentials, user
 metadata and paths never enter public snapshots.
+
+## Operational metrics (CloudWatch EMF)
+
+```ts
+import { createEmfPublisher, HTTP_REQUEST_LATENCY, statusClass } from '@oxy.so/telemetry/metrics';
+
+const metrics = createEmfPublisher({ namespace: 'Oxy/Api', service: 'oxy-api' });
+metrics.record(HTTP_REQUEST_LATENCY, elapsedMs, {
+  Route: '/users/:id', // a log property: free, grouped in Logs Insights
+  StatusClass: statusClass(res.statusCode), // a dimension: billed per value
+  Caller: 'anonymous',
+});
+// On shutdown:
+metrics.stop();
+```
+
+Observations are aggregated in memory and written once per interval (60 s) as
+one stdout line per (metric, label set). On ECS with the `awslogs` driver,
+CloudWatch Logs extracts the metrics itself: no agent, sidecar or IAM grant.
+A `distribution` keeps a ~5 % bucketed histogram, so CloudWatch answers
+SampleCount (the count) and percentiles for it.
+
+Every distinct combination of DIMENSION values is a billed custom metric, so a
+label is a dimension only when the definition lists it in `dimensionSets`, and
+only closed, small sets belong there (status class, a first-party caller).
+Route, method, table and every other label stay plain properties on the line:
+`stats sum(RequestLatency.Count) by Route` in Logs Insights. At most
+`maxSeries` (default 2000) series are held per interval; past that, new series
+fold into one whose labels read `other`.
 
 ## Development
 

@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/telemetry",
-  "version": "2.0.0",
-  "description": "Framework-agnostic anonymous activity telemetry primitives for Oxy services.",
+  "version": "2.1.0",
+  "description": "Framework-agnostic anonymous activity telemetry and CloudWatch EMF metrics primitives for Oxy services.",
   "type": "module",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -19,6 +19,9 @@
       ],
       "socket": [
         "dist/types/socket.d.ts"
+      ],
+      "metrics": [
+        "dist/types/metrics.d.ts"
       ]
     }
   },
@@ -88,6 +91,16 @@
         "types": "./dist/types/socket.d.ts",
         "default": "./dist/cjs/socket.js"
       }
+    },
+    "./metrics": {
+      "import": {
+        "types": "./dist/types/metrics.d.ts",
+        "default": "./dist/esm/metrics.js"
+      },
+      "require": {
+        "types": "./dist/types/metrics.d.ts",
+        "default": "./dist/cjs/metrics.js"
+      }
     }
   },
   "files": [
@@ -109,7 +122,7 @@
     "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "build:esm": "tsc -p tsconfig.esm.json",
-    "build:types": "tsc -p tsconfig.types.json",
+    "build:types": "tsc -p tsconfig.types.json && node scripts/mark-types-cjs.mjs",
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest",

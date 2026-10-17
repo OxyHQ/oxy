@@ -6,6 +6,7 @@ import {
   stopPlatformInfrastructure,
 } from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
+import { routeMetricsMiddleware, stopRouteMetrics } from './middleware/routeMetrics';
 import express from 'express';
 import http from 'node:http';
 import { count, ne, sql } from 'drizzle-orm';
@@ -251,6 +252,10 @@ const app = express();
 // Trust proxy - required when behind a reverse proxy (Cloudflare, nginx, etc.)
 // This is needed for express-rate-limit to work correctly with X-Forwarded-For headers
 app.set('trust proxy', 1);
+
+// Per-route request metrics (CloudWatch EMF). First, so every response is
+// measured, including those the MCP mounts and the limiters below answer.
+app.use(routeMetricsMiddleware);
 
 // Security headers middleware (first, before any other middleware)
 app.use(securityHeaders);
@@ -640,6 +645,7 @@ async function gracefulShutdown(signal: string) {
   await closeRedis();
   await closePostgres();
   await shutdownTelemetry();
+  stopRouteMetrics();
 
   logger.info('All connections closed, exiting');
   process.exit(0);

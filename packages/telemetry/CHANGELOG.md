@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/telemetry`
 
+## 2.1.0
+
+### Added
+
+- `@oxy.so/telemetry/metrics`: `createEmfPublisher`, a CloudWatch Embedded
+  Metric Format publisher for operational metrics. It folds observations in
+  memory and writes ONE stdout line per (metric, label set) per interval, so a
+  service on ECS with the `awslogs` driver gets CloudWatch metrics with no agent,
+  sidecar or scraper. `distribution` metrics carry `Values`/`Counts`, so
+  CloudWatch answers SampleCount and p50/p99. Only labels a definition names in
+  `dimensionSets` become billed dimensions; every other label is a free log
+  property for Logs Insights. Series per interval are capped (`maxSeries`).
+  Also `HTTP_REQUEST_LATENCY`, `HTTP_RATE_LIMITED` and `statusClass()`, the
+  shared request-metric definitions oxy-api and Mention publish.
+
 ## 2.0.0
 
 ### Removed (breaking)

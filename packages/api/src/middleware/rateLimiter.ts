@@ -83,22 +83,37 @@ export function rateLimitRetryAfterMs(req: Request, windowMs: number): number {
   return resetTime === undefined ? windowMs : Math.max(0, resetTime.getTime() - Date.now());
 }
 
+/**
+ * Which limiter refused this response, for the route metrics
+ * (`routeMetrics.ts`): its Redis prefix, a closed set fixed by the code.
+ */
+export function refusingRateLimiter(res: Response): string | undefined {
+  const limiter = res.locals[REFUSING_LIMITER];
+  return typeof limiter === 'string' ? limiter : undefined;
+}
+
+const REFUSING_LIMITER = 'oxyRefusingRateLimiter';
+
 export function rateLimit(options: RateLimitOptions) {
   const message = options.message ?? DEFAULT_MESSAGE;
+  const refuse =
+    options.handler ??
+    ((req: Request, res: Response) =>
+      sendRateLimited(
+        res,
+        new RateLimitedError(message, {
+          retryAfterSeconds: rateLimitRetryAfterMs(req, options.windowMs) / 1000,
+        }),
+        options.errorFormat,
+      ));
   return expressRateLimit({
     ...makeStore(options.prefix),
     windowMs: options.windowMs,
     max: options.max,
-    handler:
-      options.handler ??
-      ((req: Request, res: Response) =>
-        sendRateLimited(
-          res,
-          new RateLimitedError(message, {
-            retryAfterSeconds: rateLimitRetryAfterMs(req, options.windowMs) / 1000,
-          }),
-          options.errorFormat,
-        )),
+    handler: (req: Request, res: Response) => {
+      res.locals[REFUSING_LIMITER] = options.prefix;
+      refuse(req, res);
+    },
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,
