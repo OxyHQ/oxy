@@ -37,7 +37,8 @@
  * instance satisfies it, and nothing in `dist/types` names the `bun` module.
  */
 
-import type { MigrationConfig } from 'drizzle-orm/migrator';
+import type { SQL } from 'drizzle-orm';
+import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import postgres from 'postgres';
 
@@ -213,13 +214,8 @@ interface BunSqlDrizzleModule {
   drizzle(client: BunSqlClient, config?: Record<string, unknown>): unknown;
 }
 
-/** What `drizzle-orm/bun-sql/migrator` exports, to the extent this package calls it. */
-interface BunSqlMigratorModule {
-  migrate(db: unknown, config: MigrationConfig): Promise<void>;
-}
-
 /**
- * Load `drizzle-orm/bun-sql` (and its migrator) synchronously — Bun only.
+ * Load `drizzle-orm/bun-sql` synchronously — Bun only.
  *
  * Kept to literal specifiers so a Bun bundler (`bun build --target=bun`) can
  * still see and include them; a Node bundler that follows them must mark
@@ -231,20 +227,9 @@ function loadBunSqlDrizzle(): BunSqlDrizzleModule {
   return require('drizzle-orm/bun-sql') as BunSqlDrizzleModule;
 }
 
-function loadBunSqlMigrator(): BunSqlMigratorModule {
-  requireBunRuntime();
-  return require('drizzle-orm/bun-sql/migrator') as BunSqlMigratorModule;
-}
-
 /** `drizzle(client, config)` from `drizzle-orm/bun-sql`. */
 export function bunSqlDrizzle(client: BunSqlClient, config: Record<string, unknown>): unknown {
   return loadBunSqlDrizzle().drizzle(client, config);
-}
-
-/** `migrate(drizzle(client), config)` from `drizzle-orm/bun-sql/migrator`. */
-export async function bunSqlMigrate(client: BunSqlClient, config: MigrationConfig): Promise<void> {
-  const db = loadBunSqlDrizzle().drizzle(client);
-  await loadBunSqlMigrator().migrate(db, config);
 }
 
 /**
@@ -289,6 +274,26 @@ export type OwnedConnection =
       readonly client: BunSqlClient;
       close(timeoutSeconds: number): Promise<void>;
     };
+
+/**
+ * The two drizzle calls the migrator applies a migration with. Both drivers'
+ * drizzle databases have them, and both are public API (`execute` and
+ * `transaction` on `PgDatabase`).
+ */
+export interface MigrationDatabase {
+  execute(query: SQL): PromiseLike<unknown>;
+  transaction<T>(
+    run: (tx: { execute(query: SQL): PromiseLike<unknown> }) => Promise<T>,
+  ): Promise<T>;
+}
+
+/** A drizzle database over an owned connection, for {@link MigrationDatabase}'s two calls. */
+export function migrationDatabase(connection: OwnedConnection): MigrationDatabase {
+  if (connection.driver === 'bun-sql') {
+    return loadBunSqlDrizzle().drizzle(connection.client) as MigrationDatabase;
+  }
+  return drizzlePostgres(connection.client);
+}
 
 /**
  * Open a one-connection client on `databaseUrl` through `driver`.
