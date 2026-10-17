@@ -1,5 +1,36 @@
 # Changelog: `@oxy.so/db`
 
+## 1.2.0
+
+### `runMigrations` commits each migration on its own, under `lock_timeout`
+
+On 2026-10-16 oxy-api applied seven migrations in ONE transaction (drizzle's
+`migrate()` wraps every pending migration in a single `BEGIN … COMMIT`). The
+first took an ACCESS EXCLUSIVE lock on `applications` and held it for the 93
+seconds the others spent backfilling `files`; every per-request read of
+`applications` queued behind it (16 AAS on the shared RDS, 503s in every
+product that calls Oxy fail-closed).
+
+- **One transaction per migration.** The runner hands drizzle a folder ending
+  at the next pending migration, one at a time, so a migration's locks are
+  released when it commits. Ledger rows are byte-for-byte what a whole-folder
+  run writes. A failure leaves the earlier migrations of the run applied (they
+  were committed) — every migration must already stand on its own.
+- **`lock_timeout`** (default 3 s, `lockTimeoutMs`) on every statement, so a
+  migration that cannot get its lock gives up instead of queueing every reader
+  of the table behind its wait.
+- **Retry with backoff.** A lock timeout (`55P03`) or deadlock (`40P01`) rolls
+  the migration back and retries it from the top: up to 8 attempts, full jitter
+  over 1 s doubling to a 30 s ceiling (`lockRetry`). Out of attempts, the run
+  fails naming the migration.
+- **`statement_timeout`** (default 120 s, `statementTimeoutMs`). A migration
+  that needs longer declares it in its own file:
+  `-- oxy:statement-timeout=600s` (whole seconds, at most 3600). An illegible
+  marker is refused before any connection is opened.
+- New exports from `@oxy.so/db/migrate`: `readMigrationStatementTimeouts`,
+  `isLockContention`, `lockRetryDelayMs`, the defaults.
+- `openOwnedConnection` takes optional server runtime parameters.
+
 ## 1.1.1
 
 ### Fix: `driver: 'bun-sql'` stored every drizzle `jsonb()` write as a jsonb string

@@ -293,22 +293,34 @@ export type OwnedConnection =
 /**
  * Open a one-connection client on `databaseUrl` through `driver`.
  *
- * The postgres.js branch is byte for byte the call this package always made
- * (`postgres(url, { max: 1 })`, plus `onnotice` when the caller passes one).
+ * The postgres.js branch is the call this package always made
+ * (`postgres(url, { max: 1 })`, plus `onnotice` and `connection` when the
+ * caller passes them).
  * `Bun.SQL` has no notice hook, so a bun-sql run does not log server NOTICEs.
  */
 export function openOwnedConnection(
   databaseUrl: string,
   driver: DatabaseDriver,
   onnotice?: (message: string) => void,
+  /**
+   * Server runtime parameters sent in the startup packet (`lock_timeout`,
+   * `statement_timeout`, ...), so they hold for the connection's whole life,
+   * a transparent reconnect included. Omitted, the call is unchanged.
+   */
+  runtimeParameters?: Readonly<Record<string, string>>,
 ): OwnedConnection {
+  const connection = runtimeParameters ? { connection: { ...runtimeParameters } } : {};
   if (driver === 'bun-sql') {
-    const client = openBunSqlClient(databaseUrl, { max: 1 });
+    const client = openBunSqlClient(databaseUrl, { max: 1, ...connection });
     return { driver, client, close: (timeout) => client.close({ timeout }) };
   }
   const client = onnotice
-    ? postgres(databaseUrl, { max: 1, onnotice: (notice) => onnotice(notice.message) })
-    : postgres(databaseUrl, { max: 1 });
+    ? postgres(databaseUrl, {
+        max: 1,
+        ...connection,
+        onnotice: (notice) => onnotice(notice.message),
+      })
+    : postgres(databaseUrl, { max: 1, ...connection });
   return { driver, client, close: (timeout) => client.end({ timeout }) };
 }
 

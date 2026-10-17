@@ -880,6 +880,15 @@ jobs:
       - name: 'Migration Journal and Deploy Phases: journal order check'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-migration-journal-order.mjs
+      # A migration must not hold an ACCESS EXCLUSIVE lock on a hot table while it
+      # does anything slow (the 2026-10-16 `applications` lock pile-up). Rules in
+      # packages/api/src/db/MIGRATION-CONTRACT.md, "Every migration keeps its locks short".
+      - name: 'Migration Journal and Deploy Phases: lock fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/test-check-migration-locks.mjs
+      - name: 'Migration Journal and Deploy Phases: lock check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: bun scripts/check-migration-locks.mjs
 
       # Dependency advisories (see scripts/check-dependency-audit.mjs).
       #

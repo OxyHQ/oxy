@@ -34,10 +34,13 @@
  *    phase, or if no ordering is safe for either the image currently serving
  *    or the one about to (see `phases.ts`).
  * 5. Only once there is confirmed work to do: ensure the extensions the
- *    caller's schema depends on exist, then apply. Skipped entirely on a dry
- *    run and when there is nothing pending, so a caller with no extension
- *    dependencies — and possibly no database yet — never causes this step to
- *    open a connection for no reason.
+ *    caller's schema depends on exist, then apply — ONE MIGRATION PER
+ *    TRANSACTION, each under a short `lock_timeout` and a bounded
+ *    `statement_timeout`, retried with backoff when its locks do not come
+ *    (see `locks.ts` for the outage that made this the rule). Skipped
+ *    entirely on a dry run and when there is nothing pending, so a caller
+ *    with no extension dependencies — and possibly no database yet — never
+ *    causes this step to open a connection for no reason.
  * 6. Re-read the ledger after `migrate()` returns and confirm every migration
  *    this run intended to apply is actually recorded. A migrator that reports
  *    success while leaving work pending is worse than one that fails.
@@ -66,9 +69,20 @@ import {
   DEFAULT_DATABASE_DRIVER,
   type DatabaseDriver,
   bunSqlMigrate,
+  executeStatement,
   openOwnedConnection,
 } from '../driver';
 import { type RequiredExtension, ensureExtensions } from './extensions';
+import {
+  DEFAULT_LOCK_ATTEMPTS,
+  DEFAULT_LOCK_RETRY_BASE_DELAY_MS,
+  DEFAULT_LOCK_RETRY_MAX_DELAY_MS,
+  DEFAULT_LOCK_TIMEOUT_MS,
+  DEFAULT_STATEMENT_TIMEOUT_MS,
+  isLockContention,
+  lockRetryDelayMs,
+  readMigrationStatementTimeouts,
+} from './locks';
 import {
   type JournalEntry,
   MIGRATIONS_SCHEMA,
@@ -136,6 +150,29 @@ export interface RunMigrationsOptions {
   readonly dryRun: boolean;
   /** Exact migration identities that must already be applied before planning. */
   readonly requiredAppliedTags?: readonly string[];
+  /**
+   * How long one statement may wait for a lock, in ms. Default
+   * {@link DEFAULT_LOCK_TIMEOUT_MS}. While an ACCESS EXCLUSIVE request waits,
+   * every later reader of that table waits behind it, so keep this short.
+   */
+  readonly lockTimeoutMs?: number;
+  /**
+   * How long one statement may run, in ms, for a migration that declares no
+   * `-- oxy:statement-timeout=<n>s` marker of its own. Default
+   * {@link DEFAULT_STATEMENT_TIMEOUT_MS}.
+   */
+  readonly statementTimeoutMs?: number;
+  /**
+   * Retries after a lock timeout or deadlock. `attempts` counts the first try;
+   * the wait before retry `n` is full jitter over `min(maxDelayMs,
+   * baseDelayMs * 2^(n-1))`. Defaults: {@link DEFAULT_LOCK_ATTEMPTS},
+   * {@link DEFAULT_LOCK_RETRY_BASE_DELAY_MS}, {@link DEFAULT_LOCK_RETRY_MAX_DELAY_MS}.
+   */
+  readonly lockRetry?: {
+    readonly attempts?: number;
+    readonly baseDelayMs?: number;
+    readonly maxDelayMs?: number;
+  };
   readonly logger: {
     info(message: string): void;
     debug(message: string): void;
@@ -214,15 +251,34 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<void
 ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     );
   }
+  const timeouts = readMigrationStatementTimeouts(
+    fullEntries.map((entry) => entry.tag),
+    options.migrationsFolder,
+  );
+  if (timeouts.problems.length > 0) {
+    throw new Error(
+      `${timeouts.problems.length} migration(s) carry an illegible statement-timeout marker:
+${timeouts.problems.map((problem) => `  - ${problem}`).join('\n')}`,
+    );
+  }
+  const limits = resolveLockLimits(options);
 
   const entries = fullEntries;
 
   const driver = options.driver ?? DEFAULT_DATABASE_DRIVER;
-  const connection = openOwnedConnection(options.databaseUrl, driver, (message) =>
-    options.logger.debug(`Postgres notice: ${message}`),
+  // The defaults ride in the startup packet so they hold for every statement
+  // on this connection — the ledger reads, and a transparent reconnect —
+  // before the per-migration `SET`s below narrow or widen them.
+  const connection = openOwnedConnection(
+    options.databaseUrl,
+    driver,
+    (message) => options.logger.debug(`Postgres notice: ${message}`),
+    {
+      lock_timeout: `${limits.lockTimeoutMs}ms`,
+      statement_timeout: `${limits.statementTimeoutMs}ms`,
+    },
   );
   const { client } = connection;
-  let prefixFolder: string | null = null;
 
   try {
     // FIRST statement on this connection, when the caller opted in — see
@@ -282,31 +338,37 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     // opens its OWN connection to the same URL rather than reusing `client`.
     await ensureExtensions(options.databaseUrl, options.extensions, { driver });
 
-    options.logger.info(`Applying ${plan.apply.length} migration(s): ${tags.join(', ')}`);
+    options.logger.info(
+      `Applying ${plan.apply.length} migration(s), one transaction each ` +
+        `(lock_timeout=${limits.lockTimeoutMs}ms): ${tags.join(', ')}`,
+    );
 
-    // A phase that stops short points the migrator at a folder ending where
-    // it stops; a phase applying everything pending uses the real one, so the
-    // common path is byte for byte what it always was.
-    let migrationsFolder = options.migrationsFolder;
-    if (plan.deferred.length > 0) {
-      const lastAppliedTag = plan.apply[plan.apply.length - 1].tag;
-      const count = entries.findIndex((entry) => entry.tag === lastAppliedTag) + 1;
-      prefixFolder = materializeJournalPrefix(entries, count, options.migrationsFolder);
-      migrationsFolder = prefixFolder;
-    }
-
-    // No `schema`/`casing` here on purpose: `migrate()` only executes the raw
-    // SQL text of the migration files, so it never builds a query from the
-    // caller's schema definitions and stays independent of them.
-    const migrationConfig = {
-      migrationsFolder,
-      migrationsSchema: MIGRATIONS_SCHEMA,
-      migrationsTable: MIGRATIONS_TABLE,
-    };
-    if (connection.driver === 'bun-sql') {
-      await bunSqlMigrate(connection.client, migrationConfig);
-    } else {
-      await migrate(drizzle(connection.client), migrationConfig);
+    // ONE MIGRATION PER TRANSACTION. drizzle's `migrate()` applies everything
+    // newer than the ledger's newest row in a single transaction, so handing it
+    // the whole folder would hold the first migration's locks until the last
+    // one commits — the 2026-10-16 outage (`locks.ts`). Handing it a folder
+    // that ENDS at the next pending migration applies exactly that one and
+    // commits it. Each prefix is a byte-for-byte copy (`materializeJournalPrefix`),
+    // so the ledger rows are identical to a whole-folder run's.
+    for (const entry of plan.apply) {
+      const index = entries.findIndex((candidate) => candidate.tag === entry.tag);
+      const prefixFolder =
+        index === entries.length - 1
+          ? null
+          : materializeJournalPrefix(entries, index + 1, options.migrationsFolder);
+      try {
+        await applyOneMigration({
+          tag: entry.tag,
+          migrationsFolder: prefixFolder ?? options.migrationsFolder,
+          statementTimeoutMs:
+            timeouts.statementTimeoutsMs.get(entry.tag) ?? limits.statementTimeoutMs,
+          limits,
+          connection,
+          logger: options.logger,
+        });
+      } finally {
+        if (prefixFolder) rmSync(prefixFolder, { recursive: true, force: true });
+      }
     }
 
     // A migrator that reports success while leaving work pending is worse
@@ -326,7 +388,94 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
 
     options.logger.info(`Applied ${plan.apply.length} migration(s): ${tags.join(', ')}`);
   } finally {
-    if (prefixFolder) rmSync(prefixFolder, { recursive: true, force: true });
     await connection.close(CLOSE_TIMEOUT_SECONDS);
+  }
+}
+
+interface LockLimits {
+  readonly lockTimeoutMs: number;
+  readonly statementTimeoutMs: number;
+  readonly attempts: number;
+  readonly baseDelayMs: number;
+  readonly maxDelayMs: number;
+}
+
+function resolveLockLimits(options: RunMigrationsOptions): LockLimits {
+  const limits: LockLimits = {
+    lockTimeoutMs: options.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
+    statementTimeoutMs: options.statementTimeoutMs ?? DEFAULT_STATEMENT_TIMEOUT_MS,
+    attempts: options.lockRetry?.attempts ?? DEFAULT_LOCK_ATTEMPTS,
+    baseDelayMs: options.lockRetry?.baseDelayMs ?? DEFAULT_LOCK_RETRY_BASE_DELAY_MS,
+    maxDelayMs: options.lockRetry?.maxDelayMs ?? DEFAULT_LOCK_RETRY_MAX_DELAY_MS,
+  };
+  // Zero means "no limit" to Postgres, which is exactly what this exists to
+  // prevent, so it is refused rather than passed through.
+  for (const [name, value] of Object.entries(limits)) {
+    const minimum = name === 'baseDelayMs' || name === 'maxDelayMs' ? 0 : 1;
+    if (!Number.isSafeInteger(value) || value < minimum) {
+      throw new Error(`runMigrations: ${name} must be an integer >= ${minimum}, got ${value}.`);
+    }
+  }
+  return limits;
+}
+
+/**
+ * Apply the single pending migration at the end of `migrationsFolder` in its
+ * own transaction, retrying the whole migration when it loses a lock race.
+ */
+async function applyOneMigration(step: {
+  readonly tag: string;
+  readonly migrationsFolder: string;
+  readonly statementTimeoutMs: number;
+  readonly limits: LockLimits;
+  readonly connection: ReturnType<typeof openOwnedConnection>;
+  readonly logger: RunMigrationsOptions['logger'];
+}): Promise<void> {
+  const { tag, limits, connection } = step;
+  // No `schema`/`casing` here on purpose: `migrate()` only executes the raw
+  // SQL text of the migration files, so it never builds a query from the
+  // caller's schema definitions and stays independent of them.
+  const migrationConfig = {
+    migrationsFolder: step.migrationsFolder,
+    migrationsSchema: MIGRATIONS_SCHEMA,
+    migrationsTable: MIGRATIONS_TABLE,
+  };
+
+  for (let attempt = 1; ; attempt += 1) {
+    const startedAt = Date.now();
+    try {
+      // Session-level, on the one connection the migration's transaction runs
+      // on. Set every attempt: a reconnect would otherwise fall back to the
+      // startup defaults and silently drop a migration's declared timeout.
+      await executeStatement(connection.client, `set lock_timeout = '${limits.lockTimeoutMs}ms'`);
+      await executeStatement(
+        connection.client,
+        `set statement_timeout = '${step.statementTimeoutMs}ms'`,
+      );
+      if (connection.driver === 'bun-sql') {
+        await bunSqlMigrate(connection.client, migrationConfig);
+      } else {
+        await migrate(drizzle(connection.client), migrationConfig);
+      }
+      step.logger.info(`Applied ${tag} in ${Date.now() - startedAt}ms`);
+      return;
+    } catch (error) {
+      if (!isLockContention(error)) throw error;
+      const reason = error instanceof Error ? error.message : String(error);
+      if (attempt >= limits.attempts) {
+        throw new Error(
+          `${tag}: could not take its locks within ${limits.lockTimeoutMs}ms on any of ` +
+            `${limits.attempts} attempts (last: ${reason}). Nothing of ${tag} was applied; ` +
+            'something holds a conflicting lock on a table it alters — find it ' +
+            '(pg_locks / pg_stat_activity) before retrying.',
+        );
+      }
+      const delayMs = lockRetryDelayMs(attempt, limits.baseDelayMs, limits.maxDelayMs);
+      step.logger.info(
+        `${tag}: lock not available within ${limits.lockTimeoutMs}ms (attempt ` +
+          `${attempt}/${limits.attempts}: ${reason}); rolled back, retrying in ${delayMs}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 }

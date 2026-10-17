@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/db",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Oxy Postgres substrate — drizzle column and naming helpers, driver-error predicates, the migration ledger and deploy-phase planner, the TTL-replacement sweep, an ephemeral-database harness, and the schema-convention gates every Oxy backend is held to.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
