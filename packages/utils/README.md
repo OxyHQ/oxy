@@ -38,6 +38,7 @@ import { resolvePageLimit }  from '@oxy.so/utils/paging';
 import { escapeRegExp }      from '@oxy.so/utils/text';
 import { calendarDaysBetween } from '@oxy.so/utils/date';
 import { withImageVariant }    from '@oxy.so/utils/image';
+import { formatMoney }         from '@oxy.so/utils/currency';
 ```
 
 ### `./sql` — LIKE pattern building
@@ -78,6 +79,62 @@ yesterday's mail files under "Today". This subtracts the date parts as UTC
 dates, where every day is 24 hours. It answers *which calendar day*, not *how
 much time elapsed* — elapsed-time labels (`"2d ago"`) stay where they are. An
 invalid `Date` yields `NaN`, which fails every `=== 0` / `< 7` comparison.
+
+### `./currency` — money text, minor units, injected-rate conversion
+
+`formatMoney`, `formatMoneyRange`, `currencyName`, `isIsoCurrencyCode`,
+`currencyDisplayDigits`, `currencyStorageDigits`, `toMinorUnits`,
+`fromMinorUnits`, `convertAmount`, and `FAIR_CODE` / `FAIR_SYMBOL` /
+`FAIR_DECIMALS`.
+
+The one entry that did **not** arrive byte-identical. Six apps format money
+(Homiio, Mercaria, Inbox, Moovo, Peable, GoWay) and they disagreed: symbol
+placed by locale vs prefixed from a table, the unformattable-code fallback
+amount-first vs code-first, FAIR stored at 8 decimals vs 2. Like
+`calendarDaysBetween`, the disagreement is the reason it is shared — here it
+was settled by a product ruling rather than by one side being a bug, which is
+what satisfies clause 3:
+
+- **Storage is not display.** FAIR (FairCoin, not ISO 4217, `⊜`) is stored at
+  `FAIR_DECIMALS = 8` everywhere and displayed at 2. ISO currencies display
+  with `Intl`'s digits (EUR/USD 2, JPY 0) and store at their ISO 4217
+  exponent — a static table, because CLDR's display digits differ from ISO for
+  a dozen codes and have moved between ICU releases, and a stored integer must
+  mean the same amount on Node and on Hermes.
+- **Locale-aware via `Intl`.** `€1,234.56` in `en`, `1.234,56 €` in `de`. The
+  currency is the amount's own, never derived from the locale.
+- **A code `Intl` cannot format** (FAIR, anything not three letters) renders
+  amount, no-break space, code: `1.234,56 FAIR`. No symbol is invented.
+- **Never throws** — a malformed locale, code or amount degrades to readable
+  text. Minor-unit helpers return `null` rather than guess a precision or
+  exceed `Number.MAX_SAFE_INTEGER` (≈ 90 million FAIR).
+
+```ts
+formatMoney(1234.56, 'EUR', 'en-US');                  // '€1,234.56'
+formatMoney(1234.56, 'EUR', 'de-DE');                  // '1.234,56 €'
+formatMoney(1234.5,  'JPY', 'ja-JP');                  // '￥1,235'
+formatMoney(12.3456789, 'FAIR', 'en-US');              // '12.35 FAIR'
+formatMoney(1700, 'EUR', 'en-US', { minimumFractionDigits: 0 }); // '€1,700'
+formatMoneyRange(500, 1200, 'EUR', 'en-US');           // '€500.00–€1,200.00'
+currencyName('EUR', 'es-ES');                          // 'euro'
+
+toMinorUnits(1, 'FAIR');                               // 100_000_000
+toMinorUnits(1.005, 'EUR');                            // 101 (the decimal typed, not 100.4999…)
+fromMinorUnits(1250n, 'EUR');                          // 12.5 (ledger bigint accepted)
+
+// Rates are fetched by the app and passed in; any base works.
+convertAmount(100, 'EUR', 'USD', { base: 'FAIR', rates: { EUR: 0.5, USD: 0.55 } }); // ≈ 110
+```
+
+`convertAmount` returns the amount UNROUNDED (round once, where it is stored
+or shown) and `null` when either side has no rate — never an assumed rate of 1.
+`toMinorUnits` takes `{ rounding: 'halfEven' }` for FX-style rounding.
+`es` does not group four-digit numbers (`1234,56 €`); that is CLDR's rule for
+Spanish, not this module's.
+
+Stays in the apps: fetching rates, the user's preferred currency, pickers and
+flag lists, glyph components (`FAIR_SYMBOL` is exported for them), bidi
+isolation, and product wording such as Homiio's per-month price labels.
 
 ## Consuming it
 
