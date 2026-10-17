@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 5.2.0
+
+Needs no API change. Same `@oxy.so/contracts`.
+
+### Removed
+
+- `oxy.accounts.members.invite` and its `InviteAccountMemberInput` type are
+  removed. They added a person to an account without asking them, and the API
+  has retired the route behind them: `POST /accounts/:id/members` now answers
+  410 Gone (`MEMBER_ADD_RETIRED`) whatever SDK version calls it. Invite by email
+  with `oxy.accounts.invitations.create(accountId, { email, role, inherit? })`.
+  The person gets access only after accepting at
+  `accounts.oxy.so/invitation`. Manage pending invitations with
+  `invitations.list`, `resend` and `cancel`. `members.list`, `update` and
+  `remove` are unchanged.
+
 ## 5.1.0
 
 Needs `@oxy.so/protocol` 1.4.0. Same `@oxy.so/contracts`.

@@ -106,16 +106,6 @@ const assignableRoles = ACCOUNT_ROLES.filter((role) => role !== 'owner') as Excl
 >[];
 
 /**
- * POST /accounts/:id/members — invite/add a member by username or email.
- * `inherit` controls whether the membership cascades to descendant accounts.
- */
-export const inviteAccountMemberSchema = z.object({
-  usernameOrEmail: z.string().trim().min(1),
-  role: z.enum(assignableRoles as [(typeof assignableRoles)[number], ...typeof assignableRoles]),
-  inherit: z.boolean().optional(),
-});
-
-/**
  * A per-member permission delta list.
  *
  * The vocabulary is enforced HERE, at the write boundary, and nowhere else — no

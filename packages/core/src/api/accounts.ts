@@ -306,16 +306,6 @@ export interface UpdateAccountInput {
   organizationType?: OrganizationType;
 }
 
-/** Input accepted by `accounts.members.invite`. The owner role cannot be invited. */
-export interface InviteAccountMemberInput {
-  /**
-   * The username or email of the user to invite. Resolved to a personal account
-   * server-side; an unknown value yields a 404 "User not found".
-   */
-  usernameOrEmail: string;
-  role: Exclude<AccountRole, 'owner'>;
-}
-
 /** Input accepted by `accounts.members.update`. The owner role cannot be assigned. */
 export interface UpdateAccountMemberInput {
   role?: Exclude<AccountRole, 'owner'>;
@@ -388,26 +378,6 @@ export class AccountMembersApi {
       { cache: true, cacheTTL: MEDIUM_TTL },
     );
     return res.members ?? [];
-  }
-
-  /**
-   * @deprecated Grants access without the recipient's confirmation and is being
-   * retired. Use `accounts.invitations.create` with an email: access is granted
-   * only after the recipient confirms.
-   * @param accountId - The account's `_id`.
-   * @param data - Target user's username or email and role (never `owner`).
-   *   The server resolves `usernameOrEmail` to a personal account; an unknown
-   *   value yields a 404 "User not found".
-   */
-  async invite(accountId: string, data: InviteAccountMemberInput): Promise<AccountMember> {
-    const res = await this.ctx.request<{ member: AccountMember }>(
-      'POST',
-      `/accounts/${enc(accountId)}/members`,
-      data,
-      { cache: false },
-    );
-    invalidateAccountMembership(this.ctx, accountId);
-    return res.member;
   }
 
   /**

@@ -314,9 +314,11 @@ inside the same transaction that creates the membership. Existing active grants
 are never overwritten. Expired invitations remain manageable for thirty days.
 Mail delivery errors are surfaced; the manager can resend the retained row.
 
-`POST /accounts/:id/members` and `accounts.members.invite` still grant access
-immediately and are deprecated. They stay until the SDK consumers that call them
-(Alia's organization route, Mercaria's store people, services builds before
-11.10.0) have moved to invitations; the route is then retired with HTTP 410.
+Nobody is added to an account without their consent. The direct add,
+`POST /accounts/:id/members`, is retired: it answers 410 Gone with code
+`MEMBER_ADD_RETIRED` and `details.replacement: "POST /accounts/:id/invitations"`.
+`accounts.members.invite` was removed in core 5.2.0. Alia (OxyHQ/Alia#824) and
+Mercaria (OxyHQ/Mercaria#1106) moved to invitations first. An app still on
+services before 11.10.0 gets the 410 from its members screen until it upgrades.
 Apply migration 0178 before rollout. SMTP delivery and the public acceptance URL
 require an environment smoke test; automated tests use the real database and a mocked mail transport.

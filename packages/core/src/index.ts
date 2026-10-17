@@ -132,7 +132,6 @@ export type {
   ListAccountsOptions,
   CreateAccountInput,
   UpdateAccountInput,
-  InviteAccountMemberInput,
   UpdateAccountMemberInput,
   TransferAccountOwnershipInput,
   AccountSuccessResult,
