@@ -12,6 +12,7 @@ import {
   resolveWorkspace,
   workspaceDependencies,
   workspacePackages,
+  workspaceRangeProblems,
 } from './release-package.mjs';
 
 const source = { name: '@oxy.so/example', version: '1.2.0' };
@@ -192,4 +193,44 @@ test("pack uses the package's own release:pack, given the destination", () => {
       "node -e \"require('node:fs').writeFileSync(process.argv[1] + '/staged-1.0.0.tgz', '')\"",
   });
   assert.equal(printed, join(destination, 'staged-1.0.0.tgz'));
+});
+
+test('a workspace: dependency packed at another version than its workspace is refused', () => {
+  // bun pm pack writes the version bun.lock records, so a bump without its
+  // lockfile line shipped @kaana.ai/sdk 3.1.1 pinned to contracts 6.1.0.
+  const workspaces = [
+    { directory: 'packages/contracts', manifest: { name: '@oxy.so/contracts', version: '4.17.0' } },
+    { directory: 'packages/core', manifest: { name: '@oxy.so/core', version: '4.12.0' } },
+    { directory: 'packages/utils', manifest: { name: '@oxy.so/utils', version: '1.2.1' } },
+  ];
+  const workspaceSource = {
+    ...source,
+    dependencies: { '@oxy.so/contracts': 'workspace:^', '@oxy.so/utils': 'workspace:1.2.1' },
+    peerDependencies: { '@oxy.so/core': 'workspace:*' },
+    devDependencies: { '@oxy.so/core': 'workspace:*' },
+  };
+  const current = {
+    ...packed,
+    dependencies: { '@oxy.so/contracts': '^4.17.0', '@oxy.so/utils': '1.2.1' },
+    peerDependencies: { '@oxy.so/core': '4.12.0' },
+  };
+  assert.deepEqual(workspaceRangeProblems(current, workspaceSource, workspaces), []);
+  const stale = {
+    ...current,
+    dependencies: { ...current.dependencies, '@oxy.so/contracts': '^4.16.0' },
+    peerDependencies: { '@oxy.so/core': '4.11.0' },
+  };
+  const problems = workspaceRangeProblems(stale, workspaceSource, workspaces);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /dependencies\.@oxy\.so\/contracts is packed as "\^4\.16\.0".*"\^4\.17\.0".*bun\.lock is stale/);
+  assert.match(problems[1], /peerDependencies\.@oxy\.so\/core is packed as "4\.11\.0".*"4\.12\.0"/);
+});
+
+test('a dependency that is not a workspace: spec is left to the other checks', () => {
+  const workspaces = [{ directory: '.', manifest: { name: '@oxy.so/contracts', version: '4.17.0' } }];
+  const literal = { ...source, dependencies: { '@oxy.so/contracts': '^4.0.0' } };
+  assert.deepEqual(
+    workspaceRangeProblems({ ...packed, dependencies: { '@oxy.so/contracts': '^4.0.0' } }, literal, workspaces),
+    [],
+  );
 });

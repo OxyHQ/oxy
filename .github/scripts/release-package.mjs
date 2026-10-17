@@ -22,9 +22,12 @@
 //   inspect <tgz> <dir>   checks the packed tarball: it is that package at that
 //                         version, bun rewrote every `workspace:`/`catalog:`
 //                         range, every entry point it declares is inside it, it
-//                         ships no TypeScript build-info file, and every range a
-//                         consumer installs (dependencies, peer, optional)
-//                         already resolves on the registry
+//                         ships no TypeScript build-info file, every
+//                         `workspace:` dependency names the version that
+//                         workspace has in this same commit (bun writes it from
+//                         `bun.lock`, so a stale lockfile pins an old version),
+//                         and every range a consumer installs (dependencies,
+//                         peer, optional) already resolves on the registry
 //   dist-tag <name> <version> <tag>
 //                         refuses a `latest` that is a prerelease or older than
 //                         the registry's `latest`; any other tag is the
@@ -153,6 +156,38 @@ export function manifestProblems(packed, source, entries) {
   return problems;
 }
 
+/** The range `bun pm pack` must write for a `workspace:` spec on a workspace at `version`. */
+function packedWorkspaceRange(spec, version) {
+  const range = spec.slice('workspace:'.length);
+  if (range === '*') return version;
+  if (range === '^' || range === '~') return `${range}${version}`;
+  return range;
+}
+
+/**
+ * Every consumer-facing `workspace:` dependency whose packed range is not the
+ * one this commit's workspace gives it. bun takes the version from `bun.lock`,
+ * not from the workspace's package.json, so a version bump without its
+ * lockfile line ships the dependent pinned to the previous version.
+ */
+export function workspaceRangeProblems(packed, source, workspaces) {
+  const versions = new Map(
+    workspaces.map(({ manifest }) => [manifest.name, manifest.version]),
+  );
+  const problems = [];
+  for (const field of CONSUMER_FIELDS)
+    for (const [dependency, spec] of Object.entries(source[field] ?? {})) {
+      if (!spec.startsWith('workspace:') || !versions.has(dependency)) continue;
+      const expected = packedWorkspaceRange(spec, versions.get(dependency));
+      const actual = packed[field]?.[dependency];
+      if (actual !== expected)
+        problems.push(
+          `${field}.${dependency} is packed as "${actual}", but ${dependency} is ${versions.get(dependency)} in this commit ("${expected}"): bun.lock is stale; run bun install and commit it`,
+        );
+    }
+  return problems;
+}
+
 /** The ranges a consumer's install resolves: everything but devDependencies. */
 export function consumerRanges(packed) {
   return CONSUMER_FIELDS.flatMap((field) =>
@@ -212,7 +247,10 @@ function inspect(tarball, directory) {
   })
     .split('\n')
     .filter(Boolean);
-  const problems = manifestProblems(packed, source, entries);
+  const problems = [
+    ...manifestProblems(packed, source, entries),
+    ...workspaceRangeProblems(packed, source, workspacePackages(process.cwd())),
+  ];
   for (const spec of consumerRanges(packed))
     if (!resolvesOnRegistry(spec))
       problems.push(`depends on ${spec}, which nothing on the registry satisfies yet`);

@@ -17,8 +17,10 @@ name: npm release
 #            tarball: `bun pm pack`, which rewrites `workspace:`/`catalog:`
 #            ranges, or the package's own `release:pack` when it publishes a
 #            staged manifest it packs and tests itself.
-#            `release-package.mjs inspect` checks the tarball; the version must
-#            be absent from the registry and the dist-tag sane. Uploads the
+#            `release-package.mjs inspect` checks the tarball (including that
+#            every `workspace:` dependency is pinned to the version its
+#            workspace has in this commit, never a stale `bun.lock` one); the
+#            version must be absent from the registry and the dist-tag sane. Uploads the
 #            tarball and its SHA-512 as the trusted bytes. No credential of any
 #            kind, and no `id-token`.
 #   publish  environment `npm`, `id-token: write`. A fresh checkout rebuilds and

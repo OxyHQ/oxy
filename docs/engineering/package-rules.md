@@ -74,8 +74,10 @@ the release refuses a package without it — packs with `bun pm pack` (or, for a
 staged manifest it packs and tests itself, with its own `release:pack <dir>`, whose one tarball is
 exactly what ships), and
 `.github/scripts/release-package.mjs inspect` refuses a tarball that is not that version, still
-carries a `workspace:`/`catalog:` range, lacks a declared entry point, ships a `.tsbuildinfo`, or
-depends on a range nothing on the registry satisfies yet. The checks always run from the release
+carries a `workspace:`/`catalog:` range, pins a `workspace:` dependency to any version but the one
+that workspace has in the same commit (bun writes it from `bun.lock`, so a version bump without its
+lockfile line would ship the dependent pinned to the old version), lacks a declared entry point,
+ships a `.tsbuildinfo`, or depends on a range nothing on the registry satisfies yet. The checks always run from the release
 workflow's own commit of OxyHQ/oxy, never from the caller's tree. The `publish` job (environment
 `npm`, `id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
 `npm publish <tgz> --provenance --access public --tag <dist_tag>` with npm trusted publishing
