@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -98,6 +98,36 @@ describe('Oxy Doctor checks', () => {
       await expect(inspectRepository(root, release('11.0.0', undefined))).rejects.toThrow(
         'no publish time',
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  test('reads the root, its workspaces and its catalog, never a manifest outside them', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-'));
+    const manifest = async (dir, contents) => {
+      await mkdir(join(root, dir), { recursive: true });
+      await writeFile(join(root, dir, 'package.json'), JSON.stringify(contents));
+    };
+    try {
+      await manifest('.', {
+        name: 'app',
+        workspaces: { packages: ['packages/*'], catalog: { '@oxy.so/core': '1.0.0' } },
+      });
+      await manifest('packages/web', {
+        dependencies: { '@oxy.so/core': 'catalog:', '@oxy.so/bloom': '1.0.0' },
+      });
+      await manifest('docs/audits/inputs', { dependencies: { '@oxy.so/bloom': '0.1.0' } });
+      await writeFile(join(root, 'bun.lock'), '{}');
+      const report = await inspectRepository(root, release('2.0.0', '2026-09-30T14:07:51.959Z'));
+      expect(
+        report.findings.map(({ package: name, manifest: path, section }) => [name, path, section]),
+      ).toEqual(
+        expect.arrayContaining([
+          ['@oxy.so/core', 'package.json', 'catalog'],
+          ['@oxy.so/bloom', 'packages/web/package.json', 'dependencies'],
+        ]),
+      );
+      expect(report.findings).toHaveLength(2);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
