@@ -11552,7 +11552,7 @@
           "Files"
         ],
         "summary": "Read a session back: `{ sessionId, entityType, status, itemCount,",
-        "description": "expiresAt, dryRun, result, error }`. While a `background` commit runs\n      `status` is `committing` (`dryRun` says which kind); once it is done, a\n      real commit is `committed` and a dry run `open`, each with `result`\n      (the commit's counts); a failed commit is `open` with `error`, and can\n      be committed again. 404 for no such session of this application.",
+        "description": "expiresAt, dryRun, result, error }`. While a `background` commit runs\n      `status` is `committing` (`dryRun` says which kind); once it is done, a\n      real commit is `committed` and a dry run `abandoned` (released), each\n      with `result`\n      (the commit's counts); a failed commit is `open` with `error`, and can\n      be committed again. 404 for no such session of this application.",
         "parameters": [
           {
             "name": "sessionId",
@@ -11734,7 +11734,7 @@
           "Files"
         ],
         "summary": "Diff the inventory against this application's references of the",
-        "description": "session's entity type and apply it: add each missing reference the\n      application may hold (the rules of `POST /assets/service/references`;\n      a file it may not reference, or none, is `refused`), remove each\n      reference created before the session began that the inventory does\n      not list — which never trashes or deletes a file — and count the rest\n      `unchanged`. `{ dryRun: true }` counts the same and changes nothing,\n      leaving the session open. Answers `{ sessionId, entityType, dryRun,\n      added, removed, unchanged, refused }`.\n\n      A large inventory can take longer than a request may: with\n      `{ background: true }` the commit answers 202 `{ sessionId,\n      entityType, dryRun, status: 'committing' }` when it is still running\n      after a few seconds, goes on under a lease (resumed by another task if\n      this one dies), and `GET …/reconcile/:sessionId` reads the outcome.\n      Without it, the request waits for the commit however long it takes.",
+        "description": "session's entity type and apply it: add each missing reference the\n      application may hold (the rules of `POST /assets/service/references`;\n      a file it may not reference, or none, is `refused`), remove each\n      reference created before the session began that the inventory does\n      not list — which never trashes or deletes a file — and count the rest\n      `unchanged`. `{ dryRun: true }` counts the same, changes nothing and\n      releases the session (the real run is a new one). Answers `{ sessionId, entityType, dryRun,\n      added, removed, unchanged, refused }`.\n\n      A large inventory can take longer than a request may: with\n      `{ background: true }` the commit answers 202 `{ sessionId,\n      entityType, dryRun, status: 'committing' }` when it is still running\n      after a few seconds, goes on under a lease (resumed by another task if\n      this one dies), and `GET …/reconcile/:sessionId` reads the outcome.\n      Without it, the request waits for the commit however long it takes.",
         "parameters": [
           {
             "name": "sessionId",

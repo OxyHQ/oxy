@@ -27,8 +27,10 @@
  * re-added by the commit; the application's next reconciliation, or its own
  * removal, settles it. Run reconciliation when the inventory is quiet.)
  *
- * `dryRun` computes the same four counts and writes nothing; the session stays
- * open, so the real commit can follow.
+ * `dryRun` computes the same four counts and writes nothing, and releases the
+ * session: no client commits the same session twice (the SDK sends a fresh
+ * inventory for the real run), and one left open refused the entity type's next
+ * reconciliation with 409 for an hour.
  */
 
 import { and, asc, count, eq, exists, gt, lt, lte, not, sql } from 'drizzle-orm';
@@ -354,7 +356,7 @@ export interface ReconcileSessionState {
   expiresAt: Date;
   /** While `committing`: whether the running commit is a dry run. */
   dryRun: boolean | null;
-  /** The last commit's counts — a dry run's leaves the session `open`. */
+  /** The last commit's counts — a dry run's leaves the session `abandoned` (released). */
   result: (FileReferenceReconciliationCounts & { dryRun: boolean }) | null;
   /** Why the last commit failed; it can be committed again. */
   error: { code: string; message: string } | null;
@@ -418,8 +420,8 @@ async function renewLease(sessionId: string): Promise<void> {
 /**
  * Diff the claimed session's inventory against the stored references and —
  * unless it is a dry run — apply it, renewing the lease after every batch.
- * On success a dry run leaves the session `open` (the real commit can follow)
- * and a real one `committed`; on failure it is `open` again with
+ * On success a dry run releases the session (`abandoned`, its items gone) and a
+ * real one is `committed`; on failure it is `open` again with
  * `commit_error`, and can be committed again — every step is idempotent: the
  * diff is recomputed, and what a failed attempt added is a reference created
  * after `begin`, which no attempt removes.
@@ -500,7 +502,7 @@ async function runCommit(session: ReconcileSession): Promise<ReconcileCommitResu
   const [finished] = await getDb()
     .update(fileReferenceReconciliations)
     .set({
-      status: dryRun ? 'open' : 'committed',
+      status: dryRun ? 'abandoned' : 'committed',
       ...(dryRun ? {} : { committedAt: new Date() }),
       result: { ...counts, dryRun },
       leaseExpiresAt: null,
@@ -514,12 +516,10 @@ async function runCommit(session: ReconcileSession): Promise<ReconcileCommitResu
     )
     .returning({ id: fileReferenceReconciliations.id });
   if (!finished) throw new CommitLeaseLost(sessionId);
-  if (!dryRun) {
-    // The bulk of a session; the row itself stays as the record until expiry.
-    await getDb()
-      .delete(fileReferenceReconciliationItems)
-      .where(eq(fileReferenceReconciliationItems.sessionId, sessionId));
-  }
+  // The bulk of a session; the row itself stays as the record until expiry.
+  await getDb()
+    .delete(fileReferenceReconciliationItems)
+    .where(eq(fileReferenceReconciliationItems.sessionId, sessionId));
 
   logger.info('File references reconciled', {
     applicationId,

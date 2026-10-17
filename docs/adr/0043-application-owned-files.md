@@ -338,8 +338,9 @@ application, not with the business's session).
   failed commit is `open` with `error` and can be committed again. A `fileId`
   may be up to 256 characters here and in `/assets/service/references`, so an
   id that names no file is that pair's answer rather than failing its page or
-  batch. The SDK releases a dry run's session (it used
-  to stay open until expiry, refusing the entity type's next run with 409).
+  batch. A dry run releases its session in Oxy itself (it used to stay open
+  until expiry, refusing the entity type's next run with 409 from every SDK);
+  the real run is a new session.
 - **GoWay** holds `files:references:write` in the seed.
 
 #### Switching the sweep to enforce

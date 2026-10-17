@@ -2939,8 +2939,8 @@ router.put(
  *       a file it may not reference, or none, is `refused`), remove each
  *       reference created before the session began that the inventory does
  *       not list — which never trashes or deletes a file — and count the rest
- *       `unchanged`. `{ dryRun: true }` counts the same and changes nothing,
- *       leaving the session open. Answers `{ sessionId, entityType, dryRun,
+ *       `unchanged`. `{ dryRun: true }` counts the same, changes nothing and
+ *       releases the session (the real run is a new one). Answers `{ sessionId, entityType, dryRun,
  *       added, removed, unchanged, refused }`.
  *
  *       A large inventory can take longer than a request may: with
@@ -2978,7 +2978,8 @@ router.post(
  * @desc Read a session back: `{ sessionId, entityType, status, itemCount,
  *       expiresAt, dryRun, result, error }`. While a `background` commit runs
  *       `status` is `committing` (`dryRun` says which kind); once it is done, a
- *       real commit is `committed` and a dry run `open`, each with `result`
+ *       real commit is `committed` and a dry run `abandoned` (released), each
+ *       with `result`
  *       (the commit's counts); a failed commit is `open` with `error`, and can
  *       be committed again. 404 for no such session of this application.
  * @access Service token only: `files:references:write`, on an active application

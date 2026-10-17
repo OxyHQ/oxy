@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed (a dry-run reconciliation releases its session — ADR 0043 D6)
+
+A dry-run commit left its session open for an hour, so every SDK's next
+reconciliation of that entity type was refused with 409
+`RECONCILIATION_IN_PROGRESS` (68 such sessions were open in production). It now
+releases the session (`abandoned`, its items deleted) once it has its counts;
+the real run is a new session, as every SDK already sends.
+
 ### Changed (a reference reconciliation's commit runs under a lease — ADR 0043 D6)
 
 Migration `0183_reconcile_commit_lease` (pre). A commit of a large inventory
