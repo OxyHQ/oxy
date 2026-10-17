@@ -65,7 +65,7 @@ const TAB_BAR_MAX_WIDTH = 440;
  * Bloom icon everywhere else, so the two platforms would disagree about the
  * shape of the same tab. The Bloom pair is used on all three platforms.
  */
-export function CommonsTabBar({ state, navigation }: BottomTabBarProps) {
+export function CommonsTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const { t } = useTranslation();
 
   const items = useMemo<TabBarItem[]>(
@@ -99,12 +99,14 @@ export function CommonsTabBar({ state, navigation }: BottomTabBarProps) {
 
   const handleIndexChange = useCallback(
     (index: number) => {
-      const route = TAB_ROUTES[index];
+      const name = TAB_ROUTES[index];
+      // Expo Router 58's tab bar navigates by route KEY, not by name.
+      const route = state.routes.find((candidate) => candidate.name === name);
       if (route !== undefined) {
-        navigation.navigate(route);
+        navigateToTab(route.key);
       }
     },
-    [navigation],
+    [state.routes, navigateToTab],
   );
 
   return (

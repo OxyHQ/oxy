@@ -85,7 +85,7 @@ export default function TabLayout() {
     backgroundColor: interpolateColor(bgProgress.value, [0, 1], [fromColor.value, toColor.value]),
   }));
 
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Use custom hook for search navigation management (has side effects)
   useSearchNavigation({ searchInputRef });

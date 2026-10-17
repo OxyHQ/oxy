@@ -96,8 +96,10 @@ export const HolographicCard: FC<HolographicCardProps> = ({ width, height }) => 
     const s = EMBLEM_SIZE / 960;
     const ex = width - EMBLEM_PAD - EMBLEM_SIZE;
     const ey = height - EMBLEM_PAD;
-    path.transform(Skia.Matrix([s, 0, ex, 0, s, ey, 0, 0, 1]));
-    return path;
+    // An SkPath is immutable (Skia 2.x): transform a builder copy of it.
+    return Skia.PathBuilder.MakeFromPath(path)
+      .transform(Skia.Matrix([s, 0, ex, 0, s, ey, 0, 0, 1]))
+      .build();
   }, [width, height]);
 
   // Diagonal iridescence band (NO centre pivot). Its endpoints shift with tilt,

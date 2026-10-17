@@ -1,5 +1,21 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.3.0
+
+### Added
+
+- Documented opt-in: `android: { gifEnabled: false, webpEnabled: false }` passes
+  through the preset's build-properties overrides to `expo-build-properties` 58,
+  dropping React Native's GIF and WebP decoders from the Android build. Not a
+  default.
+
+### Changed
+
+- Validated on Expo SDK 58 / React Native 0.88: a clean `expo prebuild` of
+  Android and iOS applies every plugin unchanged. SDK 58's template already
+  generates `proguard-android-optimize.txt`, so `withOxyAndroidRelease` only adds
+  the release signing config there.
+
 ## 3.2.1
 
 ### Changed

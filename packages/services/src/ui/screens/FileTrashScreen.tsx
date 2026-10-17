@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { type ComponentRef, useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ScrollView } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
@@ -39,7 +39,7 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
     () => trashQuery.data?.pages.flatMap((page) => page.files) ?? [],
     [trashQuery.data],
   );
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
   // The file an action is in flight for: its buttons show progress.
   const [busy, setBusy] = useState<{ id: string; restoring: boolean } | null>(null);
 

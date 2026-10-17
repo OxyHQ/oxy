@@ -1,5 +1,14 @@
 # Changelog — `@oxy.so/core`
 
+## 5.1.0
+
+Needs `@oxy.so/protocol` 1.4.0. Same `@oxy.so/contracts`.
+
+### Changed
+
+- The optional `expo-crypto` and `expo-secure-store` peers admit Expo SDK 58
+  (`<59.0.0`; they were `<58.0.0`).
+
 ## 5.0.0
 
 Needs nothing new from the Oxy API; the routes these methods called are deleted

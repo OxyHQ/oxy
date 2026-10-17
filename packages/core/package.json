@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -178,8 +178,8 @@
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "<3.0.0",
-    "expo-crypto": "<58.0.0",
-    "expo-secure-store": "<58.0.0",
+    "expo-crypto": "<59.0.0",
+    "expo-secure-store": "<59.0.0",
     "express": "^4.0.0"
   },
   "peerDependenciesMeta": {

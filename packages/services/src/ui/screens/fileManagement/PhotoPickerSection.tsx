@@ -642,7 +642,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
             }
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.4}
-            ListFooterComponent={listFooter}
+            ListFooterComponent={listFooter ?? undefined}
             removeClippedSubviews={Platform.OS !== 'web'}
             initialNumToRender={Math.max(12, columns * 6)}
             windowSize={9}

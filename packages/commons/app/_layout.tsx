@@ -184,7 +184,7 @@ interface ColdLaunchIntent {
 async function resolveColdLaunchIntent(): Promise<ColdLaunchIntent> {
   let url: string | null = null;
   try {
-    url = await Linking.getInitialURL();
+    url = (await Linking.getInitialURL()) ?? null;
   } catch (error) {
     logger.warn('[commons] cold-launch deep link could not be read', {
       component: 'AppStackContent',
@@ -529,33 +529,40 @@ function AppStackContent() {
           Commons legitimately OWNS the `hasIdentity` gate — it is the
           key vault. `needsAuth` is true when this device has no local
           identity yet OR has one but no username/session. We must:
-            - Redirect AWAY from `(tabs)` (the post-auth tab shell) when
+            - Keep `(tabs)` (the post-auth tab shell) unreachable while
               onboarding is incomplete.
-            - Redirect AWAY from `(auth)` when onboarding is complete.
+            - Keep `(auth)` unreachable once onboarding is complete.
 
-          Expo Router resolves redirects to the first non-redirecting
-          sibling, so exactly one is true at any time. Commons is a
+          Each group sits under a `Stack.Protected` guard (Expo Router 58
+          removed `Stack.Screen redirect`); a guarded-off route sends the
+          navigator to the first reachable sibling, and exactly one of
+          the two guards is true at any time. Commons is a
           NATIVE-ONLY app (iOS/Android — see `platforms` in app.json):
           `(auth)/index.tsx` is the create-identity welcome (Hello Human)
           and there is no web build, because the key vault never leaves the
           device.
         */}
-        <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
+        <Stack.Protected guard={!needsAuth}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={needsAuth}>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        </Stack.Protected>
         {/*
           The QR scanner is an ACTION, not a tab. It lives at the root as a
           full-screen presented modal (pushed from the ID landing FAB via
           `router.push('/(scan)')`) so the CameraView covers the tab bar. It
           holds the camera (`index`) + the real-life attestation confirmation
-          (`attest`). Guarded by the same `needsAuth` redirect as `(tabs)`:
+          (`attest`). Guarded by the same `needsAuth` guard as `(tabs)`:
           only an authenticated user can open it, and an unauthenticated
           `oxycommons://attest` deep link is bounced to onboarding.
         */}
-        <Stack.Screen
-          name="(scan)"
-          redirect={needsAuth}
-          options={{ headerShown: false, presentation: 'fullScreenModal' }}
-        />
+        <Stack.Protected guard={!needsAuth}>
+          <Stack.Screen
+            name="(scan)"
+            options={{ headerShown: false, presentation: 'fullScreenModal' }}
+          />
+        </Stack.Protected>
         {/*
           "Sign in with Oxy" approval — a Bloom bottom sheet. Registered at
           the ROOT (not inside `(scan)`) as a TRANSPARENT modal so the sheet
@@ -567,11 +574,12 @@ function AppStackContent() {
           bounced to onboarding (and the cold-start replay above re-navigates
           here once the gate settles to an authenticated device).
         */}
-        <Stack.Screen
-          name="approve"
-          redirect={needsAuth}
-          options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }}
-        />
+        <Stack.Protected guard={!needsAuth}>
+          <Stack.Screen
+            name="approve"
+            options={{ headerShown: false, presentation: 'transparentModal', animation: 'none' }}
+          />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

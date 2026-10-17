@@ -34,6 +34,10 @@ module.exports = {
     scheme: ['commons', 'oxycommons'],
     userInterfaceStyle: 'automatic',
     platforms: ['ios', 'android'],
+    // Native-only, but Expo Router 58 defaults an unset `web.output` to
+    // "server", which `expo export` (EAS Update bundles included) acts on.
+    // Pin the pre-58 single-page value so nothing server-side is attempted.
+    web: { output: 'single' },
     android: {
       adaptiveIcon: {
         backgroundColor: '#000000',

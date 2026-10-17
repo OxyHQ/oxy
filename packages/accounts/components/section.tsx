@@ -3,8 +3,6 @@ import {
   View,
   StyleSheet,
   Platform,
-  type Falsy,
-  type RecursiveArray,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
@@ -17,6 +15,11 @@ import { ThemedText } from './themed-text';
  * them, or a falsy value. This is what we can actually introspect for the
  * sectionSubtitle heuristic — registered StyleSheet ids are opaque numbers.
  */
+// react-native 0.88's strict API no longer exports its `Falsy` and
+// `RecursiveArray` helpers; these are the same shapes.
+type Falsy = undefined | null | false | '' | 0;
+type RecursiveArray<T> = ReadonlyArray<T | RecursiveArray<T>>;
+
 type InspectableStyle =
   | TextStyle
   | Falsy
