@@ -665,9 +665,8 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "11.14.0",
+      "version": "11.14.1",
       "dependencies": {
-        "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",
         "color": "^5.0.3",
@@ -981,7 +980,6 @@
   },
   "catalog": {
     "@expo/app-integrity": "~58.0.2",
-    "@expo/config-plugins": "58.0.9",
     "@hugeicons/core-free-icons": "^3.3.0",
     "@lottiefiles/dotlottie-react": "^0.19.9",
     "@noble/curves": "^1.9.7",

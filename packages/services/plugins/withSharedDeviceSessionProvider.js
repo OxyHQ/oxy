@@ -18,7 +18,8 @@
  * WHICH APPS USE THIS PLUGIN: exactly the apps whose authorities are listed in
  * `HOST_AUTHORITIES` of `OxyDeviceSessionModule.kt` (a test compares them).
  */
-const { withAndroidManifest } = require('@expo/config-plugins');
+// The app's own Expo SDK copy, never one this package ships (Expo's guidance for library plugins).
+const { withAndroidManifest } = require('expo/config-plugins');
 
 const DEVICE_SESSION_PERMISSION = 'so.oxy.permission.DEVICE_SESSION';
 const PROVIDER_CLASS = 'so.oxy.devicesession.OxyDeviceSessionProvider';
