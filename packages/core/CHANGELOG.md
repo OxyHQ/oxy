@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## 5.4.0
+
+Needs the Oxy API with migration `0183_reconcile_commit_lease`; an older API
+refuses the commit with 400. Same `@oxy.so/contracts`.
+
+### Fixed
+
+- `server.assets.references.reconcile` no longer fails a large entity type with
+  `HTTP 0 TIMEOUT`: the commit asks Oxy to run in the background and the SDK
+  polls the outcome (up to an hour), and each page has a 30-second budget. A
+  commit that failed in Oxy rejects with `RECONCILIATION_COMMIT_FAILED`.
+- A dry run releases its session. It used to stay open for an hour, so the
+  entity type's next reconciliation was refused with 409
+  `RECONCILIATION_IN_PROGRESS`.
+
 ## 5.3.0
 
 Needs the Oxy API with migration `0182_play_session_renditions` (a rendition

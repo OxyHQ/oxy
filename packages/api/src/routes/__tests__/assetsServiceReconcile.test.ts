@@ -11,7 +11,9 @@
  * the session began, and removal never trashes; `dryRun` changes nothing and
  * leaves the session open; one open session per (application, entity type);
  * an expired session answers 410 and frees its slot; another application's
- * session is a 404.
+ * session is a 404. A `background` commit runs under a lease: it is read back
+ * with GET, a failed one is `open` with its error and can be committed again,
+ * and one whose task died is resumed by the worker.
  */
 
 import express from 'express';
@@ -63,6 +65,11 @@ import {
   users,
 } from '../../db/schema';
 import assetsRouter from '../assets';
+import * as fileRepository from '../../services/fileRepository';
+import {
+  resumeStalledReconciliationCommits,
+  startReconciliationCommit,
+} from '../../services/fileReferenceReconciliation.service';
 import { errorHandler } from '../../middleware/errorHandler';
 import fileCache from '../../utils/fileCache';
 
@@ -451,5 +458,152 @@ describe('reconciliation: sessions', () => {
         })
       ).status,
     ).toBe(400);
+  });
+});
+
+describe('reconciliation: a commit that outlasts its request', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  async function session(appId: string) {
+    const [row] = await getDb()
+      .select()
+      .from(fileReferenceReconciliations)
+      .where(eq(fileReferenceReconciliations.applicationId, appId));
+    return row;
+  }
+
+  async function settled(appId: string, sessionId: string) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const read = await json('GET', `/assets/service/references/reconcile/${sessionId}`, {});
+      expect(read.status).toBe(200);
+      if (read.body.data.status !== 'committing') return read.body.data;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`session ${sessionId} of ${appId} never settled`);
+  }
+
+  it('a background commit done within the wait answers 200 with its counts', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const own = await file({ ownerApplicationId: appId });
+    const { sessionId } = (await begin(type)).body.data;
+    await put(sessionId, [{ fileId: own, entityId: 'a' }]);
+
+    const res = await json('POST', `/assets/service/references/reconcile/${sessionId}/commit`, {
+      background: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      sessionId,
+      entityType: type,
+      dryRun: false,
+      added: 1,
+      removed: 0,
+      unchanged: 0,
+      refused: 0,
+    });
+    expect(await referencesFor(appId, type)).toEqual([`${own}/a`]);
+  });
+
+  it('hands off a commit still running and GET reads its outcome; a dry run settles open', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const own = await file({ ownerApplicationId: appId });
+    const { sessionId } = (await begin(type)).body.data;
+    await put(sessionId, [{ fileId: own, entityId: 'a' }]);
+
+    const dry = await startReconciliationCommit(appId, sessionId, { dryRun: true, waitMs: 0 });
+    expect(dry).toEqual({ pending: true, sessionId, entityType: type, dryRun: true });
+    expect(await settled(appId, sessionId)).toMatchObject({
+      status: 'open',
+      dryRun: null,
+      error: null,
+      result: { dryRun: true, added: 1, removed: 0, unchanged: 0, refused: 0 },
+    });
+    expect(await referencesFor(appId, type)).toEqual([]);
+
+    expect((await startReconciliationCommit(appId, sessionId, { waitMs: 0 })).pending).toBe(true);
+    expect(await settled(appId, sessionId)).toMatchObject({
+      status: 'committed',
+      result: { dryRun: false, added: 1 },
+    });
+    expect(await referencesFor(appId, type)).toEqual([`${own}/a`]);
+    // The committed session's items are gone and its lease released.
+    expect(await session(appId)).toMatchObject({ leaseExpiresAt: null, commitDryRun: null });
+  });
+
+  it('a failed commit is open with its error, and the next commit succeeds', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const own = await file({ ownerApplicationId: appId });
+    const { sessionId } = (await begin(type)).body.data;
+    await put(sessionId, [{ fileId: own, entityId: 'a' }]);
+    jest
+      .spyOn(fileRepository, 'findFilesByIds')
+      .mockRejectedValueOnce(new Error('connection reset'));
+
+    const failed = await json('POST', `/assets/service/references/reconcile/${sessionId}/commit`, {
+      background: true,
+    });
+
+    expect(failed.status).toBe(500);
+    expect(await settled(appId, sessionId)).toMatchObject({
+      status: 'open',
+      result: null,
+      error: { code: 'RECONCILIATION_COMMIT_FAILED' },
+    });
+    const again = await commit(sessionId);
+    expect(again.body.data).toMatchObject({ added: 1 });
+    expect((await settled(appId, sessionId)).error).toBeNull();
+  });
+
+  it('the worker resumes a commit whose task died, and leaves a live one alone', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const own = await file({ ownerApplicationId: appId });
+    const { sessionId } = (await begin(type)).body.data;
+    await put(sessionId, [{ fileId: own, entityId: 'a' }]);
+    // A commit claimed by a task that died: `committing`, its lease passed.
+    await getDb()
+      .update(fileReferenceReconciliations)
+      .set({
+        status: 'committing',
+        commitDryRun: false,
+        leaseExpiresAt: sql`now() + interval '1 minute'`,
+      })
+      .where(eq(fileReferenceReconciliations.id, sessionId));
+
+    await resumeStalledReconciliationCommits(100);
+    expect((await session(appId)).status).toBe('committing');
+
+    await getDb()
+      .update(fileReferenceReconciliations)
+      .set({ leaseExpiresAt: sql`now() - interval '1 second'` })
+      .where(eq(fileReferenceReconciliations.id, sessionId));
+    await resumeStalledReconciliationCommits(100);
+
+    expect(await settled(appId, sessionId)).toMatchObject({
+      status: 'committed',
+      result: { added: 1 },
+    });
+    expect(await referencesFor(appId, type)).toEqual([`${own}/a`]);
+  });
+
+  it('a page with an id longer than any file id is accepted, and the pair refused', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const { sessionId } = (await begin(type)).body.data;
+    const notAFile = `cache/thumb/${'a'.repeat(32)}/${'b'.repeat(40)}`;
+
+    expect((await put(sessionId, [{ fileId: notAFile, entityId: 'a' }])).status).toBe(200);
+    expect((await commit(sessionId)).body.data).toMatchObject({ added: 0, refused: 1 });
   });
 });

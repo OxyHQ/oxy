@@ -275,10 +275,13 @@ describe('OxyServer.assets.references.reconcile — an inventory of one entity t
     expect(calls.at(-1)).toEqual({
       method: 'POST',
       url: '/assets/service/references/reconcile/session-1/commit',
-      body: { dryRun: false },
+      body: { dryRun: false, background: true },
     });
     // The begin is never retried: a retry of one that succeeded would 409 on itself.
     expect(spy.mock.calls[0][3].retry).toBe(false);
+    // A page and the commit each get a budget above the default request's.
+    expect(spy.mock.calls.find(([method]) => method === 'PUT')?.[3].timeout).toBe(30_000);
+    expect(spy.mock.calls.at(-1)?.[3]).toMatchObject({ retry: false, timeout: 30_000 });
   });
 
   it('passes dryRun and sends only fileId and entityId', async () => {
@@ -289,7 +292,118 @@ describe('OxyServer.assets.references.reconcile — an inventory of one entity t
 
     const put = spy.mock.calls.find(([method]) => method === 'PUT');
     expect(put?.[2]).toEqual({ items: [pair(1)] });
-    expect(spy.mock.calls.at(-1)?.[2]).toEqual({ dryRun: true });
+    const commitCall = spy.mock.calls.find(([, url]) => String(url).endsWith('/commit'));
+    expect(commitCall?.[2]).toEqual({ dryRun: true, background: true });
+  });
+
+  it('releases the session after a dry run, so the next reconciliation can begin', async () => {
+    const { oxy, spy } = stubServer();
+
+    await oxy.assets.references.reconcile('listing', [pair(1)], { dryRun: true });
+
+    expect(spy.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+      'DELETE',
+      '/assets/service/references/reconcile/session-1',
+    ]);
+  });
+
+  it('does not release after a real commit (Oxy has closed it)', async () => {
+    const { oxy, spy } = stubServer();
+
+    await oxy.assets.references.reconcile('listing', [pair(1)]);
+
+    expect(spy.mock.calls.some(([method]) => method === 'DELETE')).toBe(false);
+  });
+
+  describe('a commit Oxy runs in the background', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function stubBackground(states: object[]) {
+      const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+      const spy = jest
+        .spyOn(oxy, 'serviceRequest')
+        .mockImplementation(async (method: string, url: string) => {
+          if (method === 'POST' && url === '/assets/service/references/reconcile') {
+            return { sessionId: 'session-1', entityType: 'listing', expiresAt: 'x' };
+          }
+          if (method === 'POST' && url.endsWith('/commit')) {
+            return {
+              sessionId: 'session-1',
+              entityType: 'listing',
+              dryRun: false,
+              status: 'committing',
+            };
+          }
+          if (method === 'GET') return states.shift();
+          return { accepted: 0, total: 0 };
+        });
+      return { oxy, spy };
+    }
+
+    const committing = {
+      sessionId: 'session-1',
+      entityType: 'listing',
+      status: 'committing',
+      result: null,
+      error: null,
+    };
+
+    it('polls GET until it settles, and resolves to its counts', async () => {
+      const { oxy, spy } = stubBackground([
+        committing,
+        {
+          ...committing,
+          status: 'committed',
+          result: { dryRun: false, added: 4, removed: 1, unchanged: 2, refused: 0 },
+        },
+      ]);
+
+      const pending = oxy.assets.references.reconcile('listing', [pair(1)]);
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      await expect(pending).resolves.toEqual({
+        sessionId: 'session-1',
+        entityType: 'listing',
+        dryRun: false,
+        added: 4,
+        removed: 1,
+        unchanged: 2,
+        refused: 0,
+      });
+      expect(spy.mock.calls.filter(([method]) => method === 'GET')).toHaveLength(2);
+      expect(spy.mock.calls.filter(([method]) => method === 'GET')[0][1]).toBe(
+        '/assets/service/references/reconcile/session-1',
+      );
+    });
+
+    it('rejects with the code of a commit that failed, and releases the session', async () => {
+      const { oxy, spy } = stubBackground([
+        {
+          ...committing,
+          status: 'open',
+          error: {
+            code: 'RECONCILIATION_COMMIT_FAILED',
+            message: 'The commit failed; commit again',
+          },
+        },
+      ]);
+
+      const pending = oxy.assets.references.reconcile('listing', [pair(1)]);
+      const assertion = expect(pending).rejects.toMatchObject({
+        code: 'RECONCILIATION_COMMIT_FAILED',
+      });
+      await jest.advanceTimersByTimeAsync(5_000);
+      await assertion;
+      expect(spy.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+        'DELETE',
+        '/assets/service/references/reconcile/session-1',
+      ]);
+    });
   });
 
   it('releases the session when the inventory fails, then rethrows', async () => {

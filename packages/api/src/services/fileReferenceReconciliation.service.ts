@@ -31,7 +31,7 @@
  * open, so the real commit can follow.
  */
 
-import { and, asc, count, eq, exists, gt, lte, not, sql } from 'drizzle-orm';
+import { and, asc, count, eq, exists, gt, lt, lte, not, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
   type FileReferenceReconciliationCounts,
@@ -331,23 +331,57 @@ async function countUnchanged(session: ReconcileSession): Promise<number> {
   return row?.total ?? 0;
 }
 
+/** A running commit's lease: renewed after every batch, on the database's clock. */
+export const COMMIT_LEASE_SECONDS = 120;
+/** How long a `background` commit request waits for the commit before answering 202. */
+export const COMMIT_HANDOFF_WAIT_MS = 10_000;
+
+const leaseDeadline = () => sql`now() + make_interval(secs => ${COMMIT_LEASE_SECONDS})`;
+
+/** The running commit lost its lease to another task (it was presumed dead); it stops. */
+class CommitLeaseLost extends Error {
+  constructor(sessionId: string) {
+    super(`Reconciliation ${sessionId} lost its commit lease`);
+  }
+}
+
+/** What a client reads back about its session (`GET …/reconcile/:sessionId`). */
+export interface ReconcileSessionState {
+  sessionId: string;
+  entityType: string;
+  status: ReconcileSession['status'];
+  itemCount: number;
+  expiresAt: Date;
+  /** While `committing`: whether the running commit is a dry run. */
+  dryRun: boolean | null;
+  /** The last commit's counts — a dry run's leaves the session `open`. */
+  result: (FileReferenceReconciliationCounts & { dryRun: boolean }) | null;
+  /** Why the last commit failed; it can be committed again. */
+  error: { code: string; message: string } | null;
+}
+
 /**
- * Diff the inventory against the stored references and — unless `dryRun` —
- * apply it. One commit at a time per session (`open` → `committing`); a
- * failure puts it back to `open`, so the commit can be retried (every step is
- * idempotent: the diff is recomputed).
+ * Claim the session for a commit: `open` → `committing`, under a fresh lease,
+ * with the last commit's result and error cleared. 404/410/409 as every
+ * session route.
  */
-export async function commitReconciliation(
+async function claimCommit(
   applicationId: string,
   sessionId: string,
-  options: { dryRun?: boolean } = {},
-  now: Date = new Date(),
-): Promise<ReconcileCommitResult> {
-  const dryRun = options.dryRun === true;
+  dryRun: boolean,
+  now: Date,
+): Promise<ReconcileSession> {
   await openSession(applicationId, sessionId, now);
   const [session] = await getDb()
     .update(fileReferenceReconciliations)
-    .set({ status: 'committing', expiresAt: new Date(now.getTime() + RECONCILE_SESSION_TTL_MS) })
+    .set({
+      status: 'committing',
+      expiresAt: new Date(now.getTime() + RECONCILE_SESSION_TTL_MS),
+      leaseExpiresAt: leaseDeadline(),
+      commitDryRun: dryRun,
+      commitError: null,
+      result: null,
+    })
     .where(
       and(
         eq(fileReferenceReconciliations.id, sessionId),
@@ -360,7 +394,39 @@ export async function commitReconciliation(
   if (!session) {
     throw new ApiError(409, 'Reconciliation session is no longer open', 'RECONCILIATION_NOT_OPEN');
   }
+  return session;
+}
 
+/** Renew the lease after a batch; a session no longer ours stops the commit. */
+async function renewLease(sessionId: string): Promise<void> {
+  const [renewed] = await getDb()
+    .update(fileReferenceReconciliations)
+    .set({
+      leaseExpiresAt: leaseDeadline(),
+      expiresAt: sql`greatest(${fileReferenceReconciliations.expiresAt}, now() + make_interval(secs => ${RECONCILE_SESSION_TTL_MS / 1000}))`,
+    })
+    .where(
+      and(
+        eq(fileReferenceReconciliations.id, sessionId),
+        eq(fileReferenceReconciliations.status, 'committing'),
+      ),
+    )
+    .returning({ id: fileReferenceReconciliations.id });
+  if (!renewed) throw new CommitLeaseLost(sessionId);
+}
+
+/**
+ * Diff the claimed session's inventory against the stored references and —
+ * unless it is a dry run — apply it, renewing the lease after every batch.
+ * On success a dry run leaves the session `open` (the real commit can follow)
+ * and a real one `committed`; on failure it is `open` again with
+ * `commit_error`, and can be committed again — every step is idempotent: the
+ * diff is recomputed, and what a failed attempt added is a reference created
+ * after `begin`, which no attempt removes.
+ */
+async function runCommit(session: ReconcileSession): Promise<ReconcileCommitResult> {
+  const { id: sessionId, applicationId } = session;
+  const dryRun = session.commitDryRun === true;
   const counts: FileReferenceReconciliationCounts = {
     added: 0,
     removed: 0,
@@ -369,11 +435,13 @@ export async function commitReconciliation(
   };
   try {
     counts.unchanged = await countUnchanged(session);
+    await renewLease(sessionId);
 
     // Removals first: they read the inventory against references created
     // before `begin`, which the additions below never are.
     for await (const ids of stalePairs(session)) {
       counts.removed += dryRun ? ids.length : (await deleteFileReferencesByIds(ids)).length;
+      await renewLease(sessionId);
     }
 
     for await (const page of missingPairs(session)) {
@@ -390,45 +458,62 @@ export async function commitReconciliation(
       counts.refused += page.length - allowed.length;
       if (dryRun) {
         counts.added += allowed.length;
-        continue;
+      } else {
+        const result = await addFileReferences(
+          allowed.map((pair) => ({
+            fileId: pair.fileId,
+            applicationId,
+            entityType: session.entityType,
+            entityId: pair.entityId,
+            createdByUserId: null,
+          })),
+        );
+        counts.added += result.created;
+        // A file of its own that a reference brought back from trash is served again.
+        for (const fileId of result.restoredFileIds) {
+          const [restored] = await findFilesByIds([fileId]);
+          if (restored) await assetService.enterServing(restored);
+        }
       }
-      const result = await addFileReferences(
-        allowed.map((pair) => ({
-          fileId: pair.fileId,
-          applicationId,
-          entityType: session.entityType,
-          entityId: pair.entityId,
-          createdByUserId: null,
-        })),
-      );
-      counts.added += result.created;
-      // A file of its own that a reference brought back from trash is served again.
-      for (const fileId of result.restoredFileIds) {
-        const [restored] = await findFilesByIds([fileId]);
-        if (restored) await assetService.enterServing(restored);
-      }
+      await renewLease(sessionId);
     }
   } catch (error) {
-    await getDb()
-      .update(fileReferenceReconciliations)
-      .set({ status: 'open' })
-      .where(
-        and(
-          eq(fileReferenceReconciliations.id, sessionId),
-          eq(fileReferenceReconciliations.status, 'committing'),
-        ),
-      );
+    if (!(error instanceof CommitLeaseLost)) {
+      await getDb()
+        .update(fileReferenceReconciliations)
+        .set({
+          status: 'open',
+          leaseExpiresAt: null,
+          commitDryRun: null,
+          commitError: 'The commit failed; commit again',
+        })
+        .where(
+          and(
+            eq(fileReferenceReconciliations.id, sessionId),
+            eq(fileReferenceReconciliations.status, 'committing'),
+          ),
+        );
+    }
     throw error;
   }
 
-  await getDb()
+  const [finished] = await getDb()
     .update(fileReferenceReconciliations)
     .set({
       status: dryRun ? 'open' : 'committed',
-      ...(dryRun ? {} : { committedAt: now }),
+      ...(dryRun ? {} : { committedAt: new Date() }),
       result: { ...counts, dryRun },
+      leaseExpiresAt: null,
+      commitDryRun: null,
     })
-    .where(eq(fileReferenceReconciliations.id, sessionId));
+    .where(
+      and(
+        eq(fileReferenceReconciliations.id, sessionId),
+        eq(fileReferenceReconciliations.status, 'committing'),
+      ),
+    )
+    .returning({ id: fileReferenceReconciliations.id });
+  if (!finished) throw new CommitLeaseLost(sessionId);
   if (!dryRun) {
     // The bulk of a session; the row itself stays as the record until expiry.
     await getDb()
@@ -444,4 +529,141 @@ export async function commitReconciliation(
     ...counts,
   });
   return { sessionId, entityType: session.entityType, dryRun, ...counts };
+}
+
+/** {@link runCommit} for a task nobody awaits: a failure is recorded on the row and logged. */
+function runCommitDetached(session: ReconcileSession): Promise<ReconcileCommitResult | null> {
+  return runCommit(session).catch((error: unknown) => {
+    if (error instanceof CommitLeaseLost) {
+      logger.warn('Reference reconciliation commit lost its lease', { sessionId: session.id });
+    } else {
+      logger.error(
+        'Reference reconciliation commit failed',
+        error instanceof Error ? error : new Error(String(error)),
+        { sessionId: session.id, entityType: session.entityType },
+      );
+    }
+    return null;
+  });
+}
+
+/**
+ * Commit and wait for it, however long it takes: the answer of a client that
+ * does not ask for a `background` commit (every SDK before core 5.4.0). One
+ * commit at a time per session (`open` → `committing`).
+ */
+export async function commitReconciliation(
+  applicationId: string,
+  sessionId: string,
+  options: { dryRun?: boolean } = {},
+  now: Date = new Date(),
+): Promise<ReconcileCommitResult> {
+  const session = await claimCommit(applicationId, sessionId, options.dryRun === true, now);
+  return runCommit(session);
+}
+
+/**
+ * Start the commit and wait at most `waitMs` for it: its result, or `pending`
+ * when it is still running — it goes on in this task under its lease, and the
+ * client reads the outcome back with {@link getReconciliation}. A task that
+ * dies mid-commit stops renewing the lease, and
+ * {@link resumeStalledReconciliationCommits} picks the commit up again.
+ */
+export async function startReconciliationCommit(
+  applicationId: string,
+  sessionId: string,
+  options: { dryRun?: boolean; waitMs?: number } = {},
+  now: Date = new Date(),
+): Promise<
+  | { pending: false; result: ReconcileCommitResult }
+  | { pending: true; sessionId: string; entityType: string; dryRun: boolean }
+> {
+  const dryRun = options.dryRun === true;
+  const session = await claimCommit(applicationId, sessionId, dryRun, now);
+  const running = runCommitDetached(session);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const handedOff = new Promise<'pending'>((resolve) => {
+    timer = setTimeout(() => resolve('pending'), options.waitMs ?? COMMIT_HANDOFF_WAIT_MS);
+  });
+  try {
+    const outcome = await Promise.race([running, handedOff]);
+    if (outcome !== 'pending' && outcome !== null) return { pending: false, result: outcome };
+    if (outcome === null) {
+      // It failed within the wait: answer as the waiting route would.
+      throw new ApiError(500, 'The commit failed; commit again', 'RECONCILIATION_COMMIT_FAILED');
+    }
+    return { pending: true, sessionId, entityType: session.entityType, dryRun };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The session as its application reads it back; 404 for another's or none. */
+export async function getReconciliation(
+  applicationId: string,
+  sessionId: string,
+): Promise<ReconcileSessionState> {
+  const [session] = await getDb()
+    .select()
+    .from(fileReferenceReconciliations)
+    .where(
+      and(
+        eq(fileReferenceReconciliations.id, sessionId),
+        eq(fileReferenceReconciliations.applicationId, applicationId),
+      ),
+    )
+    .limit(1);
+  if (!session) throw notFound();
+  return {
+    sessionId: session.id,
+    entityType: session.entityType,
+    status: session.status,
+    itemCount: session.itemCount,
+    expiresAt: session.expiresAt,
+    dryRun: session.status === 'committing' ? session.commitDryRun === true : null,
+    result: session.result ?? null,
+    error: session.commitError
+      ? { code: 'RECONCILIATION_COMMIT_FAILED', message: session.commitError }
+      : null,
+  };
+}
+
+/**
+ * The worker's pass: take over each commit whose lease passed (its task died,
+ * e.g. in a deploy) and run it to the end. Bounded; the conditional claim
+ * makes it safe on every task at once.
+ */
+export async function resumeStalledReconciliationCommits(limit = 5): Promise<number> {
+  const stalled = await getDb()
+    .select({ id: fileReferenceReconciliations.id })
+    .from(fileReferenceReconciliations)
+    .where(
+      and(
+        eq(fileReferenceReconciliations.status, 'committing'),
+        lt(fileReferenceReconciliations.leaseExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(limit);
+  let resumed = 0;
+  for (const { id } of stalled) {
+    const [session] = await getDb()
+      .update(fileReferenceReconciliations)
+      .set({ leaseExpiresAt: leaseDeadline() })
+      .where(
+        and(
+          eq(fileReferenceReconciliations.id, id),
+          eq(fileReferenceReconciliations.status, 'committing'),
+          lt(fileReferenceReconciliations.leaseExpiresAt, sql`now()`),
+        ),
+      )
+      .returning();
+    if (!session) continue;
+    logger.warn('Resuming a reference reconciliation commit whose task died', {
+      sessionId: id,
+      entityType: session.entityType,
+    });
+    await runCommitDetached(session);
+    resumed += 1;
+  }
+  return resumed;
 }
