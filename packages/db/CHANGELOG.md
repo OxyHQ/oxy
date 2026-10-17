@@ -2,6 +2,17 @@
 
 ## 1.3.0
 
+### Fix: 1.2.0 silently skipped a migration whose journal `when` goes backwards
+
+**Do not run 1.2.0 against a journal whose `when` values are not strictly
+increasing** (two branches generate migrations; the one generated first merges
+second). 1.2.0 applies one migration per transaction, and drizzle applies only
+entries newer than the newest recorded `created_at` — so the out-of-order entry
+was stepped over, and the run still logged `Applied N` because the post-apply
+check compared against the high-water mark. 1.3.0 applies such entries together
+in one transaction and re-checks the ledger by membership, so a skipped entry
+fails the run. Check a journal with: every `entries[i].when` > every earlier one.
+
 ### The migration lock gate ships with the package: `oxy-db-check-migration-locks`
 
 1.2.0 bounds a lock to one migration; the gate that keeps that one migration
