@@ -54,8 +54,14 @@ import {
 
 /** A session's sliding deadline: each accepted page moves it this far ahead. */
 export const RECONCILE_SESSION_TTL_MS = 60 * 60 * 1000;
-/** Distinct pairs one session may hold. */
-export const MAX_RECONCILE_ITEMS = 500_000;
+/**
+ * Distinct pairs one session may hold. It was 500,000 while a commit had to fit
+ * in a request; a commit now runs under a lease however long it takes, so the
+ * bound is the inventory itself — a few million uses of one entity type (Homiio
+ * holds ~2 million listing photos in `property`). Pages slide the deadline,
+ * so an upload of this size (~5,000 pages at an SDK's pace) never expires.
+ */
+export const MAX_RECONCILE_ITEMS = 5_000_000;
 /** Rows read, checked and written per step of a commit. */
 const COMMIT_BATCH = 500;
 
