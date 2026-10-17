@@ -921,6 +921,19 @@ export const SEED_APPS: SeedAppSpec[] = [
     //   its internal MCP to Alia, re-authorising and auditing each ticket
     //   (`capabilities:read`, `capability-audit:write`). Its public OAuth MCP is
     //   mcp.clarity.surf.
+    // - ADR 0043 (OxyHQ/Clarity#118): the crawler's document images, employer
+    //   logos and favicons are files the CLARITY BACKEND APPLICATION owns —
+    //   imported by URL or uploaded as rendered bytes (`files:app:write`, which
+    //   also polls a pending import; Oxy's own, so not metered, D2) — and every
+    //   search document, job posting and host that shows one references it
+    //   (`files:references:write`, D4, including the import's inline reference
+    //   and the reconcile), so a takedown reaches Clarity (D9) and an image
+    //   nothing shows is collected (D5). Clarity serves them by public URL and
+    //   never reads metadata back (`files:read`) or deletes a file itself
+    //   (`files:app:delete`): Oxy's lifecycle does. Both are SERVICE-token
+    //   scopes, and Clarity mints its declared-tuple token as an exact subset
+    //   (oxy #1718), so they reach only its Oxy Files adapter. The
+    //   `oxy-clarity-task` workload binding must name them too.
     id: CLARITY_BACKEND_APPLICATION_ID,
     name: 'Clarity Backend',
     description: "Clarity's backend: search, Experience and its capability catalogue.",
@@ -935,6 +948,8 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      'files:app:write',
+      'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('clarity')],
     ownerAccountUsername: CLARITY_OWNER_ACCOUNT_USERNAME,

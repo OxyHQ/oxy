@@ -780,10 +780,12 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   `files:read`, `files:references:write`; Syra, Alia and Homiio `files:read`,
   `files:app:write`, `files:app:delete`, `files:references:write`,
   `files:user-media:write`; the Oxy website the first four. Mercaria's and
-  GoWay's were already there. Clarity is not a seed application — the native
-  product-agent bootstrap reconciles its two applications byte for byte — so
-  its backend declares `fileScopes`, which the bootstrap grants as a reviewed
-  addition to the row and its live workload binding. Every seeded application
+  GoWay's were already there. Clarity Backend `files:app:write` and
+  `files:references:write` (OxyHQ/Clarity#118 reads no metadata back and
+  deletes nothing itself): the native product-agent bootstrap that once
+  reconciled Clarity's applications is retired (ADR 0042, #1761), so the seed
+  declares them, and its `oxy-clarity-task` workload binding names them
+  by hand. Every seeded application
   is `first_party` or `internal`, which `isTrustedApplication` turns into
   internal-tier service tokens; a census pins each adopting application's exact
   `files:*` set and tier.
@@ -1177,12 +1179,14 @@ adds. In order; each step names how to know it worked before the next.
    runs the new image — done with 1–4b. *Verify:* `file_links` is gone.
 5. **Seed**: `DRY_RUN=1 bun run --cwd packages/api seed:oxy-applications`, read
    the plan, then without `DRY_RUN` — the file scopes of D11 for every adopting
-   product, and `files:linked:read` for Syra, Alia and Homiio (stage 4c). Then
-   the native product-agent bootstrap for Clarity (dry-run, review
-   `planSha256`, apply), which grants its backend the file scopes. Re-bind the
-   workload identities that must reach new scopes (Homiio's `oxy-homiio-task`;
-   Alia's if it authenticates by workload). *Verify:* `GET /applications/:id`
-   of each lists the scopes; a service token minted for each carries them.
+   product, and `files:linked:read` for Syra, Alia and Homiio (stage 4c). For
+   Clarity, seed Clarity Backend's file scopes (`files:app:write`,
+   `files:references:write`), then name them on the `oxy-clarity-task`
+   workload binding (the native product-agent bootstrap that used to grant
+   them is retired, ADR 0042). Re-bind the other workload identities that
+   must reach new scopes (Homiio's `oxy-homiio-task`; Alia's if it
+   authenticates by workload). *Verify:* `GET /applications/:id` of each
+   lists the scopes; a service token minted for each carries them.
 6. **Grants**: give `content:claims` (with `is_staff`) to the people who review
    claims; make sure `legal@oxy.so` (or `CONTENT_CLAIM_STAFF_EMAIL`) reaches
    them. *Verify:* the console shows "Content claims" to them and
