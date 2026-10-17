@@ -84,8 +84,12 @@
       ]
     }
   },
+  "bin": {
+    "oxy-db-check-migration-locks": "bin/check-migration-locks.mjs"
+  },
   "files": [
     "NOTICE",
+    "bin",
     "dist",
     "!dist/**/*.tsbuildinfo",
     "src",

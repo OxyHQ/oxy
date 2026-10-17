@@ -1,5 +1,30 @@
 # Changelog: `@oxy.so/db`
 
+## Unreleased
+
+### `oxy-db-check-migration-locks`: the migration lock gate for every app
+
+The lock gate oxy-api runs in CI (oxy#1778) is now part of the package, so
+every Oxy backend holds its migrations to the same rules instead of copying a
+script:
+
+```sh
+oxy-db-check-migration-locks --folder <drizzle dir> --baseline <N> [--hot-tables a,b|'*']
+```
+
+Migrations numbered after `N` must not validate a foreign key onto an existing
+table in place, must not run a backfill or index build while holding an ACCESS
+EXCLUSIVE lock on a hot table, must build hot-table indexes behind
+`IF NOT EXISTS` (built `CONCURRENTLY` out of band), and must carry legible
+`-- oxy:statement-timeout=` markers. `--hot-tables` defaults to `*` (every
+table). A reviewed exception says why in its own file:
+`-- oxy:lock-review=<reason>`. Exit 1 lists the problems; exit 2 is bad usage.
+The bin needs only Node and this package (run it after install).
+
+The same rules are exported from `@oxy.so/db/migrate` as `checkMigrationLocks`
+and `migrationLockProblems`; oxy-api's `scripts/check-migration-locks.mjs` now
+calls them with its own hot-table list.
+
 ## 1.2.0
 
 ### `runMigrations` commits each migration on its own, under `lock_timeout`

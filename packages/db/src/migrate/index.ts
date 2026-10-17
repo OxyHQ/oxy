@@ -63,3 +63,12 @@ export {
   statementTimeoutMarkerLine,
   type MigrationTimeoutReadResult,
 } from './locks';
+export {
+  ALL_TABLES_HOT,
+  LOCK_REVIEW_WAIVER,
+  checkMigrationLocks,
+  migrationLockProblems,
+  type CheckMigrationLocksOptions,
+  type CheckMigrationLocksResult,
+  type HotTables,
+} from './lockGate';
