@@ -17,7 +17,7 @@
     "smoke:csp": "bun run scripts/smoke-csp.ts"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^15.8.0",
+    "@alia.onl/sdk": "^21.3.0",
     "@expo/vector-icons": "^15.1.1",
     "@lottiefiles/dotlottie-react": "catalog:",
     "@oxy.so/app-preset": "workspace:*",
@@ -49,6 +49,7 @@
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
     "expo-image-manipulator": "catalog:",
+    "expo-image-picker": "~58.0.10",
     "expo-linear-gradient": "catalog:",
     "expo-linking": "catalog:",
     "expo-local-authentication": "catalog:",

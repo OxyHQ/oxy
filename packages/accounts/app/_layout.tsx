@@ -21,6 +21,7 @@ import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 
+import { AccountsAskProvider } from '@/components/ask-alia';
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -158,27 +159,30 @@ function RootLayoutInner() {
           >
             <AppImageResolver>
               <LocaleProvider>
-                {/* Native Bloom surfaces (AliaChatSheet's BottomSheet) render only
-                    through this provider/outlet pair; the outlet sits AFTER the
-                    content it paints over and the boundary wraps everything else. */}
+                {/* Native Bloom surfaces (Alia's sheet) render only through this
+                    provider/outlet pair; the outlet sits AFTER the content it paints
+                    over and the boundary wraps everything else. Alia's one sheet sits
+                    beside the inert boundary, not in it, and portals into the outlet. */}
                 <PortalProvider>
-                  <OverlayInertBoundary>
-                    <AppHead />
-                    {!appIsReady ? (
-                      // WEB: the custom splash covers init and fades out; its
-                      // `onFadeComplete` gates `appIsReady`. NATIVE renders null
-                      // here — the held OS splash is on top, so nothing underneath
-                      // needs to paint.
-                      Platform.OS === 'web' ? (
-                        <AppSplashScreen
-                          startFade={startFade}
-                          onFadeComplete={handleSplashFadeComplete}
-                        />
-                      ) : null
-                    ) : (
-                      <AppStackContent />
-                    )}
-                  </OverlayInertBoundary>
+                  <AccountsAskProvider>
+                    <OverlayInertBoundary>
+                      <AppHead />
+                      {!appIsReady ? (
+                        // WEB: the custom splash covers init and fades out; its
+                        // `onFadeComplete` gates `appIsReady`. NATIVE renders null
+                        // here — the held OS splash is on top, so nothing underneath
+                        // needs to paint.
+                        Platform.OS === 'web' ? (
+                          <AppSplashScreen
+                            startFade={startFade}
+                            onFadeComplete={handleSplashFadeComplete}
+                          />
+                        ) : null
+                      ) : (
+                        <AppStackContent />
+                      )}
+                    </OverlayInertBoundary>
+                  </AccountsAskProvider>
                   <PortalOutlet />
                 </PortalProvider>
               </LocaleProvider>
