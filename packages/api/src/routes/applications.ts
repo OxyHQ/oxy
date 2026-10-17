@@ -1,3 +1,4 @@
+import { invalidateApplicationTrust } from '../services/applicationTrust.service';
 import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
 import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
@@ -1017,6 +1018,7 @@ router.patch(
     // and status; invalidate eagerly so revoked redirectUris or a suspended
     // status stop authorising federation signing immediately.
     credentialDomainCache.invalidate(application.id);
+    invalidateApplicationTrust(application.id);
     refreshDynamicCorsOrigins();
 
     logger.info('Application updated', {
@@ -1113,6 +1115,7 @@ router.delete(
 
     // A deleted app must immediately stop authorising federation signing.
     credentialDomainCache.invalidate(application.id);
+    invalidateApplicationTrust(application.id);
     refreshDynamicCorsOrigins();
     assetService.finishApplicationDeletion(content);
 

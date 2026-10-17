@@ -1,6 +1,7 @@
 import { supervisionProfiles } from '../db/schema/supervision';
 import { inArray } from 'drizzle-orm';
 import { hasOrganizationOperatingAuthority } from './organizationAuthority.service';
+import { supervisionValidAfter } from './supervisionPolicy.service';
 import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
@@ -499,29 +500,21 @@ class SessionService {
       }
 
       let { session, user } = result;
-      const supervised = await getDb()
-        .select({
-          childAccountId: supervisionProfiles.childAccountId,
-          sessionsValidAfter: supervisionProfiles.sessionsValidAfter,
-        })
-        .from(supervisionProfiles)
-        .where(
-          and(
-            inArray(supervisionProfiles.childAccountId, [
-              session.userId,
-              ...(session.operatedByUserId ? [session.operatedByUserId] : []),
-            ]),
-            ne(supervisionProfiles.status, 'ended'),
+      // The profile rows decide, never the cached session or user: read through
+      // the supervision authority cache (≤ 5 s, invalidated on every task when
+      // enrolment changes), and a failed read throws into the catch below.
+      const supervised = (
+        await Promise.all(
+          [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])].map(
+            supervisionValidAfter,
           ),
-        );
+        )
+      ).flat();
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
         const live = await this.getSessionWithUser(sessionId, { useCache: false });
-        if (
-          !live ||
-          supervised.some((profile) => live.session.createdAt <= profile.sessionsValidAfter)
-        )
+        if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
           return null;
         session = live.session;
         user = live.user;

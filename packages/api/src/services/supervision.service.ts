@@ -1,3 +1,4 @@
+import { invalidateSupervision } from './supervisionPolicy.service';
 import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import {
   supervisionSchema,
@@ -405,6 +406,7 @@ export async function acceptInvitation(id: string, guardian: string) {
   });
   sessionCache.invalidateUserSessions(child);
   userCache.invalidate(child);
+  invalidateSupervision(child);
   return getSupervisionState(guardian);
 }
 export async function listContacts(child: string, actor: string) {
@@ -535,6 +537,7 @@ export async function reviewSupervision(actor: string, input: SupervisionReviewI
       evidenceReference: input.evidenceReference,
     });
   });
+  invalidateSupervision(input.childAccountId);
 }
 function purchaseSummaryDto(row: typeof supervisionPurchaseApprovals.$inferSelect) {
   return purchaseApprovalSummarySchema.parse({

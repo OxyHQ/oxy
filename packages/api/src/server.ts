@@ -217,6 +217,7 @@ import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirec
 import { createAdapter } from '@socket.io/redis-adapter';
 import { getRedisClient, closeRedis } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
+import { startAuthorityCacheInvalidationSubscriber } from './utils/authorityCache';
 import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
 import { initializeIO, socketRoomsFor } from './utils/socket';
 import { resolveSocketIdentity } from './utils/socketAuth';
@@ -419,6 +420,7 @@ initializePlatformInfrastructure(platformActivityNamespace, () => server.listeni
 const redis = getRedisClient();
 let userCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 let fileCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
+let authorityCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 if (redis) {
   const pubClient = redis.duplicate();
   const subClient = redis.duplicate();
@@ -427,6 +429,8 @@ if (redis) {
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
   // A file's status or visibility changed on another task: drop our copy (ADR 0043).
   fileCacheInvalidationSubscriber = startFileCacheInvalidationSubscriber(redis);
+  // Application trust, supervision and organization authority (utils/authorityCache.ts).
+  authorityCacheInvalidationSubscriber = startAuthorityCacheInvalidationSubscriber(redis);
 }
 
 // Store io instance in app for use in controllers
@@ -628,6 +632,10 @@ async function gracefulShutdown(signal: string) {
   if (fileCacheInvalidationSubscriber) {
     await fileCacheInvalidationSubscriber.stop();
     fileCacheInvalidationSubscriber = null;
+  }
+  if (authorityCacheInvalidationSubscriber) {
+    await authorityCacheInvalidationSubscriber.stop();
+    authorityCacheInvalidationSubscriber = null;
   }
   await closeRedis();
   await closePostgres();

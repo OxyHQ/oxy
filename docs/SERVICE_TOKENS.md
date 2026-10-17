@@ -297,6 +297,19 @@ import (Oxy Move) has only a service token, so this is its question.
 - Bearer-only, so not exposed to CSRF (the API has no ambient credential)
 - Expiration checked locally (no DB round-trip)
 - Per-scope authorisation via `oxy.middleware.requireScope('files:write')` after `middleware.service()`
+- **Per-request authority reads are cached for at most 5 s per oxy-api task**
+  (`packages/api/src/utils/authorityCache.ts`): `/internal`'s "is this
+  application active and trusted", `serviceAuthMiddleware`'s "is the owner
+  supervised / does the organization still hold operating authority", and
+  session validation's supervision read. A write that changes the answer
+  (application PATCH or delete, supervision enrolment or its end) invalidates
+  the key on every task at once through Redis (`oxy-api:authority-cache:invalidate`);
+  anything else — organization claim changes, a lost broadcast — takes effect
+  within the 5 s TTL. **Max staleness: 5 s.** Concurrent misses share one
+  query, errors are never cached (fail closed), and `OXY_AUTHORITY_CACHE_TTL_MS`
+  overrides the TTL (0 disables; the jest suite runs with 0). Why: on
+  2026-10-16 the uncached `/internal` read was 12.5 of 16 AAS queued behind a
+  migration's lock on `applications`.
 
 ## Key Files
 

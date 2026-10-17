@@ -14,6 +14,8 @@ const TEST_ENVIRONMENT = {
   AWS_ACCESS_KEY_ID: 'test_aws_access_key',
   AWS_SECRET_ACCESS_KEY: 'test_aws_secret_key',
   AWS_S3_BUCKET: 'test-bucket',
+  // Tests that write authority rows read them back live (utils/authorityCache.ts).
+  OXY_AUTHORITY_CACHE_TTL_MS: '0',
 };
 for (const [name, value] of Object.entries(TEST_ENVIRONMENT)) {
   process.env[name] ??= value;
