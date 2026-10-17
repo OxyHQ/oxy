@@ -171,9 +171,7 @@ function packedWorkspaceRange(spec, version) {
  * lockfile line ships the dependent pinned to the previous version.
  */
 export function workspaceRangeProblems(packed, source, workspaces) {
-  const versions = new Map(
-    workspaces.map(({ manifest }) => [manifest.name, manifest.version]),
-  );
+  const versions = new Map(workspaces.map(({ manifest }) => [manifest.name, manifest.version]));
   const problems = [];
   for (const field of CONSUMER_FIELDS)
     for (const [dependency, spec] of Object.entries(source[field] ?? {})) {

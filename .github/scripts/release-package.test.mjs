@@ -222,15 +222,24 @@ test('a workspace: dependency packed at another version than its workspace is re
   };
   const problems = workspaceRangeProblems(stale, workspaceSource, workspaces);
   assert.equal(problems.length, 2);
-  assert.match(problems[0], /dependencies\.@oxy\.so\/contracts is packed as "\^4\.16\.0".*"\^4\.17\.0".*bun\.lock is stale/);
+  assert.match(
+    problems[0],
+    /dependencies\.@oxy\.so\/contracts is packed as "\^4\.16\.0".*"\^4\.17\.0".*bun\.lock is stale/,
+  );
   assert.match(problems[1], /peerDependencies\.@oxy\.so\/core is packed as "4\.11\.0".*"4\.12\.0"/);
 });
 
 test('a dependency that is not a workspace: spec is left to the other checks', () => {
-  const workspaces = [{ directory: '.', manifest: { name: '@oxy.so/contracts', version: '4.17.0' } }];
+  const workspaces = [
+    { directory: '.', manifest: { name: '@oxy.so/contracts', version: '4.17.0' } },
+  ];
   const literal = { ...source, dependencies: { '@oxy.so/contracts': '^4.0.0' } };
   assert.deepEqual(
-    workspaceRangeProblems({ ...packed, dependencies: { '@oxy.so/contracts': '^4.0.0' } }, literal, workspaces),
+    workspaceRangeProblems(
+      { ...packed, dependencies: { '@oxy.so/contracts': '^4.0.0' } },
+      literal,
+      workspaces,
+    ),
     [],
   );
 });
