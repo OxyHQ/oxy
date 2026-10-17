@@ -13,6 +13,15 @@ check compared against the high-water mark. 1.3.0 applies such entries together
 in one transaction and re-checks the ledger by membership, so a skipped entry
 fails the run. Check a journal with: every `entries[i].when` > every earlier one.
 
+### Fix: 1.2.0 could not migrate from a read-only root filesystem
+
+1.2.0 built a journal-prefix folder under `tmpdir()` for every step, so a
+migrator running with a read-only root (`docker run --read-only`, a read-only
+ECS task) failed in `mkdtempSync` before applying anything. 1.3.0 writes
+nothing to disk: it reads each migration once with drizzle's
+`readMigrationFiles` (the same statements and hash drizzle records) and applies
+its statements and its ledger row in one transaction.
+
 ### The migration lock gate ships with the package: `oxy-db-check-migration-locks`
 
 1.2.0 bounds a lock to one migration; the gate that keeps that one migration
