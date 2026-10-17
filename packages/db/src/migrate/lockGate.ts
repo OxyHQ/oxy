@@ -42,8 +42,17 @@ const CREATE_INDEX = new RegExp(
   String.raw`^create (?:unique )?index (concurrently )?(if not exists )?(?:"?[a-z0-9_]+"? )?on (?:only )?${IDENT}`,
 );
 const FOREIGN_KEY = /\bforeign key\b/;
-const NOT_VALID = /\bnot valid\s*;?\s*$/;
 const DML = /^(update|delete from|insert into)\b/;
+
+/**
+ * Whether a (whitespace-collapsed) statement ends `NOT VALID`. A string test,
+ * not a trailing-whitespace regex: the input is a migration file, and
+ * `\s*;?\s*$` backtracks polynomially on a long run of spaces.
+ */
+function endsNotValid(statement: string): boolean {
+  const body = statement.endsWith(';') ? statement.slice(0, -1).trimEnd() : statement;
+  return body === 'not valid' || body.endsWith(' not valid');
+}
 
 /** The executable statements of a migration, comments stripped, whitespace collapsed. */
 function statementsOf(contents: string): string[] {
@@ -88,14 +97,14 @@ export function migrationLockProblems(
     if (alter) {
       const table = alter[1];
       const isForeignKey = FOREIGN_KEY.test(statement) && /\badd constraint\b/.test(statement);
-      if (isForeignKey && !created.has(table) && !NOT_VALID.test(statement)) {
+      if (isForeignKey && !created.has(table) && !endsNotValid(statement)) {
         problems.push(
           `${tag}: foreign key on existing table "${table}" is validated in place — add it ` +
             `NOT VALID and VALIDATE CONSTRAINT in a later migration: ${short}`,
         );
       }
       const takesExclusive =
-        !(isForeignKey && NOT_VALID.test(statement)) && !/\bvalidate constraint\b/.test(statement);
+        !(isForeignKey && endsNotValid(statement)) && !/\bvalidate constraint\b/.test(statement);
       if (takesExclusive && hotTables.has(table) && !created.has(table)) {
         hotExclusive.push(table);
       }
