@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PLAY_SESSION_RENDITIONS } from '../db/schema/filePlaySessions';
 
 // Params with :id
 export const assetIdParams = z.object({
@@ -433,6 +434,11 @@ export const playSessionBodySchema = z
     ttlSeconds: z.number().int().min(60).max(43_200).optional(),
     encryption: z.enum(['aes-128', 'none']).optional(),
     keyAuthorization: z.enum(['none', 'webhook']).optional(),
+    /**
+     * The rungs the session may serve (e.g. `['hls_a64', 'hls_a128']`); every
+     * other rung is refused. Omitted: the whole ladder.
+     */
+    renditions: z.array(z.enum(PLAY_SESSION_RENDITIONS)).min(1).max(16).optional(),
   })
   .strict();
 

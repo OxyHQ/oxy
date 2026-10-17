@@ -19,6 +19,12 @@
  * With `key_authorization = 'webhook'` the key is released only after the
  * application's verified file-events endpoint answers `{ allow: true }` — the
  * product's own entitlement check.
+ *
+ * `renditions` is the session's allow-list of the ladder's rungs (`hls_a64`,
+ * `hls_720p`…), or NULL for the whole ladder: a product that caps a listener's
+ * quality (a free tier, data saver) opens the session with the rungs that
+ * listener may play, and every request for any other rung — its playlist, its
+ * segments, its key — is refused, not merely left out of the master.
  */
 
 import { sql } from 'drizzle-orm';
@@ -37,6 +43,21 @@ export type PlaySessionKeyAuthorization = (typeof PLAY_SESSION_KEY_AUTHORIZATION
 /** Who ended a session early: the application, the file's owner, or Oxy (the file left `active`). */
 export const PLAY_SESSION_REVOKERS = ['application', 'owner', 'oxy'] as const;
 export type PlaySessionRevoker = (typeof PLAY_SESSION_REVOKERS)[number];
+
+/**
+ * Every rung a ladder can have: the audio ladder (`audioRenditions.ts`) and
+ * the video one (`variantService`'s HLS configs). A session's allow-list
+ * names only these.
+ */
+export const PLAY_SESSION_RENDITIONS = [
+  'hls_a64',
+  'hls_a128',
+  'hls_a256',
+  'hls_360p',
+  'hls_720p',
+  'hls_1080p',
+] as const;
+export type PlaySessionRendition = (typeof PLAY_SESSION_RENDITIONS)[number];
 
 /** A session row is kept a day past its expiry, so a late read answers "expired". */
 export const PLAY_SESSION_RETENTION_SECONDS = 24 * 60 * 60;
@@ -69,6 +90,11 @@ export const filePlaySessions = pgTable(
     keyAuthorization: text({ enum: PLAY_SESSION_KEY_AUTHORIZATIONS }).notNull(),
     /** The session's AES-128 content key, sealed; set exactly when `encryption = 'aes-128'`. */
     contentKeyCiphertext: text(),
+    /**
+     * The rungs this session may serve (a subset of {@link PLAY_SESSION_RENDITIONS},
+     * sorted, distinct), or NULL for every rung of the ladder.
+     */
+    renditions: text({ enum: PLAY_SESSION_RENDITIONS }).array(),
     expiresAt: timestamptz().notNull(),
     revokedAt: timestamptz(),
     revokedBy: text({ enum: PLAY_SESSION_REVOKERS }),
@@ -103,6 +129,10 @@ export const filePlaySessions = pgTable(
     check(
       'file_play_sessions_key_authorization_needs_key_check',
       sql`${t.keyAuthorization} = 'none' or ${t.encryption} = 'aes-128'`,
+    ),
+    check(
+      'file_play_sessions_renditions_check',
+      sql`${t.renditions} is null or (cardinality(${t.renditions}) >= 1 and ${t.renditions} <@ array[${sql.raw(inList(PLAY_SESSION_RENDITIONS))}]::text[])`,
     ),
     check('file_play_sessions_token_check', sql`${t.tokenSha256} ~ '^[0-9a-f]{64}$'`),
   ],

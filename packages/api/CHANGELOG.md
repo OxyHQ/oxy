@@ -39,6 +39,16 @@ The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4c; its
   `/assets/recording-ingest`); large imports by URL in the background (`202`,
   `…/imports/:importId`); SVG accepted only as its sanitized document and
   served inline under a sandboxing CSP.
+- A play session's rendition allow-list (migration
+  `0182_play_session_renditions`, pre): `POST /assets/service/streams {
+  renditions: ['hls_a64', 'hls_a128'] }` lists only those rungs in the master
+  and answers 404 for any other rung's playlist, segment or key, with a key per
+  allowed rung; 409 `STREAM_RENDITIONS_NOT_READY` when none is ready. Without
+  it, the whole ladder as before.
+- The blocked-content email links the owner to the website's counter-notice
+  form with the reference filled in
+  (`https://oxy.so/transparency/legal/counter-notice/?reference=…`), with
+  legal@oxy.so kept as the fallback.
 
 ### Added (a service asks whether a person may act for an account)
 

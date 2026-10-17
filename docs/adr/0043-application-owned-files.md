@@ -589,7 +589,11 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   upheld. No address or content is stored: the claimant's address is opened
   and an account's read at send time, so an erased statement or an account
   without email dead-letters the row. Neither party is named to the other;
-  replies go to legal@oxy.so with the reference. Rows expire after 90 days.
+  replies go to legal@oxy.so with the reference. The blocked email links the
+  owner to the website's counter-notice form with the reference filled in
+  (`https://oxy.so/transparency/legal/counter-notice/?reference=<ref>`,
+  `contentClaim.mail.counterNoticeUrl`), legal@oxy.so the fallback. Rows
+  expire after 90 days.
 - **Console.** "Content claims" under a Staff group, shown when `/access`
   says so: the queue (state, kind, deadline filters; overdue in red) and a
   claim's page (the statement or its erasure date, targets with file status
@@ -930,6 +934,25 @@ and 4.20.0/11.11.0 meanwhile); `@oxy.so/contracts` has nothing new and stays
   not bind the URLs to a signed-in viewer. Core: `server.assets.streams.create
   / get / revoke / revokeWhere` and `verifyStreamKeyAuthorization(rawBody,
   headers, secret)` in `@oxy.so/core/server`.
+- **A rendition allow-list per session** (migration
+  `0182_play_session_renditions`, pre: one nullable `text[]` column and its
+  CHECK; core 5.3.0). A product that caps quality per listener (Syra's free
+  tier and data saver) opens the session with `renditions` — a non-empty
+  subset of `hls_a64 | hls_a128 | hls_a256 | hls_360p | hls_720p | hls_1080p`,
+  stored distinct in ladder order (`file_play_sessions.renditions`; NULL, the
+  default, is the whole ladder and behaves exactly as before). Enforced on the
+  serving route, not by omission: the master is rewritten to list only the
+  allowed rungs (`restrictedMasterPlaylist`: each `#EXT-X-STREAM-INF` with its
+  URI, a tag naming a disallowed URI dropped), and `resolveStreamObject`
+  resolves a disallowed rung's playlist, segments and key to nothing (404).
+  Such a session's segments are encrypted under a key PER RUNG, HKDF-SHA256 of
+  the session's key bound to the rung (`renditionContentKey`), served at
+  `<rung>.key` and named by that rung's playlist; the session's own `key` is
+  404 for it, so no key it hands out opens another rung. A rung the file lacks
+  is simply not served (an allow-list); none of the listed rungs ready is 409
+  `STREAM_RENDITIONS_NOT_READY`. The answer's `renditions` are the allowed
+  ready rungs and `allowedRenditions` echoes the list (also on `GET`).
+  Revocation, consent and key authorization are unchanged.
 - **Recording targets — LiveKit egress into Oxy Files** (`file_ingests`,
   `source = 'recording'`; `recordingIngest.ts`, `utils/sigv4.ts`,
   `utils/awsChunked.ts`). `POST /assets/service/app/recording-targets` (or the
@@ -1040,7 +1063,9 @@ and 4.20.0/11.11.0 meanwhile); `@oxy.so/contracts` has nothing new and stays
   background; the SDK waits); playback through `server.assets.streams.create`
   (AES-128, `endUserId` the listener, `keyAuthorization: 'webhook'` where a
   play needs Syra's entitlement check, answering `stream.key_authorization`
-  on its file-events endpoint after `verifyStreamKeyAuthorization`); the
+  on its file-events endpoint after `verifyStreamKeyAuthorization`;
+  `renditions: ['hls_a64', 'hls_a128']` for a listener capped below 256 kb/s,
+  core 5.3.0); the
   waveform and preview URLs for its UI; `revokeWhere({ endUserId })` when a
   subscription ends.
 - **Alia**: a person's chat attachments with `uploadUserMedia(…, { visibility:

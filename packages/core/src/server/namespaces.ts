@@ -290,6 +290,12 @@ export class ServerAssetsApi extends AssetsApi {
    * only after your file-events endpoint allows it
    * (`verifyStreamKeyAuthorization`; 409 `FILES_WEBHOOK_REQUIRED` without a
    * verified endpoint).
+   *
+   * `renditions` limits the session to some rungs of the ladder (a free tier,
+   * data saver): `create(fileId, { renditions: ['hls_a64', 'hls_a128'] })`
+   * lists only those in the master and Oxy refuses every other rung's
+   * playlist, segments and key for that session — enforced on each request,
+   * not by omission.
    */
   readonly streams = {
     create: (fileId: string, options: PlaySessionOptions = {}): Promise<PlaySession> =>
@@ -329,6 +335,9 @@ export class ServerAssetsApi extends AssetsApi {
         `ttlSeconds must be a whole number between ${PLAY_SESSION_MIN_TTL_SECONDS} and ${PLAY_SESSION_MAX_TTL_SECONDS}`,
       );
     }
+    if (options.renditions !== undefined && options.renditions.length === 0) {
+      throw new RangeError('renditions must name at least one rendition (omit it for all)');
+    }
     return lane(this.ctx).request<PlaySession>(
       'POST',
       '/assets/service/streams',
@@ -338,6 +347,7 @@ export class ServerAssetsApi extends AssetsApi {
         ...(options.ttlSeconds !== undefined ? { ttlSeconds: options.ttlSeconds } : {}),
         ...(options.encryption ? { encryption: options.encryption } : {}),
         ...(options.keyAuthorization ? { keyAuthorization: options.keyAuthorization } : {}),
+        ...(options.renditions ? { renditions: [...options.renditions] } : {}),
       },
       // Not retried: a lost answer would leave a second live session behind.
       { cache: false, retry: false },

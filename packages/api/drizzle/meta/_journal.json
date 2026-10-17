@@ -1268,6 +1268,13 @@
       "when": 1792202494474,
       "tag": "0181_retire_homiio_native_agent_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1792218892248,
+      "tag": "0182_play_session_renditions",
+      "breakpoints": true
     }
   ]
 }
