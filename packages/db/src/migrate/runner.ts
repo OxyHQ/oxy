@@ -60,16 +60,14 @@
  * this function opens and closes internally.
  */
 
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { sql } from 'drizzle-orm';
+import { type MigrationMeta, readMigrationFiles } from 'drizzle-orm/migrator';
 import {
   DEFAULT_DATABASE_DRIVER,
   type DatabaseDriver,
-  bunSqlMigrate,
+  type MigrationDatabase,
   executeStatement,
+  migrationDatabase,
   openOwnedConnection,
 } from '../driver';
 import { type RequiredExtension, ensureExtensions } from './extensions';
@@ -106,9 +104,9 @@ export interface RunMigrationsOptions {
    * The client every connection this run opens goes through — the DDL
    * connection, the target check, the ledger reads and `ensureExtensions`.
    * Default `postgres-js`. `bun-sql` (Bun only) drives the same steps in the
-   * same order through `Bun.SQL` and `drizzle-orm/bun-sql/migrator`, which
-   * applies migrations with the same `PgDialect.migrate` and writes the same
-   * ledger table and rows; the one difference is that `Bun.SQL` has no NOTICE
+   * same order through `Bun.SQL` (`drizzle-orm/bun-sql`), applying each
+   * migration the same way and writing the same ledger table and rows; the
+   * one difference is that `Bun.SQL` has no NOTICE
    * hook, so `logger.debug` receives no server notices.
    */
   readonly driver?: DatabaseDriver;
@@ -180,53 +178,6 @@ export interface RunMigrationsOptions {
 }
 
 /**
- * A throwaway migrations folder holding only the first `count` journal
- * entries and their `.sql` files.
- *
- * WHY THIS EXISTS. drizzle's migrator reads its own folder and applies every
- * entry newer than the newest one the ledger records; there is no public way
- * to hand it a subset. A `pre`-phase run that must stop before a `post`
- * migration therefore points the migrator at a folder that ends there. The
- * `.sql` files are copied byte for byte, so the `hash` drizzle records is
- * identical to the one a full-folder run would have recorded — a later full
- * run cannot tell the difference.
- *
- * Deliberately NOT `db.dialect.migrate(subset, ...)`, which would reach past
- * the public `migrate()` helper: drizzle marks `dialect` and `session`
- * `@internal` and does not declare them on `PgDatabase`, so reaching them needs
- * a cast this repository does not permit.
- *
- * Exported for direct unit testing (it needs no database), but NOT part of
- * `@oxy.so/db/migrate`'s public surface — `migrate/index.ts` does not
- * re-export it. It has exactly one caller, {@link runMigrations}.
- *
- * @returns The temporary folder. The caller owns it and must remove it.
- */
-export function materializeJournalPrefix(
-  entries: readonly JournalEntry[],
-  count: number,
-  sourceFolder: string,
-): string {
-  const retained = entries.slice(0, count);
-
-  const folder = mkdtempSync(join(tmpdir(), 'oxydb-migrate-prefix-'));
-  mkdirSync(join(folder, 'meta'), { recursive: true });
-
-  const journal = JSON.parse(
-    readFileSync(join(sourceFolder, 'meta', '_journal.json'), 'utf8'),
-  ) as Record<string, unknown>;
-  writeFileSync(
-    join(folder, 'meta', '_journal.json'),
-    JSON.stringify({ ...journal, entries: retained }),
-  );
-  for (const entry of retained) {
-    copyFileSync(join(sourceFolder, `${entry.tag}.sql`), join(folder, `${entry.tag}.sql`));
-  }
-
-  return folder;
-}
-
-/**
  * Apply pending migrations to `options.databaseUrl`, in the order described
  * in this module's header.
  *
@@ -262,6 +213,17 @@ ${timeouts.problems.map((problem) => `  - ${problem}`).join('\n')}`,
     );
   }
   const limits = resolveLockLimits(options);
+  // Every migration's statements and hash, read here with the rest of the
+  // filesystem, and computed exactly as drizzle's own migrator computes them
+  // (`readMigrationFiles`), so the ledger rows are the ones a drizzle
+  // `migrate()` would have written.
+  const files = readMigrationFiles({ migrationsFolder: options.migrationsFolder });
+  if (files.length !== fullEntries.length) {
+    throw new Error(
+      `drizzle read ${files.length} migration(s) from ${options.migrationsFolder} but the ` +
+        `journal lists ${fullEntries.length}.`,
+    );
+  }
 
   const entries = fullEntries;
 
@@ -344,31 +306,29 @@ ${timeouts.problems.map((problem) => `  - ${problem}`).join('\n')}`,
     );
 
     // ONE MIGRATION PER TRANSACTION. drizzle's `migrate()` applies everything
-    // newer than the ledger's newest row in a single transaction, so handing it
-    // the whole folder would hold the first migration's locks until the last
-    // one commits — the 2026-10-16 outage (`locks.ts`). Handing it a folder
-    // that ENDS at the next pending migration applies exactly that one and
-    // commits it. Each prefix is a byte-for-byte copy (`materializeJournalPrefix`),
-    // so the ledger rows are identical to a whole-folder run's.
+    // newer than the ledger's newest row in a single transaction, so it would
+    // hold the first migration's locks until the last one commits — the
+    // 2026-10-16 outage (`locks.ts`). Each planned migration is applied here
+    // the way drizzle's `PgDialect.migrate` applies one (its statements, then
+    // its ledger row, in one transaction), through the public `execute` and
+    // `transaction`. Nothing is written to the filesystem: a migrator task
+    // runs on a read-only root filesystem.
+    const db = migrationDatabase(connection);
+    await ensureLedgerTable(db);
     for (const entry of plan.apply) {
       const index = entries.findIndex((candidate) => candidate.tag === entry.tag);
-      const prefixFolder =
-        index === entries.length - 1
-          ? null
-          : materializeJournalPrefix(entries, index + 1, options.migrationsFolder);
-      try {
-        await applyOneMigration({
-          tag: entry.tag,
-          migrationsFolder: prefixFolder ?? options.migrationsFolder,
-          statementTimeoutMs:
-            timeouts.statementTimeoutsMs.get(entry.tag) ?? limits.statementTimeoutMs,
-          limits,
-          connection,
-          logger: options.logger,
-        });
-      } finally {
-        if (prefixFolder) rmSync(prefixFolder, { recursive: true, force: true });
-      }
+      const migration = files[index];
+      if (!migration) throw new Error(`${entry.tag}: drizzle read no migration for this entry.`);
+      await applyOneMigration({
+        tag: entry.tag,
+        migration,
+        db,
+        statementTimeoutMs:
+          timeouts.statementTimeoutsMs.get(entry.tag) ?? limits.statementTimeoutMs,
+        limits,
+        connection,
+        logger: options.logger,
+      });
     }
 
     // A migrator that reports success while leaving work pending is worse
@@ -419,27 +379,34 @@ function resolveLockLimits(options: RunMigrationsOptions): LockLimits {
   return limits;
 }
 
+const LEDGER = sql`${sql.identifier(MIGRATIONS_SCHEMA)}.${sql.identifier(MIGRATIONS_TABLE)}`;
+
+/** The ledger schema and table, created exactly as drizzle's migrator creates them. */
+async function ensureLedgerTable(db: MigrationDatabase): Promise<void> {
+  await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(MIGRATIONS_SCHEMA)}`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ${LEDGER} (
+      id SERIAL PRIMARY KEY,
+      hash text NOT NULL,
+      created_at bigint
+    )
+  `);
+}
+
 /**
- * Apply the single pending migration at the end of `migrationsFolder` in its
- * own transaction, retrying the whole migration when it loses a lock race.
+ * Apply one migration in its own transaction — its statements, then its
+ * ledger row — retrying the whole migration when it loses a lock race.
  */
 async function applyOneMigration(step: {
   readonly tag: string;
-  readonly migrationsFolder: string;
+  readonly migration: MigrationMeta;
+  readonly db: MigrationDatabase;
   readonly statementTimeoutMs: number;
   readonly limits: LockLimits;
   readonly connection: ReturnType<typeof openOwnedConnection>;
   readonly logger: RunMigrationsOptions['logger'];
 }): Promise<void> {
-  const { tag, limits, connection } = step;
-  // No `schema`/`casing` here on purpose: `migrate()` only executes the raw
-  // SQL text of the migration files, so it never builds a query from the
-  // caller's schema definitions and stays independent of them.
-  const migrationConfig = {
-    migrationsFolder: step.migrationsFolder,
-    migrationsSchema: MIGRATIONS_SCHEMA,
-    migrationsTable: MIGRATIONS_TABLE,
-  };
+  const { tag, migration, limits, connection } = step;
 
   for (let attempt = 1; ; attempt += 1) {
     const startedAt = Date.now();
@@ -452,11 +419,14 @@ async function applyOneMigration(step: {
         connection.client,
         `set statement_timeout = '${step.statementTimeoutMs}ms'`,
       );
-      if (connection.driver === 'bun-sql') {
-        await bunSqlMigrate(connection.client, migrationConfig);
-      } else {
-        await migrate(drizzle(connection.client), migrationConfig);
-      }
+      await step.db.transaction(async (tx) => {
+        for (const statement of migration.sql) {
+          await tx.execute(sql.raw(statement));
+        }
+        await tx.execute(
+          sql`insert into ${LEDGER} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+        );
+      });
       step.logger.info(`Applied ${tag} in ${Date.now() - startedAt}ms`);
       return;
     } catch (error) {

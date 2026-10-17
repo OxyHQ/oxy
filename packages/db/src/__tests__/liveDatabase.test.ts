@@ -523,3 +523,54 @@ describeLive(
     });
   },
 );
+
+describeLive('runMigrations — needs no writable filesystem (live Postgres)', () => {
+  it('applies a `pre` run that stops before a `post` migration with no usable tmpdir', async () => {
+    // A migrator task runs on a read-only root filesystem. 1.2.0 wrote a
+    // journal-prefix folder under tmpdir() for every step and failed there.
+    const folder = mkdtempSync(join(tmpdir(), 'oxydb-live-readonly-'));
+    const url = await createTestDatabase({ adminUrl: ADMIN_URL, driver: TEST_DRIVER });
+    const savedTmpdir = process.env.TMPDIR;
+    try {
+      const files = [
+        { tag: '0000_a', when: 1_000, sql: '-- oxy:deploy-phase=pre\ncreate table a (id int);\n' },
+        { tag: '0001_b', when: 2_000, sql: '-- oxy:deploy-phase=pre\ncreate table b (id int);\n' },
+        { tag: '0002_c', when: 3_000, sql: '-- oxy:deploy-phase=post\ndrop table a;\n' },
+      ];
+      mkdirSync(join(folder, 'meta'), { recursive: true });
+      writeFileSync(
+        join(folder, 'meta', '_journal.json'),
+        JSON.stringify({
+          version: '7',
+          dialect: 'postgresql',
+          entries: files.map(({ tag, when }) => ({ tag, when })),
+        }),
+      );
+      for (const file of files) writeFileSync(join(folder, `${file.tag}.sql`), file.sql);
+
+      // Not a directory, and nothing (root included) can create one beneath it.
+      process.env.TMPDIR = '/dev/null/oxydb-no-tmpdir';
+      await runMigrations({
+        databaseUrl: url,
+        driver: TEST_DRIVER,
+        migrationsFolder: folder,
+        extensions: [],
+        run: 'pre',
+        dryRun: false,
+        logger: noopLogger,
+      });
+
+      const live = openLiveClient(url);
+      try {
+        expect(await readAppliedMillis(live.client)).toEqual([1_000, 2_000]);
+      } finally {
+        await live.close();
+      }
+    } finally {
+      if (savedTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = savedTmpdir;
+      rmSync(folder, { recursive: true, force: true });
+      await dropTestDatabase(url, { driver: TEST_DRIVER });
+    }
+  });
+});
