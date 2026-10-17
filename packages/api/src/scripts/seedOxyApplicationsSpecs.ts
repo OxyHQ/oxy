@@ -333,6 +333,13 @@ const PRODUCT_FILE_SCOPES = [
  */
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
+/**
+ * Clarity's backend application. Created under Clarity's own project account
+ * (`clarity`), not the platform owner, and pinned by id because Clarity's API
+ * matches it byte for byte (`clarity-identity.ts`).
+ */
+export const CLARITY_BACKEND_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
+
 /** New identities: seed these exact entries before provisioning their activity lanes. */
 /** GoWay public sign-in identity; registration is an explicit operator step. */
 export const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
@@ -875,5 +882,38 @@ export const SEED_APPS: SeedAppSpec[] = [
     // (`files:references:write`, ADR 0043 D4), so evidence is not collected
     // under a case and a takedown of it reaches CrowdSource (D9).
     scopes: ['user:read', 'files:read', 'files:references:write'],
+  },
+  {
+    // Clarity's backend service identity, owned by Clarity's own project account.
+    // Its ECS task role (`oxy-clarity-task`) attests as this application
+    // (ADR 0026); there is no public client.
+    //
+    // - `user:read`: Oxy account and organization reads (Experience, billing).
+    // - `inference:invoke`: search embeddings on kaana.ai. Clarity's assistant
+    //   is an ordinary Alia agent (Alia ADR 0020), so this backend runs no chat.
+    // - `safety:decide`: the profile and content safety decisions Experience asks
+    //   for.
+    // - The `clarity` capability catalogue (Alia ADR 0020): Clarity's API
+    //   registers it at startup (`catalogs:write`, `catalog:clarity`) and serves
+    //   its internal MCP to Alia, re-authorising and auditing each ticket
+    //   (`capabilities:read`, `capability-audit:write`). Its public OAuth MCP is
+    //   mcp.clarity.surf.
+    id: CLARITY_BACKEND_APPLICATION_ID,
+    name: 'Clarity Backend',
+    description: "Clarity's backend: search, Experience and its capability catalogue.",
+    webhookUrl: 'https://api.clarity.surf/webhooks/oxy/account-events',
+    type: 'internal',
+    redirectUris: [],
+    publicClient: false,
+    scopes: [
+      'user:read',
+      'inference:invoke',
+      'safety:decide',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+    ],
+    capabilities: [catalogApplicationCapability('clarity')],
+    ownerAccountUsername: 'clarity',
   },
 ];
