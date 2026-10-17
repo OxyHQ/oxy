@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed (a reconciliation session holds up to 5,000,000 pairs — ADR 0043 D6)
+
+A session held at most 500,000 pairs while its commit had to finish inside a
+request. Since migration `0183` the commit runs under a lease however long it
+takes, so the cap is 5,000,000: an entity type of a few million uses (Homiio's
+~2 million listing photos) reconciles as one session instead of answering 413.
+
 ### Fixed (a dry-run reconciliation releases its session — ADR 0043 D6)
 
 A dry-run commit left its session open for an hour, so every SDK's next

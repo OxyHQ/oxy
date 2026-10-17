@@ -11423,7 +11423,7 @@
           "Files"
         ],
         "summary": "One page of the inventory: `{ items: [{ fileId, entityId }] }`, 1–1000",
-        "description": "pairs. A pair sent twice counts once. Answers `{ accepted, total,\n      expiresAt }`; each page moves the deadline an hour ahead. 404 for no\n      such session of this application, 410 `RECONCILIATION_EXPIRED`, 409\n      `RECONCILIATION_NOT_OPEN` once committed, 413 past 500,000 pairs.",
+        "description": "pairs. A pair sent twice counts once. Answers `{ accepted, total,\n      expiresAt }`; each page moves the deadline an hour ahead. 404 for no\n      such session of this application, 410 `RECONCILIATION_EXPIRED`, 409\n      `RECONCILIATION_NOT_OPEN` once committed, 413 past 5,000,000 pairs.",
         "parameters": [
           {
             "name": "sessionId",

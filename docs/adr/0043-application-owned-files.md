@@ -322,7 +322,7 @@ application, not with the business's session).
   the day it exists (hook marked on `FILE_STATUSES`).
 - **Reconciliation (D6).** `POST /assets/service/references/reconcile`
   `{ entityType }` → `{ sessionId, expiresAt }`; `PUT …/:sessionId`
-  `{ items: [{ fileId, entityId }] }` (≤ 1,000; ≤ 500,000 per session; each
+  `{ items: [{ fileId, entityId }] }` (≤ 1,000; ≤ 5,000,000 per session since `0183`'s leased commit — it was 500,000; each
   page slides the one-hour deadline); `POST …/:sessionId/commit`
   `{ dryRun? }` → `{ added, removed, unchanged, refused }`; `DELETE
   …/:sessionId` releases it. Scope `files:references:write`. Additions follow

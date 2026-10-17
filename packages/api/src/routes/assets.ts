@@ -2915,7 +2915,7 @@ router.post(
  *       pairs. A pair sent twice counts once. Answers `{ accepted, total,
  *       expiresAt }`; each page moves the deadline an hour ahead. 404 for no
  *       such session of this application, 410 `RECONCILIATION_EXPIRED`, 409
- *       `RECONCILIATION_NOT_OPEN` once committed, 413 past 500,000 pairs.
+ *       `RECONCILIATION_NOT_OPEN` once committed, 413 past 5,000,000 pairs.
  * @access Service token only: `files:references:write`, on an active application
  */
 router.put(
