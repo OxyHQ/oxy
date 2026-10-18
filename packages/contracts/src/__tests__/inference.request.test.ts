@@ -115,6 +115,18 @@ describe('inferenceRequestSchema', () => {
     ).toBe(true);
   });
 
+  it('never carries decisions, which are a kaana.ai/v1 grant operation', () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        client: { ...request.client, apiFormat: 'decisions', endpoint: '/v1/decisions' },
+      }).success,
+    ).toBe(false);
+    expect(
+      inferenceInputSchema.safeParse({ format: 'decisions', decisions: { questions: [] } }).success,
+    ).toBe(false);
+  });
+
   it('rejects a fractional or negative output-token ceiling', () => {
     expect(inferenceRequestSchema.safeParse({ ...request, maxOutputTokens: 1.5 }).success).toBe(
       false,

@@ -64,8 +64,6 @@ import {
   commercialPermissionSchema,
   INFERENCE_MONEY_SCALE,
   type AvailabilityScope,
-  type ScopedExecutionAudience,
-  type PrivateAutoSourceApproval,
   USAGE_UNITS,
 } from '@oxy.so/contracts';
 import {
@@ -239,10 +237,19 @@ export const inferenceDeployments = pgTable(
   'inference_deployments',
   {
     id: generatedId(),
-    /** Restriction on an otherwise qualified route; never a permission grant. */
-    scopedExecution: jsonb().$type<ScopedExecutionAudience>(),
-    /** Closed source-review metadata only; never variable text, child input hash or permission. */
-    privateAutoSourceApproval: jsonb().$type<PrivateAutoSourceApproval>(),
+    /**
+     * RETIRED. The scoped-execution audience of the deleted one-off permits.
+     * Always null since decisions moved to `kaana.ai/v1` (Kaana ADR 0002); the
+     * column and its checks stay until a reviewed migration drops them, and its
+     * contract (`@oxy.so/contracts` `ScopedExecutionAudience`) left in 5.0.0.
+     */
+    scopedExecution: jsonb().$type<Record<string, unknown>>(),
+    /**
+     * RETIRED. The Private Auto source approval of the deleted one-off permits;
+     * always null, kept like `scopedExecution` above (its contract,
+     * `PrivateAutoSourceApproval`, left in `@oxy.so/contracts` 5.0.0).
+     */
+    privateAutoSourceApproval: jsonb().$type<Record<string, unknown>>(),
 
     /**
      * The exact weights this route serves. A deployment ALWAYS pins a revision —

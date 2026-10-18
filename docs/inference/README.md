@@ -356,9 +356,10 @@ Typed nonstreaming classifications: [Decisions](decisions.md) (granted on `kaana
 
 ### Recovering usage after a lost response
 
-`OxyInferenceClient.getGenerationRecordByIdempotencyKey(originalKey)` makes only
 `GET /v1/generations/by-idempotency-key`, carrying the original key in the
-`Idempotency-Key` header. Use the same credential and delegated-user selector as
+`Idempotency-Key` header, reads the record back. `@oxy.so/core` has no method
+for it since 6.0.0 (its only caller moved to `kaana.ai/v1`); call the route
+directly. Use the same credential and delegated-user selector as
 the original request, with `inference:usage:read`. Authentication still checks
 current expiry and revocation. The lookup is bound to the original credential,
 application, account and environment; credential rotation does not turn an
@@ -370,7 +371,7 @@ A 404 means no settled record is available to this caller. It does not prove
 that nothing was executed or charged, and never authorizes a fresh inference.
 A returned v1 record describes a customer charge; v2 describes internal technical
 usage with no customer charge. Its tariff is separate from provider cost, which
-may remain unknown. Neither record contains the lost decision answers. Apps must
+may remain unknown. Neither record contains the lost output. Apps must
 keep usage reconciliation separate from successful result delivery and retain the
 original claim/idempotency identity. No provider call or new financial effect is
 performed by this GET.

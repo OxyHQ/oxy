@@ -88,7 +88,6 @@ const GENERATOR = join(API_ROOT, 'scripts', 'generate-openapi.ts');
  */
 const EXPECTED_PATHS = [
   '/v1/responses',
-  '/v1/decisions',
   '/v1/chat/completions',
   '/v1/generations/{id}',
   '/v1/generations/by-idempotency-key',
@@ -165,7 +164,6 @@ const EXPECTED_PAYLOAD_OPERATIONS = [
   { method: 'post', path: '/billing/subscriptions/cancel', requestBody: true },
   { method: 'get', path: '/v1/products/{productId}/access/{subjectAccountId}', requestBody: false },
   { method: 'post', path: '/v1/responses', requestBody: true },
-  { method: 'post', path: '/v1/decisions', requestBody: true },
   { method: 'post', path: '/v1/chat/completions', requestBody: true },
   { method: 'post', path: '/v1/audio/speech', requestBody: true },
   { method: 'post', path: '/v1/images/generations', requestBody: true },
@@ -196,9 +194,9 @@ const FORBIDDEN_30_KEYWORDS = {
 };
 
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
-const MINIMUM_EXPECTED_PATHS = 13;
+const MINIMUM_EXPECTED_PATHS = 12;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 21;
+const MINIMUM_PAYLOAD_OPERATIONS = 20;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *

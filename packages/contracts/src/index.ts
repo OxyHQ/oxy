@@ -1527,60 +1527,6 @@ export * from './email/messages';
 export * from './stickers';
 
 export {
-  decisionEffortSchema,
-  decisionQuestionSchema,
-  decisionInputSchema,
-  decisionRequestSchema,
-  decisionAnswerSchema,
-  decisionResultSchema,
-  decisionSuccessSchema,
-  decisionFailureSchema,
-  decisionInputBudget,
-  decisionFitsGateway,
-  decisionAnswersMatch,
-} from './inference/decisions';
-export type {
-  DecisionQuestion,
-  DecisionInput,
-  DecisionRequest,
-  DecisionAnswer,
-  DecisionFailure,
-  DecisionResult,
-  DecisionSuccess,
-} from './inference/decisions';
-
-export {
-  SCOPED_EXECUTION_CONTRACT_VERSION,
-  SCOPED_REQUEST_ENVELOPE_VERSION,
-  scopedExecutionAudienceSchema,
-  scopedExecutionSchema,
-  canonicalScopedExecutionJson,
-} from './inference/scopedExecution';
-export type { ScopedExecutionAudience, ScopedExecution } from './inference/scopedExecution';
-export { scopedInferenceRequestSchema } from './inference/request';
-export type { ScopedInferenceRequest } from './inference/request';
-
-export {
-  PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION,
-  PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION,
-  PRIVATE_AUTO_LIMITS,
-  PRIVATE_AUTO_INSTRUCTIONS,
-  PRIVATE_AUTO_QUESTION,
-  privateAutoPrincipalSchema,
-  privateAutoSourceApprovalSchema,
-  privateAutoExecutionSchema,
-  privateAutoInputSchema,
-  privateAutoOperationId,
-} from './inference/privateAutoExecution';
-export type {
-  PrivateAutoPrincipal,
-  PrivateAutoSourceApproval,
-  PrivateAutoExecution,
-} from './inference/privateAutoExecution';
-export { privateAutoInferenceRequestSchema } from './inference/request';
-export type { PrivateAutoInferenceRequest } from './inference/request';
-
-export {
   productDefinitionSchema,
   subjectProductAccessQuerySchema,
   productBenefitSchema,

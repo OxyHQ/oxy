@@ -174,13 +174,13 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     table: 'inference_deployments',
     column: 'privateAutoSourceApproval',
     holds:
-      'closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret',
+      'RETIRED (always null; its schema left @oxy.so/contracts in 5.0.0). Was closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret',
   },
   {
     table: 'inference_deployments',
     column: 'scopedExecution',
     holds:
-      'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token',
+      'RETIRED (always null; its schema left @oxy.so/contracts in 5.0.0). Was closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token',
   },
   // ---- external account identity evidence ------------------------------------
   {

@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.4.2
+
+### Changed
+
+- The `@oxy.so/contracts` dependency admits 5.x and `@oxy.so/core` admits 6.x.
+  Contracts 5.0.0 and core 6.0.0 remove only the retired decisions,
+  scoped-execution and Private Auto surface, which this package never used.
+
 ## 2.4.1
 
 ### Changed

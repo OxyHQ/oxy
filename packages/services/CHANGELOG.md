@@ -1,5 +1,13 @@
 # Changelog
 
+## [11.16.0] - 2026-10-19
+
+### Changed
+
+- The `@oxy.so/core` peer admits 6.x as well as 5.x (`^5.5.0 || ^6.0.0`). Core
+  6.0.0 removes only `OxyInferenceClient.decide()` and
+  `getGenerationRecordByIdempotencyKey()`, which this package never used.
+
 ## [11.14.1] - 2026-10-17
 
 ### Fixed

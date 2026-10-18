@@ -233,8 +233,8 @@ Unknown tariffs and costs appear as `unknownCount` beside each sum.
 
 ## Not covered here
 
-- Decisions: the old edge refuses them (`decisions-served-by-kaana`); they are a
-  `kaana.ai/v1` grant operation ([decisions.md](decisions.md)).
+- Decisions: the old edge has no decisions route; they are a `kaana.ai/v1`
+  grant operation ([decisions.md](decisions.md)).
 
 ## Cost coverage and terminal recovery
 

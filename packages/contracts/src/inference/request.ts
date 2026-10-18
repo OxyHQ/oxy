@@ -24,11 +24,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
-import { decisionInputSchema } from './decisions';
-
 import { z } from "zod";
-import { scopedExecutionSchema, SCOPED_REQUEST_ENVELOPE_VERSION } from "./scopedExecution";
-import { privateAutoExecutionSchema, privateAutoInputSchema, PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION } from "./privateAutoExecution";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,
@@ -218,7 +214,6 @@ export const inferenceMessageSchema = z
  * that both metering and provider translation depend on.
  */
 export const inferenceInputSchema = z.discriminatedUnion("format", [
-  z.object({ format: z.literal("decisions"), decisions: decisionInputSchema }).strict(),
   z
     .object({
       format: z.literal("messages"),
@@ -392,8 +387,6 @@ export const inferenceRequestSchema = z
   .object({
     /** See `version.ts`: this is the Oxy→data-plane request envelope. */
     schemaVersion: z.literal(2),
-    /** Recognized so v2 refuses rather than silently stripping a restriction. */
-    scopedExecution: scopedExecutionSchema.optional(),
     attribution: inferenceAttributionSchema,
     target: routingTargetSchema,
     modality: inferenceModalitySchema,
@@ -448,19 +441,10 @@ export const inferenceRequestSchema = z
     authorizedRoutes: z.array(authorizedRouteSchema).min(1).optional(),
   })
   .superRefine((request, ctx) => {
-    if (request.scopedExecution !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scopedExecution"], message: "Scoped execution requires envelope v3." });
-    if (request.input.format === "decisions" || request.client.apiFormat === "decisions") {
-      const exactModel = request.target.kind === "model" && request.target.modelReference.includes('@');
-      const foreignRoute = request.authorizedRoutes?.some((route) =>
-        request.target.kind !== "model" || route.modelReference !== request.target.modelReference || route.substitution !== "same_model"
-      );
-      if (request.input.format !== "decisions" || request.client.apiFormat !== "decisions" ||
-          request.modality !== "text" || request.stream || !exactModel || foreignRoute ||
-          request.maxOutputTokens !== undefined || Object.keys(request.sampling).length > 0 ||
-          request.tools.length > 0 || request.toolChoice !== undefined || request.responseFormat !== undefined ||
-          request.reasoning !== undefined || request.speech !== undefined || request.audioOutput !== undefined) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["input"], message: "Decisions require exact-model typed nonstreaming input without generation controls or model substitution." });
-      }
+    // Decisions are a grant operation of `kaana.ai/v1` (Kaana ADR 0002) and
+    // never ride this envelope.
+    if (request.client.apiFormat === "decisions") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["client", "apiFormat"], message: "Decisions are served by https://kaana.ai/v1/decisions, never on this envelope." });
     }
     const isSpeech = request.client.apiFormat === "audio_speech";
     if (isSpeech && request.speech !== undefined && (request.modality !== "audio" || request.input.format !== "text" || request.stream)) {
@@ -597,66 +581,6 @@ export const inferenceRequestSchema = z
       });
     }
   });
-
-/** Explicit restrictive generation: old v2 receivers reject this version whole. */
-export const scopedInferenceRequestSchema = inferenceRequestSchema.innerType()
-  .extend({ schemaVersion: z.literal(SCOPED_REQUEST_ENVELOPE_VERSION), scopedExecution: scopedExecutionSchema })
-  .superRefine((request, ctx) => {
-    const { scopedExecution: scope, ...base } = request;
-    const legacy = inferenceRequestSchema.safeParse({ ...base, schemaVersion: 2 });
-    if (!legacy.success) for (const issue of legacy.error.issues) ctx.addIssue(issue);
-    const principal = request.attribution.principal;
-    const route = request.authorizedRoutes?.[0];
-    if (request.input.format !== "decisions" || request.client.apiFormat !== "decisions" ||
-      scope.requestId !== request.attribution.requestId ||
-      scope.idempotencyKey !== request.idempotencyKey ||
-      scope.principal.accountId !== principal.billing.accountId ||
-      scope.principal.applicationId !== principal.applicationId ||
-      scope.principal.credentialId !== principal.credentialId ||
-      scope.principal.environment !== principal.environment ||
-      scope.policy.routingPolicyId !== request.routingPolicy.routingPolicyId ||
-      scope.policy.policyVersion !== request.routingPolicy.policyVersion ||
-      request.authorizedRoutes?.length !== 1 || route?.customerProviderCredential !== undefined ||
-      route?.deploymentId !== scope.deploymentId || route?.provider !== scope.provider ||
-      route?.modelReference !== scope.modelReference ||
-      request.target.kind !== "model" || request.target.modelReference !== scope.modelReference) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scopedExecution"], message: "Scoped execution must restrict the exact attributed decisions request and one platform route." });
-    }
-  });
-
-export type ScopedInferenceRequest = z.infer<typeof scopedInferenceRequestSchema>;
-
-/** Private repeated Auto is independently negotiated, never a v3 fixture renewal. */
-export const privateAutoInferenceRequestSchema = inferenceRequestSchema.innerType()
-  .omit({ scopedExecution: true })
-  .extend({ schemaVersion: z.literal(PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION), privateAutoExecution: privateAutoExecutionSchema })
-  .strict()
-  .superRefine((request, ctx) => {
-    const { privateAutoExecution: permit, ...base } = request;
-    const legacy = inferenceRequestSchema.safeParse({ ...base, schemaVersion: 2 });
-    if (!legacy.success) for (const issue of legacy.error.issues) ctx.addIssue(issue);
-    const input = privateAutoInputSchema.safeParse(request.input);
-    if (!input.success) for (const issue of input.error.issues) ctx.addIssue({ ...issue, path: ['input', ...issue.path] });
-    const principal = request.attribution.principal;
-    const route = request.authorizedRoutes?.[0];
-    if (request.attribution.userId !== undefined || request.client.apiFormat !== 'decisions' || permit.requestId !== request.attribution.requestId ||
-      permit.operationId !== request.idempotencyKey ||
-      permit.principal.accountId !== principal.billing.accountId ||
-      permit.principal.applicationId !== principal.applicationId ||
-      permit.principal.credentialId !== principal.credentialId || permit.principal.environment !== principal.environment ||
-      !principal.inferenceScopes.includes('inference:invoke') || request.client.endpoint !== '/internal/auto-classification' ||
-      permit.policy.routingPolicyId !== request.routingPolicy.routingPolicyId || permit.policy.policyVersion !== request.routingPolicy.policyVersion ||
-      request.authorizedRoutes?.length !== 1 || route?.customerProviderCredential !== undefined ||
-      route?.deploymentId !== permit.deploymentId || route?.provider !== permit.provider || route?.modelReference !== permit.modelReference ||
-      request.target.kind !== 'model' || request.target.modelReference !== permit.modelReference ||
-      route.regions.length !== permit.regions.length || route.regions.some((region) => !permit.regions.includes(region)) ||
-      Date.parse(permit.runtimeExpiresAt) <= Date.parse(request.client.receivedAt) ||
-      Date.parse(permit.runtimeExpiresAt) > Date.parse(request.client.receivedAt) + 1000) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privateAutoExecution'], message: 'Private Auto must bind one exact attributed decisions child and platform route.' });
-    }
-  });
-
-export type PrivateAutoInferenceRequest = z.infer<typeof privateAutoInferenceRequestSchema>;
 
 export type InferenceContentSource = z.infer<
   typeof inferenceContentSourceSchema

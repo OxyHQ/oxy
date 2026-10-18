@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Removed (the old edge's decisions route)
+
+`POST /v1/decisions` is gone. It had refused every request
+(`decisions-served-by-kaana`) since decisions became a `kaana.ai/v1` grant
+operation (oxy#1809), and no caller was left: zero requests in the 24 hours
+before removal. The edge's decisions-only branches (completion check, retry
+suppression, input budget, output-price rule) went with it. The
+`inference_deployments.scoped_execution` and `private_auto_source_approval`
+columns stay, now typed as plain JSON.
+
 ### Changed (a reconciliation session holds up to 5,000,000 pairs — ADR 0043 D6)
 
 A session held at most 500,000 pairs while its commit had to finish inside a

@@ -1,5 +1,37 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.0.0
+
+Breaking: removes the retired decisions, scoped-execution and Private Auto
+contracts. Decisions are a grant operation of `kaana.ai/v1` and their schemas
+are `@kaana.ai/contracts` (Kaana ADR 0002); nothing in the Oxy ecosystem imports
+these from `@oxy.so/contracts` any more. The inference contract set
+(`INFERENCE_CONTRACT_VERSION`) moves to 4.0.0.
+
+### Removed
+
+- `inference/decisions`: `decisionEffortSchema`, `decisionQuestionSchema`,
+  `decisionInputSchema`, `decisionRequestSchema`, `decisionAnswerSchema`,
+  `decisionResultSchema`, `decisionSuccessSchema`, `decisionFailureSchema`,
+  `decisionInputBudget`, `decisionFitsGateway`, `decisionAnswersMatch` and the
+  `Decision*` types.
+- `inference/scopedExecution`: `SCOPED_EXECUTION_CONTRACT_VERSION`,
+  `SCOPED_REQUEST_ENVELOPE_VERSION`, `scopedExecutionAudienceSchema`,
+  `scopedExecutionSchema`, `canonicalScopedExecutionJson`,
+  `ScopedExecutionAudience`, `ScopedExecution`, and the v3 envelope
+  `scopedInferenceRequestSchema` / `ScopedInferenceRequest`.
+- `inference/privateAutoExecution`: `PRIVATE_AUTO_*`, `privateAutoPrincipalSchema`,
+  `privateAutoSourceApprovalSchema`, `privateAutoExecutionSchema`,
+  `privateAutoInputSchema`, `privateAutoOperationId`, their types, and the v4
+  envelope `privateAutoInferenceRequestSchema` / `PrivateAutoInferenceRequest`.
+- The v2 envelope's `decisions` input format and its optional `scopedExecution`
+  member, and `modelDeploymentSchema`'s optional `scopedExecution`.
+
+### Changed
+
+- `inferenceRequestSchema` refuses `client.apiFormat: "decisions"`: decisions
+  never ride the Oxy envelope.
+
 ## 4.24.0
 
 Additive only: no export removed. ADR 0044 (an application may confine its own
