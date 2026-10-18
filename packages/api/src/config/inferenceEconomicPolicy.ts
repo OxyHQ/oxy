@@ -512,14 +512,17 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       scope: 'relationship',
     },
     pilot: {
-      // `instant` lines list at about USD 0.1-0.6 per 1M tokens: a request at
-      // the full 32,000 input and 4,096 output tokens quotes under USD 0.01.
-      // At most USD 50 a day if every request hit the ceiling.
+      // Mention's translation budget and its classification batch (25 x 320)
+      // need up to 8,192 output tokens. The dearest `instant` lines Kaana
+      // lists (2026-10-19: USD 0.30 in / 2.50 out per 1M, e.g.
+      // google/gemini-2.5-flash) quote USD 0.0301 at the full 32,000 input and
+      // 8,192 output; USD 0.035 admits every instant line at that size. A
+      // typical request quotes a small fraction of a cent.
       levelText: {
         levels: ['instant'],
         maxInputTokens: 32_000,
-        maxOutputTokens: 4_096,
-        maxPricePerRequestUsd: '0.01',
+        maxOutputTokens: 8_192,
+        maxPricePerRequestUsd: '0.035',
       },
     },
   },

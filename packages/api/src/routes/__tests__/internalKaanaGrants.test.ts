@@ -1770,7 +1770,7 @@ describe('Mention under its first-party relationships (production terms)', () =>
     expect(grant.reservation).toBeUndefined();
     expect(grant.steps[0]).toMatchObject({
       target: { kind: 'level', level: 'instant' },
-      limits: { maxPricePerRequest: { amount: '0.01', currency: 'USD' } },
+      limits: { maxPricePerRequest: { amount: '0.035', currency: 'USD' } },
     });
 
     const named = await authorize(
