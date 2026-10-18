@@ -897,6 +897,7 @@ function useMechanismRelationship() {
   jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockImplementation((principal) =>
     resolveProductionEconomics(
       principal,
+      undefined,
       economicPolicy.INTERNAL_METERED_RELATIONSHIPS.map((relationship) => {
         const { pilot: _pilot, ...mechanism } = relationship;
         return mechanism;
@@ -1944,6 +1945,7 @@ describe('approved production pilot speech', () => {
     jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockImplementation((principal) =>
       resolveProductionEconomics(
         principal,
+        undefined,
         economicPolicy.INTERNAL_METERED_RELATIONSHIPS.map((relationship) => {
           if (relationship.pilot === undefined) return relationship;
           const { speech: _speech, ...pilot } = relationship.pilot;

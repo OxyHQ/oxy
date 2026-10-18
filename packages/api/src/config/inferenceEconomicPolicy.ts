@@ -40,6 +40,7 @@
  * monetary hold must not remove the limit the hold used to imply.
  */
 
+import type { GrantOperation } from '@kaana.ai/contracts/internal';
 import type {
   InferenceEconomicTreatment,
   InferenceEnvironment,
@@ -56,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.3';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-18.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -70,6 +71,13 @@ export const ALIA_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e934'
  * workload-attested service token Clarity calls `kaana.ai/v1` with.
  */
 export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
+
+/**
+ * Mention's application, pinned. A test compares it to the seed spec's
+ * `MENTION_APPLICATION_ID`. Its backend calls `kaana.ai/v1/decisions` with its
+ * workload-attested service token.
+ */
+export const MENTION_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
  * The one route Clarity's search embeddings run on: `qwen/qwen3-embedding-8b`
@@ -195,8 +203,22 @@ export interface InternalMeteredEmbeddingsPilot {
 }
 
 /**
- * The pilot's TEXT terms (completions and decisions). A relationship that only
- * embeds, speaks or transcribes carries none of them, and every text request is
+ * The pilot's terms for `POST kaana.ai/v1/decisions`. Only the grant API reads
+ * them. Which model lines answer, at which revisions, and under which data
+ * controls is the decisions profile (`config/decisionsPolicy.ts`); these terms
+ * bound the request. Kaana estimates the serialized input before it asks
+ * (`facts.estimatedInputTokens`); a decision generates no billable output.
+ */
+export interface InternalMeteredDecisionsPilot {
+  /** Kaana's estimated input tokens one decisions request may carry. */
+  readonly maxInputTokens: number;
+  /** Exact USD tariff quote ceiling for one decisions request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
+/**
+ * The pilot's TEXT terms (completions). A relationship that only embeds,
+ * speaks, transcribes or decides carries none of them, and every completion is
  * then outside its pilot and refused: see {@link pilotTextTerms}.
  */
 export interface InternalMeteredTextPilot {
@@ -230,11 +252,13 @@ export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
   readonly transcription?: InternalMeteredTranscriptionPilot;
   /** Absent: every embeddings grant is outside the pilot and refused. */
   readonly embeddings?: InternalMeteredEmbeddingsPilot;
+  /** Absent: every decisions grant is refused (`decisions-not-enabled`). */
+  readonly decisions?: InternalMeteredDecisionsPilot;
 };
 
 /**
  * The pilot's text terms, or `undefined` when it has none, in which case every
- * completion and decision is outside the pilot and refused.
+ * completion is outside the pilot and refused.
  */
 export function pilotTextTerms(pilot: InternalMeteredPilot): InternalMeteredTextPilot | undefined {
   return pilot.maxControlledInputBudget === undefined ? undefined : pilot;
@@ -254,6 +278,20 @@ export interface InternalMeteredRelationship {
    * machine key or a human product session never qualifies.
    */
   readonly lane: 'service_token';
+  /**
+   * The operations it covers, in the grant API's vocabulary. Absent: every
+   * operation. Present, the relationship applies only to a grant naming one of
+   * them; the application's other traffic stays `commercial` (and the old edge,
+   * which names no grant operation, never applies it).
+   */
+  readonly operations?: readonly GrantOperation[];
+  /**
+   * The live application class the consumer must hold, re-read on every
+   * request. Absent: `applications.is_internal` (Alia, Clarity).
+   * `first_party`: an official first-party product (`applications.type`),
+   * which is never `is_internal`; it must name its {@link operations}.
+   */
+  readonly consumerApplicationClass?: 'first_party';
   readonly capacity: InternalMeteredCapacity;
   readonly pilot?: InternalMeteredPilot;
 }
@@ -403,6 +441,35 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       },
     },
   },
+  {
+    relationshipId: 'mention-kaana-decisions',
+    consumerApplicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'mention',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // Approved by Nate on 2026-10-18 (stable decisions approval). Mention's
+    // post evaluation (its shadow lane first, ranking later) on the decisions
+    // profile in `config/decisionsPolicy.ts`; every other Mention request,
+    // translation included, stays commercial.
+    operations: ['decisions'],
+    consumerApplicationClass: 'first_party',
+    // 2 in flight and 2,000 a UTC day, counted on this relationship's own rows
+    // (`scope`), not on Mention's commercial traffic. At most USD 0.001 a
+    // request, so at most USD 2 a day; Jev quotes about USD 0.0001 a post.
+    // Console (`application_inference_limits`) may lower or raise both.
+    capacity: {
+      maxConcurrentRequests: 2,
+      maxRequestsPerUtcDay: 2_000,
+      scope: 'relationship',
+    },
+    pilot: {
+      decisions: {
+        maxInputTokens: 16_000,
+        maxPricePerRequestUsd: '0.001',
+      },
+    },
+  },
 ];
 
 /** The facts about an authenticated principal this decision may read. Nothing else. */
@@ -412,6 +479,8 @@ export interface EconomicTreatmentPrincipal {
   readonly environment: InferenceEnvironment;
   /** Live `applications.is_internal`, re-read on every request. */
   readonly applicationIsInternal: boolean | null;
+  /** Live `applications.type`, re-read on every request. */
+  readonly applicationType?: string | null;
 }
 
 export type EconomicTreatmentDecision =
@@ -426,27 +495,32 @@ export type EconomicTreatmentDecision =
     };
 
 /**
- * Decide the economic treatment for an AUTHENTICATED principal.
+ * Decide the economic treatment for an AUTHENTICATED principal and, on the
+ * grant API, the operation it asks for.
  *
- * Pure, and typed to accept only the four principal facts it needs, so no
- * request-borne value can be passed in by a later refactor without the type
- * changing first.
+ * Pure, and typed to accept only the principal facts it needs and the grant
+ * operation, so no request-borne value can be passed in by a later refactor
+ * without the type changing first.
  */
 export function resolveEconomicTreatment(
   principal: EconomicTreatmentPrincipal,
+  operation?: GrantOperation,
   relationships: readonly InternalMeteredRelationship[] = INTERNAL_METERED_RELATIONSHIPS,
   policyVersion: string = INFERENCE_ECONOMIC_POLICY_VERSION,
 ): EconomicTreatmentDecision {
-  // An application that is no longer marked internal loses the exemption on
-  // its next request, whatever this file still says.
-  if (principal.applicationIsInternal !== true) {
-    return { treatment: 'commercial', policyVersion };
-  }
   const relationship = relationships.find(
     (candidate) =>
       candidate.consumerApplicationId === principal.applicationId &&
       candidate.lane === principal.lane &&
-      candidate.environments.includes(principal.environment),
+      candidate.environments.includes(principal.environment) &&
+      // An application that is no longer marked internal (or no longer a
+      // first-party product, for a relationship of that class) loses the
+      // exemption on its next request, whatever this file still says.
+      (candidate.consumerApplicationClass === 'first_party'
+        ? principal.applicationType === 'first_party' && candidate.operations !== undefined
+        : principal.applicationIsInternal === true) &&
+      (candidate.operations === undefined ||
+        (operation !== undefined && candidate.operations.includes(operation))),
   );
   return relationship === undefined
     ? { treatment: 'commercial', policyVersion }
