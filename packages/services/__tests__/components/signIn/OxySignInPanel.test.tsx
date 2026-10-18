@@ -12,7 +12,6 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Linking } from 'react-native';
-import { toast } from '@oxy.so/bloom';
 import type { DeviceDirectory, LoginSessionResult } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core/session';
 import { resolveActiveContext } from '@oxy.so/core/session';

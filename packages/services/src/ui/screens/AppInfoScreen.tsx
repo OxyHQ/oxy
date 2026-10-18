@@ -397,9 +397,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate })
             onPress={runSystemCheck}
             disabled={isRunningSystemCheck}
             rightElement={
-              isRunningSystemCheck ? (
-                <SpinnerIcon color={colors.warning} size={16} />
-              ) : undefined
+              isRunningSystemCheck ? <SpinnerIcon color={colors.warning} size={16} /> : undefined
             }
           />
         </GroupedSection>

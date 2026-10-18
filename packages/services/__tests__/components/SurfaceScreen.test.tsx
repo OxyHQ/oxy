@@ -136,9 +136,9 @@ it('leaves Escape to a sheet above the SDK dialog without changing its history',
     />,
   );
   jest.mocked(isTopmostOverlayLayer).mockReturnValue(false);
-  const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
-  window.dispatchEvent(escape);
-  expect(escape.defaultPrevented).toBe(false);
+  const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+  window.dispatchEvent(escapeEvent);
+  expect(escapeEvent.defaultPrevented).toBe(false);
   expect(stack.getTop().route).toBe('HelpSupport');
   expect(dismiss).not.toHaveBeenCalled();
   jest.mocked(isTopmostOverlayLayer).mockReturnValue(true);

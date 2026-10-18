@@ -151,15 +151,15 @@ export function onePlanQuote(
   return {
     baseMonthly: period === 'annual' ? Math.round(baseAnnual / 12) : plan.monthlyPrice,
     seatMonthly:
-      plan.monthlySeatPrice === undefined
+      seatAnnual === undefined
         ? undefined
         : period === 'annual'
-          ? Math.round(seatAnnual! / 12)
+          ? Math.round(seatAnnual / 12)
           : plan.monthlySeatPrice,
-    totalMonthly: !known
+    totalMonthly: totalAnnual === undefined
       ? undefined
       : period === 'annual'
-        ? Math.round(totalAnnual! / 12)
+        ? Math.round(totalAnnual / 12)
         : plan.monthlyPrice + (plan.monthlySeatPrice ?? 0) * (seats ?? 0),
     totalAnnual,
     storageGB: known ? plan.storageGB + (plan.storagePerSeatGB ?? 0) * (seats ?? 0) : undefined,

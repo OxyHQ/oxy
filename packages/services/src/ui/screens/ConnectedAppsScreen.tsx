@@ -119,9 +119,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             destructive
             showChevron={false}
             rightElement={
-              isRevoking ? (
-                <SpinnerIcon color={bloomTheme.colors.error} size={16} />
-              ) : undefined
+              isRevoking ? <SpinnerIcon color={bloomTheme.colors.error} size={16} /> : undefined
             }
           />
         </GroupedSection>
