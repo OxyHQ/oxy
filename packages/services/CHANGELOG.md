@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.14.1] - 2026-10-17
+
+### Fixed
+
+- The config plugins (`withOxySharedPermissions`, `withSharedDeviceSessionProvider`)
+  import `expo/config-plugins`, the app's own Expo SDK copy, and this package no
+  longer depends on `@expo/config-plugins`. 11.14.0 pinned it exactly at 58.0.9,
+  so in every Expo SDK 56 and 57 app that SDK-58 copy was hoisted to the top of
+  `node_modules` and Expo's own copy nested under it, leaving a native prebuild
+  one config-plugins major away from the app's SDK. `expo` was already a peer
+  (`>=56.0.0 <59.0.0`); nothing else changes.
+
 ## [11.14.0] - 2026-10-17
 
 Supports Expo SDK 58 (React Native 0.88, React 19.3) as well as SDK 56 and 57.

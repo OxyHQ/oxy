@@ -2,9 +2,13 @@
  * Every Oxy app declares AND requests both signature permissions, sees every
  * host authority, and never declares a shared UID.
  */
-jest.mock('@expo/config-plugins', () => ({
-  withAndroidManifest: (config: unknown, action: (c: unknown) => unknown) => action(config),
-}));
+jest.mock(
+  'expo/config-plugins',
+  () => ({
+    withAndroidManifest: (config: unknown, action: (c: unknown) => unknown) => action(config),
+  }),
+  { virtual: true },
+);
 
 const withOxySharedPermissions = require('../../plugins/withOxySharedPermissions') as ((
   config: unknown,
@@ -108,5 +112,13 @@ describe('withSharedDeviceSessionProvider', () => {
     expect(() => withSharedDeviceSessionProvider({ modResults: { manifest: {} } })).toThrow(
       'no <application>',
     );
+  });
+});
+
+describe('config-plugins resolution', () => {
+  test("the plugins run on the app's own Expo SDK copy, never one this package ships", () => {
+    const pkg = require('../../package.json') as Record<string, Record<string, string> | undefined>;
+    expect(pkg.dependencies?.['@expo/config-plugins']).toBeUndefined();
+    expect(pkg.peerDependencies?.expo).toBeDefined();
   });
 });
