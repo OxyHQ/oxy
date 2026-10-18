@@ -29,6 +29,9 @@ const LOG_COMPONENT = 'UserCache';
 
 class UserCache {
   private local: Map<string, { user: AccountDocument; timestamp: number; ttl: number }> = new Map();
+  // Per-read identity prevents delayed Redis data from reviving invalidated permissions.
+  // The bound also caps retained work when a ready connection stops responding.
+  private warmFills = new Map<string, symbol>();
   private cleanupTimer: NodeJS.Timeout;
 
   constructor() {
@@ -43,7 +46,14 @@ class UserCache {
     if (local) return local;
 
     const redis = getRedisClient();
-    if (redis && redis.status === 'ready') {
+    if (
+      redis &&
+      redis.status === 'ready' &&
+      !this.warmFills.has(userId) &&
+      this.warmFills.size < MAX_LOCAL_SIZE
+    ) {
+      const read = Symbol(userId);
+      this.warmFills.set(userId, read);
       // Warm-fill from Redis is best-effort and runs in the background.
       // We never let a Redis hiccup (network blip, corrupt blob) escape
       // into the unhandled-rejection sink — both the I/O step and the
@@ -52,7 +62,7 @@ class UserCache {
       redis
         .get(`user:${userId}`)
         .then((data) => {
-          if (!data) return;
+          if (!data || this.warmFills.get(userId) !== read) return;
           let parsed: AccountDocument | null = null;
           try {
             parsed = JSON.parse(data) as AccountDocument;
@@ -74,6 +84,9 @@ class UserCache {
             userId,
             err: err instanceof Error ? err.message : String(err),
           });
+        })
+        .finally(() => {
+          if (this.warmFills.get(userId) === read) this.warmFills.delete(userId);
         });
     }
 
@@ -82,6 +95,7 @@ class UserCache {
 
   set(userId: string, user: AccountDocument, ttl?: number): void {
     if (!userId || !user) return;
+    this.warmFills.delete(userId);
     const ttlSec = ttl ? Math.ceil(ttl / 1000) : DEFAULT_TTL;
     this.setLocal(userId, user, ttl);
 
@@ -149,6 +163,7 @@ class UserCache {
 
   /** Local map + Redis key eviction shared by {@link invalidate} and {@link invalidateLocal}. */
   private evict(userId: string): void {
+    this.warmFills.delete(userId);
     this.local.delete(userId);
 
     const redis = getRedisClient();
@@ -201,6 +216,7 @@ class UserCache {
   }
 
   clear(): void {
+    this.warmFills.clear();
     this.local.clear();
   }
 

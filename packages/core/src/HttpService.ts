@@ -373,6 +373,13 @@ function linkAbort(parent: AbortSignal, child: AbortController): () => void {
 export class HttpService {
   private baseURL: string;
   private tokenStore: TokenStore;
+  // Only active calls retain a lease. Invalidation detaches matching leases,
+  // so late results cannot warm the cache or attract new deduplicated callers.
+  private readonly readLeases = new Map<
+    string,
+    { key: string; id: number; valid: boolean; readers: number }
+  >();
+  private nextReadLeaseId = 0;
   private cache: TTLCache<unknown>;
   /**
    * When true, the per-instance GET response cache is OFF: GET responses are
@@ -615,6 +622,30 @@ export class HttpService {
    * Main request method - handles everything in one place
    */
   async request<T = unknown>(config: RequestConfig): Promise<T> {
+    const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
+    const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
+    if (!cache && !deduplicate) {
+      return this.requestWithCacheLease<T>(config, { key: '', id: 0, valid: true });
+    }
+    const key = this.generateCacheKey(config.method, config.url, config.data || config.params);
+    let lease = this.readLeases.get(key);
+    if (!lease) {
+      lease = { key, id: ++this.nextReadLeaseId, valid: true, readers: 0 };
+      this.readLeases.set(key, lease);
+    }
+    lease.readers++;
+    try {
+      return await this.requestWithCacheLease<T>(config, lease);
+    } finally {
+      lease.readers--;
+      if (lease.readers === 0 && this.readLeases.get(key) === lease) this.readLeases.delete(key);
+    }
+  }
+
+  private async requestWithCacheLease<T>(
+    config: RequestConfig,
+    lease: { key: string; id: number; valid: boolean },
+  ): Promise<T> {
     const {
       method,
       url,
@@ -641,7 +672,7 @@ export class HttpService {
     const cache = cacheRequested && !this.cacheDisabled;
 
     // Generate cache key (optimized for large objects)
-    const cacheKey = cache ? this.generateCacheKey(method, url, data || params) : null;
+    const cacheKey = cache ? lease.key : null;
 
     // Check cache first
     if (cache && cacheKey) {
@@ -1021,9 +1052,9 @@ export class HttpService {
 
     let result: T;
     if (deduplicate) {
-      // The cache key IS the dedupe key (same method, url, payload, identity);
-      // computed once per call.
-      const dedupeKey = cacheKey ?? this.generateCacheKey(method, url, data || params);
+      // Calls share only within the same invalidation boundary. The resource
+      // identity is computed once; invalidated work retains its old lease.
+      const dedupeKey = `${lease.key} lease=${lease.id}`;
       result = await this.deduplicator.deduplicate(dedupeKey, execute, signal);
     } else {
       // The call's own abort domain, linked to the caller's signal ONCE, so a
@@ -1041,7 +1072,7 @@ export class HttpService {
     }
 
     // Cache the result if caching is enabled
-    if (cache && cacheKey && result) {
+    if (cache && cacheKey && lease.valid && result) {
       this.cache.set(cacheKey, result, cacheTTL);
       this.warnIfCacheOversized();
     }
@@ -1861,7 +1892,7 @@ export class HttpService {
     // SAME user — the identity tag is unchanged and the warm cache is still
     // valid; clearing there would defeat caching as refreshes fire near
     // every token expiry.
-    this.cache.clear();
+    this.clearCache();
     this.notifyTokenChange();
   }
 
@@ -1917,6 +1948,8 @@ export class HttpService {
 
   // Cache management
   clearCache(): void {
+    for (const lease of this.readLeases.values()) lease.valid = false;
+    this.readLeases.clear();
     this.cache.clear();
   }
 
@@ -1964,14 +1997,21 @@ export class HttpService {
     if (keys.length === 0 && prefixes.length === 0) return 0;
     const exact = new Set(keys);
     const delim = HttpService.CACHE_IDENTITY_DELIM;
-    return this.cache.deleteWhere((stored) => {
+    const matches = (stored: string): boolean => {
       const cut = stored.lastIndexOf(delim);
       if (exact.has(cut === -1 ? stored : stored.slice(0, cut))) return true;
       for (const prefix of prefixes) {
         if (stored.startsWith(prefix)) return true;
       }
       return false;
-    });
+    };
+    for (const [key, lease] of this.readLeases) {
+      if (matches(key)) {
+        lease.valid = false;
+        this.readLeases.delete(key);
+      }
+    }
+    return this.cache.deleteWhere(matches);
   }
 
   /**
@@ -1980,7 +2020,7 @@ export class HttpService {
    */
   dispose(): void {
     unregisterCacheFromCleanup(this.cache);
-    this.cache.clear();
+    this.clearCache();
     this.deduplicator.clear();
     this.endSession();
   }

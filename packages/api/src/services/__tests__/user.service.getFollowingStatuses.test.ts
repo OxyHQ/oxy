@@ -145,3 +145,17 @@ describe('degenerate inputs', () => {
     expect(await userService.getFollowingStatuses(viewer, [])).toEqual({});
   });
 });
+
+it('returns an own false status for every prototype-named identifier', async () => {
+  const ids = ['__proto__', 'constructor', 'toString'];
+  for (const viewer of ['', ...(await makeUsers(1))]) {
+    const statuses = await userService.getFollowingStatuses(viewer, ids);
+    for (const id of ids) {
+      expect(Object.hasOwn(statuses, id)).toBe(true);
+      expect(statuses[id]).toBe(false);
+    }
+    expect(JSON.parse(JSON.stringify(statuses))).toEqual(
+      Object.fromEntries(ids.map((id) => [id, false])),
+    );
+  }
+});
