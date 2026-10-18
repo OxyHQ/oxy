@@ -95,11 +95,7 @@ import {
   type ReviewedProviderRoute,
   type ReviewedProviderRouteIndex,
 } from '../config/kaanaReviewedProviderRoutes';
-import {
-  createHttpKaanaCatalogueReader,
-  type KaanaCatalogueReader,
-  kaanaDeploymentCommercialSchema,
-} from './httpKaanaClient';
+import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
 import {
   createHttpKaanaCredentialEconomicsReader,
@@ -257,33 +253,10 @@ const kaanaCatalogueResponseSchema = z
     configuration: nullish(
       z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough(),
     ),
+    // Kaana's signed `GET /internal/v1/models`: the served catalogue. Each
+    // priced deployment it names is attested through the deployment query
+    // before it is stored (`attestPricedDeployments`).
     models: z.array(z.unknown()),
-    scopedExecutionContractVersion: z.literal('3.6.0').optional(),
-    deployments: z
-      .array(
-        z
-          .object({
-            deploymentId: deploymentIdSchema,
-            modelReference: modelReferenceSchema,
-            provider: inferenceProviderSlugSchema,
-            regions: z.array(z.string()),
-            // A restricted (scoped) publication, listed by the negotiated read
-            // Kaana still requires. Never imported: see `parseKaanaCatalogue`.
-            scopedExecution: z.unknown().optional(),
-            privateAutoSourceApproval: z.unknown().optional(),
-            keyId: z.string().optional(),
-            upstreamModelId: z.string().optional(),
-            providerRateCardVersionId: z.string().optional(),
-            providerSourceVersion: z.string().optional(),
-            acceptedParameters: z.array(z.string()).optional(),
-            // How the route may be sold: @kaana.ai/contracts
-            // `deploymentCommercialSchema`, the one validator Oxy applies to it
-            // (httpKaanaClient). Kaana publishes it on every descriptor (#178).
-            commercial: kaanaDeploymentCommercialSchema.optional(),
-          })
-          .strict(),
-      )
-      .optional(),
   })
   .passthrough();
 
@@ -361,21 +334,6 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
       `Kaana returned a catalogue body Oxy cannot read (${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'})`,
     );
   }
-  if (
-    response.data.scopedExecutionContractVersion !== undefined &&
-    response.data.deployments === undefined
-  ) {
-    throw new Error('Negotiated catalogue must declare exact deployment audiences.');
-  }
-  const deploymentAudience = new Map<
-    string,
-    NonNullable<typeof response.data.deployments>[number]
-  >();
-  for (const descriptor of response.data.deployments ?? []) {
-    if (deploymentAudience.has(descriptor.deploymentId))
-      throw new Error('Duplicate catalogue deployment identity.');
-    deploymentAudience.set(descriptor.deploymentId, descriptor);
-  }
   let invalidEntries = 0;
   const models: KaanaCatalogueModel[] = [];
   for (const rawEntry of response.data.models) {
@@ -389,25 +347,6 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
     let invalidDeployments = 0;
     for (const rawPrice of data.listPrices ?? []) {
       const priced = parsePricedRoute(rawPrice);
-      const descriptor =
-        priced === undefined ? undefined : deploymentAudience.get(priced.deploymentId);
-      if (
-        response.data.scopedExecutionContractVersion !== undefined &&
-        (descriptor === undefined ||
-          descriptor.modelReference !== data.modelReference ||
-          descriptor.provider !== priced?.provider)
-      ) {
-        invalidDeployments += 1;
-        continue;
-      }
-      // A scoped or Private Auto publication is a retired source approval
-      // (decisions are served by `kaana.ai/v1`): never priced, attested or stored.
-      if (
-        descriptor?.scopedExecution !== undefined ||
-        descriptor?.privateAutoSourceApproval !== undefined
-      ) {
-        continue;
-      }
       if (priced === undefined) invalidDeployments += 1;
       else listPrices.push(priced);
     }

@@ -548,19 +548,10 @@ monitor) holds a synced price-only route to its price evidence alone: no expiry.
 It refuses one sharing a model revision with a measured route, because that
 candidate would make the whole set refuse any non-price objective.
 
-### Private structured decisions output
+### Structured decisions output
 
-Model output vocabulary includes `decisions`; request and input modalities retain
-the existing five values. A signed observation with exactly `outputModalities:
-['decisions']` is imported only through exact, locally reviewed, unexpired private
-3.6/v3 or 3.7/v4 deployment authority and its matching attestation. Oxy derives
-`apiFormats: ['decisions']` from that negotiated decisions-only contract, rather
-than claiming the provider or catalogue returned an `apiFormats` field.
+Model output vocabulary includes `decisions`. The sync imports no
+decisions-only line: the old edge serves no decisions, and the scoped and Private
+Auto imports that once carried them were deleted. Decisions are granted on
+`kaana.ai/v1` from Kaana's declared catalogue ([decisions.md](decisions.md)).
 
-The importer preserves `disabled`, `pending_review` and the separate legal gate.
-It grants no public offer or execution authority. Ordinary and mixed media
-outputs remain excluded. A genuine subsequent text-only observation removes
-only the previously derived decisions-only capability; other declared formats
-and reviewed model facts remain untouched. Migration 0145 permits structured
-decisions without invented filtering or watermark metadata in both provenance
-trigger directions; image/audio/video/embedding still require marking.

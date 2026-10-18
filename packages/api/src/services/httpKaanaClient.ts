@@ -55,7 +55,7 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
-import { inferenceRequestSchema, SCOPED_EXECUTION_CONTRACT_VERSION } from '@oxy.so/contracts';
+import { inferenceRequestSchema } from '@oxy.so/contracts';
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
@@ -343,15 +343,6 @@ export interface KaanaCatalogueReader {
   listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation>;
 }
 
-/**
- * The body of the catalogue read. Kaana's `POST /internal/v1/models/query`
- * still answers only a read that names the scoped-execution contract (Kaana's
- * `handleScopedModels`), so the sync keeps naming it until Kaana drops that
- * requirement; the restricted rows such a read lists are never imported
- * (`kaanaCatalogueSync.service.ts`).
- */
-const CATALOGUE_QUERY = { scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION };
-
 /** `undefined` whenever the data plane is not fully configured. */
 export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefined {
   const resolution = resolveKaanaDataPlane();
@@ -361,48 +352,7 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
   return {
     attestDeployments: (deploymentIds, options) => client.attestDeployments(deploymentIds, options),
     listPublishedDeployments: (signal) => client.listPublishedDeployments(signal),
-    async listModels(signal: AbortSignal): Promise<unknown> {
-      const body = Buffer.from(JSON.stringify(CATALOGUE_QUERY), 'utf8');
-      const timestamp = Date.now();
-      const response = await tracedFetch(`${config.baseUrl}/internal/v1/models/query`, {
-        method: 'POST',
-        body,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          [KAANA_KEY_ID_HEADER]: config.keyId,
-          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
-          [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
-        },
-        cache: 'no-store',
-        signal,
-      });
-      if (!response.ok) {
-        await readBounded(response);
-        throw new KaanaProtocolError(
-          `The inference data plane refused the catalogue read with HTTP ${response.status}.`,
-        );
-      }
-      if (!response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) {
-        throw new KaanaProtocolError('The inference catalogue projection was cacheable.');
-      }
-      const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
-      let parsed: { scopedExecutionContractVersion?: unknown };
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new KaanaProtocolError(
-          'The inference data plane returned a catalogue that is not JSON.',
-        );
-      }
-      if (
-        parsed.scopedExecutionContractVersion !== CATALOGUE_QUERY.scopedExecutionContractVersion
-      ) {
-        throw new KaanaProtocolError('The inference catalogue read was not acknowledged.');
-      }
-      return parsed;
-    },
+    listModels: (signal) => readSignedModels(config, signal, 'catalogue'),
   };
 }
 
@@ -412,9 +362,8 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
  * amendment 2026-10-15 — the catalogue, list prices included, is Kaana's, and
  * this is how Oxy reads it to rate a grant.
  *
- * Its own interface because it is not the sync's read: the sync reads the
- * negotiated `POST /internal/v1/models/query` projections, which do not carry
- * the declared catalogue.
+ * Its own interface because it is not the sync's read: the sync reads the same
+ * response's served `models`, the grant its `declaredCatalogue`.
  */
 export interface KaanaDeclaredCatalogueReader {
   /** The decoded `declaredCatalogue` member, unvalidated (the cache owns the parse). */
@@ -431,36 +380,9 @@ export function createHttpKaanaDeclaredCatalogueReader(
 ): KaanaDeclaredCatalogueReader {
   return {
     async readDeclaredCatalogue(signal: AbortSignal): Promise<unknown> {
-      const body = Buffer.alloc(0);
-      const timestamp = Date.now();
-      const response = await tracedFetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
-        method: 'GET',
-        redirect: 'error',
-        headers: {
-          Accept: 'application/json',
-          'Cache-Control': 'no-store',
-          [KAANA_KEY_ID_HEADER]: config.keyId,
-          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
-          [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
-        },
-        cache: 'no-store',
-        signal,
-      });
-      if (!response.ok) {
-        await readBounded(response);
-        throw new KaanaProtocolError(
-          `The inference data plane refused the declared catalogue read with HTTP ${response.status}.`,
-        );
-      }
-      const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
-      let parsed: { declaredCatalogue?: unknown };
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new KaanaProtocolError(
-          'The inference data plane returned a declared catalogue that is not JSON.',
-        );
-      }
+      const parsed = (await readSignedModels(config, signal, 'declared catalogue')) as {
+        declaredCatalogue?: unknown;
+      } | null;
       if (parsed === null || typeof parsed !== 'object' || parsed.declaredCatalogue === undefined) {
         throw new KaanaProtocolError(
           'The inference data plane returned no declaredCatalogue (contract set 4.3.0).',
@@ -469,6 +391,41 @@ export function createHttpKaanaDeclaredCatalogueReader(
       return parsed.declaredCatalogue;
     },
   };
+}
+
+/** The decoded body of Kaana's signed `GET /internal/v1/models`, unvalidated. */
+async function readSignedModels(
+  config: KaanaDataPlaneConfig,
+  signal: AbortSignal,
+  what: string,
+): Promise<unknown> {
+  const body = Buffer.alloc(0);
+  const timestamp = Date.now();
+  const response = await tracedFetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
+    method: 'GET',
+    redirect: 'error',
+    headers: {
+      Accept: 'application/json',
+      'Cache-Control': 'no-store',
+      [KAANA_KEY_ID_HEADER]: config.keyId,
+      [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+      [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
+    },
+    cache: 'no-store',
+    signal,
+  });
+  if (!response.ok) {
+    await readBounded(response);
+    throw new KaanaProtocolError(
+      `The inference data plane refused the ${what} read with HTTP ${response.status}.`,
+    );
+  }
+  const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new KaanaProtocolError(`The inference data plane returned a ${what} that is not JSON.`);
+  }
 }
 
 class HttpKaanaClient implements KaanaClient {
