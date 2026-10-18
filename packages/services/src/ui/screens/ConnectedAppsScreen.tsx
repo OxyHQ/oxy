@@ -139,7 +139,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
           renderItem={renderItem}
           contentContainerClassName="px-screen-margin py-space-16"
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={isLoading ? null : renderEmpty}
+          ListEmptyComponent={isLoading ? undefined : renderEmpty}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}

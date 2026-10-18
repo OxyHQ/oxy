@@ -34,7 +34,7 @@ const oxyServices = {
   },
   auth: { checkUsername },
 };
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({ oxyServices, user, canUsePrivateApi: ready, createAccount, switchToAccount }),
 }));
 jest.mock('../../src/ui/hooks/useI18n', () => ({

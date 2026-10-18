@@ -68,12 +68,16 @@ export default function OxyOneScreen() {
       subtitle: t(`oxyOne.subtitle.${audience}`),
       price: free
         ? t('oxyOne.free')
-        : period === 'annual'
-          ? t('oxyOne.annualPrice', {
-              price: money(quote.totalMonthly),
-              total: money(quote.totalAnnual),
-            })
-          : t('oxyOne.monthlyPrice', { price: money(quote.totalMonthly) }),
+        : {
+            amount: quote.totalMonthly / 100,
+            currency: 'USD',
+            locale,
+            suffix: t('oxyOne.pricePeriod'),
+            description:
+              period === 'annual'
+                ? t('oxyOne.annualTotal', { total: money(quote.totalAnnual) })
+                : undefined,
+          },
       benefits: [
         {
           id: 'credits',

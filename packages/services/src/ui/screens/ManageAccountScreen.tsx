@@ -34,7 +34,6 @@ import { deviceSessionTitle } from '../utils/deviceSessionTitle';
 
 type DeviceSessionRow = DeviceLinkedSession;
 
-
 const formatRelative = (dateString?: string): string => {
   if (!dateString) {
     return '—';
@@ -407,32 +406,31 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
               />
             </GroupedSection>
 
-        {user?.kind === 'organization' ? (
-          <GroupedSection title={t('organizationDirectory.title')}>
-            <GroupedSectionItem
-              title={t('organizationDirectory.view')}
-              onPress={() => navigate?.('AccountSettings', { accountId: user.id })}
-            />
-          </GroupedSection>
-        ) : null}
+            {user?.kind === 'organization' ? (
+              <GroupedSection title={t('organizationDirectory.title')}>
+                <GroupedSectionItem
+                  title={t('organizationDirectory.view')}
+                  onPress={() => navigate?.('AccountSettings', { accountId: user.id })}
+                />
+              </GroupedSection>
+            ) : null}
 
-        {user?.kind === 'personal' ? (
-          <>
-            <OrganizationClaims key={user.id} />
-            <OrganizationClaimReview key={`review:${user.id}`} />
-          </>
-        ) : null}
+            {user?.kind === 'personal' ? (
+              <>
+                <OrganizationClaims key={user.id} />
+                <OrganizationClaimReview key={`review:${user.id}`} />
+              </>
+            ) : null}
 
-        {user?.kind === 'personal' ? (
-          <GroupedSection title={t('supervision.title')}>
-            <GroupedSectionItem
-              title={t('supervision.title')}
-              description={t('supervision.entryDescription')}
-              onPress={() => navigate?.('Supervision')}
-            />
-          </GroupedSection>
-        ) : null}
-
+            {user?.kind === 'personal' ? (
+              <GroupedSection title={t('supervision.title')}>
+                <GroupedSectionItem
+                  title={t('supervision.title')}
+                  description={t('supervision.entryDescription')}
+                  onPress={() => navigate?.('Supervision')}
+                />
+              </GroupedSection>
+            ) : null}
 
             {/* Sessions section */}
             <GroupedSection title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>
@@ -732,9 +730,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
                 showChevron={false}
                 disabled={signingOut}
                 rightElement={
-                  signingOut ? (
-                    <SpinnerIcon color={bloomTheme.colors.error} size={16} />
-                  ) : undefined
+                  signingOut ? <SpinnerIcon color={bloomTheme.colors.error} size={16} /> : undefined
                 }
               />
             </GroupedSection>

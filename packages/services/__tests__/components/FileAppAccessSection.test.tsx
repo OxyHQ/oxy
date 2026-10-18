@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const listAppAccess = jest.fn();
 const revokeAppAccess = jest.fn();
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     oxyServices: { assets: { listAppAccess, revokeAppAccess } },

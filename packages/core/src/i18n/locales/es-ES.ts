@@ -1700,6 +1700,8 @@ const dict = {
     },
   },
   oxyOne: {
+    pricePeriod: '/mes',
+    annualTotal: '{{total}} facturados anualmente',
     businessApp: 'Una app de empresa incluida',
     businessAppChoice: 'Elige {{mercaria}} o Homiio Plus.',
     subtitle: {

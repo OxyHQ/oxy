@@ -15,7 +15,7 @@ export function OxyOneVideo() {
     video.loop = true;
   });
   useEffect(() => {
-    const update = (state: string) => {
+    const update = (state: string | null | undefined) => {
       if (!reducedMotion && state === 'active') player.play();
       else player.pause();
     };

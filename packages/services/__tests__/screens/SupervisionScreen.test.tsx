@@ -68,7 +68,7 @@ const safety = {
   reviewPurchaseApproval: jest.fn(async () => purchase),
   cancelGuardianInvitation: jest.fn(async () => undefined),
 };
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     user: { id: account, kind: 'personal' },
     activeSessionId: session,
