@@ -1666,13 +1666,15 @@ describe('the clarity-kaana relationship (service_token, embeddings only)', () =
   });
 });
 
-describe('decisions under the stable approval (mention-kaana-decisions)', () => {
-  it('signs one revision-pinned step per profile line Kaana publishes, and refuses the request past the day', async () => {
-    // A fresh first-party application stands in for Mention: the production
-    // relationship is resolved for it, so the pinned Mention row other suites
-    // seed is left alone.
+describe('Mention under its first-party relationships (production terms)', () => {
+  /**
+   * A fresh first-party application stands in for Mention: the production
+   * relationships are resolved for it, so the pinned Mention row other suites
+   * seed is left alone.
+   */
+  async function mentionStandIn(maxRequestsPerUtcDay?: number) {
     const appId = randomUUID();
-    const app = await pinnedApplication(appId, 'Decider', ['inference:invoke']);
+    const app = await pinnedApplication(appId, 'Mention stand-in', ['inference:invoke']);
     await getDb()
       .update(applications)
       .set({ type: 'first_party', isInternal: false })
@@ -1686,15 +1688,22 @@ describe('decisions under the stable approval (mention-kaana-decisions)', () => 
           operation,
         ),
       );
-    await getDb()
-      .insert(applicationInferenceLimits)
-      .values({ applicationId: appId, maxRequestsPerUtcDay: 1 });
+    if (maxRequestsPerUtcDay !== undefined) {
+      await getDb()
+        .insert(applicationInferenceLimits)
+        .values({ applicationId: appId, maxRequestsPerUtcDay });
+    }
     const token = serviceToken({
       applicationId: appId,
       credentialId: app.credentialId,
       ownerAccountId: app.accountId,
       audience: KAANA_PUBLIC_AUDIENCE,
     });
+    return { app, token };
+  }
+
+  it('signs one revision-pinned decisions step per profile line Kaana publishes, and refuses the request past the day', async () => {
+    const { app, token } = await mentionStandIn(1);
     const line = await addModelLine(app.accountId, {
       prices: { requests: '0', input_tokens: '0.042', output_tokens: '0' },
       outputModalities: ['decisions'],
@@ -1736,6 +1745,39 @@ describe('decisions under the stable approval (mention-kaana-decisions)', () => 
     const refused = await decide();
     expect(refused.status).toBe(429);
     expect(refused.body.code).toBe('quota_exceeded');
+  });
+  it('grants text at the instant level as internal_metered under its own terms, and refuses a model target', async () => {
+    const { app, token } = await mentionStandIn();
+    const line = await addModelLine(app.accountId, {
+      prices: {
+        requests: '0',
+        input_tokens: '0.1',
+        cached_input_tokens: '0.1',
+        output_tokens: '0.4',
+        reasoning_tokens: '0.4',
+      },
+      powerClass: 'instant',
+    });
+    const grant = verifiedGrant(
+      await authorize(
+        inferenceRequest({ credential: token, target: { kind: 'level', level: 'instant' } }),
+      ),
+    );
+    expect(grant.economics).toMatchObject({
+      treatment: 'internal_metered',
+      relationshipId: 'mention-kaana-text',
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps[0]).toMatchObject({
+      target: { kind: 'level', level: 'instant' },
+      limits: { maxPricePerRequest: { amount: '0.01', currency: 'USD' } },
+    });
+
+    const named = await authorize(
+      inferenceRequest({ credential: token, target: { kind: 'model', modelLine: line.modelLine } }),
+    );
+    expect(named.status).toBe(403);
+    expect(named.body.code).toBe('policy_violation');
   });
 });
 

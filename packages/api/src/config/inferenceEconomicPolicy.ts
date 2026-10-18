@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-18.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -217,6 +217,22 @@ export interface InternalMeteredDecisionsPilot {
 }
 
 /**
+ * The pilot's terms for completions (`responses`, `chat_completions`) granted on
+ * NAMED power levels only. Only the grant API reads them. Kaana picks the line
+ * within the level; a line is admitted by its quote alone, so there is no route
+ * list. A model target, or a level not listed, is outside the pilot.
+ */
+export interface InternalMeteredLevelTextPilot {
+  readonly levels: readonly Exclude<PowerLevel, 'auto'>[];
+  /** Kaana's estimated input tokens one request may carry. */
+  readonly maxInputTokens: number;
+  /** The caller's own output limit must be at most this. */
+  readonly maxOutputTokens: number;
+  /** Exact USD tariff quote ceiling for one request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
+/**
  * The pilot's TEXT terms (completions). A relationship that only embeds,
  * speaks, transcribes or decides carries none of them, and every completion is
  * then outside its pilot and refused: see {@link pilotTextTerms}.
@@ -254,6 +270,11 @@ export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
   readonly embeddings?: InternalMeteredEmbeddingsPilot;
   /** Absent: every decisions grant is refused (`decisions-not-enabled`). */
   readonly decisions?: InternalMeteredDecisionsPilot;
+  /**
+   * Completions on named power levels, for a relationship with no text terms.
+   * Absent with no text terms: every completion is outside the pilot.
+   */
+  readonly levelText?: InternalMeteredLevelTextPilot;
 };
 
 /**
@@ -467,6 +488,38 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       decisions: {
         maxInputTokens: 16_000,
         maxPricePerRequestUsd: '0.001',
+      },
+    },
+  },
+  {
+    relationshipId: 'mention-kaana-text',
+    consumerApplicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'mention',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // Approved 2026-10-19: Mention's text features (translation, summaries,
+    // topics, classification) on kaana.ai/v1 at the `instant` power level. A
+    // relationship of its own so its count never eats the decisions budget.
+    operations: ['responses', 'chat_completions'],
+    consumerApplicationClass: 'first_party',
+    // Mention's text inference is a few hundred requests a day; 5,000 is over
+    // ten times that, 8 in flight covers a burst of translations. Either
+    // refuses with a 429 and never asks for a top-up. Console may change both.
+    capacity: {
+      maxConcurrentRequests: 8,
+      maxRequestsPerUtcDay: 5_000,
+      scope: 'relationship',
+    },
+    pilot: {
+      // `instant` lines list at about USD 0.1-0.6 per 1M tokens: a request at
+      // the full 32,000 input and 4,096 output tokens quotes under USD 0.01.
+      // At most USD 50 a day if every request hit the ceiling.
+      levelText: {
+        levels: ['instant'],
+        maxInputTokens: 32_000,
+        maxOutputTokens: 4_096,
+        maxPricePerRequestUsd: '0.01',
       },
     },
   },

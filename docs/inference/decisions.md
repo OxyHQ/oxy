@@ -37,8 +37,10 @@ token, decisions only): 2 in flight and 2 000 a UTC day, counted on its own rows
 at most 16 000 estimated input tokens and USD 0.001 a request, so at most USD 2 a
 day. Console (`application_inference_limits`) can lower or raise both counts.
 Mention is a first-party product, not `is_internal`: the relationship is of class
-`first_party` and is re-checked against the live `applications.type`. Every other
-Mention request stays commercial.
+`first_party` and is re-checked against the live `applications.type`. Mention's
+text generation at the `instant` level has a relationship of its own,
+`mention-kaana-text` ([kaana-grants.md](kaana-grants.md)), so it never consumes
+the decisions budget; every other Mention request stays commercial.
 
 Provider facts are Kaana's, not Oxy's: the line's identity, data policy and list
 price come from Kaana's declared catalogue, and its deployment from Kaana's

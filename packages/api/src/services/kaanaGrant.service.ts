@@ -542,6 +542,8 @@ interface GrantPilotTerms {
   readonly maxPriceUsd: string;
   /** Exact routes; `undefined` admits by price alone (realtime, transcription). */
   readonly deployments: readonly InternalMeteredPilotDeployment[] | undefined;
+  /** The only power levels a request may target; absent: any target. */
+  readonly levels?: readonly PowerLevel[];
 }
 
 function grantPilotTerms(
@@ -552,6 +554,15 @@ function grantPilotTerms(
   switch (plan.family) {
     case 'completion': {
       const text = pilotTextTerms(pilot);
+      if (text === undefined && pilot.levelText !== undefined) {
+        return {
+          maxInput: pilot.levelText.maxInputTokens,
+          maxOutputTokens: pilot.levelText.maxOutputTokens,
+          maxPriceUsd: pilot.levelText.maxPricePerRequestUsd,
+          deployments: undefined,
+          levels: pilot.levelText.levels,
+        };
+      }
       return text?.maxPricePerRequestUsd === undefined
         ? undefined
         : {
@@ -861,6 +872,16 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       {
         param: 'model',
       },
+    );
+  }
+  if (
+    pilotTerms?.levels !== undefined &&
+    (target?.kind !== 'level' || !pilotTerms.levels.includes(target.level))
+  ) {
+    throw new GrantRefusal(
+      'policy_violation',
+      `The internal pilot serves this operation on the power levels ${pilotTerms.levels.join(', ')} only.`,
+      { param: 'model', reason: 'pilot-level' },
     );
   }
   if (target?.kind === 'level' && !levelAllowed(target.level)) {

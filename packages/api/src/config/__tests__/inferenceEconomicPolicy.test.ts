@@ -200,7 +200,7 @@ describe('clarity-kaana: Clarity search embeddings, and nothing else', () => {
   });
 });
 
-describe('mention-kaana-decisions: Mention decisions, and nothing else', () => {
+describe('Mention: decisions and level text, each its own relationship; nothing else', () => {
   const mention: EconomicTreatmentPrincipal = {
     lane: 'service_token',
     applicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
@@ -209,13 +209,17 @@ describe('mention-kaana-decisions: Mention decisions, and nothing else', () => {
     applicationType: 'first_party',
   };
 
-  it('applies to the seeded first-party Mention application for decisions only', () => {
+  it('applies to the seeded first-party Mention application for its named operations only', () => {
     expect(MENTION_INFERENCE_CONSUMER_APPLICATION_ID).toBe(MENTION_APPLICATION_ID);
     expect(resolveEconomicTreatment(mention, 'decisions')).toMatchObject({
       treatment: 'internal_metered',
       relationship: { relationshipId: 'mention-kaana-decisions' },
     });
-    expect(resolveEconomicTreatment(mention, 'responses').treatment).toBe('commercial');
+    expect(resolveEconomicTreatment(mention, 'responses')).toMatchObject({
+      treatment: 'internal_metered',
+      relationship: { relationshipId: 'mention-kaana-text' },
+    });
+    expect(resolveEconomicTreatment(mention, 'embeddings').treatment).toBe('commercial');
     expect(resolveEconomicTreatment(mention).treatment).toBe('commercial');
     expect(
       resolveEconomicTreatment({ ...mention, applicationType: 'third_party' }, 'decisions')
@@ -224,6 +228,6 @@ describe('mention-kaana-decisions: Mention decisions, and nothing else', () => {
   });
 
   it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-18.1');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-19.1');
   });
 });
