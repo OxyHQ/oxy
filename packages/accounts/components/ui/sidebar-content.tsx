@@ -110,10 +110,6 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
       <View style={styles.profileContainer}>
         <ProfileButton
           placement="down"
-          onNavigateManage={() => {
-            router.push('/(tabs)');
-            onNavigate?.();
-          }}
           onAddAccount={() => {
             router.push('/(auth)');
             onNavigate?.();

@@ -442,20 +442,9 @@ describe('OxyAuthChooser', () => {
     },
   );
 
-  it('closes the chooser before delegating to a custom manage destination', () => {
-    const order: string[] = [];
-    registerAccountDialogConsumerHooks({ onNavigateManage: () => order.push('custom') });
-    snapshot = makeSnapshot({ directory: soloDirectory() });
-    render(<OxyAuthChooser onComplete={() => order.push('close')} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Manage your Oxy account' }));
-    expect(order).toEqual(['close', 'custom']);
-    expect(showBottomSheet).not.toHaveBeenCalled();
-  });
-
-  it('routes manage and add-account to registered consumer hooks', () => {
-    const onNavigateManage = jest.fn();
+  it('keeps manage on the SDK screen while add-account goes to the consumer hook', () => {
     const onAddAccount = jest.fn();
-    registerAccountDialogConsumerHooks({ onNavigateManage, onAddAccount });
+    registerAccountDialogConsumerHooks({ onAddAccount });
 
     snapshot = makeSnapshot({
       directory: makeDirectory(
@@ -480,8 +469,7 @@ describe('OxyAuthChooser', () => {
     render(<OxyAuthChooser />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage your Oxy account' }));
-    expect(onNavigateManage).toHaveBeenCalledTimes(1);
-    expect(showBottomSheet).not.toHaveBeenCalled();
+    expect(showBottomSheet).toHaveBeenCalledWith('ManageAccount');
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
     fireEvent.click(screen.getByText('Add another account'));
