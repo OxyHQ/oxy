@@ -15,6 +15,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { ReactNode } from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { OxyProvider, useOxy } from '@oxy.so/services';
+import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
+import type { AliaAsk } from '@alia.onl/sdk/ask';
+import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import { productAnalytics } from '@/lib/product-analytics';
 import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
@@ -83,6 +86,8 @@ export function ErrorBoundary(props: { error: Error; retry: () => void }) {
 }
 
 function RootLayoutInner() {
+  const aliaRef = useRef<AliaAsk>(null);
+  const openAlia = useCallback(() => aliaRef.current?.ask(), []);
   const { themeMode } = useThemeMode();
 
   const [splashState, setSplashState] = useState<SplashState>({
@@ -152,6 +157,9 @@ function RootLayoutInner() {
         <BloomThemeProvider mode={themeMode}>
           <ConnectionStatusToasts />
           <OxyProvider
+            onAskAlia={openAlia}
+            aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+            oxyOneArtwork={<OxyOneVideo />}
             baseURL={API_URL}
             clientId={OXY_CLIENT_ID}
             authRedirectUri={OXY_AUTH_REDIRECT_URI}
@@ -164,7 +172,7 @@ function RootLayoutInner() {
                     over and the boundary wraps everything else. Alia's one sheet sits
                     beside the inert boundary, not in it, and portals into the outlet. */}
                 <PortalProvider>
-                  <AccountsAskProvider>
+                  <AccountsAskProvider askRef={aliaRef}>
                     <OverlayInertBoundary>
                       <AppHead />
                       {!appIsReady ? (

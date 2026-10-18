@@ -17,7 +17,7 @@
     "smoke:csp": "bun run scripts/smoke-csp.ts"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^21.3.0",
+    "@alia.onl/sdk": "catalog:",
     "@expo/vector-icons": "^15.1.1",
     "@lottiefiles/dotlottie-react": "catalog:",
     "@oxy.so/app-preset": "workspace:*",
@@ -64,6 +64,7 @@
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-updates": "~58.0.17",
+    "expo-video": "catalog:",
     "expo-web-browser": "catalog:",
     "jszip": "catalog:",
     "lottie-react-native": "~7.5.0",
@@ -103,6 +104,7 @@
   "expo": {
     "install": {
       "exclude": [
+        "expo-video",
         "react-native-keyboard-controller",
         "react-native-safe-area-context",
         "react-native-svg"
