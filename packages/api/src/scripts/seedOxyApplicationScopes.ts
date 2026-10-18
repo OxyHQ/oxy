@@ -16,9 +16,12 @@ import {
   isValidApplicationScope,
   workloadBindingScopes,
 } from '../utils/applicationScopes';
-import { MENTION_CLASSIFIER_IDENTITY } from '../config/mentionClassifierEconomics';
 import { selectSeedEntriesByExactIds } from './seedEntrySelection';
-import { SEED_APPS } from './seedOxyApplicationsSpecs';
+import {
+  MENTION_APPLICATION_ID,
+  MENTION_TASK_WORKLOAD_IDENTITY,
+  SEED_APPS,
+} from './seedOxyApplicationsSpecs';
 
 const sorted = (values: readonly string[]) => [...new Set(values)].sort();
 const fail = (code: string): never => {
@@ -178,9 +181,9 @@ export async function seedOxyApplicationScopes(options: ScopeSeedOptions) {
             (scope) => !before.includes(scope),
           );
           const own =
-            app.id === MENTION_CLASSIFIER_IDENTITY.applicationId &&
-            binding.id === MENTION_CLASSIFIER_IDENTITY.bindingId &&
-            binding.subject === MENTION_CLASSIFIER_IDENTITY.subject &&
+            app.id === MENTION_APPLICATION_ID &&
+            binding.id === MENTION_TASK_WORKLOAD_IDENTITY.bindingId &&
+            binding.subject === MENTION_TASK_WORKLOAD_IDENTITY.subject &&
             binding.provider === 'aws-iam';
           if (added.length && !own)
             expansions.push({

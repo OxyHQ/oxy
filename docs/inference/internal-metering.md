@@ -77,13 +77,12 @@ class, Auto rule, permission, privacy field or catalogue row changes here.
 
 This is exact identity matching; publication, signed fresh attestation, ordinary
 model/provider/privacy gates and permission checks still apply. The pilot does
-not open an unapproved provider or authorize a scoped decisions audience. Auto
+not open an unapproved provider. Auto
 can now admit its existing High class under the exact tuple; it still climbs
 only upward from its classified level and never drops tools or falls back to
 an Instant model to fit the pilot.
 
-The controlled-input budget is at most **126976** for text completions;
-decisions retain their **8192** base ceiling and independent scoped authority.
+The controlled-input budget is at most **126976** for text completions.
 It counts UTF-8 serialized normalized
 input, tools, tool choice and response format, plus explicit local allowances
 of 256 base, 32 per message and 32 per tool. It includes roles, tool arguments
@@ -234,11 +233,8 @@ Unknown tariffs and costs appear as `unknownCount` beside each sum.
 
 ## Not covered here
 
-- The I10 candidate below adapts the Auto/Jev child and generation readback.
-  Final integration, Alia's product price snapshot and deployed evidence remain
-  pending; local implementation does not approve its production gates.
-- Provider gates (`decisionAvailability`, Kaana's reviewed audiences) are
-  unchanged and stay closed.
+- Decisions: the old edge refuses them (`decisions-served-by-kaana`); they are a
+  `kaana.ai/v1` grant operation ([decisions.md](decisions.md)).
 
 ## Cost coverage and terminal recovery
 
@@ -276,17 +272,8 @@ composition adds nullable `parent_request_id` and nullable final authorization
 columns. Its index must be regenerated over the final integration head, without
 merging snapshot JSON by hand. Initial admitted model/provider/deployment and
 ceiling remain immutable; Auto appends its final requalified authorization once.
-The parent claims its key before any classifier can execute. Each parent/child
-claim consumes one admission under the same application/environment concurrency
-and UTC-day limits. A parent refused after the classifier executed retains its
-key and settles as failed with estimated parent units; the child's measured
-units remain independently durable. No commercial hold is introduced internally.
-
-Scoped internal dispatch checks the exact retained durable claim and its expiry,
-and the exact unexpired scoped permit. Commercial scoped dispatch retains its
-promotional-only hold and charging authorization. `preapprovedManifest` stays
-undefined; accounting readiness grants no provider/rights/privacy/capability or
-source-review authority.
+The Auto classifier child that wrote `parent_request_id` and the final
+authorization columns is gone; the columns stay, and older rows keep their lineage.
 
 `GET /v1/generations/:id` returns the existing financial receipt at schema version
 1 or an internal `metered_usage` record at version 2. The latter has its stored

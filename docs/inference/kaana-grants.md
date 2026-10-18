@@ -192,7 +192,8 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    route's maximum), embeddings, images, speech `inputCharacters`, transcription
    **`audioInputMilliseconds`** (Kaana reads it from the upload's container;
    the hold is exactly that duration, and a route that prices the transcript's
-   output tokens is not admitted).
+   output tokens is not admitted), decisions `estimatedInputTokens` (input
+   only; a line that prices output is not admitted).
 4. The routing policy, pinned: default target, allowed levels, price cap,
    providers, regions, ZDR, licences, fallback.
 5. **Steps.** A model target is one step plus the policy's authorized
@@ -204,7 +205,12 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    on its choice. `providerAllowlist` is the providers that serve the line
    (published by Kaana with a `commercial` basis the audience may be sold,
    qualified by the policy), all of them; Kaana chooses and fails over, and the
-   policy's `sameModelFailover` travels in the step limits.
+   policy's `sameModelFailover` travels in the step limits. **Decisions** take
+   their steps from the decisions profile instead (`config/decisionsPolicy.ts`):
+   one per line, each pinned to the profile's revision or the one Kaana
+   publishes, or the one line named; never a level; each with zero data
+   retention, no training and no same-model failover
+   ([decisions.md](decisions.md)).
 6. The ceiling: the dearest admitted line's quote.
 7. `claimMeteredAdmission`: idempotency (`Idempotency-Key` shares the edge's
    ledger key), internal capacity, Console session limits.
@@ -233,7 +239,10 @@ credential only) in the public shape: amount, never provider.
 | BYOK route | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | rated at Oxy's platform fee (`config/inferencePlatformFee.ts`), never a model price; no `maxFundingTier`; internal + BYOK is refused; no approved fee schedule yet, so refused |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
 | `product_session` (Inbox, app sessions) | — | — | **not yet**: needs the public credential and Inbox's session check |
-| scoped permit, Private Auto, Mention classifier, `decisions` | — | — | **not yet**: approvals must be re-issued under `canonicalInputSha256` |
+| service token of Mention in production, `decisions` (`mention-kaana-decisions`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-decisions` | **no** | decisions only, on the decisions profile; 2 in flight, 2 000 a UTC day on its own rows; first-party class, not `is_internal`; Mention's other operations are `commercial` unless the next row names them ([decisions.md](decisions.md)) |
+| service token of Mention in production, `responses` / `chat_completions` (`mention-kaana-text`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-text` | **no** | the `instant` level only (a model or other level is `policy_violation`, `pilot-level`); 32 000 input and 8 192 output tokens (the caller's limit is required), USD 0.035 a request (the dearest instant line at full size quotes USD 0.0301); 8 in flight, 5 000 a UTC day on its own rows; first-party class |
+| `decisions` without decisions terms | — | — | refused `permission_denied` (`decisions-not-enabled`) |
+| a source approval (`canonicalInputSha256`) | — | — | refused: Oxy holds none (the one-off scoped, Private Auto and Mention classifier permits were deleted) |
 
 Charged grants need `INFERENCE_CHARGING_AUTHORIZED`: a commercial grant must
 carry its hold, so a shadow-metering deployment answers 503 instead.
@@ -321,7 +330,6 @@ and Kaana refused every read as unsigned (`Kaana settlement feed answered 401`).
 
 - Token exchange (`POST /auth/service-token/exchange`) for Alia's product
   agents; the `product_session` lane and Inbox's session check.
-- Re-issued source approvals (scoped, Private Auto, Jev) and `decisions` grants.
 - Commercial realtime grants (the contract needs session ceiling facts).
 - `OxyServer.serviceToken({ audience: 'kaana.ai' })` in `@oxy.so/core`.
 - An approved BYOK platform fee amount (the schedule list ships empty).

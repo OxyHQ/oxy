@@ -38,11 +38,23 @@
  * followed by the pilot's `xhigh` step. `docs/inference/kaana-grants.md` holds
  * the matrix lane by lane.
  *
+ * ## Decisions
+ *
+ * `decisions` is an ordinary operation held in input tokens only, granted to an
+ * application whose economic relationship carries decisions terms
+ * (`pilot.decisions`) and to no other (`decisions-not-enabled`). Its model lines
+ * are the reviewed, versioned decisions profile (`config/decisionsPolicy.ts`):
+ * with no target, one step per profile line in order; a named model must be a
+ * profile line at its revision; a power level is refused. Every step is
+ * revision-pinned (a line the profile leaves unpinned takes the one revision
+ * Kaana publishes), requires zero data retention and no training on customer
+ * data, and serves each line on one provider and key. A line Kaana publishes no
+ * route for, or several revisions of, is skipped.
+ *
  * ## What this phase does not grant yet
  *
- *  - Source-approved operations (scoped permits, Private Auto, the Mention
- *    classifier) and `decisions`: their approvals hash the input in Oxy today
- *    and must be re-issued under `canonicalInputSha256` (ADR 0002, risk 2).
+ *  - A source approval (`canonicalInputSha256`): the one-off permits it served
+ *    were deleted with the stable decisions approval.
  *  - A COMMERCIAL realtime session: the authorization's facts carry no session
  *    duration, so no hold Oxy could size from them would be a bound.
  *  - The `product_session` lane: a user session needs the new public
@@ -82,6 +94,11 @@ import {
 import { uuidv7 } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
 import type { KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
+import {
+  DECISIONS_GRANT_LIMITS,
+  DECISIONS_POLICY_VERSION,
+  DECISIONS_PROFILE,
+} from '../config/decisionsPolicy';
 import { isChargingAuthorized } from '../config/rolloutFlags';
 import {
   type EconomicTreatmentDecision,
@@ -141,7 +158,10 @@ import {
   type DeclaredCatalogueObservation,
   currentDeclaredCatalogue,
 } from './kaanaDeclaredCatalogue.service';
-import { currentDeploymentLiveness } from './kaanaDeploymentPublication.service';
+import {
+  currentDeploymentLiveness,
+  type PublishedRoute,
+} from './kaanaDeploymentPublication.service';
 import {
   type GrantLane,
   type GrantLine,
@@ -291,7 +311,14 @@ export function publicError(
 
 /** What an operation needs of a route, and the units its hold is sized in. */
 interface OperationPlan {
-  readonly family: 'completion' | 'embeddings' | 'speech' | 'transcription' | 'images' | 'realtime';
+  readonly family:
+    | 'completion'
+    | 'embeddings'
+    | 'speech'
+    | 'transcription'
+    | 'images'
+    | 'realtime'
+    | 'decisions';
   readonly modality: EdgeModalityRequirement;
   readonly capacity: EdgeCapacityRequirement;
   /** Token units Oxy reserves as known (`reserve`'s `knownUnits`). */
@@ -475,11 +502,31 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         ],
       };
     }
-    case 'decisions':
-      // Refused before planning; kept total so a new operation fails `tsc` here.
-      throw new GrantRefusal('service_unavailable', 'Decisions are not granted yet.', {
-        reason: 'decisions-not-granted',
-      });
+    case 'decisions': {
+      // Kaana's estimate of the serialized state, instructions and questions.
+      // A decision generates no billable output: the hold is `requests` and
+      // `input_tokens`, and a line that prices output is never admitted (see
+      // `admitLine`), so the few output tokens Kaana reports settle at zero.
+      const input = requireFact(facts.estimatedInputTokens, 'estimatedInputTokens');
+      return {
+        family: 'decisions',
+        modality: {
+          input: 'text',
+          output: 'decisions',
+          apiFormat: 'decisions',
+          requiresDeclaredApiFormat: true,
+        },
+        capacity: { inputTokens: input, outputTokens: 0 },
+        knownUnits: { input_tokens: input },
+        maxOutputTokens: undefined,
+        plans: () => [
+          {
+            metering: 'tokens',
+            scenarios: ceilingQuoteScenarios({ kind: 'decisions' }, input, 0),
+          },
+        ],
+      };
+    }
   }
 }
 
@@ -495,6 +542,8 @@ interface GrantPilotTerms {
   readonly maxPriceUsd: string;
   /** Exact routes; `undefined` admits by price alone (realtime, transcription). */
   readonly deployments: readonly InternalMeteredPilotDeployment[] | undefined;
+  /** The only power levels a request may target; absent: any target. */
+  readonly levels?: readonly PowerLevel[];
 }
 
 function grantPilotTerms(
@@ -505,6 +554,15 @@ function grantPilotTerms(
   switch (plan.family) {
     case 'completion': {
       const text = pilotTextTerms(pilot);
+      if (text === undefined && pilot.levelText !== undefined) {
+        return {
+          maxInput: pilot.levelText.maxInputTokens,
+          maxOutputTokens: pilot.levelText.maxOutputTokens,
+          maxPriceUsd: pilot.levelText.maxPricePerRequestUsd,
+          deployments: undefined,
+          levels: pilot.levelText.levels,
+        };
+      }
       return text?.maxPricePerRequestUsd === undefined
         ? undefined
         : {
@@ -553,6 +611,15 @@ function grantPilotTerms(
             maxOutputTokens: undefined,
             maxPriceUsd: pilot.embeddings.maxPricePerRequestUsd,
             deployments: pilot.embeddings.deployments,
+          };
+    case 'decisions':
+      return pilot.decisions === undefined
+        ? undefined
+        : {
+            maxInput: pilot.decisions.maxInputTokens,
+            maxOutputTokens: undefined,
+            maxPriceUsd: pilot.decisions.maxPricePerRequestUsd,
+            deployments: undefined,
           };
     case 'images':
       return undefined;
@@ -666,16 +733,27 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       'This credential does not hold the inference:invoke scope.',
     );
   }
-  if (request.operation === 'decisions' || request.canonicalInputSha256 !== undefined) {
+  if (request.canonicalInputSha256 !== undefined) {
     throw new GrantRefusal(
       'service_unavailable',
-      'Source-approved operations are not granted until their approvals are re-issued under the canonical input hash.',
+      'Source-approved operations are not granted: Oxy holds no source approval.',
       { reason: 'source-approval-not-granted' },
     );
   }
 
-  const economics = resolveEconomicTreatment(principal);
+  const economics = resolveEconomicTreatment(principal, request.operation);
   const plan = planOperation(request);
+
+  // Decisions are granted only under an economic relationship's decisions terms.
+  if (
+    plan.family === 'decisions' &&
+    (economics.treatment !== 'internal_metered' ||
+      economics.relationship.pilot?.decisions === undefined)
+  ) {
+    throw new GrantRefusal('permission_denied', 'Decisions are not enabled for this application.', {
+      reason: 'decisions-not-enabled',
+    });
+  }
 
   // ---- The internal relationship's terms for this operation ---------------
   const pilot =
@@ -748,10 +826,20 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         ? PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY
         : PLATFORM_DEFAULT_ROUTING_POLICY;
   const routingPolicyVersionId = policy.status === 'resolved' ? policy.stored.versionId : undefined;
-  const constraints =
+  const policyConstraints =
     policy.status === 'resolved'
       ? routingConstraintsOf(policy.stored.policy)
       : UNCONSTRAINED_ROUTING;
+  // A decision is answered with zero data retention and no training on it,
+  // whatever the application's own policy asks (`config/decisionsPolicy.ts`).
+  const constraints =
+    plan.family === 'decisions'
+      ? {
+          ...policyConstraints,
+          requireZeroDataRetention: DECISIONS_GRANT_LIMITS.requireZeroDataRetention,
+          prohibitTrainingOnCustomerData: DECISIONS_GRANT_LIMITS.prohibitTrainingOnCustomerData,
+        }
+      : policyConstraints;
   const levelProfileIds = await powerLevelProfileIds();
   const allowedProfileIds =
     policy.status === 'resolved' ? policy.stored.policy.allowedRoutingProfileIds : [];
@@ -760,12 +848,24 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     return id !== undefined && (allowedProfileIds.length === 0 || allowedProfileIds.includes(id));
   };
 
-  const target = await grantTargetOf(
-    request,
-    policy.status === 'resolved' ? policy.stored.policy.defaultTarget : undefined,
-    levelProfileIds,
-  );
-  if (plan.family === 'realtime' && target.kind !== 'model') {
+  // Decisions take their lines from the decisions profile, never from the
+  // application's default target (which names a generation model or level).
+  const target: GrantTarget | undefined =
+    plan.family === 'decisions'
+      ? request.target
+      : await grantTargetOf(
+          request,
+          policy.status === 'resolved' ? policy.stored.policy.defaultTarget : undefined,
+          levelProfileIds,
+        );
+  if (plan.family === 'decisions' && target?.kind === 'level') {
+    throw new GrantRefusal(
+      'invalid_request',
+      'Decisions name a model revision of the decisions profile, or no model; a power level does not answer decisions.',
+      { param: 'model', reason: 'decisions-level-target' },
+    );
+  }
+  if (plan.family === 'realtime' && target?.kind !== 'model') {
     throw new GrantRefusal(
       'invalid_request',
       'A realtime session names a model, never a power level.',
@@ -774,7 +874,17 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       },
     );
   }
-  if (target.kind === 'level' && !levelAllowed(target.level)) {
+  if (
+    pilotTerms?.levels !== undefined &&
+    (target?.kind !== 'level' || !pilotTerms.levels.includes(target.level))
+  ) {
+    throw new GrantRefusal(
+      'policy_violation',
+      `The internal pilot serves this operation on the power levels ${pilotTerms.levels.join(', ')} only.`,
+      { param: 'model', reason: 'pilot-level' },
+    );
+  }
+  if (target?.kind === 'level' && !levelAllowed(target.level)) {
     throw new GrantRefusal(
       'policy_violation',
       `This application’s routing policy does not allow the power level "${target.level}".`,
@@ -807,7 +917,20 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   // ---- Steps ---------------------------------------------------------------
   const policyPrice = constraints.maxPricePerRequest;
   const stepPlans: StepPlan[] = [];
-  if (target.kind === 'model') {
+  /** Why each line or lane was not admitted, for the refusal's log line. */
+  const exclusions = new Set<LineExclusion>();
+  if (plan.family === 'decisions') {
+    // A level target was refused above.
+    stepPlans.push(
+      ...decisionsStepPlans(
+        target?.kind === 'model' ? target : undefined,
+        policyPrice,
+        pilotTerms,
+        evidence.published,
+        (exclusion) => exclusions.add(exclusion),
+      ),
+    );
+  } else if (target?.kind === 'model') {
     const reference =
       target.revision === undefined ? target.modelLine : `${target.modelLine}@${target.revision}`;
     const sameModelFailover =
@@ -840,7 +963,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         candidates: [fallback],
       });
     }
-  } else {
+  } else if (target?.kind === 'level') {
     stepPlans.push(
       ...levelStepPlans(
         target.level,
@@ -857,8 +980,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
 
   const resolvedSteps: ResolvedStep[] = [];
   let sawPriceExclusion = false;
-  /** Why each resolved lane was not admitted, for the refusal's log line. */
-  const exclusions = new Set<LineExclusion>();
   /** The first step's own failure, when it names one model: what the caller asked for. */
   let primaryFailure: UnresolvedRoute | undefined;
   for (const stepPlan of stepPlans) {
@@ -874,7 +995,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         plan.capacity,
       );
       if (resolution.status !== 'resolved') {
-        if (stepPlan === stepPlans[0] && target.kind === 'model') primaryFailure ??= resolution;
+        if (stepPlan === stepPlans[0] && target?.kind === 'model') primaryFailure ??= resolution;
         continue;
       }
       for (const lane of resolution.line.lanes) {
@@ -912,7 +1033,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         { reason: 'policy_excluded:maxPricePerRequest' },
       );
     }
-    if (primaryFailure !== undefined && target.kind === 'model') {
+    if (primaryFailure !== undefined && target?.kind === 'model') {
       throw refusalForResolution(primaryFailure, target);
     }
     throw new GrantRefusal('no_route_available', 'No route is currently available.', {
@@ -998,11 +1119,13 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   const expiresInSeconds =
     plan.family === 'realtime' ? REALTIME_GRANT_SLOT_SECONDS : RESERVATION_TTL_SECONDS;
   const requestedReference =
-    target.kind === 'model'
-      ? target.revision === undefined
-        ? target.modelLine
-        : `${target.modelLine}@${target.revision}`
-      : target.level;
+    target === undefined
+      ? DECISIONS_POLICY_VERSION
+      : target.kind === 'model'
+        ? target.revision === undefined
+          ? target.modelLine
+          : `${target.modelLine}@${target.revision}`
+        : target.level;
   const claim = await claimMeteredAdmission({
     requestId: request.requestId,
     idempotencyKey: ledgerKey,
@@ -1034,8 +1157,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       break;
     case 'duplicate':
       throw idempotencyConflict();
-    case 'parent-unavailable':
-      throw new GrantRefusal('policy_violation', 'The request has no parent admission.');
     case 'sessions-exceeded':
       throw new GrantRefusal(
         'rate_limited',
@@ -1334,6 +1455,65 @@ async function grantTargetOf(
 }
 
 /**
+ * The steps of a decisions request: one per decisions-profile line, in the
+ * profile's order, or the one line the request pinned. Each step pins its
+ * line's revision: the profile's, or else the one revision Kaana publishes for
+ * the line (a line with none or several is skipped and logged). Each is held to
+ * the tightest of the application's price cap, the relationship's decisions
+ * terms and the line's own reviewed ceiling, and serves its line on one provider.
+ */
+function decisionsStepPlans(
+  target: Extract<GrantTarget, { kind: 'model' }> | undefined,
+  policyPrice: { readonly amount: string; readonly currency: string } | undefined,
+  pilotTerms: GrantPilotTerms | undefined,
+  published: ReadonlyMap<string, PublishedRoute>,
+  exclude: (exclusion: LineExclusion) => void,
+): StepPlan[] {
+  const plans: StepPlan[] = [];
+  for (const line of DECISIONS_PROFILE) {
+    if (target !== undefined && target.modelLine !== line.modelLine) continue;
+    let revision = line.revision;
+    if (revision === undefined) {
+      const revisions = new Set<string>();
+      for (const route of published.values()) {
+        const separator = route.modelReference.indexOf('@');
+        if (separator !== -1 && route.modelReference.slice(0, separator) === line.modelLine) {
+          revisions.add(route.modelReference.slice(separator + 1));
+        }
+      }
+      if (revisions.size !== 1) {
+        exclude(
+          `decisions-revision-${revisions.size === 0 ? 'unpublished' : 'ambiguous'}:${line.modelLine}`,
+        );
+        continue;
+      }
+      [revision] = revisions;
+    }
+    if (revision === undefined || (target !== undefined && target.revision !== revision)) continue;
+    plans.push({
+      target: { kind: 'model', modelLine: line.modelLine, revision },
+      candidates: [`${line.modelLine}@${revision}`],
+      maxPrice: tighterPrice(
+        tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
+        line.maxPricePerRequestUsd,
+      ),
+      maxFundingTier: undefined,
+      pilotDeployments: undefined,
+      sameModelFailover: DECISIONS_GRANT_LIMITS.sameModelFailover,
+    });
+  }
+  if (target !== undefined && plans.length === 0) {
+    const name =
+      target.revision === undefined ? target.modelLine : `${target.modelLine}@${target.revision}`;
+    throw new GrantRefusal('model_not_found', `No decisions model ${name} is available to you.`, {
+      param: 'model',
+      reason: 'decisions-outside-profile',
+    });
+  }
+  return plans;
+}
+
+/**
  * The steps of a power-level target. `auto` is ONE step over every level it may
  * climb to (Kaana decides, by content); a promotional level named by an
  * internal relationship (ADR 0037) is two: the level on credit only, then the
@@ -1412,11 +1592,19 @@ function levelStepPlans(
  * Why a resolved lane was not admitted. Logged on `no_admissible_line` (never
  * sent to the caller), so a refusal says which rule excluded every line.
  */
-type LineExclusion = 'no-routes' | 'priced-transcript' | 'over-price' | `unquoted:${string}`;
+type LineExclusion =
+  | 'no-routes'
+  | 'priced-transcript'
+  | 'priced-decision-output'
+  | 'over-price'
+  | `unquoted:${string}`
+  | `decisions-revision-${'unpublished' | 'ambiguous'}:${string}`;
 
 type LineAdmission =
   | { readonly status: 'admitted'; readonly line: AdmittedLine }
-  | { readonly status: 'no-routes' | 'priced-transcript' | 'over-price' }
+  | {
+      readonly status: 'no-routes' | 'priced-transcript' | 'priced-decision-output' | 'over-price';
+    }
   | { readonly status: 'unquoted'; readonly reason: string };
 
 async function admitLine(
@@ -1435,6 +1623,14 @@ async function admitLine(
     // A transcript's text has no bound in the facts; a line that charges for it
     // could settle above any hold sized from them.
     return { status: 'priced-transcript' };
+  }
+  if (
+    plan.family === 'decisions' &&
+    (await publishedUnitPrice(lane.price, 'output_tokens')) !== 'zero'
+  ) {
+    // The hold is input only; the output tokens a decision truthfully reports
+    // settle inside it only on a line that publishes them at exactly zero.
+    return { status: 'priced-decision-output' };
   }
   const quote = await quoteRouteCeiling(lane.price, plan.plans(line));
   if (quote.status !== 'quoted') return { status: 'unquoted', reason: quote.reason };

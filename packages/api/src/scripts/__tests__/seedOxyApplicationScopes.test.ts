@@ -9,8 +9,11 @@ import {
   users,
 } from '../../db/schema';
 import { seedOxyApplicationScopes, scopeSeedOptions } from '../seedOxyApplicationScopes';
-import { MENTION_APPLICATION_ID, SEED_APPS } from '../seedOxyApplicationsSpecs';
-import { MENTION_CLASSIFIER_IDENTITY } from '../../config/mentionClassifierEconomics';
+import {
+  MENTION_APPLICATION_ID,
+  MENTION_TASK_WORKLOAD_IDENTITY,
+  SEED_APPS,
+} from '../seedOxyApplicationsSpecs';
 
 const ownerId = '69b2d3df5d12f58c9800d651';
 const appId = MENTION_APPLICATION_ID;
@@ -96,10 +99,10 @@ beforeEach(async () => {
     .insert(applicationWorkloadIdentities)
     .values([
       {
-        id: MENTION_CLASSIFIER_IDENTITY.bindingId,
+        id: MENTION_TASK_WORKLOAD_IDENTITY.bindingId,
         applicationId: appId,
         provider: 'aws-iam',
-        subject: MENTION_CLASSIFIER_IDENTITY.subject,
+        subject: MENTION_TASK_WORKLOAD_IDENTITY.subject,
         scopes: initialScopes,
       },
       {
@@ -111,13 +114,13 @@ beforeEach(async () => {
       },
     ]);
   await getDb().insert(applicationCredentials).values({
-    id: MENTION_CLASSIFIER_IDENTITY.credentialId,
+    id: MENTION_TASK_WORKLOAD_IDENTITY.credentialId,
     applicationId: appId,
     name: 'Synthetic attribution',
     type: 'workload',
     environment: 'production',
     scopes: [],
-    workloadIdentityId: MENTION_CLASSIFIER_IDENTITY.bindingId,
+    workloadIdentityId: MENTION_TASK_WORKLOAD_IDENTITY.bindingId,
   });
 });
 afterEach(async () => {

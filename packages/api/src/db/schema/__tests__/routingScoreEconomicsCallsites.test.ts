@@ -125,8 +125,7 @@ test('every application and script routing-score insert states reviewed economic
   // 14 -> 16: the Kaana catalogue sync writes a synced route's scorecard and
   // its append-only event (services/kaanaCatalogueSync.service.ts).
   // 16 -> 17: the shared servable-evidence test fixture (db/testServableEvidence.ts).
-  // 17 -> 18: privateCommissioning.test.ts seeds explicit synthetic funding economics.
-  // 18 -> 19: Mention private commissioning seeds its own explicit scoped funding evidence.
-  // 19 -> 20: the cross-repository Mention wire fixture seeds explicit synthetic economics.
-  expect(callsites).toHaveLength(20);
+  // 20 -> 17: private commissioning, the Mention private commissioning test and
+  // the Mention wire fixture went with the scoped and Private Auto approvals.
+  expect(callsites).toHaveLength(17);
 });

@@ -23,12 +23,10 @@
  */
 
 import { createHash } from 'node:crypto';
-import { MENTION_CLASSIFIER_IDENTITY } from '../config/mentionClassifierEconomics';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { executeRows, type SqlExecutor } from '@oxy.so/db';
 import {
   costCenterUsageSchema,
-  privateAutoOperationId,
   USAGE_UNITS,
   type CostCenterUsage,
   type InferenceEconomicTreatment,
@@ -46,7 +44,6 @@ import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
 import { internalCostCenters } from '../db/schema/internalCostCenters';
 import { usageUnitColumnValues, USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
 import { usageReceipts } from '../db/schema/usageReceipts';
-import { logger } from '../utils/logger';
 import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { quoteUnits } from './inferenceLedger.service';
 
@@ -55,14 +52,7 @@ import { quoteUnits } from './inferenceLedger.service';
 /* -------------------------------------------------------------------------- */
 
 export interface MeteredAdmissionInput {
-  /** Server-owned private Auto lineage; never read from a public request. */
-  readonly privateAutoParent?: {
-    readonly meteredUsageId: string;
-    readonly requestId: string;
-    readonly deadlineAt: number;
-  };
   readonly requestId: string;
-  readonly parentRequestId?: string;
   readonly idempotencyKey: string;
   readonly economics: EconomicTreatmentDecision;
   readonly accountId: string;
@@ -99,7 +89,6 @@ export const REALTIME_SESSION_ENDPOINT = '/v1/realtime';
 
 export type MeteredAdmission =
   | { readonly status: 'claimed'; readonly meteredUsageId: string }
-  | { readonly status: 'parent-unavailable' }
   /** Another request already holds this idempotency key (or this request id). */
   | { readonly status: 'duplicate' }
   | {
@@ -179,7 +168,6 @@ export async function claimMeteredAdmission(
 ): Promise<MeteredAdmission> {
   const values = {
     requestId: input.requestId,
-    parentRequestId: input.parentRequestId ?? null,
     idempotencyKey: input.idempotencyKey,
     economicTreatment: input.economics.treatment,
     economicPolicyVersion: input.economics.policyVersion,
@@ -210,49 +198,6 @@ export async function claimMeteredAdmission(
       await tx.execute(
         sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
       );
-      if (
-        capacity.qualificationBudget !== undefined ||
-        input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2' ||
-        input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3'
-      ) {
-        const budget = capacity.qualificationBudget;
-        const identity = MENTION_CLASSIFIER_IDENTITY;
-        const expiry = Date.parse(budget?.expiresAt ?? '');
-        // Recheck the wall clock AFTER waiting for the capacity lock. A day or
-        // source expiry crossed while queued cannot acquire a fresh daily slot.
-        const valid =
-          typeof budget === 'object' &&
-          budget !== null &&
-          Object.keys(budget).sort().join(',') === 'expiresAt,utcDay' &&
-          ((input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2' &&
-            capacity.maxRequestsPerUtcDay === 2) ||
-            (input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3' &&
-              capacity.maxRequestsPerUtcDay === 3)) &&
-          input.economics.relationship.relationshipId === 'mention-jev-kaana' &&
-          input.economics.relationship.consumerApplicationId === identity.applicationId &&
-          input.economics.relationship.consumerProduct === 'mention' &&
-          input.economics.relationship.providerProduct === 'kaana' &&
-          input.economics.relationship.lane === 'service_token' &&
-          input.economics.relationship.environments.length === 1 &&
-          input.economics.relationship.environments[0] === 'production' &&
-          input.applicationId === identity.applicationId &&
-          input.accountId === identity.ownerAccountId &&
-          input.applicationCredentialId === identity.credentialId &&
-          input.environment === 'production' &&
-          input.delegatedUserId === undefined &&
-          input.endpoint === '/v1/decisions' &&
-          capacity.scope === 'relationship' &&
-          capacity.maxConcurrentRequests === 1 &&
-          budget.utcDay === '2026-10-05' &&
-          Number.isFinite(expiry) &&
-          expiry <= Date.parse('2026-10-06T00:00:00Z');
-        if (!valid || budget === undefined)
-          return { status: 'capacity-exceeded', limit: 'daily', capacity };
-        const [clock] = await tx.execute<{ valid: boolean }>(sql`select
-          to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD') = ${budget.utcDay}
-          and clock_timestamp() < ${budget.expiresAt}::timestamptz as valid`);
-        if (clock?.valid !== true) return { status: 'capacity-exceeded', limit: 'daily', capacity };
-      }
       const counts = await readMeteredCapacity(
         tx,
         input.applicationId,
@@ -306,70 +251,6 @@ export async function claimMeteredAdmission(
       }
     }
 
-    if (input.privateAutoParent !== undefined) {
-      const parent = input.privateAutoParent;
-      let stableChildId: string;
-      try {
-        stableChildId = privateAutoOperationId(parent.meteredUsageId);
-      } catch {
-        return { status: 'parent-unavailable' };
-      }
-      if (
-        input.economics.treatment !== 'internal_metered' ||
-        input.requestId !== stableChildId ||
-        input.economics.relationship.consumerApplicationId !== input.applicationId ||
-        input.idempotencyKey !== stableChildId ||
-        input.parentRequestId !== parent.requestId ||
-        input.endpoint !== '/internal/auto-classification' ||
-        input.delegatedUserId !== undefined ||
-        !Number.isFinite(parent.deadlineAt)
-      )
-        return { status: 'parent-unavailable' };
-      // The parent and child share principal/economics, not a ledger row. Lock
-      // the parent while claiming the child and its independent capacity slot.
-      const eligibleParents = await tx
-        .select({ id: inferenceMeteredUsage.id })
-        .from(inferenceMeteredUsage)
-        .where(
-          and(
-            eq(inferenceMeteredUsage.id, parent.meteredUsageId),
-            eq(inferenceMeteredUsage.requestId, parent.requestId),
-            eq(inferenceMeteredUsage.accountId, input.accountId),
-            eq(inferenceMeteredUsage.applicationId, input.applicationId),
-            eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
-            eq(inferenceMeteredUsage.environment, input.environment),
-            eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
-            eq(inferenceMeteredUsage.economicPolicyVersion, input.economics.policyVersion),
-            eq(
-              inferenceMeteredUsage.economicRelationshipId,
-              input.economics.relationship.relationshipId,
-            ),
-            eq(inferenceMeteredUsage.status, 'admitted'),
-            sql`${inferenceMeteredUsage.delegatedUserId} is null`,
-            sql`${inferenceMeteredUsage.parentRequestId} is null`,
-            sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
-          ),
-        )
-        .for('update');
-      if (eligibleParents.length !== 1) return { status: 'parent-unavailable' };
-      // WHERE is evaluated before a row-lock wait, and now() is fixed at TX start.
-      // Re-read real DB time AFTER both locks; neither parent nor deadline can renew.
-      const stillActive = await tx
-        .select({ id: inferenceMeteredUsage.id })
-        .from(inferenceMeteredUsage)
-        .where(
-          and(
-            eq(inferenceMeteredUsage.id, parent.meteredUsageId),
-            eq(inferenceMeteredUsage.status, 'admitted'),
-            sql`${inferenceMeteredUsage.expiresAt} > clock_timestamp()`,
-            sql`to_timestamp(${parent.deadlineAt} / 1000.0) > clock_timestamp()`,
-          ),
-        )
-        .limit(1);
-      if (stillActive.length !== 1) return { status: 'parent-unavailable' };
-      values.expiresAt.setTime(Math.min(values.expiresAt.getTime(), parent.deadlineAt));
-    }
-
     // Any unique conflict — the idempotency key or the request id — is a
     // duplicate. `DO NOTHING` without a target covers the partial index too.
     const [row] = await tx
@@ -381,59 +262,6 @@ export async function claimMeteredAdmission(
       ? { status: 'duplicate' }
       : { status: 'claimed', meteredUsageId: row.id };
   });
-}
-
-/** Preserve the admitted floor, and append one final authorization before dispatch. */
-export async function finalizeMeteredAuthorization(
-  meteredUsageId: string,
-  input: MeteredAdmissionInput,
-): Promise<boolean> {
-  const rows = await getDb()
-    .update(inferenceMeteredUsage)
-    .set({
-      finalAuthorizedModelReference: input.admittedModelReference,
-      finalAuthorizedProvider: input.admittedProvider,
-      finalAuthorizedDeploymentId: input.admittedDeploymentId,
-      finalAuthorizedCeilingAmount: input.ceiling?.amount ?? null,
-      finalAuthorizedCeilingCurrency: input.ceiling?.currency ?? null,
-    })
-    .where(
-      and(
-        eq(inferenceMeteredUsage.id, meteredUsageId),
-        eq(inferenceMeteredUsage.requestId, input.requestId),
-        eq(inferenceMeteredUsage.idempotencyKey, input.idempotencyKey),
-        eq(inferenceMeteredUsage.accountId, input.accountId),
-        eq(inferenceMeteredUsage.applicationId, input.applicationId),
-        eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
-        eq(inferenceMeteredUsage.environment, input.environment),
-        eq(inferenceMeteredUsage.status, 'admitted'),
-        sql`${inferenceMeteredUsage.expiresAt} > now()`,
-        sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
-      ),
-    )
-    .returning({ id: inferenceMeteredUsage.id });
-  return rows.length === 1;
-}
-
-/** Dispatch-time proof of the durable internal claim; expiry never permits replay. */
-export async function hasActiveInternalMeteredAdmission(
-  meteredUsageId: string,
-  requestId: string,
-): Promise<boolean> {
-  const rows = await getDb()
-    .select({ id: inferenceMeteredUsage.id })
-    .from(inferenceMeteredUsage)
-    .where(
-      and(
-        eq(inferenceMeteredUsage.id, meteredUsageId),
-        eq(inferenceMeteredUsage.requestId, requestId),
-        eq(inferenceMeteredUsage.status, 'admitted'),
-        eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
-        sql`${inferenceMeteredUsage.expiresAt} > now()`,
-      ),
-    )
-    .limit(1);
-  return rows.length === 1;
 }
 
 /**

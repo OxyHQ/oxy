@@ -33,13 +33,14 @@
  * ## What `internal_metered` does NOT relax
  *
  * Scopes, revocation, routing policy, model eligibility, privacy, provider
- * gates (`decisionAvailability`, reviewed Kaana audiences), idempotency and
+ * gates (reviewed Kaana audiences), idempotency and
  * TECHNICAL capacity all still apply. Capacity is enforced from
  * {@link InternalMeteredRelationship.capacity} — a request and concurrency
  * budget that refuses without ever asking for a top-up — because removing the
  * monetary hold must not remove the limit the hold used to imply.
  */
 
+import type { GrantOperation } from '@kaana.ai/contracts/internal';
 import type {
   InferenceEconomicTreatment,
   InferenceEnvironment,
@@ -56,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.3';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -70,6 +71,13 @@ export const ALIA_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e934'
  * workload-attested service token Clarity calls `kaana.ai/v1` with.
  */
 export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
+
+/**
+ * Mention's application, pinned. A test compares it to the seed spec's
+ * `MENTION_APPLICATION_ID`. Its backend calls `kaana.ai/v1/decisions` with its
+ * workload-attested service token.
+ */
+export const MENTION_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
  * The one route Clarity's search embeddings run on: `qwen/qwen3-embedding-8b`
@@ -89,11 +97,6 @@ export interface InternalMeteredCapacity {
   readonly maxRequestsPerUtcDay: number;
   /** Default remains all application traffic; a reviewed feature may own a separate budget. */
   readonly scope?: 'relationship';
-  /** Closed, source-reviewed Mention qualification; ordinary daily budgets are unchanged. */
-  readonly qualificationBudget?: {
-    readonly utcDay: '2026-10-05';
-    readonly expiresAt: string;
-  };
 }
 
 /**
@@ -200,8 +203,38 @@ export interface InternalMeteredEmbeddingsPilot {
 }
 
 /**
- * The pilot's TEXT terms (completions and decisions). A relationship that only
- * embeds, speaks or transcribes carries none of them, and every text request is
+ * The pilot's terms for `POST kaana.ai/v1/decisions`. Only the grant API reads
+ * them. Which model lines answer, at which revisions, and under which data
+ * controls is the decisions profile (`config/decisionsPolicy.ts`); these terms
+ * bound the request. Kaana estimates the serialized input before it asks
+ * (`facts.estimatedInputTokens`); a decision generates no billable output.
+ */
+export interface InternalMeteredDecisionsPilot {
+  /** Kaana's estimated input tokens one decisions request may carry. */
+  readonly maxInputTokens: number;
+  /** Exact USD tariff quote ceiling for one decisions request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
+/**
+ * The pilot's terms for completions (`responses`, `chat_completions`) granted on
+ * NAMED power levels only. Only the grant API reads them. Kaana picks the line
+ * within the level; a line is admitted by its quote alone, so there is no route
+ * list. A model target, or a level not listed, is outside the pilot.
+ */
+export interface InternalMeteredLevelTextPilot {
+  readonly levels: readonly Exclude<PowerLevel, 'auto'>[];
+  /** Kaana's estimated input tokens one request may carry. */
+  readonly maxInputTokens: number;
+  /** The caller's own output limit must be at most this. */
+  readonly maxOutputTokens: number;
+  /** Exact USD tariff quote ceiling for one request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
+/**
+ * The pilot's TEXT terms (completions). A relationship that only embeds,
+ * speaks, transcribes or decides carries none of them, and every completion is
  * then outside its pilot and refused: see {@link pilotTextTerms}.
  */
 export interface InternalMeteredTextPilot {
@@ -235,11 +268,18 @@ export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
   readonly transcription?: InternalMeteredTranscriptionPilot;
   /** Absent: every embeddings grant is outside the pilot and refused. */
   readonly embeddings?: InternalMeteredEmbeddingsPilot;
+  /** Absent: every decisions grant is refused (`decisions-not-enabled`). */
+  readonly decisions?: InternalMeteredDecisionsPilot;
+  /**
+   * Completions on named power levels, for a relationship with no text terms.
+   * Absent with no text terms: every completion is outside the pilot.
+   */
+  readonly levelText?: InternalMeteredLevelTextPilot;
 };
 
 /**
  * The pilot's text terms, or `undefined` when it has none, in which case every
- * completion and decision is outside the pilot and refused.
+ * completion is outside the pilot and refused.
  */
 export function pilotTextTerms(pilot: InternalMeteredPilot): InternalMeteredTextPilot | undefined {
   return pilot.maxControlledInputBudget === undefined ? undefined : pilot;
@@ -259,6 +299,20 @@ export interface InternalMeteredRelationship {
    * machine key or a human product session never qualifies.
    */
   readonly lane: 'service_token';
+  /**
+   * The operations it covers, in the grant API's vocabulary. Absent: every
+   * operation. Present, the relationship applies only to a grant naming one of
+   * them; the application's other traffic stays `commercial` (and the old edge,
+   * which names no grant operation, never applies it).
+   */
+  readonly operations?: readonly GrantOperation[];
+  /**
+   * The live application class the consumer must hold, re-read on every
+   * request. Absent: `applications.is_internal` (Alia, Clarity).
+   * `first_party`: an official first-party product (`applications.type`),
+   * which is never `is_internal`; it must name its {@link operations}.
+   */
+  readonly consumerApplicationClass?: 'first_party';
   readonly capacity: InternalMeteredCapacity;
   readonly pilot?: InternalMeteredPilot;
 }
@@ -408,6 +462,70 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       },
     },
   },
+  {
+    relationshipId: 'mention-kaana-decisions',
+    consumerApplicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'mention',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // Approved by Nate on 2026-10-18 (stable decisions approval). Mention's
+    // post evaluation (its shadow lane first, ranking later) on the decisions
+    // profile in `config/decisionsPolicy.ts`; every other Mention request,
+    // translation included, stays commercial.
+    operations: ['decisions'],
+    consumerApplicationClass: 'first_party',
+    // 2 in flight and 2,000 a UTC day, counted on this relationship's own rows
+    // (`scope`), not on Mention's commercial traffic. At most USD 0.001 a
+    // request, so at most USD 2 a day; Jev quotes about USD 0.0001 a post.
+    // Console (`application_inference_limits`) may lower or raise both.
+    capacity: {
+      maxConcurrentRequests: 2,
+      maxRequestsPerUtcDay: 2_000,
+      scope: 'relationship',
+    },
+    pilot: {
+      decisions: {
+        maxInputTokens: 16_000,
+        maxPricePerRequestUsd: '0.001',
+      },
+    },
+  },
+  {
+    relationshipId: 'mention-kaana-text',
+    consumerApplicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'mention',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // Approved 2026-10-19: Mention's text features (translation, summaries,
+    // topics, classification) on kaana.ai/v1 at the `instant` power level. A
+    // relationship of its own so its count never eats the decisions budget.
+    operations: ['responses', 'chat_completions'],
+    consumerApplicationClass: 'first_party',
+    // Mention's text inference is a few hundred requests a day; 5,000 is over
+    // ten times that, 8 in flight covers a burst of translations. Either
+    // refuses with a 429 and never asks for a top-up. Console may change both.
+    capacity: {
+      maxConcurrentRequests: 8,
+      maxRequestsPerUtcDay: 5_000,
+      scope: 'relationship',
+    },
+    pilot: {
+      // Mention's translation budget and its classification batch (25 x 320)
+      // need up to 8,192 output tokens. The dearest `instant` lines Kaana
+      // lists (2026-10-19: USD 0.30 in / 2.50 out per 1M, e.g.
+      // google/gemini-2.5-flash) quote USD 0.0301 at the full 32,000 input and
+      // 8,192 output; USD 0.035 admits every instant line at that size. A
+      // typical request quotes a small fraction of a cent.
+      levelText: {
+        levels: ['instant'],
+        maxInputTokens: 32_000,
+        maxOutputTokens: 8_192,
+        maxPricePerRequestUsd: '0.035',
+      },
+    },
+  },
 ];
 
 /** The facts about an authenticated principal this decision may read. Nothing else. */
@@ -417,6 +535,8 @@ export interface EconomicTreatmentPrincipal {
   readonly environment: InferenceEnvironment;
   /** Live `applications.is_internal`, re-read on every request. */
   readonly applicationIsInternal: boolean | null;
+  /** Live `applications.type`, re-read on every request. */
+  readonly applicationType?: string | null;
 }
 
 export type EconomicTreatmentDecision =
@@ -431,27 +551,32 @@ export type EconomicTreatmentDecision =
     };
 
 /**
- * Decide the economic treatment for an AUTHENTICATED principal.
+ * Decide the economic treatment for an AUTHENTICATED principal and, on the
+ * grant API, the operation it asks for.
  *
- * Pure, and typed to accept only the four principal facts it needs, so no
- * request-borne value can be passed in by a later refactor without the type
- * changing first.
+ * Pure, and typed to accept only the principal facts it needs and the grant
+ * operation, so no request-borne value can be passed in by a later refactor
+ * without the type changing first.
  */
 export function resolveEconomicTreatment(
   principal: EconomicTreatmentPrincipal,
+  operation?: GrantOperation,
   relationships: readonly InternalMeteredRelationship[] = INTERNAL_METERED_RELATIONSHIPS,
   policyVersion: string = INFERENCE_ECONOMIC_POLICY_VERSION,
 ): EconomicTreatmentDecision {
-  // An application that is no longer marked internal loses the exemption on
-  // its next request, whatever this file still says.
-  if (principal.applicationIsInternal !== true) {
-    return { treatment: 'commercial', policyVersion };
-  }
   const relationship = relationships.find(
     (candidate) =>
       candidate.consumerApplicationId === principal.applicationId &&
       candidate.lane === principal.lane &&
-      candidate.environments.includes(principal.environment),
+      candidate.environments.includes(principal.environment) &&
+      // An application that is no longer marked internal (or no longer a
+      // first-party product, for a relationship of that class) loses the
+      // exemption on its next request, whatever this file still says.
+      (candidate.consumerApplicationClass === 'first_party'
+        ? principal.applicationType === 'first_party' && candidate.operations !== undefined
+        : principal.applicationIsInternal === true) &&
+      (candidate.operations === undefined ||
+        (operation !== undefined && candidate.operations.includes(operation))),
   );
   return relationship === undefined
     ? { treatment: 'commercial', policyVersion }

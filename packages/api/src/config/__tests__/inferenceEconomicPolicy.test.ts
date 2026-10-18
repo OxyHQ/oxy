@@ -10,12 +10,16 @@ import {
   CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
   INFERENCE_ECONOMIC_POLICY_VERSION,
   INTERNAL_METERED_RELATIONSHIPS,
+  MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
   pilotTextTerms,
   resolveEconomicTreatment,
   type EconomicTreatmentPrincipal,
 } from '../inferenceEconomicPolicy';
 import { CLARITY_BACKEND_APPLICATION_ID } from '../firstPartyApplications';
-import { ALIA_APPLICATION_ID } from '../../scripts/seedOxyApplicationsSpecs';
+import {
+  ALIA_APPLICATION_ID,
+  MENTION_APPLICATION_ID,
+} from '../../scripts/seedOxyApplicationsSpecs';
 
 const alia: EconomicTreatmentPrincipal = {
   lane: 'service_token',
@@ -194,8 +198,36 @@ describe('clarity-kaana: Clarity search embeddings, and nothing else', () => {
       maxRequestsPerUtcDay: 60_000,
     });
   });
+});
+
+describe('Mention: decisions and level text, each its own relationship; nothing else', () => {
+  const mention: EconomicTreatmentPrincipal = {
+    lane: 'service_token',
+    applicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+    environment: 'production',
+    applicationIsInternal: false,
+    applicationType: 'first_party',
+  };
+
+  it('applies to the seeded first-party Mention application for its named operations only', () => {
+    expect(MENTION_INFERENCE_CONSUMER_APPLICATION_ID).toBe(MENTION_APPLICATION_ID);
+    expect(resolveEconomicTreatment(mention, 'decisions')).toMatchObject({
+      treatment: 'internal_metered',
+      relationship: { relationshipId: 'mention-kaana-decisions' },
+    });
+    expect(resolveEconomicTreatment(mention, 'responses')).toMatchObject({
+      treatment: 'internal_metered',
+      relationship: { relationshipId: 'mention-kaana-text' },
+    });
+    expect(resolveEconomicTreatment(mention, 'embeddings').treatment).toBe('commercial');
+    expect(resolveEconomicTreatment(mention).treatment).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...mention, applicationType: 'third_party' }, 'decisions')
+        .treatment,
+    ).toBe('commercial');
+  });
 
   it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-15.3');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-19.1');
   });
 });

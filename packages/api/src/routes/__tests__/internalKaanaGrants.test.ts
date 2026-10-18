@@ -39,7 +39,9 @@ import {
   ALIA_INFERENCE_CONSUMER_APPLICATION_ID,
   CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
   INTERNAL_METERED_RELATIONSHIPS,
+  MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
 } from '../../config/inferenceEconomicPolicy';
+import * as decisionsPolicy from '../../config/decisionsPolicy';
 import * as economicPolicy from '../../config/inferenceEconomicPolicy';
 import {
   KAANA_CONTROL_APPLICATION_ID,
@@ -929,20 +931,22 @@ describe('a commercial grant (oxy_sk_, machine_credential)', () => {
     expect(result.body.code).toBe('model_not_found');
   });
 
-  it('refuses decisions and source-approved inputs until their approvals are re-issued', async () => {
+  it('refuses decisions to an application without decisions terms, and any source approval', async () => {
     const customer = await textCustomer();
-    for (const request of [
+    const decisions = await authorize(
       inferenceRequest({ credential: customer.token, operation: 'decisions' }),
+    );
+    expect(decisions.status).toBe(403);
+    expect(decisions.body.code).toBe('permission_denied');
+    const sourceApproved = await authorize(
       inferenceRequest({
         credential: customer.token,
         target: { kind: 'model', modelLine: customer.modelReference },
         canonicalInputSha256: sha256('approved'),
       }),
-    ]) {
-      const result = await authorize(request);
-      expect(result.status).toBe(503);
-      expect(result.body.code).toBe('service_unavailable');
-    }
+    );
+    expect(sourceApproved.status).toBe(503);
+    expect(sourceApproved.body.code).toBe('service_unavailable');
   });
 
   it('refuses a commercial realtime session: its facts bound no hold', async () => {
@@ -1659,6 +1663,121 @@ describe('the clarity-kaana relationship (service_token, embeddings only)', () =
     expect(completion.status).toBe(400);
     expect(completion.body.code).toBe('unsupported_modality');
     expect(completion.body.message).toBe('The operation is outside the controlled internal pilot.');
+  });
+});
+
+describe('Mention under its first-party relationships (production terms)', () => {
+  /**
+   * A fresh first-party application stands in for Mention: the production
+   * relationships are resolved for it, so the pinned Mention row other suites
+   * seed is left alone.
+   */
+  async function mentionStandIn(maxRequestsPerUtcDay?: number) {
+    const appId = randomUUID();
+    const app = await pinnedApplication(appId, 'Mention stand-in', ['inference:invoke']);
+    await getDb()
+      .update(applications)
+      .set({ type: 'first_party', isInternal: false })
+      .where(eq(applications.id, appId));
+    const resolveProduction = economicPolicy.resolveEconomicTreatment;
+    jest
+      .spyOn(economicPolicy, 'resolveEconomicTreatment')
+      .mockImplementation((principal, operation) =>
+        resolveProduction(
+          { ...principal, applicationId: MENTION_INFERENCE_CONSUMER_APPLICATION_ID },
+          operation,
+        ),
+      );
+    if (maxRequestsPerUtcDay !== undefined) {
+      await getDb()
+        .insert(applicationInferenceLimits)
+        .values({ applicationId: appId, maxRequestsPerUtcDay });
+    }
+    const token = serviceToken({
+      applicationId: appId,
+      credentialId: app.credentialId,
+      ownerAccountId: app.accountId,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+    return { app, token };
+  }
+
+  it('signs one revision-pinned decisions step per profile line Kaana publishes, and refuses the request past the day', async () => {
+    const { app, token } = await mentionStandIn(1);
+    const line = await addModelLine(app.accountId, {
+      prices: { requests: '0', input_tokens: '0.042', output_tokens: '0' },
+      outputModalities: ['decisions'],
+      apiFormats: ['decisions'],
+    });
+    const review = { reviewedAt: '2026-10-18', evidenceRefs: ['synthetic'] };
+    // Neither line pins a revision: the grant takes the one Kaana publishes.
+    jest.replaceProperty(decisionsPolicy, 'DECISIONS_PROFILE', [
+      // Listed first and published nowhere: skipped, not refused.
+      { modelLine: 'unpublished/decider', maxPricePerRequestUsd: '0.001', review },
+      { modelLine: line.modelLine, maxPricePerRequestUsd: '0.0005', review },
+    ]);
+    const decide = () =>
+      authorize(
+        inferenceRequest({
+          credential: token,
+          operation: 'decisions',
+          facts: { estimatedInputTokens: 1_200, declaredTools: 0, stream: false },
+        }),
+      );
+
+    const grant = verifiedGrant(await decide());
+    expect(grant.economics).toMatchObject({
+      treatment: 'internal_metered',
+      relationshipId: 'mention-kaana-decisions',
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps).toHaveLength(1);
+    expect(grant.steps[0]).toMatchObject({
+      target: { kind: 'model', modelLine: line.modelLine, revision: AUDIO_REVISION },
+      limits: {
+        maxPricePerRequest: { amount: '0.0005', currency: 'USD' },
+        requireZeroDataRetention: true,
+        prohibitTrainingOnCustomerData: true,
+        sameModelFailover: false,
+      },
+    });
+
+    const refused = await decide();
+    expect(refused.status).toBe(429);
+    expect(refused.body.code).toBe('quota_exceeded');
+  });
+  it('grants text at the instant level as internal_metered under its own terms, and refuses a model target', async () => {
+    const { app, token } = await mentionStandIn();
+    const line = await addModelLine(app.accountId, {
+      prices: {
+        requests: '0',
+        input_tokens: '0.1',
+        cached_input_tokens: '0.1',
+        output_tokens: '0.4',
+        reasoning_tokens: '0.4',
+      },
+      powerClass: 'instant',
+    });
+    const grant = verifiedGrant(
+      await authorize(
+        inferenceRequest({ credential: token, target: { kind: 'level', level: 'instant' } }),
+      ),
+    );
+    expect(grant.economics).toMatchObject({
+      treatment: 'internal_metered',
+      relationshipId: 'mention-kaana-text',
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps[0]).toMatchObject({
+      target: { kind: 'level', level: 'instant' },
+      limits: { maxPricePerRequest: { amount: '0.035', currency: 'USD' } },
+    });
+
+    const named = await authorize(
+      inferenceRequest({ credential: token, target: { kind: 'model', modelLine: line.modelLine } }),
+    );
+    expect(named.status).toBe(403);
+    expect(named.body.code).toBe('policy_violation');
   });
 });
 

@@ -56,23 +56,12 @@ import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
 import {
-  scopedExecutionAudienceSchema,
-  privateAutoSourceApprovalSchema,
-  type PrivateAutoSourceApproval,
-  canonicalScopedExecutionJson,
-  type ScopedExecutionAudience,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   modelIdSchema,
   modelReferenceSchema,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
-import { sourceReviewedScopedAudience } from './scopedExecution.service';
-import {
-  privateAutoClassifierSourceApproval,
-  reviewedPrivateAutoApproval,
-} from '../config/privateAutoClassification';
-import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import {
   canonicalAcceptedParameters,
   DEPLOYMENT_REQUEST_PARAMETERS,
@@ -106,11 +95,7 @@ import {
   type ReviewedProviderRoute,
   type ReviewedProviderRouteIndex,
 } from '../config/kaanaReviewedProviderRoutes';
-import {
-  createHttpKaanaCatalogueReader,
-  type KaanaCatalogueReader,
-  kaanaDeploymentCommercialSchema,
-} from './httpKaanaClient';
+import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
 import {
   createHttpKaanaCredentialEconomicsReader,
@@ -207,24 +192,16 @@ export interface KaanaListPrice {
  * one it will later sign and Kaana will later compare.
  */
 export interface KaanaDeploymentDescriptor {
-  readonly keyId?: string;
-  readonly upstreamModelId?: string;
-  readonly providerRateCardVersionId?: string;
-  readonly providerSourceVersion?: string;
   readonly deploymentId: string;
   readonly provider: string;
   readonly modelReference: string;
   readonly regions: readonly string[];
   /** This deployment's own accepted request controls, when Kaana reports them. */
   readonly acceptedParameters?: readonly string[];
-  readonly scopedExecution?: ScopedExecutionAudience;
-  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
 }
 
 /** One `listPrices` observation: a provider's published price for one exact deployment. */
 export interface KaanaPricedRoute {
-  readonly scopedExecution?: ScopedExecutionAudience;
-  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
   readonly deploymentId: string;
   readonly provider: string;
   readonly price: KaanaListPrice | 'invalid';
@@ -252,8 +229,6 @@ export interface KaanaCatalogueModel {
    * intersection). Absent means no deployment said.
    */
   readonly acceptedParameters?: readonly string[];
-  readonly scopedExecution?: ScopedExecutionAudience;
-  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
   /** The distinct providers serving the line's current revision. */
   readonly providers?: readonly string[];
   /** Kaana's `listPrices`: only deployments whose provider publishes a price. */
@@ -278,39 +253,15 @@ const kaanaCatalogueResponseSchema = z
     configuration: nullish(
       z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough(),
     ),
+    // Kaana's signed `GET /internal/v1/models`: the served catalogue. Each
+    // priced deployment it names is attested through the deployment query
+    // before it is stored (`attestPricedDeployments`).
     models: z.array(z.unknown()),
-    scopedExecutionContractVersion: z.literal('3.6.0').optional(),
-    privateAutoExecutionContractVersion: z.literal('3.7.0').optional(),
-    deployments: z
-      .array(
-        z
-          .object({
-            deploymentId: deploymentIdSchema,
-            modelReference: modelReferenceSchema,
-            provider: inferenceProviderSlugSchema,
-            regions: z.array(z.string()),
-            scopedExecution: scopedExecutionAudienceSchema.optional(),
-            privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
-            keyId: z.string().optional(),
-            upstreamModelId: z.string().optional(),
-            providerRateCardVersionId: z.string().optional(),
-            providerSourceVersion: z.string().optional(),
-            acceptedParameters: z.array(z.string()).optional(),
-            // How the route may be sold: @kaana.ai/contracts
-            // `deploymentCommercialSchema`, the one validator Oxy applies to it
-            // (httpKaanaClient). Kaana publishes it on every descriptor (#178).
-            commercial: kaanaDeploymentCommercialSchema.optional(),
-          })
-          .strict(),
-      )
-      .optional(),
   })
   .passthrough();
 
 const kaanaListPriceSchema = z
   .object({
-    scopedExecution: scopedExecutionAudienceSchema.optional(),
-    privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
     deploymentId: deploymentIdSchema,
     provider: inferenceProviderSlugSchema,
     currency: z.string(),
@@ -383,30 +334,6 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
       `Kaana returned a catalogue body Oxy cannot read (${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'})`,
     );
   }
-  if (
-    (response.data.scopedExecutionContractVersion !== undefined ||
-      response.data.privateAutoExecutionContractVersion !== undefined) &&
-    response.data.deployments === undefined
-  ) {
-    throw new Error('Negotiated catalogue must declare exact deployment audiences.');
-  }
-  validatePrivateAutoAttestation(
-    {
-      snapshotId: response.data.configuration?.snapshotId ?? 'unattested',
-      deployments: response.data.deployments ?? [],
-      privateAutoExecutionContractVersion: response.data.privateAutoExecutionContractVersion,
-    },
-    response.data.privateAutoExecutionContractVersion,
-  );
-  const deploymentAudience = new Map<
-    string,
-    NonNullable<typeof response.data.deployments>[number]
-  >();
-  for (const descriptor of response.data.deployments ?? []) {
-    if (deploymentAudience.has(descriptor.deploymentId))
-      throw new Error('Duplicate catalogue deployment identity.');
-    deploymentAudience.set(descriptor.deploymentId, descriptor);
-  }
   let invalidEntries = 0;
   const models: KaanaCatalogueModel[] = [];
   for (const rawEntry of response.data.models) {
@@ -420,29 +347,6 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
     let invalidDeployments = 0;
     for (const rawPrice of data.listPrices ?? []) {
       const priced = parsePricedRoute(rawPrice);
-      const descriptor =
-        priced === undefined ? undefined : deploymentAudience.get(priced.deploymentId);
-      if (
-        (response.data.scopedExecutionContractVersion !== undefined ||
-          response.data.privateAutoExecutionContractVersion !== undefined) &&
-        (descriptor === undefined ||
-          descriptor.modelReference !== data.modelReference ||
-          descriptor.provider !== priced?.provider)
-      ) {
-        invalidDeployments += 1;
-        continue;
-      }
-      if (priced !== undefined && descriptor?.privateAutoSourceApproval !== undefined) {
-        listPrices.push({
-          ...priced,
-          privateAutoSourceApproval: descriptor.privateAutoSourceApproval,
-        });
-        continue;
-      }
-      if (priced !== undefined && descriptor?.scopedExecution !== undefined) {
-        listPrices.push({ ...priced, scopedExecution: descriptor.scopedExecution });
-        continue;
-      }
       if (priced === undefined) invalidDeployments += 1;
       else listPrices.push(priced);
     }
@@ -476,8 +380,6 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
 /* -------------------------------------------------------------------------- */
 
 export interface PlannedRoute {
-  readonly scopedExecution?: ScopedExecutionAudience;
-  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
   readonly deploymentId: string;
   readonly provider: string;
   readonly regions: readonly string[];
@@ -500,8 +402,6 @@ export interface PlannedModel {
   readonly maxOutputTokens: number;
   readonly inputModalities: readonly InferenceModalityValue[];
   readonly outputModalities: readonly InferenceOutputModalityValue[];
-  /** Capability derived from the negotiated private decisions-only contract, not provider metadata. */
-  readonly apiFormats: readonly ['decisions'] | null;
   readonly supportsTools: boolean;
   readonly reasoningEfforts: readonly (typeof MODEL_REASONING_EFFORTS)[number][];
   readonly routes: readonly PlannedRoute[];
@@ -590,24 +490,6 @@ function knownModalities(values: readonly string[] | undefined): InferenceModali
   ].sort() as InferenceModalityValue[];
 }
 
-/** A private contract capability requires current local source authority, not the sync timestamp. */
-function currentPrivateDecisionAuthority(
-  route: Pick<KaanaDeploymentDescriptor, 'scopedExecution' | 'privateAutoSourceApproval'>,
-): boolean {
-  const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
-  const at = Date.now();
-  const reviewed =
-    route.privateAutoSourceApproval !== undefined
-      ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), at)
-      : sourceReviewedScopedAudience(at);
-  return (
-    restriction !== undefined &&
-    reviewed !== undefined &&
-    Date.parse(restriction.expiresAt) > Date.now() &&
-    canonicalScopedExecutionJson(restriction) === canonicalScopedExecutionJson(reviewed)
-  );
-}
-
 /**
  * Decide what one Kaana model line becomes, without touching the database.
  * `knownProviders` is the set of provider slugs Oxy holds a reviewed
@@ -647,8 +529,6 @@ export function planKaanaModel(
     return { status: 'skipped', reason: 'missing_modalities' };
   }
   const inputModalities = knownModalities(entry.inputModalities);
-  const typedDecisions =
-    entry.outputModalities?.length === 1 && entry.outputModalities[0] === 'decisions';
   const outputModalities = [
     ...new Set(
       (entry.outputModalities ?? []).filter((value) =>
@@ -659,7 +539,7 @@ export function planKaanaModel(
   if (inputModalities.length === 0 || outputModalities.length === 0) {
     return { status: 'skipped', reason: 'missing_modalities' };
   }
-  if (!typedDecisions && outputModalities.some((modality) => modality !== 'text')) {
+  if (outputModalities.some((modality) => modality !== 'text')) {
     return { status: 'skipped', reason: 'non_text_output_unreviewed' };
   }
   if (entry.listPrices.length === 0 && entry.invalidDeployments === 0) {
@@ -691,80 +571,18 @@ export function planKaanaModel(
       routeSkips.push('unknown_provider');
       continue;
     }
-    if (
-      (priced.scopedExecution === undefined) !== (deployment.scopedExecution === undefined) ||
-      (priced.scopedExecution !== undefined &&
-        canonicalScopedExecutionJson(priced.scopedExecution) !==
-          canonicalScopedExecutionJson(deployment.scopedExecution))
-    ) {
-      routeSkips.push('unattested_route');
-      continue;
-    }
-    if (
-      deployment.scopedExecution !== undefined &&
-      (deployment.keyId !== deployment.scopedExecution.keyId ||
-        deployment.upstreamModelId !== deployment.scopedExecution.upstreamModelId ||
-        deployment.providerRateCardVersionId !==
-          deployment.scopedExecution.providerRateCardVersionId ||
-        deployment.providerSourceVersion !== deployment.scopedExecution.providerSourceVersion ||
-        deployment.deploymentId !== deployment.scopedExecution.deploymentId ||
-        deployment.modelReference !== deployment.scopedExecution.modelReference ||
-        deployment.provider !== deployment.scopedExecution.provider)
-    ) {
-      routeSkips.push('unattested_route');
-      continue;
-    }
-    if (
-      (priced.privateAutoSourceApproval === undefined) !==
-        (deployment.privateAutoSourceApproval === undefined) ||
-      (priced.privateAutoSourceApproval !== undefined &&
-        canonicalScopedExecutionJson(priced.privateAutoSourceApproval) !==
-          canonicalScopedExecutionJson(deployment.privateAutoSourceApproval))
-    ) {
-      routeSkips.push('unattested_route');
-      continue;
-    }
-    if (deployment.privateAutoSourceApproval !== undefined) {
-      try {
-        validatePrivateAutoAttestation(
-          {
-            snapshotId: 'planning-exact-descriptor',
-            privateAutoExecutionContractVersion: '3.7.0',
-            deployments: [deployment],
-          },
-          '3.7.0',
-        );
-      } catch {
-        routeSkips.push('unattested_route');
-        continue;
-      }
-    }
-    if (typedDecisions) {
-      // 3.6/v3 and 3.7/v4 accept decisions exclusively. Only an exact local,
-      // unexpired approval plus its signed descriptor can establish this
-      // capability; output modality alone never authorizes an ordinary route.
-      if (!currentPrivateDecisionAuthority(deployment)) {
-        routeSkips.push('unattested_route');
-        continue;
-      }
-    }
     const price = priced.price;
     if (price === 'invalid') {
       routeSkips.push('invalid_list_price');
       continue;
     }
-    // One deployment per revision × provider × scope is a database invariant;
-    // a second report of the same pair cannot be stored beside the first.
-    const providerLane =
-      deployment.provider +
-      (deployment.privateAutoSourceApproval === undefined
-        ? ':ordinary-or-commissioning'
-        : ':private-auto');
-    if (seenProviders.has(providerLane) || seenDeploymentIds.has(deployment.deploymentId)) {
+    // One deployment per revision × provider is a database invariant; a second
+    // report of the same pair cannot be stored beside the first.
+    if (seenProviders.has(deployment.provider) || seenDeploymentIds.has(deployment.deploymentId)) {
       routeSkips.push('duplicate_route');
       continue;
     }
-    seenProviders.add(providerLane);
+    seenProviders.add(deployment.provider);
     seenDeploymentIds.add(deployment.deploymentId);
     const reviewed = context.reviewed?.get(reviewedRouteKey(deployment.provider, entry.model));
     routes.push({
@@ -775,12 +593,6 @@ export function planKaanaModel(
       ...(priced.priceEvidenceRef === undefined
         ? {}
         : { priceEvidenceRef: priced.priceEvidenceRef }),
-      ...(deployment.scopedExecution === undefined
-        ? {}
-        : { scopedExecution: deployment.scopedExecution }),
-      ...(deployment.privateAutoSourceApproval === undefined
-        ? {}
-        : { privateAutoSourceApproval: deployment.privateAutoSourceApproval }),
       acceptedParameters: intersectAcceptedParameters(
         acceptedParametersForRoute(entry, deployment),
         reviewed === undefined ? null : reviewed.acceptedParameters,
@@ -809,7 +621,6 @@ export function planKaanaModel(
       maxOutputTokens: Math.min(entry.maxOutputTokens, entry.contextTokens),
       inputModalities,
       outputModalities,
-      apiFormats: typedDecisions ? ['decisions'] : null,
       supportsTools: entry.supportsTools ?? false,
       reasoningEfforts,
       routes,
@@ -935,19 +746,7 @@ async function ensureSyncedPrice(
   price: KaanaListPrice,
   now: Date,
   counts: MutableCounts,
-  scopedExecution?: ScopedExecutionAudience | PrivateAutoSourceApproval,
-): Promise<string | undefined> {
-  if (scopedExecution !== undefined) {
-    const reviewed =
-      'purpose' in scopedExecution
-        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
-        : sourceReviewedScopedAudience(Date.now());
-    if (
-      reviewed === undefined ||
-      canonicalScopedExecutionJson(reviewed) !== canonicalScopedExecutionJson(scopedExecution)
-    )
-      return undefined;
-  }
+): Promise<string> {
   const expected = syncedUnitPrices(price);
   const [active] = await tx
     .select({
@@ -974,16 +773,6 @@ async function ensureSyncedPrice(
       })
       .from(priceVersionUnitPrices)
       .where(eq(priceVersionUnitPrices.priceVersionId, active.id));
-    if (scopedExecution !== undefined) {
-      // A scoped import cannot replace, rename or reprice an existing version.
-      return active.id === scopedExecution.priceVersionId &&
-        active.currency === 'USD' &&
-        active.effectiveFrom <= now &&
-        active.effectiveUntil === null &&
-        sameUnitPrices(units, expected)
-        ? active.id
-        : undefined;
-    }
     if (sameUnitPrices(units, expected)) return active.id;
     // A changed list price never rewrites a published version: receipts
     // settled under it stay explainable. It is superseded, and a new one starts.
@@ -992,18 +781,9 @@ async function ensureSyncedPrice(
       .set({ status: 'superseded', effectiveUntil: now })
       .where(eq(priceVersions.id, active.id));
   }
-  if (scopedExecution !== undefined) {
-    const [collision] = await tx
-      .select({ id: priceVersions.id })
-      .from(priceVersions)
-      .where(eq(priceVersions.id, scopedExecution.priceVersionId))
-      .for('update');
-    if (collision !== undefined) return undefined;
-  }
   const [created] = await tx
     .insert(priceVersions)
     .values({
-      ...(scopedExecution === undefined ? {} : { id: scopedExecution.priceVersionId }),
       status: 'active',
       modelReference,
       provider,
@@ -1192,10 +972,6 @@ async function applyPlannedModel(
     )
     .for('update');
 
-  if (planned.apiFormats !== null && !planned.routes.every(currentPrivateDecisionAuthority)) {
-    throw new Error('Private decisions source authority changed after model lock.');
-  }
-
   if (existing !== undefined && existing.catalogueSource !== 'kaana_sync') {
     // A reviewed line keeps every reviewed fact and every reviewed route; Kaana
     // may only keep its serving capabilities current.
@@ -1216,14 +992,6 @@ async function applyPlannedModel(
     displayName: planned.displayName,
     inputModalities: [...planned.inputModalities],
     outputModalities: [...planned.outputModalities],
-    ...(planned.apiFormats !== null
-      ? { apiFormats: [...planned.apiFormats] }
-      : existing?.outputModalities.length === 1 &&
-          existing.outputModalities[0] === 'decisions' &&
-          existing.apiFormats?.length === 1 &&
-          existing.apiFormats[0] === 'decisions'
-        ? { apiFormats: null }
-        : {}),
     supportsTools: planned.supportsTools,
     supportsParallelToolCalls: false,
     supportsStructuredOutput: false,
@@ -1231,18 +999,13 @@ async function applyPlannedModel(
     supportsReasoning: planned.reasoningEfforts.length > 0,
     // Every text route Kaana executes streams: its adapters emit the normalized
     // event stream whatever the envelope's `stream` flag says.
-    supportsStreaming: planned.apiFormats === null,
+    supportsStreaming: true,
     supportsPromptCaching: false,
     maxContextTokens: planned.maxContextTokens,
     maxOutputTokens: planned.maxOutputTokens,
     reasoningEfforts: [...planned.reasoningEfforts],
     providerReleasedAt: planned.providerReleasedAt,
   };
-  const modelFactsUnchanged =
-    existing !== undefined &&
-    Object.entries(modelFacts).every(([key, value]) =>
-      isDeepStrictEqual(existing[key as keyof typeof modelFacts], value),
-    );
   let modelRowId: string;
   if (existing === undefined) {
     const [created] = await tx
@@ -1319,54 +1082,16 @@ async function applyPlannedModel(
     }
     const deploymentFacts = {
       id: inferenceDeployments.id,
-      modelRevisionId: inferenceDeployments.modelRevisionId,
-      providerSlug: inferenceDeployments.providerSlug,
       autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
-      scopedExecution: inferenceDeployments.scopedExecution,
-      privateAutoSourceApproval: inferenceDeployments.privateAutoSourceApproval,
-      availabilityScope: inferenceDeployments.availabilityScope,
       permissionState: inferenceDeployments.permissionState,
       status: inferenceDeployments.status,
-      regions: inferenceDeployments.regions,
-      retainsPayloads: inferenceDeployments.retainsPayloads,
-      retentionDays: inferenceDeployments.retentionDays,
-      trainsOnCustomerData: inferenceDeployments.trainsOnCustomerData,
-      zeroDataRetentionAvailable: inferenceDeployments.zeroDataRetentionAvailable,
-      subprocessors: inferenceDeployments.subprocessors,
-      policyUrl: inferenceDeployments.policyUrl,
-      priceVersionId: inferenceDeployments.priceVersionId,
-      internalRouteId: inferenceDeployments.internalRouteId,
-      acceptedParameters: inferenceDeployments.acceptedParameters,
     };
-    type DeploymentFacts = Pick<
-      typeof inferenceDeployments.$inferSelect,
-      keyof typeof deploymentFacts
-    >;
     const byId = await tx
       .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(eq(inferenceDeployments.internalRouteId, route.deploymentId))
       .for('update');
-    const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
-    const reviewedAudience =
-      route.privateAutoSourceApproval !== undefined
-        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
-        : route.scopedExecution === undefined
-          ? undefined
-          : sourceReviewedScopedAudience(Date.now());
-    const reviewedPrivateImport =
-      reviewedAudience !== undefined &&
-      canonicalScopedExecutionJson(reviewedAudience) === canonicalScopedExecutionJson(restriction);
-    const managedPrivate = (row: DeploymentFacts) =>
-      reviewedPrivateImport &&
-      row.autoApprovalPolicyId === null &&
-      (route.privateAutoSourceApproval === undefined
-        ? row.scopedExecution !== null && row.privateAutoSourceApproval === null
-        : row.privateAutoSourceApproval !== null && row.scopedExecution === null) &&
-      row.availabilityScope === 'platform_internal' &&
-      row.permissionState === 'pending_review' &&
-      row.status === 'disabled';
-    if (byId.some((row) => row.autoApprovalPolicyId === null && !managedPrivate(row))) {
+    if (byId.some((row) => row.autoApprovalPolicyId === null)) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
     }
@@ -1377,9 +1102,7 @@ async function applyPlannedModel(
         and(
           eq(inferenceDeployments.modelRevisionId, revisionId),
           eq(inferenceDeployments.providerSlug, route.provider),
-          route.privateAutoSourceApproval === undefined
-            ? sql`${inferenceDeployments.privateAutoSourceApproval} is null`
-            : sql`${inferenceDeployments.privateAutoSourceApproval} is not null`,
+          sql`${inferenceDeployments.privateAutoSourceApproval} is null`,
           or(
             eq(inferenceDeployments.availabilityScope, 'platform_internal'),
             sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
@@ -1387,80 +1110,9 @@ async function applyPlannedModel(
         ),
       )
       .for('update');
-    if (
-      byRoute !== undefined &&
-      byRoute.autoApprovalPolicyId === null &&
-      !managedPrivate(byRoute)
-    ) {
+    if (byRoute !== undefined && byRoute.autoApprovalPolicyId === null) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
-    }
-    // Human review is bound to these facts, not the next publication timestamp.
-    // A managed private row may be revisited only under fresh compiled authority;
-    // ordinary manually reviewed rows retain their existing protection above.
-    const privateFacts = {
-      modelRevisionId: revisionId,
-      providerSlug: route.provider,
-      scopedExecution: route.scopedExecution ?? null,
-      privateAutoSourceApproval: route.privateAutoSourceApproval ?? null,
-      regions: [...route.regions],
-      retainsPayloads: provider.retainsPayloads,
-      retentionDays: provider.retentionDays,
-      trainsOnCustomerData: provider.trainsOnCustomerData,
-      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
-      subprocessors: provider.subprocessors,
-      policyUrl: provider.policyUrl,
-      priceVersionId: restriction?.priceVersionId,
-      internalRouteId: route.deploymentId,
-      acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
-    };
-    const samePrivateFacts = (row: DeploymentFacts) =>
-      modelFactsUnchanged &&
-      managedPrivate(row) &&
-      Object.entries(privateFacts).every(([key, value]) =>
-        isDeepStrictEqual(row[key as keyof typeof privateFacts], value),
-      );
-    let preservePrivateReview = byRoute !== undefined && samePrivateFacts(byRoute);
-    if (reviewedPrivateImport && restriction !== undefined) {
-      const currentUnits = await tx
-        .select({
-          unit: priceVersionUnitPrices.unit,
-          amount: priceVersionUnitPrices.amount,
-          per: priceVersionUnitPrices.per,
-        })
-        .from(priceVersionUnitPrices)
-        .where(eq(priceVersionUnitPrices.priceVersionId, restriction.priceVersionId));
-      const [currentPrice] = await tx
-        .select()
-        .from(priceVersions)
-        .where(eq(priceVersions.id, restriction.priceVersionId));
-      preservePrivateReview =
-        preservePrivateReview &&
-        currentPrice !== undefined &&
-        currentPrice.status === 'active' &&
-        currentPrice.provider === route.provider &&
-        currentPrice.modelReference === planned.modelReference &&
-        currentPrice.currency === 'USD' &&
-        currentPrice.effectiveFrom <= now &&
-        currentPrice.effectiveUntil === null &&
-        sameUnitPrices(currentUnits, syncedUnitPrices(route.price));
-      // Invalidate before a changed price/identity can be rejected by immutable
-      // import. Never retain approval merely because that update was skipped.
-      const rows = new Map(
-        [...byId, ...(byRoute === undefined ? [] : [byRoute])].map((row) => [row.id, row]),
-      );
-      for (const row of rows.values())
-        if (managedPrivate(row) && !(row.id === byRoute?.id && preservePrivateReview)) {
-          await tx
-            .update(inferenceDeployments)
-            .set({
-              legalReviewStatus: 'not_started',
-              legalReviewEvidenceRef: null,
-              legalReviewedAt: null,
-              legalReviewedByUserId: null,
-            })
-            .where(eq(inferenceDeployments.id, row.id));
-        }
     }
     const priceVersionId = await ensureSyncedPrice(
       tx,
@@ -1469,12 +1121,7 @@ async function applyPlannedModel(
       route.price,
       now,
       counts,
-      restriction,
     );
-    if (priceVersionId === undefined) {
-      bump(counts.deploymentSkips, 'unattested_route');
-      continue;
-    }
 
     // The same exact id on a different revision/provider row is identity
     // drift: that row no longer describes the deployment, so it is retired
@@ -1487,8 +1134,8 @@ async function applyPlannedModel(
     );
 
     const routeFacts = {
-      scopedExecution: route.scopedExecution ?? null,
-      privateAutoSourceApproval: route.privateAutoSourceApproval ?? null,
+      scopedExecution: null,
+      privateAutoSourceApproval: null,
       regions: [...route.regions],
       retainsPayloads: provider.retainsPayloads,
       retentionDays: provider.retentionDays,
@@ -1496,25 +1143,20 @@ async function applyPlannedModel(
       zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
       subprocessors: provider.subprocessors,
       policyUrl: provider.policyUrl,
-      status: restriction === undefined ? ('active' as const) : ('disabled' as const),
+      status: 'active' as const,
       dedicatedCapacity: false,
       priceVersionId,
       internalRouteId: route.deploymentId,
       acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
     const approval = {
-      permissionState:
-        restriction === undefined ? ('approved' as const) : ('pending_review' as const),
+      permissionState: 'approved' as const,
       permissionStateChangedAt: now,
       permissionStateChangedByUserId: null,
-      permissionStateNote:
-        restriction === undefined
-          ? PERMISSION_NOTE
-          : 'Restricted publication requires source-specific commercial and privacy review.',
-      legalReviewStatus:
-        restriction === undefined ? ('approved' as const) : ('not_started' as const),
-      legalReviewEvidenceRef: restriction === undefined ? LEGAL_EVIDENCE_REF : null,
-      legalReviewedAt: restriction === undefined ? now : null,
+      permissionStateNote: PERMISSION_NOTE,
+      legalReviewStatus: 'approved' as const,
+      legalReviewEvidenceRef: LEGAL_EVIDENCE_REF,
+      legalReviewedAt: now,
       legalReviewedByUserId: null,
     };
     if (byRoute === undefined) {
@@ -1523,7 +1165,7 @@ async function applyPlannedModel(
         providerSlug: route.provider,
         availabilityScope: 'platform_internal',
         commercialPermission: 'standard_application_use',
-        autoApprovalPolicyId: restriction === undefined ? KAANA_SYNC_AUTO_APPROVAL_POLICY_ID : null,
+        autoApprovalPolicyId: KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
         ...routeFacts,
         ...approval,
       });
@@ -1535,13 +1177,7 @@ async function applyPlannedModel(
         .set({
           ...routeFacts,
           availabilityScope: 'platform_internal',
-          ...(restriction !== undefined
-            ? preservePrivateReview
-              ? {}
-              : approval
-            : revived
-              ? approval
-              : {}),
+          ...(revived ? approval : {}),
         })
         .where(eq(inferenceDeployments.id, byRoute.id));
     }
@@ -1551,16 +1187,12 @@ async function applyPlannedModel(
       priceVersionId,
       route.price,
       route.priceEvidenceRef ?? evidenceRef,
-      // A restricted (private) import keeps its reviewed standard economics.
-      restriction === undefined ? funding.get(route.provider) : undefined,
+      funding.get(route.provider),
       now,
       counts,
     );
     counts.deploymentsUpserted += 1;
     held.push(route.deploymentId);
-  }
-  if (planned.apiFormats !== null && !planned.routes.every(currentPrivateDecisionAuthority)) {
-    throw new Error('Private decisions source authority changed before import commit.');
   }
   counts.modelsSynced += 1;
   return held;
@@ -1782,84 +1414,41 @@ export async function attestPricedDeployments(
     for (const route of model.listPrices) {
       if (route.price === 'invalid') continue;
       const existing = pricedRoutes.get(route.deploymentId);
-      if (
-        existing !== undefined &&
-        canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(route)
-      ) {
-        throw new Error('Catalogue repeats a deployment with conflicting price or authority.');
+      if (existing !== undefined && !isDeepStrictEqual(existing, route)) {
+        throw new Error('Catalogue repeats a deployment with conflicting price.');
       }
       pricedRoutes.set(route.deploymentId, route);
     }
   const attested = new Map<string, KaanaDeploymentDescriptor>();
-  // Metadata negotiations stay independent just like the v3 and v4 execution lanes.
-  for (const privateAuto of [false, true]) {
-    const ids = [...pricedRoutes.values()]
-      .filter((route) => (route.privateAutoSourceApproval !== undefined) === privateAuto)
-      .map((route) => route.deploymentId)
-      .sort();
-    for (let start = 0; start < ids.length; start += KAANA_ATTESTATION_BATCH) {
-      const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
-      const evidence = await reader.attestDeployments(batch, {
-        signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
-        ...(privateAuto
-          ? { privateAutoExecutionContractVersion: '3.7.0' as const }
-          : { scopedExecutionContractVersion: '3.6.0' as const }),
+  const ids = [...pricedRoutes.keys()].sort();
+  for (let start = 0; start < ids.length; start += KAANA_ATTESTATION_BATCH) {
+    const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
+    const evidence = await reader.attestDeployments(batch, {
+      signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
+    });
+    if (
+      evidence.deployments.length !== batch.length ||
+      new Set(evidence.deployments.map((row) => row.deploymentId)).size !== batch.length ||
+      evidence.deployments.some((row) => !batch.includes(row.deploymentId))
+    ) {
+      throw new Error('Deployment attestation must contain exactly the requested identities.');
+    }
+    for (const descriptor of evidence.deployments) {
+      const route = pricedRoutes.get(descriptor.deploymentId);
+      if (route === undefined)
+        throw new Error('Deployment attestation lacks its exact priced route.');
+      if (descriptor.provider !== route.provider) {
+        throw new Error('Deployment attestation changed its provider.');
+      }
+      attested.set(descriptor.deploymentId, {
+        deploymentId: descriptor.deploymentId,
+        provider: descriptor.provider,
+        modelReference: descriptor.modelReference,
+        regions: [...new Set(descriptor.regions)].sort(),
+        ...(descriptor.acceptedParameters === undefined
+          ? {}
+          : { acceptedParameters: descriptor.acceptedParameters }),
       });
-      validatePrivateAutoAttestation(evidence, privateAuto ? '3.7.0' : undefined);
-      if (evidence.scopedExecutionContractVersion !== (privateAuto ? undefined : '3.6.0')) {
-        throw new Error('Missing independent scoped deployment acknowledgement.');
-      }
-      if (
-        catalogue.models.some((model) =>
-          model.listPrices.some(
-            (price) =>
-              price.scopedExecution !== undefined || price.privateAutoSourceApproval !== undefined,
-          ),
-        ) &&
-        (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)
-      ) {
-        throw new Error('Private catalogue snapshot changed before attestation.');
-      }
-      if (
-        evidence.deployments.length !== batch.length ||
-        new Set(evidence.deployments.map((row) => row.deploymentId)).size !== batch.length ||
-        evidence.deployments.some((row) => !batch.includes(row.deploymentId))
-      ) {
-        throw new Error('Deployment attestation must contain exactly the requested identities.');
-      }
-      for (const descriptor of evidence.deployments) {
-        const route = pricedRoutes.get(descriptor.deploymentId);
-        if (route === undefined)
-          throw new Error('Deployment attestation lacks its exact priced route.');
-        if (
-          descriptor.provider !== route.provider ||
-          canonicalScopedExecutionJson(descriptor.privateAutoSourceApproval ?? null) !==
-            canonicalScopedExecutionJson(route.privateAutoSourceApproval ?? null) ||
-          canonicalScopedExecutionJson(descriptor.scopedExecution ?? null) !==
-            canonicalScopedExecutionJson(route.scopedExecution ?? null)
-        ) {
-          throw new Error('Deployment attestation changed its provider or private authority.');
-        }
-        attested.set(descriptor.deploymentId, {
-          deploymentId: descriptor.deploymentId,
-          provider: descriptor.provider,
-          modelReference: descriptor.modelReference,
-          regions: [...new Set(descriptor.regions)].sort(),
-          keyId: descriptor.keyId,
-          upstreamModelId: descriptor.upstreamModelId,
-          providerRateCardVersionId: descriptor.providerRateCardVersionId,
-          providerSourceVersion: descriptor.providerSourceVersion,
-          ...(descriptor.scopedExecution === undefined
-            ? {}
-            : { scopedExecution: descriptor.scopedExecution }),
-          ...(descriptor.privateAutoSourceApproval === undefined
-            ? {}
-            : { privateAutoSourceApproval: descriptor.privateAutoSourceApproval }),
-          ...(descriptor.acceptedParameters === undefined
-            ? {}
-            : { acceptedParameters: descriptor.acceptedParameters }),
-        });
-      }
     }
   }
   return attested;
@@ -1904,8 +1493,6 @@ export function reviewedRoutesWanted(
  * serving snapshot (the `{}` deployment query the edge's publication cache also
  * reads), and its price from the reviewed provider route. The result goes
  * through the same exact attestation and planning as every Kaana-priced route.
- * Only ordinary deployments are named: a scoped or private descriptor has its
- * own reviewed authority and is never priced here.
  */
 export function withReviewedRoutes(
   catalogue: ParsedKaanaCatalogue,
@@ -1921,8 +1508,6 @@ export function withReviewedRoutes(
           if (
             descriptor.provider !== route.provider ||
             descriptor.modelReference !== entry.modelReference ||
-            descriptor.scopedExecution !== undefined ||
-            descriptor.privateAutoSourceApproval !== undefined ||
             entry.listPrices.some((priced) => priced.deploymentId === descriptor.deploymentId)
           ) {
             continue;

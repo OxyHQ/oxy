@@ -13,10 +13,12 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { deploymentCommercialSchema } from '@kaana.ai/contracts/internal';
 import { declaredModel } from '../../routes/__fixtures__/kaanaDeclaredStub';
+import * as dataPlane from '../../config/kaanaDataPlane';
 import {
   KAANA_KEY_ID_HEADER,
   KAANA_SIGNATURE_HEADER,
   KAANA_TIMESTAMP_HEADER,
+  createHttpKaanaCatalogueReader,
   createHttpKaanaDeclaredCatalogueReader,
   kaanaDeploymentCommercialSchema,
   kaanaSigningInput,
@@ -262,6 +264,46 @@ describe('the signed read of GET /internal/v1/models', () => {
         Buffer.from(signature.slice(3), 'base64'),
       ),
     ).toBe(true);
+  });
+
+  it('reads the sync catalogue and deployments with no contract negotiation', async () => {
+    jest.spyOn(dataPlane, 'resolveKaanaDataPlane').mockReturnValue({
+      status: 'configured',
+      config: {
+        baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        keyId: 'edge-test',
+        privateKey: edge.privateKey,
+      },
+    });
+    const descriptor = {
+      deploymentId: 'dep-a',
+      modelReference: 'acme/one@r1',
+      provider: 'acme',
+      regions: [],
+    };
+    respond = (res) => {
+      res.setHeader('content-type', 'application/json');
+      res.setHeader('cache-control', 'no-store');
+      res.end(
+        JSON.stringify(
+          seen.at(-1)?.method === 'GET'
+            ? { contractVersion: 'x', models: [], declaredCatalogue: catalogue() }
+            : { snapshotId: 'snap', deployments: [descriptor] },
+        ),
+      );
+    };
+    const reader = createHttpKaanaCatalogueReader();
+    if (reader === undefined) throw new Error('reader not configured');
+    const signal = new AbortController().signal;
+    await reader.listModels(signal);
+    await reader.listPublishedDeployments(signal);
+    await reader.attestDeployments(['dep-a'], { signal });
+    expect(seen.map(({ method, url, body }) => [method, url, body.toString('utf8')])).toEqual([
+      ['GET', '/internal/v1/models', ''],
+      ['POST', '/internal/v1/deployments/query', '{}'],
+      ['POST', '/internal/v1/deployments/query', '{"deploymentIds":["dep-a"]}'],
+    ]);
+    jest.restoreAllMocks();
   });
 
   it('throws when Kaana refuses, or answers without the declared catalogue', async () => {

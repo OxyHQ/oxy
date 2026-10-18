@@ -351,7 +351,7 @@ table, event and API has an owner listed in
 [the responsibility matrix](../architecture/inference-responsibility-matrix.md).
 The Oxy-wide rules page is `~/Oxy/docs/kaana-inference.md`.
 
-Typed nonstreaming classifications: [Decisions](decisions.md) (implemented, provider access gated).
+Typed nonstreaming classifications: [Decisions](decisions.md) (granted on `kaana.ai/v1` under the reviewed decisions profile).
 
 
 ### Recovering usage after a lost response

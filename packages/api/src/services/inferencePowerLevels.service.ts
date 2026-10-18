@@ -27,9 +27,6 @@
  * servable model it climbs the ladder, one priority per level, never past
  * {@link AUTO_CEILING}. `pro` and `ultra` are never chosen implicitly: they cost
  * an order of magnitude more and must be asked for by name.
- *
- * The heuristic sits behind {@link AutoPowerLevelResolver} so a trained
- * classifier can replace it without touching the edge.
  */
 
 import { and, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
@@ -143,31 +140,7 @@ export interface AutoPowerDecision {
   readonly level: AutoPowerLevel;
   /** Every rule that fired, for logs and support — never parsed. */
   readonly reasons: readonly string[];
-  /** Semantic recommendation and fallback status are separate from feature floors. */
-  readonly classification?:
-    | { readonly source: 'deterministic'; readonly reason: string; readonly version: string }
-    | {
-        readonly source: 'jev';
-        readonly version: string;
-        readonly modelReference: string;
-        readonly recommendedLevel: AutoPowerLevel;
-        /** The provider's own confidence in its reply; metadata, never a routing input. */
-        readonly providerConfidence: number;
-      };
 }
-
-/** A replaceable decision; the edge depends on this shape, not on the rules. */
-export interface AutoPowerLevelContext {
-  readonly requestId: string;
-  readonly signal: AbortSignal;
-  /** Transient input, evaluated only after the semantic classifier's gates pass. */
-  readonly state: () => string;
-}
-
-export type AutoPowerLevelResolver = (
-  features: AutoRoutingFeatures,
-  context?: AutoPowerLevelContext,
-) => AutoPowerDecision | Promise<AutoPowerDecision>;
 
 /** Thresholds, named so the documentation and the tests quote one source. */
 export const AUTO_THRESHOLDS = {

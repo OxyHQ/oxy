@@ -1,55 +1,89 @@
-# Typed decisions (implementation, not enabled)
+# Typed decisions
 
-`POST /v1/decisions` and `OxyInferenceClient.decide()` return nonstreaming typed
-probabilities. They do not generate chat JSON. Choice assigns a distribution to
-2–255 mutually exclusive options. Score assigns a distribution to 2–10 ordered
-levels and reports the expected zero-based index. Noul reports a proposition's
-probability, with no separate confidence claim. Every answer names an exact
-question ID; missing, extra, duplicate and mismatched IDs are rejected.
+**Rolling out.** Decisions are served by Kaana at `POST https://kaana.ai/v1/decisions`
+(`@kaana.ai/sdk` `decisions.create`) and granted by Oxy like every other
+`kaana.ai/v1` operation ([kaana-grants.md](kaana-grants.md)). The old edge
+(`api.oxy.so/v1/decisions`, `OxyInferenceClient.decide()`) refuses every request
+with `service_unavailable` (`decisions-served-by-kaana`).
 
-```ts
-const result = await inference.decide({
-  model: 'typesafe/jev@reviewed-immutable-revision',
-  state: 'Synthetic fixture',
-  instructions: 'Evaluate only the supplied state.',
-  effort: 'instant',
-  questions: [{ id: 'eligible', kind: 'noul', question: 'Is the fixture eligible?' }],
-}, { idempotencyKey: 'unique-decision-operation' });
-```
+A decision is nonstreaming and returns typed probabilities, not chat JSON. Choice
+assigns a distribution to 2–255 mutually exclusive options. Score assigns a
+distribution to 2–10 ordered levels and reports the expected zero-based index.
+Noul reports a proposition's probability, with no separate confidence claim.
+Every answer names an exact question ID; missing, extra, duplicate and mismatched
+IDs are rejected. The request and answer shapes are `@kaana.ai/contracts`.
 
-This example currently receives `service_unavailable`. The production admission
-function `decisionAvailability()` is closed for every caller, including internal
-applications and BYOK. Ordinary TypeSafe standalone resale and OpenRouter resale
-or competitor credentials do not establish eligibility. Enabling a route requires
-independent review of its exact deployment and credential eligibility, provider
-terms, internal-use permission, privacy and effective ZDR, plus matching generated
-Kaana contracts. No environment switch bypasses this gate.
+## Who may decide, and on which models
 
-Questions, criteria, options, levels, state and instructions count toward a
-conservative UTF-8 byte bound: 65,536 total and 32,768 for state plus instructions
-plus the longest complete question. This is deliberately more restrictive than a
-provider-token limit. Effort is strictly `instant`, `low`, `medium`, `high` or
-`xhigh`. All probabilities are finite and in [0,1]; distributions sum to one and
-score means match their distribution within 1e-6.
+Two reviewed, versioned files decide it. Neither has an environment switch;
+each changes only by a reviewed commit that bumps its version.
 
-Oxy owns caller scopes, application/account attribution, policy, privacy,
-capability checks, exact revision selection, reservation and settlement. A model
-must affirmatively declare `decisions` in `apiFormats`; a legacy missing
-capability is not permission. Kaana executes the signed envelope only at
-`https://kaana.ai/internal/v1/decisions`. The existing envelope stays generation 2;
-this addition is contract set 3.5.0. Each decisions wire result is generation 1.
-The public result includes immutable model and policy references. Probabilities
-are transient results, separate from technical usage and ledger amounts.
+| File | Decides |
+|---|---|
+| `config/decisionsPolicy.ts` (`DECISIONS_POLICY_VERSION`) | the ordered **decisions profile**: the model lines that may answer, each with its revision once Kaana has published it, its own USD ceiling per request and the review it was admitted on; and the limits every step carries |
+| `config/inferenceEconomicPolicy.ts` (`INFERENCE_ECONOMIC_POLICY_VERSION`) | which application may decide: a relationship with `operations: ['decisions']` and `pilot.decisions` terms (input ceiling, USD per request), plus its capacity |
 
-A classification has one request and one reservation. A subsequent generation
-has its own request and reservation: the classifier never reserves the later
-operation's budget. The conservative input ceiling includes the shared context
-for every question; there is no generated-output-token allowance. Reviewed price
-cards and actual adapter metering still need verification before activation.
-Requests, criteria and answers are never persisted. Reusing an idempotency key
-returns `idempotency_conflict`; there is no stored response to replay and the SDK
-performs no automatic retry.
+The profile today is one line, `typesafe/jev-1.13` (TypeSafe's Jev 1.13, upstream
+`typesafe/jev-1.13-20260917`, through OpenRouter, provider pinned, zero data
+retention), at USD 0.001 a request. Kaana's publisher names a revision
+`observed-<date of first publish>`, so the line carries no revision until the
+activation change pins the one Kaana minted; until then the grant pins the one
+revision Kaana publishes for the line. OpenAI's `gpt-6-luna` (Kaana provider slug
+`openai-decisions`) is not listed: its Kaana route is built but has no funded key
+or zero-data-retention evidence for Oxy's account yet.
 
-Alia and Homiio agents can call the same SDK through their Oxy delegation. One-shot
-Mention features call Oxy directly. None needs product-local provider credentials,
-response parsing or routing selection.
+The one relationship is `mention-kaana-decisions` (Mention's production service
+token, decisions only): 2 in flight and 2 000 a UTC day, counted on its own rows,
+at most 16 000 estimated input tokens and USD 0.001 a request, so at most USD 2 a
+day. Console (`application_inference_limits`) can lower or raise both counts.
+Mention is a first-party product, not `is_internal`: the relationship is of class
+`first_party` and is re-checked against the live `applications.type`. Mention's
+text generation at the `instant` level has a relationship of its own,
+`mention-kaana-text` ([kaana-grants.md](kaana-grants.md)), so it never consumes
+the decisions budget; every other Mention request stays commercial.
+
+Provider facts are Kaana's, not Oxy's: the line's identity, data policy and list
+price come from Kaana's declared catalogue, and its deployment from Kaana's
+publication (`configs/public-catalogue.json`, `deployment-commercial.json`,
+`provider-rates.json`).
+
+## The grant
+
+`authorizeInference` (`services/kaanaGrant.service.ts`):
+
+1. An application without decisions terms is refused `permission_denied`
+   (`decisions-not-enabled`): every commercial application, and an internal
+   relationship that does not name decisions.
+2. The hold is `requests` + `input_tokens` from `facts.estimatedInputTokens`,
+   bounded by `pilot.decisions.maxInputTokens`. A line whose declared list does
+   not publish `output_tokens` at exactly zero is not admitted
+   (`priced-decision-output`): Kaana reports the few output tokens a decision
+   emits, and they must settle inside the hold.
+3. Target:
+   - none: one step per profile line, in profile order (the application's
+     default target is not used). Kaana moves to the next step only when the
+     current one is skipped before anything is sent, never after a provider
+     answered;
+   - a model: it must be a profile line at its pinned revision, else
+     `model_not_found` (`decisions-outside-profile`);
+   - a power level: `invalid_request` (`decisions-level-target`).
+4. Every step is revision-pinned: the profile's revision, or else the one
+   revision Kaana publishes for the line. A line Kaana publishes no sellable
+   route for, or several revisions of, is skipped
+   (`decisions-revision-unpublished` / `-ambiguous` in the refusal log). That
+   is what keeps a reviewed line inactive until Kaana serves it. No line
+   admitted is `no_route_available`.
+5. Every step requires zero data retention and no training on customer data,
+   whatever the application's policy says, and sends `sameModelFailover: false`:
+   each line is served on one provider and key. Its price ceiling is the tightest
+   of the application's cap, the relationship's terms and the line's own.
+6. Treatment `internal_metered`: no hold, a capacity slot, and the request past
+   the day's limit is `quota_exceeded`.
+
+Requests, criteria and answers are never persisted by Oxy. Reusing an idempotency
+key is `idempotency_conflict`; there is no stored response to replay.
+
+## Turning a line off
+
+Remove its entry from the profile (or the relationship from the economic policy)
+and bump the version, or have Kaana stop publishing its deployment.

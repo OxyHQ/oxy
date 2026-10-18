@@ -26,8 +26,7 @@
  *  2. **The one selectability predicate.** {@link selectableDeploymentWhere} is
  *     the ONLY place a route is decided to be offerable. There is deliberately
  *     no "internal routes are exempt" branch: an internal route needs the same
- *     approved permission state as a public one. A separate source-bound private
- *     commissioning admission never changes or publishes that permission.
+ *     approved permission state as a public one.
  *  3. **The customer's own routing policy, applied to the candidates.**
  *     {@link violatedConstraints} is the ONLY place a policy control meets a
  *     route. Selectability answers "may Oxy offer this at all"; a policy answers
@@ -72,12 +71,6 @@ import {
 } from '@oxy.so/contracts';
 import type { SelectedRow } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
-import {
-  privateAutoCatalogueApproval,
-  privateAutoHash,
-  type PrivateAutoCatalogueContext,
-} from './privateAutoExecution.service';
-import { privateCommissioningAudience } from './scopedExecution.service';
 import {
   canonicalAcceptedParameters,
   DEPLOYMENT_REQUEST_PARAMETERS,
@@ -233,7 +226,7 @@ export function resolveCatalogueViewer(
  *
  * `degraded` is included: it means "offer it with a warning", not "it is timing
  * out" — which is Kaana's signal, and not stored here. `disabled` and `retired`
- * are never ordinarily offered. Private commissioning is scoped separately.
+ * are never offered.
  */
 const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
 
@@ -245,15 +238,11 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  *
  * All three conditions are required, and the permission one has no exemption:
  * a `platform_internal` route with `permission_state = 'pending_review'` is
- * invisible to every ordinary official-product request too. A private commissioning
- * request may measure one exact source-reviewed route after real legal review;
- * it does not change the public permission or assert unmeasured scorecards.
+ * invisible to every ordinary official-product request too. A route Kaana
+ * published under a scoped or Private Auto restriction is never selectable:
+ * those source approvals are retired (decisions are served by `kaana.ai/v1`).
  */
-export function selectableDeploymentWhere(
-  viewer: CatalogueViewer,
-  scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience,
-  privateAuto?: PrivateAutoCatalogueContext,
-) {
+export function selectableDeploymentWhere(viewer: CatalogueViewer) {
   const availability = viewer.scopes.includes('platform_internal')
     ? or(
         inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
@@ -261,57 +250,12 @@ export function selectableDeploymentWhere(
       )
     : inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]);
 
-  const commissioning = privateCommissioningAudience(scopedExecution);
-  if (privateAuto !== undefined) {
-    const approval = privateAutoCatalogueApproval(privateAuto);
-    if (approval === undefined || scopedExecution !== undefined) return sql`false`;
-    return and(
-      availability,
-      eq(inferenceDeployments.internalRouteId, approval.deploymentId),
-      eq(inferenceDeployments.providerSlug, approval.provider),
-      eq(inferenceDeployments.priceVersionId, approval.priceVersionId),
-      sql`${inferenceDeployments.privateAutoSourceApproval} = ${JSON.stringify(approval)}::jsonb`,
-      sql`${inferenceDeployments.scopedExecution} IS NULL`,
-      eq(inferenceDeployments.permissionState, 'pending_review'),
-      eq(inferenceDeployments.status, 'disabled'),
-      eq(inferenceDeployments.availabilityScope, 'platform_internal'),
-      sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`,
-      eq(inferenceDeployments.legalReviewStatus, 'approved'),
-      eq(inferenceDeployments.legalReviewEvidenceRef, approval.review.legalReviewEvidenceRef),
-      eq(inferenceDeployments.retainsPayloads, approval.review.retainsPayloads),
-      eq(inferenceDeployments.retentionDays, approval.review.retentionDays),
-      eq(inferenceDeployments.trainsOnCustomerData, approval.review.trainsOnCustomerData),
-      eq(
-        inferenceDeployments.zeroDataRetentionAvailable,
-        approval.review.zeroDataRetentionAvailable,
-      ),
-    );
-  }
   return and(
     availability,
     sql`${inferenceDeployments.privateAutoSourceApproval} IS NULL`,
-    scopedExecution === undefined
-      ? sql`${inferenceDeployments.scopedExecution} IS NULL`
-      : and(
-          eq(inferenceDeployments.internalRouteId, scopedExecution.deploymentId),
-          sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(scopedExecution)}::jsonb`,
-        ),
-    or(
-      and(
-        eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
-        inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES]),
-      ),
-      commissioning === undefined
-        ? sql`false`
-        : and(
-            eq(inferenceDeployments.permissionState, 'pending_review'),
-            eq(inferenceDeployments.status, 'disabled'),
-            eq(inferenceDeployments.availabilityScope, 'platform_internal'),
-            eq(inferenceDeployments.legalReviewStatus, 'approved'),
-            sql`length(trim(${inferenceDeployments.legalReviewEvidenceRef})) > 0`,
-            sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`,
-          ),
-    ),
+    sql`${inferenceDeployments.scopedExecution} IS NULL`,
+    eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+    inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES]),
   );
 }
 
@@ -1852,12 +1796,9 @@ export async function selectRouteForViewer(
  * Kaana's opaque key and regions are policy evidence, not a display choice.
  *
  * It goes through {@link selectableDeploymentWhere} like every other read, so an
- * ordinary admission cannot reach a route the catalogue would not offer; private
- * commissioning additionally requires its exact reviewed source audience.
+ * admission cannot reach a route the catalogue would not offer.
  */
 export interface EdgeRoute {
-  readonly privateAutoCatalogueEvidence?: import('./privateAutoExecution.service').PrivateAutoCatalogueRouteEvidence;
-  readonly scopedCatalogueEvidence?: import('./scopedExecution.service').ScopedCatalogueRouteEvidence;
   /**
    * `inference_deployments.internal_route_id` — Kaana's exact endpoint identity.
    * Opaque to customers and never in a customer projection; it crosses only to
@@ -2116,8 +2057,6 @@ export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
  * never widen themselves into the BYOK audience.
  */
 export interface AuthenticatedEdgeRoutingContext {
-  readonly privateAuto?: PrivateAutoCatalogueContext;
-  readonly scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience;
   readonly applicationId: string;
   readonly environment: InferenceEnvironment;
 }
@@ -2279,16 +2218,6 @@ export async function resolveEdgeRoute(
     return { status: 'unknown-model', modelReference };
   }
 
-  const privateApproval = privateAutoCatalogueApproval(requestContext?.privateAuto);
-  if (
-    requestContext?.privateAuto !== undefined &&
-    (privateApproval === undefined ||
-      requestContext.scopedExecution !== undefined ||
-      requestContext.applicationId !== privateApproval.principal.applicationId ||
-      requestContext.environment !== privateApproval.principal.environment ||
-      modelReference !== privateApproval.modelReference)
-  )
-    return { status: 'unknown-model', modelReference };
   const separator = modelReference.indexOf('@');
   const modelId = separator === -1 ? modelReference : modelReference.slice(0, separator);
   const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
@@ -2305,13 +2234,6 @@ export async function resolveEdgeRoute(
     .select({
       ...CONSTRAINT_COLUMNS,
       internalRouteId: inferenceDeployments.internalRouteId,
-      modelRevisionId: inferenceModelRevisions.id,
-      commercialPermission: inferenceDeployments.commercialPermission,
-      permissionState: inferenceDeployments.permissionState,
-      deploymentStatus: inferenceDeployments.status,
-      legalReviewStatus: inferenceDeployments.legalReviewStatus,
-      legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
-      autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
       scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       joinedPriceVersionId: priceVersions.id,
@@ -2361,16 +2283,7 @@ export async function resolveEdgeRoute(
       eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId),
     )
     .leftJoin(priceVersions, eq(CONSTRAINT_COLUMNS.priceVersionId, priceVersions.id))
-    .where(
-      and(
-        selectableDeploymentWhere(
-          deploymentViewer,
-          requestContext?.scopedExecution,
-          requestContext?.privateAuto,
-        ),
-        eq(inferenceModels.modelId, modelId),
-      ),
-    );
+    .where(and(selectableDeploymentWhere(deploymentViewer), eq(inferenceModels.modelId, modelId)));
 
   const candidates = rows.filter((row) => {
     if (row.retiredAt !== null) return false;
@@ -2392,8 +2305,6 @@ export async function resolveEdgeRoute(
   // could resolve a chat-only model's route and be held against its price.
   const capable = candidates.filter(
     (row) =>
-      (privateApproval === undefined ||
-        row.commercialUseAllowed === privateApproval.review.commercialUseAllowed) &&
       row.inputModalities.includes(modality.input) &&
       (modality.output === undefined || row.outputModalities.includes(modality.output)),
   );
@@ -2512,30 +2423,12 @@ export async function resolveEdgeRoute(
     exactDeploymentIds.push(candidate.internalRouteId);
   }
 
-  const commissioningAudience = privateCommissioningAudience(requestContext?.scopedExecution);
   const admittedMappings = await db
     .select({ deploymentId: inferenceDeployments.internalRouteId })
     .from(inferenceDeployments)
     .where(
       and(
-        or(
-          eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
-          privateApproval === undefined
-            ? sql`false`
-            : and(
-                eq(inferenceDeployments.permissionState, 'pending_review'),
-                eq(inferenceDeployments.status, 'disabled'),
-                eq(inferenceDeployments.internalRouteId, privateApproval.deploymentId),
-                sql`${inferenceDeployments.privateAutoSourceApproval} = ${JSON.stringify(privateApproval)}::jsonb`,
-              ),
-          commissioningAudience === undefined
-            ? sql`false`
-            : and(
-                eq(inferenceDeployments.permissionState, 'pending_review'),
-                eq(inferenceDeployments.internalRouteId, commissioningAudience.deploymentId),
-                sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(commissioningAudience)}::jsonb`,
-              ),
-        ),
+        eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
         inArray(inferenceDeployments.internalRouteId, exactDeploymentIds),
       ),
     );
@@ -2555,13 +2448,6 @@ export async function resolveEdgeRoute(
     };
   }
 
-  if (
-    capacityCompatible.some((candidate) => candidate.permissionState === 'pending_review') &&
-    privateCommissioningAudience(requestContext?.scopedExecution) === undefined &&
-    privateApproval === undefined
-  ) {
-    return { status: 'unknown-model', modelReference };
-  }
   const now = Date.now();
   const ranked: {
     readonly candidate: (typeof capacityCompatible)[number];
@@ -2653,74 +2539,6 @@ export async function resolveEdgeRoute(
     fundingPriority: InferenceFundingPriority,
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
-    ...(requestContext?.scopedExecution === undefined ||
-    (row.permissionState !== 'approved' &&
-      !(
-        row.permissionState === 'pending_review' &&
-        row.deploymentStatus === 'disabled' &&
-        privateCommissioningAudience(requestContext.scopedExecution) !== undefined
-      )) ||
-    row.legalReviewStatus !== 'approved' ||
-    row.legalReviewEvidenceRef === null ||
-    row.autoApprovalPolicyId !== null
-      ? {}
-      : {
-          scopedCatalogueEvidence: {
-            modelRevisionId: row.modelRevisionId,
-            deploymentId: internalRouteId,
-            priceVersionId,
-            commercialPermission: row.commercialPermission,
-            ...(row.permissionState === 'pending_review'
-              ? {
-                  permissionState: 'pending_review' as const,
-                  admission: 'private_commissioning' as const,
-                  deploymentStatus: 'disabled' as const,
-                }
-              : { permissionState: 'approved' as const }),
-            legalReviewStatus: 'approved' as const,
-            legalReviewEvidenceRef: row.legalReviewEvidenceRef,
-            eligibility: {
-              availabilityScope: row.availabilityScope,
-              licenseId: row.licenseId,
-              commercialUseAllowed: row.commercialUseAllowed,
-              retainsPayloads: row.retainsPayloads,
-              retentionDays: row.retentionDays,
-              trainsOnCustomerData: row.trainsOnCustomerData,
-              zeroDataRetentionAvailable: row.zeroDataRetentionAvailable,
-              policyAdmitted: true as const,
-              capabilityAdmitted: true as const,
-              privacyAdmitted: true as const,
-            },
-          },
-        }),
-    ...(privateApproval === undefined
-      ? {}
-      : {
-          privateAutoCatalogueEvidence: {
-            admission: 'private_auto_classifier' as const,
-            permissionState: 'pending_review' as const,
-            deploymentStatus: 'disabled' as const,
-            sourceApprovalSha256: privateAutoHash(privateApproval),
-            modelRevisionId: row.modelRevisionId,
-            deploymentId: internalRouteId,
-            priceVersionId,
-            commercialPermission: row.commercialPermission,
-            legalReviewStatus: 'approved' as const,
-            legalReviewEvidenceRef: privateApproval.review.legalReviewEvidenceRef,
-            eligibility: {
-              availabilityScope: row.availabilityScope,
-              licenseId: row.licenseId,
-              commercialUseAllowed: row.commercialUseAllowed,
-              retainsPayloads: row.retainsPayloads,
-              retentionDays: row.retentionDays,
-              trainsOnCustomerData: row.trainsOnCustomerData,
-              zeroDataRetentionAvailable: row.zeroDataRetentionAvailable,
-              policyAdmitted: true as const,
-              capabilityAdmitted: true as const,
-              privacyAdmitted: true as const,
-            },
-          },
-        }),
     routingScore,
     fundingPriority,
     modelReference: composeModelReference(resolvedModelId, row.revision),
@@ -2741,13 +2559,6 @@ export async function resolveEdgeRoute(
     ...(row.apiFormats === null ? {} : { apiFormats: row.apiFormats }),
   });
 
-  // Revalidate source authority after every asynchronous catalogue/price lookup.
-  if (
-    privateApproval !== undefined &&
-    privateAutoCatalogueApproval(requestContext?.privateAuto) === undefined
-  ) {
-    return { status: 'unknown-model', modelReference };
-  }
   const chosen = ranked[0];
   if (chosen === undefined) {
     return {
