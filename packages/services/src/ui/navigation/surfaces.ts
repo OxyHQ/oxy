@@ -5,7 +5,7 @@ import {
   type PresentOptions,
   type SurfaceControls,
 } from '@oxy.so/bloom/surfaces';
-import type { RouteName } from './routes';
+import { loadScreens, screensReady, type RouteName } from './routes';
 import {
   getSurfaceConfig,
   type SurfaceProps,
@@ -76,6 +76,7 @@ function bloomOptionsFor(config: SurfaceRouteConfig): PresentOptions {
       // programmatic-only dismiss — matching the shipped image-picker Dialog.
       return {
         placement: SHEET_PLACEMENT,
+        header,
         contentPadding: 0,
         maxWidth: 640,
         maxHeightRatio: 0.9,
@@ -154,20 +155,26 @@ function presentInternal<K extends RouteName>(
   const config = getSurfaceConfig(route, props);
   const bloomOpts: PresentOptions = { label: route, ...bloomOptionsFor(config), ...opts };
 
-  // `SurfaceScreen` is statically imported but only READ here, at presentation
-  // time. That keeps the surfaces.ts <-> SurfaceScreen cycle safe (a mounted
-  // SurfaceScreen imports these presenters, while presenting one renders a
-  // SurfaceScreen) without a `require()` — which ESM output must never contain,
-  // see the note on `screenComponents` in `./routes`.
-  const result = bloomSurfaces.present<SurfaceResult<K>>(
-    (surface: SurfaceControls) =>
-      createElement(SurfaceScreen, {
-        navStack,
-        surface,
-        dismissOnBackdrop: bloomOpts.dismissOnBackdrop ?? true,
-      }),
-    bloomOpts,
-  );
+  const open = () =>
+    bloomSurfaces.present<SurfaceResult<K>>(
+      (surface: SurfaceControls) =>
+        createElement(SurfaceScreen, {
+          navStack,
+          surface,
+          navigation: surfaceNavigation,
+          dismissOnBackdrop: bloomOpts.dismissOnBackdrop ?? true,
+        }),
+      bloomOpts,
+    );
+
+  // Never mount a partially-loaded frame. Full UI entries take the sync path;
+  // the lean entry's startup preload normally finishes before the first press.
+  const result = screensReady()
+    ? open()
+    : loadScreens().then(() => {
+        if (navStack.store.getState().closing) return undefined;
+        return open();
+      });
 
   const instance: SurfaceInstance<K> = {
     route,
@@ -355,3 +362,11 @@ export const surfaces = {
 export function useSurfaces(): typeof surfaces {
   return surfaces;
 }
+
+// Pass commands into the screen so rendering never imports its own presenter.
+const surfaceNavigation = {
+  closeAllRouteSurfaces,
+  navigateWithinOrPresent,
+  presentRoute,
+  replaceWithinOrPresent,
+};

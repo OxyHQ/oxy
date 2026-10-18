@@ -19,7 +19,7 @@ import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiVerifiedBadgeLine } from '@oxy.so/bloom/icons/RiVerifiedBadgeLine';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 
 const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
   // Use useOxy() hook for OxyContext values

@@ -1,9 +1,9 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Animated, ActivityIndicator } from 'react-native';
+import { View, Animated } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Button } from '@oxy.so/bloom/button';
 import { createPaymentStyles } from './paymentStyles';
 import { PAYMENT_METHODS, getCurrencySymbol } from './constants';
@@ -55,20 +55,20 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('payment.review.title')}</Text>
 
-        <SettingsListGroup>
-          <SettingsListItem
+        <GroupedSection>
+          <GroupedSectionItem
             icon={<Ionicons name="shield-checkmark" size={20} color={colors.success} />}
             title={t('payment.review.securePayment')}
             description={t('payment.review.securePaymentDesc')}
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Ionicons name="cash-outline" size={20} color={colors.primary} />}
             title={t('payment.review.amount')}
             description={`${currencySymbol} ${amount}`}
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={
               selectedMethod ? (
                 <Ionicons name={selectedMethod.icon} size={20} color={colors.primary} />
@@ -81,7 +81,7 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
             showChevron={false}
           />
           {paymentMethod === 'card' ? (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<Ionicons name="card-outline" size={20} color={colors.primary} />}
               title={t('payment.review.card')}
               description={cardDetails.number.replace(/.(?=.{4})/g, '*')}
@@ -89,7 +89,7 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
             />
           ) : null}
           {paymentMethod === 'oxy' ? (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<Ionicons name="wallet-outline" size={20} color={colors.primary} />}
               title={t('payment.review.peableAccount')}
               description={t('payment.details.balance', { balance: '⊜ 123.45' })}
@@ -97,14 +97,14 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
             />
           ) : null}
           {paymentMethod === 'faircoin' ? (
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<Ionicons name="qr-code-outline" size={20} color={colors.primary} />}
               title={t('payment.review.faircoinWallet')}
               description={t('payment.review.paidViaQR')}
               showChevron={false}
             />
           ) : null}
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
@@ -124,13 +124,8 @@ const PaymentReviewStep: React.FC<PaymentReviewStepProps> = ({
           onPress={onPay}
           size="sm"
           disabled={isPaying}
-          icon={
-            isPaying ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="checkmark" size={16} />
-            )
-          }
+          loading={isPaying}
+          icon={<Ionicons name="checkmark" size={16} />}
           iconPosition="right"
         >
           {isPaying ? t('payment.review.processing') : t('payment.review.payNow')}

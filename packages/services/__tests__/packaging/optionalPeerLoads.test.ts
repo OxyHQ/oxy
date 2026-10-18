@@ -181,7 +181,13 @@ describe('optional peer loads', () => {
 
   it('imports an optional peer statically only where recorded', () => {
     const offenders = loads
-      .filter((load) => load.kind === 'static' && !(load.peer in STATIC_OPTIONAL_PEER_IMPORTS))
+      .filter(
+        (load) =>
+          load.kind === 'static' &&
+          !(load.peer in STATIC_OPTIONAL_PEER_IMPORTS) &&
+          // Opt-in export only: root barrels must never reach this video entry.
+          !(load.peer === 'expo-video' && load.file === 'ui/one-video.tsx'),
+      )
       .map((load) => `${load.file}:${load.line} ${load.peer}`);
     expect(offenders).toEqual([]);
   });

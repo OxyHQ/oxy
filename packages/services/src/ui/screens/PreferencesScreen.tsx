@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Platform, View } from 'react-native';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { UserPreferences } from '@oxy.so/core';
@@ -10,7 +10,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUpdateUserPreferences } from '../hooks/mutations/useAccountMutations';
 
@@ -120,15 +120,15 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
   return (
     <>
       <View className="px-screen-margin pb-space-24">
-        <SettingsListGroup title={t('preferences.sections.appearance') || 'Appearance'}>
-          <SettingsListItem
+        <GroupedSection title={t('preferences.sections.appearance') || 'Appearance'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="theme-light-dark" color={bloomTheme.colors.primary} />}
             title={t('preferences.items.theme.title') || 'Theme'}
             description={themeDisplay}
             onPress={() => handleThemeChange(nextTheme)}
             disabled={isSaving}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="motion" color={bloomTheme.colors.success} />}
             title={t('preferences.items.reduceMotion.title') || 'Reduce motion'}
             description={
@@ -147,20 +147,20 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
-        <SettingsListGroup title={t('preferences.sections.language') || 'Language'}>
-          <SettingsListItem
+        <GroupedSection title={t('preferences.sections.language') || 'Language'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="translate" color={bloomTheme.colors.success} />}
             title={t('preferences.items.language.title') || 'Language'}
             description={languageDescription}
             onPress={() => navigate?.('LanguageSelector')}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
-        <SettingsListGroup title={t('preferences.sections.region') || 'Region'}>
+        <GroupedSection title={t('preferences.sections.region') || 'Region'}>
           <DisplayCurrencySelector />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.info} />}
             title={t('preferences.items.timezone.title') || 'Timezone'}
             description={
@@ -170,11 +170,11 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
             disabled={isSaving || !prefs?.timezone}
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {Platform.OS === 'web' ? null : (
-          <SettingsListGroup>
-            <SettingsListItem
+          <GroupedSection>
+            <GroupedSectionItem
               icon={<SettingsIcon name="information" color={bloomTheme.colors.secondary} />}
               title={t('preferences.items.about.title') || 'About preferences'}
               description={
@@ -184,7 +184,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
               showChevron={false}
               disabled
             />
-          </SettingsListGroup>
+          </GroupedSection>
         )}
       </View>
     </>

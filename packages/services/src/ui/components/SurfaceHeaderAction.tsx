@@ -10,7 +10,7 @@ export interface SurfaceHeaderActionProps {
   disabled?: boolean;
 }
 
-/** Header actions share Bloom's sizing, surface, disabled and loading behavior. */
+/** @deprecated Declare primaryAction or actions through useSurfaceHeader so Bloom owns header composition. */
 export const SurfaceHeaderAction: React.FC<SurfaceHeaderActionProps> = ({
   label,
   onPress,

@@ -33,6 +33,9 @@ export const Button = ({
   style,
   onPress,
   disabled,
+  loading,
+  accessibilityRole,
+  'aria-expanded': expanded,
   testID,
 }: {
   children?: ReactNode;
@@ -48,7 +51,10 @@ export const Button = ({
     {
       type: 'button',
       onClick: onPress,
-      disabled,
+      disabled: disabled || loading,
+      'aria-busy': loading || undefined,
+      role: accessibilityRole,
+      'aria-expanded': expanded,
       'data-testid': testID,
       'aria-label': accessibilityLabel,
       style: Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style,
@@ -543,7 +549,7 @@ export const dismissAll = surfaces.dismissAll;
 export const confirm = surfaces.confirm;
 export const prompt = surfaces.prompt;
 
-export const PressableScale = passthrough('div');
+export const PressableScale = Button;
 
 /**
  * `@oxy.so/bloom/settings-list` stubs. The real `SettingsListItem` renders a
@@ -574,6 +580,7 @@ export const SettingsListItem = ({
   onPress,
   disabled,
   accessibilityLabel,
+  accessibilityState,
   expanded,
   testID,
 }: {
@@ -585,6 +592,12 @@ export const SettingsListItem = ({
   onPress?: () => void;
   disabled?: boolean;
   accessibilityLabel?: string;
+  accessibilityState?: {
+    selected?: boolean;
+    busy?: boolean;
+    expanded?: boolean;
+    disabled?: boolean;
+  };
   expanded?: boolean;
   testID?: string;
 } & Record<string, unknown>) => {
@@ -602,9 +615,11 @@ export const SettingsListItem = ({
       {
         type: 'button',
         'aria-label': label,
-        'aria-expanded': expanded,
+        'aria-expanded': accessibilityState?.expanded ?? expanded,
+        'aria-selected': accessibilityState?.selected,
+        'aria-busy': accessibilityState?.busy,
         onClick: onPress,
-        disabled,
+        disabled: disabled || accessibilityState?.disabled,
         'data-testid': testID,
       },
       body,
@@ -851,3 +866,110 @@ export function RiLoginBoxLine() {
 export function RiMoreLine() {
   return createElement('svg', { 'data-testid': 'more-icon' });
 }
+
+// Neutral API and compatibility names share one implementation in Bloom.
+export const GroupedSection = SettingsListGroup;
+export const GroupedSectionCollapse = ({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: ReactNode;
+}) => (open ? createElement('div', null, children) : null);
+export const GroupedSectionItem = SettingsListItem;
+
+export const GroupedSectionIcon = ({
+  children,
+  iconSize = 16,
+}: {
+  children: ReactNode | ((props: { color: string; size: number }) => ReactNode);
+  iconSize?: number;
+}) =>
+  createElement(
+    'span',
+    null,
+    typeof children === 'function' ? children({ color: '#3457a8', size: iconSize }) : children,
+  );
+
+export const UsageCard = ({
+  title,
+  usage,
+  formatValue = String,
+  fallback,
+  footer,
+}: {
+  title?: string;
+  usage?: { max: number; segments: { label: string; value: number }[] };
+  formatValue?: (value: number) => string;
+  fallback?: ReactNode;
+  footer?: ReactNode;
+}) =>
+  createElement(
+    'div',
+    null,
+    title,
+    usage
+      ? `${formatValue(usage.segments.reduce((sum, segment) => sum + segment.value, 0))} / ${formatValue(usage.max)}`
+      : fallback,
+    footer,
+  );
+
+export const RiSparklingFill = passthrough('span');
+export const CountryFlag = ({ iso2 }: { iso2: string }) =>
+  createElement('span', { 'data-country': iso2, 'aria-hidden': true });
+export const Search = ({
+  value,
+  onChangeText,
+  onValueChange,
+  label,
+}: {
+  value: string;
+  onChangeText?: (value: string) => void;
+  onValueChange?: (value: string) => void;
+  label: string;
+}) =>
+  createElement('input', {
+    value,
+    'aria-label': label,
+    onChange: (event: { target: { value: string } }) =>
+      (onValueChange ?? onChangeText)?.(event.target.value),
+  });
+
+export const ButtonGroup = ({ children }: { children?: ReactNode }) =>
+  createElement('div', { role: 'group' }, children);
+export const ButtonGroupItem = Button;
+
+export const CoverHeader = passthrough('div');
+export const H2 = Text;
+
+export const useSurfaceFill = () => '#ffffff';
+export const Item = ({
+  title,
+  subtitle,
+  leading,
+  trailing,
+}: {
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  leading?: ReactNode;
+  trailing?: ReactNode;
+}) => createElement('div', null, leading, title, subtitle, trailing);
+
+export const Textarea = ({
+  value,
+  onValueChange,
+  label,
+}: {
+  value?: string;
+  onValueChange?: (value: string) => void;
+  label?: string;
+}) =>
+  createElement('textarea', {
+    value,
+    'aria-label': label,
+    onChange: (event: { target: { value: string } }) => onValueChange?.(event.target.value),
+  });
+
+export const Box = passthrough('div');
+export const useOverlayLayerContext = () => ({ root: 1010, backdrop: 1010, surface: 1011 });
+export const isTopmostOverlayLayer = jest.fn(() => true);

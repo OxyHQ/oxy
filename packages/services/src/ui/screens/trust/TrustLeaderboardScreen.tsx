@@ -1,6 +1,7 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList } from 'react-native';
 import type { ReputationLeaderboardEntry } from '@oxy.so/contracts';
 import { getNormalizedUserHandle, logger, trustTierLabel } from '@oxy.so/core';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -12,7 +13,7 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 
 const AVATAR_SIZE = 40;
 const EMPTY_ICON_SIZE = 64;
@@ -69,45 +70,39 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
       const isViewer = currentUserId !== '' && item.user.id === currentUserId;
       const isPodium = item.rank <= PODIUM_RANK;
       // Viewer's own row and podium ranks get a subtle highlighted surface.
-      const highlightClass = isViewer || isPodium ? 'bg-fill-secondary' : '';
 
       return (
-        <TouchableOpacity
-          style={styles.row}
-          className={`px-screen-margin py-space-12 gap-space-12 rounded-radius-12 ${highlightClass}`}
-          onPress={() => handleEntryPress(item)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`${displayName}, ${t('trust.leaderboard.rankLabel', { rank: item.rank }) || `rank ${item.rank}`}`}
-        >
-          <Text
-            className="text-text-secondary font-bold text-subtitle text-center"
-            style={styles.rank}
-            numberOfLines={1}
-          >
-            {item.rank}
-          </Text>
-          <Avatar
-            source={
-              item.user.avatar ? oxyServices.assets.publicUrl(item.user.avatar, 'thumb') : undefined
+        <GroupedSection>
+          <GroupedSectionItem
+            title={displayName}
+            description={trustTierLabel(locale, item.trustTier)}
+            onPress={() => handleEntryPress(item)}
+            accessibilityLabel={`${displayName}, ${t('trust.leaderboard.rankLabel', { rank: item.rank }) || `rank ${item.rank}`}`}
+            accessibilityState={{ selected: isViewer }}
+            icon={
+              <View style={styles.tierRow}>
+                <Text className="text-text-secondary font-bold" style={styles.rank}>
+                  {item.rank}
+                </Text>
+                <Avatar
+                  source={
+                    item.user.avatar
+                      ? oxyServices.assets.publicUrl(item.user.avatar, 'thumb')
+                      : undefined
+                  }
+                  name={displayName}
+                  size={AVATAR_SIZE}
+                />
+              </View>
             }
-            name={displayName}
-            size={AVATAR_SIZE}
-          />
-          <View style={styles.userColumn}>
-            <Text className="text-text font-medium text-base" numberOfLines={1}>
-              {displayName}
-            </Text>
-            <View style={styles.tierRow} className="mt-space-4">
+            rightElement={
               <Chip size="sm" variant="subtle" color={isPodium ? 'primary' : 'default'}>
-                {trustTierLabel(locale, item.trustTier)}
+                {item.total}
               </Chip>
-            </View>
-          </View>
-          <Text className="text-text font-bold text-base" numberOfLines={1}>
-            {item.total}
-          </Text>
-        </TouchableOpacity>
+            }
+            showChevron={false}
+          />
+        </GroupedSection>
       );
     },
     [oxyServices, currentUserId, handleEntryPress, locale, t],
@@ -118,20 +113,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
     [],
   );
 
-  const ItemSeparator = useMemo(
-    () => () => <View style={styles.separator} className="border-b border-border-image" />,
-    [],
-  );
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-bg">
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={bloomTheme.colors.primary} />
-        </View>
-      </View>
-    );
-  }
+  const ItemSeparator = useMemo(() => () => <View style={{ height: 2 }} />, []);
 
   if (error) {
     return (
@@ -192,24 +174,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 40,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   rank: {
     width: 28,
-  },
-  userColumn: {
-    flex: 1,
   },
   tierRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-  },
-  // Inset the hairline separator to align with the start of the entry's text
-  // content (rank column + avatar + screen margin + gaps).
-  separator: {
-    marginLeft: 80,
   },
   emptyContainer: {
     flex: 1,

@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { AliaAskProvider, useAskAgent } from '@alia.onl/sdk/ask';
+import { AliaAskProvider, useAskAgent, type AliaAsk } from '@alia.onl/sdk/ask';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { useColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
@@ -14,7 +14,13 @@ import { useTranslation } from '@/lib/i18n';
  * the ones started here. `clientContext` describes the app only: never pass tokens, codes or other
  * account secrets through it.
  */
-export function AccountsAskProvider({ children }: { children: ReactNode }) {
+export function AccountsAskProvider({
+  children,
+  askRef,
+}: {
+  children: ReactNode;
+  askRef?: Ref<AliaAsk>;
+}) {
   const { t } = useTranslation();
   const welcomeSuggestions = useMemo(
     () => [
@@ -27,6 +33,7 @@ export function AccountsAskProvider({ children }: { children: ReactNode }) {
 
   return (
     <AliaAskProvider
+      ref={askRef}
       app="accounts"
       clientContext={t('alia.clientContext')}
       welcomeSuggestions={welcomeSuggestions}

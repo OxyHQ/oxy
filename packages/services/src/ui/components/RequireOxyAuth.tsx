@@ -1,3 +1,6 @@
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 /**
  * RequireOxyAuth — the optional signed-out gate primitive (React Native).
  *
@@ -23,10 +26,10 @@
 
 import type React from 'react';
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { OxySignInButton } from './OxySignInButton';
 import { LogoIcon } from './logo/LogoIcon';
 
@@ -156,23 +159,18 @@ const SoftGate: React.FC<SoftGateProps> = ({
           <Text style={[styles.bannerText, { color: theme.colors.text }]} numberOfLines={2}>
             {message}
           </Text>
-          <Pressable
-            onPress={onSignIn}
-            style={[styles.bannerCta, { backgroundColor: theme.colors.primary }]}
-            accessibilityRole="button"
-            accessibilityLabel={actionLabel}
-          >
-            <Text style={styles.bannerCtaText}>{actionLabel}</Text>
-          </Pressable>
-          <Pressable
+          <Button appearance="solid" tone="accent" size="sm" onPress={onSignIn}>
+            {actionLabel}
+          </Button>
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="sm"
+            iconOnly
             onPress={() => setDismissed(true)}
-            style={styles.bannerDismiss}
-            accessibilityRole="button"
             accessibilityLabel="Dismiss"
-            hitSlop={8}
-          >
-            <Text style={[styles.bannerDismissText, { color: theme.colors.textSecondary }]}>✕</Text>
-          </Pressable>
+            leadingIcon={RiCloseLine}
+          />
         </View>
       ) : null}
       <View style={styles.softBody}>{children}</View>
@@ -202,7 +200,7 @@ const NeutralLoading: React.FC = () => {
   const theme = useTheme();
   return (
     <View style={[styles.wallRoot, { backgroundColor: theme.colors.background }]}>
-      <ActivityIndicator color={theme.colors.primary} />
+      <SpinnerIcon color={theme.colors.primary} />
     </View>
   );
 };
@@ -225,26 +223,6 @@ const styles = StyleSheet.create({
   bannerText: {
     flex: 1,
     fontSize: 13.5,
-  },
-  bannerCta: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-  },
-  bannerCtaText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  bannerDismiss: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bannerDismissText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   wallRoot: {
     flex: 1,

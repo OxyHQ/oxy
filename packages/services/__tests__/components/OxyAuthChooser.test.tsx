@@ -35,7 +35,7 @@ import { Linking } from 'react-native';
 import { surfaces, toast } from '@oxy.so/bloom';
 import type { DeviceDirectory } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core/session';
-import type { User } from '@oxy.so/core';
+import type { User, AccountStorageUsageResponse } from '@oxy.so/core';
 import { resolveActiveContext } from '@oxy.so/core/session';
 
 const makeUser = (id: string, displayName: string): User =>
@@ -236,7 +236,7 @@ let mockController: typeof controller | null = controller;
  */
 let mockUser: User | null = makeUser('a', 'Alice');
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     accountDialogController: mockController,
@@ -254,9 +254,10 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
 // The account menu wires `useAccountStorageUsage()` (a `useQuery` wrapper) for
 // its storage block — stub the query so the hook is inert in these RN-binding
 // tests (the storage block then renders its "unavailable" placeholder).
+let mockStorageUsage: AccountStorageUsageResponse | undefined;
 jest.mock('../../src/ui/hooks/queries/useServicesQueries', () => ({
   __esModule: true,
-  useAccountStorageUsage: () => ({ data: undefined, isLoading: false, isFetching: false }),
+  useAccountStorageUsage: () => ({ data: mockStorageUsage, isLoading: false, isFetching: false }),
 }));
 
 // Resolve REAL copy from the shipped dictionaries rather than stubbing `t` to a
@@ -301,6 +302,7 @@ describe('OxyAuthChooser', () => {
   });
   beforeEach(() => {
     snapshot = makeSnapshot();
+    mockStorageUsage = undefined;
     mockController = controller;
     jest.clearAllMocks();
     // `clearAllMocks` clears recorded calls but does NOT drain a queued
@@ -356,11 +358,10 @@ describe('OxyAuthChooser', () => {
 
     render(<OxyAuthChooser />);
 
-    // The HERO leads: a greeting for the current account + the manage pill,
-    // outside any card. Below it a "Switch account" row toggles the list, which
-    // stays MOUNTED behind it (so it can animate open and closed) and repeats
-    // the CURRENT account — it is no longer a row of its own anywhere else.
-    expect(screen.getByText('Hi, Alice!')).toBeTruthy();
+    // The compact identity card is the disclosure; no greeting or duplicate
+    // active-account row. Collapsed actions are not focusable.
+    expect(screen.queryByText('Hi, Alice!')).toBeNull();
+    expect(screen.getByText('Alice')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Manage your Oxy account' })).toBeTruthy();
     const row = screen.getByRole('button', { name: 'Switch account' });
     expect(row.getAttribute('aria-expanded')).toBe('false');
@@ -370,10 +371,10 @@ describe('OxyAuthChooser', () => {
     expect(
       screen.getByRole('button', { name: 'Switch account' }).getAttribute('aria-expanded'),
     ).toBe('true');
-    expect(screen.getByRole('button', { name: 'Alice' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Alice' })).toBeNull();
     expect(screen.getByText('Bob')).toBeTruthy();
     expect(screen.getByText('Add another account')).toBeTruthy();
-    expect(screen.getByText('Manage accounts on this device')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   });
 
   it('never renders the account menu without a signed-in account — the sign-in entry stands in', () => {
@@ -388,6 +389,67 @@ describe('OxyAuthChooser', () => {
     expect(screen.queryByRole('button', { name: 'Switch account' })).toBeNull();
     expect(screen.queryByText('Sign out')).toBeNull();
     expect(screen.getByTestId('continue-with-oxy')).toBeTruthy();
+  });
+
+  it.each([
+    ['Manage your Oxy account', 'ManageAccount'],
+    ['Help & feedback', 'HelpSupport'],
+    ['Oxy settings', 'Preferences'],
+    ['Your data in Oxy', { screen: 'ManageAccount', props: { section: 'data' } }],
+    ['Privacy Policy', { screen: 'LegalDocuments', props: { initialStep: 1 } }],
+    ['Terms of Service', { screen: 'LegalDocuments', props: { initialStep: 2 } }],
+  ])('keeps the menu mounted when opening %s inside its history', (label, route) => {
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    const onComplete = jest.fn();
+    render(<OxyAuthChooser onComplete={onComplete} />);
+    fireEvent.click(screen.getByRole('button', { name: label as string }));
+    expect(showBottomSheet).toHaveBeenCalledWith(route);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['basic', 85, 'Get an Oxy One plan', false],
+    ['pro', 85.1, 'Oxy One Pro', true],
+    ['business', 20, 'Oxy One Business', false],
+  ] as const)(
+    'shows the %s plan independently of storage actions at %s%%',
+    async (plan, used, label, showActions) => {
+      const zero = { bytes: 0, count: 0 };
+      mockStorageUsage = {
+        plan,
+        totalUsedBytes: used,
+        totalLimitBytes: 100,
+        categories: {
+          documents: { bytes: used, count: 1 },
+          photosVideos: zero,
+          recordings: zero,
+          mail: zero,
+          family: zero,
+          other: zero,
+        },
+        updatedAt: '2026-10-17',
+      };
+      snapshot = makeSnapshot({ directory: soloDirectory() });
+      const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+      render(<OxyAuthChooser />);
+      const planButton = screen.getByRole('button', { name: label });
+      expect(Boolean(screen.queryByRole('button', { name: 'Get storage' }))).toBe(showActions);
+      expect(Boolean(screen.queryByRole('button', { name: 'Clean up space' }))).toBe(showActions);
+      fireEvent.click(planButton);
+      expect(showBottomSheet).toHaveBeenCalledWith('OxyOne');
+      expect(openURL).not.toHaveBeenCalled();
+      openURL.mockRestore();
+    },
+  );
+
+  it('closes the chooser before delegating to a custom manage destination', () => {
+    const order: string[] = [];
+    registerAccountDialogConsumerHooks({ onNavigateManage: () => order.push('custom') });
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    render(<OxyAuthChooser onComplete={() => order.push('close')} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Manage your Oxy account' }));
+    expect(order).toEqual(['close', 'custom']);
+    expect(showBottomSheet).not.toHaveBeenCalled();
   });
 
   it('routes manage and add-account to registered consumer hooks', () => {
@@ -421,7 +483,7 @@ describe('OxyAuthChooser', () => {
     expect(onNavigateManage).toHaveBeenCalledTimes(1);
     expect(showBottomSheet).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Alice' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
     fireEvent.click(screen.getByText('Add another account'));
     expect(onAddAccount).toHaveBeenCalledTimes(1);
     expect(controller.add).not.toHaveBeenCalled();
@@ -441,6 +503,54 @@ describe('OxyAuthChooser', () => {
 
     fireEvent.click(screen.getByText('Inbox settings'));
     expect(onCustom).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders app sections and closes before navigating, while keepOpen actions stay in place', () => {
+    const order: string[] = [];
+    const onDisabled = jest.fn();
+    registerAccountDialogConsumerHooks({
+      menuSections: [
+        {
+          key: 'app',
+          title: 'This app',
+          items: [
+            {
+              key: 'navigate',
+              label: 'App settings',
+              description: 'Preferences',
+              badge: 'New',
+              onPress: () => order.push('navigate'),
+            },
+            {
+              key: 'local',
+              label: 'Refresh status',
+              keepOpen: true,
+              onPress: () => order.push('refresh'),
+            },
+            { key: 'disabled', label: 'Not available', disabled: true, onPress: onDisabled },
+          ],
+        },
+      ],
+    });
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    render(<OxyAuthChooser onComplete={() => order.push('close')} />);
+    expect(screen.getByText('This app')).toBeTruthy();
+    fireEvent.click(screen.getByText('App settings'));
+    expect(order).toEqual(['close', 'navigate']);
+    fireEvent.click(screen.getByText('Refresh status'));
+    expect(order).toEqual(['close', 'navigate', 'refresh']);
+    fireEvent.click(screen.getByText('Not available'));
+    expect(onDisabled).not.toHaveBeenCalled();
+  });
+
+  it('keeps collapsed account actions out of the accessibility tree', () => {
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    render(<OxyAuthChooser />);
+    expect(screen.queryByRole('button', { name: 'Add another account' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    expect(screen.getByRole('button', { name: 'Add another account' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    expect(screen.queryByRole('button', { name: 'Add another account' })).toBeNull();
   });
 
   it('toasts a failed activation instead of rendering an inline banner', async () => {
@@ -588,7 +698,7 @@ describe('OxyAuthChooser', () => {
 
       openSwitcher();
 
-      // Once as the row. The hero renders the greeting, never a bare name.
+      // The active account appears once, in the compact summary.
       expect(screen.getAllByText('Alice')).toHaveLength(1);
       expect(screen.queryByRole('button', { name: 'Sign Alice out of this device' })).toBeNull();
     });
@@ -829,6 +939,7 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser onComplete={closeAccountDialog} />);
 
+      fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
       fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
       await waitFor(() => expect(closeAccountDialog).toHaveBeenCalled());
@@ -843,6 +954,7 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser onComplete={closeAccountDialog} />);
 
+      fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
       fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
       await waitFor(() =>
@@ -859,6 +971,7 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser onComplete={closeAccountDialog} />);
 
+      fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
       fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
       await waitFor(() => expect(controller.runDeviceMutation).toHaveBeenCalled());
       await Promise.resolve();
@@ -874,17 +987,11 @@ describe('OxyAuthChooser', () => {
       expect(screen.queryByRole('button', { name: 'Your identity' })).toBeNull();
     });
 
-    it('reports a menu link the OS could not open, instead of a press that does nothing', async () => {
-      const openURL = jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('no handler'));
+    it('opens Oxy One within the dialog instead of an external payments page', () => {
       snapshot = makeSnapshot({ directory: soloDirectory() });
       render(<OxyAuthChooser />);
-
-      fireEvent.click(screen.getByRole('button', { name: 'Oxy settings' }));
-
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Couldn't open that link. Please try again."),
-      );
-      openURL.mockRestore();
+      fireEvent.click(screen.getByRole('button', { name: 'Explore Oxy One plans' }));
+      expect(showBottomSheet).toHaveBeenCalledWith('OxyOne');
     });
   });
 

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, Animated, TouchableOpacity, Linking } from 'react-native';
+import { View, Animated, Linking } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
@@ -211,60 +211,22 @@ const PaymentDetailsStep: React.FC<PaymentDetailsStepProps> = ({
                     {t('payment.details.fairWalletInstructions')}
                   </Text>
                   <Text style={styles.faircoinAddress}>{faircoinAddress}</Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.faircoinButton,
-                      {
-                        backgroundColor: '#9ffb50',
-                        borderRadius: 18,
-                        marginTop: 12,
-                        width: '90%',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      },
-                    ]}
+                  <Button
+                    appearance="solid"
+                    tone="accent"
                     onPress={handleOpenFairWallet}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('payment.details.openInFairWallet')}
+                    style={{ marginTop: 12, width: '90%' }}
                   >
-                    <FAIRWalletIcon size={20} style={{ marginRight: 8 }} />
-                    <Text
-                      style={[
-                        styles.faircoinButtonText,
-                        { color: '#1b1f0a', fontWeight: 'bold', fontSize: 16 },
-                      ]}
-                    >
-                      {t('payment.details.openInFairWallet')}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.faircoinButton,
-                      {
-                        backgroundColor: '#9ffb50',
-                        borderRadius: 18,
-                        marginTop: 10,
-                        width: '90%',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      },
-                    ]}
+                    {t('payment.details.openInFairWallet')}
+                  </Button>
+                  <Button
+                    appearance="subtle"
+                    tone="neutral"
                     onPress={handleCopyAddress}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('payment.details.copyAddress')}
+                    style={{ marginTop: 10, width: '90%' }}
                   >
-                    <FAIRWalletIcon size={20} style={{ marginRight: 8 }} />
-                    <Text
-                      style={[
-                        styles.faircoinButtonText,
-                        { color: '#1b1f0a', fontWeight: 'bold', fontSize: 16 },
-                      ]}
-                    >
-                      {t('payment.details.copyAddress')}
-                    </Text>
-                  </TouchableOpacity>
+                    {t('payment.details.copyAddress')}
+                  </Button>
                 </>
               )}
               <View style={{ height: 18 }} />

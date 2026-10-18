@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 
 /**
  * Subscribe to a named server-pushed Socket.IO event (e.g. `civic:attested`)

@@ -4,6 +4,7 @@
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";
+@source "./node_modules/@alia.onl/sdk/src/**/*.{ts,tsx}";
 
 /* App base color tokens — registers the existing color KEYS so utilities like
    `text-foreground` / `bg-background` emit at build time. BloomThemeProvider writes

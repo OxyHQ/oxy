@@ -19,7 +19,7 @@ import {
   type SocialButtonSize,
 } from '@oxy.so/bloom/social-button';
 import { toast } from '@oxy.so/bloom/toast';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { subscribeToAccountDialog } from '../navigation/accountDialogManager';
 import { openAuthorizeUrlNative } from './oauthNavigation';

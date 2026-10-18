@@ -22,7 +22,7 @@ import type { Response } from 'express';
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { fileVariants, files, users } from '../../db/schema';
+import { fileVariants, files, users, mailboxes, messages } from '../../db/schema';
 import type { AuthRequest } from '../../middleware/auth';
 
 jest.mock('../../utils/subscriptionPlan', () => ({
@@ -122,6 +122,43 @@ afterAll(async () => {
 });
 
 describe('getStorageUsage — exact byte totals', () => {
+  it('counts mail across folders for only the owner and removes deleted mail from usage', async () => {
+    const ownerId = await insertUser();
+    const otherId = await insertUser();
+    const ids: string[] = [];
+    for (const [userId, path, size] of [
+      [ownerId, 'Inbox', 120],
+      [ownerId, 'Trash', 80],
+      [otherId, 'Inbox', 999],
+    ] as const) {
+      const [folder] = await getDb()
+        .insert(mailboxes)
+        .values({ userId, name: path, path })
+        .returning();
+      const [message] = await getDb()
+        .insert(messages)
+        .values({
+          userId,
+          mailboxId: folder.id,
+          messageId: `<${sha()}@example.test>`,
+          fromAddress: 'sender@example.test',
+          subject: 'Storage test',
+          size,
+          date: new Date(),
+        })
+        .returning();
+      if (userId === ownerId) ids.push(message.id);
+    }
+    await insertFile({ ownerUserId: ownerId, mime: 'text/plain', size: 50 });
+    const before = await usageFor(ownerId);
+    expect(before.categories.mail).toEqual({ bytes: 200, count: 2 });
+    expect(before.totalUsedBytes).toBe(250);
+    await getDb().delete(messages).where(eq(messages.id, ids[1]));
+    const after = await usageFor(ownerId);
+    expect(after.categories.mail).toEqual({ bytes: 120, count: 1 });
+    expect(after.totalUsedBytes).toBe(170);
+  });
+
   it('sums originals plus renditions, bucketed by mime, to the byte', async () => {
     const ownerId = await insertUser();
 

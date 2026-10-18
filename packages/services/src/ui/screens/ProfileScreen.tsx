@@ -1,20 +1,25 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Button } from '@oxy.so/bloom/button';
+import { Button, LinkButton } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { H2, Text } from '@oxy.so/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import FollowButton from '../components/FollowButton';
 import { useFollow } from '../hooks/useFollow';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
-import { getNormalizedUserHandle, logger, normalizeProfileLinks } from '@oxy.so/core';
+import { useOxy } from '../context/oxyRuntimeContext';
+import { getNormalizedUserHandle, logger } from '@oxy.so/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
 
 interface ProfileScreenProps extends BaseScreenProps {
@@ -23,17 +28,9 @@ interface ProfileScreenProps extends BaseScreenProps {
 }
 
 const AVATAR_SIZE = 96;
-const BANNER_HEIGHT = 160;
-const AVATAR_OVERLAP = -56;
 const INFO_ICON_SIZE = 18;
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({
-  userId,
-  username,
-  theme,
-  goBack,
-  navigate,
-}) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigate }) => {
   // Use useOxy() hook for OxyContext values. "Me" for own-profile detection
   // and the own-profile fallback is the ACTIVE account (the account switched
   // into), so previewing my profile while switched into an org/project/bot
@@ -44,7 +41,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { followerCount, followingCount, isLoadingCounts } = useFollow(userId);
 
   const bloomTheme = useTheme();
-  const { t } = useI18n();
+  const surfaceFill = useSurfaceFill();
+  const { t, locale } = useI18n();
 
   // Check if current user is viewing their own profile
   // Normalize IDs by trimming whitespace to handle format mismatches
@@ -88,15 +86,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       return {
         profile: profileRes,
         reputationTotal: typeof reputationRes.total === 'number' ? reputationRes.total : null,
-        links: normalizeProfileLinks(profileRes.linksMetadata, profileRes.links),
       };
     },
   });
 
-  const profile = profileQuery.data?.profile ?? null;
+  const profile = profileQuery.data?.profile ?? (isOwnProfile ? currentUser : null);
   const reputationTotal = profileQuery.data?.reputationTotal ?? null;
-  const links = profileQuery.data?.links ?? [];
-  const isLoading = !!userId && profileQuery.isLoading;
 
   // Friendly, status-aware error copy derived from the query error (no effect).
   const error = useMemo<string | null>(() => {
@@ -126,31 +121,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     return errorMessageText || 'Failed to load profile';
   }, [userId, profileQuery.isError, profileQuery.error, isOwnProfile]);
 
-  // Display name: the loaded profile's, else the passed handle. Also the nav-bar
-  // title (a stable "Profile" fallback before it resolves), so the banner +
-  // overlapping avatar scroll as content UNDER the shared gradient nav bar.
-  // `onImage` tone keeps the title + close legible over the colored banner.
-  // Ends in a string, deliberately: `getNormalizedUserHandle` answers `null` for a
-  // user it cannot normalise, and letting that null travel makes this `string | null`
-  // — which does not satisfy `Avatar.name` and does not typecheck. Empty is the honest
-  // bottom of the chain and every reader below already treats it as falsy
-  // (`displayName || t('profile.title')`), so nothing renders a literal "null".
+  // The dialog owns navigation chrome; CoverHeader owns the profile artwork
+  // and avatar overlap. A neutral cover is not an on-image navigation surface.
   const displayName = profile
     ? (profile.name?.displayName ?? getNormalizedUserHandle(profile) ?? '')
     : username || '';
   useSurfaceHeader({
     title: displayName || t('profile.title'),
     largeTitle: false,
-    tone: 'onImage',
   });
-
-  if (isLoading) {
-    return (
-      <View className="items-center py-space-40">
-        <ActivityIndicator size="large" color={bloomTheme.colors.primary} />
-      </View>
-    );
-  }
 
   if (error) {
     // The shared nav header owns back/close; the error body is just the alert.
@@ -171,6 +150,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     );
   }
 
+  if (!profile && profileQuery.isPending) {
+    return (
+      <View
+        testID="profile-skeleton"
+        accessibilityLabel={t('common.loading')}
+        accessibilityState={{ busy: true }}
+        style={styles.scrollContainer}
+      >
+        <CoverHeader>
+          <View style={styles.avatarRow} className="px-screen-margin">
+            <Skeleton.Circle size={AVATAR_SIZE} />
+            <Skeleton.Box width={88} height={32} borderRadius={16} />
+          </View>
+          <View className="px-screen-margin gap-space-8" style={styles.header}>
+            <Skeleton.Box width={180} height={28} />
+            <Skeleton.Box width={110} height={18} />
+            <Skeleton.Box width="100%" height={18} style={{ marginTop: 10 }} />
+            <Skeleton.Box width="75%" height={18} />
+          </View>
+        </CoverHeader>
+        <View className="px-screen-margin gap-space-12" style={styles.details}>
+          <Skeleton.Box width="65%" height={18} />
+          <Skeleton.Box width="85%" height={18} />
+        </View>
+      </View>
+    );
+  }
+
   // The singular `location` field was removed from the User contract; derive
   // the primary place from the `locations` list instead. `locations` is only
   // reachable through the User index signature (typed `unknown`), so narrow it
@@ -184,238 +191,197 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     return undefined;
   })();
 
+  const metadata: Array<{
+    key: string;
+    icon: React.ComponentProps<typeof Ionicons>['name'];
+    label: string;
+  }> = [];
+  if (primaryLocation)
+    metadata.push({ key: 'location', icon: 'location-outline', label: primaryLocation });
+  if (profile?.createdAt) {
+    const joined = new Date(profile.createdAt);
+    if (!Number.isNaN(joined.getTime()))
+      metadata.push({
+        key: 'joined',
+        icon: 'calendar-outline',
+        label: t('profile.joinedOn', {
+          date: joined.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
+        }),
+      });
+  }
+  for (const [key, icon] of [
+    ['company', 'business-outline'],
+    ['jobTitle', 'briefcase-outline'],
+    ['education', 'school-outline'],
+  ] as const) {
+    const value = profile?.[key];
+    if (typeof value === 'string' && value.trim()) metadata.push({ key, icon, label: value });
+  }
+  if (typeof profile?.birthday === 'string' && profile.birthday) {
+    const birthday = new Date(profile.birthday);
+    if (!Number.isNaN(birthday.getTime()))
+      metadata.push({
+        key: 'birthday',
+        icon: 'gift-outline',
+        label: t('profile.bornOn', {
+          date: birthday.toLocaleDateString(locale, { timeZone: 'UTC' }),
+        }),
+      });
+  }
+  let websiteUrl: string | undefined;
+  if (profile?.website) {
+    try {
+      const url = new URL(profile.website);
+      if (url.protocol === 'https:' || url.protocol === 'http:') websiteUrl = url.href;
+    } catch {
+      /* Invalid profile URLs are not interactive links. */
+    }
+  }
+
   return (
     <View style={styles.scrollContainer}>
-      {/* Banner Image */}
-      <View style={styles.bannerContainer} className="bg-fill-brand/20">
-        <View style={styles.flex} className="bg-fill-brand" />
-      </View>
-      {/* Avatar overlapping banner */}
-      <View style={styles.avatarRow} className="px-screen-margin">
-        <View style={styles.avatarWrapper} className="border-bg bg-bg rounded-radius-max">
-          <Avatar
-            // `getFileDownloadUrl` answers `null` for a reference it cannot
-            // resolve, and `Avatar.source` takes `undefined` for "no picture" —
-            // the two spellings of absent do not meet, so the coalesce is the
-            // whole fix. Without it this file does not typecheck, which blocks
-            // `bun run build` and therefore every publish of this package.
-            source={
-              profile?.avatar
-                ? (oxyServices.assets.publicUrl(profile.avatar, 'thumb') ?? undefined)
-                : undefined
-            }
-            name={displayName}
-            size={AVATAR_SIZE}
-          />
-        </View>
-        {/* Conditional Action Button */}
-        <View style={styles.actionButtonWrapper}>
-          {isOwnProfile ? (
-            <Button
-              appearance="subtle"
-              tone="neutral"
-              size="sm"
-              onPress={() => navigate?.('ManageAccount')}
-            >
-              {t('editProfile.title') || 'Edit Profile'}
-            </Button>
-          ) : (
-            <FollowButton
-              userId={userId}
-              onFollowChange={(isFollowing) => {
-                // The follow button will automatically update counts via Zustand
-                if (__DEV__) {
-                  logger.debug(`Follow status changed: ${isFollowing}`, {
-                    component: 'ProfileScreen',
-                  });
-                }
-              }}
-            />
-          )}
-        </View>
-      </View>
-      {/* Profile Info */}
-      <View style={styles.header} className="px-screen-margin">
-        <H2 style={styles.displayName} className="text-text">
-          {displayName}
-        </H2>
-        {profile?.username && (
-          <Text style={styles.subText} className="text-text-secondary">
-            @{profile.username}
-          </Text>
-        )}
-        {/* Bio */}
-        <Text style={styles.bio} className="text-text">
-          {profile?.bio || t('profile.noBio') || 'This user has no bio yet.'}
-        </Text>
-      </View>
-
-      {/* Info Grid as a settings list group */}
-      <View className="px-screen-margin">
-        <SettingsListGroup>
-          {profile?.createdAt && (
-            <SettingsListItem
-              icon={
-                <Ionicons
-                  name="calendar-outline"
-                  size={INFO_ICON_SIZE}
-                  color={bloomTheme.colors.textSecondary}
-                />
-              }
-              title={
-                t('profile.joinedOn', { date: new Date(profile.createdAt).toLocaleDateString() }) ||
-                `Joined ${new Date(profile.createdAt).toLocaleDateString()}`
-              }
-              showChevron={false}
-            />
-          )}
-          {primaryLocation && (
-            <SettingsListItem
-              icon={
-                <Ionicons
-                  name="location-outline"
-                  size={INFO_ICON_SIZE}
-                  color={bloomTheme.colors.textSecondary}
-                />
-              }
-              title={primaryLocation}
-              showChevron={false}
-            />
-          )}
-          {profile?.website && (
-            <SettingsListItem
-              icon={
-                <Ionicons
-                  name="globe-outline"
-                  size={INFO_ICON_SIZE}
-                  color={bloomTheme.colors.textSecondary}
-                />
-              }
-              title={profile.website}
-              showChevron={false}
-            />
-          )}
-          {profile &&
-            'company' in profile &&
-            typeof profile.company === 'string' &&
-            profile.company && (
-              <SettingsListItem
-                icon={
-                  <Ionicons
-                    name="business-outline"
-                    size={INFO_ICON_SIZE}
-                    color={bloomTheme.colors.textSecondary}
-                  />
-                }
-                title={profile.company}
-                showChevron={false}
-              />
-            )}
-          {profile &&
-            'jobTitle' in profile &&
-            typeof profile.jobTitle === 'string' &&
-            profile.jobTitle && (
-              <SettingsListItem
-                icon={
-                  <Ionicons
-                    name="briefcase-outline"
-                    size={INFO_ICON_SIZE}
-                    color={bloomTheme.colors.textSecondary}
-                  />
-                }
-                title={profile.jobTitle}
-                showChevron={false}
-              />
-            )}
-          {profile &&
-            'education' in profile &&
-            typeof profile.education === 'string' &&
-            profile.education && (
-              <SettingsListItem
-                icon={
-                  <Ionicons
-                    name="school-outline"
-                    size={INFO_ICON_SIZE}
-                    color={bloomTheme.colors.textSecondary}
-                  />
-                }
-                title={profile.education}
-                showChevron={false}
-              />
-            )}
-          {profile &&
-            'birthday' in profile &&
-            typeof profile.birthday === 'string' &&
-            profile.birthday && (
-              <SettingsListItem
-                icon={
-                  <Ionicons
-                    name="gift-outline"
-                    size={INFO_ICON_SIZE}
-                    color={bloomTheme.colors.textSecondary}
-                  />
-                }
-                title={
-                  t('profile.bornOn', { date: new Date(profile.birthday).toLocaleDateString() }) ||
-                  `Born ${new Date(profile.birthday).toLocaleDateString()}`
-                }
-                showChevron={false}
-              />
-            )}
-          {links.length > 0 && (
-            <SettingsListItem
-              icon={
-                <Ionicons
-                  name="link-outline"
-                  size={INFO_ICON_SIZE}
-                  color={bloomTheme.colors.textSecondary}
-                />
-              }
-              title={links[0].url}
-              value={
-                links.length > 1
-                  ? t('profile.more', { count: links.length - 1 }) || `+ ${links.length - 1} more`
+      <CoverHeader testID="profile-cover-header">
+        {/* Avatar overlapping banner */}
+        <View style={styles.avatarRow} className="px-screen-margin">
+          <View
+            style={[
+              styles.avatarWrapper,
+              { borderColor: surfaceFill, backgroundColor: surfaceFill },
+            ]}
+            className="rounded-radius-max"
+          >
+            <Avatar
+              // `getFileDownloadUrl` answers `null` for a reference it cannot
+              // resolve, and `Avatar.source` takes `undefined` for "no picture" —
+              // the two spellings of absent do not meet, so the coalesce is the
+              // whole fix. Without it this file does not typecheck, which blocks
+              // `bun run build` and therefore every publish of this package.
+              source={
+                profile?.avatar
+                  ? (oxyServices.assets.publicUrl(profile.avatar, 'thumb') ?? undefined)
                   : undefined
               }
-              onPress={() => navigate?.('UserLinks', { userId, links })}
+              name={displayName}
+              size={AVATAR_SIZE}
             />
+          </View>
+          {/* Conditional Action Button */}
+          <View style={styles.actionButtonWrapper}>
+            {isOwnProfile ? (
+              <View style={styles.profileActions}>
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  size="sm"
+                  onPress={() => navigate?.('EditProfile')}
+                >
+                  {t('editProfile.title') || 'Edit Profile'}
+                </Button>
+                <ButtonGroup>
+                  <ButtonGroupItem
+                    iconOnly
+                    leadingIcon={RiSettings3Line}
+                    accessibilityLabel={t('accountMenu.settings') || 'Settings'}
+                    onPress={() => navigate?.('Preferences')}
+                  />
+                </ButtonGroup>
+              </View>
+            ) : (
+              <FollowButton
+                userId={userId}
+                onFollowChange={(isFollowing) => {
+                  // The follow button will automatically update counts via Zustand
+                  if (__DEV__) {
+                    logger.debug(`Follow status changed: ${isFollowing}`, {
+                      component: 'ProfileScreen',
+                    });
+                  }
+                }}
+              />
+            )}
+          </View>
+        </View>
+        {/* Profile Info */}
+        <View style={styles.header} className="px-screen-margin">
+          <H2 style={styles.displayName} className="text-text">
+            {displayName}
+          </H2>
+          {profile?.username && (
+            <Text style={styles.subText} className="text-text-secondary">
+              @{profile.username}
+            </Text>
           )}
-        </SettingsListGroup>
-      </View>
+          {/* Bio */}
+          {profile?.bio ? (
+            <Text style={styles.bio} className="text-text">
+              {profile.bio}
+            </Text>
+          ) : null}
+        </View>
+      </CoverHeader>
 
-      {/* All Stats in one row */}
-      <View style={styles.statsRow} className="px-screen-margin">
-        <View style={styles.statItem}>
-          <Text style={styles.statAmount} className="text-text">
-            {reputationTotal !== null && reputationTotal !== undefined ? reputationTotal : '--'}
-          </Text>
-          <Text style={styles.statLabel} className="text-text-secondary">
-            {t('profile.reputation') || 'Reputation'}
-          </Text>
+      <View className="px-screen-margin" style={styles.details}>
+        <View style={styles.metadataRow}>
+          {metadata.map(({ key, icon, label }) => (
+            <View key={key} style={styles.metadataEntry}>
+              <Ionicons name={icon} size={16} color={bloomTheme.colors.textSecondary} />
+              <Text style={[styles.metadataText, { color: bloomTheme.colors.textSecondary }]}>
+                {label}
+              </Text>
+            </View>
+          ))}
         </View>
-        <View style={styles.statItem}>
-          {isLoadingCounts ? (
-            <ActivityIndicator size="small" color={bloomTheme.colors.text} />
-          ) : (
-            <Text style={styles.statAmount} className="text-text">
-              {followerCount !== null ? followerCount : '--'}
-            </Text>
-          )}
-          <Text style={styles.statLabel} className="text-text-secondary">
-            {t('profile.followers') || 'Followers'}
-          </Text>
-        </View>
-        <View style={styles.statItem}>
-          {isLoadingCounts ? (
-            <ActivityIndicator size="small" color={bloomTheme.colors.text} />
-          ) : (
-            <Text style={styles.statAmount} className="text-text">
-              {followingCount !== null ? followingCount : '--'}
-            </Text>
-          )}
-          <Text style={styles.statLabel} className="text-text-secondary">
-            {t('profile.following') || 'Following'}
-          </Text>
+        {websiteUrl ? (
+          <LinkButton
+            size="sm"
+            href={websiteUrl}
+            style={{ alignSelf: 'flex-start', paddingLeft: 0, paddingRight: 0 }}
+            target="_blank"
+            rel="noopener noreferrer"
+            icon={<Ionicons name="link-outline" size={INFO_ICON_SIZE} />}
+          >
+            {profile?.website}
+          </LinkButton>
+        ) : null}
+        <View style={styles.statsRow}>
+          {!isLoadingCounts && followingCount !== null ? (
+            <PressableScale
+              style={styles.statItem}
+              accessibilityLabel={`${followingCount} ${t('profile.following')}`}
+              onPress={() => navigate?.('FollowingList', { userId, initialCount: followingCount })}
+            >
+              <Text style={[styles.statNumber, { color: bloomTheme.colors.text }]}>
+                {followingCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: bloomTheme.colors.textSecondary }]}>
+                {t('profile.following')}
+              </Text>
+            </PressableScale>
+          ) : null}
+          {!isLoadingCounts && followerCount !== null ? (
+            <PressableScale
+              style={styles.statItem}
+              accessibilityLabel={`${followerCount} ${t('profile.followers')}`}
+              onPress={() => navigate?.('FollowersList', { userId, initialCount: followerCount })}
+            >
+              <Text style={[styles.statNumber, { color: bloomTheme.colors.text }]}>
+                {followerCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: bloomTheme.colors.textSecondary }]}>
+                {t('profile.followers')}
+              </Text>
+            </PressableScale>
+          ) : null}
+          {reputationTotal !== null ? (
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: bloomTheme.colors.text }]}>
+                {reputationTotal}
+              </Text>
+              <Text style={[styles.statLabel, { color: bloomTheme.colors.textSecondary }]}>
+                {t('profile.reputation')}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
@@ -426,13 +392,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 // that no token class can express. Colors, spacing, radius, and typography roles
 // live on Bloom components + NativeWind token classes.
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   scrollContainer: { alignItems: 'stretch', paddingBottom: 40 },
-  bannerContainer: { height: BANNER_HEIGHT, position: 'relative', overflow: 'hidden' },
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginTop: AVATAR_OVERLAP,
     justifyContent: 'space-between',
     zIndex: 2,
   },
@@ -446,17 +409,28 @@ const styles = StyleSheet.create({
   header: { alignItems: 'flex-start', width: '100%', marginTop: 10 },
   displayName: { fontSize: 24, marginBottom: 2, letterSpacing: 0.1 },
   subText: { fontSize: 16, marginBottom: 2 },
-  bio: { fontSize: 16, marginTop: 10, lineHeight: 22 },
-  statsRow: {
-    width: '100%',
+  bio: { fontSize: 15, marginTop: 10, lineHeight: 20 },
+  profileActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
-    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
-  statItem: { flex: 1, alignItems: 'center', minWidth: 50, marginBottom: 12 },
-  statLabel: { fontSize: 14, marginBottom: 2, textAlign: 'center' },
-  statAmount: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', letterSpacing: 0.2 },
+  details: { marginTop: 12 },
+  metadataRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 4 },
+  metadataEntry: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
+  metadataText: { fontSize: 15, lineHeight: 20, flexShrink: 1 },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statNumber: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  statLabel: { fontSize: 15, lineHeight: 20 },
   // Error state layout
   errorTitle: { fontSize: 20 },
   errorContent: { justifyContent: 'center', alignItems: 'center' },

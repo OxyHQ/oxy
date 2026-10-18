@@ -18,7 +18,7 @@ import {
   invalidateSessionQueries,
 } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
 import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../queries/userCache';

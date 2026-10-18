@@ -7,18 +7,19 @@ import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import { Search } from '@oxy.so/bloom/search';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { CountryFlag } from '@oxy.so/bloom/phone-input';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SUPPORTED_LANGUAGES, getNativeLanguageName, type SupportedLanguage } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { addLocale, removeLocale, setPrimaryLocale } from '../hooks/useLanguageManagement';
 import { useUpdateProfile } from '../hooks/mutations/useAccountMutations';
 
 interface LanguageSelectorScreenProps extends BaseScreenProps {}
 
-// Size (in dp) of the circular chip rendered as each row's leading icon.
-const CHIP_SIZE = 40;
+// Stable leading slot keeps all locale rows aligned.
+const FLAG_SLOT_SIZE = 40;
 // Trailing remove-affordance icon size (dp).
 const REMOVE_ICON_SIZE = 24;
 
@@ -33,10 +34,10 @@ const CATALOG_BY_CODE: ReadonlyMap<string, SupportedLanguage> = new Map(
  * The user picks one or more locales; the FIRST (primary) drives the app's UI
  * language. When signed in the ordered selection is persisted to the account
  * (`updateProfile({ languages })`, primary first) and every Oxy app follows it;
- * when signed out a single local override is stored on-device.
+ * when signed out the ordered selection is stored on-device.
  */
 const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
-  const { user, isAuthenticated, currentLanguage, currentLanguages, setLanguage } = useOxy();
+  const { user, isAuthenticated, currentLanguage, currentLanguages, setLanguages } = useOxy();
   const { t } = useI18n();
   const bloomTheme = useTheme();
   const updateProfile = useUpdateProfile();
@@ -86,7 +87,7 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
   const isBusy = isSubmitting || updateProfile.isPending;
 
   // Persist the next ordered selection. Signed-in accounts write the full
-  // ordered array; guests store only the primary locally.
+  // ordered array; guests persist the same ordered selection locally.
   const commitSelection = useCallback(
     async (next: string[], announceCode: string): Promise<void> => {
       if (isBusy || next.length === 0) {
@@ -95,9 +96,16 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
       setIsSubmitting(true);
       try {
         if (isAuthenticated && user?.id) {
-          await updateProfile.mutateAsync({ languages: next });
+          const saved = await updateProfile.mutateAsync({ languages: next });
+          if (
+            saved.languages?.length !== next.length ||
+            next.some((locale, index) => saved.languages?.[index] !== locale)
+          ) {
+            toast.error(t('language.saveFailed'));
+            return;
+          }
         } else {
-          await setLanguage(next[0]);
+          await setLanguages(next);
         }
         toast.success(t('language.changed', { lang: getNativeLanguageName(announceCode) }));
       } catch (error) {
@@ -113,17 +121,16 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
         setIsSubmitting(false);
       }
     },
-    [isAuthenticated, user?.id, updateProfile, setLanguage, t, isBusy],
+    [isAuthenticated, user?.id, updateProfile, setLanguages, t, isBusy],
   );
 
-  // Adding a locale: signed-in appends (non-primary); a guest can only hold a
-  // single locale, so the tapped locale becomes their primary.
+  // Adding appends a locale; choosing a selected row makes it primary.
   const handleAdd = useCallback(
     (code: string) => {
-      const next = isAuthenticated && user?.id ? addLocale(selected, code) : [code];
+      const next = addLocale(selected, code);
       void commitSelection(next, code);
     },
-    [isAuthenticated, user?.id, selected, commitSelection],
+    [selected, commitSelection],
   );
 
   const handleSetPrimary = useCallback(
@@ -148,11 +155,9 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
     [selected, commitSelection],
   );
 
-  const renderChip = (entry: SupportedLanguage) => (
-    <View className="bg-fill-secondary items-center justify-center" style={styles.chip}>
-      <Text className="text-text-secondary" style={styles.chipLabel}>
-        {entry.language.toUpperCase()}
-      </Text>
+  const renderFlag = (entry: SupportedLanguage) => (
+    <View style={styles.flagSlot}>
+      <CountryFlag iso2={entry.region} size={28} />
     </View>
   );
 
@@ -168,14 +173,14 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
       </View>
 
       {/* Selected locales — ordered, primary first. */}
-      <SettingsListGroup title={t('language.selected')}>
+      <GroupedSection title={t('language.selected')}>
         {selectedEntries.map((entry, index) => {
           const isPrimary = index === 0;
           const canRemove = selected.length > 1;
           return (
-            <SettingsListItem
+            <GroupedSectionItem
               key={entry.code}
-              icon={renderChip(entry)}
+              icon={renderFlag(entry)}
               title={entry.nativeName}
               description={entry.name}
               onPress={isPrimary ? undefined : () => handleSetPrimary(entry.code)}
@@ -214,14 +219,14 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
             />
           );
         })}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Available locales. */}
-      <SettingsListGroup title={t('language.available')}>
+      <GroupedSection title={t('language.available')}>
         {availableEntries.map((entry) => (
-          <SettingsListItem
+          <GroupedSectionItem
             key={entry.code}
-            icon={renderChip(entry)}
+            icon={renderFlag(entry)}
             title={entry.nativeName}
             description={entry.name}
             onPress={() => handleAdd(entry.code)}
@@ -237,21 +242,18 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
             showChevron={false}
           />
         ))}
-      </SettingsListGroup>
+      </GroupedSection>
     </View>
   );
 };
 
 // StyleSheet retained ONLY for measured layout (sizes / line metrics) — no colors.
 const styles = StyleSheet.create({
-  chip: {
-    width: CHIP_SIZE,
-    height: CHIP_SIZE,
-    borderRadius: CHIP_SIZE / 2,
-  },
-  chipLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  flagSlot: {
+    width: FLAG_SLOT_SIZE,
+    height: FLAG_SLOT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryBadge: {
     fontSize: 12,

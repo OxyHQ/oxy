@@ -2,11 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { View, Linking } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { logger } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 
@@ -100,35 +99,26 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, init
   });
 
   // Deep-link entry: show loading state while the document opens.
-  if (documentType) {
-    return (
-      <Loading
-        size="lg"
-        color={bloomTheme.colors.text}
-        text={t('legal.opening') || 'Opening document...'}
-      />
-    );
-  }
 
   // Default: show the full list of policies & guidelines.
   return (
     <View className="px-screen-margin py-space-16">
-      <SettingsListGroup title={t('legal.policies') || 'Policies & Guidelines'}>
-        <SettingsListItem
+      <GroupedSection title={t('legal.policies') || 'Policies & Guidelines'}>
+        <GroupedSectionItem
           icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.success} />}
           title={t('legal.privacyPolicy.title') || 'Privacy Policy'}
           description={t('legal.privacyPolicy.subtitle') || 'How we handle your data'}
           onPress={handleOpenPolicy('privacy')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="file-document" color={bloomTheme.colors.primary} />}
           title={t('legal.termsOfService.title') || 'Terms of Service'}
           description={t('legal.termsOfService.subtitle') || 'Terms and conditions of use'}
           onPress={handleOpenPolicy('terms')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="account-group" color={bloomTheme.colors.secondary} />}
           title={t('legal.communityGuidelines.title') || 'Community Guidelines'}
           description={
@@ -137,28 +127,28 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, init
           onPress={handleOpenPolicy('community')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="clock" color={bloomTheme.colors.warning} />}
           title={t('legal.dataRetention.title') || 'Data Retention Policy'}
           description={t('legal.dataRetention.subtitle') || 'How long we keep your data'}
           onPress={handleOpenPolicy('dataRetention')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="eye" color={bloomTheme.colors.info} />}
           title={t('legal.contentModeration.title') || 'Content Moderation Policy'}
           description={t('legal.contentModeration.subtitle') || 'How we moderate content'}
           onPress={handleOpenPolicy('contentModeration')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="heart" color={bloomTheme.colors.error} />}
           title={t('legal.childSafety.title') || 'Child Safety Policy'}
           description={t('legal.childSafety.subtitle') || 'Protecting minors on our platform'}
           onPress={handleOpenPolicy('childSafety')}
           disabled={loading}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="cookie" color={bloomTheme.colors.textTertiary} />}
           title={t('legal.cookiePolicy.title') || 'Cookie Policy'}
           description={
@@ -167,7 +157,7 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, init
           onPress={handleOpenPolicy('cookie')}
           disabled={loading}
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </View>
   );
 };

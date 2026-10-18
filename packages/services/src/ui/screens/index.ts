@@ -17,3 +17,4 @@ export { default as AccountMembersScreen } from './AccountMembersScreen';
 export { default as AccountSettingsScreen } from './AccountSettingsScreen';
 
 export { default as SupervisionScreen } from './SupervisionScreen';
+export { default as OxyOneScreen } from './OxyOneScreen';

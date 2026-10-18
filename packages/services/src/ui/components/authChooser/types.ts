@@ -7,12 +7,14 @@
  * dragging any other view in.
  */
 
+import type { AccountStorageUsageResponse } from '@oxy.so/core';
 import {
   APP_COLOR_NAMES,
   APP_COLOR_PRESETS,
   type AppColorName,
   type useTheme,
 } from '@oxy.so/bloom/theme';
+import type { AccountDialogMenuSection } from '../../navigation/accountDialogManager';
 import type { useI18n } from '../../hooks/useI18n';
 
 export type Theme = ReturnType<typeof useTheme>;
@@ -88,10 +90,13 @@ export interface AccountHeroModel {
 export interface AccountStorageModel {
   usedBytes: number;
   limitBytes: number;
+  plan?: AccountStorageUsageResponse['plan'];
+  categories?: Partial<AccountStorageUsageResponse['categories']>;
 }
 
 /** The account-menu row actions the container wires (deep-links / sheets / sign-out). */
 export interface AccountsMenuActions {
+  onOpenPlan: () => void;
   onOpenSettings: () => void;
   onOpenData: () => void;
   onManageStorage: () => void;
@@ -100,12 +105,7 @@ export interface AccountsMenuActions {
   onPrivacy: () => void;
   onTerms: () => void;
   onSignOut: () => void;
-  customItems: readonly {
-    key: string;
-    label: string;
-    icon?: string;
-    onPress: () => void;
-  }[];
+  sections: readonly AccountDialogMenuSection[];
 }
 
 /**

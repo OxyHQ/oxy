@@ -6,13 +6,12 @@ import Ionicons from '../../icons/Ionicons';
 import { Chip } from '@oxy.so/bloom/chip';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H1, Text } from '@oxy.so/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { BaseScreenProps } from '../../types/navigation';
 import { SettingsIcon } from '../../components/SettingsIcon';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { trustTierLabel } from '@oxy.so/core';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 
@@ -66,14 +65,6 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
     );
   }
 
-  if (isLoading) {
-    return (
-      <View className="items-center py-space-40">
-        <Loading size="lg" color={primaryColor} />
-      </View>
-    );
-  }
-
   return (
     <View className="px-screen-margin pt-space-16 pb-space-24">
       {/* Balance hero card */}
@@ -101,38 +92,38 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
       </View>
 
       {/* Trust actions */}
-      <SettingsListGroup title={t('trust.center.actions.title') || 'Explore'}>
-        <SettingsListItem
+      <GroupedSection title={t('trust.center.actions.title') || 'Explore'}>
+        <GroupedSectionItem
           icon={<SettingsIcon name="trophy" color={bloomTheme.colors.warning} />}
           title={t('trust.center.actions.leaderboard') || 'Leaderboard'}
           onPress={() => navigate?.('TrustLeaderboard')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="file-document" color={bloomTheme.colors.info} />}
           title={t('trust.center.actions.rules') || 'Rules'}
           onPress={() => navigate?.('TrustRules')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="gift" color={bloomTheme.colors.success} />}
           title={t('trust.center.actions.rewards') || 'Rewards'}
           onPress={() => navigate?.('TrustRewards')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="star" color={bloomTheme.colors.primary} />}
           title={t('trust.center.actions.about') || 'About'}
           onPress={() => navigate?.('AboutTrust')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="help-circle" color={bloomTheme.colors.secondary} />}
           title={t('trust.center.actions.faq') || 'FAQ'}
           onPress={() => navigate?.('TrustFAQ')}
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Reputation history */}
-      <SettingsListGroup title={t('trust.center.history') || 'Reputation History'}>
+      <GroupedSection title={t('trust.center.history') || 'Reputation History'}>
         {transactions.length === 0 ? (
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="history" color={bloomTheme.colors.textTertiary} />}
             title={t('trust.center.noHistory') || 'No reputation history yet.'}
             showChevron={false}
@@ -140,7 +131,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
           />
         ) : (
           transactions.map((entry) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={entry.id}
               icon={
                 <SettingsIcon
@@ -166,7 +157,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
             />
           ))
         )}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {error ? (
         <Text

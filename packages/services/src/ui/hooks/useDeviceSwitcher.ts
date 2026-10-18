@@ -5,7 +5,7 @@ import {
   type DeviceContext,
   type SwitcherPrincipalRow,
 } from '@oxy.so/core/session';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from './useI18n';
 import { useAccountDialogSnapshot } from './accountDialogSnapshot';
 

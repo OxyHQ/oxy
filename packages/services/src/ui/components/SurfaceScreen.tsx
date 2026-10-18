@@ -1,8 +1,8 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useStore } from 'zustand';
+import { useOverlayLayerContext, isTopmostOverlayLayer } from '@oxy.so/bloom/overlay';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useDialogFrame, useDialogHeader, type DialogHeaderConfig } from '@oxy.so/bloom/dialog';
 import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
@@ -11,12 +11,6 @@ import { getScreenComponent } from '../navigation/routes';
 import { pushSurfaceBackHandler } from '../navigation/surfaceBackBridge';
 import type { SurfaceNavStack } from '../navigation/surfaceNavStack';
 import { getSurfaceConfig } from '../navigation/surfaceRegistry';
-import {
-  closeAllRouteSurfaces,
-  navigateWithinOrPresent,
-  presentRoute,
-  replaceWithinOrPresent,
-} from '../navigation/surfaces';
 import { SurfaceHeaderContext, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { SurfaceFrameWidthContext } from '../hooks/useSurfaceFrameWidth';
 import type { BaseScreenProps } from '../types/navigation';
@@ -72,21 +66,15 @@ const errorStyles = StyleSheet.create({
   message: { fontSize: 13, textAlign: 'center' },
 });
 
-/**
- * Shown while a route's screen module is still loading. Screens are registered
- * as `lazy(() => import(...))` (see `../navigation/routes`), so the very first
- * presentation of a surface can land here for a frame; the surface chrome is
- * already on screen by then, so this fills only the body.
- */
-function ScreenPending() {
-  return (
-    <View style={errorStyles.container}>
-      <Loading variant="spinner" size="lg" />
-    </View>
-  );
+export interface SurfaceNavigationActions {
+  closeAllRouteSurfaces: typeof import('../navigation/surfaces').closeAllRouteSurfaces;
+  navigateWithinOrPresent: typeof import('../navigation/surfaces').navigateWithinOrPresent;
+  presentRoute: typeof import('../navigation/surfaces').presentRoute;
+  replaceWithinOrPresent: typeof import('../navigation/surfaces').replaceWithinOrPresent;
 }
 
 export interface SurfaceScreenProps {
+  navigation: SurfaceNavigationActions;
   /** This surface's route history (the NAV-WITHIN axis). */
   navStack: SurfaceNavStack;
   /** Bloom's per-surface controls (dismiss / present a child) — the DEPTH axis. */
@@ -104,8 +92,16 @@ export interface SurfaceScreenProps {
  * effect) rather than a captured-controls call, so a dismiss requested before
  * this surface mounted still resolves the Bloom surface exactly once.
  */
-function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceScreenProps) {
+function SurfaceScreen({
+  navStack,
+  surface,
+  navigation,
+  dismissOnBackdrop = true,
+}: SurfaceScreenProps) {
+  const { closeAllRouteSurfaces, navigateWithinOrPresent, presentRoute, replaceWithinOrPresent } =
+    navigation;
   const theme = useTheme();
+  const overlayLayer = useOverlayLayerContext();
   const state = useStore(navStack.store);
   const top = state.frames[state.frames.length - 1];
 
@@ -118,13 +114,13 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
   const navigate = useCallback(
     (route: RouteName, props?: Record<string, unknown>) =>
       navigateWithinOrPresent(navStack, route, props),
-    [navStack],
+    [navStack, navigateWithinOrPresent],
   );
 
   const replace = useCallback(
     (route: RouteName, props?: Record<string, unknown>) =>
       replaceWithinOrPresent(navStack, route, props),
-    [navStack],
+    [navStack, replaceWithinOrPresent],
   );
 
   // Screens' `dismiss(result)` resolves an active sub-flow (morphed-in avatar
@@ -140,34 +136,16 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
 
   const setStep = useCallback((step: number) => navStack.setStep(step), [navStack]);
 
-  // Screen-facing back: pop a frame, else step a wizard back, else dismiss the
+  // Screen-facing back: step a wizard back, else pop a frame, else dismiss the
   // surface — the exact behaviour the single `BottomSheetRouter` had per session.
   const goBack = useCallback((): void => {
     if (navStack.goBack()) return;
-    const current = navStack.getTop();
-    if (current.step > 0) {
-      navStack.setStep(current.step - 1);
-      return;
-    }
     navStack.requestDismiss();
   }, [navStack]);
 
-  const handleSystemBack = useCallback((): boolean => {
-    if (navStack.goBack()) return true;
-    const current = navStack.getTop();
-    if (current.step > 0) {
-      navStack.setStep(current.step - 1);
-      return true;
-    }
-    if (dismissOnBackdrop) navStack.requestDismiss();
-    return true;
-  }, [navStack, dismissOnBackdrop]);
-
-  useEffect(() => pushSurfaceBackHandler(handleSystemBack), [handleSystemBack]);
-
   const present = useCallback(
     (route: RouteName, props?: Record<string, unknown>) => presentRoute(route, props).result,
-    [],
+    [presentRoute],
   );
 
   // --- Dialog nav-header wiring ------------------------------------------
@@ -214,9 +192,21 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
       () => ({
         key: `${top.route}#${top.step}#${screenWidth ?? ''}`,
         morph: config.morph,
+        colorPreset: config.colorPreset,
+        typography: config.typography,
+        direction: state.direction,
         size: frameSize,
       }),
-      [top.route, top.step, screenWidth, config.morph, frameSize],
+      [
+        top.route,
+        top.step,
+        screenWidth,
+        config.morph,
+        config.colorPreset,
+        config.typography,
+        frameSize,
+        state.direction,
+      ],
     ),
   );
   // Show a back affordance whenever the surface can navigate back — either an
@@ -237,6 +227,24 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
 
   useDialogHeader(dialogHeader);
 
+  // Hardware/browser back follows the same visible affordance, including local
+  // account/wizard history, before considering root dismissal.
+  const handleSystemBack = useCallback((): boolean => {
+    // A standalone sheet or menu above this dialog owns Back/Escape.
+    if (!isTopmostOverlayLayer(overlayLayer)) return false;
+    if (dialogHeader?.onBack) dialogHeader.onBack();
+    else if (!navStack.goBack() && dismissOnBackdrop) navStack.requestDismiss();
+    return true;
+  }, [dialogHeader?.onBack, navStack, dismissOnBackdrop, overlayLayer]);
+  useEffect(() => pushSurfaceBackHandler(handleSystemBack), [handleSystemBack]);
+
+  const closeSession = useCallback(() => {
+    // A menu-owned detached host may now contain any SDK route. Its explicit
+    // close action must dismiss that host as well as the tracked session.
+    navStack.requestDismiss();
+    closeAllRouteSurfaces();
+  }, [navStack, closeAllRouteSurfaces]);
+
   const screenProps = useMemo<BaseScreenProps>(() => {
     const { initialStep: _omitInitialStep, ...rest } = top.props;
     return {
@@ -252,8 +260,8 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
       currentScreen: top.route,
       // DEPTH — `onClose`/`onAuthenticated` unwind the whole session (matching the
       // old `closeBottomSheet`); `dismiss`/`present` are the per-surface controls.
-      onClose: closeAllRouteSurfaces,
-      onAuthenticated: closeAllRouteSurfaces,
+      onClose: closeSession,
+      onAuthenticated: closeSession,
       dismiss,
       present,
       // Theme + the route's own props.
@@ -261,6 +269,7 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
       ...rest,
     };
   }, [
+    closeSession,
     navigate,
     goBack,
     replace,
@@ -280,9 +289,7 @@ function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceS
     <SurfaceHeaderContext.Provider value={headerContext}>
       <SurfaceFrameWidthContext.Provider value={setScreenWidth}>
         <ScreenErrorBoundary screenName={top.route}>
-          <Suspense fallback={<ScreenPending />}>
-            <ScreenComponent {...screenProps} />
-          </Suspense>
+          <ScreenComponent {...screenProps} />
         </ScreenErrorBoundary>
       </SurfaceFrameWidthContext.Provider>
     </SurfaceHeaderContext.Provider>

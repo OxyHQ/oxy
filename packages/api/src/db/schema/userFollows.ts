@@ -94,11 +94,9 @@ export const userFollows = pgTable(
     // leading prefix — the FOLLOWING-direction access path.
     unique('user_follows_follower_id_followed_id_key').on(t.followerId, t.followedId),
 
-    // The FOLLOWERS direction, ordered. Added after a measurement (49,991 keys
-    // examined collapsing to 5,000 on a 5,000-follower target):
-    // `getUserFollowers` pages this exact shape, and `id` mirrors the
-    // `(createdAt, _id)` tiebreak the sort uses so pagination stays
-    // deterministic.
+    // Bounds follower reads to the target account. The chronological suffix
+    // is retained for internal queries; public lists now sort the eligible
+    // set by hashed account identity and cannot use this suffix for ordering.
     index('user_follows_followed_id_created_at_id_idx').on(t.followedId, t.createdAt.desc(), t.id),
 
     // `(created_at desc, id)`. It serves the bounded recent-edge window
@@ -106,13 +104,9 @@ export const userFollows = pgTable(
     // (`routes/profiles.ts:931-938`).
     index('user_follows_created_at_id_idx').on(t.createdAt.desc(), t.id),
 
-    // NOT added: `(follower_id, created_at desc, id)` for the FOLLOWING list's
-    // ordering. The unique above already bounds that read to one account's own
-    // fan-out, so the sort is over a small set rather than the table. If a
-    // profile with an enormous following list makes it measurable, that index
-    // is the fix — against a measurement, not by symmetry with the followers
-    // direction, whose index was added because without it the scan was O(all
-    // follows).
+    // The unique follower/followed key already bounds following reads to one
+    // account. Public identity-hash ordering requires a sort in both directions;
+    // a chronological index must never restore public relationship chronology.
 
     // `followUser` rejects a self-follow in application code
     // (`user.service.ts`). A CHECK makes it unrepresentable, which is

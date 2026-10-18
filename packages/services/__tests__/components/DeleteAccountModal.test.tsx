@@ -33,10 +33,10 @@ const confirmAndDelete = async () => {
 describe('DeleteAccountModal', () => {
   it('renders no error notice before anything failed', () => {
     renderModal(jest.fn());
-    expect(screen.queryByRole('note')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it("shows a failed deletion's message in Bloom's error Admonition and stays open", async () => {
+  it("shows a failed deletion's message in the Bloom field and stays open", async () => {
     const onDelete = jest.fn(async () => {
       throw new Error('Signature verification failed');
     });
@@ -45,8 +45,7 @@ describe('DeleteAccountModal', () => {
     await confirmAndDelete();
 
     expect(onDelete).toHaveBeenCalledWith('nate');
-    const notice = screen.getByRole('note');
-    expect(notice.getAttribute('data-admonition-type')).toBe('error');
+    const notice = screen.getByRole('alert');
     expect(notice.textContent).toBe('Signature verification failed');
     expect(surface.dismiss).not.toHaveBeenCalled();
   });
@@ -56,7 +55,7 @@ describe('DeleteAccountModal', () => {
 
     await confirmAndDelete();
 
-    expect(screen.queryByRole('note')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(surface.dismiss).toHaveBeenCalledWith(true);
   });
 });

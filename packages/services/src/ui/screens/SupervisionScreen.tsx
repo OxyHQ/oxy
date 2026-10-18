@@ -4,7 +4,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import type { PurchaseApproval, SafetyPerson, ReauthProof } from '@oxy.so/contracts';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useSupervision, supervisionQueryKeys } from '../hooks/queries/useSupervision';

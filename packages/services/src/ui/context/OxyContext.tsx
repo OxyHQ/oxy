@@ -9,16 +9,7 @@ import {
   setIsolatedOAuthSession,
 } from './isolatedOAuthSession';
 import type React from 'react';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
@@ -118,9 +109,6 @@ import {
 } from '../session';
 import type { OxyContextState, OxyRuntimeProviderProps, CommitInput } from './oxyContextTypes';
 import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
-// `useFollow` imports this module back, so the binding must only be READ inside
-// the provider body — at render time, once every module has evaluated. It is
-// never dereferenced at module scope here.
 import { useFollow } from '../hooks/useFollow';
 import { commitDeviceSetAndResolve } from './commitSessionFlow';
 import { clearSignInFlows } from '../components/signIn/signInFlowStore';
@@ -129,26 +117,19 @@ import { AppAssertionProvider } from '../appAssertion/AppAssertionContext';
 
 export type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
-const OxyRuntimeContext = createContext<OxyContextState | null>(null);
+import {
+  OxyRuntimeContext,
+  OxyAuthActionsContext,
+  type OxyAuthActionsContextState,
+} from './oxyRuntimeContext';
+export {
+  useOxyAuthActions,
+  useOxy,
+  useOptionalOxy,
+  OxyProviderMissingError,
+} from './oxyRuntimeContext';
 
 const subscribeNever = (): (() => void) => () => undefined;
-
-type OxyAuthActionsContextState = Pick<
-  OxyContextState,
-  | 'signIn'
-  | 'logout'
-  | 'logoutAll'
-  | 'refreshSessions'
-  | 'oxyServices'
-  | 'switchToAccount'
-  | 'hasIdentity'
-  | 'getPublicKey'
-  | 'showBottomSheet'
-  | 'openAvatarPicker'
-  | 'openAccountDialog'
-> & { ensureDeviceSessionLane: () => void | Promise<void> };
-
-const OxyAuthActionsContext = createContext<OxyAuthActionsContextState | null>(null);
 
 /**
  * The SDK's internal runtime provider — the session/account state machine that
@@ -437,6 +418,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     languageName: currentLanguageName,
     nativeLanguageName: currentNativeLanguageName,
     setLanguage,
+    setLanguages,
   } = useLanguageManagement({
     storage,
     languageKey: storageKeys.language,
@@ -1627,6 +1609,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       removeSession: logout,
       refreshSessions: refreshSessionsForContext,
       setLanguage,
+      setLanguages,
       getDeviceSessions,
       logoutAllDeviceSessions,
       updateDeviceName,
@@ -1682,6 +1665,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       switchSessionForContext,
       refreshSessionsForContext,
       setLanguage,
+      setLanguages,
       getDeviceSessions,
       logoutAllDeviceSessions,
       updateDeviceName,
@@ -1758,52 +1742,4 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       </OxyAuthActionsContext.Provider>
     </OxyRuntimeHandleProvider>
   );
-};
-
-const PROVIDER_MISSING_ERROR_MESSAGE =
-  'useOxy() was called outside <OxyProvider>. Mount <OxyProvider clientId="…"> above this component, ' +
-  'or use useOptionalOxy() if this component legitimately renders both inside and outside the provider.';
-
-export class OxyProviderMissingError extends Error {
-  readonly code = 'oxy_provider_missing';
-
-  constructor() {
-    super(PROVIDER_MISSING_ERROR_MESSAGE);
-    this.name = 'OxyProviderMissingError';
-  }
-}
-
-/**
- * The base runtime hook. THROWS when no `<OxyProvider>` is mounted.
- *
- * It used to return a fabricated forever-loading runtime — `isLoading: true`,
- * `isPrivateApiPending: true`, every method a rejecting no-op — which turned a
- * missing provider into a UI that spins forever with nothing in the console.
- * Failing here names the mistake at the exact component that made it (ADR 0004).
- *
- * A component that legitimately renders both inside and outside the provider
- * uses {@link useOptionalOxy} instead.
- */
-export const useOxy = (): OxyContextState => {
-  const context = useContext(OxyRuntimeContext);
-  if (!context) {
-    throw new OxyProviderMissingError();
-  }
-  return context;
-};
-
-/**
- * `useOxy()` for the rare component that renders both inside and outside the
- * provider — returns `null` instead of throwing. Callers must handle `null`;
- * there is no fabricated runtime to fall back on.
- */
-export const useOptionalOxy = (): OxyContextState | null => useContext(OxyRuntimeContext);
-
-/** Stable auth commands for selector-based hooks; never carries mutable state. */
-export const useOxyAuthActions = (): OxyAuthActionsContextState => {
-  const actions = useContext(OxyAuthActionsContext);
-  if (!actions) {
-    throw new OxyProviderMissingError();
-  }
-  return actions;
 };

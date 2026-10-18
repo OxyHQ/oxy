@@ -27,7 +27,7 @@ import {
   SIGN_IN_ERROR_CODES,
   normalizeEmailSignInCode,
 } from '@oxy.so/contracts/client';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import type { Translate } from '../authChooser/types';
 import { SubtleLink } from '../authChooser/primitives';

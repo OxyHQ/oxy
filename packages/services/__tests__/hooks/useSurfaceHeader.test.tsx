@@ -62,6 +62,26 @@ describe('useSurfaceHeader', () => {
     expect(setContent).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a stable back affordance while invoking the latest committed callback', () => {
+    const { Wrapper, setContent } = makeWrapper();
+    const first = jest.fn();
+    const latest = jest.fn();
+    const { rerender } = renderHook(
+      ({ onBack }: { onBack?: () => void }) => useSurfaceHeader({ title: 'Account', onBack }),
+      { wrapper: Wrapper, initialProps: { onBack: first } },
+    );
+    const published = setContent.mock.calls[0][0].onBack;
+    rerender({ onBack: latest });
+    expect(setContent).toHaveBeenCalledTimes(1);
+    published();
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledTimes(1);
+    rerender({ onBack: undefined });
+    expect(setContent.mock.lastCall?.[0].onBack).toBeUndefined();
+    published();
+    expect(latest).toHaveBeenCalledTimes(1);
+  });
+
   it('clears the host contribution on unmount', () => {
     const { Wrapper, setContent } = makeWrapper();
 
@@ -77,4 +97,37 @@ describe('useSurfaceHeader', () => {
 
     expect(setContent).toHaveBeenCalledWith(null);
   });
+});
+
+test('stable header controls dispatch to the latest form, selection and search callbacks', () => {
+  const { Wrapper, setContent } = makeWrapper();
+  const first = jest.fn();
+  const latest = jest.fn();
+  const icon = () => null;
+  const { rerender, unmount } = renderHook(
+    ({ callback }) =>
+      useSurfaceHeader({
+        title: 'Edit',
+        primaryAction: { label: 'Save', onPress: callback },
+        actions: [{ icon, accessibilityLabel: 'Delete', onPress: callback }],
+        search: { value: '', onValueChange: callback, onSubmit: callback },
+        segments: { items: [{ key: 'all', label: 'All' }], value: 'all', onChange: callback },
+      }),
+    { wrapper: Wrapper, initialProps: { callback: first } },
+  );
+  const header = setContent.mock.calls[0][0] as SurfaceHeaderContent;
+  rerender({ callback: latest });
+  expect(setContent).toHaveBeenCalledTimes(1);
+  header.primaryAction?.onPress();
+  header.actions?.[0].onPress();
+  header.search?.onValueChange('query');
+  header.search?.onSubmit?.();
+  header.segments?.onChange('all');
+  expect(first).not.toHaveBeenCalled();
+  expect(latest).toHaveBeenCalledTimes(5);
+  expect(latest).toHaveBeenCalledWith('query');
+  expect(latest).toHaveBeenCalledWith('all');
+  unmount();
+  header.primaryAction?.onPress();
+  expect(latest).toHaveBeenCalledTimes(5);
 });

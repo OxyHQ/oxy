@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 export const supervisionQueryKeys = {
   all: ['oxy', 'safety', 'supervision'] as const,
   account: (id: string, sessionId: string) =>

@@ -3,7 +3,7 @@ import { storageCapacity, reservedStorageBytes } from '../services/storageQuota.
 import type { Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { fileVariants, files } from '../db/schema';
+import { fileVariants, files, messages } from '../db/schema';
 import { resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import type { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
@@ -104,11 +104,23 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       breakdown[row.category] = { bytes: Number(row.bytes ?? 0), count: Number(row.count ?? 0) };
     }
 
+    // Use the same message-size accounting as the mail quota, including all
+    // folders. Attachments are already included in the stored message size.
+    const [mailUsage] = await getDb()
+      .select({
+        bytes: sql<string>`coalesce(sum(${messages.size}), 0)`,
+        count: sql<string>`count(*)`,
+      })
+      .from(messages)
+      .where(eq(messages.userId, userId));
+    const mail = { bytes: Number(mailUsage?.bytes ?? 0), count: Number(mailUsage?.count ?? 0) };
+
     const totalUsedBytes =
       breakdown.documents.bytes +
       breakdown.photosVideos.bytes +
       breakdown.recordings.bytes +
-      breakdown.other.bytes;
+      breakdown.other.bytes +
+      mail.bytes;
 
     return res.json({
       plan: subscriptionPlan,
@@ -116,10 +128,10 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       totalLimitBytes,
       quotaEnforcement: catalogue.storageAdapter ? 'metadata_admission' : 'unconfigured',
       reservedBytes,
-      // Keep names close to UI categories; mail/family not implemented yet.
+      // Family usage remains separate until shared quota accounting is available.
       categories: {
         documents: breakdown.documents,
-        mail: { bytes: 0, count: 0 },
+        mail,
         photosVideos: breakdown.photosVideos,
         recordings: breakdown.recordings,
         family: { bytes: 0, count: 0 },

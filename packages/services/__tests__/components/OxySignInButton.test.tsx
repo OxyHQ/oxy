@@ -56,7 +56,7 @@ const mockRuntime = () => ({
   currentLanguage: 'en-US',
 });
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => mockRuntime(),
   // The button's label goes through `useI18n()`, the one hook that reads the

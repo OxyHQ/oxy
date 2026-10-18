@@ -12,7 +12,7 @@ import type { FileApplicationAccess } from '@oxy.so/core';
 const listAppAccess = jest.fn();
 const revokeAppAccess = jest.fn();
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     oxyServices: { assets: { listAppAccess, revokeAppAccess } },
     activeSessionId: 'session-1',

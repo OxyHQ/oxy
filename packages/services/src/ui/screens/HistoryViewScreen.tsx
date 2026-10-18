@@ -2,14 +2,13 @@ import React, { useState, useCallback } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { toast } from '@oxy.so/bloom/toast';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { createPlatformStorage } from '../utils/storageHelpers';
 
@@ -114,8 +113,8 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
   return (
     <>
       <View className="px-screen-margin pb-space-24">
-        <SettingsListGroup title={t('history.actions') || 'Actions'}>
-          <SettingsListItem
+        <GroupedSection title={t('history.actions') || 'Actions'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.warning} />}
             title={t('history.deleteLast15Minutes.title') || 'Delete Last 15 Minutes'}
             description={
@@ -124,28 +123,22 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
             onPress={handleDeleteLast15Minutes}
             disabled={isDeleting || history.length === 0}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="delete-outline" color={bloomTheme.colors.error} />}
             title={t('history.clearAll.title') || 'Clear All History'}
             description={t('history.clearAll.subtitle') || 'Remove all history entries'}
             onPress={handleClearAll}
             disabled={isDeleting || history.length === 0}
           />
-        </SettingsListGroup>
-        <SettingsListGroup title={t('history.recent') || 'Recent History'}>
-          {isLoading ? (
-            <Loading
-              size="lg"
-              color={bloomTheme.colors.text}
-              text={t('history.loading') || 'Loading history...'}
-            />
-          ) : history.length === 0 ? (
+        </GroupedSection>
+        <GroupedSection title={t('history.recent') || 'Recent History'}>
+          {isLoading ? null : history.length === 0 ? (
             <Text className="text-text-secondary text-center p-space-40">
               {t('history.empty') || 'No history yet'}
             </Text>
           ) : (
             history.map((item) => (
-              <SettingsListItem
+              <GroupedSectionItem
                 key={item.id}
                 icon={
                   <SettingsIcon
@@ -160,7 +153,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
               />
             ))
           )}
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
     </>
   );

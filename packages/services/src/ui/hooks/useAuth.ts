@@ -27,7 +27,7 @@
  */
 
 import { useCallback } from 'react';
-import { useOxyAuthActions } from '../context/OxyContext';
+import { useOxyAuthActions } from '../context/oxyRuntimeContext';
 import type { User } from '@oxy.so/core';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { useOxyRuntime, useRuntimeSelector, type OxyRuntimeSnapshot } from '../runtime';

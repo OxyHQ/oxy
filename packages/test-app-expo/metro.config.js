@@ -14,6 +14,7 @@ const config = createOxyMetroConfig(__dirname, {
 
 const servicesRoot = path.resolve(__dirname, '..', 'services');
 const coreRoot = path.resolve(__dirname, '..', 'core');
+const servicesExports = require('../services/package.json').exports;
 
 // Resolve the local SDK packages to their TypeScript source so edits hot-reload.
 config.resolver.extraNodeModules = {
@@ -31,6 +32,19 @@ config.resolver.extraNodeModules = {
 // to this package's local install.
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Every importer (including Alia under Bun's cache) must share the workspace
+  // provider context. Web exports would otherwise send ui/client to stale lib/.
+  if (moduleName === '@oxy.so/services' || moduleName.startsWith('@oxy.so/services/')) {
+    const subpath =
+      moduleName === '@oxy.so/services' ? '.' : `./${moduleName.slice('@oxy.so/services/'.length)}`;
+    const source = servicesExports[subpath]?.['react-native'];
+    if (typeof source === 'string' && source.startsWith('./src/')) {
+      const target = path.resolve(servicesRoot, source);
+      return originalResolveRequest
+        ? originalResolveRequest(context, target, platform)
+        : context.resolveRequest(context, target, platform);
+    }
+  }
   if (moduleName === '@oxy.so/bloom' || moduleName.startsWith('@oxy.so/bloom/')) {
     const rewrittenContext = {
       ...context,

@@ -28,6 +28,11 @@ import { setPlatformOS, type PlatformOS } from '@oxy.so/core';
 import { Platform } from 'react-native';
 setPlatformOS(Platform.OS as PlatformOS);
 
+import { registerScreens } from './ui/navigation/routes';
+import { screenComponents } from './ui/navigation/screenComponents';
+
+registerScreens(screenComponents);
+
 // ---------------------------------------------------------------------------
 // Provider + auth context
 // ---------------------------------------------------------------------------
@@ -375,7 +380,10 @@ export { LogoText } from './ui/components/logo/LogoText';
 // `useOxy().openAccountDialog`.
 export { default as ProfileButton } from './ui/components/ProfileButton';
 export type { ProfileButtonProps } from './ui/components/ProfileButton';
-export type { AccountDialogMenuItem } from './ui/navigation/accountDialogManager';
+export type {
+  AccountDialogMenuItem,
+  AccountDialogMenuSection,
+} from './ui/navigation/accountDialogManager';
 
 // THE sign-in screens. The account dialog renders them, and so does every page
 // of the auth.oxy.so IdP: one implementation of what a person sees when they

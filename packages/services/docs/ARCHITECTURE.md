@@ -137,3 +137,80 @@ The string catalog lives in `@oxy.so/core` (`packages/core/src/i18n/` — `trans
 ## Non-auth UI
 
 Bottom sheets remain for **non-auth** screens (`showBottomSheet` / `closeBottomSheet`, 29+ routes: ManageAccount, FileManagement, payments, Trust, etc.). Auth surfaces do not route through bottom sheets — the account dialog is a Bloom `<Dialog>`. Query hooks, mutation hooks, offline persistence, and the file/photo pickers are documented in [API_REFERENCE.md](./API_REFERENCE.md) and [EXAMPLES.md](./EXAMPLES.md).
+
+### App actions in the account menu
+
+Account-menu action blocks use Bloom `GroupedSection` / `GroupedSectionItem` from
+`@oxy.so/bloom/grouped-section`, including the expandable account selector. `GroupedSectionCollapse` and `UsageCard`
+share Bloom’s measured `Collapsible` motion; the SDK only controls `open`.
+Their rounded shape and small row gaps are Bloom defaults; the SDK owns content
+and actions. Bloom `GroupedSectionIcon` owns the filled icon surface, darker glyph,
+and sizing for menu glyphs and account settings. Custom icon elements remain
+untouched; apps can use the same Bloom component when supplying their own glyphs.
+Storage uses Bloom `UsageCard` from `@oxy.so/bloom/usage-card`: real byte totals,
+adaptive byte units, an expandable category/free-space breakdown, and action
+buttons in its footer, shown only above 85% capacity. The independent plan row
+sits below storage, uses the reported plan and opens account billing even when storage usage is low. Categories come directly from `assets.usage()`; zero
+categories are omitted, unattributed bytes remain Other, and missing or
+inconsistent breakdowns fall back to the authoritative used total. Missing quotas show the unavailable message without a fabricated meter.
+The active account card includes Manage account and expands the device account selector.
+Data, preferences and help navigate within the same dialog history. Screen modules are registered synchronously, with no Suspense or placeholder
+step during navigation. Screens render their controls immediately and refresh
+account-scoped cached data in place. The Oxy management,
+quota and legal actions stay SDK-owned. Apps may add their own cards through
+`ProfileButton.menuSections`; existing `menuItems` still renders a single app card.
+Labels, descriptions and badges are already localized by the host.
+
+```tsx
+import { ProfileButton, type AccountDialogMenuSection } from '@oxy.so/services';
+
+const sections: AccountDialogMenuSection[] = [
+  {
+    key: 'app',
+    items: [
+      { key: 'profile', label: 'Your profile', icon: 'account-outline', onPress: openProfile },
+      { key: 'settings', label: 'App settings', icon: 'cog-outline', onPress: openSettings },
+      { key: 'updates', label: 'Updates', badge: 'New', onPress: openUpdates },
+    ],
+  },
+];
+
+<ProfileButton menuSections={sections} />;
+```
+
+Each section has a stable `key`, optional `title`, and `items`. Items accept a
+stable `key`, `label`, optional `description`, `badge`, `disabled`, and either an
+SDK icon name or a React icon element. By default the dialog closes before
+`onPress` runs. Set `keepOpen: true` for an action that updates content in place.
+Empty sections are omitted. Group order follows the array; flat `menuItems`, when
+provided alongside sections, appear first. These additions do not change account
+activation, principal grouping or sign-out scope.
+
+### Embedded Alia support
+
+`OxyProvider.onAskAlia` connects Help & Support to the host app's existing Alia
+sheet or route. When configured, the first help item is **Ask Alia for help**;
+the SDK invokes the callback while keeping its account dialog mounted. Bloom
+stacks the Alia sheet above it; dismissing Alia returns to Help & Support. The host owns
+its Alia instance and sign-in handling (`useAuth().signIn()`), as in
+`packages/test-app-expo/components/AliaSupport.tsx`. No user profile, bearer,
+or account secrets are passed as assistant context. Apps without Alia retain
+the email support action. Services does not import `@alia.onl/sdk` into its
+root barrel or impose its native peers on consumers.
+
+Help & Support accepts `OxyProvider.documentationUrl` (default
+`https://oxy.so/developers/docs/`) and `aliaAvatar` (the host's official
+`AliaAvatar` node). For example Mention uses `/developers/docs/mention/`;
+Alia remains an optional host integration.
+
+`OxyOne` is an in-dialog route using Bloom's neutral `SubscriptionPlans`.
+Its display catalogue is shared by `@oxy.so/contracts` (`getOnePlans`,
+`onePlanQuote`), sourced from website `/one`. The current screen is a preview;
+prices and names never grant subscription access or enable payments.
+
+Oxy One's decorative video is an optional entry:
+`OxyOneVideo` from `@oxy.so/services/ui/one-video`, supplied through
+`OxyProvider.oxyOneArtwork`. It requires `expo-video`; the root SDK never imports
+that optional peer and otherwise renders the shipped still artwork. The provided
+video is muted, loops inline and respects reduced motion/background app state.
+Bloom owns the `heroBackground` slot and its fade into the actual surface color.

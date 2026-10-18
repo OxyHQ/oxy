@@ -3,7 +3,8 @@ import { dirname, join, resolve } from 'node:path';
 
 const SRC = resolve(__dirname, '../../src');
 const SCREEN_ROOT = join(SRC, 'ui/screens');
-const ENTRIES = [join(SRC, 'index.ts'), join(SRC, 'ui/index.ts'), join(SRC, 'ui/client.ts')];
+const FULL_ENTRIES = [join(SRC, 'index.ts'), join(SRC, 'ui/index.ts')];
+const ENTRIES = [join(SRC, 'ui/client.ts')];
 const EXTENSIONS = ['.ts', '.tsx', '.native.ts', '.native.tsx', '.web.ts', '.web.tsx'];
 
 function resolveRelative(fromFile: string, specifier: string): string | null {
@@ -49,6 +50,15 @@ describe('screen entry-point isolation', () => {
       (file) => file.startsWith(`${SCREEN_ROOT}/`) && !file.includes('/navigation/'),
     );
     expect(screens).toEqual([]);
+  });
+
+  it.each(FULL_ENTRIES)('%s registers the real screen components before navigation', (entry) => {
+    const source = readFileSync(entry, 'utf8');
+    expect(source).toContain('registerScreens(screenComponents)');
+    expect(staticallyReachable(entry).has(join(SCREEN_ROOT, 'ManageAccountScreen.tsx'))).toBe(true);
+    expect(staticallyReachable(entry).has(join(SCREEN_ROOT, 'PreferencesScreen.tsx'))).toBe(true);
+    const host = readFileSync(join(SRC, 'ui/components/SurfaceScreen.tsx'), 'utf8');
+    expect(host).not.toMatch(/Suspense|ScreenPending|ScreenPlaceholder/);
   });
 
   it('keeps screens explicitly available from their own subpath', () => {

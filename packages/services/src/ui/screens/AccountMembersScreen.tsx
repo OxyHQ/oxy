@@ -5,7 +5,7 @@ import {
 } from '@oxy.so/bloom/segmented-control';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
@@ -18,7 +18,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import type { AccountMember, AccountRole } from '@oxy.so/core';
 import { accountRoleLabel, getNormalizedUserHandle } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 
@@ -44,7 +44,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     title: t('accounts.members.title') || 'Members',
     subtitle: t('accounts.members.subtitle') || 'People with access to this account.',
   });
-  const { oxyServices, canUsePrivateApi } = useOxy();
+  const { oxyServices, canUsePrivateApi, accounts } = useOxy();
   const queryClient = useQueryClient();
 
   const id = typeof accountId === 'string' ? accountId : '';
@@ -56,6 +56,8 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const accountQuery = useQuery({
     queryKey: ['accounts', 'detail', id],
+    initialData: accounts?.find((account) => account.accountId === id),
+    initialDataUpdatedAt: 0,
     queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });
@@ -388,9 +390,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       {canRead ? (
         <View className="gap-space-8">
           {membersQuery.isLoading ? (
-            <View className="items-center py-space-24">
-              <ActivityIndicator color={colors.primary} />
-            </View>
+            <View className="items-center py-space-24">{null}</View>
           ) : members.length === 0 ? (
             <Text className="text-body font-body text-text-secondary text-center py-space-24">
               {t('accounts.members.empty') || 'No members yet.'}

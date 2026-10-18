@@ -10,7 +10,7 @@ const mockSetUser = jest.fn();
 jest.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (_client: unknown, _session: unknown, fn: () => unknown) => fn(),
 }));
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     oxyServices: { users: { updateMe: mockUpdate } },
     user: mockUser,

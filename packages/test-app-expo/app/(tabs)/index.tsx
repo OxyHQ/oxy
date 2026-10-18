@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react';
 import { Alert, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -17,7 +16,6 @@ import { Colors } from '@/constants/theme';
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  const router = useRouter();
 
   const {
     isAuthenticated,
@@ -155,23 +153,6 @@ export default function HomeScreen() {
           </Pressable>
         </ThemedView>
 
-        {/* Profile preview cards showcase — available regardless of auth state */}
-        <Section title="Profile preview cards">
-          <GroupedSection
-            items={[
-              {
-                id: 'profile-cards',
-                icon: 'id-card-outline',
-                iconColor: colors.iconData,
-                title: 'Profile preview cards',
-                subtitle: 'StatBar, heatmap & more',
-                onPress: () => router.push('/profile-cards'),
-                showChevron: true,
-              },
-            ]}
-          />
-        </Section>
-
         {/* Authentication Screens — available regardless of auth state for testing */}
         <Section title="Authentication">
           <GroupedSection
@@ -256,15 +237,6 @@ export default function HomeScreen() {
                     showChevron: true,
                   },
                   {
-                    id: 'user-links',
-                    icon: 'link',
-                    iconColor: colors.iconSharing,
-                    title: 'Links',
-                    subtitle: 'User links',
-                    onPress: () => handleOpenScreen('UserLinks'),
-                    showChevron: true,
-                  },
-                  {
                     id: 'privacy-settings',
                     icon: 'lock-closed',
                     iconColor: colors.iconSecurity,
@@ -297,15 +269,6 @@ export default function HomeScreen() {
                     title: 'History',
                     subtitle: 'View & manage history',
                     onPress: () => handleOpenScreen('HistoryView'),
-                    showChevron: true,
-                  },
-                  {
-                    id: 'saves-collections',
-                    icon: 'bookmark',
-                    iconColor: colors.iconStorage,
-                    title: 'Saves',
-                    subtitle: 'Saved items & collections',
-                    onPress: () => handleOpenScreen('SavesCollections'),
                     showChevron: true,
                   },
                   {
@@ -397,6 +360,15 @@ export default function HomeScreen() {
               <GroupedSection
                 items={[
                   {
+                    id: 'oxy-one',
+                    icon: 'star-outline',
+                    iconColor: colors.iconPayments,
+                    title: 'Oxy One',
+                    subtitle: 'Explore subscription plans',
+                    onPress: () => handleOpenScreen('OxyOne'),
+                    showChevron: true,
+                  },
+                  {
                     id: 'payment-gateway',
                     icon: 'card',
                     iconColor: colors.iconPayments,
@@ -414,15 +386,6 @@ export default function HomeScreen() {
                     onPress: handleOpenPaymentGatewayWithProducts,
                     showChevron: true,
                   },
-                  {
-                    id: 'premium-subscription',
-                    icon: 'star',
-                    iconColor: colors.iconPayments,
-                    title: 'Premium',
-                    subtitle: 'Premium subscription',
-                    onPress: () => handleOpenScreen('PremiumSubscription'),
-                    showChevron: true,
-                  },
                 ]}
               />
             </Section>
@@ -438,15 +401,6 @@ export default function HomeScreen() {
                     title: 'Help',
                     subtitle: 'Support & resources',
                     onPress: () => handleOpenScreen('HelpSupport'),
-                    showChevron: true,
-                  },
-                  {
-                    id: 'feedback',
-                    icon: 'chatbubble-ellipses-outline',
-                    iconColor: colors.iconPersonalInfo,
-                    title: 'Feedback',
-                    subtitle: 'Send feedback',
-                    onPress: () => handleOpenScreen('Feedback'),
                     showChevron: true,
                   },
                   {

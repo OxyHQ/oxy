@@ -2,13 +2,13 @@ import type React from 'react';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
 import { SettingsIcon } from '../components/SettingsIcon';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import type { ProfileFieldType } from './EditProfileFieldScreen';
@@ -67,75 +67,78 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
       <ProfileSummaryCard
         displayName={displayName}
         avatarUri={avatarUri}
+        onAvatarPress={openAvatarPicker}
+        showCameraBadge
+        avatarAccessibilityLabel={t('editProfile.changeAvatar')}
         lines={[user?.username ? `@${user.username}` : null]}
       />
 
       {/* Profile picture */}
-      <SettingsListGroup title={t('editProfile.sections.profilePicture') || 'Profile Picture'}>
-        <SettingsListItem
+      <GroupedSection title={t('editProfile.sections.profilePicture') || 'Profile Picture'}>
+        <GroupedSectionItem
           icon={<SettingsIcon name="camera" color={bloomTheme.colors.primary} />}
           title={t('editProfile.changeAvatar') || 'Change avatar'}
           description={t('editProfile.items.avatar.subtitle') || 'Update your profile photo'}
           onPress={openAvatarPicker}
           rightElement={<Avatar source={avatarUri} name={displayName} size={32} />}
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Basic information */}
-      <SettingsListGroup title={t('editProfile.sections.basicInfo') || 'Basic Information'}>
-        <SettingsListItem
+      <GroupedSection title={t('editProfile.sections.basicInfo') || 'Basic Information'}>
+        <GroupedSectionItem
           icon={<SettingsIcon name="account" color={bloomTheme.colors.primary} />}
           title={t('editProfile.items.displayName.title') || 'Display Name'}
           description={displayName || notSet}
           onPress={() => goToField('displayName')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="at" color={bloomTheme.colors.info} />}
           title={t('editProfile.items.username.title') || 'Username'}
           description={user?.username ? `@${user.username}` : notSet}
           onPress={() => goToField('username')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="phone" color={bloomTheme.colors.warning} />}
           title={t('editProfile.items.phone.title') || 'Phone Number'}
           description={user?.phone || notSet}
           onPress={() => goToField('phone')}
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* About you */}
-      <SettingsListGroup title={t('editProfile.sections.about') || 'About You'}>
-        <SettingsListItem
+      <GroupedSection title={t('editProfile.sections.about') || 'About You'}>
+        <GroupedSectionItem
           icon={<SettingsIcon name="text" color={bloomTheme.colors.primary} />}
           title={t('editProfile.items.bio.title') || 'Bio'}
           description={user?.bio || notSet}
           onPress={() => goToField('bio')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="map-marker" color={bloomTheme.colors.info} />}
           title={t('editProfile.items.address.title') || 'Address'}
           description={user?.address || notSet}
           onPress={() => goToField('address')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="cake-variant" color={bloomTheme.colors.warning} />}
           title={t('editProfile.items.birthday.title') || 'Birthday'}
-          description={user?.birthday || notSet}
+          description={user?.dateOfBirth || notSet}
           onPress={() => goToField('birthday')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="link-variant" color={bloomTheme.colors.success} />}
           title={t('editProfile.items.links.title') || 'Links'}
           description={linkPreview}
           onPress={() => goToField('links')}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="map-marker-multiple" color={bloomTheme.colors.primary} />}
           title={t('editProfile.items.locations.title') || 'Locations'}
           description={locationPreview}
           onPress={() => goToField('locations')}
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </View>
   );
 };

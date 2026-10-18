@@ -17,7 +17,7 @@ import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
 import { SIGN_IN_ERROR_CODES, emailAddressCheck, checkContract } from '@oxy.so/contracts/client';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';

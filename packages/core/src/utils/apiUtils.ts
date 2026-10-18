@@ -68,14 +68,11 @@ export interface PaginationParams {
   offset?: number;
 }
 
-/**
- * Ordering for the follow-graph list endpoints (`/users/:id/followers`,
- * `/users/:id/following`, `/users/:id/mutuals`).
- *
- * - `recent` — newest follow edge first (the server default).
- * - `oldest` — oldest follow edge first.
+/** Public graph lists use stable, non-chronological ordering.
+ * @deprecated The server owns ordering. Legacy `recent` / `oldest` values
+ * remain accepted but never expose the time a relationship was created.
  */
-export type FollowGraphSort = 'recent' | 'oldest';
+export type FollowGraphSort = 'stable' | 'recent' | 'oldest';
 
 /**
  * Pagination plus the follow-graph ordering.
@@ -84,6 +81,7 @@ export type FollowGraphSort = 'recent' | 'oldest';
  * that have no `sort` at all.
  */
 export interface FollowGraphParams extends PaginationParams {
+  /** @deprecated Public follow lists always use stable non-chronological ordering. */
   sort?: FollowGraphSort;
 }
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useRef } from 'react';
+import { createContext, useCallback, useContext, useLayoutEffect, useRef } from 'react';
 import type { DialogHeaderConfig } from '@oxy.so/bloom/dialog';
 
 /**
@@ -24,6 +24,7 @@ export type SurfaceHeaderContent = Pick<
   | 'titleContent'
   | 'subtitle'
   | 'largeTitle'
+  | 'titleLayout'
   | 'left'
   | 'right'
   | 'onBack'
@@ -139,6 +140,7 @@ function surfaceHeaderContentEqual(
     a.titleContent === b.titleContent &&
     a.subtitle === b.subtitle &&
     a.largeTitle === b.largeTitle &&
+    a.titleLayout === b.titleLayout &&
     a.left === b.left &&
     a.right === b.right &&
     !!a.onBack === !!b.onBack &&
@@ -165,6 +167,11 @@ function surfaceHeaderContentEqual(
  * the object for us (i.e. anything not compiled by the React Compiler).
  */
 export function useSurfaceHeader(content: SurfaceHeaderContent | null | undefined): void {
+  const liveContent = useRef(content);
+  useLayoutEffect(() => {
+    liveContent.current = content;
+  });
+  const onBack = useCallback(() => liveContent.current?.onBack?.(), []);
   const ctx = useContext(SurfaceHeaderContext);
   const set = ctx?.setContent;
   const setRef = useRef(set);
@@ -177,7 +184,47 @@ export function useSurfaceHeader(content: SurfaceHeaderContent | null | undefine
   useLayoutEffect(() => {
     const s = setRef.current;
     if (!s) return;
-    const next = content ?? null;
+    // Compare presentation values, but dispatch events to the latest committed
+    // screen state. Typing in a form must not leave Save bound to its old values.
+    const next: SurfaceHeaderContent | null = content
+      ? {
+          ...content,
+          ...(content.onBack ? { onBack } : {}),
+          ...(content.primaryAction
+            ? {
+                primaryAction: {
+                  ...content.primaryAction,
+                  onPress: () => liveContent.current?.primaryAction?.onPress(),
+                },
+              }
+            : {}),
+          ...(content.actions
+            ? {
+                actions: content.actions.map((action, index) => ({
+                  ...action,
+                  onPress: () => liveContent.current?.actions?.[index]?.onPress(),
+                })),
+              }
+            : {}),
+          ...(content.search
+            ? {
+                search: {
+                  ...content.search,
+                  onValueChange: (value) => liveContent.current?.search?.onValueChange(value),
+                  onSubmit: () => liveContent.current?.search?.onSubmit?.(),
+                },
+              }
+            : {}),
+          ...(content.segments
+            ? {
+                segments: {
+                  ...content.segments,
+                  onChange: (value) => liveContent.current?.segments?.onChange(value),
+                },
+              }
+            : {}),
+        }
+      : null;
     if (lastRef.current !== undefined && surfaceHeaderContentEqual(lastRef.current, next)) return;
     lastRef.current = next;
     s(next);
@@ -187,6 +234,7 @@ export function useSurfaceHeader(content: SurfaceHeaderContent | null | undefine
   useLayoutEffect(
     () => () => {
       lastRef.current = undefined;
+      liveContent.current = null;
       setRef.current?.(null);
     },
     [],

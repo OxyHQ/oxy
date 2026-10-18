@@ -39,7 +39,7 @@ let ctx = {
   user: { id: 'me' },
 };
 
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ctx,
 }));
 

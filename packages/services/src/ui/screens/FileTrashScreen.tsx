@@ -9,7 +9,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useQueryClient } from '@tanstack/react-query';
 import type { BaseScreenProps } from '../types/navigation';
 import Ionicons from '../icons/Ionicons';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { queryKeys } from '../hooks/queries/queryKeys';

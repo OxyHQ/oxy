@@ -1,6 +1,6 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import type { SecurityActivity, SecurityActivityResponse, SecurityEventType } from '@oxy.so/core';
 
 /**

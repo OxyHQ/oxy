@@ -64,7 +64,9 @@
     "tailwindcss": "4.3.3",
     "tailwindcss-animate": "^1.0.7",
     "whatwg-fetch": "^3.6.20",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "@alia.onl/sdk": "catalog:",
+    "expo-video": "catalog:"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
@@ -79,7 +81,8 @@
     "install": {
       "exclude": [
         "react-native-safe-area-context",
-        "react-native-svg"
+        "react-native-svg",
+        "expo-video"
       ]
     }
   }

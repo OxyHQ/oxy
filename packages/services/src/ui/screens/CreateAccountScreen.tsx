@@ -35,8 +35,8 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { useOxy } from '../context/OxyContext';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
@@ -405,20 +405,20 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   return (
     <View className="gap-space-16 px-screen-margin pt-space-16 pb-space-32">
       {user?.kind === 'personal' && !parentId ? (
-        <SettingsListGroup title={t('supervision.title')}>
-          <SettingsListItem
+        <GroupedSection title={t('supervision.title')}>
+          <GroupedSectionItem
             title={t('supervision.setupOwn')}
             description={t('supervision.setupOwnDescription')}
             onPress={() => navigate?.('Supervision')}
           />
-        </SettingsListGroup>
+        </GroupedSection>
       ) : null}
       {/* Account type — canonical grouped selection rows (checkmark on the chosen one) */}
-      <SettingsListGroup title={t('accounts.create.typeSection') || 'Account type'}>
+      <GroupedSection title={t('accounts.create.typeSection') || 'Account type'}>
         {KIND_OPTIONS.map((option) => {
           const selected = option.value === kind;
           return (
-            <SettingsListItem
+            <GroupedSectionItem
               key={option.value}
               icon={
                 <Ionicons
@@ -440,7 +440,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
             />
           );
         })}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {kind === 'organization' && !newOrganization ? (
         <OrganizationDirectorySearch
@@ -470,13 +470,13 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
           POSITION, so the primary is legible as "1" rather than being a rule the
           user has to be told. */}
           <View className="gap-space-4">
-            <SettingsListGroup title={t('accounts.create.accountCategory.label')}>
+            <GroupedSection title={t('accounts.create.accountCategory.label')}>
               {ACCOUNT_CATEGORY_OPTIONS.map((option) => {
                 const position = accountCategories.indexOf(option);
                 const selected = position >= 0;
                 const label = accountCategoryLabel(locale, option);
                 return (
-                  <SettingsListItem
+                  <GroupedSectionItem
                     key={option}
                     title={label}
                     disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
@@ -493,14 +493,14 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                   />
                 );
               })}
-            </SettingsListGroup>
+            </GroupedSection>
             <Text className="text-caption font-caption text-text-tertiary px-space-4">
               {t('accounts.create.accountCategory.hint', { max: MAX_ACCOUNT_CATEGORIES })}
             </Text>
           </View>
 
           {/* Details — a grouped section card hosting the form fields */}
-          <SettingsListGroup title={t('accounts.create.detailsSection') || 'Details'}>
+          <GroupedSection title={t('accounts.create.detailsSection') || 'Details'}>
             <View className="p-space-16 gap-space-16">
               {/* Username */}
               <View className="gap-space-8">
@@ -579,7 +579,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 </Text>
               </View>
             </View>
-          </SettingsListGroup>
+          </GroupedSection>
 
           {/* Create Button */}
           <Button

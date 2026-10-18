@@ -1,17 +1,16 @@
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useSettingToggles } from '../hooks/useSettingToggle';
-import { useOxy } from '../context/OxyContext';
-import { useCurrentUser } from '../hooks/queries/useAccountQueries';
-import type { User } from '@oxy.so/core';
+import { useUpdatePrivacySettings } from '../hooks/mutations/useAccountMutations';
+import { toast } from '@oxy.so/bloom/toast';
+import { useOxy } from '../context/oxyRuntimeContext';
+import { usePrivacySettings } from '../hooks/queries/useAccountQueries';
 
 interface SearchSettings {
   safeSearch: boolean;
@@ -22,70 +21,36 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
   // Search settings are persisted on the ACTIVE account's profile (the
   // org/project/bot when switched, else the personal user); reads/writes
   // authenticate as the active session, which IS that account.
-  const { oxyServices, user } = useOxy();
+  const { user } = useOxy();
   const { t } = useI18n();
 
   useSurfaceHeader({ title: t('searchSettings.title') || 'Search Settings' });
   const bloomTheme = useTheme();
 
-  // Use the existing useSettingToggles hook for toggle management
-  const {
-    values: settings,
-    toggle,
-    savingKeys,
-    setValues,
-  } = useSettingToggles<SearchSettings>({
-    initialValues: { safeSearch: false, searchPersonalization: true },
-    onSave: async (key, value) => {
-      if (!user?.id || !oxyServices) return;
-
-      const fieldMap: Record<keyof SearchSettings, string> = {
-        safeSearch: 'autoFilter',
-        searchPersonalization: 'dataSharing',
-      };
-
-      await oxyServices.users.updateMe({
-        privacySettings: {
-          [fieldMap[key]]: value,
-        },
-      });
-    },
-    errorMessage: (key) => t(`searchSettings.${key}.error`) || `Failed to update ${key}`,
-  });
-
-  const isSaving = savingKeys.size > 0;
-
-  // The profile comes from the shared React Query cache (the same entry every
-  // account surface reads), not a fetch of its own on every mount.
-  const currentUser = useCurrentUser({ enabled: Boolean(user?.id) });
-  const isLoading = Boolean(user?.id) && currentUser.isPending;
-  const privacySettings = (
-    currentUser.data as
-      | (User & { privacySettings?: { autoFilter?: boolean; dataSharing?: boolean } })
-      | undefined
-  )?.privacySettings;
+  const privacyQuery = usePrivacySettings(user?.id);
+  const updateSettings = useUpdatePrivacySettings();
+  const privacy = privacyQuery.data ?? user?.privacySettings;
+  const settings: SearchSettings = {
+    safeSearch: privacy?.autoFilter ?? true,
+    searchPersonalization: privacy?.dataSharing ?? true,
+  };
+  const isSaving = updateSettings.isPending;
+  const isLoading = !user?.id || privacyQuery.isPending;
+  const toggle = (key: keyof SearchSettings) => {
+    if (isSaving || isLoading) return;
+    const field = key === 'safeSearch' ? 'autoFilter' : 'dataSharing';
+    updateSettings.mutate({ userId: user.id, settings: { [field]: !settings[key] } });
+  };
   useEffect(() => {
-    if (!privacySettings) return;
-    setValues({
-      safeSearch: privacySettings.autoFilter ?? false,
-      searchPersonalization: privacySettings.dataSharing ?? true,
-    });
-  }, [privacySettings, setValues]);
-
-  if (isLoading) {
-    return (
-      <>
-        <Loading size="lg" color={bloomTheme.colors.text} />
-      </>
-    );
-  }
+    if (privacyQuery.error) toast.error(t('privacySettings.loadError'));
+  }, [privacyQuery.error, t]);
 
   return (
     <>
       <View className="px-screen-margin pb-space-24">
         {/* SafeSearch */}
-        <SettingsListGroup title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
-          <SettingsListItem
+        <GroupedSection title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="shield-search" color={bloomTheme.colors.success} />}
             title={t('searchSettings.safeSearch.label') || 'Enable SafeSearch'}
             description={
@@ -96,18 +61,18 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
               <Switch
                 checked={settings.safeSearch}
                 onCheckedChange={() => toggle('safeSearch')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Search Personalization */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('searchSettings.personalization.title') || 'Search Personalization'}
         >
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="account-search" color={bloomTheme.colors.primary} />}
             title={t('searchSettings.personalization.label') || 'Personalized Search'}
             description={
@@ -118,12 +83,12 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
               <Switch
                 checked={settings.searchPersonalization}
                 onCheckedChange={() => toggle('searchPersonalization')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
     </>
   );

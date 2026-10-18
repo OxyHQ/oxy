@@ -191,12 +191,8 @@ const validatePagination = (req: Request, res: Response, next: NextFunction): vo
   next();
 };
 
-/**
- * Validates the optional `sort` query parameter on the follow-graph list
- * endpoints. Absent ⇒ the server default (`recent`); anything outside the
- * supported vocabulary is rejected rather than silently coerced, so a client
- * asking for an ordering we do not implement finds out instead of quietly
- * receiving a different one.
+/** Validates compatibility sort values. Every accepted value uses the same
+ * stable, non-chronological service order; old clients cannot opt into chronology.
  */
 const validateFollowGraphSort = (req: Request, res: Response, next: NextFunction): void => {
   const { sort } = req.query as FollowGraphQuery;
@@ -862,7 +858,7 @@ router.get(
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
- * @query {string} sort - `recent` (default) or `oldest`
+ * @query {string} sort - `stable` (default); deprecated `recent`/`oldest` aliases have the same order
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of followers
  */
 router.get(
@@ -908,7 +904,7 @@ router.get(
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
- * @query {string} sort - `recent` (default) or `oldest`
+ * @query {string} sort - `stable` (default); deprecated `recent`/`oldest` aliases have the same order
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of following
  */
 router.get(
@@ -964,7 +960,7 @@ router.get(
  * @param {string} userId - Target user ID (ObjectId or publicKey; resolved first)
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
- * @query {string} sort - `recent` (default) or `oldest`
+ * @query {string} sort - `stable` (default); deprecated `recent`/`oldest` aliases have the same order
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of mutual followers
  */
 router.get(

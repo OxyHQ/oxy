@@ -1,10 +1,11 @@
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { View, TextInput } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxy.so/bloom/button';
-import { Admonition } from '@oxy.so/bloom/admonition';
+import { Field } from '@oxy.so/bloom/field';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
@@ -75,29 +76,29 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
           'This action cannot be undone. Your account and all associated data will be permanently deleted.'}
       </Text>
 
-      {error ? (
-        <View className="mb-4">
-          <Admonition type="error">{error}</Admonition>
-        </View>
-      ) : null}
-
       <View className="mb-4">
-        <Text className="text-text-secondary text-[13px] mb-2">
-          {t('deleteAccount.confirmLabel', { username }) || `Type "${username}" to confirm`}
-        </Text>
-        <TextInput
-          className="text-text bg-bg text-base py-3 px-4 border rounded-lg"
-          style={{
-            borderColor: isValid ? theme.colors.success : theme.colors.border,
-          }}
-          value={confirmUsername}
-          onChangeText={setConfirmUsername}
-          placeholder={username}
-          placeholderTextColor={theme.colors.textSecondary}
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!isDeleting}
-        />
+        <Field
+          label={t('deleteAccount.confirmLabel', { username }) || `Type "${username}" to confirm`}
+          error={error ?? undefined}
+        >
+          <TextField>
+            <TextFieldInput
+              label={
+                t('deleteAccount.confirmLabel', { username }) || `Type "${username}" to confirm`
+              }
+              value={confirmUsername}
+              onValueChange={(value) => {
+                setConfirmUsername(value);
+                setError(null);
+              }}
+              placeholder={username}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isDeleting}
+              isInvalid={!!error}
+            />
+          </TextField>
+        </Field>
       </View>
 
       <View style={{ gap: 8 }}>

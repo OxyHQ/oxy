@@ -5,8 +5,7 @@
  * re-exports the sign-in panels (`OxySignInPanel`, `OxyLinkCommonsPanel` and
  * its QR code, `OxyConsentScreen`, …) for apps that embed them, and Metro does
  * not tree-shake, so importing ANY symbol from `@oxy.so/services` ships all of
- * them — even though the account dialog that normally shows them is loaded on
- * demand. Nothing exported here reaches those panels; the packaging test
+ * them — even though the account dialog that normally shows them is warmed at provider startup. Nothing exported here reaches those panels; the packaging test
  * `clientEntryIsolation` pins it.
  *
  * @example
@@ -52,7 +51,7 @@ export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
 // Route screens live at `@oxy.so/services/screens` so client imports preserve
-// the route registry's lazy chunk boundaries.
+// the lean startup bundle; the provider warms their shared chunk before navigation.
 
 // Follow rules, for an app drawing its own follow affordance
 export {

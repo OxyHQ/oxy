@@ -6,7 +6,7 @@ import {
 } from '@oxy.so/contracts/client';
 import { OrganizationSettings } from '../components/organizations/OrganizationSettings';
 import { useCallback, useMemo, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
@@ -14,7 +14,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
   DISPLAY_NAME_INVALID_MESSAGE,
   getNormalizedUserHandle,
@@ -24,7 +24,7 @@ import {
 } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { clearedFieldsFromAccountUpdate, upsertCachedUser } from '../hooks/queries/userCache';
@@ -59,6 +59,10 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
 
   const accountQuery = useQuery({
     queryKey: ['accounts', 'detail', id, user?.id, canUsePrivateApi],
+    initialData: canUsePrivateApi
+      ? accounts?.find((account) => account.accountId === id)
+      : undefined,
+    initialDataUpdatedAt: 0,
     queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });
@@ -217,9 +221,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
     <>
       <View className="px-screen-margin pt-space-24 pb-space-32 gap-space-24">
         {accountQuery.isLoading ? (
-          <View className="items-center py-space-32">
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <View className="items-center py-space-32">{null}</View>
         ) : (
           <>
             {/* Profile edit */}
@@ -285,8 +287,8 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
 
             {/* Members entry */}
             {canViewMembers ? (
-              <SettingsListGroup title={t('accounts.settings.sections.access') || 'Access'}>
-                <SettingsListItem
+              <GroupedSection title={t('accounts.settings.sections.access') || 'Access'}>
+                <GroupedSectionItem
                   icon={<SettingsIcon name="account-multiple" color={colors.info} />}
                   title={t('accounts.members.title') || 'Members'}
                   description={
@@ -294,21 +296,19 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
                   }
                   onPress={() => navigate?.('AccountMembers', { accountId: id })}
                 />
-              </SettingsListGroup>
+              </GroupedSection>
             ) : null}
 
             {/* Danger zone */}
             {canArchive ? (
-              <SettingsListGroup
-                title={t('accounts.settings.sections.dangerZone') || 'Danger zone'}
-              >
-                <SettingsListItem
+              <GroupedSection title={t('accounts.settings.sections.dangerZone') || 'Danger zone'}>
+                <GroupedSectionItem
                   icon={<SettingsIcon name="archive-arrow-down" color={colors.error} />}
                   title={t('accounts.settings.archive.title') || 'Archive account'}
                   description={t('accounts.settings.archive.subtitle') || 'Deactivate this account'}
                   onPress={handleArchive}
                 />
-              </SettingsListGroup>
+              </GroupedSection>
             ) : null}
           </>
         )}

@@ -1,7 +1,6 @@
-import { lazy, type ComponentType } from 'react';
+import type { ComponentType } from 'react';
 import type { BaseScreenProps } from '../types/navigation';
 
-// Define all available route names
 export type RouteName =
   | 'Supervision'
   | 'ManageAccount' // Unified "Manage your Oxy Account" surface
@@ -14,10 +13,11 @@ export type RouteName =
   | 'FileManagement'
   | 'FileTrash' // The person's trash: restore, or delete permanently (ADR 0043 D5)
   | 'HelpSupport'
+  | 'ReportBug'
+  | 'OxyOne'
   | 'LegalDocuments'
   | 'AppInfo'
   | 'WelcomeNewUser'
-  | 'UserLinks'
   | 'HistoryView'
   | 'EditProfile' // Profile-editing hub: one row per editable field
   | 'EditProfileField' // Dedicated screen for editing a single profile field
@@ -45,105 +45,77 @@ export type RouteName =
   | 'SignInAuthenticator' // The account's authenticator app and backup codes
   | 'AccountDialog'; // Unified account switcher + sign-in surface (OxyAccountDialogScreen body)
 
-/**
- * The component for each route, loaded on demand.
- *
- * Every entry is `lazy(() => import(...))`: the screen module is fetched and
- * evaluated the first time its surface is presented, never at import time. That
- * matters twice over — screens import `OxyContext`, which reaches back here, so
- * eager evaluation would run screens mid-cycle; and it keeps native-only screen
- * dependencies out of the evaluation path of every consumer that merely touches
- * the SDK.
- *
- * What defers the load must NOT be `require()`. `@oxy.so/services` ships an ESM
- * build, and a `require()` in ESM output forces web bundlers into CommonJS
- * interop: rolldown-vite defers every module in the required subgraph behind a
- * lazy initializer and then hands a consumer that statically imported one of
- * them the still-`undefined` binding. That is how `OxySignInRequestSurface`
- * reached auth.oxy.so/authorize as `undefined` and blanked the page with React
- * error #130 — this registry pulled `OxyAccountDialogScreen`, and the whole
- * sign-in surface subgraph with it, through `require()`.
- *
- * The value type is `ComponentType<never>`, which every screen satisfies. A few
- * screens (`Profile`, `PaymentGateway`, `UserLinks`, `FollowersList`,
- * `FollowingList`) declare props BEYOND {@link BaseScreenProps} — `userId`,
- * `amount` — that only reach them through the route's untyped props bag
- * (`present(route, props)`), so this map cannot prove they are satisfied. The
- * previous `require()` returned `any` and hid that entirely; stating it here
- * confines the gap to one documented widening in {@link getScreenComponent}.
- */
-const screenComponents: Record<RouteName, ComponentType<never>> = {
-  Supervision: lazy(() => import('../screens/SupervisionScreen')),
-  ManageAccount: lazy(() => import('../screens/ManageAccountScreen')),
-  AccountVerification: lazy(() => import('../screens/AccountVerificationScreen')),
-  PaymentGateway: lazy(() => import('../screens/PaymentGatewayScreen')),
-  Profile: lazy(() => import('../screens/ProfileScreen')),
-  LanguageSelector: lazy(() => import('../screens/LanguageSelectorScreen')),
-  PrivacySettings: lazy(() => import('../screens/PrivacySettingsScreen')),
-  SearchSettings: lazy(() => import('../screens/SearchSettingsScreen')),
-  FileManagement: lazy(() => import('../screens/FileManagementScreen')),
-  FileTrash: lazy(() => import('../screens/FileTrashScreen')),
-  HelpSupport: lazy(() => import('../screens/HelpSupportScreen')),
-  LegalDocuments: lazy(() => import('../screens/LegalDocumentsScreen')),
-  AppInfo: lazy(() => import('../screens/AppInfoScreen')),
-  WelcomeNewUser: lazy(() => import('../screens/WelcomeNewUserScreen')),
-  UserLinks: lazy(() => import('../screens/UserLinksScreen')),
-  HistoryView: lazy(() => import('../screens/HistoryViewScreen')),
-  EditProfile: lazy(() => import('../screens/EditProfileScreen')),
-  EditProfileField: lazy(() => import('../screens/EditProfileFieldScreen')),
-  // Informational screens
-  LearnMoreUsernames: lazy(() => import('../screens/LearnMoreUsernamesScreen')),
-  // Oxy Trust screens
-  TrustCenter: lazy(() => import('../screens/trust/TrustCenterScreen')),
-  TrustLeaderboard: lazy(() => import('../screens/trust/TrustLeaderboardScreen')),
-  TrustRewards: lazy(() => import('../screens/trust/TrustRewardsScreen')),
-  TrustRules: lazy(() => import('../screens/trust/TrustRulesScreen')),
-  AboutTrust: lazy(() => import('../screens/trust/TrustAboutScreen')),
-  TrustFAQ: lazy(() => import('../screens/trust/TrustFAQScreen')),
-  // User list screens (followers/following)
-  FollowersList: lazy(() => import('../screens/FollowersListScreen')),
-  FollowingList: lazy(() => import('../screens/FollowingListScreen')),
-  CreateAccount: lazy(() => import('../screens/CreateAccountScreen')),
-  AccountMembers: lazy(() => import('../screens/AccountMembersScreen')),
-  AccountSettings: lazy(() => import('../screens/AccountSettingsScreen')),
-  ChangeAvatar: lazy(() => import('../screens/ChangeAvatarScreen')),
-  AvatarCrop: lazy(() => import('../screens/AvatarCropScreen')),
-  Notifications: lazy(() => import('../screens/NotificationsScreen')),
-  Domains: lazy(() => import('../screens/DomainsScreen')),
-  ConnectedApps: lazy(() => import('../screens/ConnectedAppsScreen')),
-  Preferences: lazy(() => import('../screens/PreferencesScreen')),
-  // The account's own sign-in security, in its settings.
-  DeleteAccount: lazy(() => import('../screens/DeleteAccountScreen')),
-  LinkCommons: lazy(() => import('../screens/LinkCommonsScreen')),
-  SignInPassword: lazy(() => import('../screens/SignInPasswordScreen')),
-  SignInAuthenticator: lazy(() => import('../screens/SignInAuthenticatorScreen')),
-  // Unified account switcher + sign-in surface. Its body lives in the
-  // `OxyAccountDialogScreen` component (folded from the standalone dialog); the
-  // surface stack provides the Dialog chrome around it.
-  AccountDialog: lazy(() => import('../components/OxyAccountDialogScreen')),
-};
+type ScreenComponents = Record<RouteName, ComponentType<never>>;
+let components: ScreenComponents | undefined;
+let loading: Promise<void> | undefined;
 
-/**
- * Resolve the component for a route.
- *
- * The map is total over {@link RouteName} — the compiler enforces that at its
- * declaration — so this returns `undefined` only for a caller that reached here
- * with an unchecked string; {@link isValidRoute} is how such a caller narrows.
- *
- * The surface host renders the result with {@link BaseScreenProps} merged with
- * the route's own props bag, so that is the type it is handed back as. This one
- * widening is where the gap documented on {@link screenComponents} lives: the map
- * dispatches on a string key, so a screen's extra prop requirements are met at
- * `present(route, props)` call sites, not provable here. No caching is needed —
- * React memoizes each `lazy()` component's module after its first load.
- */
-export const getScreenComponent = (
-  routeName: RouteName,
-): ComponentType<BaseScreenProps> | undefined =>
-  screenComponents[routeName] as ComponentType<BaseScreenProps>;
+export function registerScreens(screens: ScreenComponents): void {
+  components = screens;
+}
 
-// Helper function to check if a route exists
-// Uses the screenComponents map to check existence without loading the screen
-export const isValidRoute = (routeName: string): routeName is RouteName => {
-  return routeName in screenComponents;
-};
+export function screensReady(): boolean {
+  return components !== undefined;
+}
+
+/** The lean client warms all screen code at provider startup, before navigation. */
+export function loadScreens(): Promise<void> {
+  if (components) return Promise.resolve();
+  loading ??= import('./screenComponents')
+    .then(({ screenComponents }) => {
+      registerScreens(screenComponents);
+    })
+    .catch((error: unknown) => {
+      loading = undefined;
+      throw error;
+    });
+  return loading;
+}
+
+export const getScreenComponent = (route: RouteName): ComponentType<BaseScreenProps> | undefined =>
+  components?.[route] as ComponentType<BaseScreenProps> | undefined;
+
+const ROUTES: ReadonlySet<string> = new Set([
+  'Supervision',
+  'FileTrash',
+  'ManageAccount',
+  'AccountVerification',
+  'PaymentGateway',
+  'Profile',
+  'LanguageSelector',
+  'PrivacySettings',
+  'SearchSettings',
+  'FileManagement',
+  'HelpSupport',
+  'ReportBug',
+  'OxyOne',
+  'LegalDocuments',
+  'AppInfo',
+  'WelcomeNewUser',
+  'HistoryView',
+  'EditProfile',
+  'EditProfileField',
+  'LearnMoreUsernames',
+  'TrustCenter',
+  'TrustLeaderboard',
+  'TrustRewards',
+  'TrustRules',
+  'AboutTrust',
+  'TrustFAQ',
+  'FollowersList',
+  'FollowingList',
+  'CreateAccount',
+  'AccountMembers',
+  'AccountSettings',
+  'ChangeAvatar',
+  'AvatarCrop',
+  'Notifications',
+  'Domains',
+  'ConnectedApps',
+  'Preferences',
+  'DeleteAccount',
+  'LinkCommons',
+  'SignInPassword',
+  'SignInAuthenticator',
+  'AccountDialog',
+]);
+export const isValidRoute = (name: string): name is RouteName => ROUTES.has(name);

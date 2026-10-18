@@ -465,7 +465,13 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
         touch();
       }
       for (const resolved of users) {
-        facts.profiles.set(resolved.id, resolved);
+        // Bulk profiles are public and cannot replace the owner's locale
+        // preferences learned from a self-profile read or a confirmed write.
+        const known = facts.profiles.get(resolved.id);
+        facts.profiles.set(
+          resolved.id,
+          known?.languages !== undefined ? { ...resolved, languages: known.languages } : resolved,
+        );
       }
       const projected = normalizeAndSortSessions(
         deviceStateToClientSessions(latest, facts.profiles, pinnedAccountId),

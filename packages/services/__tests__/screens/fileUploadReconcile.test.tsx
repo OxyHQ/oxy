@@ -49,7 +49,7 @@ jest.mock('../../src/ui/screens/fileManagement/shared', () => {
 
 // `useUserFilesInfinite` reads oxyServices from context; the upload hook does not.
 const listUserFiles = jest.fn();
-jest.mock('../../src/ui/context/OxyContext', () => ({
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({ oxyServices: { assets: { list: listUserFiles } }, activeSessionId: 's1' }),
 }));
 

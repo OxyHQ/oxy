@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { View, Animated } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Button } from '@oxy.so/bloom/button';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';
 import { createPaymentStyles } from './paymentStyles';
@@ -48,7 +48,7 @@ const PaymentMethodStep: React.FC<PaymentMethodStepProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('payment.method.title')}</Text>
 
-        <SettingsListGroup>
+        <GroupedSection>
           {availablePaymentMethods.map((method) => {
             const iconColor =
               method.key === 'card'
@@ -65,7 +65,7 @@ const PaymentMethodStep: React.FC<PaymentMethodStepProps> = ({
                 <Ionicons name={method.icon} size={20} color={iconColor} />
               );
             return (
-              <SettingsListItem
+              <GroupedSectionItem
                 key={method.key}
                 icon={iconElement}
                 title={t(`payment.methods.${method.key}.label`)}
@@ -80,7 +80,7 @@ const PaymentMethodStep: React.FC<PaymentMethodStepProps> = ({
               />
             );
           })}
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>

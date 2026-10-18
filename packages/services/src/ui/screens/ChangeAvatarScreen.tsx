@@ -28,7 +28,7 @@ import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
   AdmonitionRoot,
   AdmonitionRow,
@@ -42,7 +42,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle, logger } from '@oxy.so/core';
 import type { FileMetadata } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { SettingsIcon } from '../components/SettingsIcon';
@@ -333,8 +333,8 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
         </AdmonitionRoot>
       ) : null}
 
-      <SettingsListGroup>
-        <SettingsListItem
+      <GroupedSection>
+        <GroupedSectionItem
           icon={<SettingsIcon name="image-outline" color={bloomTheme.colors.primary} />}
           title={t('changeAvatar.sources.upload.title')}
           description={t('changeAvatar.sources.upload.description')}
@@ -342,7 +342,7 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
           onPress={() => void pickFromDevice('library')}
         />
         {canUseCamera ? (
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="camera-outline" color={bloomTheme.colors.info} />}
             title={t('changeAvatar.sources.camera.title')}
             description={t('changeAvatar.sources.camera.description')}
@@ -350,14 +350,14 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
             onPress={() => void pickFromDevice('camera')}
           />
         ) : null}
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="folder-image" color={bloomTheme.colors.success} />}
           title={t('changeAvatar.sources.files.title')}
           description={t('changeAvatar.sources.files.description')}
           disabled={busy}
           onPress={() => pickFromOxyFiles()}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<SettingsIcon name="trash-can-outline" color={bloomTheme.colors.error} />}
           title={t('changeAvatar.sources.remove.title')}
           description={t('changeAvatar.sources.remove.description')}
@@ -365,7 +365,7 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
           disabled={busy || !user?.avatar}
           onPress={() => void removeCurrentPhoto()}
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </View>
   );
 };

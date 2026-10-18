@@ -3,20 +3,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { toast } from '@oxy.so/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useSettingToggles } from '../hooks/useSettingToggle';
+import { useUpdatePrivacySettings } from '../hooks/mutations/useAccountMutations';
 import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { usePrivacySettings } from '../hooks/queries/useAccountQueries';
 import { queryKeys } from '../hooks/queries/queryKeys';
 
@@ -74,30 +73,21 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
   const bloomTheme = useTheme();
   const queryClient = useQueryClient();
 
-  // Use the existing useSettingToggles hook for toggle management
-  const {
-    values: settings,
-    toggle,
-    savingKeys,
-    setValues,
-  } = useSettingToggles<PrivacySettings>({
-    initialValues: DEFAULT_PRIVACY_SETTINGS,
-    onSave: async (key, value) => {
-      if (!user?.id || !oxyServices) return;
-      await oxyServices.privacy.updateSettings({ [key]: value }, user.id);
-    },
-    errorMessage: t('privacySettings.updateError') || 'Failed to update privacy setting',
-  });
-
-  const isSaving = savingKeys.size > 0;
-
-  // Settings and the block/restrict lists come from React Query, keyed on the
-  // active account — switching accounts reads that account's lists.
   const settingsQuery = usePrivacySettings(user?.id);
-  const isLoading = Boolean(user?.id) && settingsQuery.isPending;
-  useEffect(() => {
-    if (settingsQuery.data) setValues(settingsQuery.data);
-  }, [settingsQuery.data, setValues]);
+
+  const updateSettings = useUpdatePrivacySettings();
+  const settings: PrivacySettings = {
+    ...DEFAULT_PRIVACY_SETTINGS,
+    ...user?.privacySettings,
+    ...settingsQuery.data,
+  };
+  const isSaving = updateSettings.isPending;
+  const isLoading = !user?.id || settingsQuery.isPending;
+  const toggle = (key: keyof PrivacySettings) => {
+    if (isSaving || isLoading) return;
+    updateSettings.mutate({ userId: user.id, settings: { [key]: !settings[key] } });
+  };
+
   useEffect(() => {
     if (settingsQuery.error) {
       toast.error(t('privacySettings.loadError') || 'Failed to load privacy settings');
@@ -107,7 +97,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
   const listsKey = useMemo(() => queryKeys.privacy.lists(user?.id), [user?.id]);
   const listsQuery = useQuery({
     queryKey: listsKey,
-    enabled: Boolean(oxyServices),
+    enabled: Boolean(user?.id),
     queryFn: async () => {
       const [blocked, restricted] = await Promise.all([
         oxyServices.privacy.blocked(),
@@ -219,20 +209,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
     [],
   );
 
-  if (isLoading) {
-    return (
-      <>
-        <Loading size="lg" color={bloomTheme.colors.text} />
-      </>
-    );
-  }
-
   return (
     <>
       <View className="px-screen-margin pb-space-24">
         {/* Account Privacy */}
-        <SettingsListGroup title={t('privacySettings.sections.account') || 'ACCOUNT PRIVACY'}>
-          <SettingsListItem
+        <GroupedSection title={t('privacySettings.sections.account') || 'ACCOUNT PRIVACY'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="lock-outline" color={bloomTheme.colors.primary} />}
             title={t('privacySettings.isPrivateAccount') || 'Private Account'}
             description={
@@ -243,12 +225,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.isPrivateAccount}
                 onCheckedChange={() => toggle('isPrivateAccount')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="account-eye-outline" color={bloomTheme.colors.info} />}
             title={t('privacySettings.profileVisibility') || 'Profile Visibility'}
             description={
@@ -258,12 +240,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.profileVisibility}
                 onCheckedChange={() => toggle('profileVisibility')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="circle-outline" color={bloomTheme.colors.success} />}
             title={t('privacySettings.hideOnlineStatus') || 'Hide Online Status'}
             description={
@@ -273,12 +255,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.hideOnlineStatus}
                 onCheckedChange={() => toggle('hideOnlineStatus')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.secondary} />}
             title={t('privacySettings.hideLastSeen') || 'Hide Last Seen'}
             description={
@@ -288,16 +270,16 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.hideLastSeen}
                 onCheckedChange={() => toggle('hideLastSeen')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Interactions */}
-        <SettingsListGroup title={t('privacySettings.sections.interactions') || 'INTERACTIONS'}>
-          <SettingsListItem
+        <GroupedSection title={t('privacySettings.sections.interactions') || 'INTERACTIONS'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="tag-outline" color={bloomTheme.colors.primary} />}
             title={t('privacySettings.allowTagging') || 'Allow Tagging'}
             description={t('privacySettings.allowTaggingDesc') || 'Let others tag you in posts'}
@@ -305,12 +287,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.allowTagging}
                 onCheckedChange={() => toggle('allowTagging')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="at" color={bloomTheme.colors.info} />}
             title={t('privacySettings.allowMentions') || 'Allow Mentions'}
             description={t('privacySettings.allowMentionsDesc') || 'Let others mention you'}
@@ -318,12 +300,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.allowMentions}
                 onCheckedChange={() => toggle('allowMentions')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="message-outline" color={bloomTheme.colors.success} />}
             title={t('privacySettings.allowDirectMessages') || 'Allow Direct Messages'}
             description={
@@ -333,12 +315,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.allowDirectMessages}
                 onCheckedChange={() => toggle('allowDirectMessages')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="check-all" color={bloomTheme.colors.secondary} />}
             title={t('privacySettings.hideReadReceipts') || 'Hide Read Receipts'}
             description={
@@ -348,16 +330,16 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.hideReadReceipts}
                 onCheckedChange={() => toggle('hideReadReceipts')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Activity & Data */}
-        <SettingsListGroup title={t('privacySettings.sections.activity') || 'ACTIVITY & DATA'}>
-          <SettingsListItem
+        <GroupedSection title={t('privacySettings.sections.activity') || 'ACTIVITY & DATA'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="pulse" color={bloomTheme.colors.primary} />}
             title={t('privacySettings.showActivity') || 'Show Activity Status'}
             description={
@@ -367,12 +349,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.showActivity}
                 onCheckedChange={() => toggle('showActivity')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="database-outline" color={bloomTheme.colors.info} />}
             title={t('privacySettings.dataSharing') || 'Data Sharing'}
             description={
@@ -382,12 +364,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.dataSharing}
                 onCheckedChange={() => toggle('dataSharing')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="map-marker-outline" color={bloomTheme.colors.warning} />}
             title={t('privacySettings.locationSharing') || 'Location Sharing'}
             description={t('privacySettings.locationSharingDesc') || 'Share your location'}
@@ -395,12 +377,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.locationSharing}
                 onCheckedChange={() => toggle('locationSharing')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="chart-line" color={bloomTheme.colors.secondary} />}
             title={t('privacySettings.analyticsSharing') || 'Analytics Sharing'}
             description={
@@ -410,16 +392,16 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.analyticsSharing}
                 onCheckedChange={() => toggle('analyticsSharing')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Content & Safety */}
-        <SettingsListGroup title={t('privacySettings.sections.content') || 'CONTENT & SAFETY'}>
-          <SettingsListItem
+        <GroupedSection title={t('privacySettings.sections.content') || 'CONTENT & SAFETY'}>
+          <GroupedSectionItem
             icon={<SettingsIcon name="eye-off-outline" color={bloomTheme.colors.warning} />}
             title={t('privacySettings.sensitiveContent') || 'Show Sensitive Content'}
             description={
@@ -429,12 +411,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.sensitiveContent}
                 onCheckedChange={() => toggle('sensitiveContent')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="filter-outline" color={bloomTheme.colors.success} />}
             title={t('privacySettings.autoFilter') || 'Auto Filter'}
             description={
@@ -444,12 +426,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.autoFilter}
                 onCheckedChange={() => toggle('autoFilter')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="volume-off" color={bloomTheme.colors.info} />}
             title={t('privacySettings.muteKeywords') || 'Mute Keywords'}
             description={
@@ -459,12 +441,12 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.muteKeywords}
                 onCheckedChange={() => toggle('muteKeywords')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<SettingsIcon name="cellphone-screenshot" color={bloomTheme.colors.secondary} />}
             title={t('privacySettings.blockScreenshots') || 'Block Screenshots'}
             description={
@@ -474,18 +456,16 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               <Switch
                 checked={settings.blockScreenshots}
                 onCheckedChange={() => toggle('blockScreenshots')}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
               />
             }
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Blocked Users */}
-        <SettingsListGroup title={t('privacySettings.sections.blockedUsers') || 'BLOCKED USERS'}>
-          {isLoadingUsers ? (
-            <Loading size="sm" color={bloomTheme.colors.text} />
-          ) : blockedUsers.length === 0 ? (
+        <GroupedSection title={t('privacySettings.sections.blockedUsers') || 'BLOCKED USERS'}>
+          {isLoadingUsers ? null : blockedUsers.length === 0 ? (
             <Text className="text-text-secondary text-center p-space-40">
               {t('privacySettings.noBlockedUsers') || 'No blocked users'}
             </Text>
@@ -495,7 +475,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               const avatarUri =
                 avatar && oxyServices ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined;
               return (
-                <SettingsListItem
+                <GroupedSectionItem
                   key={userId}
                   icon={<Avatar source={avatarUri} name={displayName} size={20} />}
                   title={displayName}
@@ -514,15 +494,11 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               );
             })
           )}
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* Restricted Users */}
-        <SettingsListGroup
-          title={t('privacySettings.sections.restrictedUsers') || 'RESTRICTED USERS'}
-        >
-          {isLoadingUsers ? (
-            <Loading size="sm" color={bloomTheme.colors.text} />
-          ) : restrictedUsers.length === 0 ? (
+        <GroupedSection title={t('privacySettings.sections.restrictedUsers') || 'RESTRICTED USERS'}>
+          {isLoadingUsers ? null : restrictedUsers.length === 0 ? (
             <Text className="text-text-secondary text-center p-space-40">
               {t('privacySettings.noRestrictedUsers') || 'No restricted users'}
             </Text>
@@ -532,7 +508,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               const avatarUri =
                 avatar && oxyServices ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined;
               return (
-                <SettingsListItem
+                <GroupedSectionItem
                   key={userId}
                   icon={<Avatar source={avatarUri} name={displayName} size={20} />}
                   title={displayName}
@@ -552,7 +528,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
               );
             })
           )}
-        </SettingsListGroup>
+        </GroupedSection>
       </View>
     </>
   );

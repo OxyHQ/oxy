@@ -266,3 +266,5 @@ export {
   appAssertionResponseCheck,
   appAttestKeyResponseCheck,
 } from './appAssertions';
+
+export * from '../products/one';

@@ -56,7 +56,17 @@ describe('accepted locales', () => {
       languages: ['en-US', 'es-ES'],
     });
 
-    expect(updated).toBeDefined();
+    expect(updated.languages).toEqual(['en-US', 'es-ES']);
+    expect(
+      userService.formatUserResponse(updated, undefined, { includePrivateFields: true }).languages,
+    ).toEqual(['en-US', 'es-ES']);
+    const reloaded = await userService.getCurrentUser(id);
+    expect(reloaded).not.toBeNull();
+    if (!reloaded) throw new Error('Saved account missing');
+    expect(
+      userService.formatUserResponse(reloaded, undefined, { includePrivateFields: true }).languages,
+    ).toEqual(['en-US', 'es-ES']);
+    expect(userService.formatUserResponse(reloaded).languages).toBeUndefined();
     expect(await storedLanguages(id)).toEqual(['en-US', 'es-ES']);
   });
 

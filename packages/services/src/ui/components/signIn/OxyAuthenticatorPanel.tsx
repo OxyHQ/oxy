@@ -22,7 +22,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import type { TotpEnrollResponse } from '@oxy.so/contracts';
 import { TOTP_DIGITS } from '@oxy.so/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';

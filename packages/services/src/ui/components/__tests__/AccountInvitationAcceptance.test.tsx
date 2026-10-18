@@ -6,7 +6,7 @@ const mockAccept = jest.fn();
 const mockSwitch = jest.fn();
 let mockUser: { id: string; kind: string; email: string; username: string } | null = null;
 const mockServices = { accounts: { invitations: { preview: mockPreview, accept: mockAccept } } };
-jest.mock('../../context/OxyContext', () => ({
+jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     oxyServices: mockServices,
     user: mockUser,

@@ -17,16 +17,18 @@
  */
 
 import type React from 'react';
-import { Fragment, useState } from 'react';
 import { ScrollView } from 'react-native';
-import { Pressable, View } from 'react-native-css/components';
+import { View } from 'react-native-css/components';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Text } from '@oxy.so/bloom/typography';
+import {
+  GroupedSection,
+  GroupedSectionItem,
+  GroupedSectionIcon,
+} from '@oxy.so/bloom/grouped-section';
 import {
   showsPrincipalHeaders,
   type SwitcherContextRow,
@@ -71,7 +73,6 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
 }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const [hovered, setHovered] = useState<number | null>(null);
   // Whose route a row is only needs naming once someone holds more than one
   // account here — the same rule the account menu's group headers follow.
   const namesTheOperator = showsPrincipalHeaders(principals);
@@ -85,19 +86,6 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
           : null,
     })),
   );
-  const useAnotherIndex = rows.length;
-
-  /** The hairline under row `index`, hidden while either neighbour is hovered. */
-  const divider = (index: number) =>
-    hovered === index || hovered === index + 1 ? (
-      <View className="h-px mx-[8px]" />
-    ) : (
-      <View className="h-px mx-[8px] bg-border opacity-50" />
-    );
-
-  const rowClassName = (index: number, disabled: boolean) =>
-    `flex-row items-center gap-[12px] rounded-[14px] p-[8px] ${hovered === index && !disabled ? 'bg-fill' : ''} ${disabled ? 'opacity-50' : ''}`;
-
   return (
     <OxyAuthScreen>
       <OxyAuthScreenHeader
@@ -108,49 +96,28 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
             : t('signin.chooser.subtitle')
         }
       />
-      <View
-        className="bg-fill-secondary rounded-[22px] overflow-hidden"
-        testID="account-picker-list"
-      >
-        <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ padding: 8 }}>
-          {rows.map(({ context, operatedBy }, index) => {
-            const activating = pendingContextId === context.contextId;
-            const disabled = isLoading || !context.canActivate;
-            const current = !signedOut && context.isActive;
-            const accent = resolveAccentHex(context.color, theme.colors.primary);
-            const handle = context.handle ? `@${context.handle}` : null;
-            const label = signedOut
-              ? t('signin.chooser.continueAs', { name: handle ?? context.displayName })
-              : context.displayName;
-            return (
-              <Fragment key={context.contextId}>
-                <Pressable
-                  className={rowClassName(index, disabled && !activating)}
+      <View testID="account-picker-list">
+        <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }}>
+          <GroupedSection>
+            {rows.map(({ context, operatedBy }) => {
+              const activating = pendingContextId === context.contextId;
+              const disabled = isLoading || !context.canActivate;
+              const current = !signedOut && context.isActive;
+              const accent = resolveAccentHex(context.color, theme.colors.primary);
+              const handle = context.handle ? `@${context.handle}` : undefined;
+              const label = signedOut
+                ? t('signin.chooser.continueAs', { name: handle ?? context.displayName })
+                : context.displayName;
+              return (
+                <GroupedSectionItem
+                  key={context.contextId}
+                  title={context.displayName}
+                  description={operatedBy ?? handle}
                   onPress={() => onSelectContext(context)}
-                  onHoverIn={() => setHovered(index)}
-                  onHoverOut={() => setHovered((value) => (value === index ? null : value))}
                   disabled={disabled}
-                  accessibilityRole="button"
                   accessibilityLabel={label}
                   accessibilityState={{ selected: current, disabled, busy: activating }}
-                >
-                  <View className="flex-1 min-w-0">
-                    <Text
-                      className="text-body text-text"
-                      style={{ fontWeight: '500' }}
-                      numberOfLines={1}
-                    >
-                      {context.displayName}
-                    </Text>
-                    {operatedBy || handle ? (
-                      <Text className="text-bodySmall text-text-secondary" numberOfLines={1}>
-                        {operatedBy ?? handle}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View className="flex-row items-center gap-[8px] shrink-0">
-                    {/* The current account: Avatar's own verified slot (bottom-right,
-                        above the image), holding the accent check badge. */}
+                  icon={
                     <Avatar
                       source={context.avatarUrl ?? undefined}
                       variant="thumb"
@@ -166,42 +133,24 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
                         </View>
                       }
                     />
-                    {activating ? (
-                      <SpinnerIcon size={20} color={accent} />
-                    ) : (
-                      <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
-                    )}
-                  </View>
-                </Pressable>
-                {divider(index)}
-              </Fragment>
-            );
-          })}
-          <Pressable
-            className={rowClassName(useAnotherIndex, isLoading)}
-            onPress={onUseAnother}
-            onHoverIn={() => setHovered(useAnotherIndex)}
-            onHoverOut={() => setHovered((value) => (value === useAnotherIndex ? null : value))}
-            disabled={isLoading}
-            accessibilityRole="button"
-            accessibilityLabel={t('signin.chooser.useAnother')}
-            testID="use-another-account"
-          >
-            <View className="flex-1 min-w-0">
-              <Text className="text-body text-text" style={{ fontWeight: '500' }} numberOfLines={1}>
-                {t('signin.chooser.useAnother')}
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-[8px] shrink-0">
-              <View
-                className="bg-fill items-center justify-center rounded-full"
-                style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
-              >
-                <RiUserAddLine size="md" fill={theme.colors.textSecondary} />
-              </View>
-              <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
-            </View>
-          </Pressable>
+                  }
+                  rightElement={activating ? <SpinnerIcon size={20} color={accent} /> : undefined}
+                  showChevron={!activating}
+                />
+              );
+            })}
+            <GroupedSectionItem
+              title={t('signin.chooser.useAnother')}
+              onPress={onUseAnother}
+              disabled={isLoading}
+              testID="use-another-account"
+              icon={
+                <GroupedSectionIcon>
+                  {({ color }) => <RiUserAddLine size="sm" fill={color} />}
+                </GroupedSectionIcon>
+              }
+            />
+          </GroupedSection>
         </ScrollView>
       </View>
       <OxyAuthTerms />

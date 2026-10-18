@@ -4,13 +4,8 @@
  * This suite exists for the two things the port could break SILENTLY — neither
  * raises an error, neither fails a type check, and both are load-bearing:
  *
- * 1. **Pagination is a STRICT TOTAL ORDER.** Every follow-graph page sorts on
- *    `(created_at, id)` BEFORE `OFFSET`/`LIMIT`. `created_at` alone is not
- *    unique, so without the id tiebreak a tied row can appear on two
- *    consecutive pages while another is skipped entirely — infinite scroll
- *    corrupts with no error and no failing request. The test walks every page
- *    of a set whose `created_at` values are ALL IDENTICAL, which is the only
- *    input that can tell a total order from a partial one.
+ * 1. **Pagination is stable without exposing chronology.** Identity-hash order
+ *    precedes OFFSET/LIMIT and uses account identity to break hash ties.
  *
  * 2. **Follower counts are non-zero.** A query that matched nothing would make
  *    every follower count on `/profiles/search` read ZERO. A test that only
@@ -27,7 +22,7 @@
  * no assertion depends on a table being empty.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userFollows } from '../../db/schema/userFollows';
@@ -62,21 +57,15 @@ afterAll(async () => {
 
 describe('follow-graph pagination is a strict total order', () => {
   /**
-   * Ten followers whose edges share ONE `created_at` value to the microsecond.
-   *
-   * This is the discriminating input. With a `(created_at, id)` key the order is
-   * total and paging is deterministic; with `created_at` alone every row
-   * compares EQUAL, Postgres is free to return them in any order per statement,
-   * and an offset page can repeat or drop rows. A fixture with distinct
-   * timestamps cannot tell the two apart — it passes either way.
+   * Tied edge timestamps must not cause skipped or duplicated accounts.
    */
   const FOLLOWER_COUNT = 10;
   const PAGE_SIZE = 3;
 
   let targetId: string;
   let followerIds: string[];
-  /** Follower ids in EDGE-ID ascending order — the order `oldest` must produce. */
-  let byEdgeIdAscending: string[];
+  /** Follower ids in stable identity-hash order, independent of follow chronology. */
+  let byIdentityHash: string[];
 
   beforeAll(async () => {
     targetId = await makeUser();
@@ -104,10 +93,12 @@ describe('follow-graph pagination is a strict total order', () => {
         })),
       );
 
-    byEdgeIdAscending = followerIds
-      .map((followerId, index) => ({ followerId, edgeId: edgeIdFor(index) }))
-      .sort((a, b) => a.edgeId.localeCompare(b.edgeId))
-      .map((entry) => entry.followerId);
+    byIdentityHash = [...followerIds].sort((a, b) =>
+      createHash('md5')
+        .update(a)
+        .digest('hex')
+        .localeCompare(createHash('md5').update(b).digest('hex')),
+    );
   });
 
   it.each([['recent' as const], ['oldest' as const]])(
@@ -131,23 +122,17 @@ describe('follow-graph pagination is a strict total order', () => {
       expect(new Set(seen).size).toBe(FOLLOWER_COUNT);
       expect([...seen].sort()).toEqual([...followerIds].sort());
 
-      // ...and the property that DISCRIMINATES. Set equality alone is too weak:
-      // with every `created_at` tied, Postgres returns a small heap in insertion
-      // order, so dropping the tiebreak still yields disjoint pages and the two
-      // assertions above pass against the exact bug. The edge ids were assigned
-      // out of insertion order, so ONLY the tiebreak can produce this sequence.
-      expect(seen).toEqual(
-        sort === 'oldest' ? byEdgeIdAscending : [...byEdgeIdAscending].reverse(),
-      );
+      // Identity ordering is independent of edge ids and timestamps.
+      expect(seen).toEqual(byIdentityHash);
     },
   );
 
-  it('orders `oldest` as the exact reverse of `recent`', async () => {
+  it('treats legacy chronological sorts as the same safe ordering', async () => {
     const [recent, oldest] = await Promise.all([
       userService.getUserFollowers(targetId, { limit: FOLLOWER_COUNT, sort: 'recent' }),
       userService.getUserFollowers(targetId, { limit: FOLLOWER_COUNT, sort: 'oldest' }),
     ]);
-    expect(recent.data.map((row) => row.id)).toEqual(oldest.data.map((row) => row.id).reverse());
+    expect(recent.data.map((row) => row.id)).toEqual(oldest.data.map((row) => row.id));
   });
 
   it('excludes an archived counterparty from BOTH the page and the total', async () => {

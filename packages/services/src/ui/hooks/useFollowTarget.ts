@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect } from 'react';
 import type { FollowStatus } from '@oxy.so/contracts';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import {
   isCompleteFollowStatus,
   isFollowedGlobally,

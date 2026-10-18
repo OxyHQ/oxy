@@ -627,3 +627,24 @@ describe('createOxyRuntime — activation and the two removal meanings', () => {
     harness.dispose();
   });
 });
+
+it('keeps owner language preferences through public device projections without leaking across accounts', async () => {
+  const harness = buildHarness();
+  harness.setState(buildState('a1'));
+  await harness.runtime.reconcileFromClient();
+  harness.runtime.setAccount({ ...buildUser('a1'), languages: ['es-ES', 'en-US'] });
+  harness.setState(buildState('a1', 2));
+  await harness.runtime.reconcileFromClient();
+  expect(harness.runtime.getSnapshot().account?.languages).toEqual(['es-ES', 'en-US']);
+  harness.setState(buildState('a2', 3));
+  await harness.runtime.reconcileFromClient();
+  expect(harness.runtime.getSnapshot().account?.languages).toBeUndefined();
+  harness.setState(buildState('a1', 4));
+  await harness.runtime.reconcileFromClient();
+  expect(harness.runtime.getSnapshot().account?.languages).toEqual(['es-ES', 'en-US']);
+  harness.runtime.setAccount({ ...buildUser('a1'), languages: [] });
+  harness.setState(buildState('a1', 5));
+  await harness.runtime.reconcileFromClient();
+  expect(harness.runtime.getSnapshot().account?.languages).toEqual([]);
+  harness.dispose();
+});

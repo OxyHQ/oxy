@@ -41,7 +41,7 @@ import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
 import { useI18n } from '../hooks/useI18n';
 import {
@@ -65,12 +65,7 @@ import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
 import { OxySignInPanel } from './signIn/OxySignInPanel';
 import { OxySignUpPanel } from './signIn/OxySignUpPanel';
 
-/**
- * "Accounts by Oxy" management app — the canonical home for account settings,
- * data export, and storage management. The account-menu rows deep-link into it
- * (`/data`, `/storage`, or its root) the same way `getCommonsAcquisitionUrl`
- * hands off to Commons; nothing here invents new API endpoints.
- */
+/** Hosted billing and storage-management destinations. */
 const ACCOUNTS_APP_URL = 'https://accounts.oxy.so';
 
 /**
@@ -289,8 +284,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   );
 
   const handleManage = useCallback(() => {
-    onComplete?.();
     if (consumerHooks?.onNavigateManage) {
+      onComplete?.();
       consumerHooks.onNavigateManage();
       return;
     }
@@ -378,40 +373,49 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
         ? {
             usedBytes: storageQuery.data.totalUsedBytes,
             limitBytes: storageQuery.data.totalLimitBytes,
+            categories: storageQuery.data.categories,
+            plan: storageQuery.data.plan,
           }
         : null,
     [storageQuery.data],
   );
 
-  // The account-menu rows below the switcher: storage + data + settings + help
-  // deep-link into the "Accounts by Oxy" app or open the matching in-app sheet
-  // (Help, Legal); sign-out uses the SDK's own per-account sign-out. No new
-  // endpoints — the same handoff pattern `handleManage`/`getCommonsAcquisitionUrl`
-  // already use.
+  // Account settings, data and help navigate within the current dialog.
   const accountMenu = useMemo<AccountsMenuActions>(() => {
     const openUrl = openExternal;
     const openSheet = (config: Parameters<NonNullable<typeof showBottomSheet>>[0]) => {
-      onComplete?.();
       showBottomSheet?.(config);
     };
     return {
-      onOpenSettings: () => openUrl(ACCOUNTS_APP_URL),
-      onOpenData: () => openUrl(`${ACCOUNTS_APP_URL}/data`),
+      onOpenPlan: () => openSheet('OxyOne'),
+      onOpenSettings: () => openSheet('Preferences'),
+      onOpenData: () => openSheet({ screen: 'ManageAccount', props: { section: 'data' } }),
       onManageStorage: () => openUrl(`${ACCOUNTS_APP_URL}/storage`),
-      onUpgradeStorage: () => openUrl(`${ACCOUNTS_APP_URL}/payments`),
+      onUpgradeStorage: () => openSheet('OxyOne'),
       onHelp: () => openSheet('HelpSupport'),
       onPrivacy: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 1 } }),
       onTerms: () => openSheet({ screen: 'LegalDocuments', props: { initialStep: 2 } }),
       onSignOut: () => {
         void handleSignOut();
       },
-      customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
-        ...item,
-        onPress: () => {
-          onComplete?.();
-          item.onPress();
-        },
-      })),
+      sections: [
+        ...(consumerHooks?.menuItems?.length
+          ? [{ key: 'app-items', items: consumerHooks.menuItems }]
+          : []),
+        ...(consumerHooks?.menuSections ?? []),
+      ]
+        .filter((section) => section.items.length > 0)
+        .map((section) => ({
+          ...section,
+          items: section.items.map((item) => ({
+            ...item,
+            onPress: () => {
+              if (item.disabled) return;
+              if (!item.keepOpen) onComplete?.();
+              item.onPress();
+            },
+          })),
+        })),
     };
   }, [consumerHooks, onComplete, showBottomSheet, handleSignOut, openExternal]);
 

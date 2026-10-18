@@ -65,16 +65,14 @@ import {
 import { normalizeUsername } from '../utils/username';
 import { BadRequestError, ConflictError } from '../utils/error';
 import type { Request } from 'express';
-import {
-  type PaginatedResponse,
-  type PublicUserProfile,
-  type ProfileUpdateInput,
-  type UserStatistics,
-  type FollowActionResult,
-  type ViewerGraph,
-  type FollowGraphParams,
-  type FollowGraphSort,
-  DEFAULT_FOLLOW_GRAPH_SORT,
+import type {
+  PaginatedResponse,
+  PublicUserProfile,
+  ProfileUpdateInput,
+  UserStatistics,
+  FollowActionResult,
+  ViewerGraph,
+  FollowGraphParams,
 } from '../types/user.types';
 import {
   publicUserColumns,
@@ -123,6 +121,7 @@ import {
  */
 export interface SelfUserView extends PublicUserView {
   userPreferences?: { displayCurrency?: 'USD' | 'EUR' | 'FAIR' };
+  languages: string[];
   phone?: string;
   address?: string;
   birthday?: string;
@@ -141,6 +140,7 @@ export interface SelfUserView extends PublicUserView {
  * {@link PublicUserView} and {@link SelfUserView}.
  */
 export interface UserResponseSource {
+  languages?: unknown;
   _id?: unknown;
   /** Present on objects whose identifier was already folded into `id`. */
   id?: unknown;
@@ -187,21 +187,6 @@ export interface UserResponseSource {
   themePreferenceColorPreset?: unknown;
 }
 
-/**
- * `ORDER BY` for a follow-graph page.
- *
- * The edge id is a REQUIRED tiebreak, not decoration: `created_at` alone is not
- * unique (two follows landing in the same instant tie), and an unstable sort
- * under `OFFSET`/`LIMIT` lets a tied row appear on two consecutive pages while
- * another is skipped entirely. `user_follows.id` is unique, so the composite key
- * is a STRICT TOTAL ORDER and paging is deterministic. It is mirrored with the
- * primary key so `oldest` is the exact reverse of `recent`.
- */
-const FOLLOW_GRAPH_ORDER: Record<FollowGraphSort, SQL[]> = {
-  recent: [sql`${userFollows.createdAt} desc`, sql`${userFollows.id} desc`],
-  oldest: [sql`${userFollows.createdAt} asc`, sql`${userFollows.id} asc`],
-};
-
 /** Which side of a follow edge names the counterparty being listed. */
 type FollowUserEdgeField = 'followerId' | 'followedId';
 
@@ -220,7 +205,6 @@ async function paginateActiveFollowUserIds(
   userIdField: FollowUserEdgeField,
   limit: number,
   offset: number,
-  sort: FollowGraphSort = DEFAULT_FOLLOW_GRAPH_SORT,
 ): Promise<{ userIds: string[]; total: number }> {
   const counterparty = userFollows[userIdField];
   const where = and(edgePredicate, discoverableUserPredicate());
@@ -241,7 +225,10 @@ async function paginateActiveFollowUserIds(
     .from(userFollows)
     .innerJoin(users, eq(users.id, counterparty))
     .where(where)
-    .orderBy(...FOLLOW_GRAPH_ORDER[sort])
+    // Hash account identity, never the edge timestamp/id: re-following must
+    // not move a person to either end. The identity tiebreak handles hash
+    // collisions; the edge id only disambiguates equivalent-account edges.
+    .orderBy(sql`md5(${counterparty})`, counterparty, userFollows.id)
     .offset(offset)
     .limit(limit);
 
@@ -484,6 +471,7 @@ function computeIsAdult(dateOfBirth: string): boolean {
 const selfUserColumns = {
   ...publicUserColumns,
   preferenceDisplayCurrency: users.preferenceDisplayCurrency,
+  languages: users.languages,
   phone: users.phone,
   address: users.address,
   birthday: users.birthday,
@@ -494,6 +482,7 @@ const selfUserColumns = {
 
 type SelfUserRow = PublicUserRow & {
   preferenceDisplayCurrency: 'USD' | 'EUR' | 'FAIR' | null;
+  languages: string[];
   phone: string | null;
   address: string | null;
   birthday: string | null;
@@ -513,6 +502,7 @@ function toSelfUserView(row: SelfUserRow): SelfUserView {
   const view: SelfUserView = {
     ...toPublicUserView(row),
     userPreferences: { displayCurrency: row.preferenceDisplayCurrency ?? undefined },
+    languages: row.languages,
     phone: row.phone ?? undefined,
     address: row.address ?? undefined,
     birthday: row.birthday ?? undefined,
@@ -1264,7 +1254,6 @@ export class UserService {
       'followerId',
       limit,
       offset,
-      params.sort,
     );
 
     const followers = await loadPublicUsersInOrder(db, followerIds);
@@ -1295,7 +1284,6 @@ export class UserService {
       'followedId',
       limit,
       offset,
-      params.sort,
     );
 
     const following = await loadPublicUsersInOrder(db, followingIds);
@@ -1322,8 +1310,7 @@ export class UserService {
    *
    * The viewer's following set is bounded to the same window the recommendation
    * pipeline uses (`MAX_FOLLOWING_FOR_MUTUALS`) so the `IN` stays small. The
-   * returned page mirrors `getUserFollowers`: ordered by `params.sort`
-   * (most-recent mutual first by default), public DTOs via
+   * returned page mirrors `getUserFollowers`: stable non-chronological order, public DTOs via
    * `formatUserResponse`, and the same `{ data, total, hasMore, limit, offset }`
    * shape.
    */
@@ -1372,7 +1359,6 @@ export class UserService {
       'followerId',
       limit,
       offset,
-      params.sort,
     );
     if (total === 0) {
       return empty();
@@ -2215,6 +2201,9 @@ export class UserService {
         if (currency === 'USD' || currency === 'EUR' || currency === 'FAIR')
           response.userPreferences = { displayCurrency: currency };
       }
+      response.languages = Array.isArray(user.languages)
+        ? user.languages.filter((locale): locale is string => typeof locale === 'string')
+        : [];
       response.phone = stringOrUndefined(user.phone);
       response.address = stringOrUndefined(user.address);
       response.birthday = stringOrUndefined(user.birthday);

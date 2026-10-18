@@ -40,6 +40,20 @@ describe('createSurfaceNavStack', () => {
     expect(stack.getTop().step).toBe(1);
   });
 
+  it('backs through wizard history before leaving a drilled-in route', () => {
+    const stack = createSurfaceNavStack('AccountDialog');
+    stack.navigate('LegalDocuments', { initialStep: 2 });
+    expect(stack.goBack()).toBe(true);
+    expect(stack.getTop()).toMatchObject({ route: 'LegalDocuments', step: 1 });
+    expect(stack.goBack()).toBe(true);
+    expect(stack.getTop()).toMatchObject({ route: 'LegalDocuments', step: 0 });
+    expect(stack.goBack()).toBe(true);
+    expect(stack.getTop().route).toBe('AccountDialog');
+    expect(stack.canGoBack()).toBe(false);
+    expect(stack.goBack()).toBe(false);
+    expect(stack.store.getState().closing).toBe(false);
+  });
+
   it('requestDismiss flips closing once', () => {
     const stack = createSurfaceNavStack('ManageAccount');
     stack.requestDismiss('done');
@@ -184,4 +198,17 @@ describe('pushSurfaceBackHandler', () => {
     expect(__invokeTopSurfaceBackForTests()).toBe(true);
     expect(calls).toEqual(['top']);
   });
+});
+
+it('reports forward and backward content transitions without changing root navigation', () => {
+  const stack = createSurfaceNavStack('ManageAccount');
+  expect(stack.store.getState().direction).toBe('none');
+  stack.navigate('EditProfile');
+  expect(stack.store.getState().direction).toBe('forward');
+  stack.goBack();
+  expect(stack.store.getState().direction).toBe('backward');
+  stack.setStep(2);
+  expect(stack.store.getState().direction).toBe('forward');
+  stack.setStep(1);
+  expect(stack.store.getState().direction).toBe('backward');
 });

@@ -1,3 +1,4 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 /**
  * OxyConsentScreen — the unified OAuth authorize/consent surface for
  * `@oxy.so/services`.
@@ -19,11 +20,11 @@
  * under the `consent.*` keys.
  */
 import { useCallback } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { logger } from '@oxy.so/core';
 import type { McpOAuthWriteAction } from '@oxy.so/contracts';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button } from '@oxy.so/bloom/button';
+import { Button, LinkButton } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useI18n } from '../hooks/useI18n';
@@ -208,9 +209,9 @@ function ConsentLink({
     });
   }, [url]);
   return (
-    <Pressable testID={testID} onPress={handlePress} accessibilityRole="link" style={styles.link}>
-      <Text style={[styles.linkText, { color }]}>{label}</Text>
-    </Pressable>
+    <LinkButton testID={testID} onPress={handlePress} accessibilityRole="link" size="sm">
+      {label}
+    </LinkButton>
   );
 }
 
@@ -464,11 +465,8 @@ export function OxyConsentScreen({
 
       {/* Blocking error */}
       {error ? (
-        <View
-          testID="consent-error"
-          style={[styles.errorCard, { borderColor: theme.colors.error }]}
-        >
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+        <View testID="consent-error">
+          <Admonition type="error">{error}</Admonition>
         </View>
       ) : null}
 
@@ -647,21 +645,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 16,
     paddingHorizontal: 4,
-  },
-  link: {
-    alignSelf: 'flex-start',
-  },
-  linkText: {
-    fontSize: 13,
-    textDecorationLine: 'underline',
-  },
-  errorCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    fontSize: 14,
   },
   actions: {
     gap: 12,

@@ -3,8 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DomainVerificationInstructions, VerifiedDomain } from '@oxy.so/contracts';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -12,7 +11,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -93,14 +92,10 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
     if (name && !request.isPending) request.mutate(name);
   };
 
-  if (domains.isPending && isAuthenticated) {
-    return <Loading size="lg" color={bloomTheme.colors.primary} />;
-  }
-
   return (
     <View className="px-screen-margin pb-space-24">
       {pending ? (
-        <SettingsListGroup title={t('domains.instructions.title', { domain: pending.domain })}>
+        <GroupedSection title={t('domains.instructions.title', { domain: pending.domain })}>
           <View className="px-space-16 py-space-12" style={styles.instructions}>
             <Text className="text-text-secondary">{t('domains.instructions.dns')}</Text>
             <Text selectable testID="domains-dns-name">
@@ -135,9 +130,9 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
               {t('common.cancel') || 'Cancel'}
             </Button>
           </View>
-        </SettingsListGroup>
+        </GroupedSection>
       ) : (
-        <SettingsListGroup title={t('domains.add.title')}>
+        <GroupedSection title={t('domains.add.title')}>
           <View className="px-space-16 py-space-12" style={styles.instructions}>
             <TextFieldLabel>{t('domains.add.label')}</TextFieldLabel>
             <TextField disabled={request.isPending}>
@@ -165,17 +160,17 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
               {t('domains.add.action')}
             </Button>
           </View>
-        </SettingsListGroup>
+        </GroupedSection>
       )}
 
-      <SettingsListGroup title={t('domains.list.title')}>
+      <GroupedSection title={t('domains.list.title')}>
         {(domains.data ?? []).length === 0 ? (
           <Text className="text-text-secondary px-space-16 py-space-12">
             {t('domains.list.empty')}
           </Text>
         ) : (
           (domains.data ?? []).map((item) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={item.domain}
               icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
               title={item.domain}
@@ -189,7 +184,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
             />
           ))
         )}
-      </SettingsListGroup>
+      </GroupedSection>
     </View>
   );
 };

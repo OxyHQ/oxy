@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useCallback, useMemo, useState, memo } from 'react';
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
 import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { useFollow, useFollowForButton } from '../hooks/useFollow';

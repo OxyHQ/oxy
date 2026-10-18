@@ -1,18 +1,18 @@
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { ConnectedApp } from '@oxy.so/core';
 import { logger as loggerUtil } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 import { useConnectedApps } from '../hooks/queries/useAccountQueries';
 import { useRevokeConnectedApp } from '../hooks/mutations/useAccountMutations';
 
@@ -107,8 +107,8 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
     ({ item }: { item: ConnectedApp }) => {
       const isRevoking = revokingAppId === item.applicationId;
       return (
-        <SettingsListGroup>
-          <SettingsListItem
+        <GroupedSection>
+          <GroupedSectionItem
             icon={<Avatar name={item.name} size={APP_ICON_SIZE} />}
             title={item.name}
             description={t('connectedApps.item.granted', {
@@ -119,12 +119,10 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             destructive
             showChevron={false}
             rightElement={
-              isRevoking ? (
-                <ActivityIndicator color={bloomTheme.colors.error} size="small" />
-              ) : undefined
+              isRevoking ? <SpinnerIcon color={bloomTheme.colors.error} size={16} /> : undefined
             }
           />
-        </SettingsListGroup>
+        </GroupedSection>
       );
     },
     [bloomTheme.colors.error, confirmRevoke, revokingAppId, t],
@@ -132,16 +130,14 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 
   return (
     <View className="flex-1 bg-bg">
-      {isLoading && !apps ? (
-        <Loading size="lg" color={bloomTheme.colors.primary} />
-      ) : (
+      {
         <FlatList
           data={apps ?? []}
           keyExtractor={(item) => item.applicationId}
           renderItem={renderItem}
           contentContainerClassName="px-screen-margin py-space-16"
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={renderEmpty}
+          ListEmptyComponent={isLoading ? undefined : renderEmpty}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -152,7 +148,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
             />
           }
         />
-      )}
+      }
     </View>
   );
 };

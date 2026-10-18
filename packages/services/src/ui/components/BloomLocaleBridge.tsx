@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from 'react';
 import { LocaleProvider, useBloomLocale } from '@oxy.so/bloom/locale';
-import { useOxy } from '../context/OxyContext';
+import { useOxy } from '../context/oxyRuntimeContext';
 
 /**
  * Bloom's own words — a field's "Show password", a dialog's "Close", "Step 2

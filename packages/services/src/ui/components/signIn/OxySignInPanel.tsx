@@ -50,7 +50,7 @@ import {
   isSecondFactorRequired,
 } from '@oxy.so/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useDeviceSwitcher } from '../../hooks/useDeviceSwitcher';
 import { useI18n } from '../../hooks/useI18n';

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type FC } from 'react';
+import { OxySupportContext } from '../context/oxySupportContext';
+import { loadScreens } from '../navigation/routes';
+import { useEffect, useRef, useState, useMemo, type FC } from 'react';
 import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,6 +22,15 @@ import { KeyboardBoundary } from './KeyboardBoundary';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 import { LanguageBridge } from './LanguageBridge';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
+import { useOxy } from '../context/oxyRuntimeContext';
+import { useCurrentUser } from '../hooks/queries/useAccountQueries';
+
+/** Hydrate owner preferences after the bearer is ready, including on cold boot. */
+function AccountProfileObserver() {
+  const { canUsePrivateApi } = useOxy();
+  useCurrentUser({ enabled: canUsePrivateApi });
+  return null;
+}
 
 const bootStyles = StyleSheet.create({
   providerRoot: {
@@ -83,6 +94,10 @@ const OxyProvider: FC<OxyProviderProps> = ({
   oxyServices,
   children,
   onAuthStateChange,
+  onAskAlia,
+  documentationUrl,
+  aliaAvatar,
+  oxyOneArtwork,
   productAnalytics,
   storageKeyPrefix,
   clientId,
@@ -98,6 +113,14 @@ const OxyProvider: FC<OxyProviderProps> = ({
   backgroundSession = false,
   language,
 }) => {
+  const support = useMemo(
+    () => ({ onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork }),
+    [onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork],
+  );
+  useEffect(() => {
+    // Full entries are already registered; lean entries warm their screen chunk.
+    void loadScreens().catch(() => undefined);
+  }, []);
   // Storage + persistence wiring.
   //
   // The QueryClient exists synchronously so cache I/O can never delay the app
@@ -258,16 +281,19 @@ const OxyProvider: FC<OxyProviderProps> = ({
         accountQueries={accountQueries}
         onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
       >
+        <AccountProfileObserver />
         {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
         {language ? <LanguageBridge {...language} /> : null}
         <BloomLocaleBridge>
-          <SurfaceProvider>
-            {requireAuth === 'off' ? (
-              children
-            ) : (
-              <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-            )}
-          </SurfaceProvider>
+          <OxySupportContext.Provider value={support}>
+            <SurfaceProvider>
+              {requireAuth === 'off' ? (
+                children
+              ) : (
+                <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+              )}
+            </SurfaceProvider>
+          </OxySupportContext.Provider>
           <ToastOutlet />
         </BloomLocaleBridge>
       </OxyRuntimeProvider>

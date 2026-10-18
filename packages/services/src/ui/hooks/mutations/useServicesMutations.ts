@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ClientSession } from '@oxy.so/core';
 import { queryKeys, invalidateSessionQueries } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
-import { useOxy } from '../../context/OxyContext';
+import { useOxy } from '../../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
 
 /**
