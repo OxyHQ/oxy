@@ -408,7 +408,7 @@ describe('GET /session/device/directory — the server-authoritative read model'
     const device = newDeviceId();
     const nate = await account({ color: 'purple' });
     const org = await organization(nate);
-    await getDb().update(users).set({ color: 'amber' }).where(eq(users.id, org));
+    await getDb().update(users).set({ color: 'yellow' }).where(eq(users.id, org));
     await signIn(device, nate);
 
     const directory = await deviceSessionService.getDirectory(device);
@@ -419,7 +419,7 @@ describe('GET /session/device/directory — the server-authoritative read model'
     // The row that regressed when the switcher moved onto the directory
     // (issue #961): a non-active row, whose accent no client holds a profile
     // for and can therefore only learn from here.
-    expect(contextFor(directory, nate, org)?.account.color).toBe('amber');
+    expect(contextFor(directory, nate, org)?.account.color).toBe('yellow');
   });
 
   it('keeps the accent on a revoked context, which reads from a different query', async () => {

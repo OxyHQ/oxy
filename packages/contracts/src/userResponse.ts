@@ -1,19 +1,3 @@
-/** Canonical profile/theme preset identities accepted by Oxy writes. */
-export const USER_PROFILE_COLOR_PRESETS = [
-  'teal',
-  'blue',
-  'green',
-  'amber',
-  'red',
-  'purple',
-  'pink',
-  'sky',
-  'orange',
-  'mint',
-  'mono',
-  'oxy',
-] as const;
-
 /**
  * Canonical API user-response contracts.
  *

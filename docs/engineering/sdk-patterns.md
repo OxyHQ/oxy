@@ -113,3 +113,28 @@ Activated inside `FileManagementScreen` when `isImageOnlyPicker` is true. Apple 
 - one mounted INSIDE `OxyProvider` scopes its own subtree, as usual.
 
 This is separate from `OxyProvider language` (ADR 0022), which hands the language to the app's OWN i18n library. Gate: `src/ui/components/__tests__/BloomLocaleBridge.test.tsx`.
+
+
+## Profile color identity
+
+Bloom's published `@oxy.so/bloom/color-presets` registry owns names and gates.
+Contracts generates `profileColors.generated.ts` from that registry at development
+time (`bun run --cwd packages/contracts generate:profile-colors`); its build
+checks freshness. Bloom remains a build dependency: the wire contracts introduce
+no React dependency into backend or SDK runtimes. When the catalogue changes,
+regenerate the users CHECK migration as well.
+
+Oxy assigns a free preset once when creating an account, including federated
+identities. Synchronization does not recolor existing accounts. Handle-owned and
+premium presets never participate in random assignment. Existing color identity
+is distinct from permission to choose a new restricted preset.
+
+Clients resolve `user.color` with Bloom's `resolveProfileColor` and pass the
+result to `BloomColorScope`. Named recipes stay named; legacy hex values remain
+exact seeds. Unknown values inherit the surrounding theme. Do not replace an
+unknown value with blue or use private app appearance preferences as a public
+profile identity. The shared account chooser uses the same resolution.
+
+Deployment expands the SQL constraint before rollout, then renames legacy
+`amber` to `yellow` and contracts it after the new server is running. Other
+persisted choices and exact hex values are preserved.

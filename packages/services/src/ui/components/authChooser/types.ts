@@ -1,3 +1,4 @@
+import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
 /**
  * Shared types + per-account color resolution for the auth chooser's views.
  *
@@ -8,12 +9,7 @@
  */
 
 import type { AccountStorageUsageResponse } from '@oxy.so/core';
-import {
-  APP_COLOR_NAMES,
-  APP_COLOR_PRESETS,
-  type AppColorName,
-  type useTheme,
-} from '@oxy.so/bloom/theme';
+import { APP_COLOR_PRESETS, type useTheme } from '@oxy.so/bloom/theme';
 import type { AccountDialogMenuSection } from '../../navigation/accountDialogManager';
 import type { useI18n } from '../../hooks/useI18n';
 
@@ -132,14 +128,9 @@ export interface SignInAlternatives {
  * renders in EVERY consumer regardless of NativeWind availability.
  */
 export function resolveAccentHex(color: string | null, fallback: string): string {
-  const preset = toPreset(color);
-  return preset ? APP_COLOR_PRESETS[preset].hex : fallback;
-}
-
-/** Narrow a stored color string to a known `AppColorName`, or `undefined`. */
-export function toPreset(color: string | null): AppColorName | undefined {
-  if (!color) return undefined;
-  return (APP_COLOR_NAMES as readonly string[]).includes(color)
-    ? (color as AppColorName)
-    : undefined;
+  const resolved = resolveProfileColor(color);
+  return (
+    resolved?.seed ??
+    (resolved?.colorPreset ? APP_COLOR_PRESETS[resolved.colorPreset].hex : fallback)
+  );
 }

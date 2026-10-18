@@ -37,6 +37,7 @@ module.exports = {
     '!src/**/__tests__/**',
   ],
   moduleNameMapper: {
+    '^@oxy.so/bloom/color-presets$': require.resolve('@oxy.so/bloom/color-presets'),
     '^@expo/vector-icons/createIconSet$': '<rootDir>/__tests__/__mocks__/expo-create-icon-set.tsx',
     '\\.(ttf|jpg)$': '<rootDir>/__tests__/__mocks__/static-asset.ts',
     // Resolve workspace deps from TypeScript SOURCE so services tests do not
