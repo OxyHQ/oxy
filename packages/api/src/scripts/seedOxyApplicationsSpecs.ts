@@ -375,6 +375,17 @@ export const CLARITY_OWNER_ACCOUNT_USERNAME = 'clarity';
 export const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
+ * Mention's backend task identity (its ECS task role's workload binding and the
+ * credential materialised from it), read back from production. The scope seed
+ * may widen this binding with the application's own scopes.
+ */
+export const MENTION_TASK_WORKLOAD_IDENTITY = {
+  bindingId: '01a0b40a-9739-7703-a154-428dd51d15bb',
+  credentialId: 'wl_d61be5cd068abb658ed4d193',
+  subject: 'arn:aws:iam::237343248947:role/oxy-mention-task',
+} as const;
+
+/**
  * Oxy Move (move.oxy.so) — the first-party migrator. A new identity, so the
  * seed mints it with this exact id rather than by name.
  */

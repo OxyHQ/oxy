@@ -1,5 +1,10 @@
 # Private inference commissioning
 
+> **Retired (2026-10-18).** Scoped permits, private commissioning and the
+> legal-review CLIs were deleted from Oxy: the catalogue sync no longer imports a
+> scoped or Private Auto publication, and decisions are a `kaana.ai/v1` grant
+> operation ([decisions.md](../inference/decisions.md)). Kept as history.
+
 An exact source-reviewed scoped audience can measure a private deployment before
 public serving approval. This is a separate admission state: its database row
 stays `platform_internal`, `pending_review`, and `disabled`. Ordinary model,

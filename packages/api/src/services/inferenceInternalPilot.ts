@@ -10,8 +10,6 @@ import {
 } from './inferenceCatalogue.service';
 import type { ConcretePowerLevel } from './inferencePowerLevels.service';
 import type { EdgeOperation, NormalizedEdgeRequest } from '../schemas/inferenceEdge.schemas';
-import type { ScopedExecutionAudience } from '@oxy.so/contracts';
-import { hashScopedInput } from './scopedExecution.service';
 
 // Explicit local framing allowance; provider hidden prompts/framing remain outside
 // this measurable budget. Serialize every controlled input field, including schemas.
@@ -65,10 +63,7 @@ export function pilotTermsFor(
       };
 }
 
-export function controlledInputBudget(
-  request: NormalizedEdgeRequest,
-  scopedPermit?: ScopedExecutionAudience,
-): number | undefined {
+export function controlledInputBudget(request: NormalizedEdgeRequest): number | undefined {
   // Speech is measured in what it is billed in: the exact characters of the one
   // text input (`input.length`, the figure the hold and quote use), never a
   // UTF-8 framing estimate. Any other shape is not a speech request this pilot knows.
@@ -80,32 +75,6 @@ export function controlledInputBudget(
       request.tools.length === 0
       ? request.operation.characters
       : undefined;
-  }
-  // Only an already authenticated, source-bound permit may extend this pilot.
-  // Count the whole controlled input, including every question and choice.
-  if (
-    request.operation.kind === 'decisions' &&
-    request.input.format === 'decisions' &&
-    scopedPermit !== undefined &&
-    Date.parse(scopedPermit.expiresAt) > Date.now() &&
-    request.target?.kind === 'model' &&
-    request.target.modelReference === scopedPermit.modelReference &&
-    hashScopedInput(JSON.parse(JSON.stringify(request.input))) === scopedPermit.fixtureSha256 &&
-    !request.stream &&
-    request.audioOutput === undefined &&
-    request.tools.length === 0
-  ) {
-    return (
-      Buffer.byteLength(
-        JSON.stringify({
-          input: request.input,
-          tools: request.tools,
-          toolChoice: request.toolChoice,
-          responseFormat: request.responseFormat,
-        }),
-        'utf8',
-      ) + BASE_OVERHEAD
-    );
   }
   if (
     request.operation.kind !== 'completion' ||
@@ -138,15 +107,7 @@ export function pilotAllowsDeployment(
   pilot: InternalMeteredPilot,
   operation: EdgeOperation,
   route: InternalMeteredPilotDeployment,
-  scopedPermit?: ScopedExecutionAudience,
 ): boolean {
-  if (scopedPermit !== undefined)
-    return (
-      Date.parse(scopedPermit.expiresAt) > Date.now() &&
-      scopedPermit.deploymentId === route.deploymentId &&
-      scopedPermit.modelReference === route.modelReference &&
-      scopedPermit.provider === route.provider
-    );
   const deployments = pilotTermsFor(pilot, operation)?.deployments ?? [];
   return deployments.some(
     (allowed) =>

@@ -122,17 +122,12 @@ export function createDeploymentPublicationCache(
     const timer = setTimeout(() => controller.abort(), PUBLICATION_READ_TIMEOUT_MS);
     try {
       const snapshot = await reader.listPublishedDeployments(controller.signal);
-      const ordinary = snapshot.deployments.filter(
-        (deployment) =>
-          deployment.scopedExecution === undefined &&
-          deployment.privateAutoSourceApproval === undefined,
-      );
       last = {
         status: 'observed',
         snapshotId: snapshot.snapshotId,
-        deploymentIds: new Set(ordinary.map((deployment) => deployment.deploymentId)),
+        deploymentIds: new Set(snapshot.deployments.map((deployment) => deployment.deploymentId)),
         routes: new Map(
-          ordinary.map((deployment) => [
+          snapshot.deployments.map((deployment) => [
             deployment.deploymentId,
             {
               deploymentId: deployment.deploymentId,

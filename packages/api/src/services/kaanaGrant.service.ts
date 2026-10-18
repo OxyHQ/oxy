@@ -1034,8 +1034,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       break;
     case 'duplicate':
       throw idempotencyConflict();
-    case 'parent-unavailable':
-      throw new GrantRefusal('policy_violation', 'The request has no parent admission.');
     case 'sessions-exceeded':
       throw new GrantRefusal(
         'rate_limited',

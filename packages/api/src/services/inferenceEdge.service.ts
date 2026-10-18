@@ -104,12 +104,9 @@ import { isSupervised } from './supervisionPolicy.service';
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
-import { privateAutoCatalogueApproval, privateAutoHash, readPrivateAutoParent, privateAutoParentOwned, bindPrivateAutoExecution } from './privateAutoExecution.service';
-import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
-import { decisionAvailability } from '../config/decisionAvailability';
+import { decisionAnswersMatch, decisionInputBudget, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import type { z } from 'zod';
@@ -119,9 +116,7 @@ import {
 } from './kaanaDeploymentPublication.service';
 import {
   autoLadder,
-  AUTO_POWER_LEVELS,
   classifyAutoPowerLevel,
-  type AutoPowerDecision,
   type AutoRoutingFeatures,
   type ConcretePowerLevel,
   powerLevelEfforts,
@@ -129,13 +124,6 @@ import {
   resolvePowerLevelEffort,
   powerLevelProfileIds,
 } from './inferencePowerLevels.service';
-import {
-  AUTO_CLASSIFIER_VERSION,
-  createAutoPowerLevelResolver,
-  type AutoClassificationChild,
-} from './inferenceAutoPowerLevel.service';
-import { createJevAutoClassifier, createPrivateJevAutoClassifier } from './inferenceAutoClassifierChild.service';
-import { approvedAutoClassifier, autoClassifierApproval, sameAutoClassifierApproval, type AutoClassifierApproval } from '../config/autoClassification';
 import {
   effectiveSameModelDeployment,
   type inferenceAttributionSchema,
@@ -163,10 +151,6 @@ import {
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
-import { mentionClassifierApproval, type MentionClassifierApproval } from '../config/mentionClassifierEconomics';
-import { isMentionClassifierRequest, mentionClassifierAuthorityActive, mentionClassifierEconomicDecision } from './mentionClassifierEconomics.service';
-import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
-import { privateAutoInferenceRequestSchema, privateAutoInputSchema, type PrivateAutoInferenceRequest, type PrivateAutoSourceApproval, type PrivateAutoExecution, scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import {
@@ -187,8 +171,6 @@ import { OXY_API_AUDIENCE, type ServiceTokenAudience } from '../config/serviceTo
 import { resolveServiceTokenPrincipal } from './attribution.service';
 import {
   claimMeteredAdmission,
-  finalizeMeteredAuthorization,
-  hasActiveInternalMeteredAdmission,
   markMeteredAdmissionRefused,
   settleMeteredUsage,
 } from './inferenceMeteredUsage.service';
@@ -212,7 +194,6 @@ import {
   publishedUnitPrice,
   quoteUnits,
   reserve,
-  previewReservation,
   settle,
   type LedgerAttribution,
   type PriceRef,
@@ -222,7 +203,6 @@ import {
   recordRouteSwitch,
   resolveEffectiveRoutingPolicy,
   type RouteSwitchDetail,
-  type EffectiveRoutingPolicyResolution,
 } from './inferenceRoutingPolicy.service';
 import { recordInferenceUsage } from './inferenceTelemetry.service';
 import {
@@ -578,23 +558,6 @@ export function viewerForPrincipal(principal: EdgePrincipal): CatalogueViewer {
 /* -------------------------------------------------------------------------- */
 
 export interface EdgeExecutionContext {
-  /** Constructed only after this exact durable parent has claimed its own quota. */
-  readonly privateAutoChild?: {
-    readonly approval: PrivateAutoSourceApproval;
-    readonly parentMeteredUsageId: string;
-    readonly parentRequestId: string;
-    readonly deadlineAt: number;
-    readonly policy: EffectiveRoutingPolicyResolution;
-    readonly maxPricePerRequest: AutoClassificationChild['maxPricePerRequest'];
-  };
-  /** Internal only, constructed by the Auto adapter; never read from a public body. */
-  readonly autoClassificationChild?: {
-    readonly approval: AutoClassifierApproval;
-    readonly parentRequestId: string;
-    readonly modelReference: string;
-    readonly policy: EffectiveRoutingPolicyResolution;
-    readonly maxPricePerRequest: AutoClassificationChild['maxPricePerRequest'];
-  };
   /** Allocated before authentication, so a rejected request is traceable. */
   readonly requestId: string;
   /**
@@ -727,9 +690,6 @@ export interface EdgeStreamHead {
 
 /** Everything admission resolved, and the hold it took. */
 export interface AdmittedRequest {
-  readonly privateAutoExecution?: PrivateAutoExecution;
-  readonly scopedExecution?: ScopedExecution;
-  readonly mentionClassifier?: MentionClassifierApproval;
   readonly route: EdgeRoute;
   /** The caller's concrete target or routing profile, preserved for the envelope. */
   readonly routingTarget: RoutingTarget;
@@ -972,22 +932,9 @@ export function refuseRequest(
  * charging), and the usage record a report reads cost from.
  */
 export async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
-  return admitWithAutoDecision(context);
-}
-
-/** A semantic decision can restart routing once, with no hold and the SAME pinned policy. */
-async function admitWithAutoDecision(
-  context: EdgeExecutionContext,
-  resolvedAuto?: { readonly decision: AutoPowerDecision; readonly policy: EffectiveRoutingPolicyResolution },
-  preclaimedMeteredUsageId?: string
-): Promise<Admission> {
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
-  const scopedPermit = scopedPermitForContext(context);
-  let economics = resolveEconomicTreatment(principal);
-  const classifierApproval = mentionClassifierApproval();
-  const mentionClassifier = classifierApproval !== undefined
-    && isMentionClassifierRequest(principal, request, classifierApproval) ? { ...classifierApproval } : undefined;
+  const economics = resolveEconomicTreatment(principal);
 
   const refuse = (
     code: InferenceErrorCode,
@@ -998,30 +945,14 @@ async function admitWithAutoDecision(
     error: refuseRequest(context, code, message, options),
   });
 
-  const privateChild = context.privateAutoChild;
-  const privateApproval = privateChild === undefined || principal.environment !== 'production' || principal.lane !== 'service_token' ? undefined :
-    privateAutoCatalogueApproval({ approval: privateChild.approval, principal: { accountId: principal.ownerAccountId,
-      applicationId: principal.applicationId, credentialId: principal.credentialId, environment: principal.environment, lane: principal.lane } });
-  if (privateChild !== undefined && (privateApproval === undefined || context.autoClassificationChild !== undefined || scopedPermit !== undefined ||
-    economics.treatment !== 'internal_metered' || economics.policyVersion !== privateApproval.economicPolicyVersion ||
-    economics.relationship.relationshipId !== privateApproval.economicRelationshipId || context.delegatedUserId !== undefined ||
-    context.endpoint !== '/internal/auto-classification' || context.idempotencyKey !== requestId ||
-    request.target?.kind !== 'model' || request.target.modelReference !== privateApproval.modelReference ||
-    request.operation.kind !== 'decisions' || request.stream || request.tools.length !== 0 ||
-    Object.keys(request.sampling).length !== 0 || request.maxOutputTokens !== undefined ||
-    request.toolChoice !== undefined || request.responseFormat !== undefined || request.reasoning !== undefined ||
-    request.audioOutput !== undefined || request.speech !== undefined || !privateAutoInputSchema.safeParse(request.input).success ||
-    !Number.isFinite(privateChild.deadlineAt) || privateChild.deadlineAt <= Date.now())) {
-    return refuse('policy_violation', 'Private Auto requires exact active source and own metered parent authority.');
+  // Decisions are a grant operation of `kaana.ai/v1` (Kaana ADR 0002): this
+  // edge serves none, whatever the caller, credential or environment.
+  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
+    return refuse('service_unavailable', 'Decisions are served by https://kaana.ai/v1/decisions.', {
+      reason: 'decisions-served-by-kaana',
+    });
   }
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
-  if (context.autoClassificationChild !== undefined && (
-    (!charging && economics.treatment === 'commercial') || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
-    || request.target.modelReference !== context.autoClassificationChild.modelReference
-    || !request.target.modelReference.includes('@')
-  )) {
-    return refuse('policy_violation', 'Auto classification requires a metered exact-model child.');
-  }
 
   // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
   //    is why it is checked before anything is resolved or reserved.
@@ -1030,16 +961,6 @@ async function admitWithAutoDecision(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.'
     );
-  }
-
-  // The economic treatment, from the AUTHENTICATED principal only. Read once,
-  // like the charging flag, so admission and settlement cannot disagree.
-  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
-    const gate = decisionAvailability();
-    if (!gate.available && scopedPermit === undefined && privateApproval === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
-    if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
-      return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
-    }
   }
 
   // Only the text modality is served. Refusing here rather than forwarding is
@@ -1058,8 +979,7 @@ async function admitWithAutoDecision(
   // The terms that bind THIS operation: speech has its own (characters, routes,
   // quote ceiling); a pilot without them leaves speech outside it.
   const pilotTerms = pilot === undefined ? undefined : pilotTermsFor(pilot, request.operation);
-  const pilotInputBudget = pilot === undefined ? undefined : privateApproval === undefined ? controlledInputBudget(request, scopedPermit) :
-    Buffer.byteLength(JSON.stringify({ input: request.input, tools: request.tools }), 'utf8') + 256;
+  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request);
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined || pilotTerms === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
@@ -1074,11 +994,8 @@ async function admitWithAutoDecision(
   const promotionallyAdmitted = new Set<string>();
   const acceptsPilotDeployment = (route: EdgeRoute, priority: number): boolean => {
     if (pilot === undefined) return true;
-    if (privateApproval !== undefined) {
-      return route.deploymentId === privateApproval.deploymentId && route.modelReference === privateApproval.modelReference && route.provider === privateApproval.provider;
-    }
-    if (pilotAllowsDeployment(pilot, request.operation, route, scopedPermit)) return true;
-    if (scopedPermit !== undefined || !promotionalPriorities.has(priority) || !fundedByPromotionalCredit(route)) return false;
+    if (pilotAllowsDeployment(pilot, request.operation, route)) return true;
+    if (!promotionalPriorities.has(priority) || !fundedByPromotionalCredit(route)) return false;
     promotionallyAdmitted.add(route.deploymentId);
     return true;
   };
@@ -1086,8 +1003,7 @@ async function admitWithAutoDecision(
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
   //     means the platform default, which is a real answer rather than a gap.
-  const policy = resolvedAuto?.policy ?? privateChild?.policy ?? context.autoClassificationChild?.policy
-    ?? await resolveEffectiveRoutingPolicy(principal.applicationId);
+  const policy = await resolveEffectiveRoutingPolicy(principal.applicationId);
   const viewer = viewerForPrincipal(principal);
   // An official application with no policy of its own is served under the
   // named internal default; everyone else keeps the platform default.
@@ -1104,18 +1020,6 @@ async function admitWithAutoDecision(
         : PLATFORM_DEFAULT_ROUTING_POLICY;
   const routingPolicyVersionId =
     policy.status === 'resolved' ? policy.stored.versionId : undefined;
-
-  if (privateApproval !== undefined && (privateApproval.policy.routingPolicyId !== routingPolicy.routingPolicyId ||
-    privateApproval.policy.policyVersion !== routingPolicy.policyVersion)) return refuse('policy_violation', 'Private Auto policy changed.');
-  const childApproval = context.autoClassificationChild?.approval;
-  if (context.autoClassificationChild !== undefined) {
-    const currentApproval = approvedAutoClassifier(autoClassifierApproval(), routingPolicy);
-    if (childApproval === undefined || currentApproval === undefined
-      || !sameAutoClassifierApproval(childApproval, currentApproval)
-      || request.target?.kind !== 'model' || request.target.modelReference !== childApproval.modelReference) {
-      return refuse('policy_violation', 'Auto classification approval does not match this deployment and policy version.');
-    }
-  }
 
   // The same version's data-handling, provider, residency, licence and hosting
   // controls, in the shape the route resolver filters candidates on. Passed
@@ -1161,36 +1065,20 @@ async function admitWithAutoDecision(
   const requestedOutput = pilotOutputCeiling === undefined ? request.maxOutputTokens
     : Math.min(request.maxOutputTokens ?? pilotOutputCeiling, pilotOutputCeiling);
   const estimatedInputTokens = pilotInputBudget ?? estimateInputTokens(request);
-  const contextInputTokens = request.input.format === 'decisions'
-    ? decisionInputBudget(request.input.decisions).context
-    : estimatedInputTokens;
   const requiredCapacity = {
-    inputTokens: contextInputTokens,
+    inputTokens: estimatedInputTokens,
     outputTokens:
       request.operation.kind !== 'completion'
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
-  // Mention's exact source-reviewed classifier is still only a candidate here.
-  // Let catalogue/attestation/quote qualify it; the mandatory decision below
-  // must establish live authority and bounded internal treatment before any claim.
-  // All other commercial scoped requests retain their funding prerequisite.
-  if (scopedPermit !== undefined && economics.treatment === 'commercial'
-    && mentionClassifier === undefined && (!charging || !scopedFundingIntegrationAvailable())) {
-    return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
-  }
   const authenticatedRoutingContext = {
-    ...(scopedPermit === undefined ? {} : { scopedExecution: scopedPermit }),
-    ...(privateApproval === undefined ? {} : { privateAuto: { approval: privateApproval, principal: privateApproval.principal } }),
     applicationId: principal.applicationId,
     environment: principal.environment,
   };
-  const fallbackEnabled =
-    request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
+  const fallbackEnabled = policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
-    context.autoClassificationChild !== undefined || privateChild !== undefined
-      ? false
-      : target.kind !== 'model'
+    target.kind !== 'model'
       ? true
       : policy.status === 'resolved'
       ? effectiveSameModelDeployment(policy.stored.policy.fallback)
@@ -1261,11 +1149,6 @@ async function admitWithAutoDecision(
    * for when the caller named none (`auto` has one group per level).
    */
   let powerEffortByPriority: ReadonlyMap<number, PowerEffortTarget | undefined> | undefined;
-  let pendingAuto: {
-    readonly features: AutoRoutingFeatures;
-    readonly decision: AutoPowerDecision;
-    readonly levels: readonly ConcretePowerLevel[];
-  } | undefined;
   /** A priority whose level asks for no reasoning ranks non-reasoning models first. */
   const prefersNonReasoning = (priority: number): boolean =>
     request.reasoning === undefined && powerEffortByPriority?.get(priority) === 'none';
@@ -1305,19 +1188,8 @@ async function admitWithAutoDecision(
       maxPricePerRequest = { amount: pilotPriceLimit, currency: 'USD' };
     }
   }
-  const childPriceLimit = privateApproval === undefined ? context.autoClassificationChild?.maxPricePerRequest :
-    { currency: 'USD' as const, amount: exactDecimalSchema.parse(privateApproval.maxCostUsd) };
-  if (childPriceLimit !== undefined) {
-    if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
-      return refuse('policy_violation', 'The classifier budget and application currency must match.');
-    }
-    if (maxPricePerRequest === undefined || exceedsAmount(maxPricePerRequest.amount, childPriceLimit.amount)) {
-      maxPricePerRequest = childPriceLimit;
-    }
-  }
   // A promotionally admitted route's ceiling: the lane's, unless the
-  // application's own policy is tighter. A classifier child never reaches a
-  // promotional level (it names an exact model), so its limit is not in play.
+  // application's own policy is tighter.
   const parsedPromotionalPrice = pilot?.promotionalCredit === undefined
     ? undefined : exactDecimalSchema.safeParse(pilot.promotionalCredit.maxPricePerRequestUsd);
   if (parsedPromotionalPrice !== undefined && !parsedPromotionalPrice.success) {
@@ -1443,7 +1315,7 @@ async function admitWithAutoDecision(
     if (optimiseFor === undefined) {
       return routingEvidenceRefusal(target.modelReference, 'missing-versioned-optimisation');
     }
-    let primary = await resolveEdgeRoute(
+    const primary = await resolveEdgeRoute(
       viewer,
       target.modelReference,
       routingConstraints,
@@ -1454,17 +1326,6 @@ async function admitWithAutoDecision(
     );
     if (primary.status === 'routing-evidence-unavailable') {
       return routingEvidenceRefusal(target.modelReference, primary.reason);
-    }
-    if (childApproval !== undefined && primary.status === 'resolved') {
-      const reviewed = [primary.route, ...primary.alternates].find((route) =>
-        route.deploymentId === childApproval.deploymentId
-        && route.modelReference === childApproval.modelReference
-        && route.provider === childApproval.provider
-        && sameRegionSet(route.regions, childApproval.regions));
-      if (reviewed === undefined) {
-        return refuse('policy_violation', 'The reviewed Auto classification deployment is not eligible.');
-      }
-      primary = { status: 'resolved', route: reviewed, alternates: [] };
     }
     if (primary.status === 'resolved') {
       routeGroups.push({ priority: 0, resolution: primary });
@@ -1574,19 +1435,17 @@ async function admitWithAutoDecision(
       let levels: ConcretePowerLevel[];
       if (profileResolution.powerLevel === 'auto') {
         const features = autoRoutingFeaturesOf(request, estimatedInputTokens);
-        const decision = resolvedAuto?.decision ?? classifyAutoPowerLevel(features);
+        const decision = classifyAutoPowerLevel(features);
         levels = autoLadder(decision.level, levelAllowed);
         logger.info('inference.edge.auto_power_level', {
           requestId,
           decided: decision.level,
           reasons: decision.reasons,
-          classification: decision.classification,
           ladder: levels,
         });
-        pendingAuto = { features, decision, levels };
       } else {
         const lane =
-          request.operation.kind === 'completion' && scopedPermit === undefined && privateApproval === undefined
+          request.operation.kind === 'completion'
             ? promotionalLaneLevels(pilot, profileResolution.powerLevel, levelAllowed)
             : undefined;
         if (lane !== undefined) {
@@ -1651,7 +1510,7 @@ async function admitWithAutoDecision(
   // availability fact like capacity: it is dropped here, before the authorized
   // set is built, rather than signed and then refused wholesale by the exact
   // attestation below. See `kaanaDeploymentPublication.service.ts`.
-  const liveness = routeGroups.length === 0 || scopedPermit !== undefined || privateApproval !== undefined ? undefined : await currentDeploymentLiveness();
+  const liveness = routeGroups.length === 0 ? undefined : await currentDeploymentLiveness();
   if (liveness?.status === 'unavailable') {
     return kaanaEvidenceRefusal(
       requestedModelReference || requestedTargetReference,
@@ -1682,11 +1541,6 @@ async function admitWithAutoDecision(
         for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
         continue;
       }
-      if (request.input.format === 'decisions' && route.provider === 'openrouter' &&
-          !decisionFitsGateway(request.input.decisions)) {
-        sawContextLimit = true;
-        continue;
-      }
       if (!acceptsCarriedParameters(route)) continue;
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
@@ -1696,7 +1550,7 @@ async function admitWithAutoDecision(
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      if (contextInputTokens + routeOutputTokens > route.maxContextTokens) {
+      if (estimatedInputTokens + routeOutputTokens > route.maxContextTokens) {
         sawContextLimit = true;
         continue;
       }
@@ -1927,8 +1781,7 @@ async function admitWithAutoDecision(
   try {
     attestation = await context.kaanaClient.attestDeployments(
       authorizedRoutes.map((authorized) => authorized.deploymentId),
-      { signal: context.signal, ...(scopedPermit === undefined ? {} : { scopedExecutionContractVersion: '3.6.0' as const }),
-        ...(privateApproval === undefined ? {} : { privateAutoExecutionContractVersion: '3.7.0' as const }) }
+      { signal: context.signal }
     );
   } catch (error) {
     logger.error(
@@ -1946,32 +1799,6 @@ async function admitWithAutoDecision(
       { requestId, reason: attestationMismatch }
     );
     return kaanaEvidenceRefusal(requestedModelReference, attestationMismatch);
-  }
-
-  let scopedExecution: ScopedExecution | undefined;
-  if (scopedPermit !== undefined) {
-    if (authorizedRoutes.length !== 1 || route.scopedCatalogueEvidence === undefined) {
-      return refuse('service_unavailable', 'Scoped normal catalogue evidence is unavailable.');
-    }
-    scopedExecution = attestScopedPermit(scopedPermit, attestation, requestId, { ...route.scopedCatalogueEvidence, policy: routingPolicy });
-    if (scopedExecution === undefined) return refuse('service_unavailable', 'Scoped deployment evidence did not match.');
-  }
-
-  let privateAutoExecution: PrivateAutoExecution | undefined;
-  if (privateApproval !== undefined && privateChild !== undefined) {
-    try { validatePrivateAutoAttestation(attestation, '3.7.0'); } catch {
-      return refuse('service_unavailable', 'Private Auto signed negotiation or descriptor is unavailable.');
-    }
-    const descriptor = attestation.deployments[0];
-    const evidence = route.privateAutoCatalogueEvidence;
-    if (authorizedRoutes.length !== 1 || attestation.deployments.length !== 1 || descriptor?.privateAutoSourceApproval === undefined ||
-      evidence === undefined || evidence.sourceApprovalSha256 !== privateAutoHash(privateApproval)) return refuse('service_unavailable', 'Private Auto catalogue evidence is unavailable.');
-    privateAutoExecution = bindPrivateAutoExecution(privateApproval, await readPrivateAutoParent(privateChild.parentMeteredUsageId), {
-      parentMeteredUsageId: privateChild.parentMeteredUsageId, parentRequestId: privateChild.parentRequestId,
-      requestId, principal, policy: routingPolicy, input: request.input, deadlineAt: privateChild.deadlineAt, signal: context.signal,
-    }, { contractVersion: attestation.privateAutoExecutionContractVersion ?? '', snapshotId: attestation.snapshotId,
-      approval: descriptor.privateAutoSourceApproval, catalogueEvidenceHash: privateAutoHash({ ...evidence, policy: routingPolicy }) });
-    if (privateAutoExecution === undefined) return refuse('policy_violation', 'Private Auto parent or source authority is unavailable.');
   }
 
   // 6c. Size the hold at the exact maximum of every partition the request can
@@ -2053,20 +1880,6 @@ async function admitWithAutoDecision(
       }
     }
   }
-  if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
-    return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
-  }
-  if (mentionClassifier !== undefined) {
-    const decision = mentionClassifierEconomicDecision({ principal, request, approval: mentionClassifier,
-      routes: authorizedRoutes, policy: routingPolicy, quote: { amount: maxAmount, currency: quote.currency },
-      authorityActive: await mentionClassifierAuthorityActive(principal), delegatedUserId: context.delegatedUserId,
-      now: Date.now() });
-    if (decision === undefined) return refuse('policy_violation', 'Mention classifier relationship is not eligible.');
-    economics = decision;
-  }
-  if (privateApproval !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, privateApproval.maxCostUsd))) {
-    return refuse('policy_violation', 'Private Auto quote exceeds the exact source USD ceiling.');
-  }
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -2123,10 +1936,6 @@ async function admitWithAutoDecision(
     return { status: 'refused', error };
   };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
-  if (privateChild !== undefined && (privateApproval === undefined || privateAutoCatalogueApproval({ approval: privateApproval, principal: privateApproval.principal }) === undefined || privateChild.deadlineAt <= Date.now())) {
-    return refuse('policy_violation', 'Private Auto source or original deadline expired before admission.');
-  }
-  if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
   const holdTtlSeconds =
     request.operation.kind === 'realtime_session'
       ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
@@ -2137,9 +1946,6 @@ async function admitWithAutoDecision(
   //      Nothing is reserved or forwarded unless this succeeds.
   const meteredInput = {
     requestId,
-    ...(privateChild !== undefined ? { parentRequestId: privateChild.parentRequestId,
-      privateAutoParent: { meteredUsageId: privateChild.parentMeteredUsageId, requestId: privateChild.parentRequestId, deadlineAt: privateChild.deadlineAt } } :
-      context.autoClassificationChild === undefined ? {} : { parentRequestId: context.autoClassificationChild.parentRequestId }),
     idempotencyKey: ledgerKey,
     economics,
     accountId: principal.ownerAccountId,
@@ -2156,18 +1962,13 @@ async function admitWithAutoDecision(
     ceiling: { amount: maxAmount, currency: quote.currency },
     expiresInSeconds: holdTtlSeconds,
   };
-  const claim = preclaimedMeteredUsageId === undefined
-    ? await claimMeteredAdmission(meteredInput)
-    : { status: 'claimed' as const, meteredUsageId: preclaimedMeteredUsageId };
+  const claim = await claimMeteredAdmission(meteredInput);
   if (claim.status === 'duplicate') {
     return refuse(
       'idempotency_conflict',
       'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
       { param: 'Idempotency-Key' }
     );
-  }
-  if (claim.status === 'parent-unavailable') {
-    return refuse('policy_violation', 'Private Auto requires its retained active parent admission.');
   }
   // Only the grant API passes Console session limits (`realtimeSessionLimits`);
   // this edge never does, so this arm is the type's, not a path it takes.
@@ -2205,69 +2006,8 @@ async function admitWithAutoDecision(
         );
   }
 
-  if (preclaimedMeteredUsageId !== undefined && !(await finalizeMeteredAuthorization(preclaimedMeteredUsageId, meteredInput))) {
-    return refuse('internal_error', 'Final Auto authorization could not be recorded.');
-  }
-
-  if (pendingAuto !== undefined && resolvedAuto === undefined) {
-    // The parent is already fully qualified, attested, quoted and past its
-    // idempotency check (a known attempt never reaches a child) at its
-    // deterministic floor. A child runs only when a STRICTLY higher level is
-    // viable too, since a semantic recommendation can only raise the floor.
-    const { decision: floorDecision, levels: ladder } = pendingAuto;
-    const rank = (level: string): number => (AUTO_POWER_LEVELS as readonly string[]).indexOf(level);
-    const floor = rank(floorDecision.level);
-    const viable = new Set(capacityCompatible.map((candidate) =>
-      rank(ladder[candidate.priority] ?? floorDecision.level)));
-    const classifier = Math.max(...viable) > floor
-      ? createPrivateJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy, claim.meteredUsageId)
-        ?? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
-      : undefined;
-    // Internal parents and children keep separate durable capacity claims.
-    // Commercial parents additionally preview the financial reservation before
-    // task text can reach the classifier; all independent reviews still apply.
-    if (classifier !== undefined && (economics.treatment === 'internal_metered' || charging)) {
-      const preview = economics.treatment === 'internal_metered' ? { status: 'eligible' as const } : await previewReservation({
-        idempotencyKey: ledgerKey, attribution: ledgerAttribution,
-        ceilingPriceVersionId, maxAmount, currency: quote.currency,
-        expiresInSeconds: RESERVATION_TTL_SECONDS,
-      });
-      // A raced key (`already-reserved`) refuses here like any ledger refusal,
-      // before any task text reaches a child.
-      if (preview.status !== 'eligible') {
-        const denied = reservationOrRefusal(preview, requestId, quote.currency);
-        if ('error' in denied) {
-          await markMeteredAdmissionRefused(claim.meteredUsageId);
-          return refuseReservation(preview, denied.error);
-        }
-      }
-      const semantic = await createAutoPowerLevelResolver(classifier)(pendingAuto.features, {
-        requestId, signal: context.signal,
-        state: () => JSON.stringify({ input: request.input, tools: request.tools }),
-      });
-      // A level with no viable route at or above it would refuse a request the
-      // deterministic floor admits; the floor stands instead.
-      const decision: AutoPowerDecision = [...viable].some((index) => index >= rank(semantic.level))
-        ? semantic
-        : { ...floorDecision, classification: { source: 'deterministic', reason: 'not_viable', version: AUTO_CLASSIFIER_VERSION } };
-      // Requalify even an unchanged level: policy stays pinned, live permissions,
-      // capability/privacy evidence, spending and exact attestation are read again.
-      const rerouted = await admitWithAutoDecision(context, { decision, policy }, claim.meteredUsageId);
-      if (rerouted.status === 'refused') {
-        // A child may have executed. Retain the parent key and record its
-        // failed generation, independently of the child's measured usage.
-        await settleMeteredUsage({ meteredUsageId: claim.meteredUsageId,
-          outcome: 'failed', usageSource: 'estimated', units: {},
-          resolvedModelReference: route.modelReference, servingProvider: route.provider,
-          generationId: undefined, priceVersionId: route.priceVersionId });
-      }
-      return rerouted;
-    }
-  }
-
   if (charging && economics.treatment === 'commercial') {
     const reservation = await reserve({
-      ...(scopedPermit === undefined ? {} : { fundingRestriction: scopedFundingRestriction }),
       idempotencyKey: ledgerKey,
       attribution: ledgerAttribution,
       knownUnits: request.operation.kind === 'speech'
@@ -2285,17 +2025,12 @@ async function admitWithAutoDecision(
     });
 
     // `already-reserved` is a refusal, never a borrowed hold: a concurrent
-    // request owns it, whether this is a classifier or the final generation.
-    if (scopedPermit !== undefined && reservation.status !== 'reserved') {
-      const denied = reservationOrRefusal(reservation, requestId, quote.currency);
-      if ('error' in denied) return refuseReservation(reservation, denied.error);
-      return refuse('service_unavailable', 'Scoped execution requires its own exact reserved hold.');
-    }
+    // request owns it.
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
     if ('error' in held) {
       // Refused before anything was forwarded: free the key and the slot, as a
       // refused reservation always has.
-      if (preclaimedMeteredUsageId === undefined) await markMeteredAdmissionRefused(claim.meteredUsageId);
+      await markMeteredAdmissionRefused(claim.meteredUsageId);
       return refuseReservation(reservation, held.error);
     }
     hold = held.reservation;
@@ -2315,9 +2050,6 @@ async function admitWithAutoDecision(
     status: 'admitted',
     admitted: {
       ...(fundingCeilings.size === 0 ? {} : { fundingCeilings }),
-      ...(scopedExecution === undefined ? {} : { scopedExecution }),
-      ...(mentionClassifier === undefined ? {} : { mentionClassifier }),
-      ...(privateAutoExecution === undefined ? {} : { privateAutoExecution }),
       route,
       routingTarget: admittedRoutingTarget,
       authorizedRoutes,
@@ -2370,46 +2102,7 @@ export async function executeInferenceRequest(
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
     }
-    if (admitted.scopedExecution !== undefined) {
-      const economicAdmissionActive = admitted.economics.treatment === 'internal_metered'
-        ? await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)
-        : hold !== undefined && hold.expiresAt.getTime() > Date.now();
-      if (!economicAdmissionActive || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now()) {
-        throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
-      }
-    }
-    if (admitted.mentionClassifier !== undefined) {
-      const authorityActive = await mentionClassifierAuthorityActive(context.principal);
-      const admissionActive = await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId);
-      // Re-read source approval and time AFTER both asynchronous database reads.
-      const current = mentionClassifierApproval();
-      if (!authorityActive || !admissionActive
-        || JSON.stringify(current) !== JSON.stringify(admitted.mentionClassifier)
-        || Date.parse(admitted.mentionClassifier.expiresAt) <= Date.now()) {
-        throw new Error('Mention classifier relationship is no longer active.');
-      }
-    }
-    if (admitted.privateAutoExecution !== undefined && context.privateAutoChild !== undefined) {
-      const source = privateAutoCatalogueApproval({ approval: context.privateAutoChild.approval,
-        principal: context.privateAutoChild.approval.principal });
-      const parent = await readPrivateAutoParent(context.privateAutoChild.parentMeteredUsageId);
-      const binding = { parentMeteredUsageId: context.privateAutoChild.parentMeteredUsageId,
-        parentRequestId: context.privateAutoChild.parentRequestId, requestId, principal, policy: admitted.routingPolicy,
-        input: context.request.input, deadlineAt: context.privateAutoChild.deadlineAt, signal: context.signal };
-      if (source === undefined || !privateAutoParentOwned(parent, binding) || parent?.status !== 'admitted' ||
-        parent.finalAuthorizedDeploymentId !== null || parent.expiresAt.getTime() <= Date.now() ||
-        !await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId) ||
-        Date.parse(admitted.privateAutoExecution.runtimeExpiresAt) <= Date.now() ||
-        parent.economicPolicyVersion !== source.economicPolicyVersion || parent.economicRelationshipId !== source.economicRelationshipId || context.signal.aborted) {
-        throw new Error('Private Auto dispatch requires its retained parent, child and original deadline.');
-      }
-    }
-    completion = await context.kaanaClient.execute(envelope, {
-      signal: context.signal,
-      ...(admitted.privateAutoExecution === undefined ? {} : {
-        privateAutoExecutionContractVersion: '3.7.0' as const,
-      }),
-    });
+    completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
   } catch (error) {
     const failure = classifyForwardFailure(error, context.signal);
     // Whatever the data plane DID measure before it stopped — `KaanaIncompleteError`
@@ -3105,11 +2798,6 @@ async function recordEdgeRouteSwitch(
  * double-charges even without a customer key.
  */
 function ledgerIdempotencyKey(context: EdgeExecutionContext): string {
-  if (context.privateAutoChild !== undefined) return context.requestId;
-  if (context.autoClassificationChild !== undefined) {
-    const parentKey = context.idempotencyKey ?? context.autoClassificationChild.parentRequestId;
-    return `oxy-edge:auto:${context.principal.credentialId}:${createHash('sha256').update(parentKey).digest('hex')}`;
-  }
   return context.idempotencyKey === undefined
     ? `oxy-edge:req:${context.requestId}`
     : `oxy-edge:idem:${context.principal.credentialId}:${context.idempotencyKey}`;
@@ -3823,7 +3511,7 @@ export function buildEnvelope(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
   stream: boolean
-): InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest {
+): InferenceRequest {
   const { request } = context;
   const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
   const apiFormat = context.apiFormat;
@@ -3836,10 +3524,8 @@ export function buildEnvelope(
     (authorized) => modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference)
   );
 
-  return (admitted.privateAutoExecution !== undefined ? privateAutoInferenceRequestSchema : admitted.scopedExecution === undefined ? inferenceRequestSchema : scopedInferenceRequestSchema).parse({
-    schemaVersion: admitted.privateAutoExecution !== undefined ? 4 : admitted.scopedExecution === undefined ? 2 : 3,
-    ...(admitted.privateAutoExecution === undefined ? {} : { privateAutoExecution: admitted.privateAutoExecution }),
-    ...(admitted.scopedExecution === undefined ? {} : { scopedExecution: admitted.scopedExecution }),
+  return inferenceRequestSchema.parse({
+    schemaVersion: 2,
     attribution: attributionFor(context),
     // The signed route list pins every executable destination. Preserve a
     // profile, and preserve an unpinned concrete target only when its versioned

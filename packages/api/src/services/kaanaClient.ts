@@ -65,10 +65,6 @@ import type {
   InferenceFinishReason,
   InferenceMessage,
   InferenceRequest,
-  ScopedInferenceRequest,
-  PrivateAutoInferenceRequest,
-  PrivateAutoSourceApproval,
-  ScopedExecutionAudience,
   InferenceStreamEvent,
   InferenceStreamRouteSwitchEvent,
   NormalizedUsageReport,
@@ -169,12 +165,6 @@ export interface KaanaDeploymentDescriptor {
    * compares it.
    */
   readonly acceptedParameters?: readonly string[];
-  readonly scopedExecution?: ScopedExecutionAudience;
-  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
-  readonly keyId?: string;
-  readonly upstreamModelId?: string;
-  readonly providerRateCardVersionId?: string;
-  readonly providerSourceVersion?: string;
   /**
    * The commercial basis of this deployment, published by Kaana (Kaana ADR 0002,
    * amendment 2026-10-15: a deployment's commercial facts are the deployment's
@@ -187,8 +177,6 @@ export interface KaanaDeploymentDescriptor {
 /** Atomic identity evidence for every deployment the edge may authorize. */
 export interface KaanaDeploymentAttestation {
   readonly snapshotId: string;
-  readonly scopedExecutionContractVersion?: '3.6.0';
-  readonly privateAutoExecutionContractVersion?: '3.7.0';
   readonly deployments: readonly KaanaDeploymentDescriptor[];
 }
 
@@ -230,8 +218,6 @@ export interface KaanaExecuteOptions {
    * cut, and those are what an exact refund is computed from.
    */
   readonly signal: AbortSignal;
-  readonly scopedExecutionContractVersion?: '3.6.0';
-  readonly privateAutoExecutionContractVersion?: '3.7.0';
 }
 
 /**
@@ -248,10 +234,7 @@ export interface KaanaClient {
     deploymentIds: readonly string[],
     options: KaanaExecuteOptions,
   ): Promise<KaanaDeploymentAttestation>;
-  execute(
-    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-    options: KaanaExecuteOptions,
-  ): Promise<KaanaCompletion>;
+  execute(envelope: InferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.
    *
@@ -259,10 +242,7 @@ export interface KaanaClient {
    * the backpressure: nothing is buffered on this side, and abandoning the loop
    * runs the generator's own cleanup, which aborts the upstream hop.
    */
-  stream(
-    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-    options: KaanaExecuteOptions,
-  ): AsyncIterable<KaanaStreamFrame>;
+  stream(envelope: InferenceRequest, options: KaanaExecuteOptions): AsyncIterable<KaanaStreamFrame>;
 }
 
 /**

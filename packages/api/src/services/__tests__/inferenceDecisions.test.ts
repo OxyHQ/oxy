@@ -6,7 +6,6 @@ import {
   requirementForRequest,
   type EdgeExecutionContext,
 } from '../inferenceEdge.service';
-import { decisionAvailability } from '../../config/decisionAvailability';
 import type { NormalizedEdgeRequest } from '../../schemas/inferenceEdge.schemas';
 import * as ledger from '../inferenceLedger.service';
 import * as catalogue from '../inferenceCatalogue.service';
@@ -55,8 +54,7 @@ it('keeps classification reservation distinct from any later generation', () => 
   expect(ceiling.output_tokens).toBeUndefined();
   expect(estimateInputTokens(request)).toBeGreaterThan(30);
 });
-it('fails closed before catalogue, reservation or provider calls without reviewed eligibility/privacy/ZDR', async () => {
-  expect(decisionAvailability().available).toBe(false);
+it('refuses decisions at the old edge before catalogue, reservation or provider calls: kaana.ai/v1 serves them', async () => {
   const reserve = jest.spyOn(ledger, 'reserve');
   const resolve = jest.spyOn(catalogue, 'resolveEdgeRoute');
   const execute = jest.fn();
