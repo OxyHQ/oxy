@@ -184,3 +184,15 @@ it('reads the group of an already canonical user once for its redirects', async 
     execute.mockRestore();
   }
 });
+
+it('treats prototype-named identifiers as ordinary unresolved batch inputs', async () => {
+  const ids = ['__proto__', 'constructor', 'toString'];
+  const groups = await getEquivalentUserGroups(ids);
+  for (const id of ids) {
+    expect(Object.hasOwn(groups, id)).toBe(true);
+    expect(groups[id]).toEqual([id]);
+  }
+  const resolved = await resolveExternalIdentityUsers(ids);
+  for (const id of ids) expect(resolved.get(id)?.userId).toBe(id);
+  expect(await userService.getUsersByIds(ids)).toEqual([]);
+});

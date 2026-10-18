@@ -120,8 +120,11 @@ export async function getEquivalentUserGroups(
     union select members.root_id, redirect.user_id from canonical_user_redirects redirect
     join members on members.user_id = redirect.canonical_user_id
   `);
-  const groups: Record<string, string[]> = {};
-  for (const row of rows) (groups[row.root_id] ??= []).push(row.user_id);
+  const groups: Record<string, string[]> = Object.create(null);
+  for (const row of rows) {
+    groups[row.root_id] ??= [];
+    groups[row.root_id].push(row.user_id);
+  }
   return groups;
 }
 

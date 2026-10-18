@@ -2046,7 +2046,7 @@ export class UserService {
       requestedIds.push(id);
     }
 
-    const statuses: Record<string, boolean> = {};
+    const statuses: Record<string, boolean> = Object.create(null);
     for (const id of requestedIds) {
       statuses[id] = false;
     }
@@ -2084,8 +2084,9 @@ export class UserService {
    * for every returned user. Designed for server-to-server fan-out (e.g. Mention
    * feed hydration) so callers avoid N+1 `GET /users/:id` round-trips.
    *
-   * Efficiency contract: ONE query regardless of `ids.length`. The two follow
-   * totals ride it as correlated aggregates.
+   * Efficiency contract: three queries regardless of non-empty batch size:
+   * identity groups, identity actors, and public profiles. The two follow totals
+   * ride the profile query as correlated aggregates.
    *
    * Resilient to bad input: ids that match no user are silently dropped — the
    * result only contains resolved users. Order is NOT guaranteed to match the

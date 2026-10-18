@@ -47,6 +47,19 @@ export async function closeRedis(): Promise<void> {
 }
 ```
 
+### Authenticated account cache (`packages/api/src/utils/userCache.ts`)
+
+A local miss returns immediately so the session service can read PostgreSQL; Redis
+warm-fill never blocks authentication. Concurrent misses for the same account share
+one background Redis read. A database `set`, invalidation (including peer events),
+or `clear` invalidates that read's identity, so a delayed document cannot overwrite
+fresh account data or restore revoked permissions. Completion only releases its
+own read, preserving newer work after eviction. Pending warm-fills are bounded to
+10,000 distinct accounts; at capacity PostgreSQL remains the fallback.
+
+Regression evidence: `userCacheWarmFill.test.ts` uses delayed Redis replies to
+exercise concurrent misses, fresh writes, invalidation, clearing, and read failure.
+
 ### Rate limiting (`packages/api/src/middleware/rateLimiter.ts`)
 
 Every HTTP limiter — the global budgets in `security.ts` and every route's own — is built by

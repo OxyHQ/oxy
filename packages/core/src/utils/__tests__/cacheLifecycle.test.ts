@@ -71,3 +71,16 @@ test('server barrel imports and client construction start no background timers',
     require('../cache').stopAllCleanupIntervals();
   });
 });
+
+test.each([0, 10])('TTL %i expires at the exact boundary in every read path', (ttl) => {
+  jest.useFakeTimers();
+  const cache = new TTLCache<string>(ttl);
+  for (const key of ['get', 'has', 'keys', 'cleanup']) cache.set(key, 'value');
+  jest.advanceTimersByTime(ttl);
+  expect(cache.get('get')).toBeNull();
+  expect(cache.has('has')).toBe(false);
+  expect(cache.cleanup()).toBe(2);
+  expect(cache.keys()).toEqual([]);
+  cache.set('keys', 'value', 0);
+  expect(cache.keys()).toEqual([]);
+});

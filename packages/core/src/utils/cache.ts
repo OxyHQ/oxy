@@ -82,7 +82,7 @@ export class TTLCache<T> {
     }
 
     const now = Date.now();
-    if (now > entry.expiresAt) {
+    if (now >= entry.expiresAt) {
       this.cache.delete(key);
       this.misses++;
       return null;
@@ -168,7 +168,7 @@ export class TTLCache<T> {
     const entry = this.cache.get(key);
     if (!entry) return false;
 
-    if (Date.now() > entry.expiresAt) {
+    if (Date.now() >= entry.expiresAt) {
       this.cache.delete(key);
       return false;
     }
@@ -185,7 +185,7 @@ export class TTLCache<T> {
     const validKeys: string[] = [];
 
     for (const [key, entry] of this.cache.entries()) {
-      if (now <= entry.expiresAt) {
+      if (now < entry.expiresAt) {
         validKeys.push(key);
       } else {
         this.cache.delete(key);
@@ -204,7 +204,7 @@ export class TTLCache<T> {
     let removed = 0;
 
     for (const [key, entry] of this.cache.entries()) {
-      if (now > entry.expiresAt) {
+      if (now >= entry.expiresAt) {
         this.cache.delete(key);
         removed++;
       }

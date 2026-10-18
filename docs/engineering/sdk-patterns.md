@@ -17,6 +17,14 @@
 
 Without this sweep the HTTP cache returns stale data and the username onboarding step loops.
 
+Invalidation also detaches matching in-flight read leases: a read started before
+an update may still finish for its original caller, but cannot repopulate the
+cache or receive new deduplicated callers after invalidation. Exact keys and
+prefixes preserve unrelated cached and pending reads. Lease records exist only
+while calls are active; full clearing, logout, and disposal invalidate them too.
+The regression is covered by `httpServiceCacheInvalidation.test.ts`.
+
+
 ## KeyManager Safety (core — critical)
 
 - `createIdentity` / `importKeyPair` throw `IdentityAlreadyExistsError` if an identity already exists. Pass `{ overwrite: true }` to replace.
