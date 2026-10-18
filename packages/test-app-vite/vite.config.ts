@@ -29,6 +29,15 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: [
       { find: '@', replacement: resolve(currentDir, './src') },
+      // The production pre-minified icon barrel retains the entire catalogue
+      // in Rolldown. The ESM re-export barrel lets unused icon modules drop out.
+      {
+        find: /^@hugeicons\/core-free-icons$/,
+        replacement: resolve(
+          dirname(require.resolve('@hugeicons/core-free-icons/package.json')),
+          'dist/esm/index.js',
+        ),
+      },
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },

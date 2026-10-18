@@ -156,11 +156,12 @@ export function onePlanQuote(
         : period === 'annual'
           ? Math.round(seatAnnual / 12)
           : plan.monthlySeatPrice,
-    totalMonthly: totalAnnual === undefined
-      ? undefined
-      : period === 'annual'
-        ? Math.round(totalAnnual / 12)
-        : plan.monthlyPrice + (plan.monthlySeatPrice ?? 0) * (seats ?? 0),
+    totalMonthly:
+      totalAnnual === undefined
+        ? undefined
+        : period === 'annual'
+          ? Math.round(totalAnnual / 12)
+          : plan.monthlyPrice + (plan.monthlySeatPrice ?? 0) * (seats ?? 0),
     totalAnnual,
     storageGB: known ? plan.storageGB + (plan.storagePerSeatGB ?? 0) * (seats ?? 0) : undefined,
     monthlyCredits: known

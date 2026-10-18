@@ -94,8 +94,11 @@ describe('@oxy.so/contracts/client entry graph', () => {
     expect(Object.fromEntries(externals)).toEqual({});
   });
 
-  it('stays inside src/client/, but for the zod-free capability-bindings helpers', () => {
-    expect(files.filter((file) => !file.startsWith('client/'))).toEqual(['capabilityBindings.ts']);
+  it('only reaches the pure capability helpers and product catalogue outside src/client/', () => {
+    expect(files.filter((file) => !file.startsWith('client/'))).toEqual([
+      'capabilityBindings.ts',
+      'products/one.ts',
+    ]);
   });
 
   it('the root entry does reach Zod (the control that proves the walk sees an import)', () => {
