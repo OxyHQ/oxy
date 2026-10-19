@@ -5,6 +5,8 @@ import { SsrfRejection } from '@oxy.so/core/server';
 import { proxyResource } from '../emailProxy.controller';
 
 const mockSafeFetch = jest.fn();
+const mockLoggerWarn = jest.fn();
+const mockLoggerError = jest.fn();
 
 jest.mock('@oxy.so/core/server', () => ({
   ...jest.requireActual('@oxy.so/core/server'),
@@ -14,8 +16,8 @@ jest.mock('@oxy.so/core/server', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+    error: (...args: unknown[]) => mockLoggerError(...args),
   },
 }));
 
@@ -166,6 +168,70 @@ describe('email proxy SSRF protections', () => {
 describe('email proxy upstream failures', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  /** An upstream that sends part of its body and then hangs up — a timeout mid-body. */
+  function makeTruncatedResult(contentType: string, finalUrl: string) {
+    const response = new Readable({ read() {} }) as IncomingMessage;
+    response.push(Buffer.from('x'.repeat(512)));
+    setImmediate(() => response.destroy());
+    const headers = { 'content-type': contentType };
+    response.statusCode = 200;
+    response.headers = headers;
+    return { response, status: 200, headers, finalUrl };
+  }
+
+  it('answers an image whose body never finished with the transparent GIF, not a 400', async () => {
+    mockSafeFetch.mockResolvedValue(
+      makeTruncatedResult('image/png', 'https://slow.example/banner.png'),
+    );
+    const res = makeRes();
+
+    await proxyResource(
+      makeReq('https://slow.example/banner.png'),
+      res as unknown as ExpressResponse,
+    );
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/gif');
+    expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
+    expect(res.status).not.toHaveBeenCalled();
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Proxy request failed',
+      expect.objectContaining({ url: 'https://slow.example/banner.png' }),
+    );
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  it('answers a font whose body never finished as any failed font fetch: an empty 404', async () => {
+    mockSafeFetch.mockResolvedValue(
+      makeTruncatedResult('font/woff2', 'https://slow.example/brand.woff2'),
+    );
+    const res = makeRes();
+
+    await proxyResource(
+      makeReq('https://slow.example/brand.woff2'),
+      res as unknown as ExpressResponse,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.end).toHaveBeenCalled();
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
+  it('logs a failed upstream fetch as a warning, not an error', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('getaddrinfo ENOTFOUND tracker.example'));
+    const res = makeRes();
+
+    await proxyResource(
+      makeReq('https://tracker.example/logo.png'),
+      res as unknown as ExpressResponse,
+    );
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith('Proxy request failed', {
+      url: 'https://tracker.example/logo.png',
+      error: 'getaddrinfo ENOTFOUND tracker.example',
+    });
+    expect(mockLoggerError).not.toHaveBeenCalled();
   });
 
   it('answers an image whose fetch failed with the transparent GIF', async () => {

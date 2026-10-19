@@ -50,13 +50,20 @@ function parseProxyUrl(urlString: string): string {
   return url.href;
 }
 
-function readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<Buffer | null> {
-  return new Promise<Buffer | null>((resolve, reject) => {
+/**
+ * What reading an upstream body came to. `incomplete` is a stream that closed
+ * before it ended — the fetch timing out mid-body, or the upstream hanging up
+ * — and is an upstream failure, not a body that was too large.
+ */
+type LimitedBody = { kind: 'ok'; buffer: Buffer } | { kind: 'too_large' } | { kind: 'incomplete' };
+
+function readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<LimitedBody> {
+  return new Promise<LimitedBody>((resolve, reject) => {
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
 
-    const finish = (value: Buffer | null): void => {
+    const finish = (value: LimitedBody): void => {
       if (settled) return;
       settled = true;
       resolve(value);
@@ -66,18 +73,18 @@ function readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<B
       total += chunk.length;
       if (total > maxBytes) {
         response.destroy();
-        finish(null);
+        finish({ kind: 'too_large' });
         return;
       }
       chunks.push(chunk);
     });
-    response.on('end', () => finish(Buffer.concat(chunks, total)));
+    response.on('end', () => finish({ kind: 'ok', buffer: Buffer.concat(chunks, total) }));
     response.on('error', (err) => {
       if (settled) return;
       settled = true;
       reject(err);
     });
-    response.on('close', () => finish(null));
+    response.on('close', () => finish({ kind: 'incomplete' }));
   });
 }
 
@@ -277,10 +284,15 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
         throw new BadRequestError('Only images and fonts allowed');
       }
 
-      const buffer = await readBodyLimited(response, MAX_IMAGE_SIZE);
-      if (!buffer) {
+      const body = await readBodyLimited(response, MAX_IMAGE_SIZE);
+      if (body.kind === 'too_large') {
         throw new BadRequestError('Resource too large');
       }
+      if (body.kind === 'incomplete') {
+        // Answered as any other failed fetch, below.
+        throw new Error('Upstream closed before the body ended');
+      }
+      const { buffer } = body;
 
       // Block tracking pixels (very small images)
       if (buffer.length < TRACKING_PIXEL_THRESHOLD) {
@@ -307,10 +319,16 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
 
     if (error instanceof BadRequestError) throw error;
 
+    // Remote images and fonts in mail fail routinely — trackers that are down,
+    // hosts that are gone — and the reader gets the withheld answer either
+    // way. That is a warning, not an error to page on.
     if (error instanceof Error && error.name === 'AbortError') {
       logger.warn('Proxy request timeout', { url: decodedUrl });
     } else {
-      logger.error('Proxy request failed', { url: decodedUrl, error });
+      logger.warn('Proxy request failed', {
+        url: decodedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     sendWithheld();
