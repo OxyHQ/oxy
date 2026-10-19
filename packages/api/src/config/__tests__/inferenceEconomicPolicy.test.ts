@@ -228,6 +228,6 @@ describe('Mention: decisions and level text, each its own relationship; nothing 
   });
 
   it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-19.1');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-19.2');
   });
 });

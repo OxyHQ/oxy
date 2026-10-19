@@ -45,16 +45,13 @@
  * (`pilot.decisions`) and to no other (`decisions-not-enabled`). Its model lines
  * are the reviewed, versioned decisions profile (`config/decisionsPolicy.ts`):
  * with no target, one step per profile line in order; a named model must be a
- * profile line at its revision; a power level is refused. Every step is
- * revision-pinned (a line the profile leaves unpinned takes the one revision
- * Kaana publishes), requires zero data retention and no training on customer
- * data, and serves each line on one provider and key. A line Kaana publishes no
- * route for, or several revisions of, is skipped.
+ * profile line at its revision; a power level is refused. Every step is pinned
+ * to its line's revision, requires zero data retention and no training on
+ * customer data, and serves each line on one provider and key. A line Kaana
+ * publishes no route for admits nothing and its step is dropped.
  *
  * ## What this phase does not grant yet
  *
- *  - A source approval (`canonicalInputSha256`): the one-off permits it served
- *    were deleted with the stable decisions approval.
  *  - A COMMERCIAL realtime session: the authorization's facts carry no session
  *    duration, so no hold Oxy could size from them would be a bound.
  *  - The `product_session` lane: a user session needs the new public
@@ -566,7 +563,7 @@ function grantPilotTerms(
       return text?.maxPricePerRequestUsd === undefined
         ? undefined
         : {
-            maxInput: text.maxControlledCompletionInputBudget ?? text.maxControlledInputBudget,
+            maxInput: text.maxControlledInputBudget,
             maxOutputTokens: text.maxOutputTokens,
             maxPriceUsd: text.maxPricePerRequestUsd,
             deployments: text.deployments,
@@ -733,14 +730,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       'This credential does not hold the inference:invoke scope.',
     );
   }
-  if (request.canonicalInputSha256 !== undefined) {
-    throw new GrantRefusal(
-      'service_unavailable',
-      'Source-approved operations are not granted: Oxy holds no source approval.',
-      { reason: 'source-approval-not-granted' },
-    );
-  }
-
   const economics = resolveEconomicTreatment(principal, request.operation);
   const plan = planOperation(request);
 
@@ -922,13 +911,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   if (plan.family === 'decisions') {
     // A level target was refused above.
     stepPlans.push(
-      ...decisionsStepPlans(
-        target?.kind === 'model' ? target : undefined,
-        policyPrice,
-        pilotTerms,
-        evidence.published,
-        (exclusion) => exclusions.add(exclusion),
-      ),
+      ...decisionsStepPlans(target?.kind === 'model' ? target : undefined, policyPrice, pilotTerms),
     );
   } else if (target?.kind === 'model') {
     const reference =
@@ -1456,43 +1439,27 @@ async function grantTargetOf(
 
 /**
  * The steps of a decisions request: one per decisions-profile line, in the
- * profile's order, or the one line the request pinned. Each step pins its
- * line's revision: the profile's, or else the one revision Kaana publishes for
- * the line (a line with none or several is skipped and logged). Each is held to
- * the tightest of the application's price cap, the relationship's decisions
- * terms and the line's own reviewed ceiling, and serves its line on one provider.
+ * profile's order, or the one line the request pinned, each at the line's
+ * pinned revision. Each is held to the tightest of the application's price
+ * cap, the relationship's decisions terms and the line's own reviewed ceiling,
+ * and serves its line on one provider. A line Kaana publishes no route for
+ * admits nothing, as any step's line.
  */
 function decisionsStepPlans(
   target: Extract<GrantTarget, { kind: 'model' }> | undefined,
   policyPrice: { readonly amount: string; readonly currency: string } | undefined,
   pilotTerms: GrantPilotTerms | undefined,
-  published: ReadonlyMap<string, PublishedRoute>,
-  exclude: (exclusion: LineExclusion) => void,
 ): StepPlan[] {
   const plans: StepPlan[] = [];
   for (const line of DECISIONS_PROFILE) {
-    if (target !== undefined && target.modelLine !== line.modelLine) continue;
-    let revision = line.revision;
-    if (revision === undefined) {
-      const revisions = new Set<string>();
-      for (const route of published.values()) {
-        const separator = route.modelReference.indexOf('@');
-        if (separator !== -1 && route.modelReference.slice(0, separator) === line.modelLine) {
-          revisions.add(route.modelReference.slice(separator + 1));
-        }
-      }
-      if (revisions.size !== 1) {
-        exclude(
-          `decisions-revision-${revisions.size === 0 ? 'unpublished' : 'ambiguous'}:${line.modelLine}`,
-        );
-        continue;
-      }
-      [revision] = revisions;
-    }
-    if (revision === undefined || (target !== undefined && target.revision !== revision)) continue;
+    if (
+      target !== undefined &&
+      (target.modelLine !== line.modelLine || target.revision !== line.revision)
+    )
+      continue;
     plans.push({
-      target: { kind: 'model', modelLine: line.modelLine, revision },
-      candidates: [`${line.modelLine}@${revision}`],
+      target: { kind: 'model', modelLine: line.modelLine, revision: line.revision },
+      candidates: [`${line.modelLine}@${line.revision}`],
       maxPrice: tighterPrice(
         tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
         line.maxPricePerRequestUsd,
@@ -1597,8 +1564,7 @@ type LineExclusion =
   | 'priced-transcript'
   | 'priced-decision-output'
   | 'over-price'
-  | `unquoted:${string}`
-  | `decisions-revision-${'unpublished' | 'ambiguous'}:${string}`;
+  | `unquoted:${string}`;
 
 type LineAdmission =
   | { readonly status: 'admitted'; readonly line: AdmittedLine }

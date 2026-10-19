@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed (`@kaana.ai/contracts` 7.0.0)
+
+Oxy now reads Kaana with the contract Kaana itself runs (7.0.0, up from
+4.4.1). The authorization request no longer carries `canonicalInputSha256`
+(it is refused as an unknown member by the schema), so the grant's
+`source-approval-not-granted` refusal is deleted with it.
+
 ### Removed (the old edge's decisions route)
 
 `POST /v1/decisions` is gone. It had refused every request

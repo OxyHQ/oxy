@@ -53,10 +53,7 @@ export function pilotTermsFor(
   return text === undefined
     ? undefined
     : {
-        maxInput:
-          operation.kind === 'completion'
-            ? (text.maxControlledCompletionInputBudget ?? text.maxControlledInputBudget)
-            : text.maxControlledInputBudget,
+        maxInput: text.maxControlledInputBudget,
         maxOutputTokens: text.maxOutputTokens,
         maxPricePerRequestUsd: text.maxPricePerRequestUsd,
         deployments: text.deployments,
