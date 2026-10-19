@@ -104,7 +104,7 @@ import { isSupervised } from './supervisionPolicy.service';
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { decisionAnswersMatch, decisionInputBudget, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
+import { exactDecimalSchema } from '@oxy.so/contracts';
 
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
@@ -191,7 +191,6 @@ import {
   type EdgeRoute,
 } from './inferenceCatalogue.service';
 import {
-  publishedUnitPrice,
   quoteUnits,
   reserve,
   settle,
@@ -595,7 +594,6 @@ export interface EdgeExecutionContext {
 }
 
 export interface EdgeCompletion {
-  readonly decisions?: readonly DecisionAnswer[];
   readonly requestId: string;
   readonly generationId?: string;
   readonly resolvedModelReference: string;
@@ -862,7 +860,7 @@ export function refuseRequest(
   context: EdgeExecutionContext,
   code: InferenceErrorCode,
   message: string,
-  options: { param?: string; reason?: string; forbidRetry?: true } = {}
+  options: { param?: string; reason?: string } = {}
 ): InferenceError {
   const { principal } = context;
   logger.warn('inference.edge.refused', {
@@ -878,7 +876,6 @@ export function refuseRequest(
     message,
     requestId: context.requestId,
     ...(options.param === undefined ? {} : { param: options.param }),
-    ...(options.forbidRetry === undefined ? {} : { forbidRetry: options.forbidRetry }),
   });
 }
 
@@ -945,13 +942,6 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     error: refuseRequest(context, code, message, options),
   });
 
-  // Decisions are a grant operation of `kaana.ai/v1` (Kaana ADR 0002): this
-  // edge serves none, whatever the caller, credential or environment.
-  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
-    return refuse('service_unavailable', 'Decisions are served by https://kaana.ai/v1/decisions.', {
-      reason: 'decisions-served-by-kaana',
-    });
-  }
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
 
   // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
@@ -1260,8 +1250,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      const candidateQuote = await quoteRouteForRequest(
-        request,
+      const candidateQuote = await quoteRouteCeiling(
         route.priceVersionId,
         routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
       );
@@ -1819,8 +1808,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       authorized.deploymentId
     );
     if (routeQuote === undefined || requestedOutput === undefined) {
-      routeQuote = await quoteRouteForRequest(
-        request,
+      routeQuote = await quoteRouteCeiling(
         authorized.priceVersionId,
         routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
       );
@@ -2143,7 +2131,6 @@ export async function executeInferenceRequest(
       status: 'refused',
       error: refuseRequest(context, failure.code, failure.message, {
         reason: failure.reason,
-        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
       }),
     };
   }
@@ -2152,7 +2139,7 @@ export async function executeInferenceRequest(
   // present in the signed exact-ID authorization list, is a refusal rather than
   // a warning. Cross-model substitution is valid only when that exact route was
   // explicitly authorized in the envelope.
-  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes, context.request);
+  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes);
   if (validation.status === 'invalid') {
     await settleMeasured(
       context,
@@ -2178,7 +2165,6 @@ export async function executeInferenceRequest(
       status: 'refused',
       error: refuseRequest(context, validation.code, validation.message, {
         reason: validation.reason,
-        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
       }),
     };
   }
@@ -2358,7 +2344,6 @@ export async function executeInferenceRequest(
       servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
-      ...(completion.decisions === undefined ? {} : { decisions: completion.decisions }),
       ...(completion.outputAudioTranscripts === undefined
         ? {}
         : { outputAudioTranscripts: completion.outputAudioTranscripts }),
@@ -3191,18 +3176,6 @@ async function recordMeteredSettlement(
   }
 }
 
-/**
- * Whether a failure after the forward must never be reported as retryable.
- *
- * Decisions: a signed request may already have executed and been billed
- * upstream, and responses are not retained, so a client reading `retryable`
- * would resend it under a new key and pay twice. The code is preserved; only
- * the retry signal is withheld.
- */
-function forbidsRetryAfterForward(request: NormalizedEdgeRequest): boolean {
-  return request.input.format === 'decisions';
-}
-
 interface ForwardFailure {
   readonly code: InferenceErrorCode;
   readonly message: string;
@@ -3331,12 +3304,8 @@ type CompletionValidation =
 function validateCompletion(
   completion: KaanaCompletion,
   requestId: string,
-  authorizedRoutes: readonly EdgeRoute[],
-  request: NormalizedEdgeRequest
+  authorizedRoutes: readonly EdgeRoute[]
 ): CompletionValidation {
-  if (request.input.format === 'decisions' && (!completion.decisions || !decisionAnswersMatch(request.input.decisions, completion.decisions) || completion.output.length !== 0)) {
-    return { status: 'invalid', code: 'internal_error', message: 'The data plane returned invalid decisions.', reason: 'decisions-invalid' };
-  }
   const report = normalizedUsageReportSchema.safeParse(completion.usage);
   if (!report.success) {
     return {
@@ -3706,7 +3675,7 @@ export function requirementForRequest(
   return {
     ...modality,
     ...(apiFormat === undefined ? {} : { apiFormat }),
-    ...(request.audioOutput === undefined && request.operation.kind !== 'decisions' ? {} : { requiresDeclaredApiFormat: true }),
+    ...(request.audioOutput === undefined ? {} : { requiresDeclaredApiFormat: true }),
   };
 }
 
@@ -3716,9 +3685,7 @@ function capabilityRefusal(modelReference: string, required: EdgeModalityRequire
     return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
   }
   if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
-    return required.apiFormat === 'decisions'
-      ? `${modelReference} does not declare support for decisions.`
-      : `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
+    return `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
   }
   return required.apiFormat === undefined
     ? `${modelReference} cannot execute this request.`
@@ -4050,30 +4017,6 @@ export type RouteCeilingQuote =
     }
   | { readonly status: 'unquoted'; readonly reason: string };
 
-/**
- * A route's ceiling quote, with each operation's own price invariants.
- *
- * Decisions hold `requests` and `input_tokens` only, yet a provider truthfully
- * reports the few `output_tokens` a classification emits. That is sound only
- * when the route PUBLISHES output tokens at exactly zero: then any reported
- * count prices to nothing and the hold still covers the exact charge. A missing
- * or positive output price is unquoted, which refuses before any hold or
- * Kaana call; nothing is estimated and no reported unit is dropped.
- */
-async function quoteRouteForRequest(
-  request: NormalizedEdgeRequest,
-  priceVersionId: string,
-  plans: readonly RouteCeilingPlan[]
-): Promise<RouteCeilingQuote> {
-  if (request.operation.kind === 'decisions') {
-    const output = await publishedUnitPrice(priceVersionId, 'output_tokens');
-    if (output !== 'zero') {
-      return { status: 'unquoted', reason: `decisions-output-price-${output}` };
-    }
-  }
-  return quoteRouteCeiling(priceVersionId, plans);
-}
-
 /** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
 export async function quoteRouteCeiling(
   priceVersionId: PriceRef,
@@ -4119,8 +4062,6 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
   } else if (request.input.format === 'text') {
     messages = 1;
     characters += request.input.text.length;
-  } else if (request.input.format === 'decisions') {
-    return decisionInputBudget(request.input.decisions).gateway;
   } else {
     messages = request.input.texts.length;
     for (const text of request.input.texts) characters += text.length;

@@ -2,9 +2,10 @@
 
 **Rolling out.** Decisions are served by Kaana at `POST https://kaana.ai/v1/decisions`
 (`@kaana.ai/sdk` `decisions.create`) and granted by Oxy like every other
-`kaana.ai/v1` operation ([kaana-grants.md](kaana-grants.md)). The old edge
-(`api.oxy.so/v1/decisions`, `OxyInferenceClient.decide()`) refuses every request
-with `service_unavailable` (`decisions-served-by-kaana`).
+`kaana.ai/v1` operation ([kaana-grants.md](kaana-grants.md)). The old edge's
+`api.oxy.so/v1/decisions` route and `OxyInferenceClient.decide()` are gone
+(`@oxy.so/core` 6.0.0, `@oxy.so/contracts` 5.0.0); Oxy's own decisions schemas
+went with them.
 
 A decision is nonstreaming and returns typed probabilities, not chat JSON. Choice
 assigns a distribution to 2–255 mutually exclusive options. Score assigns a

@@ -60,7 +60,6 @@
 
 import type { DeploymentCommercial } from '@kaana.ai/contracts/internal';
 import type {
-  DecisionAnswer,
   InferenceError,
   InferenceFinishReason,
   InferenceMessage,
@@ -74,7 +73,6 @@ import type {
 
 /** What the data plane returns for a completed, non-streaming request. */
 export interface KaanaCompletion {
-  readonly decisions?: readonly DecisionAnswer[];
   /**
    * The generation this request produced, when it produced one that can be
    * looked up later. Absent for a request that failed before generating.

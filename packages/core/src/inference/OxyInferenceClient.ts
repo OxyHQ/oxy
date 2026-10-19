@@ -51,14 +51,6 @@ import type { MeteredGeneration } from '@oxy.so/contracts';
  * request.
  */
 
-import {
-  decisionRequestSchema,
-  decisionSuccessSchema,
-  decisionAnswersMatch,
-  type DecisionRequest,
-  type DecisionSuccess,
-} from '@oxy.so/contracts';
-
 import type {
   CurrencyCode,
   ExactDecimal,
@@ -477,30 +469,6 @@ export class OxyInferenceClient {
     });
   }
 
-  /** Typed nonstreaming decisions. Idempotency conflicts are never replayed or retried. */
-  async decide(
-    request: DecisionRequest,
-    options: OxyInferenceRequestOptions = {},
-  ): Promise<DecisionSuccess> {
-    const input = decisionRequestSchema.parse(request);
-    const payload = await this.#request<unknown>('POST', '/v1/decisions', {
-      body: input,
-      bindRequestId: true,
-      signal: options.signal,
-      idempotencyKey: options.idempotencyKey,
-      delegatedUserId: options.delegatedUserId,
-    });
-    const parsed = decisionSuccessSchema.safeParse(payload);
-    if (
-      !parsed.success ||
-      parsed.data.model !== input.model ||
-      !decisionAnswersMatch(input, parsed.data.data)
-    ) {
-      throw new OxyInferenceProtocolError('Invalid or mismatched decisions response.');
-    }
-    return parsed.data;
-  }
-
   /** Generate audio bytes through Oxy's authenticated inference edge. */
   async speech(
     request: OxySpeechRequest,
@@ -714,24 +682,6 @@ export class OxyInferenceClient {
     return body.data;
   }
 
-  /**
-   * Recover the existing record using the original credential and key. This
-   * performs only GET; 404 is unknown/pending, never proof of zero cost and
-   * never an instruction to repeat decide(). Lost answers are not retained.
-   */
-  async getGenerationRecordByIdempotencyKey(
-    key: string,
-    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
-  ): Promise<OxyGenerationRecord> {
-    if (key.length === 0 || key.length > 128) throw new Error('Invalid original idempotency key.');
-    const body = await this.#request<{ data: OxyGenerationRecord }>(
-      'GET',
-      '/v1/generations/by-idempotency-key',
-      { ...options, idempotencyKey: key },
-    );
-    return body.data;
-  }
-
   /** The bearer for this request, from whichever lane was configured. */
   async #bearer(): Promise<string> {
     const value =
@@ -783,7 +733,6 @@ export class OxyInferenceClient {
     path: string,
     options: {
       body?: unknown;
-      bindRequestId?: boolean;
       signal?: AbortSignal;
       idempotencyKey?: string;
       delegatedUserId?: string;
@@ -808,21 +757,6 @@ export class OxyInferenceClient {
       throw toInferenceError(payload, response.status, response.headers.get('X-Oxy-Request-Id'));
     }
 
-    if (options.bindRequestId) {
-      const requestId = response.headers.get('X-Oxy-Request-Id');
-      if (
-        !requestId ||
-        typeof payload !== 'object' ||
-        payload === null ||
-        !('requestId' in payload) ||
-        payload.requestId !== requestId
-      ) {
-        throw new OxyInferenceProtocolError(
-          'Decisions response request ID does not match its header.',
-          requestId ?? undefined,
-        );
-      }
-    }
     return payload as T;
   }
 }

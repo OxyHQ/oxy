@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 6.0.0
+
+Needs `@oxy.so/contracts` 5.0.0. Breaking: removes the two `OxyInferenceClient`
+methods that only the retired decisions lane used. Decisions are served by
+`https://kaana.ai/v1/decisions` through `@kaana.ai/sdk` (`decisions.create`), and
+their records by `kaana.generations` (Kaana ADR 0002).
+
+### Removed
+
+- `OxyInferenceClient.decide()`. The Oxy API's `POST /v1/decisions` is deleted
+  with this release; it refused every request since oxy#1809.
+- `OxyInferenceClient.getGenerationRecordByIdempotencyKey()`. The route,
+  `GET /v1/generations/by-idempotency-key`, stays; call it directly if needed.
+
 ## 5.4.0
 
 Needs the Oxy API with migration `0183_reconcile_commit_lease`; an older API

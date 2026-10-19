@@ -37,7 +37,6 @@ import * as accountBilling from '../inference/accountBilling';
 import * as aliaModelRelease from '../inference/aliaModelRelease';
 import * as attribution from '../inference/attribution';
 import * as catalogue from '../inference/catalogue';
-import * as decisions from '../inference/decisions';
 import * as economics from '../inference/economics';
 import * as embeddings from '../inference/embeddings';
 import * as entitlement from '../inference/entitlement';
@@ -47,19 +46,12 @@ import * as inbox from '../inference/inbox';
 import * as modelDocumentation from '../inference/modelDocumentation';
 import * as money from '../inference/money';
 import * as priceVersion from '../inference/priceVersion';
-import * as privateAutoExecution from '../inference/privateAutoExecution';
 import * as providerConnection from '../inference/providerConnection';
 import * as realtime from '../inference/realtime';
 import * as request from '../inference/request';
 import * as routingPolicy from '../inference/routingPolicy';
 import * as streamEvents from '../inference/streamEvents';
 import * as usage from '../inference/usage';
-import * as scopedExecution from '../inference/scopedExecution';
-import { scopedEnvelopeFixture } from './scopedExecution.fixture';
-import {
-  privateAutoApprovalFixture,
-  privateAutoInputFixture,
-} from './privateAutoExecution.fixture';
 import * as version from '../inference/version';
 
 /**
@@ -73,7 +65,6 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   attribution,
   catalogue,
   embeddings,
-  decisions,
   economics,
   entitlement,
   errors,
@@ -82,13 +73,11 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   modelDocumentation,
   money,
   priceVersion,
-  privateAutoExecution,
   providerConnection,
   realtime,
   request,
   routingPolicy,
   streamEvents,
-  scopedExecution,
   usage,
   version,
 };
@@ -154,8 +143,6 @@ for (const module of Object.values(INFERENCE_MODULES)) {
 const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Request envelope
   inferenceRequestSchema: 2,
-  scopedInferenceRequestSchema: 3,
-  privateAutoInferenceRequestSchema: 4,
   // Stream events
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
@@ -222,9 +209,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   modelDocumentationSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
-  decisionResultSchema: 1,
-  decisionFailureSchema: 1,
-  decisionSuccessSchema: 1,
   embeddingSuccessSchema: 1,
   embeddingFailureSchema: 1,
   // Realtime sessions (contract set 3.2.0): the signed session request, every
@@ -273,14 +257,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
-  'privateAutoSourceApprovalSchema',
-  'privateAutoExecutionSchema',
-  'privateAutoPrincipalSchema',
-  'privateAutoInputSchema',
-  'scopedExecutionAudienceSchema',
-  'scopedExecutionSchema',
-  'decisionInputSchema',
-  'decisionRequestSchema',
   'aliaReleaseArtifactSchema',
   'aliaReleaseSignatureSchema',
   'authenticatedPrincipalSchema',
@@ -360,8 +336,6 @@ const FROZEN_UNION_SHAPES: string[] = [
   'embeddingResponseSchema',
   'inferenceContentPartSchema',
   'inferenceContentSourceSchema',
-  'decisionQuestionSchema',
-  'decisionAnswerSchema',
   'inferenceInputSchema',
   'inferenceRouteSwitchDetailSchema',
   'inferenceStreamEventSchema',
@@ -803,61 +777,6 @@ const REALTIME_FIXTURES: Record<string, unknown> = {
 
 const FIXTURES: Record<string, unknown> = {
   ...REALTIME_FIXTURES,
-  privateAutoInferenceRequestSchema: (() => {
-    const { review: _review, limits: _limits, ...authority } = privateAutoApprovalFixture;
-    const operationId = privateAutoExecution.privateAutoOperationId(
-      '018f2118-95bc-7aca-914e-17632106cad8',
-    );
-    return {
-      schemaVersion: 4,
-      privateAutoExecution: {
-        ...authority,
-        contractVersion: '3.7.0',
-        approvalSha256: 'a'.repeat(64),
-        parentMeteredUsageId: '018f2118-95bc-7aca-914e-17632106cad8',
-        parentRequestId: 'synthetic-parent-request',
-        operationId,
-        requestId: operationId,
-        inputSha256: 'b'.repeat(64),
-        runtimeExpiresAt: '2026-10-04T00:00:01Z',
-        snapshotId: 'synthetic-snapshot',
-        catalogueEvidenceHash: 'c'.repeat(64),
-      },
-      attribution: {
-        requestId: operationId,
-        principal: {
-          billing: { accountId: authority.principal.accountId },
-          applicationId: authority.principal.applicationId,
-          credentialId: authority.principal.credentialId,
-          environment: authority.principal.environment,
-          inferenceScopes: ['inference:invoke'],
-        },
-      },
-      target: { kind: 'model', modelReference: authority.modelReference },
-      modality: 'text',
-      input: privateAutoInputFixture(),
-      stream: false,
-      sampling: {},
-      tools: [],
-      client: {
-        apiFormat: 'decisions',
-        endpoint: '/internal/auto-classification',
-        receivedAt: '2026-10-04T00:00:00Z',
-      },
-      idempotencyKey: operationId,
-      routingPolicy: authority.policy,
-      authorizedRoutes: [
-        {
-          substitution: 'same_model',
-          deploymentId: authority.deploymentId,
-          modelReference: authority.modelReference,
-          provider: authority.provider,
-          regions: [],
-        },
-      ],
-    };
-  })(),
-
   embeddingSuccessSchema: {
     schemaVersion: 1,
     requestId: 'req_embedding_1',
@@ -1764,35 +1683,6 @@ const FIXTURES: Record<string, unknown> = {
 
 /* -------------------------------------------------------------------------- */
 
-FIXTURES.decisionResultSchema = {
-  schemaVersion: 1,
-  requestId: 'req_01H8Z9T6NB',
-  model: 'anthropic/claude-opus-5@2026-05-01',
-  data: [{ id: 'q', kind: 'noul', probability: 0.5 }],
-  usage: FIXTURES.normalizedUsageReportSchema,
-};
-FIXTURES.decisionFailureSchema = {
-  schemaVersion: 1,
-  requestId: 'req_01H8Z9T6NB',
-  error: {
-    schemaVersion: 1,
-    code: 'provider_credential_invalid',
-    message: 'Upstream refused the platform credential.',
-    retryable: false,
-    requestId: 'req_01H8Z9T6NB',
-  },
-};
-FIXTURES.decisionSuccessSchema = {
-  schemaVersion: 1,
-  requestId: 'req_01H8Z9T6NB',
-  model: 'anthropic/claude-opus-5@2026-05-01',
-  data: [{ id: 'q', kind: 'noul', probability: 0.5 }],
-  usage: [{ unit: 'requests', quantity: 1 }],
-  routingPolicy: { routingPolicyId: 'rp_fixture', policyVersion: 1 },
-};
-
-FIXTURES.scopedInferenceRequestSchema = scopedEnvelopeFixture;
-
 describe('inference contract versioning', () => {
   it('exposes the contract-set version the two planes handshake on', () => {
     // MAJOR 3: the closed availability scope renamed from an Alia-specific value
@@ -1815,7 +1705,11 @@ describe('inference contract versioning', () => {
     // data plane must be on 3.8 before Oxy relies on it.
     // MINOR 6 (3.9.0): the `input_transcription_milliseconds` usage unit,
     // mirroring `@kaana.ai/contracts` 4.1.0 (a closed enum gained a member).
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('3.9.0');
+    // MAJOR 4 (4.0.0): the scoped (v3) and private Auto (v4) envelopes and the
+    // decisions result, failure and success messages are removed, and the v2
+    // envelope no longer carries decisions input. Decisions are a grant
+    // operation of `kaana.ai/v1` (Kaana ADR 0002).
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('4.0.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

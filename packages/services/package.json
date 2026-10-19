@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "11.15.0",
+  "version": "11.16.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -210,7 +210,7 @@
     "expo-video": "catalog:"
   },
   "//@oxy.so/bloom": "Bloom 11.1.0 adds the shared grouped sections, usage card, subscription plans, frame appearance and overlay navigation APIs used by this SDK. First-party Bloom peers remain open above this tested minimum.",
-  "//@oxy.so/core": "Core 5.5.0 supplies the shared account-screen translations and updated profile/follow contracts required by this release. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
+  "//@oxy.so/core": "Core 5.5.0 supplies the shared account-screen translations and updated profile/follow contracts required by this release. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required. Core 6.0.0 removes only `OxyInferenceClient.decide()` and `getGenerationRecordByIdempotencyKey()` (decisions moved to kaana.ai/v1), which this package never used, so the peer admits both majors (`^5.5.0 || ^6.0.0`) rather than moving the cap.",
   "peerDependencies": {
     "@expo/app-integrity": ">=56.0.0 <59.0.0",
     "@expo/vector-icons": "^15.0.3",
