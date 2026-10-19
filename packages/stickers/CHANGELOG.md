@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/stickers`
 
+## 0.2.1
+
+### Fixed
+
+- Depends on `@oxy.so/contracts ^5.0.0`; 0.2.0 was published with `^4.24.0`,
+  which nested a second contracts in apps on contracts 5.
+
 ## 0.1.1
 
 ### Changed

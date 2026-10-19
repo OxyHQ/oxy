@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { usernameSchema } from '@oxy.so/contracts';
+import { usernameCheck } from '@oxy.so/contracts/client';
 import { useOxy } from '../context/oxyRuntimeContext';
 
 type CheckResult = { candidate: string; status: 'available' | 'taken' | 'error' };
@@ -8,8 +8,8 @@ type CheckResult = { candidate: string; status: 'available' | 'taken' | 'error' 
 export function useUsernameAvailability(value: string, enabled: boolean) {
   const { oxyServices, user } = useOxy();
   const candidate = value.trim();
-  const parsed = usernameSchema.safeParse(candidate);
-  const invalid = parsed.success ? undefined : parsed.error.issues[0]?.message;
+  const checked = usernameCheck(candidate, []);
+  const invalid = checked.ok ? undefined : checked.issue.message;
   const unchanged = candidate.toLowerCase() === user?.username?.toLowerCase();
   const [result, setResult] = useState<CheckResult>();
   const [attempt, setAttempt] = useState(0);
