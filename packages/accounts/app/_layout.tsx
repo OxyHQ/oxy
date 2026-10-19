@@ -28,6 +28,7 @@ import { AccountsAskProvider } from '@/components/ask-alia';
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
 import AppSplashScreen from '@/components/AppSplashScreen';
+import { AppLockGate } from '@/components/app-lock-gate';
 import { AppInitializer } from '@/lib/appInitializer';
 import { LocaleProvider, useTranslation } from '@/lib/i18n';
 import { MinimalErrorFallback } from '@/components/error-fallback';
@@ -187,7 +188,9 @@ function RootLayoutInner() {
                           />
                         ) : null
                       ) : (
-                        <AppStackContent />
+                        <AppLockGate>
+                          <AppStackContent />
+                        </AppLockGate>
                       )}
                     </OverlayInertBoundary>
                   </AccountsAskProvider>

@@ -889,5 +889,11 @@
       "devices": "Which devices are signed in to my account?",
       "data": "How can I download or delete my data?"
     }
+  },
+  "appLock": {
+    "title": "Accounts is locked",
+    "subtitle": "Unlock with Face ID, Touch ID or your fingerprint to continue.",
+    "unlock": "Unlock",
+    "reason": "Unlock Oxy Accounts"
   }
 }

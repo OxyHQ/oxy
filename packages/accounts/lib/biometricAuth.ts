@@ -9,6 +9,12 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 
+/**
+ * This device's copy of the account's `privacy.biometricLogin`: the app lock
+ * (`components/app-lock-gate.tsx`) reads it before anything else loads.
+ */
+export const BIOMETRIC_ENABLED_KEY = 'oxy_biometric_enabled';
+
 export type AuthenticationType = LocalAuthentication.AuthenticationType;
 export type LocalAuthenticationError = LocalAuthentication.LocalAuthenticationError;
 
