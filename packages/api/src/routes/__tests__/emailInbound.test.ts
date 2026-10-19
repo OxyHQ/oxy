@@ -58,6 +58,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import emailInboundRouter from '../emailInbound';
 import { errorHandler } from '../../middleware/errorHandler';
+import { BadRequestError } from '../../utils/error';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -319,7 +320,7 @@ describe('POST /email/inbound', () => {
     expect(mockStoreIncomingMessage).not.toHaveBeenCalled();
   });
 
-  it('reports a recipient whose delivery failed as rejected, in the same body', async () => {
+  it('answers a delivery that failed transiently with a 503, so Cloudflare retries', async () => {
     const user = await recipient();
     mockStoreIncomingMessage.mockRejectedValueOnce(new Error('connection terminated'));
 
@@ -333,12 +334,89 @@ describe('POST /email/inbound', () => {
       rawMessage(user.address),
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     expect(res.body).toEqual({
       accepted: 0,
       rejected: 1,
       results: [{ recipient: user.address, status: 'failed' }],
     });
+  });
+
+  it('answers a recipient over quota with a 422, so the sender gets a bounce', async () => {
+    const user = await recipient();
+    mockStoreIncomingMessage.mockRejectedValueOnce(
+      new BadRequestError('Email storage quota exceeded'),
+    );
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address,
+      },
+      rawMessage(user.address),
+    );
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({
+      accepted: 0,
+      rejected: 1,
+      results: [{ recipient: user.address, status: 'failed' }],
+    });
+  });
+
+  it('retries the whole envelope when any recipient failed transiently', async () => {
+    // A retry is safe for the recipient that already has the message: the
+    // service answers a known Message-ID with the stored copy.
+    const full = await recipient();
+    const flaky = await recipient();
+    mockStoreIncomingMessage
+      .mockRejectedValueOnce(new BadRequestError('Email storage quota exceeded'))
+      .mockRejectedValueOnce(new Error('connection terminated'));
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': `${full.address}, ${flaky.address}`,
+      },
+      rawMessage(full.address),
+    );
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({
+      accepted: 0,
+      rejected: 2,
+      results: [
+        { recipient: full.address, status: 'failed' },
+        { recipient: flaky.address, status: 'failed' },
+      ],
+    });
+  });
+
+  it('delivers once to an address the envelope repeats', async () => {
+    const user = await recipient();
+    mockStoreIncomingMessage.mockResolvedValueOnce({ id: unique() });
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': `${user.address}, ${user.address.toUpperCase()}`,
+      },
+      rawMessage(user.address),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      accepted: 1,
+      rejected: 0,
+      results: [{ recipient: user.address, status: 'delivered' }],
+    });
+    expect(mockStoreIncomingMessage).toHaveBeenCalledTimes(1);
   });
 
   // The shared-secret guard is NOT asserted here: `verifyEmailInboundWebhookSecret`

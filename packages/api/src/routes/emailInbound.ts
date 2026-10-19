@@ -31,6 +31,7 @@ import { extractUsername, extractAliasTag } from '../config/email.config';
 import { getEnvVar } from '../config/env';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
+import { BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -124,11 +125,16 @@ router.post(
       return res.status(400).json({ error: 'Empty message body' });
     }
 
-    // Extract envelope recipients from header (set by Cloudflare Worker)
-    const envelopeTo = ((req.headers['x-envelope-to'] as string) || '')
-      .split(',')
-      .map((addr) => addr.trim().toLowerCase())
-      .filter(Boolean);
+    // Extract envelope recipients from header (set by Cloudflare Worker),
+    // each once: a repeated address would be delivered, and reported, twice.
+    const envelopeTo = [
+      ...new Set(
+        ((req.headers['x-envelope-to'] as string) || '')
+          .split(',')
+          .map((addr) => addr.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
 
     if (envelopeTo.length === 0) {
       return res.status(400).json({ error: 'Missing X-Envelope-To header' });
@@ -186,6 +192,7 @@ router.post(
 
     // Deliver to each valid recipient
     const results: Array<{ recipient: string; status: string }> = [];
+    let transientFailure = false;
     for (const rcpt of validRecipients) {
       try {
         await emailService.storeIncomingMessage({
@@ -219,18 +226,32 @@ router.post(
           subject: mime.subject,
         });
       } catch (err) {
+        // A refusal the service repeats on every attempt — over quota, an
+        // attachment it will not store — is permanent. Anything else (the
+        // database, S3) may succeed on a retry.
+        const permanent = err instanceof BadRequestError;
+        if (!permanent) transientFailure = true;
         logger.error(
           'Inbound webhook: delivery failed',
           err instanceof Error ? err : new Error(String(err)),
           {
             recipient: rcpt.address,
+            permanent,
           },
         );
         results.push({ recipient: rcpt.address, status: 'failed' });
       }
     }
 
-    res.status(200).json({
+    // The worker (`workers/email-inbound`) retries a 5xx and bounces any other
+    // 4xx to the sender. A retry redelivers to every recipient; the ones that
+    // already have the message are answered with their stored copy
+    // (`storeIncomingMessage` matches it by Message-ID), so only the failed
+    // ones are stored again.
+    const failed = results.some((r) => r.status === 'failed');
+    const status = !failed ? 200 : transientFailure ? 503 : 422;
+
+    res.status(status).json({
       accepted: results.filter((r) => r.status === 'delivered').length,
       rejected: results.filter((r) => r.status === 'failed').length,
       results,
