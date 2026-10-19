@@ -41,6 +41,7 @@ import { messages } from '../../db/schema/messages';
 import { senderAvatars } from '../../db/schema/senderAvatars';
 import { users } from '../../db/schema/users';
 import { emailService } from '../../services/email.service';
+import { settleAvatarResolutions } from '../../services/senderAvatar.service';
 import { getMessage, listMailboxes, listMessages } from '../email.controller';
 
 const unique = () => randomUUID().replace(/-/g, '');
@@ -173,6 +174,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // A sender the reads did not know is looked up in the background.
+  await settleAvatarResolutions();
   await closePostgres();
 });
 

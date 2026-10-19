@@ -30,7 +30,11 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { senderAvatars } from '../../db/schema/senderAvatars';
 import { users } from '../../db/schema/users';
-import { getAvatarPath, getAvatarPathsBatch } from '../senderAvatar.service';
+import {
+  getAvatarPath,
+  getAvatarPathsBatch,
+  settleAvatarResolutions,
+} from '../senderAvatar.service';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -50,6 +54,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await settleAvatarResolutions();
   await closePostgres();
 });
 
@@ -184,6 +189,7 @@ describe('senderAvatar.service — the cache', () => {
     const resolved = await getAvatarPathsBatch([email]);
 
     expect(resolved.get(email)).not.toBe('/stale-batch');
+    await settleAvatarResolutions();
     expect((await cachedRow(email)).expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
@@ -223,6 +229,117 @@ describe('senderAvatar.service — the cache', () => {
 
   it('returns an empty map for an empty batch without touching the database', async () => {
     await expect(getAvatarPathsBatch([])).resolves.toEqual(new Map());
+  });
+});
+
+/**
+ * The batch is what a mail list waits for, so it never waits on the network:
+ * a miss answers `null` at once and is resolved in the background, once per
+ * address however many lists ask meanwhile.
+ */
+describe('senderAvatar.service — misses are resolved off the request path', () => {
+  /** A fetch that answers only when the test says so. */
+  function deferredFetch() {
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(async () => {
+      await released;
+      return { ok: false, headers: { get: () => null } };
+    });
+    return release;
+  }
+
+  it('answers a miss with null before its lookups have answered, then caches it', async () => {
+    const release = deferredFetch();
+    const miss = `slowsender@d${unique().slice(0, 10)}.example`;
+    const hit = `hit${unique().slice(0, 8)}@example.com`;
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email: hit,
+        avatarPath: '/hit',
+        source: 'gravatar',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+    const resolved = await getAvatarPathsBatch([miss, hit, ` ${miss.toUpperCase()} `]);
+
+    // Every address has its entry — the enrichment only writes the ones it finds.
+    expect(resolved).toEqual(
+      new Map<string, string | null>([
+        [miss, null],
+        [hit, '/hit'],
+      ]),
+    );
+    expect(await cachedRow(miss)).toBeUndefined();
+
+    release();
+    await settleAvatarResolutions();
+    expect(await cachedRow(miss)).toMatchObject({ source: 'none', avatarPath: null });
+  });
+
+  it('resolves one address once when two lists miss it at the same time', async () => {
+    const release = deferredFetch();
+    const domain = `d${unique().slice(0, 10)}.example`;
+    const miss = `twice@${domain}`;
+
+    const [first, second] = await Promise.all([
+      getAvatarPathsBatch([miss]),
+      getAvatarPathsBatch([miss]),
+    ]);
+    release();
+    await settleAvatarResolutions();
+
+    expect(first.get(miss)).toBeNull();
+    expect(second.get(miss)).toBeNull();
+    // One request per tier: BIMI, Gravatar, then the favicon.
+    expect(mockResolveTxt).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(`https://api.clarity.surf/favicons/${domain}`);
+  });
+
+  it('answers an Oxy account`s avatar at once, with no outbound request', async () => {
+    const username = `Oxybatch${unique().slice(0, 10)}`;
+    const avatarFileId = unique();
+    await getDb().insert(users).values({ username, avatar: avatarFileId, color: 'teal' });
+    const without = `oxybare${unique().slice(0, 10)}`;
+    await getDb().insert(users).values({ username: without, color: 'teal' });
+    const email = `${username.toLowerCase()}+news@oxy.so`;
+
+    const resolved = await getAvatarPathsBatch([email, `${without}@oxy.so`]);
+
+    expect(resolved.get(email)).toBe(`/api/assets/${avatarFileId}/stream`);
+    // An account without an avatar goes the way of any other sender.
+    expect(resolved.get(`${without}@oxy.so`)).toBeNull();
+    await settleAvatarResolutions();
+    expect(await cachedRow(email)).toMatchObject({
+      source: 'oxy',
+      avatarPath: `/api/assets/${avatarFileId}/stream`,
+    });
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('api/assets'))).toBe(true);
+  });
+
+  it('leaves no unhandled rejection behind when every lookup fails', async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    fetchMock.mockRejectedValue(new Error('network down'));
+    mockResolveTxt.mockRejectedValue(new Error('dns down'));
+    const miss = `failing@d${unique().slice(0, 10)}.example`;
+
+    try {
+      await expect(getAvatarPathsBatch([miss])).resolves.toEqual(new Map([[miss, null]]));
+      await settleAvatarResolutions();
+      await new Promise((resolve) => setImmediate(resolve));
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+
+    expect(unhandled).toEqual([]);
+    expect(fetchMock).toHaveBeenCalled();
+    expect(await cachedRow(miss)).toMatchObject({ source: 'none' });
   });
 });
 
@@ -285,6 +402,7 @@ describe('senderAvatar.service — resource validity', () => {
             ? await getAvatarPath(email)
             : (await getAvatarPathsBatch([email])).get(email);
         expect(path).toBeNull();
+        await settleAvatarResolutions();
         expect(await cachedRow(email)).toMatchObject({ source: 'none', avatarPath: null });
       }
     },

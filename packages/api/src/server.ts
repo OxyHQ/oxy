@@ -154,6 +154,7 @@ import updatesAdminRoutes from './routes/updatesAdmin';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
 import { isOutboundRelayConfigured } from './services/smtp.outbound';
 import { smtpOutbound } from './services/smtp.outbound';
+import { stopAvatarResolutions } from './services/senderAvatar.service';
 import { startFollowOutboxWorker, stopFollowOutboxWorker } from './services/followOutbox.worker';
 import {
   startAccountEventWebhookWorker,
@@ -608,6 +609,8 @@ async function gracefulShutdown(signal: string) {
 
   await drainHttpServer();
   await stopPeriodicJobs();
+  // Mail reads queue sender-avatar lookups; the running few finish before Postgres closes.
+  await stopAvatarResolutions();
 
   stopPlatformActivity();
   await stopPlatformInfrastructure();
