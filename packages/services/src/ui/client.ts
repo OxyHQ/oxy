@@ -40,6 +40,14 @@ export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyCo
 
 // Hooks
 export { useAuth } from './hooks/useAuth';
+// This app's Oxy-signed assertion of which app it is (ADR 0045), for an SDK
+// that attaches it to its own requests without pulling in the account screens.
+export {
+  useAppAssertion,
+  AppAssertionProviderMissingError,
+} from './appAssertion/AppAssertionContext';
+export type { UseAppAssertionResult } from './appAssertion/AppAssertionContext';
+export type { AppAssertionSnapshot, AppAssertionStatus } from './appAssertion/appAssertionManager';
 export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './hooks/useAuth';
 export { createDeferredProductAnalytics } from './analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';

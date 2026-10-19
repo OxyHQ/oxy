@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.1.0] - 2026-10-19
+
+### Added
+
+- `@oxy.so/services/ui/client` exports `useAppAssertion`,
+  `AppAssertionProviderMissingError` and their types. `@alia.onl/sdk` read
+  `useAppAssertion` from `/ui`, whose import registers every account screen, so
+  an app that kept to the lean entry still had all of them (and Bloom's phone
+  flags, date picker and plan cards) in its startup bundle through the SDK.
+
 ## [12.0.0] - 2026-10-19
 
 ### Removed
