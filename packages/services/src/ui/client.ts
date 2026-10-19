@@ -20,6 +20,12 @@ export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
+export { FollowTargetButton } from './components/FollowTargetButton';
+export type {
+  FollowTargetButtonProps,
+  FollowVerb,
+  FollowLabels,
+} from './components/FollowTargetButton';
 export { default as ProfileButton } from './components/ProfileButton';
 export type { ProfileButtonProps } from './components/ProfileButton';
 export { default as PeableButton } from './components/PeableButton';
@@ -39,6 +45,7 @@ export { createDeferredProductAnalytics } from './analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';
 export { useFollow, useFollowerCounts, useSeedFollowStatuses } from './hooks/useFollow';
 export { useFollowTarget } from './hooks/useFollowTarget';
+export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {
   useUserProfile,
