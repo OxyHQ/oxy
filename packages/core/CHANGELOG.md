@@ -12,13 +12,33 @@ Needs `@oxy.so/contracts` 5.1.0 and the Oxy API with migration
   change or remove the signed-in account's email.
 - `oxy.auth.password.remove(reauth)`: remove the password while the account
   has an email.
+- `OxyServerConfig.sessionValidationCacheTtlMs` (default 30 000; `0` disables).
+- `auth({ freshSession: true })`: ask Oxy on every request for one route.
+- `server.session.validate(id, { fresh: true })` and
+  `server.invalidateSessionValidations({ userId?, sessionId? })`.
+- `createOxyUserInvalidationHandler({ oxy })` also drops the user's cached
+  validations when `oxy` has `invalidateSessionValidations` (an `OxyServer`).
+  A host passing its own evictor object forwards it to keep the immediate drop.
+- New strings under `signInSecurity` in every locale.
+
+### Changed
+
+- `middleware.auth()` (and `middleware.socket()`) no longer asks Oxy about the
+  same bearer on every request. `server.session.validate(id, { accessToken })`
+  reuses a successful answer on this process for 30 s, keyed by session and
+  SHA-256 of the bearer (never the raw token), and never past the token's
+  `exp`. Refusals, failures and the supervised-action lane are never cached;
+  concurrent misses share one call. A revoked session keeps working here for at
+  most the TTL, and stops at once on the signals core already receives: an
+  `oxy:user:invalidate` event for its user, or a logout made through this
+  server. Why: on Mention (2026-10-19 logs) `/notifications/unread-count`
+  averaged 316 ms of Oxy time, with this call on its critical path.
 
 ### Changed
 
 - `oxy.users.deleteMe(text, { reauth })` and `oxy.identity.links.complete`
   accept any `ReauthProof`: an account without an email confirms with its
   password.
-- New strings under `signInSecurity` in every locale.
 
 ## 6.0.0
 

@@ -114,6 +114,21 @@ more than its session was granted is refused, not trimmed.
 `req.user` answers *who*, `req.oxyToken` answers *as whom, through what, with
 which scopes*. Only the blocking `authMiddleware` lane populates it.
 
+### App backends reuse the answer for 30 s
+
+An app backend cannot check the signature (HS256 under a secret only oxy-api
+holds), so `@oxy.so/core/server`'s `middleware.auth()` asks
+`GET /session/validate-header/:id` about each bearer. Since core 6.1.0 a
+successful answer is reused on that process per session and SHA-256 of the
+bearer, for `sessionValidationCacheTtlMs` (default 30 s) and never past the
+token's `exp`; refusals are never reused. A revoked session therefore keeps
+working on an app backend for at most 30 s, and at once where a signal arrives:
+the `oxy:user:invalidate` broadcast drops that user's entries
+(`createOxyUserInvalidationHandler({ oxy })`), as does a logout made through that
+`OxyServer`. `auth({ freshSession: true })` asks Oxy every time on one route;
+`sessionValidationCacheTtlMs: 0` turns the cache off. The supervised-action lane
+is never cached.
+
 ### What a switch does NOT do
 
 Activating a different context does not revoke the previous context's token.

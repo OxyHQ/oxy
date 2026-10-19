@@ -285,6 +285,12 @@ export interface AuthMiddlewareOptions {
   /** Keep anonymous access, but reject every supplied invalid credential or authority outage. */
   strictOptionalBearer?: boolean;
   /**
+   * Ask Oxy about the session on every request instead of reusing a recent
+   * successful validation (`OxyServerConfig.sessionValidationCacheTtlMs`, 30 s).
+   * For routes where a just-revoked session must not act — deletion, payments.
+   */
+  freshSession?: boolean;
+  /**
    * Called whenever a PRESENTED credential is refused, on the optional path as
    * well as the blocking one. Runs before the response (if any) and after
    * `req.oxyAuthRefusal` is set, so a host can raise its own alert or carry the
@@ -327,6 +333,7 @@ export interface OxyMiddlewareHost {
       useHeaderValidation?: boolean;
       accessToken?: string;
       supervisedAction?: SupervisedAction;
+      fresh?: boolean;
     },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(
@@ -361,7 +368,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
    * attacker-controlled and proves nothing on its own.** The identity comes
    * from somewhere else entirely:
    * - A user token MUST carry a `sessionId`. That session is validated
-   *   server-side on every request via `session.validate()`, and the user id
+   *   server-side via `session.validate()` (a success is reused for 30 s per
+   *   session and bearer, see `./session.ts`; `freshSession` skips it), and the user id
    *   is read off the VALIDATED SESSION — never off the token. A token whose
    *   `userId` claim disagrees with the session is refused
    *   (`SESSION_USER_MISMATCH`); a token with no `sessionId` at all is
@@ -923,6 +931,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           const validationResult = await host.validateSession(sessionId, {
             accessToken: token,
             supervisedAction: options.supervisedAction,
+            fresh: options.freshSession,
           });
 
           if (!validationResult || !validationResult.valid || !validationResult.user) {
