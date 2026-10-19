@@ -1,5 +1,25 @@
 # Changelog — `@oxy.so/core`
 
+## 6.1.0
+
+Needs `@oxy.so/contracts` 5.1.0 and the Oxy API with migration
+`0185_email_change_and_reauth`.
+
+### Added
+
+- `oxy.auth.email.startChange(email)`, `oxy.auth.email.change({ email,
+  verificationId, code, reauth })` and `oxy.auth.email.remove(reauth)`: add,
+  change or remove the signed-in account's email.
+- `oxy.auth.password.remove(reauth)`: remove the password while the account
+  has an email.
+
+### Changed
+
+- `oxy.users.deleteMe(text, { reauth })` and `oxy.identity.links.complete`
+  accept any `ReauthProof`: an account without an email confirms with its
+  password.
+- New strings under `signInSecurity` in every locale.
+
 ## 6.0.0
 
 Needs `@oxy.so/contracts` 5.0.0. Breaking: removes the two `OxyInferenceClient`

@@ -1,5 +1,30 @@
 # Changelog
 
+## [12.4.0] - 2026-10-19
+
+Needs `@oxy.so/core` 6.1.0.
+
+### Added
+
+- `SignInSecurity` route and `OxySignInSecurityPanel`: one page with every way
+  the account signs in (email, password, authenticator app, Commons) and its
+  sessions. "Manage your account" opens it from a single "Sign-in & security"
+  row.
+- `SignInEmail` route and `OxyEmailPanel`: add, change or remove the email
+  (removing only with a password set, confirmed with it).
+- `OxyPasswordPanel` can remove the password while the account has an email.
+- `ReauthStep` takes `allowEmail`; an account without an email confirms with
+  its password.
+
+### Fixed
+
+- The security panels show an error with a retry, or "personal accounts only"
+  for an organization, project or bot, instead of loading forever.
+- Linking Commons waits for the account's sign-in methods before asking for
+  the proof, so an account with an authenticator is always asked for its code.
+- "Manage your account" no longer has a "Security settings" row that opened
+  the privacy screen.
+
 ## [12.3.0] - 2026-10-19
 
 ### Added
