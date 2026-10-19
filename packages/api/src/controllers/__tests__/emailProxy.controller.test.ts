@@ -162,3 +162,54 @@ describe('email proxy SSRF protections', () => {
     expect(res.setHeader).not.toHaveBeenCalledWith('Content-Type', 'image/gif');
   });
 });
+
+describe('email proxy upstream failures', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('answers an image whose fetch failed with the transparent GIF', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('socket hang up'));
+    const res = makeRes();
+
+    await proxyResource(
+      makeReq('https://unreachable.example/photo.png'),
+      res as unknown as ExpressResponse,
+    );
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/gif');
+    expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('answers a font whose fetch failed with an empty 404, never the GIF', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('socket hang up'));
+    const res = makeRes();
+
+    await proxyResource(
+      makeReq('https://unreachable.example/brand.woff2'),
+      res as unknown as ExpressResponse,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.end).toHaveBeenCalled();
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
+  it('refuses a body over the size limit as too large', async () => {
+    mockSafeFetch.mockResolvedValue(
+      makeSafeFetchResult(
+        200,
+        Buffer.alloc(10 * 1024 * 1024 + 1),
+        { 'content-type': 'image/png' },
+        'https://huge.example/poster.png',
+      ),
+    );
+    const res = makeRes();
+
+    await expect(
+      proxyResource(makeReq('https://huge.example/poster.png'), res as unknown as ExpressResponse),
+    ).rejects.toThrow('Resource too large');
+    expect(res.send).not.toHaveBeenCalled();
+  });
+});

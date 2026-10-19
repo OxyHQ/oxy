@@ -645,6 +645,27 @@ describe('a delivery that fails', () => {
   });
 });
 
+describe('cancelling a delivery', () => {
+  async function outboxIdOf(messageRowId: string): Promise<string> {
+    const [row] = await getDb()
+      .select({ id: emailOutbox.id })
+      .from(emailOutbox)
+      .where(eq(emailOutbox.messageRowId, messageRowId));
+    return row.id;
+  }
+
+  it('refuses one that already went out with a 409', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const { rowId } = await accept(reply(`k:${unique()}`));
+    await settled(rowId, 'sent');
+
+    await expect(cancelEmailOutbox(user.id, await outboxIdOf(rowId))).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Outbound message is already being delivered or completed',
+    });
+  });
+});
+
 describe('a delivery whose task died', () => {
   const LEASE_EXPIRED = () => new Date(Date.now() - 11 * 60_000);
 

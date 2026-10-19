@@ -63,7 +63,12 @@ const unique = () => randomUUID().replace(/-/g, '');
 
 interface RawResponse {
   status: number;
-  body: { error?: string; accepted?: number; rejected?: number };
+  body: {
+    error?: string;
+    accepted?: number;
+    rejected?: number;
+    results?: Array<{ recipient: string; status: string }>;
+  };
 }
 
 function postRaw(
@@ -223,8 +228,11 @@ describe('POST /email/inbound', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.accepted).toBe(1);
-    expect(res.body.rejected).toBe(0);
+    expect(res.body).toEqual({
+      accepted: 1,
+      rejected: 0,
+      results: [{ recipient: user.address, status: 'delivered' }],
+    });
     expect(mockStoreIncomingMessage).toHaveBeenCalledTimes(1);
 
     // The parsed MIME reaches the service intact; the service is what decides
@@ -276,6 +284,61 @@ describe('POST /email/inbound', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(1);
+  });
+
+  it('answers a missing envelope recipient with a 400 and its reason', async () => {
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      { authorization: `Bearer ${TEST_WEBHOOK_SECRET}` },
+      rawMessage('nobody@oxy.so'),
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Missing X-Envelope-To header' });
+    expect(mockStoreIncomingMessage).not.toHaveBeenCalled();
+  });
+
+  it('answers spam with a 400 and its reason, storing nothing', async () => {
+    const user = await recipient();
+    mockSpamCheck.mockResolvedValueOnce({ score: 20, action: 'reject' });
+    mockSpamShouldReject.mockReturnValueOnce(true);
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address,
+      },
+      rawMessage(user.address),
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Message rejected as spam' });
+    expect(mockStoreIncomingMessage).not.toHaveBeenCalled();
+  });
+
+  it('reports a recipient whose delivery failed as rejected, in the same body', async () => {
+    const user = await recipient();
+    mockStoreIncomingMessage.mockRejectedValueOnce(new Error('connection terminated'));
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address,
+      },
+      rawMessage(user.address),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      accepted: 0,
+      rejected: 1,
+      results: [{ recipient: user.address, status: 'failed' }],
+    });
   });
 
   // The shared-secret guard is NOT asserted here: `verifyEmailInboundWebhookSecret`

@@ -40,6 +40,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 import { renderWelcomeEmail } from '../welcomeEmail';
+import { DEFAULT_MAILBOXES } from '../../config/email.config';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -88,6 +89,18 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
       .from(messages)
       .where(eq(messages.userId, userId));
     expect(stored).toEqual([renderWelcomeEmail('there', `${userId}@oxy.so`)]);
+  });
+
+  it('provisions every default folder exactly once', async () => {
+    const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    await emailService.ensureMailboxes(userId);
+
+    const rows = await getDb()
+      .select({ path: mailboxes.path })
+      .from(mailboxes)
+      .where(eq(mailboxes.userId, userId));
+    expect(rows.map((r) => r.path).sort()).toEqual(DEFAULT_MAILBOXES.map((m) => m.path).sort());
   });
 
   it('reports exact totals, unseen counts and byte sizes per folder', async () => {
