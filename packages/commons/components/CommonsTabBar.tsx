@@ -58,12 +58,8 @@ const TAB_BAR_MAX_WIDTH = 440;
  *
  * Each tab carries an outline/filled icon PAIR. The bar renders `icon` and
  * `activeIcon` as two stacked crossfade layers, so selection reads as the
- * outline glyph dissolving into the filled one — the same thing the SF Symbol
- * pair said natively, which a tint crossfade alone could not express.
- *
- * `sfSymbol` is deliberately NOT set: it would render an SF Symbol on iOS and a
- * Bloom icon everywhere else, so the two platforms would disagree about the
- * shape of the same tab. The Bloom pair is used on all three platforms.
+ * outline glyph dissolving into the filled one, which a tint crossfade alone
+ * could not express. The same Bloom pair renders on all three platforms.
  */
 export function CommonsTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const { t } = useTranslation();
