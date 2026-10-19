@@ -783,8 +783,18 @@ export async function cancelEmailOutbox(userId: string, id: string): Promise<Ema
       ),
     )
     .returning();
-  if (!updated) throw new ConflictError('Outbound message is already being delivered or completed');
-  return toDto(updated);
+  if (updated) return toDto(updated);
+
+  // Nothing cancellable: tell an id this user has no row for apart from one
+  // that is past cancelling. A scheduled claim is the user's row too, and is
+  // answered as before.
+  const [existing] = await getDb()
+    .select({ id: emailOutbox.id })
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.id, id), eq(emailOutbox.userId, userId)))
+    .limit(1);
+  if (!existing) throw new NotFoundError('Outbound message not found');
+  throw new ConflictError('Outbound message is already being delivered or completed');
 }
 
 export { MAX_ATTEMPTS as EMAIL_OUTBOX_MAX_ATTEMPTS };
