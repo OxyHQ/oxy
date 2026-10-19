@@ -291,20 +291,27 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
     throw new BadRequestError('mailbox, starred, or label query parameter is required');
   }
 
-  // Verify the mailbox belongs to this user (if provided)
+  // The listing is scoped to this user, so it runs while the folder is being
+  // authorized rather than after. A folder that is not theirs still answers
+  // 404 first — before the listing's own errors, as when they ran in turn —
+  // and its (empty) listing is discarded.
+  const [mailbox, listed] = await Promise.allSettled([
+    mailboxId ? emailService.getMailboxById(userId, mailboxId) : undefined,
+    emailService.listMessages(userId, mailboxId || null, {
+      limit,
+      offset,
+      cursor,
+      unseenOnly,
+      starred,
+      label,
+    }),
+  ]);
   if (mailboxId) {
-    const mailbox = await emailService.getMailboxById(userId, mailboxId);
-    if (!mailbox) throw new NotFoundError('Mailbox not found');
+    if (mailbox.status === 'rejected') throw mailbox.reason;
+    if (!mailbox.value) throw new NotFoundError('Mailbox not found');
   }
-
-  const result = await emailService.listMessages(userId, mailboxId || null, {
-    limit,
-    offset,
-    cursor,
-    unseenOnly,
-    starred,
-    label,
-  });
+  if (listed.status === 'rejected') throw listed.reason;
+  const result = listed.value;
   const pagination = {
     total: result.total,
     limit: result.limit,

@@ -1887,8 +1887,13 @@ class EmailService {
       : offset + limit < (countRow?.total ?? 0);
     const rows = cursorMode ? fetchedRows.slice(0, limit) : fetchedRows;
     const data = await toMessageDtos(db, rows);
-    await this.attachThreadMetadata(userId, data);
-    await EmailService.enrichWithAvatars(data);
+    // Independent lookups, run together. The avatars are applied after the
+    // thread fields, as when they ran in turn, so the JSON keeps its key order.
+    const [, avatars] = await Promise.all([
+      this.attachThreadMetadata(userId, data),
+      EmailService.senderAvatarsOf(data),
+    ]);
+    EmailService.applySenderAvatars(data, avatars);
 
     const last = rows.at(-1);
     return {
@@ -1988,8 +1993,12 @@ class EmailService {
     if (!row) return undefined;
 
     const [dto] = await toMessageDtos(db, [row]);
-    await this.attachThreadMetadata(userId, [dto]);
-    await EmailService.enrichWithAvatars([dto]);
+    // Together, then applied in turn, as in `listMessages`.
+    const [, avatars] = await Promise.all([
+      this.attachThreadMetadata(userId, [dto]),
+      EmailService.senderAvatarsOf([dto]),
+    ]);
+    EmailService.applySenderAvatars([dto], avatars);
     return dto;
   }
 
@@ -4728,19 +4737,37 @@ class EmailService {
   private static async enrichWithAvatars(
     page: Array<{ from: EmailAddressDto; senderAvatarPath?: string | null }>,
   ): Promise<void> {
-    if (page.length === 0) return;
+    EmailService.applySenderAvatars(page, await EmailService.senderAvatarsOf(page));
+  }
+
+  /**
+   * The avatar lookup of {@link enrichWithAvatars} alone, for a read that runs
+   * it beside other work and applies it after.
+   */
+  private static async senderAvatarsOf(
+    page: Array<{ from: EmailAddressDto }>,
+  ): Promise<Map<string, string | null> | undefined> {
+    if (page.length === 0) return undefined;
     const emails = page.map((m) => m.from.address).filter(Boolean);
-    if (emails.length === 0) return;
+    if (emails.length === 0) return undefined;
     try {
-      const avatarMap = await getAvatarPathsBatch(emails);
-      for (const msg of page) {
-        const addr = msg.from.address.trim().toLowerCase();
-        if (addr && avatarMap.has(addr)) {
-          msg.senderAvatarPath = avatarMap.get(addr) ?? null;
-        }
-      }
+      return await getAvatarPathsBatch(emails);
     } catch {
       // Avatar enrichment is non-critical — don't fail message fetch
+      return undefined;
+    }
+  }
+
+  private static applySenderAvatars(
+    page: Array<{ from: EmailAddressDto; senderAvatarPath?: string | null }>,
+    avatarMap: Map<string, string | null> | undefined,
+  ): void {
+    if (!avatarMap) return;
+    for (const msg of page) {
+      const addr = msg.from.address.trim().toLowerCase();
+      if (addr && avatarMap.has(addr)) {
+        msg.senderAvatarPath = avatarMap.get(addr) ?? null;
+      }
     }
   }
 
