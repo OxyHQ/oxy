@@ -2,6 +2,13 @@
 
 ## [12.2.1] - 2026-10-19
 
+### Added
+
+- `@oxy.so/services/ui/client` exports `useOxyEvent` and `useUpdateProfile`.
+  They were root-only, so an app whose startup code listens for realtime
+  events or updates the profile (Inbox's socket hook and locale provider) had
+  to import the root barrel and ship every account screen in first paint.
+
 ### Fixed
 
 - `@oxy.so/services/ui` and `@oxy.so/services/ui/client` tell `@oxy.so/core`
