@@ -33,8 +33,6 @@ export interface ProfileButtonProps {
    * Avatar diameter in px. Defaults to 40 when expanded, 32 when collapsed.
    */
   avatarSize?: number;
-  /** Navigate to the "Manage account" surface (settings). */
-  onNavigateManage?: () => void;
   /** Start the add-account / sign-in flow for an additional account. */
   onAddAccount?: () => void;
   /** Optional: navigate to the signed-in user's own profile. */
@@ -63,7 +61,6 @@ export interface ProfileButtonProps {
 const ProfileButton: React.FC<ProfileButtonProps> = ({
   expanded = true,
   avatarSize,
-  onNavigateManage,
   onAddAccount,
   onNavigateProfile,
   menuItems,
@@ -83,23 +80,16 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   }, [openAccountDialog]);
 
   useEffect(() => {
-    if (
-      !onNavigateManage &&
-      !onAddAccount &&
-      !onNavigateProfile &&
-      !menuItems?.length &&
-      !menuSections?.length
-    ) {
+    if (!onAddAccount && !onNavigateProfile && !menuItems?.length && !menuSections?.length) {
       return undefined;
     }
     return registerAccountDialogConsumerHooks({
-      onNavigateManage,
       onAddAccount,
       onNavigateProfile,
       menuItems,
       menuSections,
     });
-  }, [onNavigateManage, onAddAccount, onNavigateProfile, menuItems, menuSections]);
+  }, [onAddAccount, onNavigateProfile, menuItems, menuSections]);
 
   const avatarUrl = useMemo(
     () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),

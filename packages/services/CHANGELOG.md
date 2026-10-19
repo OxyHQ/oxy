@@ -1,5 +1,16 @@
 # Changelog
 
+## [12.0.0] - 2026-10-19
+
+### Removed
+
+- `ProfileButton`'s `onNavigateManage` prop and the `onNavigateManage` field of
+  `AccountDialogConsumerHooks`. "Manage your Oxy account" in the account dialog
+  always opens the SDK's `ManageAccount` screen. Apps used the override to send
+  that button to their own settings, which is not where an Oxy account is
+  managed. Delete the prop; `onAddAccount`, `onNavigateProfile`, `menuItems` and
+  `menuSections` are unchanged.
+
 ## [11.17.0] - 2026-10-19
 
 ### Added

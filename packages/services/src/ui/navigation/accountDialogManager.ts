@@ -46,11 +46,11 @@ export interface AccountDialogControls {
 
 /**
  * Optional consumer overrides for account-dialog actions. `ProfileButton` (and
- * similar hosts) register these while mounted so inbox/accounts can route
- * "Manage" / "Add account" to app-local navigation instead of the SDK default.
+ * similar hosts) register these while mounted so an app can route "Add account"
+ * and "Profile" to app-local navigation, and add its own menu entries. "Manage
+ * your Oxy account" is not overridable: it always opens the SDK's ManageAccount.
  */
 export interface AccountDialogConsumerHooks {
-  onNavigateManage?: () => void;
   onAddAccount?: () => void;
   onNavigateProfile?: () => void;
   menuItems?: readonly AccountDialogMenuItem[];
@@ -77,7 +77,7 @@ export function registerAccountDialogControls(next: AccountDialogControls): () =
   };
 }
 
-/** Register app-local manage/add/profile handlers for the account dialog. */
+/** Register app-local add/profile handlers and menu entries for the account dialog. */
 export function registerAccountDialogConsumerHooks(
   next: AccountDialogConsumerHooks | null,
 ): () => void {
@@ -95,7 +95,7 @@ export function getAccountDialogConsumerHooks(): AccountDialogConsumerHooks | nu
   return consumerHooks;
 }
 
-/** Subscribe to consumer-hook registration changes (menu items, manage/add overrides). */
+/** Subscribe to consumer-hook registration changes (menu items, add/profile overrides). */
 export function subscribeToAccountDialogConsumerHooks(listener: () => void): () => void {
   consumerHookListeners.add(listener);
   return () => {

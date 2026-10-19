@@ -284,13 +284,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   );
 
   const handleManage = useCallback(() => {
-    if (consumerHooks?.onNavigateManage) {
-      onComplete?.();
-      consumerHooks.onNavigateManage();
-      return;
-    }
     showBottomSheet?.('ManageAccount');
-  }, [consumerHooks, onComplete, showBottomSheet]);
+  }, [showBottomSheet]);
 
   const handleAdd = useCallback(() => {
     if (consumerHooks?.onAddAccount) {
