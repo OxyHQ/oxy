@@ -30,8 +30,8 @@ Needs `@oxy.so/contracts` 5.1.0 and the Oxy API with migration
   `exp`. Refusals, failures and the supervised-action lane are never cached;
   concurrent misses share one call. A revoked session keeps working here for at
   most the TTL, and stops at once on the signals core already receives: an
-  `oxy:user:invalidate` event for its user, or a logout made through this
-  server. Why: on Mention (2026-10-19 logs) `/notifications/unread-count`
+  `oxy:user:invalidate` event for its account or delegated operator, or a
+  logout made through this server. Why: on Mention (2026-10-19 logs) `/notifications/unread-count`
   averaged 316 ms of Oxy time, with this call on its critical path.
 
 ### Changed

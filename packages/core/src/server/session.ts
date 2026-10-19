@@ -56,15 +56,22 @@ export interface ServerSessionValidateOptions extends SessionValidateOptions {
 interface CachedValidation {
   value: SessionValidation;
   sessionId: string;
-  userId: string;
+  /** The account the session speaks as, and the human operating it when delegated. */
+  accountIds: readonly string[];
   expiresAt: number;
 }
 
 export class ServerSessionApi extends SessionApi {
   private readonly validations = new Map<string, CachedValidation>();
   private readonly pending = new Map<string, Promise<SessionValidation>>();
-  /** Bumped by every invalidation; a load that saw another value never caches. */
+  /**
+   * One counter stamps every invalidation: globally for an explicit one, per
+   * session for a refusal. A load caches only if nothing it covers was stamped
+   * since it began, so an older success cannot re-cache a revoked session.
+   */
   private generation = 0;
+  private epoch = 0;
+  private readonly sessionStamps = new Map<string, number>();
 
   constructor(
     ctx: OxyContext,
@@ -93,19 +100,21 @@ export class ServerSessionApi extends SessionApi {
       if (inFlight) return inFlight;
     }
 
-    const generation = this.generation;
+    const stamp = this.stampOf(sessionId);
     const expiresAt = Math.min(Date.now() + this.validationTtlMs, tokenExpiresAt);
     const lookup = super.validate(sessionId, rest).then(
       (value) => {
         const userId = value.valid === true ? value.user?.id : undefined;
-        if (!userId) this.forget({ sessionId });
-        else if (generation === this.generation) {
-          this.remember(key, { value, sessionId, userId, expiresAt });
+        if (!userId) this.refuse(sessionId);
+        else if (stamp === this.stampOf(sessionId)) {
+          const actorId = value.actor?.actorAccountId;
+          const accountIds = actorId && actorId !== userId ? [userId, actorId] : [userId];
+          this.remember(key, { value, sessionId, accountIds, expiresAt });
         }
         return value;
       },
       (error: unknown) => {
-        this.forget({ sessionId });
+        this.refuse(sessionId);
         throw error;
       },
     );
@@ -119,12 +128,15 @@ export class ServerSessionApi extends SessionApi {
   }
 
   /**
-   * Forget cached validations: every one, one session's, or one user's. For a
-   * backend that learns of a revocation out of band.
+   * Forget cached validations: every one, one session's, or one user's (as the
+   * session's account or its delegated operator). For a backend that learns of
+   * a revocation out of band.
    */
   invalidateValidations(filter: { userId?: string; sessionId?: string } = {}): void {
     // Loads already under way answered for the world before this signal.
     this.generation += 1;
+    this.epoch = this.generation;
+    this.sessionStamps.clear();
     this.pending.clear();
     if (!filter.userId && !filter.sessionId) this.validations.clear();
     else this.forget(filter);
@@ -136,16 +148,37 @@ export class ServerSessionApi extends SessionApi {
   }
 
   override async logoutAll(sessionId: string): Promise<void> {
-    const userId = [...this.validations.values()].find(
-      (entry) => entry.sessionId === sessionId,
-    )?.userId;
+    const userId = [...this.validations.values()].find((entry) => entry.sessionId === sessionId)
+      ?.accountIds[0];
     await super.logoutAll(sessionId);
-    this.invalidateValidations(userId ? { userId } : { sessionId });
+    // Every session of the account ended; without its id here, forget them all.
+    this.invalidateValidations(userId ? { userId } : {});
+  }
+
+  private stampOf(sessionId: string): number {
+    return Math.max(this.epoch, this.sessionStamps.get(sessionId) ?? 0);
+  }
+
+  /** Oxy refused the session: drop it, and keep older in-flight successes from re-caching it. */
+  private refuse(sessionId: string): void {
+    this.generation += 1;
+    this.sessionStamps.set(sessionId, this.generation);
+    if (this.sessionStamps.size > SESSION_VALIDATION_CACHE_MAX) {
+      this.sessionStamps.clear();
+      this.epoch = this.generation;
+    }
+    for (const key of this.pending.keys()) {
+      if (key.startsWith(`${sessionId}:`)) this.pending.delete(key);
+    }
+    this.forget({ sessionId });
   }
 
   private forget(filter: { userId?: string; sessionId?: string }): void {
     for (const [key, entry] of this.validations) {
-      if (entry.userId === filter.userId || entry.sessionId === filter.sessionId) {
+      if (
+        entry.sessionId === filter.sessionId ||
+        (filter.userId !== undefined && entry.accountIds.includes(filter.userId))
+      ) {
         this.validations.delete(key);
       }
     }

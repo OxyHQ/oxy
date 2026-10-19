@@ -48,6 +48,21 @@ describe('server.session.validate cache', () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
 
+  it('does not let an older in-flight success re-cache a session Oxy has since refused', async () => {
+    const { request, validate } = setup();
+    let release: (value: unknown) => void = () => {};
+    request.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)) as never);
+    const older = validate();
+
+    request.mockRejectedValueOnce(Object.assign(new Error('revoked'), { status: 401 }));
+    await expect(validate({ fresh: true })).rejects.toThrow('revoked');
+    release({ valid: true, user: { id: 'user-1' } });
+    await older;
+
+    await validate();
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
   it('is off at a zero TTL', async () => {
     const { request, validate } = setup({ sessionValidationCacheTtlMs: 0 });
     await validate();
