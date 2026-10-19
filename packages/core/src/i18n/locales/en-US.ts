@@ -2037,10 +2037,6 @@ const dict = {
         title: 'Theme color',
         subtitle: 'Personalize your Bloom color',
       },
-      security: {
-        title: 'Security settings',
-        subtitle: 'Password, 2FA, recovery',
-      },
       billing: {
         title: 'Billing',
         subtitle: 'Manage subscription and payment methods',
@@ -2290,6 +2286,7 @@ const dict = {
     failed: 'Commons couldn’t be linked. Try again.',
     confirmTitle: 'Confirm the link',
     confirmDescription: "To finish, confirm it's you with a code we email you.",
+    confirmPasswordDescription: "To finish, confirm it's you with your password.",
     row: 'Hold your own key with Commons',
   },
   reauth: {
@@ -2307,6 +2304,52 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Sign-in & security',
+    subtitle: 'Email, password, authenticator app and where you’re signed in',
+    methodsTitle: 'How you sign in',
+    notPersonal:
+      'Only a personal account signs in with an email, a password or an authenticator app.',
+    loadFailed: 'Couldn’t load how this account signs in.',
+    retry: 'Try again',
+    noEmailWarning:
+      'This account has no email. You sign in only with your password, and if you forget it there’s no way to get the account back.',
+    status: {
+      on: 'On',
+      off: 'Off',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'This is your only way to sign in. Add another one first.',
+      passwordRequired: 'Set a password first, and confirm with it.',
+      emailUnchanged: 'That’s already your email.',
+    },
+    email: {
+      title: 'Email',
+      none: 'No email',
+      description: 'Sign-in codes, sign-in links and security notices go to this address.',
+      noneDescription:
+        'Add an email to sign in with a code or a link, and to get your account back if you forget your password.',
+      change: 'Change email',
+      add: 'Add an email',
+      remove: 'Remove email',
+      removeNeedsPassword:
+        'To remove your email, set a password first: it will be your only way to sign in.',
+      newLabel: 'New email address',
+      newDescription: 'We’ll send a code to the new address to check it’s yours.',
+      invalid: 'Enter a valid email address.',
+      sendCode: 'Send code',
+      confirmTitle: 'Confirm the new email',
+      confirmDescription: 'Enter the code we sent to {{email}}, then confirm it’s you.',
+      codeLabel: 'Code sent to the new email',
+      save: 'Save email',
+      saved: 'Your email is updated. Other devices were signed out.',
+      removeTitle: 'Remove your email',
+      removeDescription:
+        'You’ll sign in only with your password. If you forget it, there’s no way to get the account back. Confirm with your password.',
+      removed: 'Your email was removed. Other devices were signed out.',
+    },
     password: {
       title: 'Password',
       setTitle: 'Set a password',
@@ -2321,6 +2364,10 @@ const dict = {
       save: 'Save password',
       saved: 'Your password is saved.',
       row: 'Optional: sign in with a password',
+      remove: 'Remove password',
+      removeTitle: 'Remove your password',
+      removeDescription: 'You’ll sign in with a code or a link sent to your email.',
+      removed: 'Your password was removed. Other devices were signed out.',
     },
     totp: {
       title: 'Authenticator app',
@@ -2346,6 +2393,7 @@ const dict = {
       regenerateDescription: 'Your old backup codes stop working.',
       remaining: '{{count}} backup codes left',
       row: 'A second step when you sign in',
+      onWithCodes: 'On · {{count}} backup codes left',
     },
   },
   domains: {

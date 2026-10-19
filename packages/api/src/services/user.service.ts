@@ -1210,8 +1210,9 @@ export class UserService {
    * correct-looking, case-sensitive, and would let ` Alice ` through to fail as
    * a 500 on the constraint instead of a 400 here.
    *
-   * The recovery email is not a profile field: it is set only by a verified
-   * sign-up and removed when Commons is linked (ADR 0029 D3).
+   * The email is not a profile field: a verified sign-up sets it, the
+   * account's security settings add, change or remove it with fresh proof
+   * (ADR 0030 D9), and linking Commons removes it (ADR 0029 D3).
    */
   private async validateUniqueFields(
     userId: string,

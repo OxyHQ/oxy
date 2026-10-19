@@ -57,7 +57,7 @@ challenge, plus a fresh email code for `link_commons`):
 | Term | Meaning |
 |---|---|
 | Root | A Commons account's secp256k1 key, linked as `users.public_key`. From a BIP-39 phrase (12–24 words): `seed[0:32]`. |
-| Account email | An email account's `users.email`, set only by a verified sign-up. Not a profile field (`PUT /users/me` does not write it). It is how the account signs in. |
+| Account email | An email account's `users.email`, set by a verified sign-up, and added, changed or removed (only with a password set) in the account's security settings with fresh proof (ADR 0030 D9). Not a profile field (`PUT /users/me` does not write it). It is how the account signs in, and recovers. |
 | Verification | One `email_verifications` row (`signup`, `signin` or `reauth`): a code sent (or, for a decoy, not sent), its attempts, and — for `signup` — the ticket its confirmation mints. |
 | Sign-in request | One `email_signin_requests` row: the `signin` verification, the hashes of the dialog's `requestSecret` and the link token, the device the dialog proved, and whether it carries the long code. |
 | Ticket | 32 random bytes (base64url) a confirmed sign-up code returns; stored as its SHA-256, spent once by `POST /auth/signup`. 15 minutes. |

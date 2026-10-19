@@ -18,9 +18,9 @@ interface UseSignInItemsArgs {
 }
 
 /**
- * Builds the "How you sign in" `GroupedSection` rows: the biometric toggle
+ * Builds the "On this device" `GroupedSection` rows: the biometric toggle
  * (with a context-aware subtitle and either a `Switch`, a check icon, or
- * nothing depending on capability) and the read-only public-key auth row.
+ * nothing depending on capability). Empty on the web.
  *
  * Extracted verbatim from the security screen's inline `useMemo`. Lives in a
  * `.tsx` file because the rows embed JSX (the `Switch` / check-icon).
@@ -83,16 +83,6 @@ export function useSignInItems({
         ) : undefined,
       });
     }
-
-    // Public key authentication info
-    items.push({
-      id: 'public-key-auth',
-      icon: 'key-outline',
-      iconColor: colors.success,
-      title: t('security.signIn.publicKeyAuth'),
-      subtitle: t('security.signIn.publicKeyAuthSubtitle'),
-      showChevron: false,
-    });
 
     return items;
   }, [

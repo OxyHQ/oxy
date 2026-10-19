@@ -4,7 +4,6 @@ import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, Linking, Platform } from 'react-native';
-import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -16,7 +15,6 @@ import {
   getNormalizedUserHandle,
   logger as loggerUtil,
   packageInfo,
-  type DeviceLinkedSession,
 } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
@@ -29,46 +27,14 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUserSubscription } from '../hooks/queries/usePaymentQueries';
-import { useDeviceSessions } from '../hooks/queries/useServicesQueries';
-import { deviceSessionTitle } from '../utils/deviceSessionTitle';
-
-type DeviceSessionRow = DeviceLinkedSession;
-
-const formatRelative = (dateString?: string): string => {
-  if (!dateString) {
-    return '—';
-  }
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const absMin = Math.abs(diffMs) / 60000;
-  const isFuture = diffMs > 0;
-  if (absMin < 1) {
-    return isFuture ? 'in moments' : 'just now';
-  }
-  if (absMin < 60) {
-    const v = Math.floor(absMin);
-    return isFuture ? `in ${v}m` : `${v}m ago`;
-  }
-  const hrs = absMin / 60;
-  if (hrs < 24) {
-    const v = Math.floor(hrs);
-    return isFuture ? `in ${v}h` : `${v}h ago`;
-  }
-  const days = hrs / 24;
-  if (days < 7) {
-    const v = Math.floor(days);
-    return isFuture ? `in ${v}d` : `${v}d ago`;
-  }
-  return date.toLocaleDateString();
-};
 
 /**
  * Unified "Manage your Oxy Account" screen.
  *
  * Replaces AccountOverview + AccountSettings + the per-account half of
- * SessionManagement. Lists ONLY the active user's profile, sessions on this
- * device, and security/destructive actions for THIS account. Multi-account
+ * SessionManagement. Lists ONLY the active user's profile, its sign-in and
+ * security page (`SignInSecurity`: methods and sessions), and the destructive
+ * actions for THIS account. Multi-account
  * surface lives in the unified `OxyAccountDialogScreen` — keep these concerns separate.
  */
 interface ManageAccountScreenProps extends BaseScreenProps {
@@ -91,7 +57,6 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     user: contextUser,
     isAuthenticated,
     oxyServices,
-    activeSessionId,
     logout,
     openAvatarPicker,
     accounts,
@@ -110,14 +75,6 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
   const user = userFromQuery ?? contextUser;
 
   const { data: subscription } = useUserSubscription({ enabled: isAuthenticated });
-  const {
-    data: deviceSessions,
-    isLoading: deviceSessionsLoading,
-    refetch: refetchDeviceSessions,
-  } = useDeviceSessions({ enabled: isAuthenticated && !!activeSessionId });
-
-  const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
-  const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = useMemo(
@@ -158,91 +115,6 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
       setSigningOut(false);
     }
   }, [signingOut, logout, t, onClose]);
-
-  const confirmRemoveDevice = useCallback(
-    async (device: DeviceSessionRow) => {
-      if (!activeSessionId) {
-        return;
-      }
-      const confirmed = await surfaces.confirm({
-        title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
-        description: t('manageAccount.confirms.removeDevice', {
-          name: deviceSessionTitle(device, t),
-        }),
-        confirmLabel: t('common.remove') || 'Remove',
-        cancelLabel: t('common.cancel') || 'Cancel',
-        destructive: true,
-      });
-      if (!confirmed) {
-        return;
-      }
-      setRemovingDeviceId(device.sessionId);
-      try {
-        await oxyServices.session.logout(activeSessionId, device.sessionId);
-        await refetchDeviceSessions();
-        toast.success(
-          t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
-        );
-      } catch (error) {
-        loggerUtil.warn(
-          'Remove device failed',
-          { component: 'ManageAccountScreen' },
-          error as unknown,
-        );
-        toast.error(t('manageAccount.toasts.deviceRemoveFailed') || 'Failed to remove device');
-      } finally {
-        setRemovingDeviceId(null);
-      }
-    },
-    [activeSessionId, oxyServices, refetchDeviceSessions, t],
-  );
-
-  const handleSignOutAllDevices = useCallback(async () => {
-    if (!activeSessionId || signingOutAllDevices) {
-      return;
-    }
-    const otherDeviceCount = ((deviceSessions ?? []) as DeviceSessionRow[]).filter(
-      (device) => !device.isCurrent,
-    ).length;
-    const confirmed = await surfaces.confirm({
-      title: t('manageAccount.confirms.signOutAllDevicesTitle') || 'Sign out of all other devices',
-      description:
-        t('manageAccount.confirms.signOutAllDevices', { count: otherDeviceCount }) ||
-        `End ${otherDeviceCount} other device session(s)? This won't sign you out here.`,
-      confirmLabel: t('common.actions.signOut') || 'Sign out',
-      cancelLabel: t('common.cancel') || 'Cancel',
-      destructive: true,
-    });
-    if (!confirmed) {
-      return;
-    }
-    setSigningOutAllDevices(true);
-    try {
-      await oxyServices.devices.logoutAll(activeSessionId);
-      await refetchDeviceSessions();
-      toast.success(
-        t('manageAccount.toasts.allDevicesSignedOut') || 'Signed out from all other devices',
-      );
-    } catch (error) {
-      loggerUtil.warn(
-        'Sign out all devices failed',
-        { component: 'ManageAccountScreen' },
-        error as unknown,
-      );
-      toast.error(
-        t('manageAccount.toasts.allDevicesFailed') || 'Failed to sign out from other devices',
-      );
-    } finally {
-      setSigningOutAllDevices(false);
-    }
-  }, [
-    activeSessionId,
-    signingOutAllDevices,
-    deviceSessions,
-    oxyServices,
-    refetchDeviceSessions,
-    t,
-  ]);
 
   // The signed, open-format export (`GET /users/me/export`): one JSON bundle
   // carrying Oxy's provenance attestation — the "credible exit" snapshot.
@@ -347,9 +219,6 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     );
   }
 
-  const deviceRows: DeviceSessionRow[] = (deviceSessions ?? []) as DeviceSessionRow[];
-  const otherDevices = deviceRows.filter((d) => !d.isCurrent);
-
   return (
     <>
       <View className="px-screen-margin pb-space-24">
@@ -432,117 +301,15 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
               </GroupedSection>
             ) : null}
 
-            {/* Sessions section */}
-            <GroupedSection title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>
-              {deviceSessionsLoading ? (
-                <GroupedSectionItem
-                  icon={<SettingsIcon name="sync" color={bloomTheme.colors.primary} />}
-                  title={t('manageAccount.sessions.loading') || 'Loading sessions…'}
-                  rightElement={null}
-                  showChevron={false}
-                  disabled
-                />
-              ) : deviceRows.length === 0 ? (
-                <GroupedSectionItem
-                  icon={<SettingsIcon name="cellphone" color={bloomTheme.colors.textTertiary} />}
-                  title={t('manageAccount.sessions.empty') || 'No active sessions'}
-                  showChevron={false}
-                  disabled
-                />
-              ) : (
-                deviceRows.map((device) => (
-                  <GroupedSectionItem
-                    key={`device-${device.sessionId}`}
-                    icon={
-                      <SettingsIcon
-                        name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
-                        color={
-                          device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary
-                        }
-                      />
-                    }
-                    title={deviceSessionTitle(device, t)}
-                    description={
-                      t('manageAccount.sessions.lastActive', {
-                        relative: formatRelative(device.lastActive),
-                      }) || `Last active ${formatRelative(device.lastActive)}`
-                    }
-                    onPress={device.isCurrent ? undefined : () => confirmRemoveDevice(device)}
-                    disabled={device.isCurrent || removingDeviceId === device.sessionId}
-                    rightElement={
-                      !device.isCurrent ? (
-                        removingDeviceId === device.sessionId ? (
-                          <SpinnerIcon color={bloomTheme.colors.error} size={16} />
-                        ) : (
-                          <Ionicons
-                            name="log-out-outline"
-                            size={18}
-                            color={bloomTheme.colors.error}
-                          />
-                        )
-                      ) : undefined
-                    }
-                    showChevron={false}
-                  />
-                ))
-              )}
-              {otherDevices.length > 0 ? (
-                <GroupedSectionItem
-                  icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
-                  title={
-                    t('manageAccount.sessions.signOutAllOnThisDevice') ||
-                    'Sign out of all other devices'
-                  }
-                  description={
-                    t('manageAccount.sessions.signOutAllSubtitle', {
-                      count: otherDevices.length,
-                    }) || `End ${otherDevices.length} other device session(s)`
-                  }
-                  onPress={handleSignOutAllDevices}
-                  destructive
-                  showChevron={false}
-                  disabled={signingOutAllDevices}
-                  rightElement={
-                    signingOutAllDevices ? (
-                      <SpinnerIcon color={bloomTheme.colors.error} size={16} />
-                    ) : undefined
-                  }
-                />
-              ) : null}
-            </GroupedSection>
-
-            {/* Security section */}
+            {/* Security: one page for how the account signs in and where. */}
             <GroupedSection title={t('manageAccount.sections.security') || 'Security'}>
               <GroupedSectionItem
                 icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-                title={t('manageAccount.items.security.title') || 'Security settings'}
-                description={
-                  t('manageAccount.items.security.subtitle') || 'Password, 2FA, recovery'
-                }
-                onPress={() => navigate?.('PrivacySettings')}
+                title={t('signInSecurity.title')}
+                description={t('signInSecurity.subtitle')}
+                onPress={() => navigate?.('SignInSecurity')}
+                testID="manage-account-sign-in-security"
               />
-              {user && !user.publicKey ? (
-                <>
-                  <GroupedSectionItem
-                    icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
-                    title={t('signInSecurity.password.title')}
-                    description={t('signInSecurity.password.row')}
-                    onPress={() => navigate?.('SignInPassword')}
-                  />
-                  <GroupedSectionItem
-                    icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-                    title={t('signInSecurity.totp.title')}
-                    description={t('signInSecurity.totp.row')}
-                    onPress={() => navigate?.('SignInAuthenticator')}
-                  />
-                  <GroupedSectionItem
-                    icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
-                    title={t('linkCommons.title')}
-                    description={t('linkCommons.row')}
-                    onPress={() => navigate?.('LinkCommons')}
-                  />
-                </>
-              ) : null}
               {user?.isPremium || subscription?.status === 'active' ? (
                 <GroupedSectionItem
                   icon={<SettingsIcon name="credit-card" color={bloomTheme.colors.success} />}

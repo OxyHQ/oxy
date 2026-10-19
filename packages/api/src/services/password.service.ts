@@ -18,8 +18,10 @@
  */
 import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { SIGN_IN_ERROR_CODES } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { userPasswords } from '../db/schema/userPasswords';
+import { users } from '../db/schema/users';
 import { ApiError } from '../utils/error';
 
 const SCHEME = 'scrypt';
@@ -185,4 +187,27 @@ export async function storePassword(
       target: userPasswords.userId,
       set: { passwordHash, changedAt: now, updatedAt: now },
     });
+}
+
+/**
+ * Remove the account's password: it signs in by email alone. Refused when the
+ * account has no email, under a lock on its row, so removing the email at the
+ * same moment cannot leave it with no way in.
+ */
+export async function removePassword(userId: string): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .for('update');
+    if (!row?.email) {
+      throw new ApiError(
+        400,
+        'Add an email before removing the password.',
+        SIGN_IN_ERROR_CODES.lastSignInMethod,
+      );
+    }
+    await tx.delete(userPasswords).where(eq(userPasswords.userId, userId));
+  });
 }

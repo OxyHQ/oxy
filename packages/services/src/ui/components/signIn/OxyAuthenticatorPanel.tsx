@@ -23,12 +23,11 @@ import type { TotpEnrollResponse } from '@oxy.so/contracts';
 import { TOTP_DIGITS } from '@oxy.so/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';
 import { copyText } from '../../utils/clipboard';
 import { SubtleLink } from '../authChooser/primitives';
-import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
+import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
 import {
   AccountFlowAction,
@@ -38,6 +37,7 @@ import {
   AccountFlowProgress,
   describeSignInError,
 } from './accountFlowParts';
+import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
 
 /** High-contrast, un-themed on purpose: scan reliability. */
 const QR_PLATE_BG = '#FFFFFF';
@@ -60,10 +60,9 @@ export interface OxyAuthenticatorPanelProps {
 export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ onDone }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const { oxyServices, user } = useOxy();
+  const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
-  const keyed = Boolean(user?.publicKey);
-  const methods = useSignInMethods({ enabled: !keyed });
+  const security = useAccountSecurityState();
   const [step, setStep] = useState<Step>({ name: 'status' });
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
@@ -72,7 +71,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
 
-  if (keyed) {
+  if (security.keyed) {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader
@@ -82,8 +81,9 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
       </OxyAuthScreen>
     );
   }
-  if (!methods.data) return <OxyAuthLoading />;
-  const { hasPassword, totpEnabled, backupCodesRemaining } = methods.data;
+  const fallback = accountSecurityFallback(security, t('signInSecurity.totp.title'), t);
+  if (fallback || !security.methods.data) return fallback;
+  const { hasEmail, hasPassword, totpEnabled, backupCodesRemaining } = security.methods.data;
 
   const setUp = () => {
     if (pending) return;
@@ -157,6 +157,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           description={t('signInSecurity.totp.scan')}
           action="totp"
           allowPassword={hasPassword}
+          allowEmail={hasEmail}
           totpEnabled={false}
           submitLabel={t('signInSecurity.totp.enable')}
           validate={() =>
@@ -213,6 +214,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           description={t('signInSecurity.totp.regenerateDescription')}
           action="totp"
           allowPassword={hasPassword}
+          allowEmail={hasEmail}
           totpEnabled
           submitLabel={t('signInSecurity.totp.regenerate')}
           onSubmit={async (reauth) => {
@@ -230,6 +232,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           description={t('signInSecurity.totp.description')}
           action="totp"
           allowPassword={hasPassword}
+          allowEmail={hasEmail}
           totpEnabled
           submitLabel={t('signInSecurity.totp.disable')}
           destructive

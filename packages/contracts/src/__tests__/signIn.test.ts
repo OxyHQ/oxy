@@ -1,7 +1,9 @@
 import { EMAIL_VERIFICATION_PURPOSES } from '../accountEmail';
 import { identityLinkCompleteRequestSchema } from '../identityLink';
 import {
-  emailReauthProofSchema,
+  emailChangeStartRequestSchema,
+  emailSetRequestSchema,
+  signInMethodRemoveRequestSchema,
   emailSignInCodeSchema,
   emailSignInLinkRequestSchema,
   normalizeEmailSignInCode,
@@ -22,7 +24,7 @@ const DEVICE = { deviceId: 'device-1', deviceSecret: 'secret-1' };
 
 describe('sign-in contracts', () => {
   it('knows the sign-in and re-verification code purposes', () => {
-    expect(EMAIL_VERIFICATION_PURPOSES).toEqual(['signup', 'signin', 'reauth']);
+    expect(EMAIL_VERIFICATION_PURPOSES).toEqual(['signup', 'signin', 'reauth', 'email_change']);
   });
 
   it('starts an email sign-in with an identifier and, optionally, the device', () => {
@@ -74,16 +76,41 @@ describe('sign-in contracts', () => {
         totpCode: '654321',
       }).success,
     ).toBe(true);
-    expect(emailReauthProofSchema.safeParse({ password: 'nope' }).success).toBe(false);
   });
 
-  it('completes a Commons link with an email proof, never without one', () => {
+  it('completes a Commons link with a proof, never without one', () => {
     const reauth = { emailCode: { verificationId: 'v', code: '123456' } };
     expect(identityLinkCompleteRequestSchema.safeParse({ reauth }).success).toBe(true);
     expect(identityLinkCompleteRequestSchema.safeParse({}).success).toBe(false);
+    // The server takes the password only from an account without an email.
     expect(identityLinkCompleteRequestSchema.safeParse({ reauth: { password: 'x' } }).success).toBe(
-      false,
+      true,
     );
+  });
+
+  it('adds, changes and removes the email with a proof', () => {
+    const reauth = { password: 'correct horse' };
+    expect(emailChangeStartRequestSchema.safeParse({ email: ' New@Example.com ' }).data).toEqual({
+      email: 'new@example.com',
+    });
+    expect(emailChangeStartRequestSchema.safeParse({ email: 'nope' }).success).toBe(false);
+    expect(
+      emailSetRequestSchema.safeParse({
+        email: 'new@example.com',
+        verificationId: 'v',
+        code: '123456',
+        reauth,
+      }).success,
+    ).toBe(true);
+    expect(
+      emailSetRequestSchema.safeParse({
+        email: 'new@example.com',
+        verificationId: 'v',
+        code: '123456',
+      }).success,
+    ).toBe(false);
+    expect(signInMethodRemoveRequestSchema.safeParse({ reauth }).success).toBe(true);
+    expect(signInMethodRemoveRequestSchema.safeParse({}).success).toBe(false);
   });
 
   it('signs up with a username, an email and its ticket', () => {

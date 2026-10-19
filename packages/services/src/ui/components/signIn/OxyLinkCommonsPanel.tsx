@@ -4,7 +4,8 @@
  *
  *   QR → Commons scans and signs with its key → both screens show the same
  *   code → the person confirms it's them with a code sent to the account's
- *   email (+ the authenticator's code) → linked
+ *   email, or its password when it has none (+ the authenticator's code) →
+ *   linked
  *
  * Afterwards the account is self-custodied: its root is the key Commons holds,
  * its email, password and authenticator are deleted, and its phrase in Commons
@@ -22,7 +23,6 @@ import { Text } from '@oxy.so/bloom/typography';
 import type { IdentityLinkCreateResponse } from '@oxy.so/contracts';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { loadIdentityCrypto } from '../../utils/identityCrypto';
-import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
@@ -32,6 +32,7 @@ import {
   AccountFlowNote,
   describeSignInError,
 } from './accountFlowParts';
+import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
 
 /** How often the page asks whether Commons has signed. */
 export const IDENTITY_LINK_POLL_MS = 2000;
@@ -57,11 +58,11 @@ export interface OxyLinkCommonsPanelProps {
 export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLinked }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const { user, oxyServices } = useOxy();
+  const { oxyServices } = useOxy();
   const [step, setStep] = useState<Step>({ name: 'opening' });
   const [error, setError] = useState<string | null>(null);
-  const alreadyLinked = Boolean(user?.publicKey);
-  const methods = useSignInMethods({ enabled: !alreadyLinked });
+  const security = useAccountSecurityState();
+  const alreadyLinked = security.keyed;
 
   const open = useCallback(() => {
     setError(null);
@@ -78,10 +79,10 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   // One request per visit, opened once the page knows the account has no root.
   const opened = useRef(false);
   useEffect(() => {
-    if (alreadyLinked || opened.current) return;
+    if (alreadyLinked || !security.personal || opened.current) return;
     opened.current = true;
     open();
-  }, [alreadyLinked, open]);
+  }, [alreadyLinked, security.personal, open]);
 
   // While the QR shows, ask whether Commons has signed; a request only lives a
   // few minutes, and an expired one says so instead of waiting forever.
@@ -140,27 +141,38 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     );
   }
 
+  if (!security.personal) return accountSecurityFallback(security, t('linkCommons.title'), t);
+
   switch (step.name) {
-    case 'confirm':
+    case 'confirm': {
+      // The proof depends on what the account has: wait for it rather than
+      // guess (an authenticator left out would only fail the confirmation).
+      const fallback = accountSecurityFallback(security, t('linkCommons.confirmTitle'), t);
+      if (fallback || !security.methods.data) return fallback;
+      const { hasEmail, totpEnabled } = security.methods.data;
       return (
         <ReauthStep
           title={t('linkCommons.confirmTitle')}
-          description={t('linkCommons.confirmDescription')}
+          description={
+            hasEmail
+              ? t('linkCommons.confirmDescription')
+              : t('linkCommons.confirmPasswordDescription')
+          }
           action="link_commons"
-          totpEnabled={methods.data?.totpEnabled ?? false}
+          // The mailbox proves it when there is one; the password only without.
+          allowPassword={!hasEmail}
+          allowEmail={hasEmail}
+          totpEnabled={totpEnabled}
           submitLabel={t('linkCommons.confirm')}
           onSubmit={async (proof) => {
-            if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
-            await oxyServices.identity.links.complete(step.link.linkId, {
-              emailCode: proof.emailCode,
-              ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
-            });
+            await oxyServices.identity.links.complete(step.link.linkId, proof);
             setStep({ name: 'done' });
             onLinked?.();
           }}
           secondary={{ label: t('linkCommons.cancel'), onPress: () => cancel(step.link) }}
         />
       );
+    }
     case 'done':
       return (
         <OxyAuthScreen>

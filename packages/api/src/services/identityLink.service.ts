@@ -29,7 +29,7 @@ import {
   IDENTITY_PROOF_AUDIENCE,
   buildIdentityLinkQrPayload,
   buildIdentityProofMessage,
-  type EmailReauthProof,
+  type ReauthProof,
   type IdentityLinkCreateResponse,
   type IdentityLinkState,
   type IdentityProof,
@@ -49,7 +49,7 @@ import {
   verifyIdentityProof,
 } from './identityProof.service';
 import SignatureService from './signature.service';
-import { verifyEmailReauth } from './reauth.service';
+import { verifyAccountReauth } from './reauth.service';
 
 function publicKeyMatches(candidate: string) {
   return sql`lower(btrim(${users.publicKey})) = lower(btrim(${candidate}))`;
@@ -83,7 +83,7 @@ export interface LinkRootInput {
   /**
    * A keyless account's confirmation: the email re-verification (plus the
    * authenticator), ALREADY checked by the caller ({@link completeLinkRequest}
-   * runs `verifyEmailReauth` first). Only that caller sets it.
+   * runs `verifyAccountReauth` first). Only that caller sets it.
    */
   emailReauthVerified?: true;
 }
@@ -353,12 +353,12 @@ async function ownedSignedRequest(
 export async function completeLinkRequest(
   linkId: string,
   userId: string,
-  confirmation: { reauth: EmailReauthProof },
+  confirmation: { reauth: ReauthProof },
   now: Date = new Date(),
 ): Promise<{ formerEmail: string | null; username: string | null }> {
   const db = getDb();
   await ownedSignedRequest(db, linkId, userId, now);
-  await verifyEmailReauth(userId, confirmation.reauth, 'link_commons', now);
+  await verifyAccountReauth(userId, confirmation.reauth, 'link_commons', now);
   const [before] = await db
     .select({ email: users.email, username: users.username })
     .from(users)

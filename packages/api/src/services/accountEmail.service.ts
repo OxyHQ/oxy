@@ -236,6 +236,8 @@ export async function consumeEmailCode(
     code: string;
     purpose: EmailVerificationPurpose;
     userId?: string;
+    /** The address the code must have gone to (`email_change`: the new one). */
+    emailHash?: string;
     /** `reauth`: the change this code must have been asked for. */
     reauthAction?: ReauthAction;
     /** Refuse even the right code (a cap was reached), counting it like a wrong one. */
@@ -264,6 +266,7 @@ export async function consumeEmailCode(
         isNull(emailVerifications.confirmedAt),
         gt(emailVerifications.expiresAt, now),
         ...(input.userId ? [eq(emailVerifications.userId, input.userId)] : []),
+        ...(input.emailHash ? [eq(emailVerifications.emailHash, input.emailHash)] : []),
         // A re-verification code confirms only the change it was asked for.
         ...(input.purpose === 'reauth'
           ? [

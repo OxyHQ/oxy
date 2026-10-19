@@ -394,8 +394,13 @@ export type { OxySignUpPanelProps } from './ui/components/signIn/OxySignUpPanel'
 export { OxyAccountPicker } from './ui/components/signIn/OxyAccountPicker';
 export type { OxyAccountPickerProps } from './ui/components/signIn/OxyAccountPicker';
 // The account's own sign-in security, for its settings (the Accounts app, and
-// the account dialog's "Manage your account" through the `DeleteAccount`,
-// `LinkCommons`, `SignInPassword` and `SignInAuthenticator` routes).
+// the account dialog's "Manage your account" through the `SignInSecurity`,
+// `SignInEmail`, `SignInPassword`, `SignInAuthenticator`, `LinkCommons` and
+// `DeleteAccount` routes).
+export { OxySignInSecurityPanel } from './ui/components/signIn/OxySignInSecurityPanel';
+export type { OxySignInSecurityPanelProps } from './ui/components/signIn/OxySignInSecurityPanel';
+export { OxyEmailPanel } from './ui/components/signIn/OxyEmailPanel';
+export type { OxyEmailPanelProps } from './ui/components/signIn/OxyEmailPanel';
 export { OxyDeleteAccountPanel } from './ui/components/signIn/OxyDeleteAccountPanel';
 export type { OxyDeleteAccountPanelProps } from './ui/components/signIn/OxyDeleteAccountPanel';
 export { OxyLinkCommonsPanel } from './ui/components/signIn/OxyLinkCommonsPanel';

@@ -38,6 +38,7 @@ function baseInput(
     biometricEnabled: false,
     biometricLoading: false,
     rootStatus: { rootLinked: true, recoveryEmail: null },
+    signInMethods: undefined,
     sessions: [],
     deviceCount: 0,
     securityActivities: [],
@@ -159,6 +160,27 @@ describe('selectSecurityRecommendations', () => {
     );
     const suspicious = recs.find((r) => r.id === 'suspicious-activity');
     expect(suspicious?.count).toBe(1);
+  });
+
+  it('recommends an email to an account without one, and an authenticator when it is off', () => {
+    const methods = {
+      hasEmail: true,
+      hasPassword: true,
+      totpEnabled: true,
+      backupCodesRemaining: 10,
+    };
+    expect(
+      selectSecurityRecommendations(baseInput({ signInMethods: methods }), NOW).map((r) => r.id),
+    ).toEqual([]);
+    expect(
+      selectSecurityRecommendations(
+        baseInput({ signInMethods: { ...methods, hasEmail: false, totpEnabled: false } }),
+        NOW,
+      ).map((r) => [r.id, r.priority]),
+    ).toEqual([
+      ['add-email', 1],
+      ['authenticator', 2],
+    ]);
   });
 
   it('orders recommendations by ascending priority, preserving push order within a tier', () => {

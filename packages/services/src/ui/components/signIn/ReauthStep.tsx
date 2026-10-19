@@ -1,8 +1,9 @@
 /**
  * "Confirm it's you": the fresh proof a sensitive change carries (`reauth`) —
  * a code sent to the account's email for THIS change, or the current password
- * where the change accepts one — plus the authenticator's code (or a backup
- * code) when the account has one. The screen that needs it puts its own fields
+ * where the change accepts one (the only proof of an account without an
+ * email) — plus the authenticator's code (or a backup code) when the account
+ * has one. The screen that needs it puts its own fields
  * above (`children`) and names its own action; this owns the proof.
  */
 
@@ -34,6 +35,11 @@ export interface ReauthStepProps {
   action: ReauthAction;
   /** The account has a password, and this change accepts it. */
   allowPassword?: boolean;
+  /**
+   * The account has an email, and this change accepts a code sent to it.
+   * Without it the proof is the password alone.
+   */
+  allowEmail?: boolean;
   /** The account has an authenticator: its code is required too. */
   totpEnabled: boolean;
   /** The screen's action, once the proof is ready. */
@@ -53,6 +59,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
   description,
   action,
   allowPassword = false,
+  allowEmail = true,
   totpEnabled,
   submitLabel,
   destructive,
@@ -63,7 +70,9 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
 }) => {
   const { t } = useI18n();
   const { oxyServices } = useOxy();
-  const [mode, setMode] = useState<'email' | 'password'>(allowPassword ? 'password' : 'email');
+  const [mode, setMode] = useState<'email' | 'password'>(
+    allowPassword || !allowEmail ? 'password' : 'email',
+  );
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [emailCode, setEmailCode] = useState('');
   const [password, setPassword] = useState('');
@@ -221,7 +230,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
           testID="reauth-resend"
         />
       ) : null}
-      {allowPassword ? (
+      {allowPassword && allowEmail ? (
         <SubtleLink
           label={mode === 'password' ? t('reauth.useEmail') : t('reauth.usePassword')}
           onPress={() => {

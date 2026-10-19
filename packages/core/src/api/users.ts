@@ -2,6 +2,7 @@
  * `oxy.users` — people and their profiles.
  */
 import type {
+  ReauthProof,
   RecommendationItem,
   RecommendationRequest,
   UserProfileUpdate,
@@ -46,14 +47,12 @@ export interface ResolveExternalUserInput {
 /**
  * What proves an account deletion (`DELETE /users/me`):
  * - `reauth` — an account without a key: a code just sent to its email by
- *   `oxy.auth.requestReauthCode('delete_account')`, plus its authenticator code
- *   when it has one;
+ *   `oxy.auth.requestReauthCode('delete_account')` (its password when it has
+ *   no email), plus its authenticator code when it has one;
  * - `deviceKey` — a Commons account: signed with the identity key held on this
  *   device (plus `totpCode` when the account has an authenticator).
  */
-export type DeleteAccountProof =
-  | { reauth: { emailCode: { verificationId: string; code: string }; totpCode?: string } }
-  | { deviceKey: true; totpCode?: string };
+export type DeleteAccountProof = { reauth: ReauthProof } | { deviceKey: true; totpCode?: string };
 
 export class UsersApi {
   constructor(private readonly ctx: OxyContext) {}

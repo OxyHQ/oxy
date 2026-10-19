@@ -21,6 +21,7 @@ let currentSessionId: string | undefined;
 let currentApplicationId: string | undefined;
 const mockSendReauthCode = jest.fn();
 const mockSendSecurityNotice = jest.fn();
+const mockSendEmailChangeCode = jest.fn();
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../middleware/auth', () => ({
@@ -41,6 +42,7 @@ jest.mock('../../middleware/rateLimiter', () => ({
 jest.mock('../../services/accountEmail.mail', () => ({
   sendReauthCode: (...args: unknown[]) => mockSendReauthCode(...args),
   sendSecurityNotice: (...args: unknown[]) => mockSendSecurityNotice(...args),
+  sendEmailChangeCode: (...args: unknown[]) => mockSendEmailChangeCode(...args),
 }));
 jest.mock('../../config/email.config', () => ({ SMTP_RELAYS: [{ name: 'test-relay' }] }));
 jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
@@ -109,6 +111,7 @@ beforeEach(() => {
   currentApplicationId = undefined;
   mockSendReauthCode.mockResolvedValue(undefined);
   mockSendSecurityNotice.mockResolvedValue(undefined);
+  mockSendEmailChangeCode.mockResolvedValue(undefined);
 });
 
 async function signedIn() {
@@ -371,6 +374,172 @@ describe('the authenticator', () => {
   });
 });
 
+describe('the email', () => {
+  async function newAddressCode(email: string) {
+    mockSendEmailChangeCode.mockClear();
+    const res = await call('POST', '/email/verify/start', { email });
+    expect(res.status).toBe(200);
+    expect(mockSendEmailChangeCode).toHaveBeenCalledWith(
+      email,
+      expect.stringMatching(/^\d{6}$/),
+      expect.any(String),
+    );
+    return {
+      verificationId: res.body.verificationId as string,
+      code: mockSendEmailChangeCode.mock.calls[0][1] as string,
+    };
+  }
+
+  async function emailOf(userId: string) {
+    const [row] = await getDb()
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId));
+    return row.email;
+  }
+
+  it('changes with a code to the new address and a proof, tells both, and signs other sessions out', async () => {
+    const me = await signedIn();
+    const fakeReq = { headers: {}, ip: '127.0.0.1', get: () => undefined } as never;
+    const mine = await sessionService.createSession(me.id, fakeReq, {});
+    const other = await sessionService.createSession(me.id, fakeReq, {});
+    currentSessionId = mine.sessionId;
+
+    const next = `next-${randomUUID().slice(0, 8)}@example.test`;
+    const proof = await newAddressCode(next);
+    const res = await call('PUT', '/email', {
+      email: next,
+      ...proof,
+      reauth: { emailCode: await emailCode('change_email') },
+    });
+    expect(res).toMatchObject({ status: 200, body: { success: true } });
+    expect(await emailOf(me.id)).toBe(next);
+    expect(mockSendSecurityNotice).toHaveBeenCalledWith(me.email, 'email_changed', me.username);
+    expect(mockSendSecurityNotice).toHaveBeenCalledWith(next, 'email_added', me.username);
+    const rows = await getDb()
+      .select({ sessionId: sessions.sessionId, isActive: sessions.isActive })
+      .from(sessions)
+      .where(eq(sessions.userId, me.id));
+    expect(rows.find((row) => row.sessionId === mine.sessionId)?.isActive).toBe(true);
+    expect(rows.find((row) => row.sessionId === other.sessionId)?.isActive).toBe(false);
+  });
+
+  it('refuses the same address, a code for another address, a wrong code and a missing proof', async () => {
+    const me = await signedIn();
+    expect((await call('POST', '/email/verify/start', { email: me.email })).body.error).toBe(
+      'EMAIL_UNCHANGED',
+    );
+    const next = `next-${randomUUID().slice(0, 8)}@example.test`;
+    const proof = await newAddressCode(next);
+    expect((await call('PUT', '/email', { email: next, ...proof })).status).toBe(400);
+    const elsewhere = await call('PUT', '/email', {
+      email: `other-${randomUUID().slice(0, 8)}@example.test`,
+      ...proof,
+      reauth: { emailCode: await emailCode('change_email') },
+    });
+    expect(elsewhere.status).toBe(401);
+    expect(elsewhere.body.error).toBe('EMAIL_CODE_INVALID');
+    const wrong = await call('PUT', '/email', {
+      email: next,
+      ...proof,
+      code: proof.code === '000000' ? '111111' : '000000',
+      reauth: { emailCode: await emailCode('change_email') },
+    });
+    expect(wrong.status).toBe(401);
+    // A code asked for another change is no proof for this one.
+    const otherAction = await call('PUT', '/email', {
+      email: next,
+      ...proof,
+      reauth: { emailCode: await emailCode('change_password') },
+    });
+    expect(otherAction.status).toBe(401);
+    expect(await emailOf(me.id)).toBe(me.email);
+  });
+
+  it('refuses an address that already holds as many accounts as it can', async () => {
+    const full = `full-${randomUUID().slice(0, 8)}@example.test`;
+    await getDb()
+      .insert(users)
+      .values(
+        Array.from({ length: 20 }, (_, index) => ({
+          username: `full${randomUUID().slice(0, 8)}${index}`,
+          email: full,
+        })),
+      );
+    const me = await signedIn();
+    await setPassword('my password 123', { emailCode: await emailCode() });
+    const res = await call('PUT', '/email', {
+      email: full,
+      ...(await newAddressCode(full)),
+      reauth: { password: 'my password 123' },
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('EMAIL_ACCOUNTS_FULL');
+    expect(await emailOf(me.id)).toBe(me.email);
+  });
+
+  it('is removed only with a password, confirmed with it, and then added back', async () => {
+    const me = await signedIn();
+    const noPassword = await call('DELETE', '/email', {
+      reauth: { emailCode: await emailCode('change_email') },
+    });
+    expect(noPassword.status).toBe(400);
+    expect(noPassword.body.error).toBe('PASSWORD_REQUIRED');
+
+    await setPassword('my password 123', { emailCode: await emailCode() });
+    const byCode = await call('DELETE', '/email', {
+      reauth: { emailCode: await emailCode('change_email') },
+    });
+    expect(byCode.status).toBe(401);
+    expect(byCode.body.error).toBe('PASSWORD_REQUIRED');
+
+    const removed = await call('DELETE', '/email', { reauth: { password: 'my password 123' } });
+    expect(removed.status).toBe(200);
+    expect(await emailOf(me.id)).toBeNull();
+    expect(mockSendSecurityNotice).toHaveBeenLastCalledWith(me.email, 'email_removed', me.username);
+    expect((await call('GET', '/sign-in-methods')).body).toMatchObject({
+      hasEmail: false,
+      hasPassword: true,
+    });
+
+    // The last way in stays.
+    const lastPassword = await call('DELETE', '/password', {
+      reauth: { password: 'my password 123' },
+    });
+    expect(lastPassword.status).toBe(400);
+    expect(lastPassword.body.error).toBe('LAST_SIGN_IN_METHOD');
+
+    // Added back with the password as the proof.
+    const back = `back-${randomUUID().slice(0, 8)}@example.test`;
+    const added = await call('PUT', '/email', {
+      email: back,
+      ...(await newAddressCode(back)),
+      reauth: { password: 'my password 123' },
+    });
+    expect(added.status).toBe(200);
+    expect(await emailOf(me.id)).toBe(back);
+    expect(mockSendSecurityNotice).toHaveBeenLastCalledWith(back, 'email_added', me.username);
+  });
+});
+
+describe('removing the password', () => {
+  it('removes it with a proof while the account has an email, and tells it', async () => {
+    const me = await signedIn();
+    await setPassword('my password 123', { emailCode: await emailCode() });
+    expect((await call('DELETE', '/password', {})).status).toBe(400);
+    const res = await call('DELETE', '/password', { reauth: { password: 'my password 123' } });
+    expect(res.status).toBe(200);
+    expect(mockSendSecurityNotice).toHaveBeenLastCalledWith(
+      me.email,
+      'password_removed',
+      me.username,
+    );
+    expect(
+      await getDb().select().from(userPasswords).where(eq(userPasswords.userId, me.id)),
+    ).toHaveLength(0);
+  });
+});
+
 describe('an account with a Commons key', () => {
   it('cannot add a password or an authenticator: it signs in with Commons', async () => {
     const me = await signedIn();
@@ -382,6 +551,9 @@ describe('an account with a Commons key', () => {
     expect((await setPassword('a long password', { emailCode: await emailCode() })).status).toBe(
       403,
     );
+    expect(
+      (await call('POST', '/email/verify/start', { email: 'keyed@example.test' })).status,
+    ).toBe(403);
     expect(
       await getDb().select().from(userPasswords).where(eq(userPasswords.userId, me.id)),
     ).toHaveLength(0);

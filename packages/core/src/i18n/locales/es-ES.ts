@@ -2046,10 +2046,6 @@ const dict = {
         title: 'Color del tema',
         subtitle: 'Personaliza tu color de Bloom',
       },
-      security: {
-        title: 'Configuración de seguridad',
-        subtitle: 'Contraseña, 2FA, recuperación',
-      },
       billing: {
         title: 'Facturación',
         subtitle: 'Gestiona la suscripción y los métodos de pago',
@@ -2301,6 +2297,7 @@ const dict = {
     confirmTitle: 'Confirma la vinculación',
     confirmDescription:
       'Para terminar, confirma que eres tú con un código que te enviamos por email.',
+    confirmPasswordDescription: 'Para terminar, confirma que eres tú con tu contraseña.',
     row: 'Guarda tu propia clave con Commons',
   },
   reauth: {
@@ -2318,6 +2315,53 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Inicio de sesión y seguridad',
+    subtitle: 'Email, contraseña, app de autenticación y dónde tienes la sesión iniciada',
+    methodsTitle: 'Cómo inicias sesión',
+    notPersonal:
+      'Solo una cuenta personal inicia sesión con email, contraseña o app de autenticación.',
+    loadFailed: 'No se ha podido cargar cómo inicia sesión esta cuenta.',
+    retry: 'Reintentar',
+    noEmailWarning:
+      'Esta cuenta no tiene email. Solo puedes entrar con tu contraseña y, si la olvidas, no hay forma de recuperar la cuenta.',
+    status: {
+      on: 'Activada',
+      off: 'Desactivada',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'Es tu única forma de iniciar sesión. Añade otra antes.',
+      passwordRequired: 'Crea una contraseña primero y confirma con ella.',
+      emailUnchanged: 'Ese ya es tu email.',
+    },
+    email: {
+      title: 'Email',
+      none: 'Sin email',
+      description:
+        'Los códigos y enlaces para iniciar sesión y los avisos de seguridad llegan a esta dirección.',
+      noneDescription:
+        'Añade un email para iniciar sesión con un código o un enlace, y para recuperar la cuenta si olvidas la contraseña.',
+      change: 'Cambiar email',
+      add: 'Añadir un email',
+      remove: 'Quitar email',
+      removeNeedsPassword:
+        'Para quitar tu email, crea antes una contraseña: será tu única forma de iniciar sesión.',
+      newLabel: 'Nueva dirección de email',
+      newDescription: 'Enviaremos un código a la nueva dirección para comprobar que es tuya.',
+      invalid: 'Escribe una dirección de email válida.',
+      sendCode: 'Enviar código',
+      confirmTitle: 'Confirma el nuevo email',
+      confirmDescription: 'Escribe el código que hemos enviado a {{email}} y confirma que eres tú.',
+      codeLabel: 'Código enviado al nuevo email',
+      save: 'Guardar email',
+      saved: 'Tu email se ha actualizado. Se ha cerrado la sesión en los demás dispositivos.',
+      removeTitle: 'Quitar tu email',
+      removeDescription:
+        'Solo podrás iniciar sesión con tu contraseña. Si la olvidas, no hay forma de recuperar la cuenta. Confirma con tu contraseña.',
+      removed: 'Tu email se ha quitado. Se ha cerrado la sesión en los demás dispositivos.',
+    },
     password: {
       title: 'Contraseña',
       setTitle: 'Crear una contraseña',
@@ -2332,6 +2376,10 @@ const dict = {
       save: 'Guardar contraseña',
       saved: 'Tu contraseña se ha guardado.',
       row: 'Opcional: inicia sesión con contraseña',
+      remove: 'Quitar contraseña',
+      removeTitle: 'Quitar tu contraseña',
+      removeDescription: 'Iniciarás sesión con un código o un enlace enviado a tu email.',
+      removed: 'Tu contraseña se ha quitado. Se ha cerrado la sesión en los demás dispositivos.',
     },
     totp: {
       title: 'App de autenticación',
@@ -2357,6 +2405,7 @@ const dict = {
       regenerateDescription: 'Tus códigos de seguridad anteriores dejarán de funcionar.',
       remaining: 'Quedan {{count}} códigos de seguridad',
       row: 'Un segundo paso al iniciar sesión',
+      onWithCodes: 'Activada · quedan {{count}} códigos de seguridad',
     },
   },
   domains: {

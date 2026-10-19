@@ -1,8 +1,9 @@
 /**
- * Setting or changing the account's password, from its settings. A password
- * is optional: the account signs in with a code by email without one. The
- * change is confirmed with the current password (when there is one) or a code
- * sent to the account's email, plus the authenticator's code when it has one.
+ * Setting, changing or removing the account's password, from its settings. A
+ * password is optional: the account signs in with a code by email without
+ * one, and it can be removed while the account has an email. Each change is
+ * confirmed with the current password (when there is one) or a code sent to
+ * the account's email, plus the authenticator's code when it has one.
  */
 
 import type React from 'react';
@@ -14,12 +15,13 @@ import { toast } from '@oxy.so/bloom/toast';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@oxy.so/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';
-import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
+import { SubtleLink } from '../authChooser/primitives';
+import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
 import { AccountFlowField } from './accountFlowParts';
+import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
 
 export interface OxyPasswordPanelProps {
   /** The password is saved. */
@@ -30,15 +32,15 @@ export interface OxyPasswordPanelProps {
 
 export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCancel }) => {
   const { t } = useI18n();
-  const { oxyServices, user } = useOxy();
+  const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
-  const keyed = Boolean(user?.publicKey);
-  const methods = useSignInMethods({ enabled: !keyed });
+  const state = useAccountSecurityState();
+  const [removing, setRemoving] = useState(false);
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
   const [signOutOthers, setSignOutOthers] = useState(false);
 
-  if (keyed) {
+  if (state.keyed) {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader
@@ -48,9 +50,33 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
       </OxyAuthScreen>
     );
   }
-  if (!methods.data) return <OxyAuthLoading />;
+  const fallback = accountSecurityFallback(state, t('signInSecurity.password.title'), t);
+  if (fallback || !state.methods.data) return fallback;
+  const { hasEmail, hasPassword, totpEnabled } = state.methods.data;
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
 
-  const hasPassword = methods.data.hasPassword;
+  if (removing) {
+    return (
+      <ReauthStep
+        title={t('signInSecurity.password.removeTitle')}
+        description={t('signInSecurity.password.removeDescription')}
+        action="change_password"
+        allowPassword
+        totpEnabled={totpEnabled}
+        submitLabel={t('signInSecurity.password.remove')}
+        destructive
+        onSubmit={async (reauth) => {
+          await oxyServices.auth.password.remove(reauth);
+          refresh();
+          toast.success(t('signInSecurity.password.removed'));
+          setRemoving(false);
+          onDone?.();
+        }}
+        secondary={{ label: t('common.cancel'), onPress: () => setRemoving(false) }}
+      />
+    );
+  }
 
   return (
     <ReauthStep
@@ -62,7 +88,8 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
       description={t('signInSecurity.password.description', { min: PASSWORD_MIN_LENGTH })}
       action="change_password"
       allowPassword={hasPassword}
-      totpEnabled={methods.data.totpEnabled}
+      allowEmail={hasEmail}
+      totpEnabled={totpEnabled}
       submitLabel={t('signInSecurity.password.save')}
       validate={() => {
         if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
@@ -76,7 +103,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
           reauth,
           revokeOtherSessions: signOutOthers,
         });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
+        refresh();
         toast.success(t('signInSecurity.password.saved'));
         onDone?.();
       }}
@@ -112,6 +139,14 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
           testID="password-sign-out-others"
         />
       </Field>
+      {/* Without an email the password is the one way in: it stays. */}
+      {hasPassword && hasEmail ? (
+        <SubtleLink
+          label={t('signInSecurity.password.remove')}
+          onPress={() => setRemoving(true)}
+          testID="password-remove"
+        />
+      ) : null}
     </ReauthStep>
   );
 };

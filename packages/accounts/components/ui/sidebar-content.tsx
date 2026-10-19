@@ -38,6 +38,12 @@ export const menuItems: MenuItem[] = [
     iconColor: 'sidebarIconSecurity',
   },
   {
+    path: '/(tabs)/agency',
+    icon: 'robot-outline',
+    labelKey: 'drawer.agency',
+    iconColor: 'sidebarIconActivity',
+  },
+  {
     path: '/(tabs)/activity',
     icon: 'pulse',
     labelKey: 'drawer.activity',

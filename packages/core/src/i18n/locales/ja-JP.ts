@@ -347,6 +347,7 @@ const dict = {
     failed: 'Commons をリンクできませんでした。もう一度お試しください。',
     confirmTitle: 'リンクを確認',
     confirmDescription: '最後に、メールでお送りするコードで本人確認をしてください。',
+    confirmPasswordDescription: '最後に、パスワードで本人確認をしてください。',
     row: 'Commons で自分の鍵を持つ',
   },
   reauth: {
@@ -364,6 +365,51 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'サインインとセキュリティ',
+    subtitle: 'メール、パスワード、認証アプリ、サインイン中の場所',
+    methodsTitle: 'サインイン方法',
+    notPersonal: 'メール、パスワード、認証アプリでサインインできるのは個人アカウントだけです。',
+    loadFailed: 'このアカウントのサインイン方法を読み込めませんでした。',
+    retry: 'もう一度試す',
+    noEmailWarning:
+      'このアカウントにはメールアドレスがありません。パスワードだけでサインインするため、忘れるとアカウントを取り戻す方法はありません。',
+    status: {
+      on: 'オン',
+      off: 'オフ',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'これが唯一のサインイン方法です。先に別の方法を追加してください。',
+      passwordRequired: '先にパスワードを設定し、そのパスワードで確認してください。',
+      emailUnchanged: 'すでにこのメールアドレスを使っています。',
+    },
+    email: {
+      title: 'メール',
+      none: 'メールなし',
+      description: 'サインイン用のコードやリンク、セキュリティのお知らせはこのアドレスに届きます。',
+      noneDescription:
+        'メールアドレスを追加すると、コードやリンクでサインインでき、パスワードを忘れたときにアカウントを取り戻せます。',
+      change: 'メールアドレスを変更',
+      add: 'メールアドレスを追加',
+      remove: 'メールアドレスを削除',
+      removeNeedsPassword:
+        'メールアドレスを削除するには、先にパスワードを設定してください。それが唯一のサインイン方法になります。',
+      newLabel: '新しいメールアドレス',
+      newDescription: 'あなたのアドレスか確認するため、新しいアドレスにコードを送ります。',
+      invalid: '有効なメールアドレスを入力してください。',
+      sendCode: 'コードを送る',
+      confirmTitle: '新しいメールアドレスを確認',
+      confirmDescription: '{{email}} に送ったコードを入力してから、本人確認をしてください。',
+      codeLabel: '新しいメールアドレスに届いたコード',
+      save: 'メールアドレスを保存',
+      saved: 'メールアドレスを更新しました。ほかのデバイスからはサインアウトしました。',
+      removeTitle: 'メールアドレスを削除',
+      removeDescription:
+        '今後はパスワードだけでサインインします。忘れるとアカウントを取り戻す方法はありません。パスワードで確認してください。',
+      removed: 'メールアドレスを削除しました。ほかのデバイスからはサインアウトしました。',
+    },
     password: {
       title: 'パスワード',
       setTitle: 'パスワードを設定',
@@ -378,6 +424,10 @@ const dict = {
       save: 'パスワードを保存',
       saved: 'パスワードを保存しました。',
       row: '任意：パスワードでサインイン',
+      remove: 'パスワードを削除',
+      removeTitle: 'パスワードを削除',
+      removeDescription: '今後はメールに届くコードまたはリンクでサインインします。',
+      removed: 'パスワードを削除しました。ほかのデバイスからはサインアウトしました。',
     },
     totp: {
       title: '認証アプリ',
@@ -403,6 +453,7 @@ const dict = {
       regenerateDescription: '以前のバックアップコードは使えなくなります。',
       remaining: 'バックアップコード残り {{count}} 個',
       row: 'サインイン時の 2 段階目の確認',
+      onWithCodes: 'オン · バックアップコード残り {{count}} 個',
     },
   },
   fileManagement: {

@@ -93,6 +93,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { storePassword } from '../../services/password.service';
 import { startReauthEmail } from '../../services/reauth.service';
 import { _resetInMemoryStateForTests } from '../../services/loginLockout.service';
 import { confirmTotp, enrollTotp, totpCodeAt } from '../../services/totp.service';
@@ -233,6 +234,31 @@ describe('deleting an account without a key', () => {
       reauth: { emailCode: await emailCode(me.id), totpCode: totpCodeAt(secret, new Date()) },
     });
     expect(done.status).toBe(200);
+  });
+
+  it('takes the password, not the email code, from an account without an email', async () => {
+    const me = await person();
+    await storePassword(me.id, 'my password 123');
+    // With an email, the password does not stand in for the mailbox.
+    const withEmail = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { password: 'my password 123' },
+    });
+    expect(withEmail.status).toBe(401);
+    expect(await accountExists(me.id)).toBe(true);
+
+    await getDb().update(users).set({ email: null }).where(eq(users.id, me.id));
+    const wrong = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { password: 'not the password' },
+    });
+    expect(wrong.status).toBe(401);
+    const res = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { password: 'my password 123' },
+    });
+    expect(res.status).toBe(200);
+    expect(await accountExists(me.id)).toBe(false);
   });
 
   it('checks the confirmation text first', async () => {

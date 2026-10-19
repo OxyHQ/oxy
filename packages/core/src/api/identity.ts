@@ -36,6 +36,7 @@ import type {
   IdentityLinkState,
   IdentityRootStatus,
   OxySignedRecordType,
+  ReauthProof,
   RotateKeyChallengeResponse,
   RotateKeyCompleteResponse,
   SignedRecordEnvelope,
@@ -538,14 +539,12 @@ export class IdentityLinksApi {
 
   /**
    * Complete a link with a code just sent to the account's email
-   * (`oxy.auth.requestReauthCode`) — plus its authenticator code when it has
-   * one. The account gains Commons' root and loses its email; every other
-   * session of the account is signed out.
+   * (`oxy.auth.requestReauthCode`), or its password when it has no email —
+   * plus its authenticator code when it has one. The account gains Commons'
+   * root and loses its email, password and authenticator; every other session
+   * of the account is signed out.
    */
-  async complete(
-    linkId: string,
-    reauth: { emailCode: { verificationId: string; code: string }; totpCode?: string },
-  ): Promise<{ success: true }> {
+  async complete(linkId: string, reauth: ReauthProof): Promise<{ success: true }> {
     const result = await this.ctx.request<{ success: true }>(
       'POST',
       `/identity/link/${encodeURIComponent(linkId)}/complete`,
