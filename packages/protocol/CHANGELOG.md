@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.4.1
+
+Needs `@oxy.so/contracts` ^5.0.0.
+
+### Fixed
+
+- Depends on `@oxy.so/contracts` `^5.0.0` (1.4.0 was published with
+  `^4.24.0`). `@oxy.so/core` 6 pins contracts 5.0.0 and `@oxy.so/services`
+  11.16 depends on `^5.0.0`, so an app installing them with protocol 1.4.0
+  nested a second, 4.x contracts under protocol. No source change: protocol
+  already builds and tests against contracts 5.
+
 ## 1.4.0
 
 Same `@oxy.so/contracts`.

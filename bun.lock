@@ -631,7 +631,7 @@
     },
     "packages/protocol": {
       "name": "@oxy.so/protocol",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "@noble/curves": "catalog:",
         "@oxy.so/contracts": "workspace:^",
