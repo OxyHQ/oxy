@@ -24,9 +24,8 @@
 /// <reference path="./types/react-native-classname.d.ts" />
 /// <reference path="./types/react-native-web-style.d.ts" />
 
-import { setPlatformOS, type PlatformOS } from '@oxy.so/core';
-import { Platform } from 'react-native';
-setPlatformOS(Platform.OS as PlatformOS);
+// Must stay the first runtime import: core reads the platform from it.
+import './registerPlatform';
 
 import { registerScreens } from './ui/navigation/routes';
 import { screenComponents } from './ui/navigation/screenComponents';

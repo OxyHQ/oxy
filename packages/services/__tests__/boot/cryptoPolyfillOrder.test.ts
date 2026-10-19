@@ -10,6 +10,9 @@
  * safe exactly as long as (1) its entry evaluates `@oxy.so/core` before any
  * other module, and (2) nothing in services reaches a capturing crypto library
  * except through core.
+ *
+ * The same first import is what tells core the platform (`registerPlatform`):
+ * an entry that skipped it left core answering `'unknown'` on iOS and Android.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -42,10 +45,25 @@ function valueSpecifiers(source: string): string[] {
 }
 
 describe('crypto polyfill order through @oxy.so/services', () => {
-  it('the services entry evaluates @oxy.so/core before any other module', () => {
-    const entry = readFileSync(join(SRC_DIR, 'index.ts'), 'utf8');
-    const first = entry.match(/^(?:import|export)\s(?!type\s)[^;]*?['"]([^'"]+)['"]/m);
-    expect(first?.[1]).toBe('@oxy.so/core');
+  // Every client entry's first import is `registerPlatform`, whose own first
+  // import is `@oxy.so/core`, so core still evaluates before anything else.
+  it.each(['index.ts', 'ui/index.ts', 'ui/client.ts'])(
+    '%s evaluates @oxy.so/core before any other module',
+    (entryFile) => {
+      const firstImport = (file: string) =>
+        readFileSync(join(SRC_DIR, file), 'utf8').match(
+          /^(?:import|export)\s(?!type\s)[^;]*?['"]([^'"]+)['"]/m,
+        )?.[1];
+      const first = firstImport(entryFile);
+      expect(first).toMatch(/^\.\.?\/registerPlatform$/);
+      expect(firstImport('registerPlatform.ts')).toBe('@oxy.so/core');
+    },
+  );
+
+  it('registerPlatform hands react-native Platform.OS to core', () => {
+    expect(readFileSync(join(SRC_DIR, 'registerPlatform.ts'), 'utf8')).toMatch(
+      /setPlatformOS\(Platform\.OS as PlatformOS\)/,
+    );
   });
 
   it('no services module reaches a crypto library except through core', () => {

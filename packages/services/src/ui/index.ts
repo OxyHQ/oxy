@@ -15,6 +15,9 @@
 /// <reference path="../types/react-native-classname.d.ts" />
 /// <reference path="../types/react-native-web-style.d.ts" />
 
+// Must stay the first runtime import: core reads the platform from it.
+import '../registerPlatform';
+
 // No screen is imported here. `OxyProvider` loads the account screens as their
 // own chunk at startup (`loadScreens`), and a surface opened before that chunk
 // arrives waits for it. A static `screenComponents` import here put all of them

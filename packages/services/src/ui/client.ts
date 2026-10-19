@@ -12,6 +12,9 @@
  * import { OxyProvider, useOxy, LogoIcon } from '@oxy.so/services/ui/client';
  */
 
+// Must stay the first runtime import: core reads the platform from it.
+import '../registerPlatform';
+
 // Components
 export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
