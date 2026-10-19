@@ -13,21 +13,35 @@ export const VERSIONS = {
   // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
   // version, never `packages/<pkg>/package.json`: a workspace version that has
   // been bumped but not yet published names a range nothing can resolve.
-  // PAIRED WITH `oxyBloom` BELOW, and the pairing is load-bearing.
-  // `@oxy.so/services` caps its Bloom peer at the major it was measured against,
-  // so services 2.x + Bloom 3.x makes a package manager resolve a SECOND, nested
-  // Bloom — and Bloom 3's composition contracts are React contexts, which do not
-  // cross copies.
+  // PAIRED WITH `oxyBloom` BELOW, and the pairing is load-bearing. Bloom's
+  // composition contracts are React contexts, which do not cross copies: a Bloom
+  // pin outside the published Services' `@oxy.so/bloom` peer range makes a
+  // package manager resolve a SECOND, nested Bloom, and the SDK's screens render
+  // against a provider the app never mounted. Services' own peer ranges are the
+  // authority — `scripts/assert-oxy-ranges-resolve.mjs` reads them from npm and
+  // fails the scaffold smoke when this pair falls outside them.
+  //
+  // The Bloom pin also never runs ahead of the workspace catalog
+  // (`workspaces.catalog["@oxy.so/bloom"]` in the root package.json): that is
+  // the Bloom the published Services was built and tested against, and the one
+  // the HEAD smoke pairs with the packed Services. A newer Bloom major that
+  // merely satisfies an open-ended peer floor is unmeasured, so it waits for
+  // the workspace to move first.
+  //
+  // Core is a peer of Services too (`^5.5.0 || ^6.0.0` as of 11.16.0) and is
+  // forced over the whole tree by the generated root overrides/resolutions, so
+  // this pin must sit inside that peer range. Core pins Contracts EXACTLY, and
+  // Services depends on Contracts' major, so `oxyContracts` follows Core.
   //
   // Keep this set paired. Publish Core, Bloom, Services and App Preset before
   // releasing the scaffolder: its ranges must resolve outside this workspace.
-  oxyServices: '^11.0.0', // @oxy.so/services — requires the Bloom 6 context family
-  oxyCore: '^4.0.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
-  oxyBloom: '6.2.1', // @oxy.so/bloom — reviewed maintenance fixes; 6.4.0 lacks them
+  oxyServices: '^11.16.0', // @oxy.so/services — Bloom peer >=11.1.0, Core peer ^5.5.0 || ^6.0.0
+  oxyCore: '^6.0.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
+  oxyBloom: '^11.1.1', // @oxy.so/bloom — the workspace catalog's Bloom, inside Services' peer
 
-  oxyContracts: '^4.1.0', // @oxy.so/contracts
-  oxyAppPreset: '^3.0.0', // @oxy.so/app-preset
-  oxyExpoSplash: '^1.0.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
+  oxyContracts: '^5.0.0', // @oxy.so/contracts — the major Core 6 pins and Services 11.16 depends on
+  oxyAppPreset: '^3.3.0', // @oxy.so/app-preset
+  oxyExpoSplash: '^1.1.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',
