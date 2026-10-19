@@ -1,5 +1,17 @@
 # Changelog: `create-oxy-app`
 
+## 0.8.1
+
+### Changed
+
+- A generated app starts on `@oxy.so/services` `^12.2.0`, the first release
+  built for Expo SDK 58 end to end. Its `ui` entry no longer puts the account
+  screens in the first-paint bundle, it draws user images with expo-image (an
+  app may turn Android's GIF/WebP decoders off), and its web safe area no longer
+  turns a scrolling page into bottom inset. 12.0.0 removed only
+  `onNavigateManage`, which the template never used. Bloom, Core and the rest
+  of the set are unchanged.
+
 ## 0.8.0
 
 ### Changed
