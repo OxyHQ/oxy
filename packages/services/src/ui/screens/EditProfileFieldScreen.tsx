@@ -9,7 +9,10 @@ import { PhoneInput, COUNTRIES, findCountry } from '@oxy.so/bloom/phone-input';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
-import { usernameSchema, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import {
+  USERNAME_INVALID_MESSAGE,
+  usernameCheck as usernamePolicyCheck,
+} from '@oxy.so/contracts/client';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
@@ -257,8 +260,8 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               label: t('editProfile.items.username.label') || 'Username',
               placeholder: t('editProfile.items.username.placeholder') || 'Choose a username',
               validation: (value) => {
-                const parsed = usernameSchema.safeParse(value);
-                return parsed.success ? undefined : parsed.error.issues[0]?.message;
+                const checked = usernamePolicyCheck(value, []);
+                return checked.ok ? undefined : checked.issue.message;
               },
               inputProps: {
                 autoCapitalize: 'none',

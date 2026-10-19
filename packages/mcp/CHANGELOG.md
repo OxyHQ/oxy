@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.3.1
+
+### Fixed
+
+- Depends on `@oxy.so/contracts ^5.0.0`; 1.3.0 was published with `^4.21.0`,
+  which apps on contracts 5 could only satisfy with an override.
+
 ## 1.3.0
 
 ### Added
