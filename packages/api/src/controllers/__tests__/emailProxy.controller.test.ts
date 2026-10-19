@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 import type { IncomingMessage } from 'node:http';
 import type { Request, Response as ExpressResponse } from 'express';
 import { SsrfRejection } from '@oxy.so/core/server';
-import { proxyResource } from '../emailProxy.controller';
+import { proxyResource, resetProxyCacheForTests } from '../emailProxy.controller';
 
 const mockSafeFetch = jest.fn();
 const mockLoggerWarn = jest.fn();
@@ -420,5 +420,169 @@ describe('email proxy answers, exactly', () => {
         message: 'Private network URLs are not allowed',
       });
     }
+  });
+});
+
+/**
+ * Fetches the proxy does not repeat: a resource asked for twice at once is
+ * fetched once, one that could not be served is answered again from memory for
+ * five minutes, and the cache evicts what was least recently used.
+ */
+describe('email proxy fetches', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSafeFetch.mockReset();
+    resetProxyCacheForTests();
+  });
+
+  afterAll(() => {
+    resetProxyCacheForTests();
+  });
+
+  async function answer(url: string) {
+    const res = makeRes();
+    await proxyResource(makeReq(url), res as unknown as ExpressResponse);
+    return {
+      headers: res.setHeader.mock.calls,
+      status: res.status.mock.calls,
+      sent: res.send.mock.calls,
+      ended: res.end.mock.calls,
+    };
+  }
+
+  const image = (url: string, size = 200) =>
+    makeSafeFetchResult(200, Buffer.from('i'.repeat(size)), { 'content-type': 'image/png' }, url);
+
+  it('fetches a resource asked for twice at once only once, and answers both the same', async () => {
+    const url = 'https://fetches.example/shared.png';
+    let respond!: () => void;
+    mockSafeFetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          respond = () => resolve(image(url));
+        }),
+    );
+
+    const both = Promise.all([answer(url), answer(url)]);
+    await new Promise((resolve) => setImmediate(resolve));
+    respond();
+    const [first, second] = await both;
+
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+    expect(first.headers).toContainEqual(['X-Cache', 'MISS']);
+    // The fetch filled the cache for whoever asks next.
+    expect((await answer(url)).headers).toContainEqual(['X-Cache', 'HIT']);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches a failing resource asked for twice at once only once', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('socket hang up'));
+
+    const [first, second] = await Promise.all([
+      answer('https://fetches.example/down-together.png'),
+      answer('https://fetches.example/down-together.png'),
+    ]);
+
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+    expect(first.headers).toContainEqual(['Content-Type', 'image/gif']);
+  });
+
+  it.each([
+    [
+      'an upstream 404',
+      () => mockSafeFetch.mockResolvedValue(makeSafeFetchResult(404, Buffer.alloc(0))),
+    ],
+    ['a failed fetch', () => mockSafeFetch.mockRejectedValue(new Error('socket hang up'))],
+    [
+      'a tracking-sized image',
+      () => mockSafeFetch.mockResolvedValue(image('https://x.example/a.png', 8)),
+    ],
+  ])('answers %s again without fetching it again', async (name, upstream) => {
+    upstream();
+    const url = `https://fetches.example/${name.replace(/\W+/g, '-')}.png`;
+
+    const first = await answer(url);
+    const second = await answer(url);
+
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
+  it('refuses a refused resource again without fetching it again', async () => {
+    mockSafeFetch.mockRejectedValue(new SsrfRejection('blocked host'));
+
+    for (let i = 0; i < 2; i++) {
+      await expect(
+        proxyResource(
+          makeReq('http://10.0.0.10/again.png'),
+          makeRes() as unknown as ExpressResponse,
+        ),
+      ).rejects.toMatchObject({
+        name: 'BadRequestError',
+        message: 'Private network URLs are not allowed',
+      });
+    }
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches a failed resource again once five minutes have passed', async () => {
+    const url = 'https://fetches.example/recovers.png';
+    const now = jest.spyOn(Date, 'now');
+    const start = Date.now();
+    try {
+      now.mockReturnValue(start);
+      mockSafeFetch.mockRejectedValueOnce(new Error('socket hang up'));
+      await answer(url);
+
+      now.mockReturnValue(start + 5 * 60 * 1000 - 1);
+      await answer(url);
+      expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+
+      now.mockReturnValue(start + 5 * 60 * 1000);
+      mockSafeFetch.mockResolvedValueOnce(image(url));
+      expect((await answer(url)).headers).toContainEqual(['X-Cache', 'MISS']);
+      expect(mockSafeFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('forgets the oldest failure once five thousand are held', async () => {
+    mockSafeFetch.mockRejectedValue(new Error('socket hang up'));
+    for (let i = 0; i <= 5000; i++) {
+      await answer(`https://fetches.example/many-${i}.png`);
+    }
+    expect(mockSafeFetch).toHaveBeenCalledTimes(5001);
+
+    // The newest is still held; the first was dropped to make room for it.
+    await answer('https://fetches.example/many-5000.png');
+    expect(mockSafeFetch).toHaveBeenCalledTimes(5001);
+    await answer('https://fetches.example/many-0.png');
+    expect(mockSafeFetch).toHaveBeenCalledTimes(5002);
+  });
+
+  it('evicts the least recently used resource, not the least recently fetched', async () => {
+    // Room for exactly ten 200-byte images (one entry may take a tenth).
+    resetProxyCacheForTests(2000);
+    mockSafeFetch.mockImplementation(async (url: string) => image(url));
+    const a = 'https://fetches.example/lru-a.png';
+    const b = 'https://fetches.example/lru-b.png';
+    const c = 'https://fetches.example/lru-c.png';
+
+    await answer(a);
+    await answer(b);
+    for (let i = 0; i < 8; i++) await answer(`https://fetches.example/lru-fill-${i}.png`);
+    expect((await answer(a)).headers).toContainEqual(['X-Cache', 'HIT']);
+    await answer(c);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(11);
+
+    // `a` was used after `b`, so `b` made room for `c`.
+    expect((await answer(a)).headers).toContainEqual(['X-Cache', 'HIT']);
+    expect((await answer(c)).headers).toContainEqual(['X-Cache', 'HIT']);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(11);
+    expect((await answer(b)).headers).toContainEqual(['X-Cache', 'MISS']);
+    expect(mockSafeFetch).toHaveBeenCalledTimes(12);
   });
 });
