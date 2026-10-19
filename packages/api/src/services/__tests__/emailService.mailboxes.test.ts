@@ -39,6 +39,7 @@ import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
+import { renderWelcomeEmail } from '../welcomeEmail';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -77,6 +78,18 @@ afterAll(async () => {
 });
 
 describe('listMailboxes — the counters that replaced the dropped columns', () => {
+  it('stores the Oxy welcome template once when provisioning an inbox', async () => {
+    const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    await emailService.provisionMailboxes(userId);
+
+    const stored = await getDb()
+      .select({ subject: messages.subject, text: messages.text, html: messages.html })
+      .from(messages)
+      .where(eq(messages.userId, userId));
+    expect(stored).toEqual([renderWelcomeEmail('there', `${userId}@oxy.so`)]);
+  });
+
   it('reports exact totals, unseen counts and byte sizes per folder', async () => {
     // Folders created directly rather than provisioned: provisioning also
     // writes a welcome email into the Inbox, and an assertion that has to

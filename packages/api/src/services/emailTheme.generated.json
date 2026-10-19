@@ -1,0 +1,54 @@
+{
+  "source": "@oxy.so/bloom/design-tokens/tokens.json — oxy preset; generated, do not edit",
+  "light": {
+    "background": "#f7ebf0",
+    "foreground": "#2a1132",
+    "card": "#fff7f9",
+    "card-foreground": "#2a1132",
+    "muted-foreground": "#593c60",
+    "primary": "#9422ae",
+    "primary-foreground": "#ffeefc",
+    "border": "#c9a5cf"
+  },
+  "dark": {
+    "background": "#1f031d",
+    "foreground": "#fee7ff",
+    "card": "#4b2947",
+    "card-foreground": "#fee7ff",
+    "muted-foreground": "#e0bae6",
+    "primary": "#ec86ff",
+    "primary-foreground": "#000000",
+    "border": "#66486d"
+  },
+  "radius": {
+    "card": "16px",
+    "button": "9999px"
+  },
+  "typography": {
+    "body": {
+      "fontSize": "15px",
+      "lineHeight": "22px",
+      "fontWeight": 400
+    },
+    "bodySmall": {
+      "fontSize": "13px",
+      "lineHeight": "18px",
+      "fontWeight": 400
+    },
+    "sectionTitle": {
+      "fontSize": "20px",
+      "lineHeight": "26px",
+      "fontWeight": 600
+    },
+    "headerBold": {
+      "fontSize": "28px",
+      "lineHeight": "34px",
+      "fontWeight": 700
+    },
+    "buttonLarge": {
+      "fontSize": "17px",
+      "lineHeight": "22px",
+      "fontWeight": 600
+    }
+  }
+}
