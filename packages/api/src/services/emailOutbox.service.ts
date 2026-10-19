@@ -188,7 +188,42 @@ interface EnqueueEmailOutboxInput {
   nextAttemptAt?: Date;
 }
 
-function toDto(row: typeof emailOutbox.$inferSelect): EmailOutboxDto {
+/**
+ * The columns {@link toDto} and {@link toMessageDelivery} read, and the
+ * message row a delivery belongs to — the row without `payload`, which is the
+ * whole message, bodies and all. Every Sent listing loads the delivery of each
+ * row on its page, so the reads that only answer with a status select these.
+ * Both functions take a `Pick` of exactly what they read, so tsc proves the
+ * projection is enough.
+ */
+export const OUTBOX_STATUS_COLUMNS = {
+  id: emailOutbox.id,
+  messageId: emailOutbox.messageId,
+  messageRowId: emailOutbox.messageRowId,
+  status: emailOutbox.status,
+  attempts: emailOutbox.attempts,
+  nextAttemptAt: emailOutbox.nextAttemptAt,
+  lastError: emailOutbox.lastError,
+  errorCode: emailOutbox.errorCode,
+  sentAt: emailOutbox.sentAt,
+  createdAt: emailOutbox.createdAt,
+  updatedAt: emailOutbox.updatedAt,
+};
+
+function toDto(
+  row: Pick<
+    EmailOutboxRow,
+    | 'id'
+    | 'messageId'
+    | 'status'
+    | 'attempts'
+    | 'nextAttemptAt'
+    | 'lastError'
+    | 'sentAt'
+    | 'createdAt'
+    | 'updatedAt'
+  >,
+): EmailOutboxDto {
   return {
     id: row.id,
     messageId: row.messageId,
@@ -237,7 +272,12 @@ export interface MessageDeliveryDto {
  * `retries_exhausted`, not as the last attempt's `relay_unavailable`: the
  * difference is whether waiting will help.
  */
-export function toMessageDelivery(row: EmailOutboxRow): MessageDeliveryDto {
+export function toMessageDelivery(
+  row: Pick<
+    EmailOutboxRow,
+    'status' | 'attempts' | 'nextAttemptAt' | 'lastError' | 'errorCode' | 'updatedAt'
+  >,
+): MessageDeliveryDto {
   const base = { attempts: row.attempts, maxAttempts: MAX_ATTEMPTS, updatedAt: row.updatedAt };
   switch (row.status) {
     case 'sent':
@@ -280,7 +320,7 @@ export async function loadMessageDeliveries(
   const deliveries = new Map<string, MessageDeliveryDto>();
   if (messageRowIds.length === 0) return deliveries;
   const rows = await db
-    .select()
+    .select(OUTBOX_STATUS_COLUMNS)
     .from(emailOutbox)
     .where(inArray(emailOutbox.messageRowId, messageRowIds))
     .orderBy(asc(emailOutbox.createdAt));
@@ -668,7 +708,7 @@ export async function markEmailOutboxTerminal(
 
 export async function listEmailOutbox(userId: string, limit = 50): Promise<EmailOutboxDto[]> {
   const rows = await getDb()
-    .select()
+    .select(OUTBOX_STATUS_COLUMNS)
     .from(emailOutbox)
     .where(and(eq(emailOutbox.userId, userId), isOutboxDelivery()))
     .orderBy(desc(emailOutbox.createdAt))
@@ -696,7 +736,7 @@ export async function retryEmailOutbox(userId: string, id: string): Promise<Emai
         isOutboxDelivery(),
       ),
     )
-    .returning();
+    .returning(OUTBOX_STATUS_COLUMNS);
   if (!updated) throw new NotFoundError('Outbound message not found or cannot be retried');
   return toDto(updated);
 }
@@ -782,7 +822,7 @@ export async function cancelEmailOutbox(userId: string, id: string): Promise<Ema
         isOutboxDelivery(),
       ),
     )
-    .returning();
+    .returning(OUTBOX_STATUS_COLUMNS);
   if (updated) return toDto(updated);
 
   // Nothing cancellable: tell an id this user has no row for apart from one

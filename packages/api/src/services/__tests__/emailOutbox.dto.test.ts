@@ -17,7 +17,9 @@ import {
   EMAIL_OUTBOX_MAX_ATTEMPTS,
   listEmailOutbox,
   loadMessageDeliveries,
+  OUTBOX_STATUS_COLUMNS,
   retryEmailOutbox,
+  toMessageDelivery,
 } from '../emailOutbox.service';
 
 const unique = () => randomUUID().replace(/-/g, '');
@@ -235,6 +237,42 @@ describe('the delivery on a Sent message', () => {
           },
         ],
       ]),
+    );
+  });
+});
+
+describe('the status columns', () => {
+  it('leave out the message, the key and the lease', () => {
+    for (const column of ['payload', 'idempotencyKey', 'lockedAt', 'lockedBy', 'userId']) {
+      expect(OUTBOX_STATUS_COLUMNS).not.toHaveProperty(column);
+    }
+  });
+
+  it.each([
+    { status: 'processing' as const, attempts: 2 },
+    {
+      status: 'failed' as const,
+      attempts: 1,
+      lastError: '421',
+      errorCode: 'relay_unavailable' as const,
+    },
+    {
+      status: 'failed' as const,
+      attempts: EMAIL_OUTBOX_MAX_ATTEMPTS,
+      errorCode: 'relay_unavailable' as const,
+    },
+    { status: 'cancelled' as const },
+    { status: 'sent' as const, attempts: 1, sentAt: new Date() },
+  ])('read a $status delivery the same as the full row', async (values) => {
+    const row = await delivery(values);
+    const [projected] = await getDb()
+      .select(OUTBOX_STATUS_COLUMNS)
+      .from(emailOutbox)
+      .where(eq(emailOutbox.id, row.id));
+
+    expect(toMessageDelivery(projected)).toEqual(toMessageDelivery(await stored(row.id)));
+    expect((await listEmailOutbox(userId, 100)).find((dto) => dto.id === row.id)).toEqual(
+      outboxDto(await stored(row.id)),
     );
   });
 });
