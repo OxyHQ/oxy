@@ -339,6 +339,20 @@ describe('GET /email/mailboxes — the wire shape', () => {
     expect(second).toEqual(first);
   });
 
+  it('answers a provisioned user without checking the provisioning again', async () => {
+    const userId = await newUser({ username: `steady${unique().slice(0, 10)}` });
+    const ensure = jest.spyOn(emailService, 'ensureMailboxes');
+
+    try {
+      await wire(listMailboxes, { userId });
+      expect(ensure).toHaveBeenCalledTimes(1);
+      await wire(listMailboxes, { userId });
+      expect(ensure).toHaveBeenCalledTimes(1);
+    } finally {
+      ensure.mockRestore();
+    }
+  });
+
   it('restores a default folder a provisioned user is missing', async () => {
     const userId = await newUser({ username: `partial${unique().slice(0, 10)}` });
     await wire(listMailboxes, { userId });

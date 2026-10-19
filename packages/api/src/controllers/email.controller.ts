@@ -13,7 +13,7 @@ import { emailService } from '../services/email.service';
 import { acceptOutboundMessage, retryMessageDelivery } from '../services/emailDelivery.service';
 import { findSuppressed } from '../services/emailSuppression.service';
 import { assetService } from '../services/assetServiceSingleton';
-import { resolveEmailAddress } from '../config/email.config';
+import { DEFAULT_MAILBOXES, resolveEmailAddress } from '../config/email.config';
 import { getDb } from '../config/postgres';
 import { messageRecipients } from '../db/schema/messageRecipients';
 import { messages } from '../db/schema/messages';
@@ -238,8 +238,15 @@ interface AuthRequest extends Request {
 
 export async function listMailboxes(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  await emailService.ensureMailboxes(userId);
-  const mailboxes = await emailService.listMailboxes(userId);
+  // Read first: every request after a user's first finds all the default
+  // folders, and needs no provisioning check. Only a list missing one — a new
+  // user, or a folder added to the defaults since — provisions and reads again.
+  let mailboxes = await emailService.listMailboxes(userId);
+  const present = new Set(mailboxes.map((mailbox) => mailbox.specialUse));
+  if (DEFAULT_MAILBOXES.some((mailbox) => !present.has(mailbox.specialUse))) {
+    await emailService.ensureMailboxes(userId);
+    mailboxes = await emailService.listMailboxes(userId);
+  }
   res.json({ data: mailboxes });
 }
 
