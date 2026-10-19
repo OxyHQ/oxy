@@ -22,6 +22,7 @@ import {
   authenticate,
   getAuthenticationTypeName,
   getErrorMessage,
+  BIOMETRIC_ENABLED_KEY,
 } from '@/lib/biometricAuth';
 
 export interface BiometricSettingsState {
@@ -94,13 +95,13 @@ export function useBiometricSettings() {
       const biometricEnabled = (privacyRecord?.biometricLogin as boolean | undefined) ?? false;
       // Sync with local storage
       if (biometricEnabled) {
-        AsyncStorage.setItem('oxy_biometric_enabled', 'true').catch(() => {});
+        AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true').catch(() => {});
       } else {
-        AsyncStorage.removeItem('oxy_biometric_enabled').catch(() => {});
+        AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY).catch(() => {});
       }
     } else if (privacyError) {
       // Fallback to local storage on error
-      AsyncStorage.getItem('oxy_biometric_enabled')
+      AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY)
         .then((localPref) => {
           if (!privacyRecord && localPref !== null) {
             // Use local storage as fallback when API is unavailable
@@ -141,7 +142,7 @@ export function useBiometricSettings() {
           });
 
           // Remove local preference
-          await AsyncStorage.removeItem('oxy_biometric_enabled');
+          await AsyncStorage.removeItem(BIOMETRIC_ENABLED_KEY);
         } catch (err) {
           console.error('[useBiometricSettings] Failed to disable biometric login:', err);
           const errorMsg = err instanceof Error ? err.message : 'Failed to disable biometric login';
@@ -198,7 +199,7 @@ export function useBiometricSettings() {
         });
 
         // Also store locally for quick access during sign-in
-        await AsyncStorage.setItem('oxy_biometric_enabled', 'true');
+        await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
       } catch (err) {
         console.error('[useBiometricSettings] Failed to enable biometric login:', err);
         const errorMsg = err instanceof Error ? err.message : 'Failed to enable biometric login';

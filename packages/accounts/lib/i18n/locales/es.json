@@ -889,5 +889,11 @@
       "devices": "¿Qué dispositivos tienen la sesión iniciada en mi cuenta?",
       "data": "¿Cómo puedo descargar o eliminar mis datos?"
     }
+  },
+  "appLock": {
+    "title": "Accounts está bloqueada",
+    "subtitle": "Desbloquea con Face ID, Touch ID o tu huella para continuar.",
+    "unlock": "Desbloquear",
+    "reason": "Desbloquear Oxy Accounts"
   }
 }
