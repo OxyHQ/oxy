@@ -2,6 +2,10 @@
  * `limit` / `offset` on every email list endpoint that parses them from the
  * query string, and the `pagination` block each one answers with.
  *
+ * A negative value used to reach Postgres as `LIMIT -5` / `OFFSET -1`, which
+ * it refuses — a 500. Every site now clamps to [1, 100] and >= 0 as
+ * `listContacts` already did, and the wire shape is unchanged.
+ *
  * The service is stubbed: what is pinned here is what the controller hands it
  * and the wire shape it builds from the result.
  */
@@ -171,6 +175,13 @@ describe.each(SITES)('$name paging', (site) => {
     expect(body.pagination).toEqual({ total: 0, limit: 100, offset: 20, hasMore: false });
   });
 
+  it('clamps a negative limit to 1 and a negative offset to 0', async () => {
+    const body = await call(site, { limit: '-5', offset: '-1' });
+
+    expect(site.paging()).toEqual({ limit: 1, offset: 0 });
+    expect(body.pagination).toEqual({ total: 0, limit: 1, offset: 0, hasMore: false });
+  });
+
   it('treats a limit of 0 or a non-number as the default', async () => {
     await call(site, { limit: '0', offset: 'x' });
     expect(site.paging()).toEqual({ limit: 50, offset: 0 });
@@ -187,5 +198,10 @@ describe('searchMessagesForUser paging (the capability path)', () => {
 
     await searchMessagesForUser(userId, { q: 'invoice', limit: 500, offset: 20 });
     expect(lastOptions(mockSearchMessages, 2)).toEqual({ limit: 100, offset: 20 });
+  });
+
+  it('clamps a negative limit to 1 and a negative offset to 0', async () => {
+    await searchMessagesForUser(userId, { q: 'invoice', limit: -5, offset: -1 });
+    expect(lastOptions(mockSearchMessages, 2)).toEqual({ limit: 1, offset: 0 });
   });
 });
