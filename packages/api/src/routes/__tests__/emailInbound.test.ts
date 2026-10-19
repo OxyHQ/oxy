@@ -58,7 +58,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import emailInboundRouter from '../emailInbound';
 import { errorHandler } from '../../middleware/errorHandler';
-import { BadRequestError } from '../../utils/error';
+import { BadRequestError, NotFoundError } from '../../utils/error';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -335,6 +335,28 @@ describe('POST /email/inbound', () => {
     );
 
     expect(res.status).toBe(503);
+    expect(res.body).toEqual({
+      accepted: 0,
+      rejected: 1,
+      results: [{ recipient: user.address, status: 'failed' }],
+    });
+  });
+
+  it('answers a recipient deleted since the lookup with a 422, not a retry', async () => {
+    const user = await recipient();
+    mockStoreIncomingMessage.mockRejectedValueOnce(new NotFoundError('Recipient user not found'));
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address,
+      },
+      rawMessage(user.address),
+    );
+
+    expect(res.status).toBe(422);
     expect(res.body).toEqual({
       accepted: 0,
       rejected: 1,

@@ -31,7 +31,7 @@ import { extractUsername, extractAliasTag } from '../config/email.config';
 import { getEnvVar } from '../config/env';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
-import { BadRequestError } from '../utils/error';
+import { BadRequestError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -227,9 +227,10 @@ router.post(
         });
       } catch (err) {
         // A refusal the service repeats on every attempt — over quota, an
-        // attachment it will not store — is permanent. Anything else (the
-        // database, S3) may succeed on a retry.
-        const permanent = err instanceof BadRequestError;
+        // attachment it will not store, a recipient deleted since the lookup
+        // above — is permanent. Anything else (the database, S3) may succeed
+        // on a retry.
+        const permanent = err instanceof BadRequestError || err instanceof NotFoundError;
         if (!permanent) transientFailure = true;
         logger.error(
           'Inbound webhook: delivery failed',
