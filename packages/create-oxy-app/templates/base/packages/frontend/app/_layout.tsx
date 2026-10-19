@@ -79,6 +79,8 @@ function AppImageResolver({ children }: { children: ReactNode }) {
  * The root Stack is the SOLE authority for the `(auth)`↔`(app)` group swap,
  * keyed purely on session. Until cold boot resolves (`isAuthResolved === false`)
  * we treat the user as needing auth; once resolved, `isAuthenticated` drives it.
+ * Each group is reachable only while its `Stack.Protected` guard holds, and
+ * expo-router sends a blocked navigation to the group that is open.
  */
 function AuthRouter() {
   const { isAuthenticated, isAuthResolved } = useOxy();
@@ -87,8 +89,12 @@ function AuthRouter() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(app)" redirect={needsAuth} />
-      <Stack.Screen name="(auth)" redirect={!needsAuth} />
+      <Stack.Protected guard={!needsAuth}>
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={needsAuth}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
     </Stack>
   );
 }

@@ -1,5 +1,47 @@
 # Changelog
 
+## [12.2.0] - 2026-10-19
+
+### Changed
+
+- `@oxy.so/services/ui` no longer imports the account screens. Since 11.15.0 it
+  registered all of them at import, so every app (or SDK) that imported anything
+  from `ui` carried the screens in its first-paint bundle and lost the separate
+  screen chunk (Allo: +340 KB gzipped, 56 screen modules in the entry). `ui`
+  now loads them like `ui/client`: `OxyProvider` fetches the screen chunk at
+  startup, and a surface opened before it arrives waits for it. The root
+  `@oxy.so/services` entry still registers them synchronously.
+  `screenBarrelIsolation` fails if `ui` or `ui/client` statically reaches a
+  screen module or `screenComponents`, and `clientEntryIsolation` holds
+  `ui/client` to no file under `ui/screens/` and to exporting `useAppAssertion`.
+- No image the SDK draws on iOS or Android goes through react-native's `Image`
+  any more, so an app may turn Android's GIF/WebP decoders off
+  (`expo-build-properties` `android.gifEnabled`/`webpEnabled: false`) and still
+  show and measure a user's GIF or WebP. `FileViewer`, `JustifiedPhotoGrid` and
+  the avatar crop screen measure an image's size through expo-image
+  (`Image.loadAsync`, reported in pixels like `Image.getSize`; a failure still
+  falls back as before); the avatar crop stage, profile link previews and the
+  Oxy One artwork draw with expo-image. Web keeps react-native-web's
+  `Image.getSize`, an `<img>` probe that needs no CORS headers. expo-image was
+  already a required peer; no peer range changes.
+- `__tests__/packaging/rnImageBoundary.test.ts` fails if any source file other
+  than the web measurement fork names react-native's `Image`,
+  `ImageBackground` or Reanimated's `Animated.Image` again.
+
+### Fixed
+
+- On web, `OxyProvider` no longer turns a page that scrolls into a huge bottom
+  safe-area inset. react-native-safe-area-context 5.9 and later (SDK 58 ships
+  5.10.1) measure the web provider's own element and report
+  `windowInsets.bottom - (innerHeight - rect.bottom)` without clamping it, and
+  `OxyProvider` wrapped the whole document in one: an 844px phone viewport over a
+  2690px page got a ~1850px inset, and the mobile account dialog rendered empty.
+  On web the provider's root now gives the window's metrics instead (CSS
+  `env(safe-area-inset-*)` insets, the viewport as the frame), which is what every
+  version before 5.9 reported. iOS and Android still mount `SafeAreaProvider`.
+  `SafeAreaRoot.test.tsx` holds both, and fails if another source file mounts
+  `SafeAreaProvider` directly.
+
 ## [12.1.0] - 2026-10-19
 
 ### Added

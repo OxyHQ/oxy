@@ -1,7 +1,7 @@
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useMemo, useState, useEffect } from 'react';
-import { View, ScrollView, Image, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { Image as ExpoImage } from 'expo-image';
@@ -9,6 +9,7 @@ import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { FileMetadata } from '@oxy.so/core';
 import { formatFileSize } from '../../utils/fileManagement';
+import { getImageSize } from '../../utils/imageSize';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 
 interface FileViewerProps {
@@ -81,20 +82,24 @@ export const FileViewer: React.FC<FileViewerProps> = ({
 
   // Load image dimensions when image content is available
   useEffect(() => {
-    if (isImage && fileContent) {
-      Image.getSize(
-        fileContent,
-        (width, height) => {
-          setImageDimensions({ width, height });
-        },
-        () => {
-          // Fallback if dimensions can't be loaded
-          setImageDimensions({ width: 400, height: 400 });
-        },
-      );
-    } else {
+    if (!isImage || !fileContent) {
       setImageDimensions(null);
+      return;
     }
+    // A newer file may replace this one before its size arrives.
+    let current = true;
+    getImageSize(fileContent).then(
+      (size) => {
+        if (current) setImageDimensions(size);
+      },
+      () => {
+        // Fallback if dimensions can't be loaded
+        if (current) setImageDimensions({ width: 400, height: 400 });
+      },
+    );
+    return () => {
+      current = false;
+    };
   }, [isImage, fileContent]);
 
   // Calculate display size based on natural dimensions and max constraints

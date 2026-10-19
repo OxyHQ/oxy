@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Image, StyleSheet, type TextInputProps } from 'react-native';
+import { View, StyleSheet, type TextInputProps } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -657,7 +658,11 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                 description={fieldType === 'links' ? String(item.url) : undefined}
                 icon={
                   fieldType === 'links' && item.image ? (
-                    <Image source={{ uri: item.image }} style={styles.linkImage} />
+                    <ExpoImage
+                      source={{ uri: item.image }}
+                      style={styles.linkImage}
+                      contentFit="cover"
+                    />
                   ) : undefined
                 }
                 rightElement={

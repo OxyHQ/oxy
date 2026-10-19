@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Image, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { FileMetadata } from '@oxy.so/core';
+import { getImageSize } from '../../utils/imageSize';
 
 type PhotoSize = { width: number; height: number };
 
@@ -11,7 +12,7 @@ const EMPTY_DIMENSIONS: Record<string, PhotoSize> = {};
 
 /**
  * Measure the intrinsic size of every photo whose thumbnail URL has resolved,
- * via `Image.getSize`. Pure/async (no React state) so it can be a React Query
+ * via `getImageSize` (expo-image on a device). Pure/async (no React state) so it can be a React Query
  * `queryFn`. Photos without a resolved URL are skipped and re-measured on the
  * next signature change; a load error falls back to 1×1 (→ the 4/3 default).
  */
@@ -21,27 +22,15 @@ async function measurePhotoDimensions(
 ): Promise<Record<string, PhotoSize>> {
   const measured: Record<string, PhotoSize> = {};
   await Promise.all(
-    photos.map(
-      (photo) =>
-        new Promise<void>((resolve) => {
-          const url = getThumbUrl(photo);
-          if (!url) {
-            resolve();
-            return;
-          }
-          Image.getSize(
-            url,
-            (width, height) => {
-              measured[photo.id] = { width, height };
-              resolve();
-            },
-            () => {
-              measured[photo.id] = { width: 1, height: 1 };
-              resolve();
-            },
-          );
-        }),
-    ),
+    photos.map(async (photo) => {
+      const url = getThumbUrl(photo);
+      if (!url) return;
+      try {
+        measured[photo.id] = await getImageSize(url);
+      } catch {
+        measured[photo.id] = { width: 1, height: 1 };
+      }
+    }),
   );
   return measured;
 }
@@ -87,7 +76,7 @@ export interface JustifiedPhotoGridProps {
  * Responsive justified photo grid that stretches to the provided containerWidth.
  * Uses flex rows with proportional children widths instead of absolute pixel widths so it always fills.
  *
- * Owns its own intrinsic-dimension measurement: it calls `Image.getSize` on each
+ * Owns its own intrinsic-dimension measurement: it calls `getImageSize` on each
  * photo's resolved thumbnail URL and reflows once real aspect ratios are known
  * (falling back to 4/3 until then). Measurement re-runs whenever a photo is added
  * OR its (asynchronously-resolved) private-safe URL first appears.

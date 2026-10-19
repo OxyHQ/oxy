@@ -3,7 +3,6 @@ import { loadScreens } from '../navigation/routes';
 import { useEffect, useRef, useState, useMemo, type FC } from 'react';
 import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OxyProviderProps } from '../types/navigation';
 import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
@@ -19,6 +18,7 @@ import {
 } from '../utils/storageHelpers';
 import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
+import { SafeAreaRoot } from './SafeAreaRoot';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 import { LanguageBridge } from './LanguageBridge';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
@@ -45,8 +45,9 @@ const isWeb = Platform.OS === 'web';
  * OxyProvider - Universal provider for Expo apps (native + web)
  *
  * Provides authentication, session management, query client, and UI overlays.
- * Wraps its own overlay stack in SafeAreaProvider and GestureHandlerRootView so
- * the shared Bloom SURFACE STACK (`<SurfaceProvider>` / `<SurfaceHost>`) — which
+ * Wraps its own overlay stack in a safe-area root (`SafeAreaRoot`: the native
+ * SafeAreaProvider on a device, the window's metrics on web) and
+ * GestureHandlerRootView so the shared Bloom SURFACE STACK (`<SurfaceProvider>` / `<SurfaceHost>`) — which
  * hosts every SDK surface (the ~35 bottom-sheet routes + the AccountDialog) — can
  * safely render even when a consuming app has not mounted those providers yet.
  *
@@ -118,7 +119,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     [onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork],
   );
   useEffect(() => {
-    // Full entries are already registered; lean entries warm their screen chunk.
+    // The root entry registers the screens itself; `ui` and `ui/client` warm their chunk here.
     void loadScreens().catch(() => undefined);
   }, []);
   // Storage + persistence wiring.
@@ -302,9 +303,9 @@ const OxyProvider: FC<OxyProviderProps> = ({
 
   return (
     <GestureHandlerRootView style={bootStyles.providerRoot}>
-      <SafeAreaProvider>
+      <SafeAreaRoot>
         <KeyboardBoundary>{coreContent}</KeyboardBoundary>
-      </SafeAreaProvider>
+      </SafeAreaRoot>
     </GestureHandlerRootView>
   );
 };

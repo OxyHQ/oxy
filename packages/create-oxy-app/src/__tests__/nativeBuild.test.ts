@@ -133,3 +133,43 @@ describe('the prebuilt native projects', () => {
     ]);
   });
 });
+
+describe('Expo SDK 58', () => {
+  test('web.output is set explicitly, because SDK 58 defaults it to "server"', async () => {
+    const config = await fs.readFile(path.join(frontend, 'app.config.js'), 'utf8');
+    // The deploy serves one index.html; a server-output build has none.
+    expect(config).toMatch(/web:\s*\{[^}]*\boutput:\s*'single'/);
+  });
+
+  test('the auth swap uses Stack.Protected, not the Stack.Screen redirect SDK 58 removed', async () => {
+    const layout = await fs.readFile(path.join(frontend, 'app', '_layout.tsx'), 'utf8');
+    expect(layout).not.toMatch(/\bredirect=\{/);
+    expect(layout).toMatch(
+      /<Stack\.Protected guard=\{!needsAuth\}>\s*<Stack\.Screen name="\(app\)"/,
+    );
+    expect(layout).toMatch(
+      /<Stack\.Protected guard=\{needsAuth\}>\s*<Stack\.Screen name="\(auth\)"/,
+    );
+  });
+
+  test('+html renders the server document nodes, or a static export ships no JS or CSS', async () => {
+    const html = await fs.readFile(path.join(frontend, 'app', '+html.tsx'), 'utf8');
+    expect(html).toContain('useServerDocumentContext()');
+    expect(html).toMatch(/\{headNodes\}\s*<\/head>/);
+    expect(html).toMatch(/\{bodyNodes\}\s*<\/body>/);
+  });
+
+  test('no navigator child is hidden with href: null (SDK 58 renders the first screen)', async () => {
+    const layouts = ['app/_layout.tsx', 'app/(app)/_layout.tsx', 'app/(auth)/_layout.tsx'];
+    for (const layout of layouts) {
+      const source = await fs.readFile(path.join(frontend, layout), 'utf8');
+      expect(source).not.toMatch(/href:\s*null|href=\{null\}/);
+    }
+  });
+
+  test('the config has no key the SDK 58 schema dropped', async () => {
+    const config = await fs.readFile(path.join(frontend, 'app.config.js'), 'utf8');
+    expect(config).not.toMatch(/\bnewArchEnabled\b/);
+    expect(config).not.toMatch(/^\s{4}(splash|privacy):/m);
+  });
+});

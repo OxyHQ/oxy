@@ -33,7 +33,7 @@ import { RiSubtractLine } from '@oxy.so/bloom/icons/RiSubtractLine';
 
 import type React from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, Image, Platform, AccessibilityInfo } from 'react-native';
+import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -46,6 +46,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core';
 import { useOxy } from '../context/oxyRuntimeContext';
@@ -54,6 +55,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { toast } from '@oxy.so/bloom/toast';
 import type { BaseScreenProps } from '../types/navigation';
+import { getImageSize } from '../utils/imageSize';
 
 /** Component name used in `logger` context for filtered diagnostics. */
 const LOG_COMPONENT = 'AvatarCropScreen';
@@ -138,25 +140,24 @@ interface ImageNaturalSize {
 }
 
 /**
- * Measure an image's intrinsic size via `Image.getSize`, wrapped as a Promise so
- * it can be a React Query `queryFn` (no component state / effects). Rejects on a
- * platform failure or degenerate dimensions so the query surfaces `isError`.
- * Mirrors the `measurePhotoDimensions` helper the photo grid uses.
+ * Measure an image's intrinsic size via `getImageSize` (expo-image on a
+ * device), as a Promise so it can be a React Query `queryFn` (no component
+ * state / effects). Rejects on a load failure or degenerate dimensions so the
+ * query surfaces `isError`. Mirrors the `measurePhotoDimensions` helper the
+ * photo grid uses.
  */
-function measureImageSize(uri: string): Promise<ImageNaturalSize> {
-  return new Promise<ImageNaturalSize>((resolve, reject) => {
-    Image.getSize(
-      uri,
-      (width, height) => {
-        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-          reject(new Error('Image reported invalid dimensions'));
-          return;
-        }
-        resolve({ width, height });
-      },
-      () => reject(new Error('Image measurement failed')),
-    );
-  });
+async function measureImageSize(uri: string): Promise<ImageNaturalSize> {
+  let size: ImageNaturalSize;
+  try {
+    size = await getImageSize(uri);
+  } catch {
+    throw new Error('Image measurement failed');
+  }
+  const { width, height } = size;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error('Image reported invalid dimensions');
+  }
+  return { width, height };
 }
 
 /**
@@ -381,7 +382,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
 
   // Natural size of the source image. Known up front (device/camera sources pass
   // the dimensions) OR measured lazily from `effectiveUri` via a React Query read
-  // (no effect) — the same Image.getSize→useQuery pattern the photo grid uses.
+  // (no effect) — the same getImageSize→useQuery pattern the photo grid uses.
   const hasPassedDimensions = !!(sourceWidth && sourceHeight);
   const measureQuery = useQuery({
     queryKey: ['avatarCropMeasure', effectiveUri],
@@ -1047,11 +1048,15 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
           <GestureDetector gesture={composedGesture}>
             <View style={styles.viewport}>
               {baseFit && effectiveUri ? (
-                <Animated.Image
-                  source={{ uri: effectiveUri }}
-                  style={[styles.image, imageAnimatedStyle]}
-                  resizeMode="cover"
-                />
+                // Reanimated moves the box; expo-image draws the pixels, so the
+                // crop stage never needs react-native's GIF/WebP decoders.
+                <Animated.View style={[styles.image, imageAnimatedStyle]}>
+                  <ExpoImage
+                    source={{ uri: effectiveUri }}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                  />
+                </Animated.View>
               ) : (
                 <SpinnerIcon color="#ffffff" />
               )}

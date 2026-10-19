@@ -1,5 +1,6 @@
 import { useContext, useState } from 'react';
-import { Image, Linking, View } from 'react-native';
+import { Linking, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SubscriptionPlans } from '@oxy.so/bloom/subscription-plans';
 import {
   SegmentedControl,
@@ -174,9 +175,9 @@ export default function OxyOneScreen() {
       productName="Oxy One"
       heroBackground={
         oxyOneArtwork ?? (
-          <Image
+          <ExpoImage
             source={floralPoster}
-            resizeMode="cover"
+            contentFit="cover"
             style={{ width: '100%', height: '100%' }}
           />
         )
