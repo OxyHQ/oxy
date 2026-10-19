@@ -41,6 +41,26 @@ describe('DRAWER_SCREENS', () => {
     expect(missing).toEqual([]);
   });
 
+  // expo-router 58's Drawer renders ONLY the screens its layout declares: a
+  // route file missing from this list exports as an empty page, with no error.
+  it('declares every route under app/(tabs), and none is web-excluded', () => {
+    const routes = fs
+      .readdirSync(TABS_DIR, { withFileTypes: true })
+      .filter((entry) => !entry.name.startsWith('_') && !entry.name.startsWith('+'))
+      .filter((entry) => entry.isDirectory() || /\.tsx?$/.test(entry.name))
+      .map((entry) => entry.name.replace(/(\.native|\.web)?\.tsx?$/, ''))
+      .filter((name, index, all) => all.indexOf(name) === index)
+      .sort();
+    const declared = DRAWER_SCREENS.map((s) => s.name as string).sort();
+    expect(declared).toEqual(routes);
+    // A `platform: 'native'` entry is not registered on web, so its route would
+    // be blank there; only a route that has no web file may carry it.
+    const webBlank = DRAWER_SCREENS.filter(
+      (s) => s.platform === 'native' && fs.existsSync(path.join(TABS_DIR, `${s.name}.tsx`)),
+    ).map((s) => s.name);
+    expect(webBlank).toEqual([]);
+  });
+
   it('every labelKey and titleKey resolves to a string in en.json', () => {
     const en = JSON.parse(fs.readFileSync(EN_LOCALE, 'utf8')) as Record<string, unknown>;
     const unresolved: string[] = [];
