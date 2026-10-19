@@ -1,5 +1,33 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.1.0
+
+The account's email and password can be changed and removed (ADR 0030 D9).
+
+### Added
+
+- `emailChangeStartRequestSchema` / `EmailChangeStartRequest`
+  (`POST /users/me/email/verify/start`), `emailSetRequestSchema` /
+  `EmailSetRequest` (`PUT /users/me/email`) and
+  `signInMethodRemoveRequestSchema` / `SignInMethodRemoveRequest`
+  (`DELETE /users/me/email`, `DELETE /users/me/password`).
+- `EMAIL_VERIFICATION_PURPOSES` gains `email_change`; `REAUTH_ACTIONS` gains
+  `change_email`.
+- `SIGN_IN_ERROR_CODES.lastSignInMethod`, `.passwordRequired` and
+  `.emailUnchanged`.
+
+### Changed
+
+- `identityLinkCompleteRequestSchema` takes any `reauthProofSchema`: an account
+  without an email confirms with its password.
+
+### Removed
+
+- `emailReauthProofSchema` / `EmailReauthProof`, replaced by
+  `reauthProofSchema` / `ReauthProof`. Nothing outside this repository imported
+  them, so this ships as a minor rather than forcing a contracts major on every
+  dependent.
+
 ## 5.0.0
 
 Breaking: removes the retired decisions, scoped-execution and Private Auto
