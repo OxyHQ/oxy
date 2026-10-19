@@ -18,10 +18,8 @@
  *    to the next only on a skip before anything is sent, never after a provider
  *    answered. A request that names a model must name one of these lines at
  *    its revision; a power level never serves decisions.
- *  - A step is always revision-pinned. A line names its revision once Kaana has
- *    published it; until then (`revision` absent) the grant pins the ONE
- *    revision Kaana publishes for the line, and skips a line with none or with
- *    several.
+ *  - A step is always revision-pinned: a line names the revision Kaana's
+ *    publisher minted for it, and a decisions step admits no other.
  *  - A line is not a route. Kaana publishes the deployments and declares the
  *    line's identity, data policy and list price; a line with no published,
  *    sellable route is skipped, so a reviewed line can be listed here before
@@ -37,17 +35,14 @@
  */
 
 /** The version every decisions grant was admitted under; bump it on ANY change below. */
-export const DECISIONS_POLICY_VERSION = 'oxy-decisions/2026-10-18.1';
+export const DECISIONS_POLICY_VERSION = 'oxy-decisions/2026-10-19.1';
 
 /** One pinned model line a decisions grant may admit. */
 export interface DecisionsProfileLine {
   /** `publisher/model`, as Kaana's declared catalogue names it. */
   readonly modelLine: string;
-  /**
-   * The immutable revision; a decisions step admits no other. Absent until the
-   * activation change pins the revision Kaana's publisher minted (`observed-…`).
-   */
-  readonly revision?: string;
+  /** The immutable revision Kaana's publisher minted (`observed-…`); a step admits no other. */
+  readonly revision: string;
   /** Exact USD ceiling on one request served on this line. */
   readonly maxPricePerRequestUsd: string;
   /** The review this line was admitted on: when, and the evidence it read. */
@@ -72,9 +67,10 @@ export const DECISIONS_PROFILE: readonly DecisionsProfileLine[] = [
     // (2026-10-04) carries `TypeSafe | typesafe/jev-1.13-20260917` at
     // USD 0.000000042 per prompt token and 0 per completion token: a request at
     // the 16,000-token decisions ceiling quotes USD 0.000672. Upstream model
-    // `typesafe/jev-1.13-20260917`; Kaana's publisher names the revision
-    // `observed-<date of first publish>`, pinned here at activation.
+    // `typesafe/jev-1.13-20260917`, first published by Kaana on 2026-10-18
+    // (`dep_openrouter_typesafe_jev_1_13_20260917_observed_2026_10_18`).
     modelLine: 'typesafe/jev-1.13',
+    revision: 'observed-2026-10-18',
     maxPricePerRequestUsd: '0.001',
     review: {
       reviewedAt: '2026-10-18',

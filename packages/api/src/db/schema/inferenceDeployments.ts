@@ -239,16 +239,15 @@ export const inferenceDeployments = pgTable(
     id: generatedId(),
     /**
      * RETIRED. The scoped-execution audience of the deleted one-off permits.
-     * Nothing writes it; one disabled `pending_review` Jev row of 2026-10-05
-     * still carries a value. The column and its checks stay until a reviewed
-     * migration retires that row and drops them; its contract
-     * (`@oxy.so/contracts` `ScopedExecutionAudience`) left in 5.0.0.
+     * Always null since decisions moved to `kaana.ai/v1` (Kaana ADR 0002); the
+     * column and its checks stay until a reviewed migration drops them, and its
+     * contract (`@oxy.so/contracts` `ScopedExecutionAudience`) left in 5.0.0.
      */
     scopedExecution: jsonb().$type<Record<string, unknown>>(),
     /**
-     * RETIRED. The Private Auto source approval of the deleted one-off permits,
-     * kept like `scopedExecution` above, with one disabled row of its own (its
-     * contract, `PrivateAutoSourceApproval`, left in `@oxy.so/contracts` 5.0.0).
+     * RETIRED. The Private Auto source approval of the deleted one-off permits;
+     * always null, kept like `scopedExecution` above (its contract,
+     * `PrivateAutoSourceApproval`, left in `@oxy.so/contracts` 5.0.0).
      */
     privateAutoSourceApproval: jsonb().$type<Record<string, unknown>>(),
 

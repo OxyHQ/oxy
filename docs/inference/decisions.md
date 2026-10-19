@@ -21,15 +21,13 @@ each changes only by a reviewed commit that bumps its version.
 
 | File | Decides |
 |---|---|
-| `config/decisionsPolicy.ts` (`DECISIONS_POLICY_VERSION`) | the ordered **decisions profile**: the model lines that may answer, each with its revision once Kaana has published it, its own USD ceiling per request and the review it was admitted on; and the limits every step carries |
+| `config/decisionsPolicy.ts` (`DECISIONS_POLICY_VERSION`) | the ordered **decisions profile**: the model lines that may answer, each at its pinned revision, with its own USD ceiling per request and the review it was admitted on; and the limits every step carries |
 | `config/inferenceEconomicPolicy.ts` (`INFERENCE_ECONOMIC_POLICY_VERSION`) | which application may decide: a relationship with `operations: ['decisions']` and `pilot.decisions` terms (input ceiling, USD per request), plus its capacity |
 
 The profile today is one line, `typesafe/jev-1.13` (TypeSafe's Jev 1.13, upstream
 `typesafe/jev-1.13-20260917`, through OpenRouter, provider pinned, zero data
-retention), at USD 0.001 a request. Kaana's publisher names a revision
-`observed-<date of first publish>`, so the line carries no revision until the
-activation change pins the one Kaana minted; until then the grant pins the one
-revision Kaana publishes for the line. OpenAI's `gpt-6-luna` (Kaana provider slug
+retention), at USD 0.001 a request, pinned to `observed-2026-10-18`, the
+revision Kaana's publisher minted when it first published it. OpenAI's `gpt-6-luna` (Kaana provider slug
 `openai-decisions`) is not listed: its Kaana route is built but has no funded key
 or zero-data-retention evidence for Oxy's account yet.
 
@@ -73,12 +71,9 @@ publication (`configs/public-catalogue.json`, `deployment-commercial.json`,
    - a model: it must be a profile line at its pinned revision, else
      `model_not_found` (`decisions-outside-profile`);
    - a power level: `invalid_request` (`decisions-level-target`).
-4. Every step is revision-pinned: the profile's revision, or else the one
-   revision Kaana publishes for the line. A line Kaana publishes no sellable
-   route for, or several revisions of, is skipped
-   (`decisions-revision-unpublished` / `-ambiguous` in the refusal log). That
-   is what keeps a reviewed line inactive until Kaana serves it. No line
-   admitted is `no_route_available`.
+4. Every step is pinned to its line's revision. A line Kaana publishes no
+   sellable route for admits nothing and its step is dropped; no line admitted
+   is `no_route_available`.
 5. Every step requires zero data retention and no training on customer data,
    whatever the application's policy says, and sends `sameModelFailover: false`:
    each line is served on one provider and key. Its price ceiling is the tightest
