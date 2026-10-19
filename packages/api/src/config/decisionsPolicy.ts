@@ -1,8 +1,7 @@
 /**
  * Which model lines may answer `decisions` on `kaana.ai/v1`, and under which
  * limits: the stable, reviewed approval the grant API applies (Kaana ADR 0002;
- * `docs/inference/decisions.md`). It replaces the single-request permits that
- * expired on 2026-10-05.
+ * `docs/inference/decisions.md`).
  *
  * ## Versioned in code, not switched by an environment variable
  *

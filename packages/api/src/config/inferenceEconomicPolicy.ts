@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -238,9 +238,8 @@ export interface InternalMeteredLevelTextPilot {
  * then outside its pilot and refused: see {@link pilotTextTerms}.
  */
 export interface InternalMeteredTextPilot {
+  /** UTF-8 framing ceiling on one completion's controlled input (`controlledInputBudget`). */
   readonly maxControlledInputBudget: number;
-  /** Optional text-completion ceiling; decisions retain the base ceiling. */
-  readonly maxControlledCompletionInputBudget?: number;
   /** Generated-token ceiling; speech generates none and is not bound by it. */
   readonly maxOutputTokens: number;
   /** Exact USD tariff quote ceiling, before any claim; not an upstream invoice guarantee. */
@@ -342,13 +341,11 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       maxRequestsPerUtcDay: 5_000,
     },
     pilot: {
-      maxControlledInputBudget: 8192,
-      // Production chat includes system context, history and tool schemas. The
-      // retired 8KiB synthetic pilot rejected those before provider dispatch.
+      // Production chat includes system context, history and tool schemas.
       // This is a UTF-8/framing ceiling, not a provider token/cost guarantee.
       // Keep 4KiB below the reviewed 128Ki context; each route still qualifies
-      // against its own context, output and quote. Decisions retain 8KiB.
-      maxControlledCompletionInputBudget: 126_976,
+      // against its own context, output and quote.
+      maxControlledInputBudget: 126_976,
       maxOutputTokens: 2048,
       maxPricePerRequestUsd: '0.05',
       deployments: [
@@ -477,7 +474,9 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     consumerApplicationClass: 'first_party',
     // 2 in flight and 2,000 a UTC day, counted on this relationship's own rows
     // (`scope`), not on Mention's commercial traffic. At most USD 0.001 a
-    // request, so at most USD 2 a day; Jev quotes about USD 0.0001 a post.
+    // request, so at most USD 2 a day. Jev's grant quotes about USD 0.00001 a
+    // post and it bills about USD 0.000025 (2026-10-18: Kaana's estimate omits
+    // Jev's own prompt framing, Kaana `docs/decisions.md`).
     // Console (`application_inference_limits`) may lower or raise both.
     capacity: {
       maxConcurrentRequests: 2,

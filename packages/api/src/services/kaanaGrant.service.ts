@@ -566,7 +566,7 @@ function grantPilotTerms(
       return text?.maxPricePerRequestUsd === undefined
         ? undefined
         : {
-            maxInput: text.maxControlledCompletionInputBudget ?? text.maxControlledInputBudget,
+            maxInput: text.maxControlledInputBudget,
             maxOutputTokens: text.maxOutputTokens,
             maxPriceUsd: text.maxPricePerRequestUsd,
             deployments: text.deployments,

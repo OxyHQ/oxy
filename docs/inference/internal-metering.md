@@ -155,7 +155,7 @@ the text ones above:
 | Term | Speech | Text (unchanged) |
 | --- | --- | --- |
 | Input measure | exact characters, `input.length` — the unit it is quoted, held and settled in | UTF-8 framing budget |
-| Input ceiling | **15,000** (`KAANA_SPEECH_MAX_INPUT_CHARACTERS`); one more is `context_length_exceeded` | 126976 completion / 8192 decisions |
+| Input ceiling | **15,000** (`KAANA_SPEECH_MAX_INPUT_CHARACTERS`); one more is `context_length_exceeded` | 126976 |
 | Output ceiling | none: speech generates no tokens, so the 2048 cap is not applied or signed | 2048 |
 | Quote ceiling | **USD 0.25** per request | USD 0.05 (1.00 on the ADR 0037 lane) |
 | Signed routes | only `dep_xai_tts_observed_2026_09_24` / `x-ai/text-to-speech@observed-2026-09-24` / `xai` | the exact text tuples above |

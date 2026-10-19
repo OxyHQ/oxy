@@ -127,5 +127,5 @@ does not use automatic approval, and still requires recorded legal review and
 all exact policy, privacy, capability, price and provider-attestation checks.
 Missing performance measurements remain missing: only a price-based policy can
 run without those dimensions. The source getter is absent by default and wire
-metadata cannot activate it. The operator and audit sequence is
-[private inference commissioning](../runbooks/private-inference-commissioning.md).
+metadata cannot activate it. Retired 2026-10-18 with the scoped permits:
+decisions are a `kaana.ai/v1` grant ([decisions.md](../inference/decisions.md)).
