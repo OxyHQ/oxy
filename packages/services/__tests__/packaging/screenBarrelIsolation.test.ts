@@ -3,8 +3,12 @@ import { dirname, join, resolve } from 'node:path';
 
 const SRC = resolve(__dirname, '../../src');
 const SCREEN_ROOT = join(SRC, 'ui/screens');
-const FULL_ENTRIES = [join(SRC, 'index.ts'), join(SRC, 'ui/index.ts')];
-const ENTRIES = [join(SRC, 'ui/client.ts')];
+// The root barrel is the everything entry (it also re-exports the sign-in
+// panels) and registers the screens synchronously. `ui` and `ui/client` are
+// what apps and SDKs import on their startup path: the screens reach them only
+// through `loadScreens()`'s dynamic import.
+const FULL_ENTRIES = [join(SRC, 'index.ts')];
+const ENTRIES = [join(SRC, 'ui/client.ts'), join(SRC, 'ui/index.ts')];
 const EXTENSIONS = ['.ts', '.tsx', '.native.ts', '.native.tsx', '.web.ts', '.web.tsx'];
 
 function resolveRelative(fromFile: string, specifier: string): string | null {
@@ -46,10 +50,23 @@ function staticallyReachable(entry: string): Set<string> {
 
 describe('screen entry-point isolation', () => {
   it.each(ENTRIES)('%s does not statically reach a route screen', (entry) => {
-    const screens = [...staticallyReachable(entry)].filter(
-      (file) => file.startsWith(`${SCREEN_ROOT}/`) && !file.includes('/navigation/'),
+    const reached = staticallyReachable(entry);
+    // A broken walk must not read as "no screens".
+    expect(reached.size).toBeGreaterThan(40);
+    const screens = [...reached].filter(
+      (file) =>
+        (file.startsWith(`${SCREEN_ROOT}/`) && !file.includes('/navigation/')) ||
+        file === join(SRC, 'ui/navigation/screenComponents.ts'),
     );
     expect(screens).toEqual([]);
+    expect(readFileSync(entry, 'utf8')).not.toMatch(/registerScreens\(/);
+  });
+
+  it('loads the screens lazily, as one dynamic chunk, from OxyProvider', () => {
+    const routes = readFileSync(join(SRC, 'ui/navigation/routes.ts'), 'utf8');
+    expect(routes).toMatch(/import\(\s*'\.\/screenComponents'\s*\)/);
+    const provider = readFileSync(join(SRC, 'ui/components/OxyProvider.tsx'), 'utf8');
+    expect(provider).toMatch(/loadScreens\(\)/);
   });
 
   it.each(FULL_ENTRIES)('%s registers the real screen components before navigation', (entry) => {

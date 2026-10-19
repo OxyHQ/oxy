@@ -26,10 +26,15 @@ jest.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children?: ReactNode }) => children,
 }));
 
-jest.mock('react-native-safe-area-context', () => ({
-  __esModule: true,
-  SafeAreaProvider: ({ children }: { children?: ReactNode }) => children,
-}));
+jest.mock('react-native-safe-area-context', () => {
+  const { createContext } = jest.requireActual<typeof import('react')>('react');
+  return {
+    __esModule: true,
+    SafeAreaProvider: ({ children }: { children?: ReactNode }) => children,
+    SafeAreaInsetsContext: createContext(null),
+    SafeAreaFrameContext: createContext(null),
+  };
+});
 
 // The runtime provider is exercised by the context suites; here it is a
 // pass-through so the composition around it is what the assertions see.

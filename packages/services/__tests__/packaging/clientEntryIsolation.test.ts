@@ -82,6 +82,21 @@ describe('ui/client entry isolation', () => {
     expect(panels).toEqual([]);
   });
 
+  it('reaches no account screen: they load lazily from the route registry', () => {
+    // A static import of any screen puts every one of them, with Bloom's phone
+    // input and its flags, in an app's first-paint chunk on web (Syra measured
+    // +128.6 KB gzipped when the app assertion came from the full `ui` barrel).
+    const screens = [...reached.files]
+      .map((file) => relative(SRC, file))
+      .filter((file) => /^ui\/screens\//.test(file));
+    expect(screens).toEqual([]);
+  });
+
+  it('proves the screen check can fail: the root barrel does reach the screens', () => {
+    const root = reach(join(SRC, 'index.ts'));
+    expect([...root.files].some((file) => /^ui\/screens\//.test(relative(SRC, file)))).toBe(true);
+  });
+
   it('reaches none of the packages only the panels need', () => {
     expect(FORBIDDEN_PACKAGES.filter((name) => reached.packages.has(name))).toEqual([]);
   });
@@ -105,6 +120,7 @@ describe('ui/client entry isolation', () => {
       'useFollowTarget',
       'resolveFollowPrimaryAction',
       'ProfileButton',
+      'useAppAssertion',
     ]) {
       expect(client).toMatch(new RegExp(`\\b${symbol}\\b`));
     }

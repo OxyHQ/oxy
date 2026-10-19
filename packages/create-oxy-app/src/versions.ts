@@ -43,18 +43,21 @@ export const VERSIONS = {
   oxyAppPreset: '^3.3.0', // @oxy.so/app-preset
   oxyExpoSplash: '^1.1.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
 
-  // --- Expo SDK 57 core ---
-  expo: '^57.0.6',
-  expoConstants: '~57.0.5',
-  expoFont: '~57.0.1',
-  expoImage: '~57.0.1',
-  expoLinking: '~57.0.3',
-  expoRouter: '~57.0.6',
-  expoSplashScreen: '~57.0.2',
-  expoStatusBar: '~57.0.1',
-  expoSystemUi: '~57.0.1',
-  expoWebBrowser: '~57.0.1',
-  expoBuildProperties: '~57.0.5',
+  // --- Expo SDK 58 core (expo's own bundledNativeModules.json for 58.0.14) ---
+  expo: '~58.0.14',
+  expoConstants: '~58.0.12',
+  expoFont: '~58.0.8',
+  expoImage: '~58.0.15',
+  expoLinking: '~58.0.13',
+  expoRouter: '~58.0.23',
+  expoSplashScreen: '~58.0.10',
+  expoStatusBar: '~58.0.3',
+  expoSystemUi: '~58.0.6',
+  expoWebBrowser: '~58.0.6',
+  expoBuildProperties: '~58.0.11',
+  // Bloom's non-optional peer; SDK 58 made it an optional peer of expo-router,
+  // so nothing else installs the SDK 58 build of it.
+  expoSymbols: '~58.0.4',
   expoVectorIcons: '^15.1.1', // @expo/vector-icons
 
   // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / file picking / QR sign-in) ---
@@ -64,29 +67,29 @@ export const VERSIONS = {
   // must install them or fail to typecheck with TS2307. Adding a screen to the
   // barrel upstream therefore adds a peer here; the list is not optional in
   // practice. See packages/services/__tests__/notifications/barrelIsolation.test.ts.
-  expoHaptics: '~57.0.1',
-  expoImagePicker: '~57.0.4',
-  expoImageManipulator: '~57.0.4',
-  expoDocumentPicker: '~57.0.1',
+  expoHaptics: '~58.0.7',
+  expoImagePicker: '~58.0.10',
+  expoImageManipulator: '~58.0.14',
+  expoDocumentPicker: '~58.0.4',
   reactNativeQrcodeSvg: '^6.3.0',
 
-  // --- React / React Native (Expo SDK 57 pins) ---
-  react: '19.2.3',
-  reactDom: '19.2.3',
-  reactNative: '0.86.0',
-  reactNativeWeb: '~0.21.0',
-  reactTypes: '^19.2.17', // @types/react
-  reactDomTypes: '^19.2.3', // @types/react-dom
+  // --- React / React Native (Expo SDK 58 pins) ---
+  react: '19.3.0',
+  reactDom: '19.3.0',
+  reactNative: '0.88.0',
+  reactNativeWeb: '~0.21.4',
+  reactTypes: '~19.3.0', // @types/react
+  reactDomTypes: '~19.2.3', // @types/react-dom — SDK 58's expected range (expo-doctor)
 
-  // --- Native modules (Expo SDK 57 aligned) ---
+  // --- Native modules (Expo SDK 58 aligned) ---
   asyncStorage: '2.2.0', // @react-native-async-storage/async-storage
-  gestureHandler: '~2.32.0', // react-native-gesture-handler
-  reanimated: '4.5.0', // react-native-reanimated
-  safeAreaContext: '~5.8.0', // react-native-safe-area-context
-  screens: '4.25.2', // react-native-screens
-  svg: '15.15.5', // react-native-svg
-  worklets: '0.10.0', // react-native-worklets
-  keyboardController: '~1.21.13', // react-native-keyboard-controller
+  gestureHandler: '~3.3.0', // react-native-gesture-handler
+  reanimated: '4.7.1', // react-native-reanimated
+  safeAreaContext: '~5.10.1', // react-native-safe-area-context
+  screens: '~4.30.0', // react-native-screens
+  svg: '15.16.0', // react-native-svg
+  worklets: '0.13.0', // react-native-worklets
+  keyboardController: '1.22.7', // react-native-keyboard-controller
 
   // --- Styling (NativeWind 5 preview + Tailwind v4) ---
   nativewind: '5.0.0-preview.3',
@@ -107,13 +110,13 @@ export const VERSIONS = {
   zustand: '^5.0.14',
 
   // --- Babel ---
-  babelPresetExpo: '~57.0.2',
+  babelPresetExpo: '~58.0.17',
   babelModuleResolver: '^5.0.3', // babel-plugin-module-resolver
 
   // --- Tooling ---
-  typescript: '^5.9.3',
+  typescript: '~6.0.3', // the SDK 58 default template's
   eslint: '^9.25.0',
-  eslintConfigExpo: '~57.0.0',
+  eslintConfigExpo: '~58.0.4',
   nodeTypes: '^20.0.0', // @types/node
 
   // --- Backend (Express + Socket.IO) ---

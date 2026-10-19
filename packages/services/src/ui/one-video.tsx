@@ -1,6 +1,7 @@
 /** Optional video entry: never re-export from services or its UI root barrels. */
 import { useEffect } from 'react';
-import { AppState, Image, StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useVideoPlayer } from 'expo-video';
 import { VideoView } from '@oxy.so/bloom/video-view';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -29,7 +30,7 @@ export function OxyOneVideo() {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Image source={floralPoster} resizeMode="cover" style={StyleSheet.absoluteFill} />
+      <ExpoImage source={floralPoster} contentFit="cover" style={StyleSheet.absoluteFill} />
       {!reducedMotion && (
         <VideoView
           player={player}

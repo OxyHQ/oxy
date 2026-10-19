@@ -1,2 +1,2 @@
-declare const source: import('react-native').ImageSourcePropType;
+declare const source: number;
 export default source;

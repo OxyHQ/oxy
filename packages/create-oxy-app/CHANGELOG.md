@@ -1,5 +1,26 @@
 # Changelog: `create-oxy-app`
 
+## 0.8.0
+
+### Changed
+
+- A generated app starts on Expo SDK 58: `expo` `~58.0.14`, React Native
+  `0.88.0`, React `19.3.0`, expo-router `~58.0.23`, Reanimated `4.7.1`,
+  Worklets `0.13.0`, Gesture Handler `~3.3.0`, Screens `~4.30.0`, Safe Area
+  Context `~5.10.1` and TypeScript `~6.0.3` — the set SDK 58's
+  `bundledNativeModules.json` and default template name, which `expo-doctor`
+  accepts. `expo-symbols` `~58.0.4` is now a direct dependency: Bloom needs it
+  and SDK 58 made it an optional peer of expo-router. The Oxy set is unchanged
+  (Services `^11.16.0`, Bloom `^11.1.1`, Core `^6.0.0`, App Preset `^3.3.0`).
+- The root layout swaps `(auth)` and `(app)` with `Stack.Protected` guards;
+  expo-router 58 removed the `Stack.Screen` `redirect` prop it used.
+- `app.config.js` drops `newArchEnabled`, which the SDK 58 config schema no
+  longer has (the New Architecture is the only one). `web.output` stays set
+  explicitly to `'single'`; SDK 58 would otherwise default it to `'server'`.
+- `app/+html.tsx` renders `headNodes` and `bodyNodes` from
+  `useServerDocumentContext()`. On SDK 58 a custom `+html` that leaves them out
+  makes a static web export ship a page with no JS or CSS.
+
 ## 0.7.0
 
 ### Fixed

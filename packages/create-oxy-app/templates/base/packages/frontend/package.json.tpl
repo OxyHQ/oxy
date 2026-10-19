@@ -34,6 +34,7 @@
     "expo-router": "{{v.expoRouter}}",
     "expo-splash-screen": "{{v.expoSplashScreen}}",
     "expo-status-bar": "{{v.expoStatusBar}}",
+    "expo-symbols": "{{v.expoSymbols}}",
     "expo-system-ui": "{{v.expoSystemUi}}",
     "expo-web-browser": "{{v.expoWebBrowser}}",
     "expo-haptics": "{{v.expoHaptics}}",

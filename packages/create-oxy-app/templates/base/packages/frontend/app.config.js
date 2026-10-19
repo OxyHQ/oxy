@@ -20,7 +20,6 @@ module.exports = {
     // fails `:app:processReleaseResources` on `drawable/splashscreen_logo`.
     icon: './assets/images/icon.png',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: true,
     experiments: {
       typedRoutes: true,
       reactCompiler: true,

@@ -15,10 +15,11 @@
 /// <reference path="../types/react-native-classname.d.ts" />
 /// <reference path="../types/react-native-web-style.d.ts" />
 
-import { registerScreens } from './navigation/routes';
-import { screenComponents } from './navigation/screenComponents';
-
-registerScreens(screenComponents);
+// No screen is imported here. `OxyProvider` loads the account screens as their
+// own chunk at startup (`loadScreens`), and a surface opened before that chunk
+// arrives waits for it. A static `screenComponents` import here put all of them
+// in the first-paint bundle of every app that imports anything from `ui`
+// (Allo: +340 KB gzipped).
 
 // Components
 export { default as OxyProvider } from './components/OxyProvider';

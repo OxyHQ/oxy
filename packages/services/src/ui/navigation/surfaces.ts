@@ -167,8 +167,8 @@ function presentInternal<K extends RouteName>(
       bloomOpts,
     );
 
-  // Never mount a partially-loaded frame. Full UI entries take the sync path;
-  // the lean entry's startup preload normally finishes before the first press.
+  // Never mount a partially-loaded frame. The root entry takes the sync path;
+  // `ui` and `ui/client` preload at provider startup, normally before the first press.
   const result = screensReady()
     ? open()
     : loadScreens().then(() => {
