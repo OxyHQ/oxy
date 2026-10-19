@@ -3007,8 +3007,13 @@ class EmailService {
     return readMessageDto(db, message.id);
   }
 
+  /** How many snoozed messages one pass of the cron wakes; the rest wait a minute. */
+  private static readonly SNOOZE_BATCH = 200;
+
   /**
-   * Process all snoozed messages whose snooze time has passed.
+   * Process the snoozed messages whose snooze time has passed, longest
+   * overdue first, at most {@link SNOOZE_BATCH} a pass so one backlog cannot
+   * keep a pass running past the next. Through `messages_snoozed_until_idx`.
    * Called by the snooze cron job every minute.
    */
   async processSnoozedMessages(): Promise<number> {
@@ -3022,7 +3027,9 @@ class EmailService {
           isNotNull(messages.snoozedUntil),
           isNotNull(messages.snoozedFromMailbox),
         ),
-      );
+      )
+      .orderBy(asc(messages.snoozedUntil))
+      .limit(EmailService.SNOOZE_BATCH);
 
     let count = 0;
     for (const msg of due) {
@@ -3238,8 +3245,14 @@ class EmailService {
     return filedPayloadOf(db, row);
   }
 
+  /** How many scheduled messages one pass of the cron sends; the rest wait a minute. */
+  private static readonly SCHEDULED_BATCH = 100;
+
   /**
-   * Process all scheduled messages whose send time has passed.
+   * Process the scheduled messages whose send time has passed, earliest
+   * first, at most {@link SCHEDULED_BATCH} a pass. Through
+   * `messages_scheduled_at_idx`. Only the ids are read up front; each message's
+   * body is read when its turn comes, so a backlog is never held in memory.
    * Called by the scheduled send cron job every minute.
    */
   async processScheduledMessages(): Promise<number> {
@@ -3247,18 +3260,27 @@ class EmailService {
     const now = new Date();
     const due = await db
       .select({
-        ...FILED_PAYLOAD_COLUMNS,
+        id: messages.id,
         messageId: messages.messageId,
         userId: messages.userId,
         mailboxId: messages.mailboxId,
       })
       .from(messages)
-      .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)));
+      .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)))
+      .orderBy(asc(messages.scheduledAt), asc(messages.id))
+      .limit(EmailService.SCHEDULED_BATCH);
 
     let count = 0;
     for (const msg of due) {
       try {
-        const payload = await filedPayloadOf(db, msg);
+        const [filed] = await db
+          .select(FILED_PAYLOAD_COLUMNS)
+          .from(messages)
+          .where(eq(messages.id, msg.id))
+          .limit(1);
+        // Deleted since the pass started: nothing to send.
+        if (!filed) continue;
+        const payload = await filedPayloadOf(db, filed);
 
         // Taking the message off the schedule IS the claim: of two tasks that
         // both read it as due, only one clears `scheduledAt`, and it commits

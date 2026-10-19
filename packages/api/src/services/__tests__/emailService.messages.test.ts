@@ -41,7 +41,7 @@ jest.mock('../../utils/userCache', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
@@ -297,6 +297,46 @@ describe('snooze', () => {
       .where(eq(messages.id, notDue));
     expect(untouched.snoozedUntil).not.toBeNull();
   });
+
+  it('the cron wakes at most 200 a pass, longest overdue first, and the rest on the next', async () => {
+    const userId = await owner();
+    await emailService.ensureMailboxes(userId);
+    const inbox = await mailboxIdFor(userId, '\\Inbox');
+    const snoozed = await mailboxIdFor(userId, '\\Snoozed');
+    // Older than anything another test leaves due, so these go first.
+    const rows = await getDb()
+      .insert(messages)
+      .values(
+        Array.from({ length: 201 }, (_, i) => ({
+          userId,
+          mailboxId: snoozed,
+          messageId: `<${unique()}@example.com>`,
+          fromAddress: 'sender@example.com',
+          subject: '',
+          size: 10,
+          date: new Date(),
+          snoozedUntil: new Date(1_000 + i),
+          snoozedFromMailbox: inbox,
+        })),
+      )
+      .returning({ id: messages.id, snoozedUntil: messages.snoozedUntil });
+    const latest = rows.reduce((a, b) =>
+      (a.snoozedUntil?.getTime() ?? 0) > (b.snoozedUntil?.getTime() ?? 0) ? a : b,
+    );
+    const stillSnoozed = async () =>
+      (
+        await getDb()
+          .select({ id: messages.id })
+          .from(messages)
+          .where(and(eq(messages.userId, userId), eq(messages.mailboxId, snoozed)))
+      ).map((row) => row.id);
+
+    expect(await emailService.processSnoozedMessages()).toBe(200);
+    expect(await stillSnoozed()).toEqual([latest.id]);
+
+    expect(await emailService.processSnoozedMessages()).toBeGreaterThanOrEqual(1);
+    expect(await stillSnoozed()).toEqual([]);
+  }, 30_000);
 });
 
 describe('bulk operations — matched is not modified', () => {
