@@ -1463,20 +1463,28 @@ class EmailService {
       return this.listMailboxes(userId);
     }
 
-    await db.insert(mailboxes).values(
-      DEFAULT_MAILBOXES.map((mb) => ({
-        userId,
-        name: mb.name,
-        path: mb.path,
-        specialUse: mb.specialUse,
-        retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
-      })),
-    );
-    logger.info('Email mailboxes provisioned', { userId });
+    // Two first requests for a new user race here (the app opens several
+    // views at once). `ON CONFLICT DO NOTHING` on `mailboxes_user_id_path_key`
+    // lets the second one through instead of failing on the unique index, and
+    // only the call that actually inserted the Inbox writes the welcome email.
+    const inserted = await db
+      .insert(mailboxes)
+      .values(
+        DEFAULT_MAILBOXES.map((mb) => ({
+          userId,
+          name: mb.name,
+          path: mb.path,
+          specialUse: mb.specialUse,
+          retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
+        })),
+      )
+      .onConflictDoNothing({ target: [mailboxes.userId, mailboxes.path] })
+      .returning({ id: mailboxes.id, specialUse: mailboxes.specialUse });
+    if (inserted.length > 0) logger.info('Email mailboxes provisioned', { userId });
 
     // Create welcome email in the Inbox (don't fail provisioning if this fails)
     try {
-      const inbox = await this.getMailboxBySpecialUse(userId, '\\Inbox');
+      const inbox = inserted.find((mb) => mb.specialUse === '\\Inbox');
       if (inbox) {
         await this.createWelcomeEmail(userId, inbox.id);
       }
@@ -1538,16 +1546,23 @@ class EmailService {
     );
 
     if (missing.length > 0) {
-      await db.insert(mailboxes).values(
-        missing.map((mb) => ({
-          userId,
-          name: mb.name,
-          path: mb.path,
-          specialUse: mb.specialUse,
-          retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
-        })),
-      );
-      logger.info('Synced missing default mailboxes', { userId, count: missing.length });
+      // A concurrent sync may insert the same folders first.
+      const synced = await db
+        .insert(mailboxes)
+        .values(
+          missing.map((mb) => ({
+            userId,
+            name: mb.name,
+            path: mb.path,
+            specialUse: mb.specialUse,
+            retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
+          })),
+        )
+        .onConflictDoNothing({ target: [mailboxes.userId, mailboxes.path] })
+        .returning({ id: mailboxes.id });
+      if (synced.length > 0) {
+        logger.info('Synced missing default mailboxes', { userId, count: synced.length });
+      }
     }
   }
 
