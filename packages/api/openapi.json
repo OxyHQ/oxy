@@ -29481,6 +29481,11 @@
                   "reauth": {
                     "type": "object",
                     "properties": {
+                      "password": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
                       "emailCode": {
                         "type": "object",
                         "properties": {
@@ -29504,10 +29509,7 @@
                         "minLength": 6,
                         "maxLength": 16
                       }
-                    },
-                    "required": [
-                      "emailCode"
-                    ]
+                    }
                   }
                 },
                 "required": [
