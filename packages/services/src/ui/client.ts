@@ -69,7 +69,22 @@ export { useStorage } from './hooks/useStorage';
 // Realtime events and the profile mutation, which startup code (a socket hook,
 // a locale provider) needs without the root barrel's account screens.
 export { useOxyEvent } from './hooks/useOxyEvent';
-export { useUpdateProfile } from './hooks/mutations/useAccountMutations';
+// Data hooks a product screen needs (a review's photo upload, a price in the
+// viewer's currency, a "Syncing..." badge) without the root barrel's screens:
+// mercaria.co shipped ~225 KB gzip of account screens on first paint because
+// its review upload could only get `useUploadFile` from the root.
+export {
+  useUpdateProfile,
+  useUploadAvatar,
+  useUploadFile,
+} from './hooks/mutations/useAccountMutations';
+export { useFileDownloadUrl } from './hooks/useFileDownloadUrl';
+export { useMutationStatus } from './hooks/useMutationStatus';
+export type { MutationStatus } from './hooks/useMutationStatus';
+export { useOnlineStatus } from './hooks/useOnlineStatus';
+export { useDisplayCurrency } from './hooks/useDisplayCurrency';
+export { useDisplayPrice } from './hooks/useDisplayPrice';
+export { DisplayCurrencySelector } from './components/DisplayCurrencySelector';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
 // Route screens live at `@oxy.so/services/screens` so client imports preserve

@@ -1,5 +1,18 @@
 # Changelog
 
+## [12.3.0] - 2026-10-19
+
+### Added
+
+- `@oxy.so/services/ui/client` exports the data hooks product screens need:
+  `useUploadFile`, `useUploadAvatar`, `useFileDownloadUrl`,
+  `useMutationStatus`, `useOnlineStatus`, `useDisplayCurrency`,
+  `useDisplayPrice` and `DisplayCurrencySelector`. They were root-only, so a
+  screen that uploaded a file or showed a price in the viewer's currency
+  imported the root barrel and shipped every account screen in first paint
+  (mercaria.co's review upload: ~225 KB gzip). None of them reaches a screen;
+  `clientEntryIsolation.test.ts` pins both the exports and the isolation.
+
 ## [12.2.1] - 2026-10-19
 
 ### Added

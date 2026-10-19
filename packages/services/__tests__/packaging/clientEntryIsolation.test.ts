@@ -107,7 +107,7 @@ describe('ui/client entry isolation', () => {
     expect(root.packages.has('react-native-qrcode-svg')).toBe(true);
   });
 
-  it('exports the cache, query and follow helpers an app needs at startup', () => {
+  it('exports the cache, query, follow and data hooks an app needs without the root barrel', () => {
     const client = readFileSync(ENTRY, 'utf8');
     for (const symbol of [
       'queryKeys',
@@ -121,6 +121,13 @@ describe('ui/client entry isolation', () => {
       'resolveFollowPrimaryAction',
       'ProfileButton',
       'useAppAssertion',
+      'useUploadFile',
+      'useUploadAvatar',
+      'useFileDownloadUrl',
+      'useMutationStatus',
+      'useOnlineStatus',
+      'useDisplayCurrency',
+      'useDisplayPrice',
     ]) {
       expect(client).toMatch(new RegExp(`\\b${symbol}\\b`));
     }
