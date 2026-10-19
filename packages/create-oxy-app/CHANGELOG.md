@@ -1,5 +1,18 @@
 # Changelog: `create-oxy-app`
 
+## 0.7.0
+
+### Fixed
+
+- A generated app installs a compatible Oxy set again: `@oxy.so/services`
+  `^11.16.0` with `@oxy.so/bloom` `^11.1.1`, `@oxy.so/core` `^6.0.0`,
+  `@oxy.so/contracts` `^5.0.0`, `@oxy.so/app-preset` `^3.3.0` and
+  `@oxy.so/expo-splash` `^1.1.0`. The previous pins (Bloom `6.2.1`, Core
+  `^4.0.0`) were forced over the whole tree by the generated root overrides,
+  while every Services `^11.0.0` now resolves to needs Bloom `>=11.1.0` and Core
+  `^5.5.0 || ^6.0.0` — so a fresh app ran Services against a Bloom and a Core
+  outside its peer ranges.
+
 ## 0.5.0
 
 ### Changed

@@ -242,7 +242,6 @@ credential only) in the public shape: amount, never provider.
 | service token of Mention in production, `decisions` (`mention-kaana-decisions`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-decisions` | **no** | decisions only, on the decisions profile; 2 in flight, 2 000 a UTC day on its own rows; first-party class, not `is_internal`; Mention's other operations are `commercial` unless the next row names them ([decisions.md](decisions.md)) |
 | service token of Mention in production, `responses` / `chat_completions` (`mention-kaana-text`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-text` | **no** | the `instant` level only (a model or other level is `policy_violation`, `pilot-level`); 32 000 input and 8 192 output tokens (the caller's limit is required), USD 0.035 a request (the dearest instant line at full size quotes USD 0.0301); 8 in flight, 5 000 a UTC day on its own rows; first-party class |
 | `decisions` without decisions terms | — | — | refused `permission_denied` (`decisions-not-enabled`) |
-| a source approval (`canonicalInputSha256`) | — | — | refused: Oxy holds none (the one-off scoped, Private Auto and Mention classifier permits were deleted) |
 
 Charged grants need `INFERENCE_CHARGING_AUTHORIZED`: a commercial grant must
 carry its hold, so a shadow-metering deployment answers 503 instead.
