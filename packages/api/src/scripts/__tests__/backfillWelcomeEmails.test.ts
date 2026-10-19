@@ -150,6 +150,40 @@ it('rolls the entire cutover back if a candidate cannot be identified safely', a
   expect(await read(unknown)).toEqual(unknownBefore);
 });
 
+it('preserves the first-name greeting from the original template with a full recipient name', async () => {
+  const id = await seed();
+  await getDb()
+    .update(messageRecipients)
+    .set({ name: 'Ana Example' })
+    .where(eq(messageRecipients.messageId, id));
+  expect(await backfillWelcomeEmails(getDb(), true)).toEqual({
+    candidates: 1,
+    eligible: 1,
+    unrecognised: 0,
+    updated: 1,
+  });
+  expect(await read(id)).toMatchObject(renderWelcomeEmail('Ana', address));
+  const [recipient] = await getDb()
+    .select({ name: messageRecipients.name })
+    .from(messageRecipients)
+    .where(eq(messageRecipients.messageId, id));
+  expect(recipient.name).toBe('Ana Example');
+});
+
+it.each(['Anabelle Example', 'Unrelated Name'])(
+  'refuses a mismatched historical greeting for %s',
+  async (name) => {
+    const id = await seed();
+    await getDb()
+      .update(messageRecipients)
+      .set({ name })
+      .where(eq(messageRecipients.messageId, id));
+    const before = await read(id);
+    await expect(backfillWelcomeEmails(getDb(), true)).rejects.toThrow('rolled back');
+    expect(await read(id)).toEqual(before);
+  },
+);
+
 it('updates every page of candidates without skipping rows as their subjects change', async () => {
   for (let i = 0; i < 101; i++) await seed();
   expect(await backfillWelcomeEmails(getDb(), true)).toEqual({

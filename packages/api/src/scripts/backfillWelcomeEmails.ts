@@ -62,6 +62,18 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
           .from(messageRecipients)
           .where(eq(messageRecipients.messageId, message.id));
         const recipient = recipients[0];
+        const greetingEnd = message.text?.indexOf(`,\n\n${LEGACY_INTRO}\n\n`) ?? -1;
+        const greetingName =
+          message.text?.startsWith('Hi ') && greetingEnd > 3
+            ? message.text.slice(3, greetingEnd)
+            : undefined;
+        const recipientName = recipient?.name || 'there';
+        // Before 6f9e9fa6c, the greeting used name.first while the To header
+        // stored first + last. Accept that historical prefix at a word boundary,
+        // preserving the original greeting; an unrelated name still fails closed.
+        const recognisedGreeting =
+          greetingName !== undefined &&
+          (greetingName === recipientName || recipientName.startsWith(`${greetingName} `));
         const signature = new RegExp(
           `^<welcome-${escapeRegex(message.userId)}-${UUID}@${escapeRegex(EMAIL_DOMAIN)}>$`,
         );
@@ -69,7 +81,7 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
           !signature.test(message.messageId) ||
           recipients.length !== 1 ||
           recipient.kind !== 'to' ||
-          !message.text?.startsWith(`Hi ${recipient.name || 'there'},\n\n${LEGACY_INTRO}\n\n`)
+          !recognisedGreeting
         ) {
           result.unrecognised++;
           continue;
@@ -77,7 +89,7 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
 
         result.eligible++;
         if (apply) {
-          const content = renderWelcomeEmail(recipient.name || 'there', recipient.address);
+          const content = renderWelcomeEmail(greetingName, recipient.address);
           await tx
             .update(messages)
             .set({
