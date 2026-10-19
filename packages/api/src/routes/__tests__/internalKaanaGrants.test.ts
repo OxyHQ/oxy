@@ -204,7 +204,6 @@ interface InferenceAuthorizationOptions {
   readonly facts?: Record<string, unknown>;
   readonly idempotencyKey?: string;
   readonly onBehalfOfUserId?: string;
-  readonly canonicalInputSha256?: string;
 }
 
 function inferenceRequest(options: InferenceAuthorizationOptions): Record<string, unknown> {
@@ -225,9 +224,6 @@ function inferenceRequest(options: InferenceAuthorizationOptions): Record<string
     ...(options.onBehalfOfUserId === undefined
       ? {}
       : { onBehalfOfUserId: options.onBehalfOfUserId }),
-    ...(options.canonicalInputSha256 === undefined
-      ? {}
-      : { canonicalInputSha256: options.canonicalInputSha256 }),
     bodySha256: sha256(`body-${tag()}`),
     client: { endpoint: '/v1/responses', receivedAt: new Date().toISOString() },
   };
@@ -931,22 +927,13 @@ describe('a commercial grant (oxy_sk_, machine_credential)', () => {
     expect(result.body.code).toBe('model_not_found');
   });
 
-  it('refuses decisions to an application without decisions terms, and any source approval', async () => {
+  it('refuses decisions to an application without decisions terms', async () => {
     const customer = await textCustomer();
     const decisions = await authorize(
       inferenceRequest({ credential: customer.token, operation: 'decisions' }),
     );
     expect(decisions.status).toBe(403);
     expect(decisions.body.code).toBe('permission_denied');
-    const sourceApproved = await authorize(
-      inferenceRequest({
-        credential: customer.token,
-        target: { kind: 'model', modelLine: customer.modelReference },
-        canonicalInputSha256: sha256('approved'),
-      }),
-    );
-    expect(sourceApproved.status).toBe(503);
-    expect(sourceApproved.body.code).toBe('service_unavailable');
   });
 
   it('refuses a commercial realtime session: its facts bound no hold', async () => {

@@ -53,8 +53,6 @@
  *
  * ## What this phase does not grant yet
  *
- *  - A source approval (`canonicalInputSha256`): the one-off permits it served
- *    were deleted with the stable decisions approval.
  *  - A COMMERCIAL realtime session: the authorization's facts carry no session
  *    duration, so no hold Oxy could size from them would be a bound.
  *  - The `product_session` lane: a user session needs the new public
@@ -733,14 +731,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       'This credential does not hold the inference:invoke scope.',
     );
   }
-  if (request.canonicalInputSha256 !== undefined) {
-    throw new GrantRefusal(
-      'service_unavailable',
-      'Source-approved operations are not granted: Oxy holds no source approval.',
-      { reason: 'source-approval-not-granted' },
-    );
-  }
-
   const economics = resolveEconomicTreatment(principal, request.operation);
   const plan = planOperation(request);
 
