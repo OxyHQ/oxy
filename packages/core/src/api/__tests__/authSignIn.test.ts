@@ -239,6 +239,55 @@ describe('the signed-in account', () => {
     );
   });
 
+  it('removes the password with its proof', async () => {
+    makeRequest.mockResolvedValueOnce({ success: true });
+    await oxy.auth.password.remove(reauth);
+    expect(makeRequest).toHaveBeenCalledWith(
+      'DELETE',
+      '/users/me/password',
+      { reauth },
+      { cache: false },
+    );
+  });
+
+  it('adds, changes and removes the email, forgetting the cached account', async () => {
+    const invalidate = jest.spyOn(oxy.http, 'invalidateCache');
+    makeRequest.mockResolvedValueOnce({ verificationId: 'v2', expiresAt: 1_900_000_000_000 });
+    expect(await oxy.auth.email.startChange('new@example.com')).toEqual({
+      verificationId: 'v2',
+      expiresAt: 1_900_000_000_000,
+    });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/me/email/verify/start',
+      { email: 'new@example.com' },
+      { cache: false },
+    );
+    makeRequest.mockResolvedValueOnce({ success: true });
+    await oxy.auth.email.change({
+      email: 'new@example.com',
+      verificationId: 'v2',
+      code: '123456',
+      reauth,
+    });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'PUT',
+      '/users/me/email',
+      { email: 'new@example.com', verificationId: 'v2', code: '123456', reauth },
+      { cache: false },
+    );
+    makeRequest.mockResolvedValueOnce({ success: true });
+    await oxy.auth.email.remove({ password: 'my password' });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'DELETE',
+      '/users/me/email',
+      { reauth: { password: 'my password' } },
+      { cache: false },
+    );
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledWith({ prefixes: ['GET:/users/me'] });
+  });
+
   it('enrols, confirms, regenerates and disables the authenticator', async () => {
     makeRequest.mockResolvedValueOnce({
       secret: 'JBSWY3DPEHPK3PXP',

@@ -1,9 +1,11 @@
-import type { IdentityRootStatus } from '@oxy.so/contracts';
+import type { IdentityRootStatus, SignInMethods } from '@oxy.so/contracts';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 
 /** Stable identifier for each security recommendation the app can surface. */
 export type SecurityRecommendationId =
   | 'biometric'
+  | 'add-email'
+  | 'authenticator'
   | 'link-commons'
   | 'old-sessions'
   | 'many-devices'
@@ -29,6 +31,13 @@ export interface SecurityRecommendationInput {
    * key, and its recovery phrase in place of its email.
    */
   rootStatus: IdentityRootStatus | undefined;
+  /**
+   * How an account without a key signs in (`GET /users/me/sign-in-methods`),
+   * or `undefined` while unknown or for an account with a key. Without an
+   * email it has no way back if it forgets its password; without an
+   * authenticator, one stolen factor is enough.
+   */
+  signInMethods: SignInMethods | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -93,6 +102,16 @@ export function selectSecurityRecommendations(
   // 2. An account without a key can hold its own (medium priority).
   if (input.rootStatus && !input.rootStatus.rootLinked) {
     recommendations.push({ id: 'link-commons', priority: 2 });
+  }
+
+  // 2b. No email: nothing to recover the account with (high priority).
+  if (input.signInMethods && !input.signInMethods.hasEmail) {
+    recommendations.push({ id: 'add-email', priority: 1 });
+  }
+
+  // 2c. No authenticator app: a second step at sign-in (medium priority).
+  if (input.signInMethods && !input.signInMethods.totpEnabled) {
+    recommendations.push({ id: 'authenticator', priority: 2 });
   }
 
   // 3. Old/inactive sessions (medium priority).

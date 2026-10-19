@@ -12,16 +12,21 @@ interface SignInSectionProps {
 }
 
 /**
- * "How you sign in" section: a subtitle plus the biometric / public-key
- * sign-in rows. Extracted from the security screen's `renderContent`.
+ * "On this device" section: what this app asks before it opens (the biometric
+ * row). Nothing on the web, where there is none. How the ACCOUNT signs in is
+ * the SDK's `OxySignInSecurityPanel`, above it.
  */
 export function SignInSection({ items }: SignInSectionProps) {
   const { t } = useTranslation();
 
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
-    <Section title={t('security.sections.howYouSignIn')}>
+    <Section title={t('security.sections.thisDevice')}>
       <ThemedText style={styles.sectionSubtitle}>
-        {t('security.sections.howYouSignInSubtitle')}
+        {t('security.sections.thisDeviceSubtitle')}
       </ThemedText>
       <AccountCard>
         <GroupedSection items={items} />

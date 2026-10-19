@@ -3,8 +3,9 @@
  * ticket a sign-up code's confirmation mints (ADR 0030).
  *
  * One row per code sent: a new account proving its email (`signup`), signing
- * in with it (`signin`, see `emailSignInRequests.ts`), or a signed-in person
- * proving it is them before a sensitive step (`reauth`). A row that names no
+ * in with it (`signin`, see `emailSignInRequests.ts`), a signed-in person
+ * proving it is them before a sensitive step (`reauth`), or a signed-in
+ * account proving the new address it moves to (`email_change`). A row that names no
  * account where one was asked for (a sign-in for an unknown identifier, a
  * sign-up for a taken address) is a decoy: its code was never sent, so it can
  * never be confirmed, and the caller cannot tell it from a real one.
@@ -33,7 +34,7 @@ export const emailVerifications = pgTable(
     /** `hashEmail` of the address the code went (or would have gone) to. */
     emailHash: text().notNull(),
     /**
-     * The account the code is for (sign-in, re-verification). `null`
+     * The account the code is for (sign-in, re-verification, a new address). `null`
      * for a sign-up and for a decoy. `CASCADE`: a deleted account has nothing
      * left to prove.
      */
@@ -61,7 +62,10 @@ export const emailVerifications = pgTable(
     index('email_verifications_email_hash_created_at_idx').on(t.emailHash, t.createdAt),
     index('email_verifications_expires_at_idx').on(t.expiresAt),
     index('email_verifications_user_id_idx').on(t.userId),
-    check('email_verifications_purpose_check', sql`${t.purpose} in ('signup', 'signin', 'reauth')`),
+    check(
+      'email_verifications_purpose_check',
+      sql`${t.purpose} in ('signup', 'signin', 'reauth', 'email_change')`,
+    ),
     check(
       'email_verifications_ticket_check',
       sql`${t.ticketHash} is null or ${t.confirmedAt} is not null`,

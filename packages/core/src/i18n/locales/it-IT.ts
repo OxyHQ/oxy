@@ -346,6 +346,7 @@ const dict = {
     failed: 'Non è stato possibile collegare Commons. Riprova.',
     confirmTitle: 'Conferma il collegamento',
     confirmDescription: 'Per finire, conferma che sei tu con un codice che ti inviamo via email.',
+    confirmPasswordDescription: 'Per finire, conferma che sei tu con la tua password.',
     row: 'Tieni la tua chiave con Commons',
   },
   reauth: {
@@ -363,6 +364,53 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Accesso e sicurezza',
+    subtitle: "Email, password, app di autenticazione e dove hai effettuato l'accesso",
+    methodsTitle: 'Come accedi',
+    notPersonal: 'Solo un account personale accede con email, password o app di autenticazione.',
+    loadFailed: 'Non è stato possibile caricare come accede questo account.',
+    retry: 'Riprova',
+    noEmailWarning:
+      "Questo account non ha un'email. Accedi solo con la password e, se la dimentichi, non c'è modo di recuperare l'account.",
+    status: {
+      on: 'Attivo',
+      off: 'Disattivato',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'È il tuo unico modo per accedere. Aggiungine prima un altro.',
+      passwordRequired: 'Imposta prima una password e conferma con quella.',
+      emailUnchanged: 'Questa è già la tua email.',
+    },
+    email: {
+      title: 'Email',
+      none: 'Nessuna email',
+      description:
+        'I codici e i link di accesso e gli avvisi di sicurezza arrivano a questo indirizzo.',
+      noneDescription:
+        "Aggiungi un'email per accedere con un codice o un link, e per recuperare l'account se dimentichi la password.",
+      change: 'Cambia email',
+      add: "Aggiungi un'email",
+      remove: 'Rimuovi email',
+      removeNeedsPassword:
+        'Per rimuovere la tua email, imposta prima una password: sarà il tuo unico modo per accedere.',
+      newLabel: 'Nuovo indirizzo email',
+      newDescription: 'Invieremo un codice al nuovo indirizzo per verificare che sia tuo.',
+      invalid: 'Inserisci un indirizzo email valido.',
+      sendCode: 'Invia codice',
+      confirmTitle: 'Conferma la nuova email',
+      confirmDescription:
+        'Inserisci il codice che abbiamo inviato a {{email}}, poi conferma che sei tu.',
+      codeLabel: 'Codice inviato alla nuova email',
+      save: 'Salva email',
+      saved: 'La tua email è stata aggiornata. Gli altri dispositivi sono stati disconnessi.',
+      removeTitle: 'Rimuovi la tua email',
+      removeDescription:
+        "Accederai solo con la password. Se la dimentichi, non c'è modo di recuperare l'account. Conferma con la tua password.",
+      removed: 'La tua email è stata rimossa. Gli altri dispositivi sono stati disconnessi.',
+    },
     password: {
       title: 'Password',
       setTitle: 'Imposta una password',
@@ -377,6 +425,10 @@ const dict = {
       save: 'Salva password',
       saved: 'La password è stata salvata.',
       row: 'Facoltativo: accedi con una password',
+      remove: 'Rimuovi password',
+      removeTitle: 'Rimuovi la tua password',
+      removeDescription: 'Accederai con un codice o un link inviato alla tua email.',
+      removed: 'La tua password è stata rimossa. Gli altri dispositivi sono stati disconnessi.',
     },
     totp: {
       title: 'App di autenticazione',
@@ -402,6 +454,7 @@ const dict = {
       regenerateDescription: 'I vecchi codici di backup smetteranno di funzionare.',
       remaining: '{{count}} codici di backup rimasti',
       row: 'Un secondo passaggio quando accedi',
+      onWithCodes: 'Attiva · {{count}} codici di backup rimasti',
     },
   },
   fileManagement: {

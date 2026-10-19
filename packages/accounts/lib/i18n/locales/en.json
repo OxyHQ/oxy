@@ -138,22 +138,18 @@
     "sections": {
       "recommendations": "Security recommendations",
       "recentActivity": "Recent security activity",
-      "howYouSignIn": "How you sign in to Oxy",
-      "howYouSignInSubtitle": "Make sure you can always access your Oxy Account by keeping this information up to date",
+      "thisDevice": "On this device",
+      "thisDeviceSubtitle": "What this app asks for before it opens",
       "yourDevices": "Your devices",
       "yourDevicesSubtitle": "Where you're signed in ({{count}} devices total)",
       "yourDevicesSubtitle_one": "Where you're signed in ({{count}} device total)",
-      "activeSessions": "Active sessions",
-      "activeSessionsSubtitle": "Manage your active sign-in sessions across all devices",
-      "language": "Language",
-      "languageSubtitle": "Change the language used by this app",
       "connectedApps": "Connected apps"
     },
     "recommendations": {
       "biometric": "Enable biometric authentication",
       "biometricSubtitle": "Add an extra layer of security to your account",
       "biometricAlertTitle": "Enable Biometric Authentication",
-      "biometricAlertMessage": "You can enable biometric authentication in the \"How you sign in\" section below. This adds an extra layer of security to your account.",
+      "biometricAlertMessage": "You can enable biometric authentication in the \"On this device\" section below. This adds an extra layer of security to your account.",
       "biometricGoToSettings": "Go to Settings",
       "oldSessions": "Review {{count}} inactive sessions",
       "oldSessions_one": "Review {{count}} inactive session",
@@ -166,7 +162,11 @@
       "suspiciousAlertTitle": "Critical Security Events",
       "suspiciousAlertMessage": "You have {{count}} critical security event(s). Please review your security activity below and consider changing your password or signing out of all devices if you notice any suspicious activity.",
       "linkCommons": "Link Commons",
-      "linkCommonsSubtitle": "Hold your own key: your account becomes yours alone, and your recovery phrase replaces its email."
+      "linkCommonsSubtitle": "Hold your own key: your account becomes yours alone, and your recovery phrase replaces its email.",
+      "addEmail": "Add an email",
+      "addEmailSubtitle": "Without one, you can't get your account back if you forget your password.",
+      "authenticator": "Turn on an authenticator app",
+      "authenticatorSubtitle": "Ask for a second code when you sign in, so a stolen password or email is not enough."
     },
     "activity": {
       "loading": "Loading security activity...",
@@ -193,9 +193,7 @@
       "biometricAvailableToggle": "Available - tap to enable",
       "biometricNotAvailable": "Not available",
       "faceTouchId": "Face ID / Touch ID",
-      "biometricAuthTitle": "Biometric Authentication",
-      "publicKeyAuth": "Public key authentication",
-      "publicKeyAuthSubtitle": "Your account uses cryptographic keys for secure sign-in"
+      "biometricAuthTitle": "Biometric Authentication"
     },
     "recoveryWarning": {
       "title": "No recovery phrase backup",
@@ -208,36 +206,6 @@
       "manageAll": "Manage all devices",
       "noDevices": "No devices found",
       "noDevicesSubtitle": "Devices you sign in on will appear here"
-    },
-    "sessions": {
-      "logoutAll": "Sign out of all other devices",
-      "logoutAllSubtitle": "Sign out of {{count}} other active sessions",
-      "logoutAllSubtitle_one": "Sign out of {{count}} other active session",
-      "logoutAllConfirmTitle": "Sign out of all devices?",
-      "logoutAllConfirmMessage": "This will sign you out of all {{count}} active sessions except this one. You'll need to sign in again on other devices.",
-      "logoutAllConfirmMessage_one": "This will sign you out of all {{count}} active session except this one. You'll need to sign in again on other devices.",
-      "logoutAllAction": "Sign out all",
-      "logoutAllSuccess": "Signed out of all other devices",
-      "logoutAllFailed": "Failed to sign out of all devices"
-    },
-    "language": {
-      "label": "App language",
-      "current": "{{language}}",
-      "modalTitle": "Choose a language",
-      "modalSubtitle": "Select your preferred language for this app",
-      "changed": "Language updated"
-    },
-    "signInMethods": {
-      "email": "Email",
-      "emailSubtitle": "A code or a link each time you sign in",
-      "password": "Password",
-      "passwordSet": "Set — tap to change it",
-      "passwordNotSet": "Not set — optional",
-      "authenticator": "Authenticator app",
-      "authenticatorOn": "On · {{count}} backup codes left",
-      "authenticatorOff": "Off — add a second step to sign-in",
-      "linkCommons": "Link Commons",
-      "linkCommonsSubtitle": "Hold your own key: the account becomes yours alone, and its email is deleted"
     }
   },
   "data": {
@@ -773,36 +741,6 @@
       "removeCurrentWarning": "You cannot remove your current device. Use another device to remove this one."
     }
   },
-  "sessions": {
-    "title": "Login Sessions",
-    "subtitle": "These are your active login sessions across devices. Each session represents a signed-in device.",
-    "loading": "Loading sessions...",
-    "item": {
-      "title": "Session {{id}}",
-      "currentActive": "Current session • {{time}}",
-      "lastActive": "Last active: {{time}}",
-      "activeBadge": "Active"
-    },
-    "remove": {
-      "currentWarning": "You cannot remove your current active session. Switch to another session first.",
-      "confirmTitle": "Remove session",
-      "confirmMessage": "Are you sure you want to remove this session?",
-      "success": "Session removed",
-      "failed": "Failed to remove session. Please try again."
-    },
-    "switch": {
-      "success": "Session switched",
-      "failed": "Failed to switch session. Please try again."
-    },
-    "managedLink": {
-      "title": "Looking for your accounts?",
-      "subtitle": "Go to Accounts to manage organizations, projects, and bots"
-    },
-    "empty": {
-      "title": "No active sessions",
-      "subtitle": "Devices you sign in on will appear here as active sessions."
-    }
-  },
   "sidebar": {
     "actingAs": "Using {{name}}",
     "managedAccountFallback": "Managed Account"
@@ -863,8 +801,6 @@
     "scrollToTop": "Scroll to top",
     "themeToggle": "Toggle theme",
     "removeDevice": "Remove device",
-    "removeSession": "Remove session",
-    "switchSession": "Switch to this session",
     "actAs": "Switch to this account",
     "stopActingAs": "Current account",
     "manageMembers": "Manage members and sharing",

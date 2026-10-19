@@ -1,6 +1,6 @@
 /**
  * The frame the account's own security panels render in when presented as a
- * surface (`showBottomSheet('DeleteAccount' | 'LinkCommons' | 'SignInPassword'
+ * surface (`showBottomSheet('DeleteAccount' | 'LinkCommons' | 'SignInEmail' | 'SignInPassword'
  * | 'SignInAuthenticator')`): the panel draws its own large header, so the bar
  * holds only the way back, and the body keeps the dialog's screen gutter.
  */

@@ -4,6 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { AccountCard, ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
+import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { formatDate } from '@/utils/date-utils';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -33,6 +34,10 @@ export default function PersonalInfoScreen() {
     },
     [showBottomSheet],
   );
+  // The email is not a profile field: it changes, with fresh proof, in the
+  // SDK's own panel (add, change or remove).
+  const openEmail = useCallback(() => showBottomSheet?.('SignInEmail'), [showBottomSheet]);
+  const router = useRouter();
 
   // Compute current-account profile data.
   const displayName = useMemo(
@@ -79,6 +84,7 @@ export default function PersonalInfoScreen() {
         iconColor: colors.sidebarIconSecurity,
         title: t('personalInfo.fields.email'),
         value: userEmail,
+        onPress: openEmail,
       },
       {
         id: 'phone',
@@ -125,6 +131,7 @@ export default function PersonalInfoScreen() {
       userBirthday,
       user?.createdAt,
       handleEditField,
+      openEmail,
       t,
     ],
   );
@@ -138,6 +145,7 @@ export default function PersonalInfoScreen() {
         title: t('personalInfo.fields.email'),
         subtitle: userEmail,
         showChevron: false,
+        onPress: openEmail,
       },
       {
         id: 'phone',
@@ -177,6 +185,7 @@ export default function PersonalInfoScreen() {
       userAddress,
       userBirthday,
       handleEditField,
+      openEmail,
       t,
     ],
   );
@@ -198,7 +207,7 @@ export default function PersonalInfoScreen() {
         iconColor: colors.sidebarIconSecurity,
         title: t('personalInfo.actions.manageSessions'),
         subtitle: t('personalInfo.actions.manageSessionsSubtitle'),
-        onPress: () => showBottomSheet?.('ManageAccount'),
+        onPress: () => router.push('/(tabs)/devices'),
         showChevron: true,
       },
       {
@@ -207,11 +216,11 @@ export default function PersonalInfoScreen() {
         iconColor: colors.sidebarIconSecurity,
         title: t('personalInfo.actions.identitySecurity'),
         subtitle: t('personalInfo.actions.identitySecuritySubtitle'),
-        onPress: () => showBottomSheet?.('ManageAccount'),
+        onPress: () => router.push('/(tabs)/security'),
         showChevron: true,
       },
     ],
-    [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, showBottomSheet, t],
+    [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, showBottomSheet, router, t],
   );
 
   // Show loading state while OxyServices is initializing

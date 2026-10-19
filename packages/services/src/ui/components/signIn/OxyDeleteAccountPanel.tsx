@@ -2,8 +2,9 @@
  * Deleting an account that has no key of its own, from the account's settings
  * (the account dialog's "Manage your account", or the Accounts app):
  *
- *   type the username → a code sent to the account's email (+ the
- *   authenticator's code when it has one) → deleted, and signed out
+ *   type the username → a code sent to the account's email, or its password
+ *   when it has no email (+ the authenticator's code when it has one) →
+ *   deleted, and signed out
  *
  * An account with a Commons key is deleted with that key — in Commons, or in
  * an app that holds it (`ManageAccountScreen`); this panel says so instead.
@@ -14,11 +15,11 @@ import type React from 'react';
 import { useState } from 'react';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
-import { OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
+import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
 import { AccountFlowField, AccountFlowNotice } from './accountFlowParts';
+import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
 
 export interface OxyDeleteAccountPanelProps {
   /** The account is gone and this origin signed out of it. */
@@ -33,8 +34,7 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
 }) => {
   const { t } = useI18n();
   const { user, oxyServices, logout } = useOxy();
-  const keyed = Boolean(user?.publicKey);
-  const methods = useSignInMethods({ enabled: !keyed });
+  const security = useAccountSecurityState();
   const [confirmText, setConfirmText] = useState('');
   const [deleted, setDeleted] = useState(false);
 
@@ -49,7 +49,7 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
     );
   }
 
-  if (keyed) {
+  if (security.keyed) {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} />
@@ -60,7 +60,9 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
     );
   }
 
-  if (!methods.data) return <OxyAuthLoading />;
+  const fallback = accountSecurityFallback(security, t('deleteAccount.title'), t);
+  if (fallback || !security.methods.data) return fallback;
+  const { hasEmail, totpEnabled } = security.methods.data;
 
   const username = user?.username ?? '';
 
@@ -69,14 +71,16 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
       title={t('deleteAccount.title')}
       description={t('deleteAccount.keyless.subtitle', { username })}
       action="delete_account"
-      totpEnabled={methods.data.totpEnabled}
+      // The mailbox proves it when there is one; the password only without.
+      allowPassword={!hasEmail}
+      allowEmail={hasEmail}
+      totpEnabled={totpEnabled}
       submitLabel={t('deleteAccount.keyless.action')}
       destructive
       validate={() =>
         confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username })
       }
       onSubmit={async (proof) => {
-        if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
         // The last word before it is gone: the proof is ready, and nothing has
         // been sent yet. Cancelling keeps the screen as it is, code and all.
         const confirmed = await surfaces.confirm({
@@ -87,12 +91,7 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
           destructive: true,
         });
         if (!confirmed) return;
-        await oxyServices.users.deleteMe(confirmText.trim(), {
-          reauth: {
-            emailCode: proof.emailCode,
-            ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
-          },
-        });
+        await oxyServices.users.deleteMe(confirmText.trim(), { reauth: proof });
         await logout().catch(() => undefined);
         setDeleted(true);
         onDeleted?.();

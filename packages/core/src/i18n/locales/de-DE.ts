@@ -353,6 +353,7 @@ const dict = {
     confirmTitle: 'Verknüpfung bestätigen',
     confirmDescription:
       'Bestätige zum Abschluss mit einem Code, den wir dir per E-Mail schicken, dass du es bist.',
+    confirmPasswordDescription: 'Bestätige zum Abschluss mit deinem Passwort, dass du es bist.',
     row: 'Behalte deinen eigenen Schlüssel mit Commons',
   },
   reauth: {
@@ -371,6 +372,54 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Anmeldung & Sicherheit',
+    subtitle: 'E-Mail, Passwort, Authenticator-App und wo du angemeldet bist',
+    methodsTitle: 'So meldest du dich an',
+    notPersonal:
+      'Nur ein persönliches Konto meldet sich mit E-Mail, Passwort oder Authenticator-App an.',
+    loadFailed: 'Die Anmeldemethoden dieses Kontos konnten nicht geladen werden.',
+    retry: 'Noch einmal versuchen',
+    noEmailWarning:
+      'Dieses Konto hat keine E-Mail-Adresse. Du meldest dich nur mit deinem Passwort an, und wenn du es vergisst, gibt es keinen Weg, das Konto zurückzubekommen.',
+    status: {
+      on: 'An',
+      off: 'Aus',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'Das ist deine einzige Anmeldemethode. Füge zuerst eine weitere hinzu.',
+      passwordRequired: 'Lege zuerst ein Passwort fest und bestätige damit.',
+      emailUnchanged: 'Das ist bereits deine E-Mail-Adresse.',
+    },
+    email: {
+      title: 'E-Mail',
+      none: 'Keine E-Mail',
+      description: 'Anmeldecodes, Anmeldelinks und Sicherheitshinweise gehen an diese Adresse.',
+      noneDescription:
+        'Füge eine E-Mail-Adresse hinzu, um dich mit einem Code oder Link anzumelden und dein Konto zurückzubekommen, falls du dein Passwort vergisst.',
+      change: 'E-Mail ändern',
+      add: 'E-Mail hinzufügen',
+      remove: 'E-Mail entfernen',
+      removeNeedsPassword:
+        'Lege zuerst ein Passwort fest, um deine E-Mail-Adresse zu entfernen: Es wird deine einzige Anmeldemethode.',
+      newLabel: 'Neue E-Mail-Adresse',
+      newDescription:
+        'Wir schicken einen Code an die neue Adresse, um zu prüfen, dass sie dir gehört.',
+      invalid: 'Gib eine gültige E-Mail-Adresse ein.',
+      sendCode: 'Code senden',
+      confirmTitle: 'Neue E-Mail bestätigen',
+      confirmDescription:
+        'Gib den Code ein, den wir an {{email}} geschickt haben, und bestätige dann, dass du es bist.',
+      codeLabel: 'An die neue E-Mail gesendeter Code',
+      save: 'E-Mail speichern',
+      saved: 'Deine E-Mail-Adresse ist aktualisiert. Andere Geräte wurden abgemeldet.',
+      removeTitle: 'Deine E-Mail-Adresse entfernen',
+      removeDescription:
+        'Du meldest dich dann nur noch mit deinem Passwort an. Wenn du es vergisst, gibt es keinen Weg, das Konto zurückzubekommen. Bestätige mit deinem Passwort.',
+      removed: 'Deine E-Mail-Adresse wurde entfernt. Andere Geräte wurden abgemeldet.',
+    },
     password: {
       title: 'Passwort',
       setTitle: 'Passwort festlegen',
@@ -385,6 +434,11 @@ const dict = {
       save: 'Passwort speichern',
       saved: 'Dein Passwort ist gespeichert.',
       row: 'Optional: Mit Passwort anmelden',
+      remove: 'Passwort entfernen',
+      removeTitle: 'Dein Passwort entfernen',
+      removeDescription:
+        'Du meldest dich dann mit einem Code oder Link an, den wir an deine E-Mail-Adresse schicken.',
+      removed: 'Dein Passwort wurde entfernt. Andere Geräte wurden abgemeldet.',
     },
     totp: {
       title: 'Authenticator-App',
@@ -410,6 +464,7 @@ const dict = {
       regenerateDescription: 'Deine alten Backup-Codes funktionieren dann nicht mehr.',
       remaining: 'Noch {{count}} Backup-Codes übrig',
       row: 'Ein zweiter Schritt bei der Anmeldung',
+      onWithCodes: 'An · noch {{count}} Backup-Codes übrig',
     },
   },
   fileManagement: {

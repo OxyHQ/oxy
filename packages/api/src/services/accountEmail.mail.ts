@@ -1,6 +1,7 @@
 /**
  * The mail an account's email receives (ADR 0030): a sign-up code; a sign-in
- * code and link; a re-verification code; and security notices. Plain text and a minimal HTML
+ * code and link; a re-verification code; the code that proves a new address;
+ * and security notices. Plain text and a minimal HTML
  * part, from `noreply@`.
  *
  * The relay is loaded on first send: `smtp.outbound` pulls in the mailbox and
@@ -89,8 +90,32 @@ export async function sendSignInEmail(
   });
 }
 
+/**
+ * The code that proves the address a signed-in account moves its email to.
+ * Sent to the NEW address; names the account, since its owner asked.
+ */
+export async function sendEmailChangeCode(
+  to: string,
+  code: string,
+  username: string | null,
+): Promise<void> {
+  const greeting = username ? `Hi @${username},` : 'Hi,';
+  const lead = 'Enter this code to use this email for your Oxy account:';
+  const tail = [
+    'It expires in 10 minutes.',
+    "If you didn't ask for it, you can ignore this email: nothing changes without the code.",
+  ];
+  await sendSystem({
+    to,
+    subject: `${code} is your Oxy code`,
+    text: [greeting, '', lead, '', code, '', ...tail].join('\n'),
+    html: htmlPage([greeting, lead, ...tail], code),
+  });
+}
+
 const REAUTH_ACTION_TEXT: Record<ReauthAction, string> = {
-  change_password: 'set or change the password of your Oxy account',
+  change_password: 'set, change or remove the password of your Oxy account',
+  change_email: 'change or remove the email of your Oxy account',
   totp: 'change the authenticator app of your Oxy account',
   link_commons: 'link your Oxy account to Commons (this email will be removed from it)',
   delete_account: 'DELETE your Oxy account permanently',
@@ -123,6 +148,10 @@ export async function sendReauthCode(
 export type SecurityNotice =
   | 'password_set'
   | 'password_changed'
+  | 'password_removed'
+  | 'email_added'
+  | 'email_changed'
+  | 'email_removed'
   | 'totp_enabled'
   | 'totp_disabled'
   | 'backup_codes_regenerated'
@@ -136,6 +165,22 @@ const SECURITY_NOTICE_TEXT: Record<SecurityNotice, { subject: string; body: stri
   password_changed: {
     subject: 'Your Oxy password was changed',
     body: 'The password of your Oxy account was just changed.',
+  },
+  password_removed: {
+    subject: 'The password of your Oxy account was removed',
+    body: 'The password of your Oxy account was just removed. You now sign in with a code or a link sent to this email.',
+  },
+  email_added: {
+    subject: 'This email now belongs to an Oxy account',
+    body: 'This address was just added to your Oxy account. Sign-in codes and security notices now come here.',
+  },
+  email_changed: {
+    subject: 'The email of your Oxy account was changed',
+    body: 'The email of your Oxy account was just changed to another address. This one no longer signs in to it or receives its notices.',
+  },
+  email_removed: {
+    subject: 'The email of your Oxy account was removed',
+    body: 'This address was just removed from your Oxy account. It no longer signs in to it or receives its notices, and the account can only be recovered with its password.',
   },
   totp_enabled: {
     subject: 'An authenticator app was turned on',

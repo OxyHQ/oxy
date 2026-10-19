@@ -353,6 +353,8 @@ const dict = {
     confirmTitle: "Confirmez l'association",
     confirmDescription:
       "Pour terminer, confirmez qu'il s'agit bien de vous avec un code que nous vous envoyons par e-mail.",
+    confirmPasswordDescription:
+      "Pour terminer, confirmez qu'il s'agit bien de vous avec votre mot de passe.",
     row: 'Gardez votre propre clé avec Commons',
   },
   reauth: {
@@ -371,6 +373,56 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Connexion et sécurité',
+    subtitle:
+      "E-mail, mot de passe, application d'authentification et appareils où vous êtes connecté",
+    methodsTitle: 'Comment vous vous connectez',
+    notPersonal:
+      "Seul un compte personnel se connecte avec un e-mail, un mot de passe ou une application d'authentification.",
+    loadFailed: 'Impossible de charger les modes de connexion de ce compte.',
+    retry: 'Réessayer',
+    noEmailWarning:
+      "Ce compte n'a pas d'e-mail. Vous vous connectez uniquement avec votre mot de passe et, si vous l'oubliez, il n'y a aucun moyen de récupérer le compte.",
+    status: {
+      on: 'Activé',
+      off: 'Désactivé',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: "C'est votre seul moyen de vous connecter. Ajoutez-en d'abord un autre.",
+      passwordRequired: "Définissez d'abord un mot de passe, puis confirmez avec celui-ci.",
+      emailUnchanged: "C'est déjà votre adresse e-mail.",
+    },
+    email: {
+      title: 'E-mail',
+      none: "Pas d'e-mail",
+      description:
+        'Les codes et liens de connexion ainsi que les alertes de sécurité sont envoyés à cette adresse.',
+      noneDescription:
+        'Ajoutez un e-mail pour vous connecter avec un code ou un lien, et pour récupérer votre compte si vous oubliez votre mot de passe.',
+      change: "Modifier l'e-mail",
+      add: 'Ajouter un e-mail',
+      remove: "Supprimer l'e-mail",
+      removeNeedsPassword:
+        "Pour supprimer votre e-mail, définissez d'abord un mot de passe : ce sera votre seul moyen de vous connecter.",
+      newLabel: 'Nouvelle adresse e-mail',
+      newDescription:
+        "Nous enverrons un code à la nouvelle adresse pour vérifier qu'elle est bien à vous.",
+      invalid: 'Saisissez une adresse e-mail valide.',
+      sendCode: 'Envoyer le code',
+      confirmTitle: 'Confirmez le nouvel e-mail',
+      confirmDescription:
+        "Saisissez le code envoyé à {{email}}, puis confirmez qu'il s'agit bien de vous.",
+      codeLabel: 'Code envoyé au nouvel e-mail',
+      save: "Enregistrer l'e-mail",
+      saved: 'Votre e-mail est mis à jour. Les autres appareils ont été déconnectés.',
+      removeTitle: 'Supprimer votre e-mail',
+      removeDescription:
+        "Vous vous connecterez uniquement avec votre mot de passe. Si vous l'oubliez, il n'y a aucun moyen de récupérer le compte. Confirmez avec votre mot de passe.",
+      removed: 'Votre e-mail a été supprimé. Les autres appareils ont été déconnectés.',
+    },
     password: {
       title: 'Mot de passe',
       setTitle: 'Définir un mot de passe',
@@ -385,6 +437,11 @@ const dict = {
       save: 'Enregistrer le mot de passe',
       saved: 'Votre mot de passe est enregistré.',
       row: 'Facultatif : se connecter avec un mot de passe',
+      remove: 'Supprimer le mot de passe',
+      removeTitle: 'Supprimer votre mot de passe',
+      removeDescription:
+        'Vous vous connecterez avec un code ou un lien envoyé à votre adresse e-mail.',
+      removed: 'Votre mot de passe a été supprimé. Les autres appareils ont été déconnectés.',
     },
     totp: {
       title: "Application d'authentification",
@@ -410,6 +467,7 @@ const dict = {
       regenerateDescription: 'Vos anciens codes de secours ne fonctionneront plus.',
       remaining: '{{count}} codes de secours restants',
       row: 'Une deuxième étape à la connexion',
+      onWithCodes: 'Activée · {{count}} codes de secours restants',
     },
   },
   fileManagement: {

@@ -116,6 +116,7 @@ export function isEmailSignInChooseAccount(
  */
 export const REAUTH_ACTIONS = [
   'change_password',
+  'change_email',
   'totp',
   'link_commons',
   'delete_account',
@@ -161,6 +162,12 @@ export const SIGN_IN_ERROR_CODES = {
   usernameTaken: 'USERNAME_TAKEN',
   /** The email already holds `EMAIL_ACCOUNTS_MAX` accounts: no sign-up adds another. */
   emailAccountsFull: 'EMAIL_ACCOUNTS_FULL',
+  /** Removing the one way in left (the email when there is no password, or the reverse). */
+  lastSignInMethod: 'LAST_SIGN_IN_METHOD',
+  /** Removing the email needs a password set, and is confirmed with it. */
+  passwordRequired: 'PASSWORD_REQUIRED',
+  /** The new email is the one the account already has. */
+  emailUnchanged: 'EMAIL_UNCHANGED',
 } as const;
 
 export type SignInErrorCode = (typeof SIGN_IN_ERROR_CODES)[keyof typeof SIGN_IN_ERROR_CODES];

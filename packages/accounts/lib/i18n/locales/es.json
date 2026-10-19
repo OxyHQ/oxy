@@ -138,22 +138,18 @@
     "sections": {
       "recommendations": "Recomendaciones de seguridad",
       "recentActivity": "Actividad de seguridad reciente",
-      "howYouSignIn": "Cómo inicias sesión en Oxy",
-      "howYouSignInSubtitle": "Mantén esta información actualizada para no perder el acceso a tu cuenta",
+      "thisDevice": "En este dispositivo",
+      "thisDeviceSubtitle": "Lo que esta app pide antes de abrirse",
       "yourDevices": "Tus dispositivos",
       "yourDevicesSubtitle": "Dónde tienes sesión iniciada ({{count}} dispositivos en total)",
       "yourDevicesSubtitle_one": "Dónde tienes sesión iniciada ({{count}} dispositivo en total)",
-      "activeSessions": "Sesiones activas",
-      "activeSessionsSubtitle": "Gestiona tus sesiones activas en todos los dispositivos",
-      "language": "Idioma",
-      "languageSubtitle": "Cambia el idioma que usa esta app",
       "connectedApps": "Apps conectadas"
     },
     "recommendations": {
       "biometric": "Activar autenticación biométrica",
       "biometricSubtitle": "Añade una capa extra de seguridad a tu cuenta",
       "biometricAlertTitle": "Activar autenticación biométrica",
-      "biometricAlertMessage": "Puedes activar la autenticación biométrica en la sección \"Cómo inicias sesión\" más abajo. Añade una capa extra de seguridad a tu cuenta.",
+      "biometricAlertMessage": "Puedes activar la autenticación biométrica en la sección \"En este dispositivo\" más abajo. Añade una capa extra de seguridad a tu cuenta.",
       "biometricGoToSettings": "Ir a Ajustes",
       "oldSessions": "Revisa {{count}} sesiones inactivas",
       "oldSessions_one": "Revisa {{count}} sesión inactiva",
@@ -166,7 +162,11 @@
       "suspiciousAlertTitle": "Eventos de seguridad críticos",
       "suspiciousAlertMessage": "Tienes {{count}} evento(s) de seguridad críticos. Revisa tu actividad de seguridad y considera cambiar tu contraseña o cerrar sesión en todos los dispositivos si detectas actividad sospechosa.",
       "linkCommons": "Vincula Commons",
-      "linkCommonsSubtitle": "Ten tu propia clave: la cuenta pasa a ser solo tuya y tu frase de recuperación sustituye a su correo."
+      "linkCommonsSubtitle": "Ten tu propia clave: la cuenta pasa a ser solo tuya y tu frase de recuperación sustituye a su correo.",
+      "addEmail": "Añade un email",
+      "addEmailSubtitle": "Sin él, no puedes recuperar tu cuenta si olvidas la contraseña.",
+      "authenticator": "Activa una app de autenticación",
+      "authenticatorSubtitle": "Pide un segundo código al iniciar sesión, para que no baste con robar tu contraseña o tu email."
     },
     "activity": {
       "loading": "Cargando actividad de seguridad...",
@@ -193,9 +193,7 @@
       "biometricAvailableToggle": "Disponible - toca para activar",
       "biometricNotAvailable": "No disponible",
       "faceTouchId": "Face ID / Touch ID",
-      "biometricAuthTitle": "Autenticación biométrica",
-      "publicKeyAuth": "Autenticación por clave pública",
-      "publicKeyAuthSubtitle": "Tu cuenta usa claves criptográficas para iniciar sesión de forma segura"
+      "biometricAuthTitle": "Autenticación biométrica"
     },
     "recoveryWarning": {
       "title": "Sin copia de la frase de recuperación",
@@ -208,36 +206,6 @@
       "manageAll": "Gestionar todos los dispositivos",
       "noDevices": "No se encontraron dispositivos",
       "noDevicesSubtitle": "Los dispositivos donde inicies sesión aparecerán aquí"
-    },
-    "sessions": {
-      "logoutAll": "Cerrar sesión en los demás dispositivos",
-      "logoutAllSubtitle": "Cerrar sesión en {{count}} otras sesiones activas",
-      "logoutAllSubtitle_one": "Cerrar sesión en {{count}} otra sesión activa",
-      "logoutAllConfirmTitle": "¿Cerrar sesión en todos los dispositivos?",
-      "logoutAllConfirmMessage": "Esto cerrará sesión en todas las {{count}} sesiones activas excepto esta. Tendrás que iniciar sesión de nuevo en los demás dispositivos.",
-      "logoutAllConfirmMessage_one": "Esto cerrará sesión en {{count}} sesión activa excepto esta. Tendrás que iniciar sesión de nuevo en los demás dispositivos.",
-      "logoutAllAction": "Cerrar todas",
-      "logoutAllSuccess": "Sesión cerrada en todos los demás dispositivos",
-      "logoutAllFailed": "No se pudo cerrar sesión en todos los dispositivos"
-    },
-    "language": {
-      "label": "Idioma de la app",
-      "current": "{{language}}",
-      "modalTitle": "Elige un idioma",
-      "modalSubtitle": "Selecciona el idioma preferido para esta app",
-      "changed": "Idioma actualizado"
-    },
-    "signInMethods": {
-      "email": "Correo",
-      "emailSubtitle": "Un código o un enlace cada vez que entras",
-      "password": "Contraseña",
-      "passwordSet": "Puesta — toca para cambiarla",
-      "passwordNotSet": "Sin poner — opcional",
-      "authenticator": "App de autenticación",
-      "authenticatorOn": "Activada · quedan {{count}} códigos de respaldo",
-      "authenticatorOff": "Desactivada — añade un segundo paso al entrar",
-      "linkCommons": "Vincular Commons",
-      "linkCommonsSubtitle": "Ten tu propia clave: la cuenta pasa a ser solo tuya y se borra su correo"
     }
   },
   "data": {
@@ -773,36 +741,6 @@
       "removeCurrentWarning": "No puedes eliminar tu dispositivo actual. Usa otro dispositivo para eliminar este."
     }
   },
-  "sessions": {
-    "title": "Sesiones de inicio",
-    "subtitle": "Estas son tus sesiones de inicio activas en todos los dispositivos. Cada sesión representa un dispositivo con sesión iniciada.",
-    "loading": "Cargando sesiones...",
-    "item": {
-      "title": "Sesión {{id}}",
-      "currentActive": "Sesión actual • {{time}}",
-      "lastActive": "Última actividad: {{time}}",
-      "activeBadge": "Activa"
-    },
-    "remove": {
-      "currentWarning": "No puedes quitar tu sesión activa actual. Cambia primero a otra sesión.",
-      "confirmTitle": "Quitar sesión",
-      "confirmMessage": "¿Seguro que quieres quitar esta sesión?",
-      "success": "Sesión eliminada",
-      "failed": "No se pudo quitar la sesión. Inténtalo de nuevo."
-    },
-    "switch": {
-      "success": "Sesión cambiada",
-      "failed": "No se pudo cambiar de sesión. Inténtalo de nuevo."
-    },
-    "managedLink": {
-      "title": "¿Buscas tus cuentas?",
-      "subtitle": "Ve a Cuentas para gestionar organizaciones, proyectos y bots"
-    },
-    "empty": {
-      "title": "No hay sesiones activas",
-      "subtitle": "Los dispositivos en los que inicies sesión aparecerán aquí como sesiones activas."
-    }
-  },
   "sidebar": {
     "actingAs": "Usando {{name}}",
     "managedAccountFallback": "Cuenta gestionada"
@@ -863,8 +801,6 @@
     "scrollToTop": "Ir arriba",
     "themeToggle": "Cambiar tema",
     "removeDevice": "Quitar dispositivo",
-    "removeSession": "Quitar sesión",
-    "switchSession": "Cambiar a esta sesión",
     "actAs": "Cambiar a esta cuenta",
     "stopActingAs": "Cuenta actual",
     "manageMembers": "Gestionar miembros y uso compartido",

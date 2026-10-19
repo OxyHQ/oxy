@@ -1289,6 +1289,13 @@
       "when": 1792371081150,
       "tag": "0184_drop_retired_deployment_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1792436412759,
+      "tag": "0185_email_change_and_reauth",
+      "breakpoints": true
     }
   ]
 }

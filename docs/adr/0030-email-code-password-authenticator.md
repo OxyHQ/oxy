@@ -4,7 +4,8 @@
   removal in the change that adds this ADR); D1 and D2 changed by
   [ADR 0040](0040-one-email-several-accounts.md) (one email, several accounts:
   signing in by email can end in a choice; a sign-up for a used address gets a
-  code)
+  code); D9 (the email and the password can be changed and removed, never the
+  last way in) added 2026-10-19
 - Date: 2026-09-26
 - Decided by: the owner (product direction, "súper seguro"), recorded here
 - Changes: ADR 0029 D1 (no auth.oxy.so window in an app's sign-in; only the
@@ -121,15 +122,44 @@ conditional update filtered on expiry: it signs in at most once.
 
 ### D6 — Sensitive changes need the person, now
 
-Setting a password, turning the authenticator on or off, new backup codes,
-linking Commons and deleting the account each carry a fresh proof in the same
-request (`services/reauth.service.ts`): the current password or a code just
-sent to the email for THAT action (`REAUTH_ACTIONS`: `change_password`,
-`totp`, `link_commons`, `delete_account`), plus the authenticator code when it
-is on. Each change is told to the account's email; turning the authenticator on
+Setting or removing a password, adding, changing or removing the email (D9),
+turning the authenticator on or off, new backup codes, linking Commons and
+deleting the account each carry a fresh proof in the same request
+(`services/reauth.service.ts`): the current password or a code just sent to
+the email for THAT action (`REAUTH_ACTIONS`: `change_password`,
+`change_email`, `totp`, `link_commons`, `delete_account`, …), plus the
+authenticator code when it is on. Each change is told to the account's email; turning the authenticator on
 or off and linking Commons sign every other session out, a password change does
 when asked. A Commons account deletes with its key's signature (plus its
 authenticator code, if any).
+
+### D9 — The email and the password change; the last way in stays
+
+Amended 2026-10-19. An account without a key manages every way in from one
+page, `SignInSecurity` (`OxySignInSecurityPanel`, also the Accounts app's
+security page), under `/users/me` (`routes/accountSecurity.ts`):
+
+- **Add or change the email**: `POST /email/verify/start` sends a code to the
+  NEW address (purpose `email_change`, bound to the account and that address's
+  hash); `PUT /email` takes the address, that code and a fresh proof for
+  `change_email` (the password, or a code to the current email; plus the
+  authenticator's). One address still holds at most `EMAIL_ACCOUNTS_MAX`
+  accounts, serialised per address like a sign-up. The old address is told
+  (`email_changed`), the new one too (`email_added`).
+- **Remove the email**: `DELETE /email`, only with a password set, and the
+  proof must be that password — never the mailbox being removed. The account
+  then signs in, and is recovered, with its password alone; the page warns so.
+- **Remove the password**: `DELETE /password`, only while the account has an
+  email.
+- Removing either takes the account row's lock and checks the other under it,
+  so two removals at once cannot leave no way in (`LAST_SIGN_IN_METHOD`).
+- Every one of these signs every other session out, and deletes every code the
+  old address could still use, so a sign-in already mailed there cannot finish.
+- The steps the mailbox guards (`delete_account`, `link_commons`) take the
+  email code when there is an email, and the password only when there is none
+  (`verifyAccountReauth`).
+
+The email is still not a profile field: `PUT /users/me` never writes it.
 
 ### D7 — Who may call
 

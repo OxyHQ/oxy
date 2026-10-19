@@ -349,6 +349,7 @@ const dict = {
     confirmTitle: 'Confirma a associação',
     confirmDescription:
       'Para terminar, confirma que és tu com um código que te enviamos por email.',
+    confirmPasswordDescription: 'Para terminar, confirma que és tu com a tua palavra-passe.',
     row: 'Guarda a tua própria chave com o Commons',
   },
   reauth: {
@@ -366,6 +367,53 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Início de sessão e segurança',
+    subtitle: 'Email, palavra-passe, app de autenticação e onde tens sessão iniciada',
+    methodsTitle: 'Como inicias sessão',
+    notPersonal:
+      'Só uma conta pessoal inicia sessão com email, palavra-passe ou app de autenticação.',
+    loadFailed: 'Não foi possível carregar como esta conta inicia sessão.',
+    retry: 'Tentar de novo',
+    noEmailWarning:
+      'Esta conta não tem email. Só podes entrar com a tua palavra-passe e, se a esqueceres, não há forma de recuperar a conta.',
+    status: {
+      on: 'Ativada',
+      off: 'Desativada',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: 'É a tua única forma de iniciar sessão. Adiciona outra primeiro.',
+      passwordRequired: 'Define primeiro uma palavra-passe e confirma com ela.',
+      emailUnchanged: 'Esse já é o teu email.',
+    },
+    email: {
+      title: 'Email',
+      none: 'Sem email',
+      description:
+        'Os códigos e links para iniciar sessão e os avisos de segurança chegam a este endereço.',
+      noneDescription:
+        'Adiciona um email para iniciar sessão com um código ou um link, e para recuperar a conta se esqueceres a palavra-passe.',
+      change: 'Alterar email',
+      add: 'Adicionar um email',
+      remove: 'Remover email',
+      removeNeedsPassword:
+        'Para remover o teu email, define primeiro uma palavra-passe: será a tua única forma de iniciar sessão.',
+      newLabel: 'Novo endereço de email',
+      newDescription: 'Vamos enviar um código para o novo endereço para confirmar que é teu.',
+      invalid: 'Escreve um endereço de email válido.',
+      sendCode: 'Enviar código',
+      confirmTitle: 'Confirma o novo email',
+      confirmDescription: 'Escreve o código que enviámos para {{email}} e confirma que és tu.',
+      codeLabel: 'Código enviado para o novo email',
+      save: 'Guardar email',
+      saved: 'O teu email foi atualizado. A sessão foi terminada nos outros dispositivos.',
+      removeTitle: 'Remover o teu email',
+      removeDescription:
+        'Só vais poder iniciar sessão com a tua palavra-passe. Se a esqueceres, não há forma de recuperar a conta. Confirma com a tua palavra-passe.',
+      removed: 'O teu email foi removido. A sessão foi terminada nos outros dispositivos.',
+    },
     password: {
       title: 'Palavra-passe',
       setTitle: 'Definir uma palavra-passe',
@@ -380,6 +428,10 @@ const dict = {
       save: 'Guardar palavra-passe',
       saved: 'A tua palavra-passe foi guardada.',
       row: 'Opcional: iniciar sessão com palavra-passe',
+      remove: 'Remover palavra-passe',
+      removeTitle: 'Remover a tua palavra-passe',
+      removeDescription: 'Vais iniciar sessão com um código ou um link enviado para o teu email.',
+      removed: 'A tua palavra-passe foi removida. A sessão foi terminada nos outros dispositivos.',
     },
     totp: {
       title: 'App de autenticação',
@@ -405,6 +457,7 @@ const dict = {
       regenerateDescription: 'Os teus códigos de segurança antigos deixam de funcionar.',
       remaining: 'Restam {{count}} códigos de segurança',
       row: 'Um segundo passo ao iniciar sessão',
+      onWithCodes: 'Ativada · restam {{count}} códigos de segurança',
     },
   },
   fileManagement: {

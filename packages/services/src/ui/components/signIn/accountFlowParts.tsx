@@ -87,6 +87,12 @@ export function describeSignInError(error: unknown, t: Translate): string {
       return t('signup.username.taken');
     case SIGN_IN_ERROR_CODES.emailAccountsFull:
       return t('signin.errors.emailAccountsFull');
+    case SIGN_IN_ERROR_CODES.lastSignInMethod:
+      return t('signInSecurity.errors.lastSignInMethod');
+    case SIGN_IN_ERROR_CODES.passwordRequired:
+      return t('signInSecurity.errors.passwordRequired');
+    case SIGN_IN_ERROR_CODES.emailUnchanged:
+      return t('signInSecurity.errors.emailUnchanged');
     case EMAIL_VERIFICATION_ERROR_CODES.codeInvalid:
       return t('emailCode.errors.codeInvalid');
     case EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts:

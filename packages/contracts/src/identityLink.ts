@@ -25,7 +25,7 @@
  */
 import { z } from 'zod';
 import { identityProofSchema } from './identityProof';
-import { emailReauthProofSchema } from './signIn';
+import { reauthProofSchema } from './signIn';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import {
@@ -101,10 +101,8 @@ export type IdentityLinkProofRequest = z.infer<typeof identityLinkProofRequestSc
 
 /**
  * `POST /identity/link/:linkId/complete` — the account's own confirmation: a
- * code just sent to its email for this link (`reauth`, plus its authenticator
- * code when it has one).
+ * code just sent to its email for this link, or its password when it has no
+ * email (`reauth`, plus its authenticator code when it has one).
  */
-export const identityLinkCompleteRequestSchema = z
-  .object({ reauth: emailReauthProofSchema })
-  .strict();
+export const identityLinkCompleteRequestSchema = z.object({ reauth: reauthProofSchema }).strict();
 export type IdentityLinkCompleteRequest = z.infer<typeof identityLinkCompleteRequestSchema>;

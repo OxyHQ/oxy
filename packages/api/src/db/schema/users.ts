@@ -340,7 +340,11 @@ export const users = pgTable(
     // ---- identifiers -------------------------------------------------------
     /** Unique case-insensitively — see the header. Absent for key-only accounts. */
     username: text(),
-    /** Unique case-insensitively. Absent for key-only and federated accounts. */
+    /**
+     * Not unique: one address holds up to `EMAIL_ACCOUNTS_MAX` accounts (ADR
+     * 0040). Absent for key-only and federated accounts, and for an account that
+     * removed it (it then signs in with its password).
+     */
     email: text(),
     /**
      * E.164-style phone, raw. PROTECTED: never in a default select — see

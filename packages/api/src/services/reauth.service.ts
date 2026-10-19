@@ -1,7 +1,8 @@
 /**
  * Fresh proof that the PERSON, not only their session, asks for a sensitive
- * change: setting a password, turning the authenticator on or off, new backup
- * codes, linking Commons, deleting the account.
+ * change: setting or removing a password, adding, changing or removing the
+ * email, turning the authenticator on or off, new backup codes, linking
+ * Commons, deleting the account.
  *
  * The proof travels inside the request it authorises (`reauth` in the body),
  * so "recent" means "now": the current password, or a code just sent to the
@@ -16,7 +17,6 @@
 import { eq } from 'drizzle-orm';
 import {
   SIGN_IN_ERROR_CODES,
-  type EmailReauthProof,
   type EmailVerificationStartResponse,
   type ReauthAction,
   type ReauthProof,
@@ -193,12 +193,34 @@ export async function verifyReauth(
   await checkTotp(userId, proof.totpCode, now);
 }
 
-/** The email-only proof (deleting the account, linking Commons): the email code, plus the authenticator's. */
-export async function verifyEmailReauth(
+/**
+ * The proof for the steps the mailbox guards (deleting the account, linking
+ * Commons): the email code when the account has an email — its password does
+ * not stand in for the mailbox — and the password only when it has none.
+ * Plus the authenticator's code when it has one.
+ */
+export async function verifyAccountReauth(
   userId: string,
-  proof: EmailReauthProof,
+  proof: ReauthProof | undefined,
   action: ReauthAction,
   now: Date = new Date(),
 ): Promise<void> {
-  await verifyReauth(userId, { emailCode: proof.emailCode, totpCode: proof.totpCode }, action, now);
+  const { email } = await accountEmail(userId);
+  if (email) {
+    await verifyReauth(
+      userId,
+      proof?.emailCode ? { emailCode: proof.emailCode, totpCode: proof.totpCode } : undefined,
+      action,
+      now,
+    );
+    return;
+  }
+  await verifyReauth(
+    userId,
+    proof?.password !== undefined
+      ? { password: proof.password, totpCode: proof.totpCode }
+      : undefined,
+    action,
+    now,
+  );
 }

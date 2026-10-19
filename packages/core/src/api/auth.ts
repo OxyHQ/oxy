@@ -513,7 +513,7 @@ function emailSignInStep(ctx: OxyContext, res: unknown, path: string): EmailSign
   return signInStep(ctx, res, path);
 }
 
-/** `oxy.auth.email` — email sign-in (code or link) and email confirmation codes. */
+/** `oxy.auth.email` — email sign-in (code or link), email confirmation codes, and the account's email. */
 export class AuthEmailApi {
   constructor(private readonly ctx: OxyContext) {}
 
@@ -651,9 +651,61 @@ export class AuthEmailApi {
     if (!parsed) throw new Error('auth/signin/email/link returned an unexpected response shape');
     return parsed;
   }
+
+  /**
+   * Send a code to `email`, the address the signed-in account adds or moves
+   * to. {@link AuthEmailApi.change} takes it with the person's proof.
+   */
+  async startChange(email: string): Promise<EmailVerificationStartResponse> {
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/users/me/email/verify/start',
+      { email },
+      { cache: false },
+    );
+    const parsed = checkContract(emailVerificationStartResponseCheck, res);
+    if (!parsed)
+      throw new Error('users/me/email/verify/start returned an unexpected response shape');
+    return parsed;
+  }
+
+  /**
+   * Add or change the signed-in account's email: the new address, the code
+   * {@link AuthEmailApi.startChange} sent it, and a fresh proof for
+   * `change_email` (the password, or a code to the current email; plus the
+   * authenticator's). Every other session of the account is signed out.
+   */
+  async change(request: {
+    email: string;
+    verificationId: string;
+    code: string;
+    reauth: ReauthProof;
+  }): Promise<{ success: true }> {
+    const result = await this.ctx.request<{ success: true }>('PUT', '/users/me/email', request, {
+      cache: false,
+    });
+    this.ctx.http.invalidateCache({ prefixes: ['GET:/users/me'] });
+    return result;
+  }
+
+  /**
+   * Remove the signed-in account's email. Only with a password set, and
+   * `reauth` must carry that password (plus the authenticator's code): from
+   * then on the account signs in, and is recovered, with its password alone.
+   */
+  async remove(reauth: ReauthProof): Promise<{ success: true }> {
+    const result = await this.ctx.request<{ success: true }>(
+      'DELETE',
+      '/users/me/email',
+      { reauth },
+      { cache: false },
+    );
+    this.ctx.http.invalidateCache({ prefixes: ['GET:/users/me'] });
+    return result;
+  }
 }
 
-/** `oxy.auth.password` — password sign-in and setting the password. */
+/** `oxy.auth.password` — password sign-in, and setting or removing the password. */
 export class AuthPasswordApi {
   constructor(private readonly ctx: OxyContext) {}
 
@@ -678,6 +730,19 @@ export class AuthPasswordApi {
     return this.ctx.request<{ success: true }>('PUT', '/users/me/password', request, {
       cache: false,
     });
+  }
+
+  /**
+   * Remove the password: the account signs in by email alone. Refused while
+   * the account has no email. Every other session is signed out.
+   */
+  async remove(reauth: ReauthProof): Promise<{ success: true }> {
+    return this.ctx.request<{ success: true }>(
+      'DELETE',
+      '/users/me/password',
+      { reauth },
+      { cache: false },
+    );
   }
 }
 

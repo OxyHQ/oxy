@@ -41,7 +41,9 @@ export type RouteName =
   | 'Preferences' // General user preferences (theme, reduce-motion, etc.)
   | 'DeleteAccount' // Delete an account without a key, with a code by email
   | 'LinkCommons' // Link Commons: the account becomes self-custodied
-  | 'SignInPassword' // Set or change the account's password
+  | 'SignInSecurity' // How the account signs in, and where it is signed in
+  | 'SignInEmail' // Add, change or remove the account's email
+  | 'SignInPassword' // Set, change or remove the account's password
   | 'SignInAuthenticator' // The account's authenticator app and backup codes
   | 'AccountDialog'; // Unified account switcher + sign-in surface (OxyAccountDialogScreen body)
 
@@ -114,6 +116,8 @@ const ROUTES: ReadonlySet<string> = new Set([
   'Preferences',
   'DeleteAccount',
   'LinkCommons',
+  'SignInSecurity',
+  'SignInEmail',
   'SignInPassword',
   'SignInAuthenticator',
   'AccountDialog',

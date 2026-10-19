@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { emailReauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
+import { reauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 
 // Shared params for routes with :userId
@@ -31,13 +31,14 @@ export const verifyRequestSchema = z.object({
 
 // DELETE /users/me
 // An account with a Commons key signs the deletion with it; an account without
-// one confirms with a code emailed for this deletion. Either adds its
+// one confirms with a code emailed for this deletion (its password when it has
+// no email). Either adds its
 // authenticator code when it has one.
 export const deleteAccountSchema = z.object({
   signature: z.string().trim().min(1).optional(),
   timestamp: z.number().optional(),
-  /** An account without a key: a code just sent to its email (+ its authenticator code). */
-  reauth: emailReauthProofSchema.optional(),
+  /** An account without a key: a code just sent to its email, or its password without one (+ its authenticator code). */
+  reauth: reauthProofSchema.optional(),
   /** An account with a key AND an authenticator: its code or a backup code. */
   totpCode: secondFactorCodeSchema.optional(),
   confirmText: z.string().trim().min(1),

@@ -345,20 +345,6 @@ export const reauthProofSchema = z
   });
 export type ReauthProof = z.infer<typeof reauthProofSchema>;
 
-/** A proof by email code only (+ TOTP): deleting an account, linking Commons. */
-export const emailReauthProofSchema = z
-  .object({
-    emailCode: z
-      .object({
-        verificationId: z.string().trim().min(1).max(64),
-        code: sixDigits,
-      })
-      .strict(),
-    totpCode: secondFactorCodeSchema.optional(),
-  })
-  .strict();
-export type EmailReauthProof = z.infer<typeof emailReauthProofSchema>;
-
 /** `PUT /users/me/password` — set or change the password. */
 export const passwordSetRequestSchema = z
   .object({
@@ -369,6 +355,33 @@ export const passwordSetRequestSchema = z
   })
   .strict();
 export type PasswordSetRequest = z.infer<typeof passwordSetRequestSchema>;
+
+/**
+ * `DELETE /users/me/password` — only while the account has an email to sign
+ * in with; `DELETE /users/me/email` — only while it has a password, and
+ * confirmed with that password.
+ */
+export const signInMethodRemoveRequestSchema = z.object({ reauth: reauthProofSchema }).strict();
+export type SignInMethodRemoveRequest = z.infer<typeof signInMethodRemoveRequestSchema>;
+
+/** `POST /users/me/email/verify/start` — a code to the address the account moves to. */
+export const emailChangeStartRequestSchema = z.object({ email: emailAddressSchema }).strict();
+export type EmailChangeStartRequest = z.infer<typeof emailChangeStartRequestSchema>;
+
+/**
+ * `PUT /users/me/email` — add or change the email: the NEW address and the
+ * code it got (`verificationId`, `code`), and the proof it is the person (the
+ * password, or a code to the current email; plus the authenticator's).
+ */
+export const emailSetRequestSchema = z
+  .object({
+    email: emailAddressSchema,
+    verificationId: z.string().trim().min(1).max(64),
+    code: sixDigits,
+    reauth: reauthProofSchema,
+  })
+  .strict();
+export type EmailSetRequest = z.infer<typeof emailSetRequestSchema>;
 
 /** `GET /users/me/sign-in-methods` */
 export interface SignInMethods {

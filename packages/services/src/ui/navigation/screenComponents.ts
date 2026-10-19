@@ -39,6 +39,8 @@ import ConnectedAppsScreenComponent from '../screens/ConnectedAppsScreen';
 import PreferencesScreenComponent from '../screens/PreferencesScreen';
 import DeleteAccountScreenComponent from '../screens/DeleteAccountScreen';
 import LinkCommonsScreenComponent from '../screens/LinkCommonsScreen';
+import SignInSecurityScreenComponent from '../screens/SignInSecurityScreen';
+import SignInEmailScreenComponent from '../screens/SignInEmailScreen';
 import SignInPasswordScreenComponent from '../screens/SignInPasswordScreen';
 import SignInAuthenticatorScreenComponent from '../screens/SignInAuthenticatorScreen';
 import AccountDialogScreenComponent from '../components/OxyAccountDialogScreen';
@@ -87,6 +89,8 @@ export const screenComponents: Record<RouteName, ComponentType<never>> = {
   // The account's own sign-in security, in its settings.
   DeleteAccount: DeleteAccountScreenComponent,
   LinkCommons: LinkCommonsScreenComponent,
+  SignInSecurity: SignInSecurityScreenComponent,
+  SignInEmail: SignInEmailScreenComponent,
   SignInPassword: SignInPasswordScreenComponent,
   SignInAuthenticator: SignInAuthenticatorScreenComponent,
   // Unified account switcher + sign-in surface. Its body lives in the

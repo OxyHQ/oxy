@@ -348,6 +348,7 @@ const dict = {
     failed: "No s'ha pogut vincular Commons. Torna-ho a provar.",
     confirmTitle: 'Confirma la vinculació',
     confirmDescription: "Per acabar, confirma que ets tu amb un codi que t'enviem per correu.",
+    confirmPasswordDescription: 'Per acabar, confirma que ets tu amb la contrasenya.',
     row: 'Guarda la teva pròpia clau amb Commons',
   },
   reauth: {
@@ -365,6 +366,53 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: 'Inici de sessió i seguretat',
+    subtitle: "Correu, contrasenya, app d'autenticació i on tens la sessió iniciada",
+    methodsTitle: 'Com inicies sessió',
+    notPersonal:
+      "Només un compte personal inicia sessió amb correu, contrasenya o app d'autenticació.",
+    loadFailed: "No s'ha pogut carregar com inicia sessió aquest compte.",
+    retry: 'Torna-ho a provar',
+    noEmailWarning:
+      "Aquest compte no té correu. Només pots entrar amb la contrasenya i, si l'oblides, no hi ha manera de recuperar el compte.",
+    status: {
+      on: 'Activada',
+      off: 'Desactivada',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: "És la teva única manera d'iniciar sessió. Afegeix-ne una altra abans.",
+      passwordRequired: 'Crea primer una contrasenya i confirma amb ella.',
+      emailUnchanged: 'Aquest ja és el teu correu.',
+    },
+    email: {
+      title: 'Correu',
+      none: 'Sense correu',
+      description:
+        'Els codis i enllaços per iniciar sessió i els avisos de seguretat arriben a aquesta adreça.',
+      noneDescription:
+        'Afegeix un correu per iniciar sessió amb un codi o un enllaç, i per recuperar el compte si oblides la contrasenya.',
+      change: 'Canvia el correu',
+      add: 'Afegeix un correu',
+      remove: 'Treu el correu',
+      removeNeedsPassword:
+        "Per treure el teu correu, crea abans una contrasenya: serà la teva única manera d'iniciar sessió.",
+      newLabel: 'Adreça de correu nova',
+      newDescription: "Enviarem un codi a l'adreça nova per comprovar que és teva.",
+      invalid: 'Escriu una adreça de correu vàlida.',
+      sendCode: 'Envia el codi',
+      confirmTitle: 'Confirma el correu nou',
+      confirmDescription: 'Escriu el codi que hem enviat a {{email}} i confirma que ets tu.',
+      codeLabel: 'Codi enviat al correu nou',
+      save: 'Desa el correu',
+      saved: "S'ha actualitzat el teu correu. S'ha tancat la sessió als altres dispositius.",
+      removeTitle: 'Treu el teu correu',
+      removeDescription:
+        "Només podràs iniciar sessió amb la contrasenya. Si l'oblides, no hi ha manera de recuperar el compte. Confirma amb la contrasenya.",
+      removed: "S'ha tret el teu correu. S'ha tancat la sessió als altres dispositius.",
+    },
     password: {
       title: 'Contrasenya',
       setTitle: 'Crea una contrasenya',
@@ -379,6 +427,10 @@ const dict = {
       save: 'Desa la contrasenya',
       saved: "S'ha desat la contrasenya.",
       row: 'Opcional: inicia sessió amb contrasenya',
+      remove: 'Treu la contrasenya',
+      removeTitle: 'Treu la teva contrasenya',
+      removeDescription: 'Iniciaràs sessió amb un codi o un enllaç enviat al teu correu.',
+      removed: "S'ha tret la teva contrasenya. S'ha tancat la sessió als altres dispositius.",
     },
     totp: {
       title: "App d'autenticació",
@@ -404,6 +456,7 @@ const dict = {
       regenerateDescription: 'Els codis de seguretat anteriors deixaran de funcionar.',
       remaining: 'Queden {{count}} codis de seguretat',
       row: 'Un segon pas en iniciar sessió',
+      onWithCodes: 'Activada · queden {{count}} codis de seguretat',
     },
   },
   fileManagement: {

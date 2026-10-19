@@ -344,6 +344,7 @@ const dict = {
     failed: 'Commons를 연결하지 못했습니다. 다시 시도하세요.',
     confirmTitle: '연결 확인',
     confirmDescription: '마지막으로, 이메일로 보내 드리는 코드로 본인임을 확인하세요.',
+    confirmPasswordDescription: '마지막으로, 비밀번호로 본인임을 확인하세요.',
     row: 'Commons로 직접 키 보관하기',
   },
   reauth: {
@@ -361,6 +362,51 @@ const dict = {
     },
   },
   signInSecurity: {
+    title: '로그인 및 보안',
+    subtitle: '이메일, 비밀번호, 인증 앱 및 로그인된 곳',
+    methodsTitle: '로그인 방법',
+    notPersonal: '개인 계정만 이메일, 비밀번호 또는 인증 앱으로 로그인할 수 있습니다.',
+    loadFailed: '이 계정의 로그인 방법을 불러오지 못했습니다.',
+    retry: '다시 시도',
+    noEmailWarning:
+      '이 계정에는 이메일이 없습니다. 비밀번호로만 로그인하며, 비밀번호를 잊으면 계정을 되찾을 방법이 없습니다.',
+    status: {
+      on: '켜짐',
+      off: '꺼짐',
+    },
+    commons: {
+      title: 'Commons',
+    },
+    errors: {
+      lastSignInMethod: '유일한 로그인 방법입니다. 먼저 다른 방법을 추가하세요.',
+      passwordRequired: '먼저 비밀번호를 설정하고 그 비밀번호로 확인하세요.',
+      emailUnchanged: '이미 사용 중인 이메일입니다.',
+    },
+    email: {
+      title: '이메일',
+      none: '이메일 없음',
+      description: '로그인 코드, 로그인 링크, 보안 알림이 이 주소로 전송됩니다.',
+      noneDescription:
+        '이메일을 추가하면 코드나 링크로 로그인하고, 비밀번호를 잊었을 때 계정을 되찾을 수 있습니다.',
+      change: '이메일 변경',
+      add: '이메일 추가',
+      remove: '이메일 삭제',
+      removeNeedsPassword:
+        '이메일을 삭제하려면 먼저 비밀번호를 설정하세요. 비밀번호가 유일한 로그인 방법이 됩니다.',
+      newLabel: '새 이메일 주소',
+      newDescription: '본인의 주소인지 확인하기 위해 새 주소로 코드를 보내 드립니다.',
+      invalid: '올바른 이메일 주소를 입력하세요.',
+      sendCode: '코드 보내기',
+      confirmTitle: '새 이메일 확인',
+      confirmDescription: '{{email}}(으)로 보낸 코드를 입력한 다음 본인임을 확인하세요.',
+      codeLabel: '새 이메일로 받은 코드',
+      save: '이메일 저장',
+      saved: '이메일이 업데이트되었습니다. 다른 기기에서는 로그아웃되었습니다.',
+      removeTitle: '이메일 삭제',
+      removeDescription:
+        '이제 비밀번호로만 로그인합니다. 비밀번호를 잊으면 계정을 되찾을 방법이 없습니다. 비밀번호로 확인하세요.',
+      removed: '이메일이 삭제되었습니다. 다른 기기에서는 로그아웃되었습니다.',
+    },
     password: {
       title: '비밀번호',
       setTitle: '비밀번호 설정',
@@ -374,6 +420,10 @@ const dict = {
       save: '비밀번호 저장',
       saved: '비밀번호가 저장되었습니다.',
       row: '선택 사항: 비밀번호로 로그인',
+      remove: '비밀번호 삭제',
+      removeTitle: '비밀번호 삭제',
+      removeDescription: '이메일로 전송되는 코드나 링크로 로그인합니다.',
+      removed: '비밀번호가 삭제되었습니다. 다른 기기에서는 로그아웃되었습니다.',
     },
     totp: {
       title: '인증 앱',
@@ -399,6 +449,7 @@ const dict = {
       regenerateDescription: '이전 백업 코드는 더 이상 작동하지 않습니다.',
       remaining: '백업 코드 {{count}}개 남음',
       row: '로그인할 때 추가 확인 단계',
+      onWithCodes: '켜짐 · 백업 코드 {{count}}개 남음',
     },
   },
   fileManagement: {

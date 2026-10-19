@@ -35,7 +35,7 @@ import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { isTotpEnabled, verifySecondFactor } from '../services/totp.service';
-import { verifyEmailReauth } from '../services/reauth.service';
+import { verifyAccountReauth } from '../services/reauth.service';
 import { deleteAccount } from '../services/accountDeletion.service';
 import { validate } from '../middleware/validate';
 import {
@@ -1472,12 +1472,12 @@ router.delete(
       }
     } else {
       // An account without a key: a code just sent to its email for THIS
-      // deletion, plus its authenticator code when it has one
-      // (`reauth.service.ts`).
+      // deletion (its password when it has no email), plus its authenticator
+      // code when it has one (`reauth.service.ts`).
       if (!reauth) {
-        throw new BadRequestError('Confirm the deletion with a code sent to your email');
+        throw new BadRequestError('Confirm the deletion first');
       }
-      await verifyEmailReauth(userId, reauth, 'delete_account');
+      await verifyAccountReauth(userId, reauth, 'delete_account');
     }
 
     // Holds are checked before anything is destroyed; a live subscription,

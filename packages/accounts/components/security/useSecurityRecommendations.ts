@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { alert } from '@oxy.so/bloom';
-import type { IdentityRootStatus } from '@oxy.so/contracts';
+import type { IdentityRootStatus, SignInMethods } from '@oxy.so/contracts';
+import { useOxy } from '@oxy.so/services';
 import type { ClientSession, SecurityActivity } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
@@ -18,6 +19,7 @@ interface UseSecurityRecommendationsArgs {
   biometricEnabled: boolean;
   biometricLoading: boolean;
   rootStatus: IdentityRootStatus | undefined;
+  signInMethods: SignInMethods | undefined;
   sessions: ClientSession[] | undefined;
   deviceCount: number;
   securityActivities: SecurityActivity[];
@@ -38,12 +40,14 @@ export function useSecurityRecommendations({
   biometricEnabled,
   biometricLoading,
   rootStatus,
+  signInMethods,
   sessions,
   deviceCount,
   securityActivities,
 }: UseSecurityRecommendationsArgs): PrioritizedGroupedItem[] {
   const colors = useColors();
   const router = useRouter();
+  const { showBottomSheet } = useOxy();
   const { t } = useTranslation();
   const openLinkCommons = useOpenLinkCommons();
 
@@ -53,6 +57,7 @@ export function useSecurityRecommendations({
       biometricEnabled,
       biometricLoading,
       rootStatus,
+      signInMethods,
       sessions,
       deviceCount,
       securityActivities,
@@ -70,7 +75,7 @@ export function useSecurityRecommendations({
             title: t('security.recommendations.biometric'),
             subtitle: t('security.recommendations.biometricSubtitle'),
             onPress: () => {
-              // The biometric toggle lives in the "How you sign in"
+              // The biometric toggle lives in the "On this device"
               // section on this same screen, so the recommendation is
               // purely informational — point the user at the toggle
               // below rather than offering a no-op navigation action.
@@ -80,6 +85,28 @@ export function useSecurityRecommendations({
                 [{ text: t('common.ok'), style: 'default' }],
               );
             },
+            showChevron: true,
+          };
+        case 'add-email':
+          return {
+            id: descriptor.id,
+            priority: descriptor.priority,
+            icon: 'email-plus-outline',
+            iconColor: colors.warning,
+            title: t('security.recommendations.addEmail'),
+            subtitle: t('security.recommendations.addEmailSubtitle'),
+            onPress: () => showBottomSheet?.('SignInEmail'),
+            showChevron: true,
+          };
+        case 'authenticator':
+          return {
+            id: descriptor.id,
+            priority: descriptor.priority,
+            icon: 'cellphone-key',
+            iconColor: colors.warning,
+            title: t('security.recommendations.authenticator'),
+            subtitle: t('security.recommendations.authenticatorSubtitle'),
+            onPress: () => showBottomSheet?.('SignInAuthenticator'),
             showChevron: true,
           };
         case 'link-commons':
@@ -145,10 +172,12 @@ export function useSecurityRecommendations({
     biometricEnabled,
     biometricLoading,
     rootStatus,
+    signInMethods,
     sessions,
     deviceCount,
     securityActivities,
     router,
+    showBottomSheet,
     openLinkCommons,
     t,
     colors.warning,

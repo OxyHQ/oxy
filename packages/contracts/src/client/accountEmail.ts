@@ -29,8 +29,10 @@ import {
  * - `reauth`: a signed-in person proving it is them before a sensitive step
  *   (`POST /users/me/reauth/email`): a password, an authenticator, deleting the
  *   account, linking Commons.
+ * - `email_change`: a signed-in account proving the NEW address it moves to
+ *   (`POST /users/me/email/verify/start`); bound to the account and that address.
  */
-export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'signin', 'reauth'] as const;
+export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'signin', 'reauth', 'email_change'] as const;
 
 export type EmailVerificationPurpose = (typeof EMAIL_VERIFICATION_PURPOSES)[number];
 

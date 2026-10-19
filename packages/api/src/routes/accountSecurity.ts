@@ -1,11 +1,15 @@
 /**
- * How the signed-in account signs in — its password and its authenticator —
- * mounted at `/users/me`:
+ * How the signed-in account signs in — its email, its password and its
+ * authenticator — mounted at `/users/me`:
  *
  *  - `GET  /sign-in-methods`     → `{ hasEmail, hasPassword, totpEnabled, backupCodesRemaining }`
  *  - `POST /reauth/email`        `{ action }` → `{ verificationId, expiresAt }`: a code to the
- *    account's email for that ONE change (`change_password`, `totp`, `link_commons`, `delete_account`)
+ *    account's email for that ONE change (`change_password`, `change_email`, `totp`, …)
+ *  - `POST /email/verify/start`  `{ email }` → `{ verificationId, expiresAt }`: a code to the NEW address
+ *  - `PUT  /email`               `{ email, verificationId, code, reauth }` → `{ success }`: add or change it
+ *  - `DELETE /email`             `{ reauth }` → `{ success }`: only with a password, confirmed with it
  *  - `PUT  /password`            `{ newPassword, reauth, revokeOtherSessions? }` → `{ success }`
+ *  - `DELETE /password`          `{ reauth }` → `{ success }`: only while the account has an email
  *  - `POST /totp/enroll`         → `{ secret, otpauthUri }` (pending until confirmed)
  *  - `POST /totp/confirm`        `{ code, reauth }` → `{ backupCodes }`
  *  - `POST /totp/disable`        `{ reauth }` → `{ success }`
@@ -14,20 +18,29 @@
  * Every change needs a FRESH proof in the same request (`reauth`: the current
  * password or a code just sent to the email, plus the authenticator code when
  * it is on — `services/reauth.service.ts`), is told to the account's email, and
- * turning the authenticator on or off signs every other session out (the
- * password: when asked). Official Oxy apps only, first-party bearers only, a
- * personal account only; limits per account.
+ * turning the authenticator on or off, removing the password and adding,
+ * changing or removing the email sign every other session out (setting the
+ * password: when asked). The account never loses its last way in: the email
+ * goes only with a password set, the password only with an email. Official
+ * Oxy apps only, first-party bearers only, a personal account only; limits
+ * per account.
  */
 import { Router, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import {
   SIGN_IN_ERROR_CODES,
+  emailChangeStartRequestSchema,
+  emailSetRequestSchema,
   passwordSetRequestSchema,
   reauthEmailStartRequestSchema,
+  signInMethodRemoveRequestSchema,
   totpConfirmRequestSchema,
   totpReauthRequestSchema,
+  type EmailChangeStartRequest,
+  type EmailSetRequest,
   type PasswordSetRequest,
   type ReauthEmailStartRequest,
+  type SignInMethodRemoveRequest,
   type SignInMethods,
   type TotpConfirmRequest,
   type TotpReauthRequest,
@@ -40,7 +53,8 @@ import { requireOfficialOrigin } from '../middleware/officialOrigin';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { sendSecurityNotice, type SecurityNotice } from '../services/accountEmail.mail';
-import { readPasswordHash, storePassword } from '../services/password.service';
+import { changeEmail, removeEmail, startEmailChange } from '../services/accountEmailChange.service';
+import { readPasswordHash, removePassword, storePassword } from '../services/password.service';
 import { startReauthEmail, verifyReauth } from '../services/reauth.service';
 import sessionService from '../services/session.service';
 import {
@@ -52,6 +66,7 @@ import {
   regenerateBackupCodes,
 } from '../services/totp.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import userCache from '../utils/userCache';
 import { ApiError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
@@ -79,7 +94,7 @@ const reauthEmailLimiter = accountLimiter('reauth-email', HOUR, 10);
 const changeLimiter = accountLimiter('change', HOUR, 30);
 
 router.use(
-  ['/sign-in-methods', '/reauth', '/password', '/totp'],
+  ['/sign-in-methods', '/reauth', '/email', '/password', '/totp'],
   requireOfficialOrigin,
   (_req, res, next) => {
     res.locals.supervisedSelfOperation = true;
@@ -124,9 +139,9 @@ async function owner(req: AuthRequest, options: { keyless?: boolean } = {}): Pro
   return { userId, email: row.email?.trim().toLowerCase() || null, username: row.username };
 }
 
-function notify(account: Owner, notice: SecurityNotice): void {
-  if (!account.email) return;
-  sendSecurityNotice(account.email, notice, account.username).catch((error: unknown) => {
+function notify(account: Owner, notice: SecurityNotice, to: string | null = account.email): void {
+  if (!to) return;
+  sendSecurityNotice(to, notice, account.username).catch((error: unknown) => {
     logger.error(
       'Security notice could not be sent',
       error instanceof Error ? error : new Error(String(error)),
@@ -182,6 +197,70 @@ router.put(
       await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
     }
     notify(account, hadPassword ? 'password_changed' : 'password_set');
+    res.status(200).json({ success: true });
+  }),
+);
+
+router.delete(
+  '/password',
+  changeLimiter,
+  validate({ body: signInMethodRemoveRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const account = await owner(req, { keyless: true });
+    const body = req.body as SignInMethodRemoveRequest;
+    if (!account.email) {
+      throw new ApiError(
+        400,
+        'Add an email before removing the password.',
+        SIGN_IN_ERROR_CODES.lastSignInMethod,
+      );
+    }
+    await verifyReauth(account.userId, body.reauth, 'change_password');
+    await removePassword(account.userId);
+    await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
+    notify(account, 'password_removed');
+    res.status(200).json({ success: true });
+  }),
+);
+
+router.post(
+  '/email/verify/start',
+  reauthEmailLimiter,
+  validate({ body: emailChangeStartRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const account = await owner(req, { keyless: true });
+    const { email } = req.body as EmailChangeStartRequest;
+    res.status(200).json(await startEmailChange(account, email));
+  }),
+);
+
+router.put(
+  '/email',
+  changeLimiter,
+  validate({ body: emailSetRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const account = await owner(req, { keyless: true });
+    const body = req.body as EmailSetRequest;
+    await changeEmail(account, body);
+    userCache.invalidate(account.userId);
+    await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
+    if (account.email) notify(account, 'email_changed');
+    notify(account, 'email_added', body.email);
+    res.status(200).json({ success: true });
+  }),
+);
+
+router.delete(
+  '/email',
+  changeLimiter,
+  validate({ body: signInMethodRemoveRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const account = await owner(req, { keyless: true });
+    const body = req.body as SignInMethodRemoveRequest;
+    await removeEmail(account, body.reauth);
+    userCache.invalidate(account.userId);
+    await sessionService.deactivateAllUserSessions(account.userId, req.sessionId);
+    notify(account, 'email_removed');
     res.status(200).json({ success: true });
   }),
 );
