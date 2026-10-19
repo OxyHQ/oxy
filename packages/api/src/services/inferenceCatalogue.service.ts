@@ -252,8 +252,6 @@ export function selectableDeploymentWhere(viewer: CatalogueViewer) {
 
   return and(
     availability,
-    sql`${inferenceDeployments.privateAutoSourceApproval} IS NULL`,
-    sql`${inferenceDeployments.scopedExecution} IS NULL`,
     eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
     inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES]),
   );
@@ -967,9 +965,6 @@ export const CUSTOMER_SAFE_DEPLOYMENT_COLUMNS = {
  * customer should start depending on.
  */
 export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
-  scopedExecution: 'PROTECTED. Private one-use audience; never customer-facing.',
-  privateAutoSourceApproval:
-    'PROTECTED. Private Auto source-review restriction; never customer-facing.',
   id: 'The route’s own row id. `deploymentIdSchema` calls it opaque to customers: which concrete endpoint served a request is operational detail, and only the customer-safe subset of it is ever attributed back.',
   modelRevisionId:
     'An internal row id. The customer sees the revision LABEL (`2026-05-01`), which is the thing they pin; the id would be a second, private name for it.',

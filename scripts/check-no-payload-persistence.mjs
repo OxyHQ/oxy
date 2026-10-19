@@ -170,18 +170,6 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     holds:
       'Bounded organizationAliasSchema entries (alias, closed kind, optional language), canonical public directory identity facts; no inference payload or authority evidence.',
   },
-  {
-    table: 'inference_deployments',
-    column: 'privateAutoSourceApproval',
-    holds:
-      'RETIRED (always null; its schema left @oxy.so/contracts in 5.0.0). Was closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret',
-  },
-  {
-    table: 'inference_deployments',
-    column: 'scopedExecution',
-    holds:
-      'RETIRED (always null; its schema left @oxy.so/contracts in 5.0.0). Was closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token',
-  },
   // ---- external account identity evidence ------------------------------------
   {
     table: 'external_identities',

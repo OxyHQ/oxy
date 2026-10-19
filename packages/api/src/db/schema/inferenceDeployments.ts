@@ -238,20 +238,6 @@ export const inferenceDeployments = pgTable(
   {
     id: generatedId(),
     /**
-     * RETIRED. The scoped-execution audience of the deleted one-off permits.
-     * Always null since decisions moved to `kaana.ai/v1` (Kaana ADR 0002); the
-     * column and its checks stay until a reviewed migration drops them, and its
-     * contract (`@oxy.so/contracts` `ScopedExecutionAudience`) left in 5.0.0.
-     */
-    scopedExecution: jsonb().$type<Record<string, unknown>>(),
-    /**
-     * RETIRED. The Private Auto source approval of the deleted one-off permits;
-     * always null, kept like `scopedExecution` above (its contract,
-     * `PrivateAutoSourceApproval`, left in `@oxy.so/contracts` 5.0.0).
-     */
-    privateAutoSourceApproval: jsonb().$type<Record<string, unknown>>(),
-
-    /**
      * The exact weights this route serves. A deployment ALWAYS pins a revision —
      * structurally, because this is a foreign key to the revision table and not
      * a nullable model reference. That is the database's version of the
@@ -441,37 +427,17 @@ export const inferenceDeployments = pgTable(
      * products internally and to public customers under different commercial terms —
      * those are two decisions and must be two rows.
      */
-    uniqueIndex('inference_deployments_revision_provider_scope_key')
-      .on(t.modelRevisionId, t.providerSlug, t.availabilityScope)
-      .where(sql`${t.privateAutoSourceApproval} is null`),
-    // A renewed approval/version cannot create a second private row for this exact route.
-    uniqueIndex('inference_deployments_private_auto_route_key')
-      .on(t.internalRouteId)
-      .where(sql`${t.privateAutoSourceApproval} is not null`),
+    uniqueIndex('inference_deployments_revision_provider_scope_key').on(
+      t.modelRevisionId,
+      t.providerSlug,
+      t.availabilityScope,
+    ),
     // Drafts may model audience-specific offers independently. Publication may
     // not: until serving has a viewer-aware cross-scope commercial contract,
     // one exact Kaana deployment identity can back at most one approved row.
     uniqueIndex(APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
       .on(t.internalRouteId)
       .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
-
-    check(
-      'inference_deployments_private_auto_stays_private',
-      sql`${t.privateAutoSourceApproval} is null or coalesce((jsonb_typeof(${t.privateAutoSourceApproval}) = 'object'
-        and ${t.privateAutoSourceApproval}->>'purpose' = 'private_auto_classifier'
-        and ${t.privateAutoSourceApproval}->>'classifierVersion' = 'jev-auto-v1'
-        and ${t.internalRouteId} is not null
-        and ${t.internalRouteId} = ${t.privateAutoSourceApproval}->>'deploymentId'
-        and ${t.providerSlug} = ${t.privateAutoSourceApproval}->>'provider'
-        and ${t.priceVersionId} = ${t.privateAutoSourceApproval}->>'priceVersionId'
-        and ${t.privateAutoSourceApproval}->'principal'->>'lane' = 'service_token'
-        and ${t.privateAutoSourceApproval}->'principal'->>'environment' = 'production'
-        and ${t.privateAutoSourceApproval}->'review'->>'internalUseAllowed' = 'true'
-        and ${t.scopedExecution} is null
-        and ${t.availabilityScope} = 'platform_internal' and ${t.autoApprovalPolicyId} is null
-        and ${t.status} in ('disabled', 'retired')
-        and ${t.permissionState} in ('pending_review', 'rejected', 'retired')), false)`,
-    ),
 
     /* ---- closed value sets ---------------------------------------------- */
 

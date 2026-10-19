@@ -1102,7 +1102,6 @@ async function applyPlannedModel(
         and(
           eq(inferenceDeployments.modelRevisionId, revisionId),
           eq(inferenceDeployments.providerSlug, route.provider),
-          sql`${inferenceDeployments.privateAutoSourceApproval} is null`,
           or(
             eq(inferenceDeployments.availabilityScope, 'platform_internal'),
             sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
@@ -1134,8 +1133,6 @@ async function applyPlannedModel(
     );
 
     const routeFacts = {
-      scopedExecution: null,
-      privateAutoSourceApproval: null,
       regions: [...route.regions],
       retainsPayloads: provider.retainsPayloads,
       retentionDays: provider.retentionDays,
