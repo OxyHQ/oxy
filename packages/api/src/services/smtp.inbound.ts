@@ -32,10 +32,10 @@ let smtpServer: SMTPServer | null = null;
 /**
  * The account a `RCPT TO` address belongs to, or `null` when there is none.
  *
- * Extracted from the `onRcptTo` handler so the lookup this SMTP server accepts
- * or rejects mail on is reachable without booting a TLS listener — the handler
- * itself is a closure inside `new SMTPServer({...})` and `startSmtpInbound`
- * refuses to run without readable certificates.
+ * Called by {@link handleRcptTo}. It and the handlers below are module
+ * functions rather than closures inside `new SMTPServer({...})` so they are
+ * reachable without booting a TLS listener — `startSmtpInbound` refuses to run
+ * without readable certificates.
  *
  * The match is written `lower(btrim(username)) = lower(btrim($1))`, the
  * EXPRESSION `users_lower_username_key` is built on and the same spelling the
@@ -61,6 +61,131 @@ export async function findRecipientAccountId(emailAddress: string): Promise<stri
     .limit(1);
 
   return account?.id ?? null;
+}
+
+/**
+ * An error `smtp-server` answers with `code`.
+ *
+ * The library reads the reply code from `err.responseCode` and falls back to
+ * its own default (550 at `RCPT TO`, 450 at `DATA`); a code written into the
+ * message is sent as text after that default, so `'550 …'` at `DATA` went out
+ * as `450 550 …` — a temporary failure the sender retried.
+ */
+export function smtpError(code: number, text: string): Error & { responseCode: number } {
+  return Object.assign(new Error(text), { responseCode: code });
+}
+
+/**
+ * `RCPT TO`: accept an address that belongs to an Oxy account.
+ *
+ * An unknown address is refused for good (550); a lookup that failed is
+ * temporary (451), so the sender tries again rather than bouncing.
+ */
+export async function handleRcptTo(
+  address: SMTPServerAddress,
+  _session: SMTPServerSession,
+  callback: (err?: Error | null) => void,
+): Promise<void> {
+  try {
+    const emailAddr = address.address.toLowerCase();
+
+    if (!extractUsername(emailAddr)) {
+      return callback(smtpError(550, 'Recipient rejected: not our domain'));
+    }
+
+    const accountId = await findRecipientAccountId(emailAddr);
+    if (!accountId) {
+      return callback(smtpError(550, `Recipient not found: ${emailAddr}`));
+    }
+
+    callback();
+  } catch (error) {
+    logger.error('SMTP RCPT TO error', error instanceof Error ? error : new Error(String(error)));
+    callback(smtpError(451, 'Temporary error, try again later'));
+  }
+}
+
+/**
+ * `DATA`: spam-check, parse and store the message for every recipient.
+ *
+ * Past the server's `size` limit `smtp-server` keeps emitting the bytes and
+ * only flags `stream.sizeExceeded`; the stream is drained without buffering
+ * the rest and the message refused with 552.
+ */
+export async function handleData(
+  stream: SMTPServerDataStream,
+  session: SMTPServerSession,
+  callback: (err?: Error | null) => void,
+): Promise<void> {
+  try {
+    // Collect the raw message into a buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      if (stream.sizeExceeded) continue;
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    if (stream.sizeExceeded) {
+      return callback(smtpError(552, 'Message exceeds fixed maximum message size'));
+    }
+    const rawMessage = Buffer.concat(chunks);
+
+    // Spam check
+    const spamResult = await spamService.check(rawMessage);
+    if (spamService.shouldReject(spamResult.score)) {
+      logger.info('Rejected spam message', {
+        score: spamResult.score,
+        from: session.envelope.mailFrom,
+      });
+      return callback(smtpError(550, 'Message rejected as spam'));
+    }
+
+    // Parse MIME
+    const mime = await parseInboundMime(rawMessage);
+
+    // Deliver to each recipient
+    const recipients = session.envelope.rcptTo || [];
+    for (const rcpt of recipients) {
+      const recipientAddr = rcpt.address.toLowerCase();
+      const username = extractUsername(recipientAddr);
+      if (!username) continue;
+
+      const aliasTag = extractAliasTag(recipientAddr);
+
+      const mailFrom = session.envelope.mailFrom as { address: string } | false;
+      const senderAddress = mime.from?.address || (mailFrom ? mailFrom.address : '');
+      await emailService.storeIncomingMessage({
+        recipientUsername: username,
+        from: {
+          name: mime.from?.name || '',
+          address: senderAddress,
+        },
+        replyTo: mime.replyTo,
+        to: mime.to,
+        cc: mime.cc,
+        subject: mime.subject,
+        text: mime.text,
+        html: mime.html,
+        messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
+        inReplyTo: mime.inReplyTo,
+        references: mime.references,
+        date: mime.date || new Date(),
+        headers: mime.headers,
+        attachments: mime.attachments,
+        spamScore: spamResult.score,
+        spamAction: spamResult.action,
+        aliasTag: aliasTag ?? undefined,
+        rawSize: rawMessage.length,
+      });
+    }
+
+    callback();
+  } catch (error) {
+    logger.error(
+      'SMTP data processing error',
+      error instanceof Error ? error : new Error(String(error)),
+    );
+    callback(smtpError(451, 'Message processing failed'));
+  }
 }
 
 /**
@@ -127,110 +252,8 @@ export function startSmtpInbound(): SMTPServer {
     secure: false,
     ...tlsOptions,
 
-    /**
-     * Validate RCPT TO addresses — reject if the user doesn't exist.
-     */
-    async onRcptTo(
-      address: SMTPServerAddress,
-      _session: SMTPServerSession,
-      callback: (err?: Error | null) => void,
-    ) {
-      try {
-        const emailAddr = address.address.toLowerCase();
-
-        if (!extractUsername(emailAddr)) {
-          return callback(new Error(`550 Recipient rejected: not our domain`));
-        }
-
-        const accountId = await findRecipientAccountId(emailAddr);
-        if (!accountId) {
-          return callback(new Error(`550 Recipient not found: ${emailAddr}`));
-        }
-
-        callback();
-      } catch (error) {
-        logger.error(
-          'SMTP RCPT TO error',
-          error instanceof Error ? error : new Error(String(error)),
-        );
-        callback(new Error('451 Temporary error, try again later'));
-      }
-    },
-
-    /**
-     * Process the incoming message data.
-     */
-    async onData(
-      stream: SMTPServerDataStream,
-      session: SMTPServerSession,
-      callback: (err?: Error | null) => void,
-    ) {
-      try {
-        // Collect the raw message into a buffer
-        const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
-          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-        }
-        const rawMessage = Buffer.concat(chunks);
-
-        // Spam check
-        const spamResult = await spamService.check(rawMessage);
-        if (spamService.shouldReject(spamResult.score)) {
-          logger.info('Rejected spam message', {
-            score: spamResult.score,
-            from: session.envelope.mailFrom,
-          });
-          return callback(new Error('550 Message rejected as spam'));
-        }
-
-        // Parse MIME
-        const mime = await parseInboundMime(rawMessage);
-
-        // Deliver to each recipient
-        const recipients = session.envelope.rcptTo || [];
-        for (const rcpt of recipients) {
-          const recipientAddr = rcpt.address.toLowerCase();
-          const username = extractUsername(recipientAddr);
-          if (!username) continue;
-
-          const aliasTag = extractAliasTag(recipientAddr);
-
-          const mailFrom = session.envelope.mailFrom as { address: string } | false;
-          const senderAddress = mime.from?.address || (mailFrom ? mailFrom.address : '');
-          await emailService.storeIncomingMessage({
-            recipientUsername: username,
-            from: {
-              name: mime.from?.name || '',
-              address: senderAddress,
-            },
-            replyTo: mime.replyTo,
-            to: mime.to,
-            cc: mime.cc,
-            subject: mime.subject,
-            text: mime.text,
-            html: mime.html,
-            messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
-            inReplyTo: mime.inReplyTo,
-            references: mime.references,
-            date: mime.date || new Date(),
-            headers: mime.headers,
-            attachments: mime.attachments,
-            spamScore: spamResult.score,
-            spamAction: spamResult.action,
-            aliasTag: aliasTag ?? undefined,
-            rawSize: rawMessage.length,
-          });
-        }
-
-        callback();
-      } catch (error) {
-        logger.error(
-          'SMTP data processing error',
-          error instanceof Error ? error : new Error(String(error)),
-        );
-        callback(new Error('451 Message processing failed'));
-      }
-    },
+    onRcptTo: handleRcptTo,
+    onData: handleData,
   });
 
   smtpServer.on('error', (err: Error) => {
