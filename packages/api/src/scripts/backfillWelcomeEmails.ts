@@ -1,12 +1,17 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '../config/postgres';
 import { EMAIL_DOMAIN } from '../config/email.config';
 import { messages } from '../db/schema/messages';
 import { messageRecipients } from '../db/schema/messageRecipients';
-import { renderWelcomeEmail } from '../services/welcomeEmail';
+import { renderWelcomeEmail, WELCOME_EMAIL_MARKER } from '../services/welcomeEmail';
+// Frozen output of the renderer deployed at 20bf0ec64a09f20b65bc4398da818da46762149c.
+import previousWelcome from './fixtures/welcome-v1.json';
 
 const LEGACY_SUBJECT = 'Welcome to Inbox by Oxy';
 const LEGACY_INTRO = 'Welcome to Inbox by Oxy — your new email, built for clarity.';
+const PREVIOUS_INTRO = previousWelcome.text.split('\n\n')[1];
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -14,7 +19,7 @@ const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$
 export class WelcomeBackfillError extends Error {}
 
 /**
- * Rewrites only the known, locally provisioned legacy welcome message.
+ * Rewrites only the known, locally provisioned legacy and first Bloom welcome messages.
  * One transaction is the cutover: any unrecognised candidate aborts all writes.
  * Original recipient identity, row IDs, threading, dates, flags and folders stay
  * intact. There is no insert, SMTP delivery, or recreation of deleted messages.
@@ -31,11 +36,14 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
           userId: messages.userId,
           messageId: messages.messageId,
           text: messages.text,
+          html: messages.html,
+          subject: messages.subject,
         })
         .from(messages)
         .where(
           and(
-            eq(messages.subject, LEGACY_SUBJECT),
+            or(eq(messages.subject, LEGACY_SUBJECT), eq(messages.subject, previousWelcome.subject)),
+            sql`strpos(coalesce(${messages.html}, ''), ${WELCOME_EMAIL_MARKER}) = 0`,
             eq(messages.fromName, 'Inbox by Oxy'),
             eq(messages.fromAddress, `hello@${EMAIL_DOMAIN}`),
             eq(messages.draft, false),
@@ -62,7 +70,9 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
           .from(messageRecipients)
           .where(eq(messageRecipients.messageId, message.id));
         const recipient = recipients[0];
-        const greetingEnd = message.text?.indexOf(`,\n\n${LEGACY_INTRO}\n\n`) ?? -1;
+        const isPrevious = message.subject === previousWelcome.subject;
+        const intro = isPrevious ? PREVIOUS_INTRO : LEGACY_INTRO;
+        const greetingEnd = message.text?.indexOf(`,\n\n${intro}\n\n`) ?? -1;
         const greetingName =
           message.text?.startsWith('Hi ') && greetingEnd > 3
             ? message.text.slice(3, greetingEnd)
@@ -74,6 +84,21 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
         const recognisedGreeting =
           greetingName !== undefined &&
           (greetingName === recipientName || recipientName.startsWith(`${greetingName} `));
+        // The first Bloom revision has no version marker. Compare its complete
+        // stored HTML AND text against the frozen deployed fixture, substituting
+        // only the original greeting/address. A similar subject is not enough.
+        const previousMatches =
+          !isPrevious ||
+          (greetingName !== undefined &&
+            recipient &&
+            message.text ===
+              previousWelcome.text
+                .replaceAll('__OXY_WELCOME_NAME__', () => greetingName)
+                .replaceAll('__OXY_WELCOME_ADDRESS__', () => recipient.address) &&
+            message.html ===
+              previousWelcome.html
+                .replaceAll('__OXY_WELCOME_NAME__', () => escapeHtml(greetingName))
+                .replaceAll('__OXY_WELCOME_ADDRESS__', () => escapeHtml(recipient.address)));
         const signature = new RegExp(
           `^<welcome-${escapeRegex(message.userId)}-${UUID}@${escapeRegex(EMAIL_DOMAIN)}>$`,
         );
@@ -81,7 +106,8 @@ export async function backfillWelcomeEmails(db: Database, apply = false) {
           !signature.test(message.messageId) ||
           recipients.length !== 1 ||
           recipient.kind !== 'to' ||
-          !recognisedGreeting
+          !recognisedGreeting ||
+          !previousMatches
         ) {
           result.unrecognised++;
           continue;

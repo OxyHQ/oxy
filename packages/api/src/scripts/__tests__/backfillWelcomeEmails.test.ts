@@ -8,6 +8,7 @@ import { messages } from '../../db/schema/messages';
 import { messageRecipients } from '../../db/schema/messageRecipients';
 import { renderWelcomeEmail } from '../../services/welcomeEmail';
 import { backfillWelcomeEmails } from '../backfillWelcomeEmails';
+import previousWelcome from '../fixtures/welcome-v1.json';
 
 let userId: string;
 let mailboxId: string;
@@ -198,4 +199,87 @@ it('updates every page of candidates without skipping rows as their subjects cha
     unrecognised: 0,
     updated: 0,
   });
+});
+
+function previousContent(name = 'Ana') {
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
+  return {
+    subject: previousWelcome.subject,
+    text: previousWelcome.text
+      .replaceAll('__OXY_WELCOME_NAME__', () => name)
+      .replaceAll('__OXY_WELCOME_ADDRESS__', () => address),
+    html: previousWelcome.html
+      .replaceAll('__OXY_WELCOME_NAME__', () => escapeHtml(name))
+      .replaceAll('__OXY_WELCOME_ADDRESS__', () => escapeHtml(address)),
+  };
+}
+
+it('upgrades both old revisions together while preserving first-name greetings and mailbox state', async () => {
+  const legacy = await seed();
+  const previous = await seed(previousContent());
+  await getDb()
+    .update(messageRecipients)
+    .set({ name: 'Ana Example' })
+    .where(eq(messageRecipients.messageId, previous));
+  const before = await read(previous);
+  expect(await backfillWelcomeEmails(getDb())).toEqual({
+    candidates: 2,
+    eligible: 2,
+    unrecognised: 0,
+    updated: 0,
+  });
+  expect(await read(previous)).toEqual(before);
+  expect(await backfillWelcomeEmails(getDb(), true)).toEqual({
+    candidates: 2,
+    eligible: 2,
+    unrecognised: 0,
+    updated: 2,
+  });
+  const content = renderWelcomeEmail('Ana', address);
+  expect(await read(previous)).toEqual({
+    ...before,
+    ...content,
+    size: Buffer.byteLength(content.text),
+    updatedAt: expect.any(Date),
+  });
+  expect(await read(legacy)).toMatchObject(content);
+  expect(await backfillWelcomeEmails(getDb(), true)).toEqual({
+    candidates: 0,
+    eligible: 0,
+    unrecognised: 0,
+    updated: 0,
+  });
+});
+
+it.each(['html', 'text'] as const)(
+  'refuses a first Bloom welcome with altered %s and rolls back both versions',
+  async (field) => {
+    const legacy = await seed();
+    const content = previousContent();
+    const unknown = await seed({ ...content, [field]: `${content[field]}extra content` });
+    const before = await read(legacy);
+    const unknownBefore = await read(unknown);
+    expect(await backfillWelcomeEmails(getDb())).toEqual({
+      candidates: 2,
+      eligible: 1,
+      unrecognised: 1,
+      updated: 0,
+    });
+    await expect(backfillWelcomeEmails(getDb(), true)).rejects.toThrow('rolled back');
+    expect(await read(legacy)).toEqual(before);
+    expect(await read(unknown)).toEqual(unknownBefore);
+  },
+);
+
+it('recognises escaped identities in the exact prior HTML', async () => {
+  const name = 'Ana <Example> & $&';
+  const id = await seed(previousContent(name));
+  await getDb().update(messageRecipients).set({ name }).where(eq(messageRecipients.messageId, id));
+  expect(await backfillWelcomeEmails(getDb(), true)).toMatchObject({
+    eligible: 1,
+    updated: 1,
+    unrecognised: 0,
+  });
+  expect(await read(id)).toMatchObject(renderWelcomeEmail(name, address));
 });
