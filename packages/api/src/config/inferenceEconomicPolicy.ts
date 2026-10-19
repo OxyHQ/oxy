@@ -474,9 +474,8 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     consumerApplicationClass: 'first_party',
     // 2 in flight and 2,000 a UTC day, counted on this relationship's own rows
     // (`scope`), not on Mention's commercial traffic. At most USD 0.001 a
-    // request, so at most USD 2 a day. Jev's grant quotes about USD 0.00001 a
-    // post and it bills about USD 0.000025 (2026-10-18: Kaana's estimate omits
-    // Jev's own prompt framing, Kaana `docs/decisions.md`).
+    // request, so at most USD 2 a day. Jev bills about USD 0.000025 a post
+    // (2026-10-18).
     // Console (`application_inference_limits`) may lower or raise both.
     capacity: {
       maxConcurrentRequests: 2,

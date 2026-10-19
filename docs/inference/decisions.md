@@ -58,11 +58,9 @@ publication (`configs/public-catalogue.json`, `deployment-commercial.json`,
    not publish `output_tokens` at exactly zero is not admitted
    (`priced-decision-output`): Kaana reports the few output tokens a decision
    emits, and they must settle inside the hold. The estimate is Kaana's
-   quarter of the request body's bytes, and Jev bills its own prompt framing on
-   top: Mention's requests are quoted about USD 0.00001 and billed about
-   USD 0.000025 (2026-10-18, 330–370 input tokens over the estimate; Kaana
-   `docs/decisions.md`). Only internal relationships, which hold nothing, may
-   decide; a commercial decisions hold needs a sound input bound first.
+   bound: a quarter of the request's serialized size plus the framing the
+   line's provider bills on every request, from Kaana's rate card (Jev: 400
+   tokens; Kaana `docs/decisions.md`, OxyHQ/Kaana#214).
 3. Target:
    - none: one step per profile line, in profile order (the application's
      default target is not used). Kaana moves to the next step only when the
