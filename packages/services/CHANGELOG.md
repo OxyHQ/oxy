@@ -1,5 +1,24 @@
 # Changelog
 
+## [11.17.0] - 2026-10-19
+
+### Added
+
+- `@oxy.so/services/ui/client` exports `FollowTargetButton` (with
+  `FollowTargetButtonProps`, `FollowVerb`, `FollowLabels`) and `useSupervision` /
+  `supervisionQueryKeys`. The root and `/ui` entries register every account
+  screen at import, so the lean `/ui/client` entry is how an app keeps its
+  startup bundle small; these were the exports apps still needed the root for.
+
+### Fixed
+
+- `useUsernameAvailability` and `EditProfileFieldScreen` validate with
+  `usernameCheck` from `@oxy.so/contracts/client` instead of `usernameSchema`
+  from the root barrel. Since 11.15.0 those two imports put all of
+  `@oxy.so/contracts` (and its zod) in every app's web bundle — about 360 KB
+  raw — and pushed CrowdSource, Homiio and Allo over their bundle budgets. A
+  packaging test refuses a runtime import from the root barrel in `src/`.
+
 ## [11.16.1] - 2026-10-19
 
 ### Fixed
