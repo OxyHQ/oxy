@@ -8883,8 +8883,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The",
-        "description": "batch is 200; each item answers on its own, in order: `{ index, ok:\n      true, file, outcome, deduplicated, source, reference? }`, a large\n      source still being fetched `{ index, ok: true, pending: true,\n      importId, status: 'importing', source }`, or `{ index, ok: false,\n      error: { status, code, message } }`.\n        when an item asks for a reference), on an active application",
+        "summary": "Up to 50 imports as above, `{ items: [...] }`, run 4 at a time;",
+        "description": "items naming the same source run one after another, so a repeat is\n      answered from the first without fetching again. The batch is 200; each item answers on its own, in order: `{ index, ok:\n      true, file, outcome, deduplicated, source, reference? }`, a large\n      source still being fetched `{ index, ok: true, pending: true,\n      importId, status: 'importing', source }`, or `{ index, ok: false,\n      error: { status, code, message } }`.\n        when an item asks for a reference), on an active application",
         "parameters": [],
         "responses": {
           "200": {

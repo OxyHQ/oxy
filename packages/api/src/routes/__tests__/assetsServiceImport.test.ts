@@ -95,6 +95,13 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 jest.mock('../../services/s3ServiceSingleton', () => ({ s3Service: mockS3 }));
+// The real insert, observed: a duplicate-key race shows as a second call.
+const mockInsertFile = jest.fn();
+jest.mock('../../services/fileRepository', () => {
+  const actual = jest.requireActual('../../services/fileRepository');
+  mockInsertFile.mockImplementation(actual.insertFile);
+  return { ...actual, insertFile: (...args: unknown[]) => mockInsertFile(...args) };
+});
 jest.mock('../../services/variantService', () => ({
   VariantService: class {
     generateVariants = jest.fn(() => Promise.resolve());
@@ -221,6 +228,28 @@ function source(body = png(), headers: Record<string, string> = {}): string {
 }
 
 const APP_SCOPES = ['files:app:write', 'files:references:write'];
+
+/**
+ * Hold the next `count` application temp uploads until all have arrived, so
+ * every one of those imports misses the optimistic pre-lock owner read.
+ * Returns the restore.
+ */
+function holdTempUploads(count: number): () => void {
+  const store = mockS3.uploadStream.getMockImplementation();
+  if (!store) throw new Error('mockS3.uploadStream has no implementation');
+  const held: Array<() => void> = [];
+  mockS3.uploadStream.mockImplementation(async (key: string, body: Readable) => {
+    const stored = await store(key, body);
+    if (key.startsWith('application/incoming/') && held.length < count) {
+      await new Promise<void>((resolve) => {
+        held.push(resolve);
+        if (held.length === count) for (const release of held) release();
+      });
+    }
+    return stored;
+  });
+  return () => mockS3.uploadStream.mockImplementation(store);
+}
 
 beforeAll(async () => {
   process.env.DEVICE_ID_SALT ??= 'test-device-id-salt-that-is-long-enough-000';
@@ -551,6 +580,73 @@ describe('POST /assets/service/app/import/batch', () => {
     expect(results[1].error).toMatchObject({ status: 502, code: 'SOURCE_FETCH_FAILED' });
     expect(results[2].error).toMatchObject({ status: 400, code: 'INVALID_SOURCE_URL' });
     expect(results[3].file.id).toBe(results[0].file.id);
+  });
+
+  it('fetches a source named twice in one batch once, answering both in order', async () => {
+    const appId = await application();
+    actAs(appId, APP_SCOPES);
+    const url = source();
+
+    const res = await post('/assets/service/app/import/batch', {
+      items: [
+        { sourceUrl: url, visibility: 'public' },
+        { sourceUrl: `${url}#same-source`, visibility: 'public' },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    // biome-ignore lint/suspicious/noExplicitAny: a JSON response read loosely in assertions
+    const results = res.body.data?.results as Array<Record<string, any>>;
+    expect(mockFetchLog.filter((entry) => entry.url === url)).toHaveLength(1);
+    expect(results.map((item) => [item.index, item.ok, item.outcome])).toEqual([
+      [0, true, 'downloaded'],
+      [1, true, 'existing'],
+    ]);
+    expect(results[1].file.id).toBe(results[0].file.id);
+  });
+
+  it('stores identical bytes imported side by side as one file, inserted once', async () => {
+    const appId = await application();
+    actAs(appId, APP_SCOPES);
+    const bytes = png();
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    mockInsertFile.mockClear();
+    // Two sources, one content: neither import's pre-lock read can see the
+    // other's row, so the read under the content-hash lock must find the
+    // winner, not the owner's sha256 unique index.
+    const restore = holdTempUploads(2);
+    let res: Answer;
+    try {
+      res = await post('/assets/service/app/import/batch', {
+        items: [
+          { sourceUrl: source(bytes), visibility: 'public' },
+          { sourceUrl: source(bytes), visibility: 'public' },
+        ],
+      });
+    } finally {
+      restore();
+    }
+
+    expect(res.status).toBe(200);
+    // biome-ignore lint/suspicious/noExplicitAny: a JSON response read loosely in assertions
+    const results = res.body.data?.results as Array<Record<string, any>>;
+    expect(results.map((item) => [item.index, item.ok])).toEqual([
+      [0, true],
+      [1, true],
+    ]);
+    expect(results[1].file.id).toBe(results[0].file.id);
+    expect(results.map((item) => item.deduplicated).sort()).toEqual([false, true]);
+    const rows = await getDb()
+      .select({ id: files.id })
+      .from(files)
+      .where(and(eq(files.ownerApplicationId, appId), eq(files.sha256, sha256)));
+    expect(rows).toHaveLength(1);
+    // The rows alone: a call also carries its transaction, far too large to print.
+    expect(
+      mockInsertFile.mock.calls
+        .map(([row]) => (row as { sha256: string }).sha256)
+        .filter((inserted) => inserted === sha256),
+    ).toEqual([sha256]);
   });
 
   it('refuses more than 50 items', async () => {
