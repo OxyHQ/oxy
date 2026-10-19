@@ -33,6 +33,7 @@ import { and, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { reputationBalances } from '../../db/schema/reputationBalances';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
 import {
@@ -256,6 +257,22 @@ describe('recalculateBalance re-derives the total from the ACTIVE rows', () => {
     expect(rows).toHaveLength(3);
     expect(rows.filter((row) => row.status === 'reversed')).toHaveLength(1);
     expect(rows.filter((row) => row.status === 'active')).toHaveLength(2);
+  });
+
+  it('answers 404 for an id naming no account, writing no balance row', async () => {
+    // A well-formed id that matches no user (a fixture id from another
+    // environment) must not reach the recompute's upsert, which the
+    // `user_id` foreign key refuses with a 500.
+    const userId = uniqueId();
+    await expect(reputationService.getBalance(userId)).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'User not found',
+    });
+    const rows = await getDb()
+      .select({ id: reputationBalances.id })
+      .from(reputationBalances)
+      .where(eq(reputationBalances.userId, userId));
+    expect(rows).toHaveLength(0);
   });
 
   it('agrees with getBalance, so the cache never states a different total', async () => {
