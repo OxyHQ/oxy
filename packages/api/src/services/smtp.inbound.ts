@@ -22,7 +22,7 @@ import {
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { emailService } from './email.service';
-import { parseInboundMime } from './inboundMime';
+import { fallbackMessageId, parseInboundMime } from './inboundMime';
 import { spamService } from './spam.service';
 import { logger } from '../utils/logger';
 import fs from 'fs';
@@ -165,7 +165,7 @@ export async function handleData(
         subject: mime.subject,
         text: mime.text,
         html: mime.html,
-        messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
+        messageId: mime.messageId || fallbackMessageId(rawMessage),
         inReplyTo: mime.inReplyTo,
         references: mime.references,
         date: mime.date || new Date(),

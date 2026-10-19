@@ -5,7 +5,7 @@
  * transactional mail: `multipart/alternative` with text, HTML and an AMP part.
  */
 
-import { isAlternativeBody, parseInboundMime } from '../inboundMime';
+import { fallbackMessageId, isAlternativeBody, parseInboundMime } from '../inboundMime';
 
 const CRLF = '\r\n';
 const mime = (lines: string[]) => Buffer.from(lines.join(CRLF));
@@ -190,5 +190,15 @@ describe('isAlternativeBody', () => {
         contentDisposition: undefined,
       }),
     ).toBe(false);
+  });
+});
+
+describe('fallbackMessageId', () => {
+  it('is the same for the same bytes and differs for different ones', () => {
+    const raw = Buffer.from('From: a@example.com\r\nSubject: x\r\n\r\nbody\r\n');
+
+    expect(fallbackMessageId(raw)).toBe(fallbackMessageId(Buffer.from(raw)));
+    expect(fallbackMessageId(raw)).not.toBe(fallbackMessageId(Buffer.concat([raw, raw])));
+    expect(fallbackMessageId(raw)).toMatch(/^<[0-9a-f]{32}@oxy\.so>$/);
   });
 });

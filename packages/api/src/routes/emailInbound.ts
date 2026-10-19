@@ -25,9 +25,9 @@ import { sql } from 'drizzle-orm';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
 import { emailService } from '../services/email.service';
-import { parseInboundMime } from '../services/inboundMime';
+import { fallbackMessageId, parseInboundMime } from '../services/inboundMime';
 import { spamService } from '../services/spam.service';
-import { EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
+import { extractUsername, extractAliasTag } from '../config/email.config';
 import { getEnvVar } from '../config/env';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
@@ -200,7 +200,7 @@ router.post(
           subject: mime.subject,
           text: mime.text,
           html: mime.html,
-          messageId: mime.messageId || `<${Date.now()}@${EMAIL_DOMAIN}>`,
+          messageId: mime.messageId || fallbackMessageId(rawMessage),
           inReplyTo: mime.inReplyTo,
           references: mime.references,
           date: mime.date || new Date(),

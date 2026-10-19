@@ -16,10 +16,12 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   lt,
   lte,
   ne,
   not,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -2095,6 +2097,35 @@ class EmailService {
   }
 
   /**
+   * The row an inbound message was already stored as for this user, matched
+   * on its RFC Message-ID (`messages_user_id_message_id_idx`).
+   *
+   * Sent and Drafts are not received copies: a message the user sent
+   * themselves comes back under the Message-ID its Sent row carries, and must
+   * still be stored as the inbound copy {@link findOwnSentOriginal} links. A
+   * custom folder has no `special_use`, so the NULL is matched explicitly —
+   * `NOT IN` alone would skip mail a filter filed there.
+   */
+  private async findDeliveredCopy(userId: string, messageId: string): Promise<string | null> {
+    const [copy] = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .innerJoin(mailboxes, eq(mailboxes.id, messages.mailboxId))
+      .where(
+        and(
+          eq(messages.userId, userId),
+          eq(messages.messageId, messageId),
+          or(
+            isNull(mailboxes.specialUse),
+            notInArray(mailboxes.specialUse, ['\\Sent', '\\Drafts']),
+          ),
+        ),
+      )
+      .limit(1);
+    return copy?.id ?? null;
+  }
+
+  /**
    * Apply the same flag change to up to a hundred messages.
    *
    * `matchedCount` and `modifiedCount` are still reported separately because
@@ -2309,6 +2340,14 @@ class EmailService {
     if (!user) throw new NotFoundError('Recipient user not found');
 
     const userId = user.id;
+
+    // Already delivered: a sender's or Cloudflare's retry of a message this
+    // user has. Answered with the stored copy and nothing else — no upload,
+    // no filters, no push or emit — and before the quota check, so a retry
+    // of mail that filled the mailbox is not refused as over quota.
+    const delivered = await this.findDeliveredCopy(userId, params.messageId);
+    if (delivered) return readMessageDto(db, delivered);
+
     await this.ensureMailboxes(userId);
 
     // Check quota
