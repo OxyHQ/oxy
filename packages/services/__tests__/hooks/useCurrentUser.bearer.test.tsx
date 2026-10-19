@@ -10,14 +10,18 @@
  *
  * These tests assert (a) the hook calls `getCurrentUser()` and NEVER
  * `getUserBySession()` — so no session id ever reaches the URL, and (b) the
- * query re-scopes per active account so a switch refetches the new account.
+ * query re-scopes per active account so a switch refetches the new account, and
+ * (c) it re-reads on focus, the one way an owner-only change made on another
+ * device (their languages) reaches an open app.
  */
 
 import type { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { act } from 'react';
 import type { User } from '@oxy.so/core';
 import { useCurrentUser } from '../../src/ui/hooks/queries/useAccountQueries';
+import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
 interface MockOxyServices {
@@ -36,6 +40,10 @@ const ACCOUNT_B = 'user-b';
 const SESSION_A = 'sess-a';
 const SESSION_B = 'sess-b';
 
+// Languages the bearer account currently has in Oxy — edited "on another device"
+// by reassigning it.
+let bearerLanguages = ['es-ES', 'en-US'];
+
 // The "current bearer" account is tracked here; `getCurrentUser` returns the
 // user for whichever account the bearer currently identifies — exactly how
 // `GET /users/me` behaves. `getUserBySession` must never be called.
@@ -49,6 +57,7 @@ const makeServices = (): MockOxyServices => ({
           id: bearerAccountId,
           username: bearerAccountId,
           name: { displayName: bearerAccountId },
+          languages: bearerLanguages,
         }) as User,
     ),
     bySession: jest.fn(async (): Promise<User> => {
@@ -79,6 +88,7 @@ describe('useCurrentUser hydrates from the bearer, never a session id', () => {
   beforeEach(() => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     bearerAccountId = ACCOUNT_A;
+    bearerLanguages = ['es-ES', 'en-US'];
     mockState = {
       oxyServices: makeServices(),
       activeSessionId: SESSION_A,
@@ -120,5 +130,27 @@ describe('useCurrentUser hydrates from the bearer, never a session id', () => {
     // Two fetches (one per account-scoped key), still zero session-id fetches.
     expect(mockState.oxyServices.users.me).toHaveBeenCalledTimes(2);
     expect(mockState.oxyServices.users.bySession).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the owner profile on focus, so another device's language change arrives", async () => {
+    const { result } = renderHook(() => useCurrentUser(), {
+      wrapper: makeWrapper(queryClient),
+    });
+    await waitFor(() => expect(result.current.data?.languages).toEqual(['es-ES', 'en-US']));
+
+    bearerLanguages = ['ca-ES', 'es-ES', 'en-US'];
+    // Older than `staleTime`, as it is after the app has been in the background.
+    queryClient.setQueryData(queryKeys.accounts.current(SESSION_A), result.current.data, {
+      updatedAt: Date.now() - 2 * 60 * 1000,
+    });
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+
+    await waitFor(() =>
+      expect(result.current.data?.languages).toEqual(['ca-ES', 'es-ES', 'en-US']),
+    );
+    focusManager.setFocused(undefined);
   });
 });

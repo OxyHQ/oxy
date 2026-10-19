@@ -83,6 +83,13 @@ export const useCurrentUser = (options?: { enabled?: boolean }) => {
     enabled: options?.enabled !== false && isAuthenticated && !!activeSessionId,
     staleTime: 1 * 60 * 1000, // 1 minute for current user
     gcTime: 30 * 60 * 1000,
+    // Re-read on focus, overriding the app-wide `false`: this is the ONLY read of
+    // the owner's own preferences (languages, display currency). The device
+    // projection resolves profiles through Oxy's public directory, which carries
+    // none of them, so a change made on another device reaches this one only
+    // through here — when the app comes back to the foreground or the tab back
+    // into view, at most once per `staleTime`.
+    refetchOnWindowFocus: true,
   });
 
   // Mirror fresh server-side user into the auth store so consumers reading
