@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.16.1] - 2026-10-19
+
+### Fixed
+
+- `useCurrentUser` (mounted by `OxyProvider`) re-reads `GET /users/me` when the
+  app returns to the foreground or the tab back into view, at most once per its
+  one-minute `staleTime`, instead of following the app-wide
+  `refetchOnWindowFocus: false`. It is the only read of the owner's own
+  preferences — the device projection resolves profiles through the public
+  directory, which carries no `languages` — so languages reordered on another
+  device reached an open app only after a restart.
+
 ## [11.16.0] - 2026-10-19
 
 ### Changed
