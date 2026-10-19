@@ -7,7 +7,8 @@
  * `listContacts` already did, and the wire shape is unchanged.
  *
  * The service is stubbed: what is pinned here is what the controller hands it
- * and the wire shape it builds from the result.
+ * and the wire shape it builds from the result — and, for `listMessages`, that
+ * the folder check runs beside the listing without changing which error wins.
  */
 
 import type { Response } from 'express';
@@ -203,5 +204,58 @@ describe('searchMessagesForUser paging (the capability path)', () => {
   it('clamps a negative limit to 1 and a negative offset to 0', async () => {
     await searchMessagesForUser(userId, { q: 'invoice', limit: -5, offset: -1 });
     expect(lastOptions(mockSearchMessages, 2)).toEqual({ limit: 1, offset: 0 });
+  });
+});
+
+describe('listMessages authorizes the folder alongside the listing', () => {
+  const req = (query: Record<string, string>) =>
+    ({ user: { id: userId }, query: { mailbox: mailboxId, ...query } }) as never;
+
+  it('starts the listing before the folder lookup has answered', async () => {
+    let answer!: (row: { id: string }) => void;
+    mockGetMailboxById.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    res = { json: jest.fn().mockReturnThis() };
+
+    const done = listMessages(req({}), res as unknown as Response);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockListMessages).toHaveBeenCalledTimes(1);
+    expect(res.json).not.toHaveBeenCalled();
+    answer({ id: mailboxId });
+    await done;
+    expect(res.json).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers 404 for a folder that is not the caller`s, whatever the listing did', async () => {
+    mockGetMailboxById.mockResolvedValue(undefined);
+    mockListMessages.mockRejectedValue(new Error('Invalid email pagination cursor'));
+    res = { json: jest.fn().mockReturnThis() };
+
+    await expect(listMessages(req({}), res as unknown as Response)).rejects.toMatchObject({
+      name: 'NotFoundError',
+      message: 'Mailbox not found',
+    });
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('answers the folder lookup`s own failure before the listing`s', async () => {
+    mockGetMailboxById.mockRejectedValue(new Error('lookup failed'));
+    mockListMessages.mockRejectedValue(new Error('listing failed'));
+
+    await expect(listMessages(req({}), { json: jest.fn() } as unknown as Response)).rejects.toThrow(
+      'lookup failed',
+    );
+  });
+
+  it('answers the listing`s failure once the folder is the caller`s', async () => {
+    mockListMessages.mockRejectedValue(new Error('listing failed'));
+
+    await expect(listMessages(req({}), { json: jest.fn() } as unknown as Response)).rejects.toThrow(
+      'listing failed',
+    );
   });
 });

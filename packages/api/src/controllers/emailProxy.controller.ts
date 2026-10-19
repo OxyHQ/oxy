@@ -97,9 +97,9 @@ const TRACKING_PATTERNS = [
   /yesware\./i,
   /bananatag\./i,
   /\.doubleclick\./i,
-  /\/track(ing)?[\/\?]/i,
-  /\/pixel[\/\?]/i,
-  /\/beacon[\/\?]/i,
+  /\/track(ing)?[/?]/i,
+  /\/pixel[/?]/i,
+  /\/beacon[/?]/i,
   /\/wf\/open/i,
   /\/[to]\.gif$/i,
 ];
@@ -120,7 +120,21 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_CACHE_SIZE = 500 * 1024 * 1024; // 500 MB
+let maxCacheSize = MAX_CACHE_SIZE;
 let currentCacheSize = 0;
+
+/**
+ * Resources that could not be served, answered again without fetching for a
+ * while: a mail is opened and re-rendered many times, and a dead tracker or a
+ * gone host costs a full fetch timeout on each. Bounded by count; the oldest
+ * goes first.
+ */
+const failures = new Map<string, { outcome: WithheldOutcome; expiresAt: number }>();
+const FAILURE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_FAILURES = 5000;
+
+/** The fetch of each resource now in progress, which every request for it awaits. */
+const inFlight = new Map<string, Promise<ProxyOutcome>>();
 
 function getCacheKey(url: string): string {
   return crypto.createHash('sha256').update(url).digest('hex');
@@ -136,13 +150,17 @@ function getFromCache(key: string): CacheEntry | undefined {
     return undefined;
   }
 
+  // Least recently USED goes first: a hit moves the entry to the back of the
+  // Map's insertion order, which is what eviction walks.
+  cache.delete(key);
+  cache.set(key, entry);
   return entry;
 }
 
 function addToCache(key: string, buffer: Buffer, contentType: string): void {
-  if (buffer.length > MAX_CACHE_SIZE / 10) return;
+  if (buffer.length > maxCacheSize / 10) return;
 
-  while (currentCacheSize + buffer.length > MAX_CACHE_SIZE && cache.size > 0) {
+  while (currentCacheSize + buffer.length > maxCacheSize && cache.size > 0) {
     const oldestKey = cache.keys().next().value;
     if (oldestKey) {
       const oldEntry = cache.get(oldestKey);
@@ -157,6 +175,26 @@ function addToCache(key: string, buffer: Buffer, contentType: string): void {
   currentCacheSize += buffer.length;
 }
 
+function getFailure(key: string): WithheldOutcome | undefined {
+  const entry = failures.get(key);
+  if (!entry) return undefined;
+  if (Date.now() >= entry.expiresAt) {
+    failures.delete(key);
+    return undefined;
+  }
+  return entry.outcome;
+}
+
+function addFailure(key: string, outcome: WithheldOutcome): void {
+  failures.delete(key);
+  while (failures.size >= MAX_FAILURES) {
+    const oldestKey = failures.keys().next().value;
+    if (oldestKey === undefined) break;
+    failures.delete(oldestKey);
+  }
+  failures.set(key, { outcome, expiresAt: Date.now() + FAILURE_TTL });
+}
+
 // Periodic cache cleanup
 setInterval(
   () => {
@@ -167,9 +205,21 @@ setInterval(
         cache.delete(key);
       }
     }
+    for (const [key, entry] of failures.entries()) {
+      if (now >= entry.expiresAt) failures.delete(key);
+    }
   },
   60 * 60 * 1000,
 ).unref();
+
+/** Empty every cache, and set the byte budget (the real one when omitted). */
+export function resetProxyCacheForTests(maxBytes = MAX_CACHE_SIZE): void {
+  cache.clear();
+  failures.clear();
+  inFlight.clear();
+  currentCacheSize = 0;
+  maxCacheSize = maxBytes;
+}
 
 // ─── Response Helpers ─────────────────────────────────────────────
 
@@ -198,6 +248,127 @@ function sendProxiedResponse(
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('X-Cache', cacheHit ? 'HIT' : 'MISS');
   res.send(buffer);
+}
+
+// ─── Fetching ─────────────────────────────────────────────────────
+
+/**
+ * What fetching a resource came to: everything a response is written from,
+ * so one fetch answers every request that waited on it, and a resource that
+ * could not be served is answered again, identically, without a fetch.
+ */
+type ProxyOutcome = { kind: 'served'; buffer: Buffer; contentType: string } | WithheldOutcome;
+
+type WithheldOutcome =
+  /** The upstream does not have it. */
+  | { kind: 'not_found' }
+  /** A tracking pixel, or a fetch that never completed. */
+  | { kind: 'withheld' }
+  /** Answered 400 with this message. */
+  | { kind: 'refused'; message: string };
+
+async function fetchResource(normalizedUrl: string, decodedUrl: string): Promise<ProxyOutcome> {
+  try {
+    const result = await safeFetch(normalizedUrl, {
+      headers: {
+        'User-Agent': 'OxyMail/1.0 (Image Proxy)',
+        Accept: 'image/*,font/*,*/*',
+      },
+      maxRedirects: MAX_REDIRECTS,
+      headersTimeoutMs: FETCH_TIMEOUT,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    });
+
+    const { response, status, headers, finalUrl } = result;
+
+    try {
+      if (status < 200 || status >= 300) {
+        // The upstream does not have this resource. Answering with the
+        // transparent GIF would be a successful-looking image, which is how a
+        // sender avatar whose /favicon.ico 404s ends up as an invisible pixel
+        // painted over the initials placeholder — the caller never learns the
+        // fetch failed. The GIF stays reserved for what it is for: a tracking
+        // pixel we deliberately blocked.
+        return { kind: 'not_found' };
+      }
+
+      const contentTypeHeader = headers['content-type'];
+      const contentType =
+        (Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader) ||
+        'application/octet-stream';
+      const finalParsed = new URL(finalUrl);
+
+      // Validate content type — allow octet-stream for font files (many servers
+      // serve .ttf/.woff as application/octet-stream instead of font/*)
+      const isAllowedType = /^(image\/|font\/|application\/(font|x-font))/i.test(contentType);
+      const isFontByExtension =
+        contentType === 'application/octet-stream' && FONT_EXTENSIONS.test(finalParsed.pathname);
+      if (!isAllowedType && !isFontByExtension) {
+        return { kind: 'refused', message: 'Only images and fonts allowed' };
+      }
+
+      const body = await readBodyLimited(response, MAX_IMAGE_SIZE);
+      if (body.kind === 'too_large') {
+        return { kind: 'refused', message: 'Resource too large' };
+      }
+      if (body.kind === 'incomplete') {
+        // Answered as any other failed fetch, below.
+        throw new Error('Upstream closed before the body ended');
+      }
+      const { buffer } = body;
+
+      // Block tracking pixels (very small images)
+      if (buffer.length < TRACKING_PIXEL_THRESHOLD) {
+        logger.debug('Blocked tracking pixel', { url: decodedUrl, size: buffer.length });
+        return { kind: 'withheld' };
+      }
+
+      // Use correct MIME when upstream sends generic octet-stream for fonts
+      let resolvedType = contentType;
+      if (isFontByExtension) {
+        const ext = finalParsed.pathname.match(/\.\w+/)?.[0]?.toLowerCase();
+        if (ext && FONT_MIME[ext]) resolvedType = FONT_MIME[ext];
+      }
+
+      return { kind: 'served', buffer, contentType: resolvedType };
+    } finally {
+      response.destroy();
+    }
+  } catch (error) {
+    if (error instanceof SsrfRejection) {
+      return { kind: 'refused', message: 'Private network URLs are not allowed' };
+    }
+
+    // Remote images and fonts in mail fail routinely — trackers that are down,
+    // hosts that are gone — and the reader gets the withheld answer either
+    // way. That is a warning, not an error to page on.
+    if (error instanceof Error && error.name === 'AbortError') {
+      logger.warn('Proxy request timeout', { url: decodedUrl });
+    } else {
+      logger.warn('Proxy request failed', {
+        url: decodedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return { kind: 'withheld' };
+  }
+}
+
+/** The fetch of this resource: the one in progress if there is one, else a new one. */
+function fetchOnce(cacheKey: string, normalizedUrl: string, decodedUrl: string) {
+  const pending = inFlight.get(cacheKey);
+  if (pending) return pending;
+
+  const fetched = fetchResource(normalizedUrl, decodedUrl)
+    .then((outcome) => {
+      if (outcome.kind === 'served') addToCache(cacheKey, outcome.buffer, outcome.contentType);
+      else addFailure(cacheKey, outcome);
+      return outcome;
+    })
+    .finally(() => inFlight.delete(cacheKey));
+  inFlight.set(cacheKey, fetched);
+  return fetched;
 }
 
 // ─── Controller ───────────────────────────────────────────────────
@@ -245,92 +416,15 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
     return sendProxiedResponse(res, cached.buffer, cached.contentType, true);
   }
 
-  try {
-    const result = await safeFetch(normalizedUrl, {
-      headers: {
-        'User-Agent': 'OxyMail/1.0 (Image Proxy)',
-        Accept: 'image/*,font/*,*/*',
-      },
-      maxRedirects: MAX_REDIRECTS,
-      headersTimeoutMs: FETCH_TIMEOUT,
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-
-    const { response, status, headers, finalUrl } = result;
-
-    try {
-      if (status < 200 || status >= 300) {
-        // The upstream does not have this resource. Answering with the
-        // transparent GIF would be a successful-looking image, which is how a
-        // sender avatar whose /favicon.ico 404s ends up as an invisible pixel
-        // painted over the initials placeholder — the caller never learns the
-        // fetch failed. The GIF stays reserved for what it is for: a tracking
-        // pixel we deliberately blocked.
-        return sendNotFound(res, 3600);
-      }
-
-      const contentTypeHeader = headers['content-type'];
-      const contentType =
-        (Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader) ||
-        'application/octet-stream';
-      const finalParsed = new URL(finalUrl);
-
-      // Validate content type — allow octet-stream for font files (many servers
-      // serve .ttf/.woff as application/octet-stream instead of font/*)
-      const isAllowedType = /^(image\/|font\/|application\/(font|x-font))/i.test(contentType);
-      const isFontByExtension =
-        contentType === 'application/octet-stream' && FONT_EXTENSIONS.test(finalParsed.pathname);
-      if (!isAllowedType && !isFontByExtension) {
-        throw new BadRequestError('Only images and fonts allowed');
-      }
-
-      const body = await readBodyLimited(response, MAX_IMAGE_SIZE);
-      if (body.kind === 'too_large') {
-        throw new BadRequestError('Resource too large');
-      }
-      if (body.kind === 'incomplete') {
-        // Answered as any other failed fetch, below.
-        throw new Error('Upstream closed before the body ended');
-      }
-      const { buffer } = body;
-
-      // Block tracking pixels (very small images)
-      if (buffer.length < TRACKING_PIXEL_THRESHOLD) {
-        logger.debug('Blocked tracking pixel', { url: decodedUrl, size: buffer.length });
-        return sendWithheld();
-      }
-
-      // Use correct MIME when upstream sends generic octet-stream for fonts
-      let resolvedType = contentType;
-      if (isFontByExtension) {
-        const ext = finalParsed.pathname.match(/\.\w+/)?.[0]?.toLowerCase();
-        if (ext && FONT_MIME[ext]) resolvedType = FONT_MIME[ext];
-      }
-
-      addToCache(cacheKey, buffer, resolvedType);
-      sendProxiedResponse(res, buffer, resolvedType, false);
-    } finally {
-      response.destroy();
-    }
-  } catch (error) {
-    if (error instanceof SsrfRejection) {
-      throw new BadRequestError('Private network URLs are not allowed');
-    }
-
-    if (error instanceof BadRequestError) throw error;
-
-    // Remote images and fonts in mail fail routinely — trackers that are down,
-    // hosts that are gone — and the reader gets the withheld answer either
-    // way. That is a warning, not an error to page on.
-    if (error instanceof Error && error.name === 'AbortError') {
-      logger.warn('Proxy request timeout', { url: decodedUrl });
-    } else {
-      logger.warn('Proxy request failed', {
-        url: decodedUrl,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    sendWithheld();
+  const outcome = getFailure(cacheKey) ?? (await fetchOnce(cacheKey, normalizedUrl, decodedUrl));
+  switch (outcome.kind) {
+    case 'served':
+      return sendProxiedResponse(res, outcome.buffer, outcome.contentType, false);
+    case 'not_found':
+      return sendNotFound(res, 3600);
+    case 'withheld':
+      return sendWithheld();
+    case 'refused':
+      throw new BadRequestError(outcome.message);
   }
 }

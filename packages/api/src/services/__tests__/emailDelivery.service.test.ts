@@ -861,6 +861,55 @@ describe('a scheduled send', () => {
     expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
 
+  it('goes out at most 100 a pass, earliest first, and the rest on the next', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    // A sender of its own: 101 sends would spend the shared one's daily limit.
+    const username = `batch${unique().slice(0, 10)}`;
+    const [sender] = await getDb()
+      .insert(users)
+      .values({ username, color: 'teal' })
+      .returning({ id: users.id });
+    await emailService.ensureMailboxes(sender.id);
+    const ids: string[] = [];
+    for (let i = 0; i < 101; i++) {
+      const scheduled = await emailService.scheduleMessage(sender.id, {
+        from: { name: 'Nate', address: `${username}@oxy.so` },
+        to: [{ name: '', address: `batch-${i}@example.com` }],
+        subject: `Batch ${i}`,
+        text: 'Hi',
+        scheduledAt: new Date(Date.now() + 3_600_000),
+      });
+      // Earlier than anything another test leaves due, so these go first.
+      await getDb()
+        .update(messages)
+        .set({ scheduledAt: new Date(1_000 + i) })
+        .where(eq(messages.id, scheduled.id));
+      ids.push(scheduled.id);
+    }
+    const stillScheduled = async () =>
+      (
+        await getDb()
+          .select({ id: messages.id })
+          .from(messages)
+          .where(and(eq(messages.userId, sender.id), sql`${messages.scheduledAt} is not null`))
+      ).map((row) => row.id);
+
+    expect(await emailService.processScheduledMessages()).toBe(100);
+    expect(await stillScheduled()).toEqual([ids[100]]);
+    expect(mockSendMail).toHaveBeenCalledTimes(100);
+
+    expect(await emailService.processScheduledMessages()).toBeGreaterThanOrEqual(1);
+    expect(await stillScheduled()).toEqual([]);
+    expect((await emailService.getMessage(sender.id, ids[100]))?.delivery).toMatchObject({
+      state: 'sent',
+    });
+    // The last one out is the latest, with its own filed message.
+    expect(mockSendMail.mock.calls.at(-1)?.[0]).toMatchObject({
+      subject: 'Batch 100',
+      to: 'batch-100@example.com',
+    });
+  }, 60_000);
+
   const later = () => new Date(Date.now() + 3_600_000);
 
   it('answers a repeat of its key with the filed row, and refuses another message under it', async () => {

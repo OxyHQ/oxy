@@ -1,15 +1,25 @@
 import crypto from 'crypto';
 import dns from 'dns/promises';
 import net from 'net';
-import { and, inArray, sql } from 'drizzle-orm';
+import { and, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { senderAvatarIsFresh, senderAvatars } from '../db/schema/senderAvatars';
 import { users } from '../db/schema/users';
 import { extractUsername } from '../config/email.config';
+import { logger } from '../utils/logger';
 import { tracedFetch } from '../utils/tracedFetch';
 
 const CACHE_TTL_DAYS = 7;
 const BIMI_DNS_TIMEOUT_MS = 1500;
+
+/** Background resolutions running at once, per process. */
+const RESOLVE_CONCURRENCY = 4;
+/**
+ * Background resolutions held at once, running or waiting, per process. One
+ * past this is dropped rather than queued: the sender is still a miss on its
+ * next view, which queues it again.
+ */
+const MAX_PENDING_RESOLUTIONS = 500;
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.localdomain']);
 const PRIVATE_IPV4_RANGES: Array<[number, number]> = [
@@ -250,9 +260,119 @@ export async function getAvatarPath(email: string): Promise<string | null> {
   return avatarPath;
 }
 
+/** The address being resolved in the background, by normalized address. */
+const inFlight = new Map<string, Promise<void>>();
+/** Resolutions waiting for one of the {@link RESOLVE_CONCURRENCY} slots. */
+const waiting: Array<() => void> = [];
+let running = 0;
+let stopping = false;
+
+async function acquireSlot(): Promise<void> {
+  if (running < RESOLVE_CONCURRENCY) {
+    running++;
+    return;
+  }
+  // `releaseSlot` hands its slot straight over, so `running` stays as it is.
+  await new Promise<void>((resolve) => waiting.push(resolve));
+}
+
+function releaseSlot(): void {
+  const next = waiting.shift();
+  if (next) next();
+  else running--;
+}
+
 /**
- * Batch-resolve sender avatars. Returns a map of email → relative avatar path.
- * Cache hits are returned immediately; misses are resolved in parallel (capped concurrency).
+ * Resolve a missed sender off the request path: once per address however many
+ * reads miss it meanwhile, a few at a time. {@link getAvatarPath} checks the
+ * cache again first, so an address another task has just stored costs no
+ * request. Nothing here rejects — a failure is a sender without an avatar.
+ */
+function resolveInBackground(email: string): void {
+  if (stopping || inFlight.has(email) || inFlight.size >= MAX_PENDING_RESOLUTIONS) return;
+  const task = (async () => {
+    await acquireSlot();
+    try {
+      if (!stopping) await getAvatarPath(email);
+    } catch (error) {
+      logger.debug('Sender avatar resolution failed', {
+        component: 'senderAvatar',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      releaseSlot();
+    }
+  })().finally(() => inFlight.delete(email));
+  inFlight.set(email, task);
+}
+
+/** Wait until every background resolution started so far, and any it queued, has finished. */
+export async function settleAvatarResolutions(): Promise<void> {
+  while (inFlight.size > 0) {
+    await Promise.all(inFlight.values());
+  }
+}
+
+/**
+ * Shutdown: start nothing more, drop what is still waiting for a slot, and
+ * wait for the few already running — each bounded by its lookups' timeouts —
+ * so none of them writes after Postgres is closed.
+ */
+export async function stopAvatarResolutions(): Promise<void> {
+  stopping = true;
+  for (const start of waiting.splice(0)) {
+    // Each one gives its slot back when it ends, like a task that ran.
+    running++;
+    start();
+  }
+  await settleAvatarResolutions();
+}
+
+/**
+ * The Oxy accounts among these addresses that have an avatar, by address. One
+ * query, through `users_lower_username_key` as the single lookup in
+ * {@link resolveAvatar} is. A failed lookup is no avatar, as it is there.
+ */
+async function oxyAvatarsOf(emails: string[]): Promise<Map<string, string>> {
+  const byUsername = new Map<string, string>();
+  for (const email of emails) {
+    const username = extractUsername(email)?.trim();
+    if (username) byUsername.set(username, email);
+  }
+  const found = new Map<string, string>();
+  if (byUsername.size === 0) return found;
+  try {
+    const rows = await getDb()
+      .select({ username: sql<string>`lower(btrim(${users.username}))`, avatar: users.avatar })
+      .from(users)
+      .where(
+        and(
+          inArray(sql`lower(btrim(${users.username}))`, [...byUsername.keys()]),
+          isNotNull(users.avatar),
+        ),
+      );
+    for (const row of rows) {
+      const email = byUsername.get(row.username);
+      if (email && row.avatar) found.set(email, `/api/assets/${row.avatar}/stream`);
+    }
+  } catch (error) {
+    logger.debug('Oxy sender avatar lookup failed', {
+      component: 'senderAvatar',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return found;
+}
+
+/**
+ * Batch-resolve sender avatars. Returns a map of email → relative avatar path,
+ * with an entry for every address.
+ *
+ * Nothing here waits on the network. Cache hits are returned as stored, and an
+ * Oxy account's avatar is read from `users` in one query. Every other miss is
+ * `null` now and resolved in the background, so the sender has its avatar from
+ * the next read on — the BIMI, Gravatar and favicon lookups take up to ten
+ * seconds per address, which a mail list must not wait for.
  */
 export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string, string | null>> {
   const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()))];
@@ -281,30 +401,13 @@ export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string,
       misses.push(email);
     }
   }
+  if (misses.length === 0) return result;
 
-  // Resolve misses in parallel with concurrency cap
-  if (misses.length > 0) {
-    const CONCURRENCY = 5;
-    for (let i = 0; i < misses.length; i += CONCURRENCY) {
-      const batch = misses.slice(i, i + CONCURRENCY);
-      const resolved = await Promise.allSettled(
-        batch.map(async (email) => {
-          const path = await getAvatarPath(email);
-          return { email, path };
-        }),
-      );
-      resolved.forEach((outcome, index) => {
-        if (outcome.status === 'fulfilled') {
-          result.set(outcome.value.email, outcome.value.path);
-        } else {
-          // Resolution failed entirely — report null, and cache nothing. The
-          // index is the position WITHIN this batch, which is what pairs an
-          // outcome with its address; `indexOf` on the settled array matched
-          // the first structurally-equal entry instead.
-          result.set(batch[index], null);
-        }
-      });
-    }
+  const oxyAvatars = await oxyAvatarsOf(misses);
+  for (const email of misses) {
+    result.set(email, oxyAvatars.get(email) ?? null);
+    // An Oxy account too, so its row is cached like any other sender's.
+    resolveInBackground(email);
   }
 
   return result;

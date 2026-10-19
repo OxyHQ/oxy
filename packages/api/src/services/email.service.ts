@@ -1887,8 +1887,13 @@ class EmailService {
       : offset + limit < (countRow?.total ?? 0);
     const rows = cursorMode ? fetchedRows.slice(0, limit) : fetchedRows;
     const data = await toMessageDtos(db, rows);
-    await this.attachThreadMetadata(userId, data);
-    await EmailService.enrichWithAvatars(data);
+    // Independent lookups, run together. The avatars are applied after the
+    // thread fields, as when they ran in turn, so the JSON keeps its key order.
+    const [, avatars] = await Promise.all([
+      this.attachThreadMetadata(userId, data),
+      EmailService.senderAvatarsOf(data),
+    ]);
+    EmailService.applySenderAvatars(data, avatars);
 
     const last = rows.at(-1);
     return {
@@ -1988,8 +1993,12 @@ class EmailService {
     if (!row) return undefined;
 
     const [dto] = await toMessageDtos(db, [row]);
-    await this.attachThreadMetadata(userId, [dto]);
-    await EmailService.enrichWithAvatars([dto]);
+    // Together, then applied in turn, as in `listMessages`.
+    const [, avatars] = await Promise.all([
+      this.attachThreadMetadata(userId, [dto]),
+      EmailService.senderAvatarsOf([dto]),
+    ]);
+    EmailService.applySenderAvatars([dto], avatars);
     return dto;
   }
 
@@ -2998,8 +3007,13 @@ class EmailService {
     return readMessageDto(db, message.id);
   }
 
+  /** How many snoozed messages one pass of the cron wakes; the rest wait a minute. */
+  private static readonly SNOOZE_BATCH = 200;
+
   /**
-   * Process all snoozed messages whose snooze time has passed.
+   * Process the snoozed messages whose snooze time has passed, longest
+   * overdue first, at most {@link SNOOZE_BATCH} a pass so one backlog cannot
+   * keep a pass running past the next. Through `messages_snoozed_until_idx`.
    * Called by the snooze cron job every minute.
    */
   async processSnoozedMessages(): Promise<number> {
@@ -3013,7 +3027,9 @@ class EmailService {
           isNotNull(messages.snoozedUntil),
           isNotNull(messages.snoozedFromMailbox),
         ),
-      );
+      )
+      .orderBy(asc(messages.snoozedUntil))
+      .limit(EmailService.SNOOZE_BATCH);
 
     let count = 0;
     for (const msg of due) {
@@ -3229,8 +3245,14 @@ class EmailService {
     return filedPayloadOf(db, row);
   }
 
+  /** How many scheduled messages one pass of the cron sends; the rest wait a minute. */
+  private static readonly SCHEDULED_BATCH = 100;
+
   /**
-   * Process all scheduled messages whose send time has passed.
+   * Process the scheduled messages whose send time has passed, earliest
+   * first, at most {@link SCHEDULED_BATCH} a pass. Through
+   * `messages_scheduled_at_idx`. Only the ids are read up front; each message's
+   * body is read when its turn comes, so a backlog is never held in memory.
    * Called by the scheduled send cron job every minute.
    */
   async processScheduledMessages(): Promise<number> {
@@ -3238,18 +3260,27 @@ class EmailService {
     const now = new Date();
     const due = await db
       .select({
-        ...FILED_PAYLOAD_COLUMNS,
+        id: messages.id,
         messageId: messages.messageId,
         userId: messages.userId,
         mailboxId: messages.mailboxId,
       })
       .from(messages)
-      .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)));
+      .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)))
+      .orderBy(asc(messages.scheduledAt), asc(messages.id))
+      .limit(EmailService.SCHEDULED_BATCH);
 
     let count = 0;
     for (const msg of due) {
       try {
-        const payload = await filedPayloadOf(db, msg);
+        const [filed] = await db
+          .select(FILED_PAYLOAD_COLUMNS)
+          .from(messages)
+          .where(eq(messages.id, msg.id))
+          .limit(1);
+        // Deleted since the pass started: nothing to send.
+        if (!filed) continue;
+        const payload = await filedPayloadOf(db, filed);
 
         // Taking the message off the schedule IS the claim: of two tasks that
         // both read it as due, only one clears `scheduledAt`, and it commits
@@ -4728,19 +4759,37 @@ class EmailService {
   private static async enrichWithAvatars(
     page: Array<{ from: EmailAddressDto; senderAvatarPath?: string | null }>,
   ): Promise<void> {
-    if (page.length === 0) return;
+    EmailService.applySenderAvatars(page, await EmailService.senderAvatarsOf(page));
+  }
+
+  /**
+   * The avatar lookup of {@link enrichWithAvatars} alone, for a read that runs
+   * it beside other work and applies it after.
+   */
+  private static async senderAvatarsOf(
+    page: Array<{ from: EmailAddressDto }>,
+  ): Promise<Map<string, string | null> | undefined> {
+    if (page.length === 0) return undefined;
     const emails = page.map((m) => m.from.address).filter(Boolean);
-    if (emails.length === 0) return;
+    if (emails.length === 0) return undefined;
     try {
-      const avatarMap = await getAvatarPathsBatch(emails);
-      for (const msg of page) {
-        const addr = msg.from.address.trim().toLowerCase();
-        if (addr && avatarMap.has(addr)) {
-          msg.senderAvatarPath = avatarMap.get(addr) ?? null;
-        }
-      }
+      return await getAvatarPathsBatch(emails);
     } catch {
       // Avatar enrichment is non-critical — don't fail message fetch
+      return undefined;
+    }
+  }
+
+  private static applySenderAvatars(
+    page: Array<{ from: EmailAddressDto; senderAvatarPath?: string | null }>,
+    avatarMap: Map<string, string | null> | undefined,
+  ): void {
+    if (!avatarMap) return;
+    for (const msg of page) {
+      const addr = msg.from.address.trim().toLowerCase();
+      if (addr && avatarMap.has(addr)) {
+        msg.senderAvatarPath = avatarMap.get(addr) ?? null;
+      }
     }
   }
 
