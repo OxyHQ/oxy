@@ -19,12 +19,14 @@
 
 const mockUploadFileDirect = jest.fn();
 const mockLinkFile = jest.fn();
+const mockDeleteFile = jest.fn();
 const mockLoggerWarn = jest.fn();
 
 jest.mock('../assetServiceSingleton', () => ({
   assetService: {
     uploadFileDirect: (...args: unknown[]) => mockUploadFileDirect(...args),
     linkFile: (...args: unknown[]) => mockLinkFile(...args),
+    deleteFile: (...args: unknown[]) => mockDeleteFile(...args),
   },
 }));
 
@@ -55,8 +57,8 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
-import { randomUUID } from 'node:crypto';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { createHash, randomUUID } from 'node:crypto';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { messageAttachments } from '../../db/schema/messageAttachments';
@@ -80,11 +82,17 @@ async function recipient(): Promise<{ id: string; username: string }> {
 }
 
 /** A real `files` row, so the attachment foreign key has something to point at. */
-async function storedFile(ownerUserId: string, name: string, mime: string, size: number) {
+async function storedFile(
+  ownerUserId: string,
+  name: string,
+  mime: string,
+  size: number,
+  sha256 = unique(),
+) {
   const [row] = await getDb()
     .insert(files)
     .values({
-      sha256: unique(),
+      sha256,
       size,
       mime,
       ext: name.split('.').pop() ?? 'bin',
@@ -150,6 +158,7 @@ async function attachmentsOf(messageId: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockLinkFile.mockResolvedValue(undefined);
+  mockDeleteFile.mockResolvedValue(undefined);
 });
 
 beforeAll(async () => {
@@ -274,6 +283,107 @@ describe('storeIncomingMessage — attachment deposit', () => {
     expect(mockUploadFileDirect).not.toHaveBeenCalled();
     expect(mockLinkFile).not.toHaveBeenCalled();
     expect(stored.attachments).toEqual([]);
+  });
+});
+
+describe('storeIncomingMessage — a message that could not be stored', () => {
+  /** A file id the attachment foreign key refuses, so the message insert fails. */
+  const missingFile = () => ({
+    id: `missing-${unique()}`,
+    originalName: 'gone.bin',
+    mime: 'application/octet-stream',
+    size: 1,
+  });
+  const attachment = (content: string) => ({
+    filename: `${content}.bin`,
+    contentType: 'application/octet-stream',
+    content: Buffer.from(`${content}-${unique()}`),
+  });
+
+  async function storedCount(userId: string, messageId: string): Promise<number> {
+    const rows = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.messageId, messageId)));
+    return rows.length;
+  }
+
+  it('removes every file it uploaded and rethrows the insert`s error', async () => {
+    const user = await recipient();
+    const pdf = await storedFile(user.id, 'report.pdf', 'application/pdf', 2048);
+    const gone = missingFile();
+    mockUploadFileDirect.mockResolvedValueOnce(pdf).mockResolvedValueOnce(gone);
+    const params = baseParams(user.username, {
+      attachments: [attachment('a'), attachment('b')],
+    });
+
+    await expect(emailService.storeIncomingMessage(params)).rejects.toThrow();
+
+    expect(await storedCount(user.id, params.messageId)).toBe(0);
+    expect(mockDeleteFile).toHaveBeenCalledTimes(2);
+    expect(mockDeleteFile).toHaveBeenCalledWith(pdf.id, false, user.id);
+    expect(mockDeleteFile).toHaveBeenCalledWith(gone.id, false, user.id);
+    expect(mockLinkFile).not.toHaveBeenCalled();
+  });
+
+  it('removes the files already uploaded when a later upload fails', async () => {
+    const user = await recipient();
+    const pdf = await storedFile(user.id, 'report.pdf', 'application/pdf', 2048);
+    mockUploadFileDirect
+      .mockResolvedValueOnce(pdf)
+      .mockRejectedValueOnce(new Error('S3 unavailable'));
+
+    await expect(
+      emailService.storeIncomingMessage(
+        baseParams(user.username, { attachments: [attachment('a'), attachment('b')] }),
+      ),
+    ).rejects.toThrow('S3 unavailable');
+
+    expect(mockDeleteFile).toHaveBeenCalledTimes(1);
+    expect(mockDeleteFile).toHaveBeenCalledWith(pdf.id, false, user.id);
+  });
+
+  it('keeps a file the user already held, which the upload handed back', async () => {
+    // `uploadFileDirect` returns the owner's existing row for bytes they
+    // already hold — another message's attachment. Deleting it would break
+    // that message.
+    const user = await recipient();
+    const held = attachment('held');
+    const existing = await storedFile(
+      user.id,
+      'held.bin',
+      'application/octet-stream',
+      held.content.length,
+      createHash('sha256').update(held.content).digest('hex'),
+    );
+    mockUploadFileDirect.mockResolvedValueOnce(existing).mockResolvedValueOnce(missingFile());
+
+    await expect(
+      emailService.storeIncomingMessage(
+        baseParams(user.username, { attachments: [held, attachment('new')] }),
+      ),
+    ).rejects.toThrow();
+
+    expect(mockDeleteFile).toHaveBeenCalledTimes(1);
+    expect(mockDeleteFile).not.toHaveBeenCalledWith(existing.id, expect.anything(), user.id);
+  });
+
+  it('logs a cleanup that failed and still rethrows the original error', async () => {
+    const user = await recipient();
+    const gone = missingFile();
+    mockUploadFileDirect.mockResolvedValueOnce(gone);
+    mockDeleteFile.mockRejectedValueOnce(new Error('File not found'));
+
+    await expect(
+      emailService.storeIncomingMessage(
+        baseParams(user.username, { attachments: [attachment('a')] }),
+      ),
+    ).rejects.toThrow(/insert into "message_attachments"/);
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Failed to remove an inbound attachment after the message was not stored',
+      expect.objectContaining({ fileId: gone.id, error: 'File not found' }),
+    );
   });
 });
 

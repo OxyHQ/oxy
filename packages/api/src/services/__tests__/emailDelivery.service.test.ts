@@ -645,6 +645,49 @@ describe('a delivery that fails', () => {
   });
 });
 
+describe('cancelling a delivery', () => {
+  async function outboxIdOf(messageRowId: string): Promise<string> {
+    const [row] = await getDb()
+      .select({ id: emailOutbox.id })
+      .from(emailOutbox)
+      .where(eq(emailOutbox.messageRowId, messageRowId));
+    return row.id;
+  }
+
+  it('refuses one that already went out with a 409', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const { rowId } = await accept(reply(`k:${unique()}`));
+    await settled(rowId, 'sent');
+
+    await expect(cancelEmailOutbox(user.id, await outboxIdOf(rowId))).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Outbound message is already being delivered or completed',
+    });
+  });
+
+  it('answers an id with no delivery behind it with a 404', async () => {
+    await expect(cancelEmailOutbox(user.id, randomUUID())).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Outbound message not found',
+    });
+  });
+
+  it('answers another user`s delivery with a 404, leaving it as it was', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const { rowId } = await accept(reply(`k:${unique()}`));
+    await settled(rowId, 'sent');
+    const [stranger] = await getDb()
+      .insert(users)
+      .values({ username: `stranger${unique().slice(0, 10)}`, color: 'teal' })
+      .returning({ id: users.id });
+
+    await expect(cancelEmailOutbox(stranger.id, await outboxIdOf(rowId))).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(await deliveryOf(rowId)).toMatchObject({ state: 'sent' });
+  });
+});
+
 describe('a delivery whose task died', () => {
   const LEASE_EXPIRED = () => new Date(Date.now() - 11 * 60_000);
 

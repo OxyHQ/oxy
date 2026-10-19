@@ -16,10 +16,12 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   lt,
   lte,
   ne,
   not,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -84,7 +86,7 @@ import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { resolveEmailFromName } from '../utils/displayName';
 import { renderWelcomeEmail } from './welcomeEmail';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
@@ -107,6 +109,7 @@ import {
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
+import { findLiveFileBySha256ForOwner } from './fileRepository';
 import {
   idempotentMessageId,
   refuseReusedSendKey,
@@ -1385,6 +1388,24 @@ export interface SentMessageInput {
   deliveryId?: string;
 }
 
+/**
+ * Remove the attachment files an inbound delivery uploaded and then failed to
+ * store a message for. Best-effort: the delivery's own error is what the
+ * caller rethrows. Not forced, so a file something has linked since is kept.
+ */
+async function discardInboundUploads(userId: string, fileIds: string[]): Promise<void> {
+  for (const fileId of fileIds) {
+    try {
+      await assetService.deleteFile(fileId, false, userId);
+    } catch (err) {
+      logger.warn('Failed to remove an inbound attachment after the message was not stored', {
+        fileId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
 /** Read one message back in full, for the paths that return what they wrote. */
 async function readMessageDto(db: Database, messageId: string): Promise<MessageDto> {
   const [row] = await db
@@ -1442,20 +1463,28 @@ class EmailService {
       return this.listMailboxes(userId);
     }
 
-    await db.insert(mailboxes).values(
-      DEFAULT_MAILBOXES.map((mb) => ({
-        userId,
-        name: mb.name,
-        path: mb.path,
-        specialUse: mb.specialUse,
-        retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
-      })),
-    );
-    logger.info('Email mailboxes provisioned', { userId });
+    // Two first requests for a new user race here (the app opens several
+    // views at once). `ON CONFLICT DO NOTHING` on `mailboxes_user_id_path_key`
+    // lets the second one through instead of failing on the unique index, and
+    // only the call that actually inserted the Inbox writes the welcome email.
+    const inserted = await db
+      .insert(mailboxes)
+      .values(
+        DEFAULT_MAILBOXES.map((mb) => ({
+          userId,
+          name: mb.name,
+          path: mb.path,
+          specialUse: mb.specialUse,
+          retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
+        })),
+      )
+      .onConflictDoNothing({ target: [mailboxes.userId, mailboxes.path] })
+      .returning({ id: mailboxes.id, specialUse: mailboxes.specialUse });
+    if (inserted.length > 0) logger.info('Email mailboxes provisioned', { userId });
 
     // Create welcome email in the Inbox (don't fail provisioning if this fails)
     try {
-      const inbox = await this.getMailboxBySpecialUse(userId, '\\Inbox');
+      const inbox = inserted.find((mb) => mb.specialUse === '\\Inbox');
       if (inbox) {
         await this.createWelcomeEmail(userId, inbox.id);
       }
@@ -1517,16 +1546,23 @@ class EmailService {
     );
 
     if (missing.length > 0) {
-      await db.insert(mailboxes).values(
-        missing.map((mb) => ({
-          userId,
-          name: mb.name,
-          path: mb.path,
-          specialUse: mb.specialUse,
-          retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
-        })),
-      );
-      logger.info('Synced missing default mailboxes', { userId, count: missing.length });
+      // A concurrent sync may insert the same folders first.
+      const synced = await db
+        .insert(mailboxes)
+        .values(
+          missing.map((mb) => ({
+            userId,
+            name: mb.name,
+            path: mb.path,
+            specialUse: mb.specialUse,
+            retentionDays: 'retentionDays' in mb ? mb.retentionDays : null,
+          })),
+        )
+        .onConflictDoNothing({ target: [mailboxes.userId, mailboxes.path] })
+        .returning({ id: mailboxes.id });
+      if (synced.length > 0) {
+        logger.info('Synced missing default mailboxes', { userId, count: synced.length });
+      }
     }
   }
 
@@ -2095,6 +2131,35 @@ class EmailService {
   }
 
   /**
+   * The row an inbound message was already stored as for this user, matched
+   * on its RFC Message-ID (`messages_user_id_message_id_idx`).
+   *
+   * Sent and Drafts are not received copies: a message the user sent
+   * themselves comes back under the Message-ID its Sent row carries, and must
+   * still be stored as the inbound copy {@link findOwnSentOriginal} links. A
+   * custom folder has no `special_use`, so the NULL is matched explicitly —
+   * `NOT IN` alone would skip mail a filter filed there.
+   */
+  private async findDeliveredCopy(userId: string, messageId: string): Promise<string | null> {
+    const [copy] = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .innerJoin(mailboxes, eq(mailboxes.id, messages.mailboxId))
+      .where(
+        and(
+          eq(messages.userId, userId),
+          eq(messages.messageId, messageId),
+          or(
+            isNull(mailboxes.specialUse),
+            notInArray(mailboxes.specialUse, ['\\Sent', '\\Drafts']),
+          ),
+        ),
+      )
+      .limit(1);
+    return copy?.id ?? null;
+  }
+
+  /**
    * Apply the same flag change to up to a hundred messages.
    *
    * `matchedCount` and `modifiedCount` are still reported separately because
@@ -2309,6 +2374,14 @@ class EmailService {
     if (!user) throw new NotFoundError('Recipient user not found');
 
     const userId = user.id;
+
+    // Already delivered: a sender's or Cloudflare's retry of a message this
+    // user has. Answered with the stored copy and nothing else — no upload,
+    // no filters, no push or emit — and before the quota check, so a retry
+    // of mail that filled the mailbox is not refused as over quota.
+    const delivered = await this.findDeliveredCopy(userId, params.messageId);
+    if (delivered) return readMessageDto(db, delivered);
+
     await this.ensureMailboxes(userId);
 
     // Check quota
@@ -2325,83 +2398,99 @@ class EmailService {
     // the actual blob lives in the File model + S3 via assetService.
     const storedAttachments: MessageAttachment[] = [];
     const uploadedFiles: Array<{ fileId: string }> = [];
-    if (params.attachments && params.attachments.length > 0) {
-      for (const att of params.attachments) {
-        const file = await assetService.uploadFileDirect(
-          userId,
-          att.content,
-          att.contentType,
-          att.filename,
-          'private',
-          { source: 'email-inbound' },
-        );
-        storedAttachments.push({
-          fileId: file.id,
-          name: file.originalName || att.filename,
-          contentType: file.mime,
-          size: file.size,
-          ...(att.contentId ? { contentId: att.contentId } : {}),
-          isInline: att.isInline ?? false,
-        });
-        uploadedFiles.push({ fileId: file.id });
+    // The files this delivery CREATED, removed again if the message is not
+    // stored. `uploadFileDirect` hands back the user's own existing row when
+    // they already hold these bytes — another message's attachment, or a file
+    // of their own — and that row must outlive this failure.
+    const createdFileIds: string[] = [];
+    let storedMessageId: string;
+    try {
+      if (params.attachments && params.attachments.length > 0) {
+        for (const att of params.attachments) {
+          const held = await findLiveFileBySha256ForOwner(
+            createHash('sha256').update(att.content).digest('hex'),
+            { ownerUserId: userId, systemOwner: null },
+          );
+          const file = await assetService.uploadFileDirect(
+            userId,
+            att.content,
+            att.contentType,
+            att.filename,
+            'private',
+            { source: 'email-inbound' },
+          );
+          storedAttachments.push({
+            fileId: file.id,
+            name: file.originalName || att.filename,
+            contentType: file.mime,
+            size: file.size,
+            ...(att.contentId ? { contentId: att.contentId } : {}),
+            isInline: att.isInline ?? false,
+          });
+          uploadedFiles.push({ fileId: file.id });
+          if (file.id !== held?.id) createdFileIds.push(file.id);
+        }
       }
-    }
 
-    const totalSize = params.rawSize + storedAttachments.reduce((sum, a) => sum + a.size, 0);
+      const totalSize = params.rawSize + storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
-    const sentCopyOf = await this.findOwnSentOriginal(
-      userId,
-      params.recipientUsername,
-      params.from.address,
-      params.headers,
-    );
-
-    const receivedAt = new Date();
-    const storedMessageId = await insertMessageWithChildren(
-      db,
-      {
+      const sentCopyOf = await this.findOwnSentOriginal(
         userId,
-        mailboxId: mailbox.id,
-        messageId: params.messageId,
-        fromName: params.from.name?.trim() ? params.from.name.trim() : null,
-        fromAddress: params.from.address.trim().toLowerCase(),
-        ...(params.replyTo?.address.trim()
-          ? {
-              replyToName: params.replyTo.name?.trim() ? params.replyTo.name.trim() : null,
-              replyToAddress: params.replyTo.address.trim().toLowerCase(),
-            }
-          : {}),
-        subject: params.subject,
-        text: params.text,
-        html: params.html,
-        headers: params.headers,
-        spamScore: params.spamScore,
-        spamAction: params.spamAction,
-        size: totalSize,
-        inReplyTo: params.inReplyTo,
-        references: params.references ?? [],
-        aliasTag: params.aliasTag,
-        sentCopyOf,
-        readReceiptRequested: Boolean(params.headers['disposition-notification-to']),
-        date: params.date,
-        receivedAt,
-      },
-      { to: params.to, cc: params.cc ?? [] },
-      storedAttachments,
-      async (transaction, messageId) => {
-        await enqueueInboxMessageEvents(transaction, {
-          ownerAccountId: userId,
+        params.recipientUsername,
+        params.from.address,
+        params.headers,
+      );
+
+      const receivedAt = new Date();
+      storedMessageId = await insertMessageWithChildren(
+        db,
+        {
+          userId,
           mailboxId: mailbox.id,
-          messageId,
-          senderAddress: params.from.address,
+          messageId: params.messageId,
+          fromName: params.from.name?.trim() ? params.from.name.trim() : null,
+          fromAddress: params.from.address.trim().toLowerCase(),
+          ...(params.replyTo?.address.trim()
+            ? {
+                replyToName: params.replyTo.name?.trim() ? params.replyTo.name.trim() : null,
+                replyToAddress: params.replyTo.address.trim().toLowerCase(),
+              }
+            : {}),
           subject: params.subject,
+          text: params.text,
+          html: params.html,
           headers: params.headers,
+          spamScore: params.spamScore,
+          spamAction: params.spamAction,
+          size: totalSize,
+          inReplyTo: params.inReplyTo,
+          references: params.references ?? [],
+          aliasTag: params.aliasTag,
+          sentCopyOf,
+          readReceiptRequested: Boolean(params.headers['disposition-notification-to']),
+          date: params.date,
           receivedAt,
-          snippet: buildSnippet(params.text, params.html),
-          folder: isSpam ? 'spam' : 'inbox',
-        });
-      },
-    );
+        },
+        { to: params.to, cc: params.cc ?? [] },
+        storedAttachments,
+        async (transaction, messageId) => {
+          await enqueueInboxMessageEvents(transaction, {
+            ownerAccountId: userId,
+            mailboxId: mailbox.id,
+            messageId,
+            senderAddress: params.from.address,
+            subject: params.subject,
+            headers: params.headers,
+            receivedAt,
+            snippet: buildSnippet(params.text, params.html),
+            folder: isSpam ? 'spam' : 'inbox',
+          });
+        },
+      );
+    } catch (err) {
+      await discardInboundUploads(userId, createdFileIds);
+      throw err;
+    }
 
     // Link each uploaded file to the newly-stored Message under the oxy-mail
     // app namespace. Best-effort: if linking fails the message is already

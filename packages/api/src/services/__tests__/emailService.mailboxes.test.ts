@@ -33,13 +33,14 @@ jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn()
 jest.mock('../assetServiceSingleton', () => ({ assetService: { unlinkFile: jest.fn() } }));
 
 import { randomUUID } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 import { renderWelcomeEmail } from '../welcomeEmail';
+import { DEFAULT_MAILBOXES } from '../../config/email.config';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -69,6 +70,52 @@ async function store(
   return row.id;
 }
 
+/**
+ * Hold `FOR UPDATE` on the user's row on a connection of its own. A mailbox
+ * insert's foreign key takes a key-share lock on it, so every provisioning
+ * call stops at its insert — after it has looked for existing folders — until
+ * the gate is released. That is the race, made deterministic.
+ */
+async function holdUserRow(userId: string): Promise<{ release: () => Promise<void> }> {
+  let held!: () => void;
+  let release!: () => void;
+  const heldPromise = new Promise<void>((resolve) => {
+    held = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const done = getDb().transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+    held();
+    await released;
+  });
+  await heldPromise;
+  return {
+    release: async () => {
+      release();
+      await done;
+    },
+  };
+}
+
+/** Backends of this test database waiting on a lock. */
+async function lockWaiters(): Promise<number> {
+  const rows = await getDb().execute<{ n: number }>(
+    sql`select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`,
+  );
+  return rows[0].n;
+}
+
+async function waitFor(condition: () => Promise<boolean>): Promise<void> {
+  for (let i = 0; i < 500; i++) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('the condition never held');
+}
+
 beforeAll(async () => {
   await connectPostgres();
 });
@@ -88,6 +135,69 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
       .from(messages)
       .where(eq(messages.userId, userId));
     expect(stored).toEqual([renderWelcomeEmail('there', `${userId}@oxy.so`)]);
+  });
+
+  it('provisions a new user once when two first requests race', async () => {
+    // The app opens several views at once for a new user, and each calls
+    // `ensureMailboxes`. Both requests must succeed, and the user must end up
+    // with each default folder and the welcome email exactly once.
+    const userId = await owner();
+    const gate = await holdUserRow(userId);
+    const racing = Promise.all([
+      emailService.provisionMailboxes(userId),
+      emailService.ensureMailboxes(userId),
+    ]);
+    // Both have found no folders and are waiting to insert them.
+    await waitFor(async () => (await lockWaiters()) === 2);
+    await gate.release();
+
+    await expect(racing).resolves.toHaveLength(2);
+
+    const rows = await getDb()
+      .select({ path: mailboxes.path })
+      .from(mailboxes)
+      .where(eq(mailboxes.userId, userId));
+    expect(rows.map((r) => r.path).sort()).toEqual(DEFAULT_MAILBOXES.map((m) => m.path).sort());
+    const stored = await getDb()
+      .select({ subject: messages.subject })
+      .from(messages)
+      .where(eq(messages.userId, userId));
+    expect(stored).toEqual([{ subject: renderWelcomeEmail('there', `${userId}@oxy.so`).subject }]);
+  });
+
+  it('syncs a missing default folder once when two requests race', async () => {
+    const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    await getDb()
+      .delete(mailboxes)
+      .where(and(eq(mailboxes.userId, userId), eq(mailboxes.path, 'Archive')));
+    const gate = await holdUserRow(userId);
+    const racing = Promise.all([
+      emailService.ensureMailboxes(userId),
+      emailService.ensureMailboxes(userId),
+    ]);
+    await waitFor(async () => (await lockWaiters()) === 2);
+    await gate.release();
+
+    await expect(racing).resolves.toHaveLength(2);
+
+    const archives = await getDb()
+      .select({ id: mailboxes.id })
+      .from(mailboxes)
+      .where(and(eq(mailboxes.userId, userId), eq(mailboxes.path, 'Archive')));
+    expect(archives).toHaveLength(1);
+  });
+
+  it('provisions every default folder exactly once', async () => {
+    const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    await emailService.ensureMailboxes(userId);
+
+    const rows = await getDb()
+      .select({ path: mailboxes.path })
+      .from(mailboxes)
+      .where(eq(mailboxes.userId, userId));
+    expect(rows.map((r) => r.path).sort()).toEqual(DEFAULT_MAILBOXES.map((m) => m.path).sort());
   });
 
   it('reports exact totals, unseen counts and byte sizes per folder', async () => {

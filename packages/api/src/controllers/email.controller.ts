@@ -263,6 +263,18 @@ export async function deleteMailbox(req: AuthRequest, res: Response): Promise<vo
   res.json({ data: { message: 'Mailbox deleted' } });
 }
 
+/**
+ * `limit` and `offset` from a list endpoint's query string: 50 from 0 by
+ * default, at most 100. Clamped on both sides: a negative `limit` or `offset`
+ * reached Postgres as `LIMIT -1` / `OFFSET -1` and answered 500.
+ */
+function pageParams(query: Request['query']): { limit: number; offset: number } {
+  return {
+    limit: Math.min(Math.max(Number.parseInt(query.limit as string, 10) || 50, 1), 100),
+    offset: Math.max(Number.parseInt(query.offset as string, 10) || 0, 0),
+  };
+}
+
 // ─── Messages ─────────────────────────────────────────────────────
 
 export async function listMessages(req: AuthRequest, res: Response): Promise<void> {
@@ -270,8 +282,7 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
   const mailboxId = req.query.mailbox as string | undefined;
   const starred = req.query.starred === 'true';
   const label = req.query.label as string | undefined;
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  const { limit, offset } = pageParams(req.query);
   const cursor = getOptionalQueryString(req.query.cursor, 'cursor');
   const unseenOnly = req.query.unseen === 'true';
 
@@ -875,8 +886,8 @@ export async function searchMessagesForUser(
     label,
     cursor,
   } = command;
-  const limit = Math.min(command.limit || 50, 100);
-  const offset = command.offset || 0;
+  const limit = Math.min(Math.max(command.limit || 50, 1), 100);
+  const offset = Math.max(command.offset || 0, 0);
 
   // At least one search criterion required
   if (
@@ -938,8 +949,7 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
     dateBefore: getOptionalQueryString(req.query.dateBefore, 'dateBefore'),
     starred: req.query.starred === 'true',
     label: getOptionalQueryString(req.query.label, 'label'),
-    limit: Math.min(Number.parseInt(req.query.limit as string) || 50, 100),
-    offset: Number.parseInt(req.query.offset as string) || 0,
+    ...pageParams(req.query),
     cursor: getOptionalQueryString(req.query.cursor, 'cursor'),
   });
   res.json(result);
@@ -978,8 +988,7 @@ export async function updateEmailSettings(req: AuthRequest, res: Response): Prom
 
 export async function listSubscriptions(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  const { limit, offset } = pageParams(req.query);
 
   const result = await emailService.getSubscriptions(userId, { limit, offset });
   const body: z.infer<typeof listSubscriptionsResponseSchema> = {
@@ -1042,8 +1051,7 @@ export async function updateBundle(req: AuthRequest, res: Response): Promise<voi
 export async function listBundledMessages(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
   const mailboxId = req.query.mailbox as string | undefined;
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  const { limit, offset } = pageParams(req.query);
 
   const result = await emailService.listBundledMessages(userId, mailboxId || null, {
     limit,
@@ -1091,8 +1099,7 @@ export async function createReminder(req: AuthRequest, res: Response): Promise<v
 export async function listReminders(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
   const includeCompleted = req.query.completed === 'true';
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  const { limit, offset } = pageParams(req.query);
 
   const result = await emailService.listReminders(userId, { includeCompleted, limit, offset });
   res.json({ data: result.data, pagination: result.pagination });
@@ -1213,10 +1220,7 @@ export async function listContacts(req: AuthRequest, res: Response): Promise<voi
   const userId = req.user!.id;
   const q = req.query.q as string | undefined;
   const starred = req.query.starred === 'true';
-  // Clamped on both sides: a negative `limit` or `offset` reached Postgres as
-  // `LIMIT -1` / `OFFSET -1` and answered 500.
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit as string) || 50, 1), 100);
-  const offset = Math.max(Number.parseInt(req.query.offset as string) || 0, 0);
+  const { limit, offset } = pageParams(req.query);
 
   const result = await emailService.listContacts(userId, {
     q,

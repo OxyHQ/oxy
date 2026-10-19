@@ -24,7 +24,9 @@
  * nobody attaches a `text/x-amp-html` file.
  */
 
+import { createHash } from 'node:crypto';
 import { simpleParser, type AddressObject, type Attachment, type ParsedMail } from 'mailparser';
+import { EMAIL_DOMAIN } from '../config/email.config';
 
 /**
  * Media types that are only ever an alternative rendering of the message body.
@@ -138,4 +140,15 @@ export function fromParsedMail(parsed: ParsedMail): InboundMime {
 /** Parse a raw RFC 5322 message into the fields the mail store takes. */
 export async function parseInboundMime(raw: Buffer | string): Promise<InboundMime> {
   return fromParsedMail(await simpleParser(raw));
+}
+
+/**
+ * The Message-ID a message that arrived without one is stored under.
+ *
+ * Derived from the raw bytes, so a redelivery of the same message (a sender's
+ * retry, Cloudflare's) carries the same id and `storeIncomingMessage` can
+ * recognise it. The timestamp it replaced gave every delivery a new one.
+ */
+export function fallbackMessageId(raw: Buffer): string {
+  return `<${createHash('sha256').update(raw).digest('hex').slice(0, 32)}@${EMAIL_DOMAIN}>`;
 }
