@@ -1,5 +1,27 @@
 # Changelog
 
+## [12.2.1] - 2026-10-19
+
+### Added
+
+- `@oxy.so/services/ui/client` exports `useOxyEvent` and `useUpdateProfile`.
+  They were root-only, so an app whose startup code listens for realtime
+  events or updates the profile (Inbox's socket hook and locale provider) had
+  to import the root barrel and ship every account screen in first paint.
+
+### Fixed
+
+- `@oxy.so/services/ui` and `@oxy.so/services/ui/client` tell `@oxy.so/core`
+  the platform, as the root entry always did. Only the root barrel called
+  `setPlatformOS(Platform.OS)`, so on iOS and Android an app that imported only
+  a lean entry (and every app whose only services import is
+  `@alia.onl/sdk` 21.5's `ui/client`) left core answering `'unknown'`:
+  `isNative()`, `isIOS()` and `isAndroid()` were false, the shared identity key
+  was not read, and the Commons session fallback was off. The three client
+  entries now import `registerPlatform` first; `cryptoPolyfillOrder.test.ts`
+  fails if one stops (that import also evaluates core, and its crypto polyfill,
+  before anything else in the lean entries). Web was unaffected (core detects the DOM).
+
 ## [12.2.0] - 2026-10-19
 
 ### Changed

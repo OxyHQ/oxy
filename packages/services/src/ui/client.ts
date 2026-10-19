@@ -12,6 +12,9 @@
  * import { OxyProvider, useOxy, LogoIcon } from '@oxy.so/services/ui/client';
  */
 
+// Must stay the first runtime import: core reads the platform from it.
+import '../registerPlatform';
+
 // Components
 export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
@@ -63,6 +66,10 @@ export {
   useUserByUsername,
 } from './hooks/queries/useAccountQueries';
 export { useStorage } from './hooks/useStorage';
+// Realtime events and the profile mutation, which startup code (a socket hook,
+// a locale provider) needs without the root barrel's account screens.
+export { useOxyEvent } from './hooks/useOxyEvent';
+export { useUpdateProfile } from './hooks/mutations/useAccountMutations';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
 // Route screens live at `@oxy.so/services/screens` so client imports preserve
