@@ -15,9 +15,14 @@ bunx @oxy.so/doctor --ci --grace-days=7
 ```
 
 It checks direct dependencies under the canonical `@oxy.so/*` scope against
-npm, reports duplicate
-versions in `bun.lock`, and fails
-clearly when the lockfile is missing.
+npm, reports duplicate versions in `bun.lock`, and fails clearly when the
+lockfile is missing.
+
+It reads the manifests Bun installs from: the root `package.json` and the
+workspaces its `workspaces` patterns match. A `catalog:` dependency is checked
+where its range lives, the root's `workspaces.catalog` (or `catalogs.<name>`).
+A `package.json` outside the workspaces, such as a frozen copy kept as audit
+evidence, is not this repository's dependency state and is not read.
 
 A range that doesn't include the newest published `@oxy.so/*` release is a
 **warning** for 14 days after that release was published (`--grace-days=N`
