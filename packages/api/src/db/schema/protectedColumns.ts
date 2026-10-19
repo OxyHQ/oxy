@@ -196,8 +196,6 @@ export const MESSAGES_PROTECTED_COLUMNS = [
  * and a second, independent statement of which columns are dangerous.
  */
 export const INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS = [
-  'scopedExecution',
-  'privateAutoSourceApproval',
   'internalRouteId',
   'legalReviewEvidenceRef',
   'upstreamWholesaleCostAmount',

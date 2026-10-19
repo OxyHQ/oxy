@@ -124,7 +124,7 @@ def main():
                       'inference_metered_usage', 'inference_provider_cost_attempts'):
             assert sql(f"SELECT to_regclass('public.{table}') IS NOT NULL", db) == 't', table
         assert sql("SELECT count(*) FROM information_schema.columns WHERE "
-                   "table_name = 'inference_deployments' AND column_name = 'scoped_execution'", db) == '1'
+                   "table_name = 'inference_deployments' AND column_name = 'scoped_execution'", db) == '0'
         lineage_columns = ('parent_request_id', 'final_authorized_model_reference',
                            'final_authorized_provider', 'final_authorized_deployment_id',
                            'final_authorized_ceiling_amount', 'final_authorized_ceiling_currency')

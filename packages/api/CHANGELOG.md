@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Removed (the retired deployment approval columns, migration `0184`)
+
+`inference_deployments.scoped_execution` and `private_auto_source_approval` are
+dropped, after the image stops reading them (`post`). The two disabled
+2026-10-05 Jev rows that still carried them go first, with their current
+routing scorecards; `inference_deployments_revision_provider_scope_key` is now
+a plain unique key, and the Private Auto key and check are gone.
+
 ### Changed (`@kaana.ai/contracts` 7.0.0)
 
 Oxy now reads Kaana with the contract Kaana itself runs (7.0.0, up from
@@ -15,9 +23,7 @@ Oxy now reads Kaana with the contract Kaana itself runs (7.0.0, up from
 (`decisions-served-by-kaana`) since decisions became a `kaana.ai/v1` grant
 operation (oxy#1809), and no caller was left: zero requests in the 24 hours
 before removal. The edge's decisions-only branches (completion check, retry
-suppression, input budget, output-price rule) went with it. The
-`inference_deployments.scoped_execution` and `private_auto_source_approval`
-columns stay, now typed as plain JSON.
+suppression, input budget, output-price rule) went with it.
 
 ### Changed (a reconciliation session holds up to 5,000,000 pairs — ADR 0043 D6)
 
