@@ -28,18 +28,18 @@ export const VERSIONS = {
   // merely satisfies an open-ended peer floor is unmeasured, so it waits for
   // the workspace to move first.
   //
-  // Core is a peer of Services too (`^5.5.0 || ^6.0.0` as of 11.16.0) and is
+  // Core is a peer of Services too (`^5.5.0 || ^6.0.0` as of 12.2.0) and is
   // forced over the whole tree by the generated root overrides/resolutions, so
   // this pin must sit inside that peer range. Core pins Contracts EXACTLY, and
   // Services depends on Contracts' major, so `oxyContracts` follows Core.
   //
   // Keep this set paired. Publish Core, Bloom, Services and App Preset before
   // releasing the scaffolder: its ranges must resolve outside this workspace.
-  oxyServices: '^11.16.0', // @oxy.so/services — Bloom peer >=11.1.0, Core peer ^5.5.0 || ^6.0.0
+  oxyServices: '^12.2.0', // @oxy.so/services — Bloom peer >=11.1.0, Core peer ^5.5.0 || ^6.0.0
   oxyCore: '^6.0.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
   oxyBloom: '^11.1.1', // @oxy.so/bloom — the workspace catalog's Bloom, inside Services' peer
 
-  oxyContracts: '^5.0.0', // @oxy.so/contracts — the major Core 6 pins and Services 11.16 depends on
+  oxyContracts: '^5.0.0', // @oxy.so/contracts — the major Core 6 pins and Services 12 depends on
   oxyAppPreset: '^3.3.0', // @oxy.so/app-preset
   oxyExpoSplash: '^1.1.0', // @oxy.so/expo-splash — the shared native splash + "from Oxy" branding
 
