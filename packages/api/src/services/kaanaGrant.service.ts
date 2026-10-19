@@ -921,11 +921,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   if (plan.family === 'decisions') {
     // A level target was refused above.
     stepPlans.push(
-      ...decisionsStepPlans(
-        target?.kind === 'model' ? target : undefined,
-        policyPrice,
-        pilotTerms,
-      ),
+      ...decisionsStepPlans(target?.kind === 'model' ? target : undefined, policyPrice, pilotTerms),
     );
   } else if (target?.kind === 'model') {
     const reference =
