@@ -199,7 +199,7 @@ describe('speech terms (approved 2026-10-15)', () => {
       deployments: [speechRoute],
     });
     expect(pilotTermsFor(pilot, COMPLETION)).toEqual({
-      maxInput: pilot.maxControlledCompletionInputBudget,
+      maxInput: pilot.maxControlledInputBudget,
       maxOutputTokens: 2048,
       maxPricePerRequestUsd: '0.05',
       deployments: pilot.deployments,

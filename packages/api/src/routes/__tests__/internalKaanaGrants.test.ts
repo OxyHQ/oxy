@@ -1710,11 +1710,20 @@ describe('Mention under its first-party relationships (production terms)', () =>
       apiFormats: ['decisions'],
     });
     const review = { reviewedAt: '2026-10-18', evidenceRefs: ['synthetic'] };
-    // Neither line pins a revision: the grant takes the one Kaana publishes.
     jest.replaceProperty(decisionsPolicy, 'DECISIONS_PROFILE', [
       // Listed first and published nowhere: skipped, not refused.
-      { modelLine: 'unpublished/decider', maxPricePerRequestUsd: '0.001', review },
-      { modelLine: line.modelLine, maxPricePerRequestUsd: '0.0005', review },
+      {
+        modelLine: 'unpublished/decider',
+        revision: AUDIO_REVISION,
+        maxPricePerRequestUsd: '0.001',
+        review,
+      },
+      {
+        modelLine: line.modelLine,
+        revision: AUDIO_REVISION,
+        maxPricePerRequestUsd: '0.0005',
+        review,
+      },
     ]);
     const decide = () =>
       authorize(
