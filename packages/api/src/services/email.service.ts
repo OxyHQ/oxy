@@ -100,6 +100,16 @@ import {
   emitEmailNew,
 } from './inboxRealtime';
 import {
+  assignThread,
+  rethread,
+  rethreadAfterDelete,
+  threadAdjacency,
+  threadKeys,
+  threadKeysDiffer,
+  threadKeysOf,
+  withThreadLock,
+} from './emailThreading';
+import {
   adoptScheduledClaim,
   cancelScheduledClaims,
   claimSend,
@@ -691,6 +701,17 @@ export interface UnsubscribeResultDto {
  */
 const PUBLIC_MESSAGE_COLUMNS = publicColumns(messages, PROTECTED_COLUMNS_BY_TABLE);
 
+/** The columns a message's thread keys are made of (`emailThreading.ts`). */
+const THREAD_KEY_COLUMNS = {
+  messageId: messages.messageId,
+  inReplyTo: messages.inReplyTo,
+  relayMessageId: messages.relayMessageId,
+  references: messages.references,
+};
+
+/** What a delete hands `rethreadAfterDelete`: the keys, and the thread they were in. */
+const THREAD_MEMBER_COLUMNS = { ...THREAD_KEY_COLUMNS, threadId: messages.threadId };
+
 /**
  * The public columns plus the three bodies a single-message read legitimately
  * returns. Naming them is the sanctioned opt-in; it reads differently from an
@@ -1118,40 +1139,6 @@ async function toMessageDtos(
 }
 
 /**
- * The set of RFC Message-ID tokens that identify a message's place in a thread:
- * its own `Message-ID`, its `In-Reply-To`, and every entry of `References`.
- *
- * Two messages are in the same thread exactly when these sets intersect
- * (`m.messageId ∈ myIds ∨ m.inReplyTo ∈ myIds ∨ m.references ∩ myIds ≠ ∅`,
- * where `myIds` is this same set). Stating it as one symmetric relation is
- * what lets the walk be transitive instead of one hop.
- */
-function threadKeys(alias: string): SQL {
-  // `references` is a RESERVED word; drizzle quotes every identifier it emits
-  // and hand-written SQL has to do the same.
-  const table = sql.raw(alias);
-  return sql`(${table}."references"
-    || case when ${table}.in_reply_to is null then '{}'::text[] else array[${table}.in_reply_to] end
-    || case when ${table}.relay_message_id is null then '{}'::text[] else array[${table}.relay_message_id] end
-    || array[${table}.message_id])`;
-}
-
-/**
- * The adjacency predicate, decomposed so each arm can use an index:
- * `messages_user_id_message_id_idx`, `messages_user_id_relay_message_id_idx`,
- * `messages_user_id_in_reply_to_idx` and the GIN `messages_references_idx`
- * respectively. Written as one array overlap it
- * would be a sequential scan of every message the user owns.
- */
-function threadAdjacency(alias: string, keys: SQL): SQL {
-  const table = sql.raw(alias);
-  return sql`(${table}.message_id = any(${keys})
-    or ${table}.relay_message_id = any(${keys})
-    or ${table}.in_reply_to = any(${keys})
-    or ${table}.references && ${keys})`;
-}
-
-/**
  * Either the pool handle or an open transaction. Both answer the same query
  * API, and a helper that writes children has to work inside the transaction
  * that also wrote their parent.
@@ -1416,6 +1403,12 @@ async function loadSenderIdentity(
  * Addresses are lower-cased and trimmed HERE, the call-site obligation
  * `db/schema/messages.ts` records: Postgres has no column-level setter, and
  * skipping it turns address matching silently case-sensitive.
+ *
+ * This is the ONE place a message row is created — inbound, sent, drafts,
+ * scheduled, imports and the welcome email all come through it — so it is
+ * also where the row joins its conversation (`emailThreading.ts`): under the
+ * user's thread lock, before the row exists, so it is inserted with its
+ * thread id rather than updated to it.
  */
 async function insertMessageWithChildren(
   db: DatabaseOrTransaction,
@@ -1425,7 +1418,14 @@ async function insertMessageWithChildren(
   onInserted?: (transaction: Transaction, messageId: string) => Promise<void>,
 ): Promise<string> {
   return db.transaction(async (tx) => {
-    const [row] = await tx.insert(messages).values(values).returning({ id: messages.id });
+    await withThreadLock(tx, values.userId);
+    const threadId = await assignThread(tx, values.userId, threadKeysOf(values));
+    const [row] = await tx
+      .insert(messages)
+      .values({ ...values, threadId })
+      .returning({ id: messages.id });
+    // A neighbour stored before threads were: assign the whole component.
+    if (threadId === null) await rethread(tx, values.userId, [row.id]);
 
     const recipientRows = (['to', 'cc', 'bcc'] as const).flatMap((kind) =>
       (recipients[kind] ?? []).map((address, ord) => ({
@@ -2395,10 +2395,17 @@ class EmailService {
     // lifecycle. The `message_attachments` rows themselves CASCADE.
     await this.deleteMessageAttachments(message);
     await db.transaction(async (tx) => {
+      // First: the thread lock comes before any message row lock.
+      await withThreadLock(tx, userId);
       // A scheduled message deleted before it is due is cancelled with it:
       // its claim must not go on answering its key as a send to come.
       if (message.scheduledAt) await unscheduleMessages(tx, userId, [message], 'deleted');
-      await tx.delete(messages).where(eq(messages.id, messageId));
+      const removed = await tx
+        .delete(messages)
+        .where(eq(messages.id, messageId))
+        .returning(THREAD_MEMBER_COLUMNS);
+      // It may have been the message holding its conversation together.
+      await rethreadAfterDelete(tx, userId, removed);
     });
     await emitEmailChanged({
       userId,
@@ -2427,10 +2434,18 @@ class EmailService {
     // The sent copy links the same files under its own entity id, so dropping
     // the draft's links never orphans an attachment the sent message uses.
     await this.deleteMessageAttachments(draft);
-    const removed = await db
-      .delete(messages)
-      .where(and(eq(messages.id, draft.id), eq(messages.userId, userId), eq(messages.draft, true)))
-      .returning({ id: messages.id });
+    const removed = await db.transaction(async (tx) => {
+      await withThreadLock(tx, userId);
+      const gone = await tx
+        .delete(messages)
+        .where(
+          and(eq(messages.id, draft.id), eq(messages.userId, userId), eq(messages.draft, true)),
+        )
+        .returning(THREAD_MEMBER_COLUMNS);
+      // A reply draft can be the only link between two parts of a thread.
+      await rethreadAfterDelete(tx, userId, gone);
+      return gone;
+    });
     if (removed.length === 0) return;
 
     await emitEmailChanged({
@@ -2844,6 +2859,13 @@ class EmailService {
       // Bound outside the closure so the narrowing survives into it.
       const existingDraftId = draft.existingDraftId;
       const replaced = await db.transaction(async (tx) => {
+        // First: the thread lock comes before any message row lock.
+        await withThreadLock(tx, userId);
+        const [before] = await tx
+          .select(THREAD_KEY_COLUMNS)
+          .from(messages)
+          .where(and(eq(messages.id, existingDraftId), eq(messages.userId, userId)))
+          .limit(1);
         const [updated] = await tx
           .update(messages)
           .set({
@@ -2866,8 +2888,13 @@ class EmailService {
                 : [eq(messages.draftRevision, draft.expectedRevision)]),
             ),
           )
-          .returning({ id: messages.id });
+          .returning({ id: messages.id, ...THREAD_KEY_COLUMNS });
         if (!updated) return undefined;
+        // A reply draft whose In-Reply-To or References changed may have
+        // moved between conversations.
+        if (before && threadKeysDiffer(before, updated)) {
+          await rethread(tx, userId, [updated.id]);
+        }
 
         await tx.delete(messageRecipients).where(eq(messageRecipients.messageId, updated.id));
         const recipientRows = (['to', 'cc', 'bcc'] as const).flatMap((kind) =>
@@ -3067,10 +3094,16 @@ class EmailService {
     messageRowId: string,
     relayMessageId: string,
   ): Promise<void> {
-    await getDb()
-      .update(messages)
-      .set({ relayMessageId })
-      .where(and(eq(messages.id, messageRowId), eq(messages.userId, userId)));
+    await getDb().transaction(async (tx) => {
+      await withThreadLock(tx, userId);
+      const updated = await tx
+        .update(messages)
+        .set({ relayMessageId })
+        .where(and(eq(messages.id, messageRowId), eq(messages.userId, userId)))
+        .returning({ id: messages.id });
+      // A new key: an answer that already arrived naming it joins this thread.
+      if (updated.length > 0) await rethread(tx, userId, [messageRowId]);
+    });
   }
 
   /** The mailbox one of this user's messages is in, for a change signal. */
