@@ -166,9 +166,16 @@ module.exports = createOxyMetroConfig(__dirname, {
   cssInput: './global.css',                  // optional, this is the default
   dropConsole: true,                         // optional, production web only
   // svgTransformerPath: require.resolve('react-native-svg-transformer/expo'),
-  // extraBlockList: [path.join(__dirname, '../../.claude/worktrees')],
+  // workspaceRoot: path.join(__dirname, '../..'), // optional, see below
 });
 ```
+
+Metro watches the app's install root and resolves hoisted dependencies from its
+`node_modules`. The root is found by walking up from the project, never past its
+git checkout: the nearest `package.json` that declares `workspaces`, else the
+nearest lockfile, else the checkout's top level. A monorepo app watches the
+monorepo; a single-package app watches only itself. `workspaceRoot` overrides it.
+Worktrees under `<root>/.worktrees` and `<root>/.claude/worktrees` are blocked.
 
 `workletsBundleMode: true` (opt-in, 3.2.0+) turns on react-native-worklets'
 [Bundle Mode](https://docs.swmansion.com/react-native-worklets/docs/bundleMode).

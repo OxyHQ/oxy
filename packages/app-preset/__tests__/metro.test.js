@@ -1,10 +1,13 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { after, before, test } = require('node:test');
 const Module = require('node:module');
 
 const originalLoad = Module._load;
 let createOxyMetroConfig;
+let findWorkspaceRoot;
 /** Configs worklets' `getBundleModeMetroConfig` was handed. */
 const bundleModeWrapped = [];
 
@@ -48,7 +51,7 @@ before(() => {
     }
     return originalLoad(request, parent, isMain);
   };
-  ({ createOxyMetroConfig } = require('../metro'));
+  ({ createOxyMetroConfig, findWorkspaceRoot } = require('../metro'));
 });
 
 after(() => {
@@ -65,6 +68,7 @@ test('configures optional SVG, aliases, watch roots and minifier policy', () => 
     extraWatchFolders: ['/repo/generated'],
     extraAssetExts: ['bin', 'woff2'],
     extraSourceExts: ['cjs', 'ts'],
+    workspaceRoot: '/repo',
   });
 
   assert.deepEqual(config.watchFolders, ['/repo', '/repo/generated']);
@@ -90,7 +94,7 @@ test('anchors README blocking and converts extra path blocks to escaped regexes'
 
 test('does not block a project whose checkout lives inside a worktrees directory', () => {
   const projectRoot = '/repo/.worktrees/feature/packages/frontend';
-  const config = createOxyMetroConfig(projectRoot);
+  const config = createOxyMetroConfig(projectRoot, { workspaceRoot: '/repo/.worktrees/feature' });
   const isBlocked = (candidate) =>
     config.resolver.blockList.some((pattern) => pattern.test(candidate));
 
@@ -116,7 +120,9 @@ test('blocks caches and tests inside the project, never a checkout that lives un
     '/x/.metro',
     '/x/__tests__',
   ]) {
-    const isBlocked = blocked(`${home}/app/wt/packages/frontend`);
+    const isBlocked = blocked(`${home}/app/wt/packages/frontend`, {
+      workspaceRoot: `${home}/app/wt`,
+    });
     assert.equal(isBlocked(`${home}/app/wt/node_modules/expo-router/entry.js`), false, home);
     assert.equal(isBlocked(`${home}/app/wt/packages/frontend/app/_layout.tsx`), false, home);
     // …and the caches and tests INSIDE it are still blocked.
@@ -133,11 +139,60 @@ test('blocks caches and tests inside the project, never a checkout that lives un
   }
 
   // An extra watch folder outside the monorepo gets the same rule.
-  const isBlocked = blocked('/repo/packages/frontend', { extraWatchFolders: ['/shared/kit'] });
+  const isBlocked = blocked('/repo/packages/frontend', {
+    extraWatchFolders: ['/shared/kit'],
+    workspaceRoot: '/repo',
+  });
   assert.equal(isBlocked('/shared/kit/.cache/x.json'), true);
   assert.equal(isBlocked('/shared/kit/src/index.ts'), false);
   // A path outside every root is not this list's business.
   assert.equal(isBlocked('/elsewhere/.cache/x.json'), false);
+});
+
+test('watches the install root of the checkout, never the directory above it', () => {
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-metro-root-')));
+  const put = (file, content = '') => {
+    fs.mkdirSync(path.dirname(path.join(home, file)), { recursive: true });
+    fs.writeFileSync(path.join(home, file), content);
+  };
+  const workspaces = JSON.stringify({ workspaces: ['packages/*'] });
+  try {
+    // ~/Oxy/<repo>: a single-package app beside a sibling worktree. `../..` was home.
+    put('Oxy/Single/.git/HEAD');
+    put('Oxy/Single/bun.lock');
+    put('Oxy/Single/package.json', '{}');
+    put('Oxy/Single-wt/.git', 'gitdir: x');
+    const single = path.join(home, 'Oxy/Single');
+    assert.equal(findWorkspaceRoot(single), single);
+    assert.deepEqual(createOxyMetroConfig(single).watchFolders, [single]);
+
+    // A monorepo app resolves to the workspaces root, even with a stray lockfile of its own.
+    put('Oxy/Mono/.git/HEAD');
+    put('Oxy/Mono/package.json', workspaces);
+    put('Oxy/Mono/packages/frontend/package.json', '{}');
+    put('Oxy/Mono/packages/frontend/bun.lock');
+    const mono = path.join(home, 'Oxy/Mono');
+    const config = createOxyMetroConfig(path.join(mono, 'packages/frontend'));
+    assert.deepEqual(config.watchFolders, [mono]);
+    assert.equal(
+      config.resolver.blockList.some((p) =>
+        p.test(`${mono}/.claude/worktrees/a/node_modules/x.js`),
+      ),
+      true,
+    );
+
+    // A worktree nested inside it (`.git` is a file) is its own root.
+    put('Oxy/Mono/.claude/worktrees/a/.git', 'gitdir: x');
+    put('Oxy/Mono/.claude/worktrees/a/package.json', workspaces);
+    const nested = path.join(mono, '.claude/worktrees/a');
+    assert.equal(findWorkspaceRoot(path.join(nested, 'packages/frontend')), nested);
+
+    // Nothing marks a root: the project itself, never an ancestor.
+    put('loose/app/package.json', '{}');
+    assert.equal(findWorkspaceRoot(path.join(home, 'loose/app')), path.join(home, 'loose/app'));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('keeps svg as an asset and console calls by default', () => {

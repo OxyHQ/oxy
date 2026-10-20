@@ -28,6 +28,8 @@
  *   When set, `svg` moves from asset extensions to source extensions.
  * @param {Record<string,string>} [options.extraNodeModules={}] Extra aliases.
  * @param {string[]} [options.extraWatchFolders=[]] Additional watch roots.
+ * @param {string} [options.workspaceRoot] The install root Metro watches and
+ *   resolves hoisted deps from. Defaults to {@link findWorkspaceRoot}.
  * @param {string[]} [options.extraAssetExts=[]] Additional asset extensions.
  * @param {string[]} [options.extraSourceExts=[]] Additional source extensions.
  * @param {boolean} [options.workletsBundleMode=false] react-native-worklets'
@@ -39,7 +41,8 @@
  */
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { resolveOxyBuildId } = require('../build-id');
 const { requireFromProject } = require('../plugin/requireFromProject');
 
@@ -67,6 +70,52 @@ function unique(values) {
   return [...new Set(values)];
 }
 
+const LOCKFILES = [
+  'bun.lock',
+  'bun.lockb',
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+];
+
+function declaresWorkspaces(dir) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    return Boolean(manifest?.workspaces);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The directory the app was installed from — what Metro watches and resolves
+ * hoisted deps from. Walking up from the project, never past the git checkout
+ * that contains it: the nearest ancestor whose package.json declares
+ * `workspaces`, else the nearest one holding a lockfile, else the checkout's
+ * top level, else the project itself.
+ *
+ * Never a blind `../..`: for a single-package app at `~/Oxy/<repo>` that is the
+ * home directory, and Metro crawled all of it (every sibling repo and worktree
+ * with its node_modules) until it ran out of memory.
+ *
+ * @param {string} projectRoot
+ * @returns {string}
+ */
+function findWorkspaceRoot(projectRoot) {
+  const start = path.resolve(projectRoot);
+  let lockfileRoot;
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    if (declaresWorkspaces(dir)) return dir;
+    if (!lockfileRoot && LOCKFILES.some((name) => fs.existsSync(path.join(dir, name)))) {
+      lockfileRoot = dir;
+    }
+    // `.git` is a directory in a checkout and a file in a worktree.
+    if (fs.existsSync(path.join(dir, '.git'))) return lockfileRoot || dir;
+    if (path.dirname(dir) === dir) return lockfileRoot || start;
+  }
+}
+
 function createOxyMetroConfig(projectRoot, options = {}) {
   const {
     sharedTypesPackage,
@@ -78,9 +127,10 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     extraWatchFolders = [],
     extraAssetExts = [],
     extraSourceExts = [],
+    workspaceRoot,
   } = options;
 
-  const monorepoRoot = path.resolve(projectRoot, '../..');
+  const monorepoRoot = workspaceRoot ? path.resolve(workspaceRoot) : findWorkspaceRoot(projectRoot);
   const config = getDefaultConfig(projectRoot);
 
   // The preset's Babel plugin inlines this id into every module, but Metro's
@@ -93,7 +143,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
 
   config.projectRoot = projectRoot;
 
-  // Include the monorepo root so Metro resolves hoisted deps in root node_modules/.
+  // Watch the install root so Metro resolves hoisted deps in its node_modules/.
   config.watchFolders = unique([
     monorepoRoot,
     ...extraWatchFolders.map((folder) => path.resolve(folder)),
@@ -106,6 +156,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     // full node_modules; leaving them watchable makes Metro's file crawler walk
     // hundreds of thousands of extra directories and time out starting watch mode.
     blockPath(path.join(monorepoRoot, '.worktrees')),
+    blockPath(path.join(monorepoRoot, '.claude/worktrees')),
     // Caches and tests anywhere inside what Metro crawls (`node_modules/.cache`
     // and `.expo/types` included), and nowhere above it.
     ...['.expo', '.expo-shared', '.metro', '.cache', '__tests__'].map((name) =>
@@ -137,10 +188,10 @@ function createOxyMetroConfig(projectRoot, options = {}) {
       ...configuredExtraNodeModules,
     },
     // Resolve from the app's node_modules first, then the monorepo root (hoisted deps).
-    nodeModulesPaths: [
+    nodeModulesPaths: unique([
       path.join(projectRoot, 'node_modules'),
       path.join(monorepoRoot, 'node_modules'),
-    ],
+    ]),
     // Enable symlinks for workspace resolution.
     unstable_enableSymlinks: true,
     // Enable package.json "exports" resolution (required by @oxy.so/bloom subpath exports).
@@ -267,4 +318,8 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   return workletsBundleMode ? withWorkletsBundleMode(config, projectRoot) : config;
 }
 
-module.exports = { createOxyMetroConfig: createOxyMetroConfigWithBloom, withBloomSingleInstance };
+module.exports = {
+  createOxyMetroConfig: createOxyMetroConfigWithBloom,
+  findWorkspaceRoot,
+  withBloomSingleInstance,
+};
