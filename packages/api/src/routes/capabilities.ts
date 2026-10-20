@@ -1236,6 +1236,14 @@ router.post(
       response.status(400).json({ error: 'tool_not_available_for_resource' });
       return;
     }
+    if (!catalogToolAllowsActor(tool, 'agent')) {
+      response.status(403).json({
+        error: 'tool_not_available_to_actor',
+        actor: 'agent',
+        allowedActors: catalogToolActors(tool),
+      });
+      return;
+    }
     const sensitiveLimitError = autonomousSensitiveToolLimitError(input.maximumAutonomy, tool, []);
     if (sensitiveLimitError) {
       response.status(400).json({ error: sensitiveLimitError });
@@ -1479,6 +1487,7 @@ router.post(
         const capabilityNames = capabilities.map((entry) => entry.capability);
         const toolNames = catalog.catalog.tools
           .filter((tool) => tool.exposure.includes('internal'))
+          .filter((tool) => catalogToolAllowsActor(tool, 'agent'))
           .filter((tool) => tool.resourceTypes.includes(grant.resourceType))
           .filter(
             (tool) =>
@@ -1587,6 +1596,7 @@ router.post(
         const resourceType = catalog.catalog.accountResourceType;
         const toolNames = catalog.catalog.tools
           .filter((tool) => tool.exposure.includes('internal'))
+          .filter((tool) => catalogToolAllowsActor(tool, 'agent'))
           .filter((tool) => tool.resourceTypes.includes(resourceType))
           .filter(
             (tool) =>
