@@ -313,6 +313,9 @@ export const messages = pgTable(
       .on(t.userId, t.relayMessageId)
       .where(sql`${t.relayMessageId} is not null`),
     index('messages_references_idx').using('gin', t.references),
+    // (4b) A conversation's members by its stored key: the thread read, a list
+    // page's thread counts, and every merge or split `emailThreading.ts` makes.
+    index('messages_user_id_thread_id_idx').on(t.userId, t.threadId),
     // (5) Unread. Only `seen = false` is ever queried
     // (`email.service.ts:466`, `emailInbound.ts:148`). A partial index over the
     // unread rows alone is smaller, serves the same reads, AND makes the unseen
