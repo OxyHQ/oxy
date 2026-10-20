@@ -443,3 +443,30 @@ describe('the bounded background queue', () => {
     expect(await storedLabels(messageId)).toEqual(['Work']);
   });
 });
+
+describe('telling open clients', () => {
+  afterEach(() => {
+    jest.dontMock('../../utils/socket');
+  });
+
+  it('announces the labels it applied, and stays quiet when it applied none', async () => {
+    // The labels land seconds after `email:new`; without an event an open
+    // client shows them only on its next refresh.
+    const emit = jest.fn();
+    jest.doMock('../../utils/socket', () => ({ getIO: () => ({ to: () => ({ emit }) }) }));
+    const messageId = await insertMessage();
+    loaded = await loadService();
+    loaded.axiosPost
+      .mockResolvedValueOnce(aiReply(['Work']))
+      .mockResolvedValueOnce(aiReply(['NotOffered']));
+
+    await loaded.service.classifyAndLabel(USER_ID, messageId);
+    expect(emit.mock.calls.filter(([event]) => event === 'email:changed')).toEqual([
+      ['email:changed', { id: messageId, mailboxIds: [MAILBOX_ID], reason: 'labels' }],
+    ]);
+
+    emit.mockClear();
+    await loaded.service.classifyAndLabel(USER_ID, messageId);
+    expect(emit).not.toHaveBeenCalled();
+  });
+});

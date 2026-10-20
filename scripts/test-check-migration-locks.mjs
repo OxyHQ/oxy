@@ -4,7 +4,10 @@
  * appended migration per case: the 2026-10-16 shape (hot-table DDL beside a
  * backfill) must go red and name the migration, a validated foreign key on an
  * existing table must go red, and the same file carrying a lock-review waiver
- * must go green. Offline; fixtures live under the OS temp dir.
+ * must go green. Inbox's `messages` and `mailboxes` are hot tables too: DDL on
+ * one beside a backfill, and an index on `messages` that cannot be built
+ * CONCURRENTLY out of band first, must go red. Offline; fixtures live under the
+ * OS temp dir.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -70,8 +73,31 @@ runCase(
   false,
 );
 
+runCase(
+  'messages DDL beside a backfill',
+  'ALTER TABLE "messages" ADD COLUMN "thread_id" text;--> statement-breakpoint\n' +
+    'UPDATE "messages" SET "thread_id" = "id";\n',
+  true,
+);
+runCase(
+  'mailboxes DDL beside a backfill',
+  'ALTER TABLE "mailboxes" ADD COLUMN "total_messages" integer;--> statement-breakpoint\n' +
+    'UPDATE "mailboxes" SET "total_messages" = 0;\n',
+  true,
+);
+runCase(
+  'messages index without IF NOT EXISTS',
+  'CREATE INDEX "messages_x_idx" ON "messages" USING btree ("user_id");\n',
+  true,
+);
+runCase(
+  'messages index guarded for an out-of-band build',
+  'CREATE INDEX IF NOT EXISTS "messages_x_idx" ON "messages" USING btree ("user_id");\n',
+  false,
+);
+
 if (failures.length > 0) {
   console.error(failures.join('\n\n'));
   process.exit(1);
 }
-console.log('check-migration-locks fixture tests passed (4 cases).');
+console.log('check-migration-locks fixture tests passed (8 cases).');

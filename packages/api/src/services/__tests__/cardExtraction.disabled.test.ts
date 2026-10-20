@@ -6,8 +6,9 @@ const mockGetDb = jest.fn(() => {
 const mockExecuteInference = jest.fn();
 
 jest.mock('../../config/email.config', () => ({
-  CARD_EXTRACTION_CONFIG: { enabled: false },
+  CARD_EXTRACTION_CONFIG: { enabled: false, maxConcurrent: 2, maxQueueSize: 100 },
 }));
+jest.mock('../inboxRealtime', () => ({ emitEmailChanged: jest.fn() }));
 jest.mock('../../config/postgres', () => ({ getDb: () => mockGetDb() }));
 jest.mock('@oxy.so/db', () => ({ qualified: jest.fn() }), { virtual: true });
 jest.mock('../../db/schema/messages', () => ({

@@ -51,6 +51,11 @@ const BASELINE = 179;
 /**
  * Tables read on (nearly) every request. An ACCESS EXCLUSIVE lock on one of
  * these is an outage for as long as it is held or waited for.
+ *
+ * `messages` and `mailboxes` are Inbox's: every list, count, unread badge and
+ * inbound delivery reads them, and `messages` is the largest table the API
+ * owns, so an index build on it that shares a file with its DDL holds the lock
+ * for minutes, not seconds.
  */
 export const HOT_TABLES = new Set([
   'account_closure_fences',
@@ -60,6 +65,8 @@ export const HOT_TABLES = new Set([
   'device_credentials',
   'device_sessions',
   'files',
+  'mailboxes',
+  'messages',
   'organization_profiles',
   'sessions',
   'supervision_profiles',

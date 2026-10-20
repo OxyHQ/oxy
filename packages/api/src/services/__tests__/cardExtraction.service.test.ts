@@ -64,7 +64,7 @@ async function loadService(): Promise<Loaded> {
     logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   }));
   jest.doMock('../../config/email.config', () => ({
-    CARD_EXTRACTION_CONFIG: { enabled: true },
+    CARD_EXTRACTION_CONFIG: { enabled: true, maxConcurrent: 2, maxQueueSize: 100 },
   }));
 
   const axiosPost = jest.fn();
@@ -336,5 +336,32 @@ describe('what the extractor is given', () => {
     await loaded.service.extractAndUpdate(USER_ID, messageId);
 
     expect(loaded.axiosPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('telling open clients', () => {
+  afterEach(() => {
+    jest.dontMock('../../utils/socket');
+  });
+
+  it('announces a stored card, and stays quiet when there was nothing to store', async () => {
+    const emit = jest.fn();
+    jest.doMock('../../utils/socket', () => ({ getIO: () => ({ to: () => ({ emit }) }) }));
+    const messageId = await insertMessage();
+    loaded = await loadService();
+    loaded.axiosPost
+      .mockResolvedValueOnce(
+        aiReply({ card: null, highlights: [{ type: 'date', value: '2026-03-04', label: 'Day' }] }),
+      )
+      .mockResolvedValueOnce(aiReply({ card: null, highlights: [] }));
+
+    await loaded.service.extractAndUpdate(USER_ID, messageId);
+    expect(emit.mock.calls.filter(([event]) => event === 'email:changed')).toEqual([
+      ['email:changed', { id: messageId, mailboxIds: [MAILBOX_ID], reason: 'labels' }],
+    ]);
+
+    emit.mockClear();
+    await loaded.service.extractAndUpdate(USER_ID, messageId);
+    expect(emit).not.toHaveBeenCalled();
   });
 });
