@@ -32,18 +32,21 @@
  * inventory for the real run), and one left open refused the entity type's next
  * reconciliation with 409 for an hour.
  *
- * ## A session's items outlive it only until the next worker pass
+ * ## A session's items outlive it only until the worker's next passes
  *
- * Items are the bulk — up to {@link MAX_RECONCILE_ITEMS} rows a session. A
- * session can end without anyone deleting them: it expires `open` (retired by
- * the next `begin`, or by nobody), or a delete was interrupted. On 2026-10-20
- * production held 4,475,000 items of 120 `abandoned` sessions (~1.5 GB), and
- * the expiry sweep would have removed each session's items in ONE cascading
- * statement a day later. {@link sweepEndedReconciliations} is the guarantee:
- * the large-upload worker retires every session that expired `open` and
+ * Items are the bulk — up to {@link MAX_RECONCILE_ITEMS} rows a session. ONE
+ * mechanism deletes them, whichever way the session ends (committed, released,
+ * a dry run, or expired `open`): {@link sweepEndedReconciliations}, on the
+ * large-upload worker, which retires every session that expired `open` and
  * deletes the items of every session no longer `open`/`committing`, a bounded
- * batch per statement under a statement timeout, so the shared database never
- * sees a delete of millions of rows at once.
+ * batch per statement under a statement timeout. Nothing else deletes them in
+ * one statement — a commit or a release of Homiio's ~2 million listing photos
+ * would otherwise be a single 2M-row delete on the shared database. A
+ * session's terminal status is all the sweep needs.
+ *
+ * On 2026-10-20 production held 4,475,000 items of 120 `abandoned` sessions
+ * (~1.5 GB) that nobody deleted: sessions that expired `open` kept them until
+ * the expiry sweep removed the session a day later, in one cascading delete.
  */
 
 import { and, asc, count, eq, exists, gt, lt, lte, not, notInArray, sql } from 'drizzle-orm';
@@ -250,11 +253,8 @@ export async function abandonReconciliation(
       ),
     )
     .returning({ id: fileReferenceReconciliations.id });
-  if (released.length === 0) return false;
-  await getDb()
-    .delete(fileReferenceReconciliationItems)
-    .where(eq(fileReferenceReconciliationItems.sessionId, sessionId));
-  return true;
+  // Its items go to the worker's bounded sweep, never one delete here.
+  return released.length > 0;
 }
 
 /** `r` is one of this session's application's references of its entity type. */
@@ -547,10 +547,8 @@ async function runCommit(session: ReconcileSession): Promise<ReconcileCommitResu
     )
     .returning({ id: fileReferenceReconciliations.id });
   if (!finished) throw new CommitLeaseLost(sessionId);
-  // The bulk of a session; the row itself stays as the record until expiry.
-  await getDb()
-    .delete(fileReferenceReconciliationItems)
-    .where(eq(fileReferenceReconciliationItems.sessionId, sessionId));
+  // The items — the bulk — go to the worker's bounded sweep now that the
+  // session has ended; the row stays as the record until expiry.
 
   logger.info('File references reconciled', {
     applicationId,

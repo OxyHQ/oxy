@@ -32,10 +32,11 @@
  *
  * `expires_at` is a sliding deadline (each page extends it). Every read of a
  * session filters on it (class A of `db/expiry.ts`); the sweep deletes the row
- * a day after it. Its items — the bulk — are gone long before: a commit or a
- * release deletes them itself, and the large-upload worker retires a session
- * that expired `open` and deletes the items of every ended session in bounded
- * batches (`sweepEndedReconciliations`), so the `CASCADE` finds nothing.
+ * a day after it. Its items — the bulk — are gone long before: however the
+ * session ends (committed, released, expired `open`), the large-upload worker
+ * deletes the items of every ended session in bounded batches
+ * (`sweepEndedReconciliations`), so the `CASCADE` finds nothing and no
+ * session's items are ever one delete.
  */
 
 import { sql } from 'drizzle-orm';

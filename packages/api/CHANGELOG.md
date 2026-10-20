@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Changed (no reconciliation session's items are ever one delete)
+
+A commit and a release used to delete the session's items in one statement:
+for Homiio's ~2 million listing photos, a single 2M-row delete on the shared
+database. They now only end the session; its terminal status is all
+`sweepEndedReconciliations` needs, and the large-upload worker deletes the
+items in bounded batches, as it already did for sessions that expired open.
+Responses are unchanged.
+
 ### Fixed (reference reconciliation items outlived their sessions)
 
 A reconciliation session that ended without deleting its items — one that
