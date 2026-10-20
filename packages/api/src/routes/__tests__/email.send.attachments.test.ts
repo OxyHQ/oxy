@@ -62,6 +62,9 @@ jest.mock('../../services/emailDelivery.service', () => ({
 jest.mock('../../services/email.service', () => ({
   emailService: {
     enforceSendLimit: (...args: unknown[]) => mockEnforceSendLimit(...args),
+    sendPreflight: jest
+      .fn()
+      .mockResolvedValue({ tier: 'free', sentMailboxId: 'sent-mailbox', storageLimit: 1024 }),
     autoCollectContacts: (...args: unknown[]) => mockAutoCollectContacts(...args),
     scheduleMessage: jest.fn(),
     updateMessageFlags: jest.fn(),

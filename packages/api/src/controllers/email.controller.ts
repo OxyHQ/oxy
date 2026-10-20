@@ -579,6 +579,12 @@ export interface SendEmailResult {
   data: Record<string, unknown>;
 }
 
+/** The value of a settled lookup, or the error it failed with, thrown. */
+function settledValue<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === 'rejected') throw result.reason;
+  return result.value;
+}
+
 /** One domain entry point shared by REST, native Alia tickets, and external MCP. */
 export async function sendMessageForUser(
   userId: string,
@@ -600,24 +606,43 @@ export async function sendMessageForUser(
 
   // Schema validation already guarantees to.length >= 1 and recipient shape.
 
-  const threading = await resolveReplyThreading(userId, command.inReplyTo, command.references);
-  const { inReplyTo, references } = threading;
-
-  await emailService.enforceSendLimit(userId);
-
-  const { address: fromAddress, name: fromName } = await senderIdentityFor(userId);
-
   const allRecipients = [...to, ...(cc ?? []), ...(bcc ?? [])];
 
-  // Refuse addresses that have already bounced or complained, BEFORE the relay
-  // sees them. Provider-side suppression would drop the message silently, but
-  // the attempt still counts toward the bounce rate that gets a sending domain
-  // suspended — and the sender would be told nothing. One query for the whole
-  // recipient list; see `emailSuppression.service.ts` for the scope rules.
-  const suppressed = await findSuppressed(
-    userId,
-    allRecipients.map((r) => r.address),
-  );
+  // The checks below are independent reads, so they run together; their
+  // refusals are then raised in the order the checks used to run one after
+  // another, so a request failing two of them is answered with the same one.
+  const [threadingResult, preflightResult, senderResult, suppressedResult, attachmentsResult] =
+    await Promise.allSettled([
+      resolveReplyThreading(userId, command.inReplyTo, command.references),
+      emailService.sendPreflight(userId).then(async (preflight) => {
+        await emailService.enforceSendLimit(userId, preflight);
+        return preflight;
+      }),
+      senderIdentityFor(userId),
+      // Refuse addresses that have already bounced or complained, BEFORE the
+      // relay sees them. Provider-side suppression would drop the message
+      // silently, but the attempt still counts toward the bounce rate that gets
+      // a sending domain suspended — and the sender would be told nothing. One
+      // query for the whole recipient list; see `emailSuppression.service.ts`
+      // for the scope rules.
+      findSuppressed(
+        userId,
+        allRecipients.map((r) => r.address),
+      ),
+      // Resolve { fileId } references → canonical MessageAttachment[] for
+      // storage and outbound transport. Throws 400/403 on missing / non-active /
+      // unauthorized fileIds before any side effects.
+      attachments && attachments.length > 0
+        ? resolveAttachmentInputs(attachments, userId)
+        : Promise.resolve({ resolved: [] as MessageAttachment[], files: [] as FileRecord[] }),
+    ]);
+
+  const threading = settledValue(threadingResult);
+  const { inReplyTo, references } = threading;
+  const preflight = settledValue(preflightResult);
+  const { address: fromAddress, name: fromName } = settledValue(senderResult);
+
+  const suppressed = settledValue(suppressedResult);
   if (suppressed.length > 0) {
     const detail = suppressed
       .map((s) => {
@@ -638,13 +663,7 @@ export async function sendMessageForUser(
     );
   }
 
-  // Resolve { fileId } references → canonical MessageAttachment[] for storage and
-  // outbound transport. Throws 400/403 on missing / non-active / unauthorized
-  // fileIds before any side effects.
-  const { resolved: resolvedAttachments, files: attachedFiles } =
-    attachments && attachments.length > 0
-      ? await resolveAttachmentInputs(attachments, userId)
-      : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
+  const { resolved: resolvedAttachments, files: attachedFiles } = settledValue(attachmentsResult);
 
   if (scheduledAt) {
     const scheduledDate = new Date(scheduledAt);
@@ -696,21 +715,24 @@ export async function sendMessageForUser(
     };
   }
 
-  const result = await acceptOutboundMessage({
-    userId,
-    from: { name: fromName, address: fromAddress },
-    to,
-    cc,
-    bcc,
-    subject: subject ?? '',
-    text,
-    html,
-    inReplyTo,
-    references,
-    attachments: resolvedAttachments,
-    requestReadReceipt,
-    idempotencyKey,
-  });
+  const result = await acceptOutboundMessage(
+    {
+      userId,
+      from: { name: fromName, address: fromAddress },
+      to,
+      cc,
+      bcc,
+      subject: subject ?? '',
+      text,
+      html,
+      inReplyTo,
+      references,
+      attachments: resolvedAttachments,
+      requestReadReceipt,
+      idempotencyKey,
+    },
+    { preflight },
+  );
 
   if (attachedFiles.length > 0) {
     await linkAttachmentsToMessage(attachedFiles, result.messageId, userId);

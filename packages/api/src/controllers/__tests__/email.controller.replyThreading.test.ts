@@ -98,6 +98,8 @@ describe('reply threading', () => {
         inReplyTo: parent.messageId,
         references: ['<root@example.com>', '<mid@example.com>', parent.messageId],
       }),
+      // The filing reuses what the send's checks already read.
+      { preflight: expect.objectContaining({ tier: 'free' }) },
     );
     const [row] = await getDb()
       .select({ answered: messages.answered })
@@ -123,6 +125,7 @@ describe('reply threading', () => {
         inReplyTo: '<elsewhere@example.com>',
         references: ['<elsewhere@example.com>'],
       }),
+      expect.anything(),
     );
   });
 

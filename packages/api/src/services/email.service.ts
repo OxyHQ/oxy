@@ -1438,6 +1438,14 @@ export interface SentFilingTarget {
   storageLimit: number;
 }
 
+/** What {@link EmailService.sendPreflight} reads once per send. */
+export interface SendPreflight {
+  tier: SubscriptionTier;
+  /** Null when the account has no Sent folder yet. */
+  sentMailboxId: string | null;
+  storageLimit: number;
+}
+
 /** A message the user sent, as it is filed in Sent. */
 export interface SentMessageInput {
   messageId: string;
@@ -2891,10 +2899,34 @@ class EmailService {
    */
   async sentFilingTarget(userId: string): Promise<SentFilingTarget> {
     await this.ensureMailboxes(userId);
-    const sentMailbox = await this.getMailboxBySpecialUse(userId, '\\Sent');
-    if (!sentMailbox) throw new NotFoundError('Sent mailbox not found');
-    const storageLimit = EMAIL_QUOTAS[await this.getUserTier(userId)].storage;
-    return { mailboxId: sentMailbox.id, storageLimit };
+    const { sentMailboxId, storageLimit } = await this.sendPreflight(userId);
+    if (!sentMailboxId) throw new NotFoundError('Sent mailbox not found');
+    return { mailboxId: sentMailboxId, storageLimit };
+  }
+
+  /**
+   * What one send needs to know about its sender, read ONCE and handed to
+   * {@link enforceSendLimit} and to the filing: the tier, the bytes it may
+   * store, and its Sent folder. A send used to read the tier twice and look
+   * Sent up twice, in turn.
+   *
+   * Per request, never cached across requests: a tier read before an upgrade
+   * would go on refusing the upgraded account.
+   *
+   * `sentMailboxId` is null for an account with no Sent folder yet. Nothing is
+   * provisioned here; the filing then takes {@link sentFilingTarget}'s path,
+   * which provisions — or refuses — where it always has.
+   */
+  async sendPreflight(userId: string): Promise<SendPreflight> {
+    const [tier, sentMailbox] = await Promise.all([
+      this.getUserTier(userId),
+      this.getMailboxBySpecialUse(userId, '\\Sent'),
+    ]);
+    return {
+      tier,
+      sentMailboxId: sentMailbox?.id ?? null,
+      storageLimit: EMAIL_QUOTAS[tier].storage,
+    };
   }
 
   /**
@@ -4646,12 +4678,16 @@ class EmailService {
     refuseOverQuota(used, additionalBytes, limit);
   }
 
-  async getDailySendCount(userId: string): Promise<number> {
+  /** `sentMailboxId`, when given, is the caller's {@link sendPreflight} read of it. */
+  async getDailySendCount(userId: string, sentMailboxId?: string | null): Promise<number> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const sentMailbox = await this.getMailboxBySpecialUse(userId, '\\Sent');
-    if (!sentMailbox) return 0;
+    const mailboxId =
+      sentMailboxId === undefined
+        ? (await this.getMailboxBySpecialUse(userId, '\\Sent'))?.id
+        : sentMailboxId;
+    if (!mailboxId) return 0;
 
     const [row] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
@@ -4659,17 +4695,17 @@ class EmailService {
       .where(
         and(
           eq(messages.userId, userId),
-          eq(messages.mailboxId, sentMailbox.id),
+          eq(messages.mailboxId, mailboxId),
           gte(messages.receivedAt, startOfDay),
         ),
       );
     return row?.count ?? 0;
   }
 
-  async enforceSendLimit(userId: string): Promise<void> {
-    const tier = await this.getUserTier(userId);
+  async enforceSendLimit(userId: string, preflight?: SendPreflight): Promise<void> {
+    const tier = preflight?.tier ?? (await this.getUserTier(userId));
     const limit = EMAIL_QUOTAS[tier].dailySendLimit;
-    const count = await this.getDailySendCount(userId);
+    const count = await this.getDailySendCount(userId, preflight?.sentMailboxId);
     if (count >= limit) {
       throw new BadRequestError('Daily send limit reached');
     }

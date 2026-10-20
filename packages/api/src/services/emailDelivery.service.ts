@@ -26,7 +26,7 @@ import type { emailOutbox, EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { messages } from '../db/schema/messages';
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { emailService, type MessageDto } from './email.service';
+import { emailService, type MessageDto, type SendPreflight } from './email.service';
 import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
 import {
   claimDeliveryRetry,
@@ -94,7 +94,13 @@ function bodySize(payload: { text?: string; html?: string }): number {
  * retryable with the same key). Every other failure is the relay's, and is
  * reported on the message.
  */
-export async function acceptOutboundMessage(message: OutboundMessage): Promise<AcceptedSend> {
+export async function acceptOutboundMessage(
+  message: OutboundMessage,
+  options: {
+    /** The request's `emailService.sendPreflight`, so filing does not read it again. */
+    preflight?: SendPreflight;
+  } = {},
+): Promise<AcceptedSend> {
   if (!isOutboundRelayConfigured()) throw missingRelayError();
 
   const key = message.idempotencyKey;
@@ -128,7 +134,10 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
   // with the filed row; a refusal (a full mailbox, usually) rolls the claim
   // back with the filing, so no answer can promise a send that never happens
   // and the key is free to try again once the cause is fixed.
-  const target = await emailService.sentFilingTarget(message.userId);
+  const { preflight } = options;
+  const target = preflight?.sentMailboxId
+    ? { mailboxId: preflight.sentMailboxId, storageLimit: preflight.storageLimit }
+    : await emailService.sentFilingTarget(message.userId);
   const claim = await inClaimTransaction(async (tx): Promise<FiledClaim> => {
     const taken = await claimSend(
       {
