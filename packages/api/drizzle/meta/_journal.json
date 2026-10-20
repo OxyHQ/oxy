@@ -1401,6 +1401,13 @@
       "when": 1792651157691,
       "tag": "0200_file_lost_status",
       "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1792660109775,
+      "tag": "0201_messages_user_scoped_indexes",
+      "breakpoints": true
     }
   ]
 }
