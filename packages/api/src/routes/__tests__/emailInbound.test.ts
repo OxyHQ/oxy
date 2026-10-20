@@ -441,6 +441,85 @@ describe('POST /email/inbound', () => {
     expect(mockStoreIncomingMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('delivers to several accounts at once, reporting them in envelope order', async () => {
+    const users3 = [await recipient(), await recipient(), await recipient()];
+    const pending = new Map<string, () => void>();
+    mockStoreIncomingMessage.mockImplementation(
+      ({ recipientUsername }: { recipientUsername: string }) =>
+        new Promise((resolve) => {
+          pending.set(recipientUsername, () => resolve({ id: unique() }));
+        }),
+    );
+
+    const response = postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': users3.map((u) => u.address).join(', '),
+      },
+      rawMessage(users3[0].address),
+    );
+    // All three are in flight before any of them is stored.
+    for (let i = 0; i < 200 && pending.size < 3; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(pending.size).toBe(3);
+    // Stored last-first; reported first-first.
+    for (const user of [...users3].reverse()) pending.get(user.username)?.();
+
+    const res = await response;
+    expect(res.status).toBe(200);
+    expect(res.body.results).toEqual(
+      users3.map((u) => ({ recipient: u.address, status: 'delivered' })),
+    );
+  });
+
+  it('delivers to two addresses of ONE account one after the other', async () => {
+    // `bob+a@` and `bob+b@` are one mailbox: the second delivery must find
+    // the first's copy by its Message-ID, not race it to an insert.
+    const user = await recipient();
+    const other = await recipient();
+    let inFlightForUser = 0;
+    let peakForUser = 0;
+    mockStoreIncomingMessage.mockImplementation(
+      async ({ recipientUsername }: { recipientUsername: string }) => {
+        if (recipientUsername === user.username) {
+          inFlightForUser++;
+          peakForUser = Math.max(peakForUser, inFlightForUser);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        if (recipientUsername === user.username) inFlightForUser--;
+        return { id: unique() };
+      },
+    );
+
+    const plusA = `${user.username}+a@oxy.so`;
+    const plusB = `${user.username}+b@oxy.so`;
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': `${plusA}, ${other.address}, ${plusB}`,
+      },
+      rawMessage(plusA),
+    );
+
+    expect(res.status).toBe(200);
+    expect(peakForUser).toBe(1);
+    expect(res.body.results).toEqual([
+      { recipient: plusA, status: 'delivered' },
+      { recipient: other.address, status: 'delivered' },
+      { recipient: plusB, status: 'delivered' },
+    ]);
+    expect(
+      mockStoreIncomingMessage.mock.calls
+        .map(([params]) => (params as { aliasTag?: string }).aliasTag)
+        .filter(Boolean),
+    ).toEqual(['a', 'b']);
+  });
+
   // The shared-secret guard is NOT asserted here: `verifyEmailInboundWebhookSecret`
   // is exported separately and mounted by `server.ts` ahead of this router, so
   // a test that stands this router up alone can only ever observe it passing.
