@@ -101,6 +101,7 @@ import { contentDispositionFor, contentSecurityPolicyFor } from '../utils/fileCo
 import { isSanitizedSvgFile, isSvgType } from '../utils/svgSanitizer';
 import {
   isPendingImport,
+  normalizeSourceUrl,
   type ImportResult,
   type PendingImport,
 } from '../services/fileImport.service';
@@ -1872,8 +1873,9 @@ router.post(
 
 /**
  * @route POST /api/assets/service/app/import/batch
- * @desc Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The
- *       batch is 200; each item answers on its own, in order: `{ index, ok:
+ * @desc Up to 50 imports as above, `{ items: [...] }`, run 4 at a time;
+ *       items naming the same source run one after another, so a repeat is
+ *       answered from the first without fetching again. The batch is 200; each item answers on its own, in order: `{ index, ok:
  *       true, file, outcome, deduplicated, source, reference? }`, a large
  *       source still being fetched `{ index, ok: true, pending: true,
  *       importId, status: 'importing', source }`, or `{ index, ok: false,
@@ -1901,16 +1903,37 @@ router.post(
     );
 
     const results: Array<Record<string, unknown>> = new Array(items.length);
+    // Items naming one source (normalized: a fragment is not a new source) run
+    // one after another, never side by side. The later one then answers the
+    // earlier one's file without fetching again, where in parallel both
+    // fetched and raced to insert the same bytes. Each still answers on its
+    // own, with its own visibility and reference.
+    const bySource = new Map<string, Promise<ImportResult | PendingImport>>();
+    const sourceKey = (item: AppImportItem): string | undefined => {
+      try {
+        return normalizeSourceUrl(item.sourceUrl).sha256;
+      } catch {
+        // Unordered: `importFromUrl` refuses the same URL with its own error.
+        return undefined;
+      }
+    };
     let next = 0;
     const work = async () => {
       while (next < items.length) {
         const index = next++;
-        try {
-          const result = await fileImportService.importFromUrl(
+        const key = sourceKey(items[index]);
+        const start = () =>
+          fileImportService.importFromUrl(
             { kind: 'application', applicationId: appId },
             items[index],
             appId,
           );
+        const earlier = key === undefined ? undefined : bySource.get(key);
+        // After the earlier item settles either way; its own worker reports it.
+        const run = earlier ? earlier.then(start, start) : start();
+        if (key !== undefined) bySource.set(key, run);
+        try {
+          const result = await run;
           results[index] = isPendingImport(result)
             ? { index, ok: true, pending: true, ...serializePendingImport(result) }
             : { index, ok: true, ...serializeAppImport(result) };

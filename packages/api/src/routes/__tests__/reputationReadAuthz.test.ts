@@ -362,6 +362,17 @@ describe('GET /reputation/:userId/balance — view split', () => {
     expect(ownData.negative).toBe(-20);
     expect(ownData.breakdown).toEqual(expect.objectContaining({ trust: 120, penalties: 20 }));
   });
+
+  it('answers an id naming no account with the same 404 as an unknown publicKey', async () => {
+    // The id shape a Mention e2e fixture sent to production, 174 times a week,
+    // each a 500 from the balance upsert's foreign key.
+    const byId = await get('/reputation/019e23ee-2d68-7000-8000-000000000002/balance');
+    const byPublicKey = await get(`/reputation/04${randomUUID().replace(/-/g, '')}/balance`);
+
+    expect(byId.status).toBe(404);
+    expect(byId.body).toEqual({ error: 'NOT_FOUND', message: 'User not found' });
+    expect(byId.body).toEqual(byPublicKey.body);
+  });
 });
 
 describe('GET /reputation/:userId/influence — ownership gate', () => {

@@ -983,7 +983,11 @@ class ReputationService {
     };
   }
 
-  /** Return the cached balance, recomputing it when absent. */
+  /**
+   * Return the cached balance, recomputing it when absent. An id naming no
+   * account is a 404: the recompute would otherwise upsert a balance row the
+   * `user_id` foreign key refuses, and answer 500.
+   */
   async getBalance(userId: string): Promise<ReputationBalanceView> {
     const [existing] = await getDb()
       .select()
@@ -991,6 +995,12 @@ class ReputationService {
       .where(eq(reputationBalances.userId, userId))
       .limit(1);
     if (!existing) {
+      const [user] = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!user) throw new NotFoundError('User not found');
       return this.recalculateBalance(userId);
     }
 

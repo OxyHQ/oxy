@@ -86,9 +86,11 @@ it('expires evidence and refuses changed stable owners', async () => {
     .where(eq(externalIdentityActors.actorUri, a.actorUri));
   expect(await getEquivalentUserIds(first.userId)).toEqual([first.userId]);
   await registerExternalIdentity(a);
-  await expect(registerExternalIdentity({ ...a, stableId: 'new-owner' })).rejects.toThrow(
-    'stable identity changed',
-  );
+  // 409 through `asyncHandler`, never an unexpected-error 500 in the route log.
+  await expect(registerExternalIdentity({ ...a, stableId: 'new-owner' })).rejects.toMatchObject({
+    statusCode: 409,
+    message: expect.stringContaining('stable identity changed'),
+  });
   expect(await getEquivalentUserIds(first.userId)).toEqual([first.userId]);
 });
 it('preserves legacy moderation and follows when transports converge', async () => {
@@ -248,7 +250,33 @@ it('does not treat a stable ID absent from the actor URI as a rename of a legacy
       ...input(`${name()}@bsky.social`, actorUri),
       stableId: `did:plc:${name()}`,
     }),
-  ).rejects.toThrow('Actor already belongs to another external identity');
+  ).rejects.toMatchObject({
+    statusCode: 409,
+    message: 'Actor already belongs to another external identity',
+  });
+});
+
+it('refuses with 409 a transport-only observation of an actor bound to a derived identity', async () => {
+  // A fetch where bridge derivation failed names only the transport account.
+  // It is not evidence the actor still names the derived subject, so it neither
+  // rebinds the actor nor is a server error; the existing binding is untouched.
+  const local = name();
+  const actorUri = `https://bsky.brid.gy/ap/${local}`;
+  const transportAcct = `${local}.bsky.social@bsky.brid.gy`;
+  const derived = await registerExternalIdentity({
+    ...input(`${local}@bsky.social`, actorUri),
+    transportAcct,
+  });
+  await expect(
+    registerExternalIdentity({ ...input(transportAcct, actorUri), transportAcct }),
+  ).rejects.toMatchObject({
+    statusCode: 409,
+    message: 'Actor already belongs to another external identity',
+  });
+  expect(await lookupExternalIdentity(actorUri)).toBe(derived.userId);
+  expect(
+    (await getExternalIdentitiesForUser(derived.userId)).map((row) => row.canonicalAcct),
+  ).toEqual([`${local}@bsky.social`]);
 });
 
 it('follows a rename from a legacy bridge-domain identity to the derived network', async () => {

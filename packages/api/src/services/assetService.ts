@@ -1872,16 +1872,22 @@ export class AssetService {
     // lock, TOGETHER: this path writes the object BEFORE its row exists, so a
     // purge of a tombstone with the same bytes must not be able to check "no
     // live row", then delete the key this copy just wrote (`contentHashLock.ts`).
-    let file: FileRecord;
+    let promoted: { kind: 'inserted' | 'raced'; file: FileRecord };
     try {
-      file = await withContentHashLock(sha256, async (tx) => {
+      promoted = await withContentHashLock(sha256, async (tx) => {
+        // The pre-lock read is only optimistic: the same owner's concurrent
+        // request for these bytes (an import batch, a retried import) may have
+        // committed its row while this one streamed. Reuse it rather than copy
+        // and insert into the owner's sha256 unique index.
+        const raced = await findLiveFileBySha256ForOwner(sha256, options.owner, tx);
+        if (raced) return { kind: 'raced' as const, file: raced };
         // Before the promotion writes a content-addressed object (ADR 0043 D10).
         await assertContentNotBlocked(sha256, tx);
         const storageKey = await this.sharedStorageKeyFor(tx, sha256, mimeType, options.visibility);
         if (!(await this.s3Service.fileExists(storageKey))) {
           await this.s3Service.copyFile(tempKey, storageKey);
         }
-        return insertFile(
+        const inserted = await insertFile(
           {
             sha256,
             size,
@@ -1897,11 +1903,13 @@ export class AssetService {
           },
           tx,
         );
+        return { kind: 'inserted' as const, file: inserted };
       });
-      await deleteTempKey('Failed to delete temp key after cache promotion');
+      if (promoted.kind === 'inserted')
+        await deleteTempKey('Failed to delete temp key after cache promotion');
     } catch (error) {
       if (isUniqueViolation(error)) {
-        // The same owner raced itself; its other request created the row. The
+        // Kept as the fallback for a race the in-lock read cannot see. The
         // object this attempt may have written is at a content-addressed key
         // that row (or a sharing one) also uses, so it is kept — never
         // deleted from under them.
@@ -1919,6 +1927,17 @@ export class AssetService {
       await deleteTempKey('Failed to delete temp key after cache promotion');
       throw error;
     }
+    // Outside the lock: the reuse restores a missing object and drops the temp
+    // one, both S3 round trips.
+    if (promoted.kind === 'raced')
+      return this.reuseOwnStreamedMedia(
+        promoted.file,
+        tempKey,
+        options,
+        deleteTempKey,
+        ' duplicate race',
+      );
+    const { file } = promoted;
 
     logger.info(`${options.logLabel} uploaded via stream`, {
       fileId: file.id,

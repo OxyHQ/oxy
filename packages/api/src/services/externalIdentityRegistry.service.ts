@@ -532,7 +532,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
           };
       }
       if (identity?.stableId && input.stableId && identity.stableId !== input.stableId)
-        throw new Error(
+        throw new ConflictError(
           'External stable identity changed; explicit ownership reconciliation required',
         );
       const [actor] = await tx
@@ -574,7 +574,7 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
             (previous.stableId === null && boundToActor));
         if (sameSubject) renamedFrom = previous;
         if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct))
-          throw new Error('Actor already belongs to another external identity');
+          throw new ConflictError('Actor already belongs to another external identity');
       }
       const [legacy] = await tx
         .select({ id: users.id, type: users.type })
