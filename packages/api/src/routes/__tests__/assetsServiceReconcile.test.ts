@@ -13,9 +13,10 @@
  * an expired session answers 410 and frees its slot; another application's
  * session is a 404. A `background` commit runs under a lease: it is read back
  * with GET, a failed one is `open` with its error and can be committed again,
- * and one whose task died is resumed by the worker. A session that ends
- * without deleting its items (it expired open) loses them to the worker's
- * bounded sweep, which never touches an open or committing session.
+ * and one whose task died is resumed by the worker. However a session ends
+ * (committed, released, a dry run, expired open), its items go to the
+ * worker's bounded sweep — never one delete — which never touches an open or
+ * committing session.
  */
 
 import express from 'express';
@@ -692,6 +693,30 @@ describe('reconciliation: items of ended sessions are swept', () => {
     expect(await itemsOf(open)).toBe(2);
     expect(await statusOf(committing)).toBe('committing');
     expect(await itemsOf(committing)).toBe(2);
+  });
+
+  it('a commit, a dry run and a release leave their items to the sweep, which drains them', async () => {
+    const appId = await application();
+    actAs(appId);
+    const committed = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 3);
+    expect((await commit(committed)).status).toBe(200);
+    const dry = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 3);
+    expect((await commit(dry, true)).status).toBe(200);
+    const released = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 3);
+    expect(
+      (await json('DELETE', `/assets/service/references/reconcile/${released}`, {})).status,
+    ).toBe(200);
+    const open = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 2);
+
+    // Ending a session deletes nothing in its own statement.
+    expect(await statusOf(committed)).toBe('committed');
+    expect(await statusOf(dry)).toBe('abandoned');
+    expect(await statusOf(released)).toBe('abandoned');
+    for (const ended of [committed, dry, released]) expect(await itemsOf(ended)).toBe(3);
+
+    await sweepAll();
+    for (const ended of [committed, dry, released]) expect(await itemsOf(ended)).toBe(0);
+    expect(await itemsOf(open)).toBe(2);
   });
 
   it('deletes at most batchSize × maxBatches items a pass, and says when more remain', async () => {
