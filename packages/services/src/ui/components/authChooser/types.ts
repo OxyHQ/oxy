@@ -1,4 +1,4 @@
-import { resolveProfileColor } from '@oxy.so/bloom/color-presets';
+import { APP_COLOR_NAMES } from '@oxy.so/bloom/color-presets';
 /**
  * Shared types + per-account color resolution for the auth chooser's views.
  *
@@ -128,9 +128,19 @@ export interface SignInAlternatives {
  * renders in EVERY consumer regardless of NativeWind availability.
  */
 export function resolveAccentHex(color: string | null, fallback: string): string {
-  const resolved = resolveProfileColor(color);
-  return (
-    resolved?.seed ??
-    (resolved?.colorPreset ? APP_COLOR_PRESETS[resolved.colorPreset].hex : fallback)
-  );
+  const normalized = color?.trim().toLowerCase();
+  if (!normalized) return fallback;
+
+  if (/^#[0-9a-f]{3}$/i.test(normalized)) {
+    return `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`;
+  }
+  if (/^#[0-9a-f]{6}$/i.test(normalized)) return normalized;
+
+  // `amber` was the retired name for `yellow`; existing user records are
+  // migrated, but inboxes can still render cached account data during rollout.
+  const preset = normalized === 'amber' ? 'yellow' : normalized;
+  if (APP_COLOR_NAMES.includes(preset as (typeof APP_COLOR_NAMES)[number])) {
+    return APP_COLOR_PRESETS[preset as (typeof APP_COLOR_NAMES)[number]].hex;
+  }
+  return fallback;
 }
