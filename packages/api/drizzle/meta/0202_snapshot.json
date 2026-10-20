@@ -1,6 +1,6 @@
 {
-  "id": "a1e2fd19-5fd0-4520-b9e0-50020c14de08",
-  "prevId": "0d75c3e4-c1c1-4407-a3e2-b5a77cedeb27",
+  "id": "86cb644a-abb3-46cb-b688-329a19d2639d",
+  "prevId": "5fd2051e-6ede-4110-a5bc-b87412eb5bc5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -531,11 +531,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'credential'"
+        },
         "registered_by_credential_id": {
           "name": "registered_by_credential_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "deployed_at": {
           "name": "deployed_at",
@@ -639,7 +646,16 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "app_capability_catalog_source_check": {
+          "name": "app_capability_catalog_source_check",
+          "value": "\"app_capability_catalog_registrations\".\"source\" in ('credential', 'first_party')"
+        },
+        "app_capability_catalog_credential_source_check": {
+          "name": "app_capability_catalog_credential_source_check",
+          "value": "(\"app_capability_catalog_registrations\".\"source\" = 'credential') = (\"app_capability_catalog_registrations\".\"registered_by_credential_id\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.capability_audit_events": {
@@ -12997,7 +13013,7 @@
       "checkConstraints": {
         "file_event_deliveries_type_check": {
           "name": "file_event_deliveries_type_check",
-          "value": "\"file_event_deliveries\".\"type\" in ('file.deleted', 'file.visibility_changed', 'file.trashed', 'file.restored', 'file.blocked', 'file.unblocked')"
+          "value": "\"file_event_deliveries\".\"type\" in ('file.deleted', 'file.visibility_changed', 'file.trashed', 'file.restored', 'file.blocked', 'file.unblocked', 'file.lost')"
         },
         "file_event_deliveries_attempts_check": {
           "name": "file_event_deliveries_attempts_check",
@@ -14403,7 +14419,7 @@
           "name": "uploader_application_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "sha256": {
           "name": "sha256",
@@ -15339,7 +15355,7 @@
       "checkConstraints": {
         "files_status_check": {
           "name": "files_status_check",
-          "value": "\"files\".\"status\" in ('active', 'trash', 'blocked', 'deleted')"
+          "value": "\"files\".\"status\" in ('active', 'trash', 'blocked', 'lost', 'deleted')"
         },
         "files_visibility_check": {
           "name": "files_visibility_check",
@@ -25903,6 +25919,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "thread_id": {
+          "name": "thread_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "sent_copy_of": {
           "name": "sent_copy_of",
           "type": "text",
@@ -26029,6 +26051,72 @@
             },
             {
               "expression": "date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_user_id_mailbox_id_pinned_date_id_idx": {
+          "name": "messages_user_id_mailbox_id_pinned_date_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mailbox_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pinned",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_user_id_date_id_idx": {
+          "name": "messages_user_id_date_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": false,
               "nulls": "last"
@@ -26198,6 +26286,48 @@
         "messages_labels_idx": {
           "name": "messages_labels_idx",
           "columns": [
+            {
+              "expression": "labels",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "messages_user_id_search_vector_idx": {
+          "name": "messages_user_id_search_vector_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "search_vector",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "messages_user_id_labels_idx": {
+          "name": "messages_user_id_labels_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "labels",
               "isExpression": false,
@@ -37127,7 +37257,7 @@
           "name": "users_people_search_trgm_idx",
           "columns": [
             {
-              "expression": "(coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || coalesce(name_last, '') || ' ' || coalesce(description, '')) gin_trgm_ops",
+              "expression": "(coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || coalesce(name_last, '') || ' ' || coalesce(name_display, '') || ' ' || coalesce(description, '')) gin_trgm_ops",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -37173,6 +37303,21 @@
           "columns": [
             {
               "expression": "lower(\"name_last\") text_pattern_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_lower_name_display_prefix_idx": {
+          "name": "users_lower_name_display_prefix_idx",
+          "columns": [
+            {
+              "expression": "lower(\"name_display\") text_pattern_ops",
               "asc": true,
               "isExpression": true,
               "nulls": "last"
@@ -37280,7 +37425,7 @@
         },
         "users_kind_check": {
           "name": "users_kind_check",
-          "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel')"
+          "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel', 'community')"
         },
         "users_account_categories_check": {
           "name": "users_account_categories_check",
@@ -37292,7 +37437,7 @@
         },
         "users_account_categories_kind_check": {
           "name": "users_account_categories_kind_check",
-          "value": "\"users\".\"kind\" in ('organization', 'project', 'bot', 'channel') or cardinality(\"users\".\"account_categories\") = 0"
+          "value": "\"users\".\"kind\" in ('organization', 'project', 'bot', 'channel', 'community') or cardinality(\"users\".\"account_categories\") = 0"
         },
         "users_character_kind_check": {
           "name": "users_character_kind_check",
