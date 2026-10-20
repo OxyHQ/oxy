@@ -189,7 +189,7 @@ export async function assignThread(
 }
 
 /** One stored row as the component computation sees it. */
-type ThreadRow = {
+export type ThreadRow = {
   id: string;
   threadId: string | null;
   keys: Array<string | null>;
@@ -229,8 +229,11 @@ async function componentRows(
   `);
 }
 
-/** Partition rows into connected components by shared keys (union-find). */
-function components(rows: readonly ThreadRow[]): ThreadRow[][] {
+/**
+ * Partition rows into connected components by shared keys (union-find) — the
+ * same relation as {@link threadAdjacency}, computed in memory.
+ */
+export function threadComponents(rows: readonly ThreadRow[]): ThreadRow[][] {
   const parent = rows.map((_, index) => index);
   const find = (start: number): number => {
     let index = start;
@@ -329,7 +332,7 @@ export async function rethread(
     pending = carriers.map((row) => row.id).filter((id) => !known.has(id));
   }
 
-  const groups = components([...known.values()]);
+  const groups = threadComponents([...known.values()]);
   const threadIds = chooseThreadIds(groups);
   const ids: string[] = [];
   const targets: string[] = [];
