@@ -25,7 +25,7 @@ When they conflict, STOP and escalate rather than resolving it silently.
 sites can stay unchanged; embedded id arrays as `jsonb` instead of junction
 tables; `jsonb` as a dumping ground for anything that has a known shape; a
 document version counter (`__v`); dead tables; denormalized counters a JOIN can
-answer.
+answer (one reviewed exception, maintained by a trigger: see Settled decisions).
 
 **Required:** real FK constraints with an explicit `ON DELETE` decided per relation;
 junction tables for many-to-many; `NOT NULL` where the data is actually always
@@ -75,6 +75,20 @@ restrict enforcement on media, with no error and no log.
   unrepresentable. Any spatial test must verify ORDERING against an independently
   checkable real-world distance: a lat/lon swap yields a plausible point in the wrong
   hemisphere, so a test asserting only "a row came back" passes against the exact bug.
+- **`mailboxes` stores its three folder counters, and only a trigger writes them**
+  (Nate's explicit approval, 2026-10-20: the escalation the "denormalized counters"
+  rule demands). `total_messages`, `unseen_messages` and `size_bytes` replace a
+  per-request aggregate over the account's whole `messages` set. Measured, not
+  inherited: 53 ms → 0.08 ms for `listMailboxes` and 49 ms → 0.06 ms for the quota
+  read on a 200 000-message account, against 15 ms and 12 ms for the best
+  index-only alternative (table in `schema/mailboxes.ts`). The Mongo counters drifted
+  because eighteen write sites `$inc`ed them by hand; here no application code
+  writes them. Statement-level AFTER triggers on `messages` (`0193`,
+  `schema/mailboxCounters.ts`) fold each statement into per-mailbox deltas inside
+  the writing transaction. NULL means "not counted yet"; a reader falls back to the
+  aggregate until `src/scripts/backfill-mailbox-counters.ts` has counted it. A new
+  stored counter anywhere follows the same shape (a trigger, never a write-site
+  increment) and needs the same measurement and approval.
 - **There is no non-transactional fallback.** Multi-write paths run in a real
   transaction in every deployment.
 - **Hidden columns are `protectedColumns.ts`.** Drizzle enumerates columns

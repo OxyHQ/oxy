@@ -1429,6 +1429,13 @@
       "when": 1792660292832,
       "tag": "0204_messages_user_id_references_index",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1792660373136,
+      "tag": "0205_mailbox_counter_columns",
+      "breakpoints": true
     }
   ]
 }

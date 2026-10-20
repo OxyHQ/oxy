@@ -568,34 +568,28 @@ describe('mailboxes and the deletes that hang off them', () => {
     ).resolves.toBeDefined();
   });
 
-  it('stores no counters — they are computed from messages', async () => {
+  it('stores the three counters as nullable columns — NULL means not counted yet', async () => {
     // `total_messages`, `unseen_messages` and `size` were denormalized caches
-    // maintained by eighteen `$inc` sites. Postgres computes them.
-    const columns = await getDb().execute<{ column_name: string }>(sql`
-      select column_name from information_schema.columns
+    // maintained by eighteen `$inc` sites, and they drifted. They are columns
+    // again, but nothing in the application writes them (see
+    // `schema/mailboxes.ts`). NULL is the "not counted yet" state the backfill
+    // resolves, so the columns must stay nullable.
+    const columns = await getDb().execute<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(sql`
+      select column_name, data_type, is_nullable from information_schema.columns
       where table_schema = 'public' and table_name = 'mailboxes'
+        and column_name in ('total_messages', 'unseen_messages', 'size_bytes', 'size')
+      order by column_name
     `);
-    const names = columns.map((row) => row.column_name);
 
-    expect(names).not.toContain('total_messages');
-    expect(names).not.toContain('unseen_messages');
-    expect(names).not.toContain('size');
-
-    const userId = await owner();
-    const mailboxId = await mailbox(userId);
-    await insertMessage({ userId, mailboxId, seen: true, size: 100 });
-    await insertMessage({ userId, mailboxId, seen: false, size: 250 });
-
-    const [stats] = await getDb()
-      .select({
-        total: sql<number>`count(*)::int`,
-        unseen: sql<number>`count(*) filter (where not ${messages.seen})::int`,
-        bytes: sql<number>`coalesce(sum(${messages.size}), 0)::int`,
-      })
-      .from(messages)
-      .where(eq(messages.mailboxId, mailboxId));
-
-    expect(stats).toEqual({ total: 2, unseen: 1, bytes: 350 });
+    expect(columns.map((row) => ({ ...row }))).toEqual([
+      { column_name: 'size_bytes', data_type: 'bigint', is_nullable: 'YES' },
+      { column_name: 'total_messages', data_type: 'integer', is_nullable: 'YES' },
+      { column_name: 'unseen_messages', data_type: 'integer', is_nullable: 'YES' },
+    ]);
   });
 
   it('deletes a mailbox`s messages with it — what deleteMailbox does by hand', async () => {
