@@ -13,7 +13,9 @@
  * an expired session answers 410 and frees its slot; another application's
  * session is a 404. A `background` commit runs under a lease: it is read back
  * with GET, a failed one is `open` with its error and can be committed again,
- * and one whose task died is resumed by the worker.
+ * and one whose task died is resumed by the worker. A session that ends
+ * without deleting its items (it expired open) loses them to the worker's
+ * bounded sweep, which never touches an open or committing session.
  */
 
 import express from 'express';
@@ -59,6 +61,7 @@ jest.mock('../../queue/assetVariants.queue', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   applications,
+  fileReferenceReconciliationItems,
   fileReferenceReconciliations,
   fileReferences,
   files,
@@ -69,6 +72,7 @@ import * as fileRepository from '../../services/fileRepository';
 import {
   resumeStalledReconciliationCommits,
   startReconciliationCommit,
+  sweepEndedReconciliations,
 } from '../../services/fileReferenceReconciliation.service';
 import { errorHandler } from '../../middleware/errorHandler';
 import fileCache from '../../utils/fileCache';
@@ -613,5 +617,97 @@ describe('reconciliation: a commit that outlasts its request', () => {
 
     expect((await put(sessionId, [{ fileId: notAFile, entityId: 'a' }])).status).toBe(200);
     expect((await commit(sessionId)).body.data).toMatchObject({ added: 0, refused: 1 });
+  });
+});
+
+describe('reconciliation: items of ended sessions are swept', () => {
+  async function itemsOf(sessionId: string): Promise<number> {
+    const [row] = await getDb()
+      .select({ n: sql<number>`count(*)::int` })
+      .from(fileReferenceReconciliationItems)
+      .where(eq(fileReferenceReconciliationItems.sessionId, sessionId));
+    return row.n;
+  }
+
+  async function sessionWith(type: string, n: number): Promise<string> {
+    const { sessionId } = (await begin(type)).body.data;
+    const items = Array.from({ length: n }, (_, i) => ({ fileId: `f-${i}`, entityId: `e-${i}` }));
+    expect((await put(sessionId, items)).status).toBe(200);
+    return sessionId;
+  }
+
+  async function expire(sessionId: string): Promise<void> {
+    await getDb()
+      .update(fileReferenceReconciliations)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(fileReferenceReconciliations.id, sessionId));
+  }
+
+  async function statusOf(sessionId: string): Promise<string> {
+    const [row] = await getDb()
+      .select({ status: fileReferenceReconciliations.status })
+      .from(fileReferenceReconciliations)
+      .where(eq(fileReferenceReconciliations.id, sessionId));
+    return row.status;
+  }
+
+  /** Sweep until nothing is left (other files' sessions share the table). */
+  async function sweepAll(): Promise<void> {
+    for (let pass = 0; pass < 50; pass += 1) {
+      const result = await sweepEndedReconciliations();
+      if (!result.more && result.deleted === 0) return;
+    }
+  }
+
+  it('a session retired by the next begin loses its items; the new session keeps its own', async () => {
+    const appId = await application();
+    actAs(appId);
+    const type = `listing-${randomBytes(3).toString('hex')}`;
+    const old = await sessionWith(type, 3);
+    await expire(old);
+    const fresh = await sessionWith(type, 2);
+    expect(await statusOf(old)).toBe('abandoned');
+
+    await sweepAll();
+    expect(await itemsOf(old)).toBe(0);
+    expect(await itemsOf(fresh)).toBe(2);
+  });
+
+  it('retires a session that expired open with no later begin, and never touches open or committing ones', async () => {
+    const appId = await application();
+    actAs(appId);
+    const expired = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 3);
+    await expire(expired);
+    const open = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 2);
+    const committing = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 2);
+    await getDb()
+      .update(fileReferenceReconciliations)
+      .set({ status: 'committing', leaseExpiresAt: new Date(Date.now() + 60_000) })
+      .where(eq(fileReferenceReconciliations.id, committing));
+
+    await sweepAll();
+    expect(await statusOf(expired)).toBe('abandoned');
+    expect(await itemsOf(expired)).toBe(0);
+    expect(await statusOf(open)).toBe('open');
+    expect(await itemsOf(open)).toBe(2);
+    expect(await statusOf(committing)).toBe('committing');
+    expect(await itemsOf(committing)).toBe(2);
+  });
+
+  it('deletes at most batchSize × maxBatches items a pass, and says when more remain', async () => {
+    await sweepAll();
+    const appId = await application();
+    actAs(appId);
+    const ended = await sessionWith(`listing-${randomBytes(3).toString('hex')}`, 7);
+    await expire(ended);
+
+    const first = await sweepEndedReconciliations({ batchSize: 2, maxBatches: 2 });
+    expect(first.deleted).toBe(4);
+    expect(first.more).toBe(true);
+    expect(await itemsOf(ended)).toBe(3);
+
+    const second = await sweepEndedReconciliations({ batchSize: 2, maxBatches: 2 });
+    expect(second.deleted).toBe(3);
+    expect(await itemsOf(ended)).toBe(0);
   });
 });

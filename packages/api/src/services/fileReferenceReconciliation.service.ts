@@ -31,11 +31,25 @@
  * session: no client commits the same session twice (the SDK sends a fresh
  * inventory for the real run), and one left open refused the entity type's next
  * reconciliation with 409 for an hour.
+ *
+ * ## A session's items outlive it only until the next worker pass
+ *
+ * Items are the bulk — up to {@link MAX_RECONCILE_ITEMS} rows a session. A
+ * session can end without anyone deleting them: it expires `open` (retired by
+ * the next `begin`, or by nobody), or a delete was interrupted. On 2026-10-20
+ * production held 4,475,000 items of 120 `abandoned` sessions (~1.5 GB), and
+ * the expiry sweep would have removed each session's items in ONE cascading
+ * statement a day later. {@link sweepEndedReconciliations} is the guarantee:
+ * the large-upload worker retires every session that expired `open` and
+ * deletes the items of every session no longer `open`/`committing`, a bounded
+ * batch per statement under a statement timeout, so the shared database never
+ * sees a delete of millions of rows at once.
  */
 
-import { and, asc, count, eq, exists, gt, lt, lte, not, sql } from 'drizzle-orm';
+import { and, asc, count, eq, exists, gt, lt, lte, not, notInArray, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
+  FILE_REFERENCE_RECONCILIATION_ACTIVE_STATUSES,
   type FileReferenceReconciliationCounts,
   fileReferenceReconciliationItems,
   fileReferenceReconciliations,
@@ -64,6 +78,15 @@ export const RECONCILE_SESSION_TTL_MS = 60 * 60 * 1000;
 export const MAX_RECONCILE_ITEMS = 5_000_000;
 /** Rows read, checked and written per step of a commit. */
 const COMMIT_BATCH = 500;
+/** Items one statement of {@link sweepEndedReconciliations} deletes. */
+const ITEM_SWEEP_BATCH = 5_000;
+/**
+ * Statements per pass. The pass runs on every API task each 30 s (the
+ * large-upload worker), so a backlog drains at ~10k items a task a pass.
+ */
+const ITEM_SWEEP_MAX_BATCHES = 2;
+/** Each statement of the sweep is cancelled past this, rather than queueing on the shared database. */
+const ITEM_SWEEP_STATEMENT_TIMEOUT = '15s';
 
 export type ReconcileSession = typeof fileReferenceReconciliations.$inferSelect;
 
@@ -80,7 +103,9 @@ function notFound(): ApiError {
 /**
  * Begin a session for (application, entity type). 409 while another is open
  * for the same pair; one that expired open is retired first, so an abandoned
- * client blocks nothing past its deadline.
+ * client blocks nothing past its deadline. The retired session's items are
+ * NOT deleted here — up to millions of rows inside the caller's request — but
+ * by {@link sweepEndedReconciliations}, a bounded batch at a time.
  */
 export async function beginReconciliation(
   applicationId: string,
@@ -672,4 +697,95 @@ export async function resumeStalledReconciliationCommits(limit = 5): Promise<num
     resumed += 1;
   }
   return resumed;
+}
+
+/** What one pass of {@link sweepEndedReconciliations} did. */
+export interface ReconcileSweepResult {
+  /** Sessions that had expired `open` and are now `abandoned`. */
+  retired: number;
+  /** Items deleted. */
+  deleted: number;
+  /** True when the pass hit its bound with items still to delete. */
+  more: boolean;
+}
+
+/**
+ * The worker's pass (see "A session's items outlive it only until the next
+ * worker pass"): retire every session that expired `open`, then delete the
+ * items of sessions that ended, at most `maxBatches` statements of `batchSize`.
+ *
+ * Index-driven on purpose: it first lists the ended sessions that still hold
+ * items (a probe of the items' primary key per session), then deletes one
+ * session's items at a time through that key — never a scan of the items
+ * table. `SKIP LOCKED` lets every task run it at once without waiting on each
+ * other; a session `open` or `committing` is never touched.
+ */
+export async function sweepEndedReconciliations({
+  batchSize = ITEM_SWEEP_BATCH,
+  maxBatches = ITEM_SWEEP_MAX_BATCHES,
+}: {
+  batchSize?: number;
+  maxBatches?: number;
+} = {}): Promise<ReconcileSweepResult> {
+  const retired = await getDb()
+    .update(fileReferenceReconciliations)
+    .set({ status: 'abandoned' })
+    .where(
+      and(
+        eq(fileReferenceReconciliations.status, 'open'),
+        lte(fileReferenceReconciliations.expiresAt, sql`now()`),
+      ),
+    )
+    .returning({ id: fileReferenceReconciliations.id });
+
+  const ended = await getDb()
+    .select({ id: fileReferenceReconciliations.id })
+    .from(fileReferenceReconciliations)
+    .where(
+      and(
+        notInArray(fileReferenceReconciliations.status, [
+          ...FILE_REFERENCE_RECONCILIATION_ACTIVE_STATUSES,
+        ]),
+        exists(
+          getDb()
+            .select({ one: sql`1` })
+            .from(fileReferenceReconciliationItems)
+            .where(eq(fileReferenceReconciliationItems.sessionId, fileReferenceReconciliations.id)),
+        ),
+      ),
+    )
+    .limit(maxBatches);
+
+  let deleted = 0;
+  let batches = 0;
+  let more = false;
+  sessions: for (const { id } of ended) {
+    for (;;) {
+      if (batches >= maxBatches) {
+        more = true;
+        break sessions;
+      }
+      batches += 1;
+      const removed = await getDb().transaction(async (tx) => {
+        await tx.execute(
+          sql`select set_config('statement_timeout', ${ITEM_SWEEP_STATEMENT_TIMEOUT}, true)`,
+        );
+        const rows = await tx.execute<{ one: number }>(sql`
+          delete from ${fileReferenceReconciliationItems}
+           where ctid in (
+             select ctid from ${fileReferenceReconciliationItems}
+              where ${fileReferenceReconciliationItems.sessionId} = ${id}
+              -- The primary key's own order: without it the planner, seeing
+              -- ~400k rows a session, scans the whole table (measured).
+              order by ${fileReferenceReconciliationItems.fileId}, ${fileReferenceReconciliationItems.entityId}
+              limit ${batchSize}
+              for update skip locked)
+          returning 1 as one`);
+        return rows.length;
+      });
+      deleted += removed;
+      if (removed < batchSize) break;
+    }
+  }
+  return { retired: retired.length, deleted, more };
 }

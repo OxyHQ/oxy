@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fixed (reference reconciliation items outlived their sessions)
+
+A reconciliation session that ended without deleting its items — one that
+expired `open` and was retired by the next `begin`, or by nobody — kept them
+until the expiry sweep removed the session a day later, and then in ONE
+cascading statement. Production held 4,475,000 such items (~1.5 GB) of 120
+`abandoned` sessions on 2026-10-20. The large-upload worker now retires every
+session that expired `open` and deletes the items of every ended session
+(`sweepEndedReconciliations`): two statements of 5,000 a pass on each task,
+through the items' primary key in its own order (without the `ORDER BY` the
+planner scanned the whole table), `SKIP LOCKED`, 15 s statement timeout.
+`open` and `committing` sessions are never touched.
+
 ### Fixed (the application storage observation — migration `0192`, pre)
 
 The lifecycle sweep's storage observation (ADR 0043 D2) read every live
