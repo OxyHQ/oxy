@@ -852,6 +852,10 @@ export const SEED_APPS: SeedAppSpec[] = [
       // references with its OWN token (it did through the person's session),
       // and reconciles them (D6).
       'files:references:write',
+      // A member invites an address with no Oxy account into a workspace:
+      // Oxy sends the one invitation template, its link on https://nilo.so
+      // (`POST /apps/invitations/email`).
+      'invitations:email',
     ],
     capabilities: [catalogApplicationCapability('noted')],
   },

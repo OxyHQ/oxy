@@ -170,7 +170,7 @@ describe('the canonical official-application registry', () => {
     expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
-  it('registers Nilo by exact identity: inference, linked-file reads and the notes catalog', () => {
+  it('registers Nilo by exact identity: inference, linked-file reads, the notes catalog and invitation email', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
       id: NILO_APPLICATION_ID,
@@ -186,6 +186,7 @@ describe('the canonical official-application registry', () => {
         'capability-audit:write',
         'capability-events:publish',
         'files:references:write',
+        'invitations:email',
       ],
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);

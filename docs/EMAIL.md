@@ -353,6 +353,47 @@ inbound mail: the same message delivered twice to one mailbox is stored twice.
 Production holds exactly one such pair, from 2026-07-15. That duplicate is left
 as it is.
 
+### Invitation email for an application
+
+`POST /apps/invitations/email` (service token, privileged scope
+`invitations:email`) has Oxy send ONE template for an application —
+"{inviter} invited you to {resource} on {application}" with a single link —
+to someone who may have no Oxy account (Nilo inviting an address to a
+workspace). It is not a relay: Oxy owns the template and the sender
+(`{application} <noreply@oxy.so>`), reads the inviter's name from their user id,
+and accepts only a link on one of the application's registered redirect origins,
+over https. The resource name is escaped plain text that may not read as a link.
+
+```json
+POST /apps/invitations/email
+Idempotency-Key: <the application's own invitation id>
+{
+  "to": "guest@example.org",
+  "inviterUserId": "<Oxy user id>",
+  "resourceName": "Product team",
+  "acceptUrl": "https://nilo.so/invite/<token>",
+  "locale": "es"
+}
+```
+
+`202 { data: { id, state: "sending", attempts, maxAttempts, errorCode, createdAt, replayed: false } }`;
+a repeat of the key answers `200` with `replayed: true` and sends nothing. 422
+`details.reason`: `accept_url_not_registered`, `inviter_unavailable`,
+`recipient_suppressed`, `idempotency_key_reused`. 429 (with `Retry-After`):
+`INVITATION_RECIPIENT_RATE_LIMITED` (one per recipient per application an hour),
+`INVITATION_INVITER_RATE_LIMITED` (fifty per inviter per application a day),
+`INVITATION_APPLICATION_RATE_LIMITED` (a thousand per application a day).
+
+The state lives in `application_invitation_emails`, not `email_outbox`: that
+table is a USER's mailbox outbox, whose rows are filed in their Sent folder and
+listed by their outbox API. Retries and adoption run in the email maintenance
+pass (`processAppInvitationEmails`), on the same ladder; the suppression list is
+checked again before every attempt. Rows are swept after thirty days.
+
+Known gap: SES complaints about `noreply@` mail are dropped today (no sender
+account resolves), so a complaint about an invitation does not yet suppress
+that application's later invitations to the address; permanent bounces do.
+
 **Save draft:**
 ```json
 POST /api/email/drafts

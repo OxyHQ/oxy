@@ -3935,7 +3935,8 @@
                         "federation:instance-fetch",
                         "files:app:write",
                         "files:app:delete",
-                        "files:references:write"
+                        "files:references:write",
+                        "invitations:email"
                       ]
                     }
                   }
@@ -4217,7 +4218,8 @@
                         "federation:instance-fetch",
                         "files:app:write",
                         "files:app:delete",
-                        "files:references:write"
+                        "files:references:write",
+                        "invitations:email"
                       ]
                     }
                   },
@@ -4861,7 +4863,8 @@
                         "federation:instance-fetch",
                         "files:app:write",
                         "files:app:delete",
-                        "files:references:write"
+                        "files:references:write",
+                        "invitations:email"
                       ]
                     }
                   },
@@ -8061,6 +8064,237 @@
           }
         },
         "operationId": "postAppsAttestKeys"
+      }
+    },
+    "/apps/invitations/email": {
+      "post": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Send one invitation email for the calling application.",
+        "description": "The one template, \"{inviter} invited you to {resourceName} on\n{application}\", with `acceptUrl` as its only link. `Idempotency-Key` is\nrequired and is the application's own id for the invitation: a repeat answers\nthe first acceptance (200, `replayed: true`) and sends nothing.\n\n202 when accepted (`state: 'sending'`). The inviter's name is read by Oxy from\n`inviterUserId`; `acceptUrl` must be https on one of the application's\nregistered origins. 422 `details.reason` is `accept_url_not_registered`,\n`inviter_unavailable`, `recipient_suppressed` or `idempotency_key_reused`;\n429 is a spent budget, with `Retry-After`; 503 no outbound relay.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The first acceptance under this key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "sending",
+                            "retrying",
+                            "sent",
+                            "failed"
+                          ]
+                        },
+                        "attempts": {
+                          "type": "integer"
+                        },
+                        "maxAttempts": {
+                          "type": "integer"
+                        },
+                        "errorCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "replayed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "state",
+                        "attempts",
+                        "maxAttempts",
+                        "errorCode",
+                        "createdAt",
+                        "replayed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted; delivery follows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "sending",
+                            "retrying",
+                            "sent",
+                            "failed"
+                          ]
+                        },
+                        "attempts": {
+                          "type": "integer"
+                        },
+                        "maxAttempts": {
+                          "type": "integer"
+                        },
+                        "errorCode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "replayed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "state",
+                        "attempts",
+                        "maxAttempts",
+                        "errorCode",
+                        "createdAt",
+                        "replayed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
+                  "inviterUserId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "resourceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "acceptUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  },
+                  "locale": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$",
+                    "maxLength": 35
+                  }
+                },
+                "required": [
+                  "to",
+                  "inviterUserId",
+                  "resourceName",
+                  "acceptUrl"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAppsInvitationsEmail"
       }
     },
     "/assets": {

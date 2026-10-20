@@ -309,19 +309,29 @@ class SmtpOutboundService {
 
   /**
    * Send mail from Oxy itself (`Oxy <noreply@…>`) — a verification code, an
-   * account notice — to one address. Not stored in any mailbox and never
-   * queued: what it carries is short-lived, so a send that fails now is
-   * reported now rather than delivered stale.
+   * account notice — to one address. Not stored in any mailbox, and queued only
+   * by a caller that keeps its own durable state: a code is short-lived, so a
+   * send that fails now is reported now rather than delivered stale.
+   *
+   * `messageId` keeps one Message-ID across a caller's retries (an invitation's
+   * outbox row), and `fromName` replaces the display name — never the address,
+   * which is always Oxy's own.
    */
   async sendSystem(message: {
     to: string;
     subject: string;
     text: string;
     html: string;
-  }): Promise<void> {
-    await this.deliverThroughRelays({
-      messageId: `<${randomUUID()}@${EMAIL_DOMAIN}>`,
-      from: `Oxy <noreply@${EMAIL_DOMAIN}>`,
+    messageId?: string;
+    fromName?: string;
+  }): Promise<{ relayMessageId: string | null }> {
+    return this.deliverThroughRelays({
+      messageId: message.messageId ?? `<${randomUUID()}@${EMAIL_DOMAIN}>`,
+      // An object, so nodemailer quotes and encodes a display name it did not
+      // choose; Oxy's own stays the literal it always was.
+      from: message.fromName
+        ? { name: message.fromName, address: `noreply@${EMAIL_DOMAIN}` }
+        : `Oxy <noreply@${EMAIL_DOMAIN}>`,
       to: message.to,
       subject: message.subject,
       text: message.text,

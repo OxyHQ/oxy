@@ -71,6 +71,10 @@ import {
   fileEventDeliveries,
 } from './schema/fileEventDeliveries';
 import {
+  APP_INVITATION_EMAIL_RETENTION_SECONDS,
+  applicationInvitationEmails,
+} from './schema/applicationInvitationEmails';
+import {
   FILE_UPLOAD_SESSION_RETENTION_SECONDS,
   fileUploadSessions,
 } from './schema/fileUploadSessions';
@@ -447,6 +451,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Thirty days of file events to applications (ADR 0043 D9), far past the ' +
       'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
       'stays inspectable for support, then goes. Nothing reads an old row.',
+  },
+  {
+    table: applicationInvitationEmails,
+    column: applicationInvitationEmails.createdAt,
+    retentionSeconds: APP_INVITATION_EMAIL_RETENTION_SECONDS,
+    reason:
+      'Thirty days of invitation emails applications had Oxy send: past every ' +
+      'rate-limit window and the five-hour retry ladder, so the ledger and the ' +
+      'idempotency claim still hold while anything depends on them. The row holds ' +
+      'an address that may belong to nobody with an Oxy account, so it goes then.',
   },
   {
     table: fileUploadSessions,

@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added (`POST /apps/invitations/email`, scope `invitations:email` — migrations `0186`, `0187`)
+
+An application can have Oxy send ONE fixed-template invitation email for it —
+"{inviter} invited you to {resource} on {application}", with a single link — to
+an address that may hold no Oxy account. Service tokens only, and the new
+`invitations:email` scope is privileged (staff grant it per application; the
+seed grants it to Nilo). Oxy reads the inviter's name from `inviterUserId`; the
+link must be https on one of the application's registered redirect origins; the
+resource name is plain text (≤ 100 characters, no link-shaped text, no control
+or bidi characters) and escaped. `Idempotency-Key` is required and scoped to
+the application. The suppression list applies, and three durable budgets: one
+invitation per recipient per application an hour, fifty per inviter per
+application a day, a thousand per application a day (429 with `Retry-After`).
+English and Spanish (`locale`), styled from the Bloom email tokens.
+
+`application_invitation_emails` (`0187`, pre) is the claim, the budget ledger
+and the delivery state in one row; the message is rendered at delivery and not
+stored, and rows are swept after thirty days. Delivered by the request that
+accepted it, retried and adopted by the email maintenance pass on the ladder a
+user's mail uses. `0186` (pre) only widens the three scope CHECKs.
+
 ### Removed (the retired deployment approval columns, migration `0184`)
 
 `inference_deployments.scoped_execution` and `private_auto_source_approval` are
