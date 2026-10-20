@@ -217,3 +217,4 @@ export * from './productProviderRefunds';
 export * from './organizationProfiles';
 export * from './supervision';
 export * from './accountInvitations';
+export * from './applicationInvitationEmails';

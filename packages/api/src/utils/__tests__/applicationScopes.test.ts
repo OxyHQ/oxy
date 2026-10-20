@@ -17,6 +17,7 @@
 import { ACCOUNTS_MEMBERSHIP_READ_SCOPE } from '@oxy.so/contracts';
 import {
   ACCOUNT_MEMBERSHIP_READ_SCOPE,
+  APP_INVITATION_EMAIL_SCOPE,
   intersectScopes,
   unionValidScopes,
   isFollowScope,
@@ -321,6 +322,25 @@ describe('accounts:act-as-session — minting a session AS a managed account', (
 
   it('is not a follow scope', () => {
     expect(isFollowScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(false);
+  });
+});
+
+describe('invitations:email — Oxy mails an invitation for an application', () => {
+  it('is one valid spelling', () => {
+    expect(APP_INVITATION_EMAIL_SCOPE).toBe('invitations:email');
+    expect(isValidApplicationScope(APP_INVITATION_EMAIL_SCOPE)).toBe(true);
+  });
+
+  it('is staff-only for every application type: it spends oxy.so sending reputation', () => {
+    expect(isPrivilegedScope(APP_INVITATION_EMAIL_SCOPE)).toBe(true);
+    for (const type of ['first_party', 'third_party', 'internal', 'system']) {
+      expect(isPrivilegedScopeForApplicationType(APP_INVITATION_EMAIL_SCOPE, type)).toBe(true);
+    }
+  });
+
+  it('is not consent-required and not a follow scope', () => {
+    expect(isUserConsentRequiredScope(APP_INVITATION_EMAIL_SCOPE)).toBe(false);
+    expect(isFollowScope(APP_INVITATION_EMAIL_SCOPE)).toBe(false);
   });
 });
 

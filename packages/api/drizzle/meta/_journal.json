@@ -1296,6 +1296,20 @@
       "when": 1792436412759,
       "tag": "0185_email_change_and_reauth",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1792459445747,
+      "tag": "0186_invitations_email_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1792459526895,
+      "tag": "0187_application_invitation_emails",
+      "breakpoints": true
     }
   ]
 }

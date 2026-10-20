@@ -2,7 +2,7 @@
  * Snooze, reminder, and scheduled send processor.
  *
  * The actual work — `runEmailMaintenance()` — is transport-agnostic: it runs the
- * three email-service maintenance passes, each guarded by its own try/catch so a
+ * email maintenance passes, each guarded by its own try/catch so a
  * failure in one does not skip the others. Both the BullMQ repeatable worker
  * (the durable, fleet-wide path) and the legacy in-process `setInterval` cron
  * (the local-dev / no-Redis fallback) call this SAME function, so there is no
@@ -17,11 +17,12 @@ import { emailService } from '../services/email.service';
 import { logger } from '../utils/logger';
 import { EMAIL_MAINTENANCE_INTERVAL_MS } from '../queue/constants';
 import { processEmailOutbox } from '../services/emailOutbox.worker';
+import { processAppInvitationEmails } from '../services/appInvitationEmail.service';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Run the three email-maintenance passes. Each pass is isolated so one failure
+ * Run the email-maintenance passes. Each pass is isolated so one failure
  * does not prevent the others from running. Never throws — failures are logged.
  *
  * Shared by the BullMQ worker and the legacy interval. Do NOT change the
@@ -48,6 +49,14 @@ export async function runEmailMaintenance(): Promise<void> {
   } catch (err) {
     logger.error(
       'Durable outbound email worker failed',
+      err instanceof Error ? err : new Error(String(err)),
+    );
+  }
+  try {
+    await processAppInvitationEmails();
+  } catch (err) {
+    logger.error(
+      'Invitation email worker failed',
       err instanceof Error ? err : new Error(String(err)),
     );
   }

@@ -194,6 +194,11 @@
  *   application's files or references. Privileged for Oxy's own applications,
  *   self-service for a `third_party` one — see
  *   {@link isPrivilegedScopeForApplicationType}.
+ * - `invitations:email` permits a service credential to have Oxy send ONE
+ *   fixed-template email — "{inviter} invited you to {resource} on {app}", with
+ *   a single link — to an address that may hold no Oxy account
+ *   (`POST /apps/invitations/email`). PRIVILEGED — see
+ *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -253,6 +258,7 @@ export const APPLICATION_SCOPES = [
   'files:app:write',
   'files:app:delete',
   'files:references:write',
+  'invitations:email',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -412,6 +418,14 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   this set (the legacy scopeless-credential fallback, workload bindings)
  *   treats them as privileged, which is the conservative reading.
  *
+ * - `invitations:email` has Oxy mail an arbitrary address from its own domain.
+ *   The template, the sender and the link's origin are Oxy's to decide (the
+ *   link must sit on an origin the application registered), so it cannot be
+ *   turned into an open relay — but every message still spends `oxy.so`'s
+ *   sending reputation, which a bounce or a complaint costs every product at
+ *   once. Staff decide which applications may spend it, as for
+ *   `federation:instance-fetch`.
+ *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
  * the subject user's own content under that user's explicit grant
@@ -448,6 +462,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'files:app:write',
   'files:app:delete',
   'files:references:write',
+  'invitations:email',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
@@ -658,6 +673,12 @@ export const SERVICE_ACCOUNT_SWITCH_SCOPE: ApplicationScope = 'accounts:act-as-s
  * scope tests pin the two to the same string.
  */
 export const ACCOUNT_MEMBERSHIP_READ_SCOPE: ApplicationScope = 'accounts:membership:read';
+
+/**
+ * The one scope `POST /apps/invitations/email` requires. Typed
+ * `ApplicationScope` for the reason {@link SERVICE_ACCOUNT_SWITCH_SCOPE} is.
+ */
+export const APP_INVITATION_EMAIL_SCOPE: ApplicationScope = 'invitations:email';
 
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
   PRIVILEGED_APPLICATION_SCOPES,

@@ -53,6 +53,7 @@ import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import appAssertionRoutes from './routes/appAssertions';
+import appInvitationRoutes from './routes/appInvitations';
 import internalRoutes from './routes/internal';
 import internalKaanaRoutes, { MAX_SETTLEMENT_BYTES } from './routes/internalKaana';
 import accountEventRoutes from './routes/accountEvents';
@@ -888,6 +889,10 @@ app.use('/store', storeRoutes);
 app.use('/stickers', stickerRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', applicationRoutes);
+// An application has Oxy send one fixed-template invitation email for it
+// (`invitations:email`). Service tokens only, so no `userRateLimiter`: the
+// router keys its own limiter on the calling credential.
+app.use('/apps/invitations', appInvitationRoutes);
 // An Oxy app proves which app it is (ADR 0045): the person's bearer, a platform
 // proof, an Oxy-signed `OXY-APP+JWT` back.
 app.use('/apps', userRateLimiter, appAssertionRoutes);
