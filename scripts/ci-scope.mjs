@@ -10,10 +10,14 @@
  * THE SUITES
  *
  *   api        `api-test` (the sharded Jest matrix; `api-coverage` merges it)
- *              and `api-build`, `api-image` (the Bun runtime image smoke)
+ *              and `api-build`
  *   platform   `packages-platform`
  *   apps       `packages-apps`
- *   android    `android-kotlin` (decided by PATH, not by closure: see PATH_SUITES)
+ *   android    `android-kotlin` (decided by PATH, plus the lockfile walk below
+ *              for `bun.lock`: see PATH_SUITES)
+ *
+ * `api-image` (the Bun runtime image smoke) is not a suite: no pull request
+ * runs it, and the merge queue always does (QUEUE_ONLY_JOBS).
  *
  * `guards` is not scoped: its checks are repository-wide.
  *
@@ -114,11 +118,20 @@ export const WORKFLOW_PATH = '.github/workflows/ci.yml';
  * refuses a workflow whose job `if:` does not consult it.
  */
 export const SUITE_JOBS = {
-  api: ['api-test', 'api-build', 'api-image'],
+  api: ['api-test', 'api-build'],
   platform: ['packages-platform'],
   apps: ['packages-apps'],
 };
 export const SUITES = Object.keys(SUITE_JOBS);
+
+/**
+ * Jobs no pull request runs, whatever it touches; the merge queue runs them on
+ * every entry, and `check-ci-complete.mjs` excuses their skip on a pull request
+ * only. `api-image` builds the whole API image and boots it (~4 minutes): it ran
+ * on 152 pull request runs in 43 hours (2026-10-15/17) and was rarely the job
+ * that found anything, so its runner now goes to the queue entry instead.
+ */
+export const QUEUE_ONLY_JOBS = ['api-image'];
 
 /**
  * Suites decided by a PATH PATTERN instead of a workspace closure: suite ->
@@ -133,12 +146,25 @@ export const SUITES = Object.keys(SUITE_JOBS);
  * moved here so the job can be skipped at job level instead. Matched against
  * the `--no-renames` diff, so a file moved out of one of these paths still
  * counts. A failure to compute the scope runs it, like every other suite.
+ *
+ * `bun.lock` is not in the pattern: it changes on nearly every pull request,
+ * and 58 of 114 pull request runs reached this job through it alone
+ * (2026-10-15/17). A changed lockfile runs the suite only when the lockfile
+ * walk finds a difference in what `lockfileRoots` (the workspaces the job
+ * prebuilds, builds or compiles) and their closure resolve, exactly as for the
+ * closure suites.
  */
 export const PATH_SUITES = {
   android: {
     jobs: ['android-kotlin'],
     pattern:
-      /^(packages\/services\/(android\/|plugins\/|expo-module\.config\.json|package\.json)|packages\/commons\/(modules\/|plugins\/|app\.config\.js|package\.json)|packages\/app-preset\/plugin\/|packages\/expo-splash\/|bun\.lock|\.github\/workflows\/ci\.yml)/,
+      /^(packages\/services\/(android\/|plugins\/|expo-module\.config\.json|package\.json)|packages\/commons\/(modules\/|plugins\/|app\.config\.js|package\.json)|packages\/app-preset\/plugin\/|packages\/expo-splash\/|\.github\/workflows\/ci\.yml)/,
+    lockfileRoots: [
+      'packages/commons',
+      'packages/services',
+      'packages/expo-splash',
+      'packages/app-preset',
+    ],
   },
 };
 
@@ -653,10 +679,29 @@ export function decide({ cwd, base, head }) {
 
     verdicts[suite] = { run: reasons.length > 0, reasons, ignored, roots: roots[suite], closure };
   }
-  for (const [suite, { pattern }] of Object.entries(PATH_SUITES)) {
+  for (const [suite, { pattern, lockfileRoots }] of Object.entries(PATH_SUITES)) {
     const reasons = changed.filter((path) => pattern.test(path)).map((path) => `${path} matches`);
-    const ignored = changed.filter((path) => !pattern.test(path));
-    verdicts[suite] = { run: reasons.length > 0, reasons, ignored, roots: [], closure: [] };
+    const ignored = changed.filter((path) => !pattern.test(path) && path !== LOCKFILE);
+    let closure = [];
+    if (changed.includes(LOCKFILE)) {
+      if (reasons.length > 0) {
+        reasons.push(`${LOCKFILE} changed (not analysed: the suite already runs)`);
+      } else {
+        const baseRoots = lockfileRoots.filter((dir) =>
+          [...baseWorkspaces.values()].some((w) => w.dir === dir),
+        );
+        closure = [
+          ...new Set([
+            ...[...closureOf(baseWorkspaces, baseRoots).values()].map((w) => w.dir),
+            ...[...closureOf(headWorkspaces, lockfileRoots).values()].map((w) => w.dir),
+          ]),
+        ].sort();
+        const verdict = lockfileVerdict(cwd, base, head, closure);
+        if (verdict.reason) reasons.push(verdict.reason);
+        else ignored.push(verdict.ignored);
+      }
+    }
+    verdicts[suite] = { run: reasons.length > 0, reasons, ignored, roots: lockfileRoots, closure };
   }
   return verdicts;
 }
@@ -690,7 +735,7 @@ function emit(runs, lines) {
         '\n\n```\n' +
         lines.join('\n') +
         '\n```\n\n' +
-        'The merge queue runs every suite regardless.\n',
+        `The merge queue runs every suite regardless, and ${QUEUE_ONLY_JOBS.join(', ')} only there.\n`,
     );
   }
 }
@@ -721,9 +766,9 @@ if (import.meta.main) {
       lines.push(
         '',
         byPath
-          ? `[${suite}] ${run ? 'RUN' : 'SKIP'} — by path: ${PATH_SUITES[suite].pattern.source}`
+          ? `[${suite}] ${run ? 'RUN' : 'SKIP'} — by path: ${PATH_SUITES[suite].pattern.source}; ${LOCKFILE} by the walk from ${roots.join(', ')}`
           : `[${suite}] ${run ? 'RUN' : 'SKIP'} — roots: ${roots.join(', ')}`,
-        ...(byPath ? [] : [`  closure: ${closure.join(', ')}`]),
+        ...(byPath && closure.length === 0 ? [] : [`  closure: ${closure.join(', ')}`]),
         ...(run
           ? [
               `  Runs because (${reasons.length}):`,

@@ -433,7 +433,6 @@ const scopedOut = (extra = {}) => ({
 for (const [job, output] of [
   ['api-test', 'api'],
   ['api-build', 'api'],
-  ['api-image', 'api'],
   ['packages-platform', 'platform'],
   ['packages-apps', 'apps'],
   ['android-kotlin', 'android'],
@@ -479,6 +478,50 @@ for (const [job, output] of [
     '`packages-apps` must need `scope`',
   );
 }
+// ── api-image: queue-only (QUEUE_ONLY_JOBS) ───────────────────────────────
+{
+  // Every pull request skips it, with no word from the scope job.
+  const root = createFixture();
+  expectVerdict(
+    'pr-the-queue-only-image-smoke-skips',
+    root,
+    needsFor(root, { 'api-image': 'skipped' }),
+    0,
+    '1 skipped for a declared reason',
+  );
+}
+{
+  // The queue may never skip it.
+  const root = createFixture();
+  expectVerdict(
+    'merge-group-refuses-a-skipped-image-smoke',
+    root,
+    needsFor(root, { 'api-image': 'skipped' }),
+    1,
+    '`api-image` was skipped on a `merge_group` run',
+    'merge_group',
+  );
+}
+{
+  // Its `if:` is the pull-request test and nothing else: widened, it could
+  // skip where the queue cannot see it coming.
+  const root = createFixture();
+  edit(root, 'a-queue-only-job-with-another-condition-fails', (yaml) =>
+    yaml.replace(
+      "    name: API Image (Bun runtime smoke)\n    if: ${{ github.event_name != 'pull_request' }}\n",
+      "    name: API Image (Bun runtime smoke)\n    if: ${{ github.event_name != 'pull_request' && github.actor != 'x' }}\n",
+    ),
+  );
+  expectVerdict(
+    'a-queue-only-job-with-another-condition-fails',
+    root,
+    needsFor(root),
+    1,
+    '`api-image` is queue-only, so its `if:` must be exactly',
+    'merge_group',
+  );
+}
+
 // ── android-kotlin: decided by `scope` (PATH_SUITES), skippable only on its word
 {
   const root = createFixture();

@@ -70,6 +70,11 @@
  *      job and its `if:` consults its own suite's output. A job wired to the
  *      wrong output would be skipped on another suite's word; one wired to none
  *      would be an unexplained conditional.
+ *   6. QUEUE-ONLY jobs (ci-scope.mjs QUEUE_ONLY_JOBS, the API image smoke): a
+ *      pull request skips them whatever it touches, so their skip passes on a
+ *      `pull_request` run with no word from the scope job, and only there. Their
+ *      `if:` must be exactly the pull-request test, so they cannot quietly skip
+ *      anything else; on every other event check 4 refuses their skip anyway.
  *
  * WHAT IS NOT CHECKED, AND CANNOT BE
  *
@@ -85,7 +90,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCOPED_JOBS_BY_OUTPUT } from './ci-scope.mjs';
+import { QUEUE_ONLY_JOBS, SCOPED_JOBS_BY_OUTPUT } from './ci-scope.mjs';
 
 const WORKFLOW_PATH = join('.github', 'workflows', 'ci.yml');
 
@@ -237,6 +242,30 @@ for (const [id, { scopeJob, output }] of Object.entries(SCOPED_JOBS)) {
   }
 }
 
+// ── 6. Every queue-only job skips pull requests and nothing else ───────────
+const QUEUE_ONLY_CONDITION = "${{ github.event_name != 'pull_request' }}";
+for (const id of QUEUE_ONLY_JOBS) {
+  const job = jobs[id];
+  if (!job || typeof job !== 'object') {
+    fail(
+      `\`${id}\` is a queue-only job in scripts/ci-scope.mjs but not a job in ${WORKFLOW_PATH}.`,
+    );
+    continue;
+  }
+  if (id in SCOPED_JOBS) {
+    fail(
+      `\`${id}\` is both queue-only and scoped in scripts/ci-scope.mjs; it must be one or the other.`,
+    );
+  }
+  const condition = typeof job.if === 'string' ? job.if.replace(/\s+/g, ' ').trim() : '';
+  if (condition !== QUEUE_ONLY_CONDITION) {
+    fail(
+      `\`${id}\` is queue-only, so its \`if:\` must be exactly \`${QUEUE_ONLY_CONDITION}\` (found ` +
+        `${JSON.stringify(job.if ?? null)}).`,
+    );
+  }
+}
+
 // ── The event this run is for ──────────────────────────────────────────────
 const eventName = process.env.EVENT_NAME;
 if (!eventName) {
@@ -347,6 +376,10 @@ for (const id of needIds.sort()) {
           'queue (and any push) must run the complete suite on the exact tree that lands, so a skip here ' +
           'is a suite that never ran where it matters most.',
       );
+      continue;
+    }
+    if (QUEUE_ONLY_JOBS.includes(id)) {
+      counts.skipped += 1;
       continue;
     }
     const scoped = SCOPED_JOBS[id];

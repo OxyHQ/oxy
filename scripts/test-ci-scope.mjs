@@ -784,10 +784,22 @@ expectScope(
       (root) => write(root, 'packages/expo-splash/src/index.ts', '// s\n'),
       'true',
     ],
+    // bun.lock runs the job only when the walk from Commons, services,
+    // expo-splash and app-preset resolves something differently.
     [
-      'android-lockfile-runs',
-      (root) => write(root, 'bun.lock', `${read(root, 'bun.lock')}\n`),
+      'android-lockfile-a-reached-package-runs',
+      (root) => bumpIntegrity(root, 'react-native'),
       'true',
+    ],
+    [
+      'android-lockfile-an-api-only-package-skips',
+      (root) => bumpIntegrity(root, 'ioredis'),
+      'false',
+    ],
+    [
+      'android-lockfile-whitespace-skips',
+      (root) => write(root, 'bun.lock', `${read(root, 'bun.lock')}\n`),
+      'false',
     ],
     [
       'android-ci-workflow-runs',
@@ -805,7 +817,10 @@ expectScope(
   ]) {
     cases += 1;
     const root = createFixture();
-    mutate(root);
+    if (mutate(root) === false) {
+      failures.push(`${name}: the mutation matched nothing — the case proves nothing.`);
+      continue;
+    }
     commit(root);
     const output = runScope(root, ['--base', 'HEAD~1', '--head', 'HEAD']);
     if (androidVerdict(output) !== expected)
