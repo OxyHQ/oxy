@@ -83,6 +83,7 @@ import {
 } from '../emailOutbox.service';
 import { processEmailOutbox } from '../emailOutbox.worker';
 import { recordSuppression } from '../emailSuppression.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 const SES_ID = '010101a0e167f1da-8a9cef8c-7895-4d67-ace3-1b62e41ee6a2-000000';
@@ -231,9 +232,8 @@ async function holdClaimCheck() {
 async function fillMailbox(): Promise<() => Promise<void>> {
   const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
   if (!inbox) throw new Error('no Inbox');
-  const [filler] = await getDb()
-    .insert(messages)
-    .values({
+  const [filler] = await insertMessageRows([
+    {
       userId: user.id,
       mailboxId: inbox.id,
       messageId: `<filler-${unique()}@example.com>`,
@@ -242,8 +242,8 @@ async function fillMailbox(): Promise<() => Promise<void>> {
       size: EMAIL_QUOTAS.free.storage,
       date: new Date(),
       receivedAt: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return async () => {
     await getDb().delete(messages).where(eq(messages.id, filler.id));
   };
@@ -1343,9 +1343,8 @@ describe('a reply retried under its key', () => {
   async function parent(messageId: string, references: string[], createdAt = new Date()) {
     const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
     if (!inbox) throw new Error('no Inbox');
-    const [row] = await getDb()
-      .insert(messages)
-      .values({
+    const [row] = await insertMessageRows([
+      {
         userId: user.id,
         mailboxId: inbox.id,
         messageId,
@@ -1356,8 +1355,8 @@ describe('a reply retried under its key', () => {
         date: createdAt,
         receivedAt: createdAt,
         createdAt,
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
     return row.id;
   }
 

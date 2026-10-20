@@ -72,7 +72,6 @@ import {
   fileVariants,
   mailboxes,
   messageAttachments,
-  messages,
   storageObjectDeletions,
   users,
 } from '../../db/schema';
@@ -82,6 +81,7 @@ import { logger } from '../../utils/logger';
 import fileCache from '../../utils/fileCache';
 import { assetService } from '../../services/assetServiceSingleton';
 import { runStorageDeletionBatch } from '../../services/accountStorageDeletion.worker';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const APP_ID = `app-mention-${randomBytes(4).toString('hex')}`;
 const OTHER_APP_ID = `app-other-${randomBytes(4).toString('hex')}`;
@@ -441,9 +441,8 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
       .insert(mailboxes)
       .values({ userId: otherLocal, name: 'Inbox', path: `Inbox-${randomUUID()}` })
       .returning({ id: mailboxes.id });
-    const [message] = await getDb()
-      .insert(messages)
-      .values({
+    const [message] = await insertMessageRows([
+      {
         userId: otherLocal,
         mailboxId: mailbox!.id,
         messageId: `<${randomUUID()}@example.test>`,
@@ -451,8 +450,8 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
         subject: 'A file',
         size: 10,
         date: new Date(),
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
     await getDb().insert(messageAttachments).values({
       messageId: message!.id,
       ord: 0,

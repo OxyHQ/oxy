@@ -48,6 +48,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import userCache from '../../utils/userCache';
 import { emailService } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -65,9 +66,8 @@ async function store(
   mailboxId: string,
   values: Partial<typeof messages.$inferInsert> = {},
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -76,8 +76,8 @@ async function store(
       size: 10,
       date: new Date(),
       ...values,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 
@@ -304,22 +304,19 @@ describe('snooze', () => {
     const inbox = await mailboxIdFor(userId, '\\Inbox');
     const snoozed = await mailboxIdFor(userId, '\\Snoozed');
     // Older than anything another test leaves due, so these go first.
-    const rows = await getDb()
-      .insert(messages)
-      .values(
-        Array.from({ length: 201 }, (_, i) => ({
-          userId,
-          mailboxId: snoozed,
-          messageId: `<${unique()}@example.com>`,
-          fromAddress: 'sender@example.com',
-          subject: '',
-          size: 10,
-          date: new Date(),
-          snoozedUntil: new Date(1_000 + i),
-          snoozedFromMailbox: inbox,
-        })),
-      )
-      .returning({ id: messages.id, snoozedUntil: messages.snoozedUntil });
+    const rows = await insertMessageRows(
+      Array.from({ length: 201 }, (_, i) => ({
+        userId,
+        mailboxId: snoozed,
+        messageId: `<${unique()}@example.com>`,
+        fromAddress: 'sender@example.com',
+        subject: '',
+        size: 10,
+        date: new Date(),
+        snoozedUntil: new Date(1_000 + i),
+        snoozedFromMailbox: inbox,
+      })),
+    );
     const latest = rows.reduce((a, b) =>
       (a.snoozedUntil?.getTime() ?? 0) > (b.snoozedUntil?.getTime() ?? 0) ? a : b,
     );

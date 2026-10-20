@@ -1373,6 +1373,27 @@
       "when": 1792475599066,
       "tag": "0196_drop_unscoped_messages_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1792475639778,
+      "tag": "0197_messages_thread_id_not_null_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1792475643471,
+      "tag": "0198_messages_thread_id_not_null_validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 199,
+      "version": "7",
+      "when": 1792475647355,
+      "tag": "0199_messages_thread_id_set_not_null",
+      "breakpoints": true
     }
   ]
 }

@@ -30,6 +30,7 @@ jest.mock('../../utils/subscriptionPlan', () => ({
 }));
 
 import { getStorageUsage } from '../storage.controller';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const GB = 1024 * 1024 * 1024;
 
@@ -135,9 +136,8 @@ describe('getStorageUsage — exact byte totals', () => {
         .insert(mailboxes)
         .values({ userId, name: path, path })
         .returning();
-      const [message] = await getDb()
-        .insert(messages)
-        .values({
+      const [message] = await insertMessageRows([
+        {
           userId,
           mailboxId: folder.id,
           messageId: `<${sha()}@example.test>`,
@@ -145,8 +145,8 @@ describe('getStorageUsage — exact byte totals', () => {
           subject: 'Storage test',
           size,
           date: new Date(),
-        })
-        .returning();
+        },
+      ]);
       if (userId === ownerId) ids.push(message.id);
     }
     await insertFile({ ownerUserId: ownerId, mime: 'text/plain', size: 50 });

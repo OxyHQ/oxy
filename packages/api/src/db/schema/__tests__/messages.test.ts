@@ -27,9 +27,12 @@ import { MESSAGE_RECIPIENT_KINDS, messageRecipients } from '../messageRecipients
 import { messages } from '../messages';
 import { MESSAGES_PROTECTED_COLUMNS, PROTECTED_COLUMNS_BY_TABLE } from '../protectedColumns';
 import { users } from '../users';
+import { insertMessageRows } from '../../../../test-support/messageRows';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
+/** Postgres `not_null_violation`. */
+const NOT_NULL_VIOLATION = '23502';
 /** Postgres `check_violation`. */
 const CHECK_VIOLATION = '23514';
 /** Postgres `generated_always` — a write to a GENERATED ALWAYS column. */
@@ -88,9 +91,8 @@ async function mailbox(userId: string, path = `INBOX-${unique()}`): Promise<stri
 async function insertMessage(
   values: Partial<typeof messages.$inferInsert> & { userId: string; mailboxId: string },
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       messageId: `<${unique()}@oxy.so>`,
       fromAddress: 'sender@example.com',
       // NOT NULL with no default — the writer always supplies it.
@@ -98,8 +100,8 @@ async function insertMessage(
       size: 2048,
       date: new Date(),
       ...values,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 
@@ -536,11 +538,25 @@ describe('messages — flags, arrays and the extracted card', () => {
     // Flattened to columns they are two, and the CHECK is what keeps them one.
     const error = await rejection(
       getDb().execute(sql`
-        insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date, card_data)
-        values (${unique()}, ${userId}, ${mailboxId}, ${unique()}, 'a@b.c', '', 1, now(), '{"total":"1"}'::jsonb)
+        insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date, thread_id, card_data)
+        values (${unique()}, ${userId}, ${mailboxId}, ${unique()}, 'a@b.c', '', 1, now(), ${unique()}, '{"total":"1"}'::jsonb)
       `),
     );
     expect(pgConstraint(error)).toBe('messages_card_complete_check');
+  });
+
+  it('refuses a message without a thread', async () => {
+    // thread_id is assigned by the one insert path (emailThreading.ts); a row
+    // that skipped it must fail loudly rather than become a thread of one.
+    const userId = await owner();
+    const mailboxId = await mailbox(userId);
+    const error = await rejection(
+      getDb().execute(sql`
+        insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date)
+        values (${unique()}, ${userId}, ${mailboxId}, ${unique()}, 'a@b.c', '', 1, now())
+      `),
+    );
+    expect(pgErrorCode(error)).toBe(NOT_NULL_VIOLATION);
   });
 
   it('refuses a negative size', async () => {

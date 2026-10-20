@@ -1,0 +1,21 @@
+-- oxy:deploy-phase=post
+--
+-- Step 2 of 3 making messages.thread_id NOT NULL: prove 0197's CHECK for the
+-- rows that predate it.
+--
+-- POST, like 0197: it narrows nothing further, but it belongs to the same
+-- release step and must not land ahead of it.
+--
+-- ## LOCKS
+--
+-- VALIDATE CONSTRAINT takes SHARE UPDATE EXCLUSIVE: reads and writes continue
+-- while it scans the whole table. The scan is proportional to `messages`, and
+-- the migrator stops a statement at 120 s, so on a large table run it OUT OF
+-- BAND first, from a one-shot task (it takes no lock that stalls a request):
+--
+--   ALTER TABLE messages VALIDATE CONSTRAINT messages_thread_id_not_null;
+--
+-- after which this statement finds the constraint valid and returns at once.
+-- If it fails, a row is NULL: run src/scripts/backfill-message-threads.ts
+-- --apply again, then retry.
+ALTER TABLE "messages" VALIDATE CONSTRAINT "messages_thread_id_not_null";

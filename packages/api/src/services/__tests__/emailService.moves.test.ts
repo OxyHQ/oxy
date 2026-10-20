@@ -26,6 +26,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -42,9 +43,8 @@ async function store(
   mailboxId: string,
   values: Partial<typeof messages.$inferInsert> = {},
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -53,8 +53,8 @@ async function store(
       size: 10,
       date: new Date(),
       ...values,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

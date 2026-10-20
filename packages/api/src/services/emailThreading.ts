@@ -7,15 +7,14 @@
  * replacement for it, its `In-Reply-To` and every entry of `References`
  * ({@link threadKeys}). Two of one user's messages are ADJACENT when their key
  * sets intersect ({@link threadAdjacency}), and a thread is a connected
- * component of that relation. This is the definition the `WITH RECURSIVE`
- * walks in `email.service.ts` follow; they import it from here, so the stored
- * grouping and the walk cannot be built from two different relations.
+ * component of that relation — the definition the `WITH RECURSIVE` walk the
+ * reads used before this key was stored followed, kept here as the one
+ * statement of it.
  *
  * ## The invariant
  *
  * Every row of one component carries the same `thread_id`, and no row outside
- * it does. NULL means "not assigned yet" (a row stored before the column
- * existed). The value is internal: the wire `threadId` is still the smallest
+ * it does. The value is internal: the wire `threadId` is still the smallest
  * member row id, computed by the reads.
  *
  * What can break the invariant, and what restores it:
@@ -23,9 +22,7 @@
  * - **An insert** can only JOIN components — a new node with edges. Its
  *   neighbours' threads already are whole components, so one hop through the
  *   indexed adjacency is enough ({@link assignThread}): none → a new id; one →
- *   join it; several → MERGE them into the largest. A neighbour still NULL
- *   means the stored grouping cannot be trusted there, and the caller re-derives
- *   the whole component instead.
+ *   join it; several → MERGE them into the largest.
  * - **A delete, or a change to a row's keys,** can SPLIT a component (the row
  *   was a bridge) as well as join one. {@link rethread} re-derives every
  *   component reachable from the rows it is given, plus every row that carries
@@ -141,27 +138,19 @@ const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0
  * The thread a message about to be inserted with these keys belongs to, merging
  * the threads it bridges. Call with {@link withThreadLock} held, then insert
  * the row with the id returned.
- *
- * Returns `null` when a neighbour is not assigned yet: the stored grouping is
- * incomplete around it, so the caller inserts the row with a NULL thread and
- * then calls {@link rethread} on it, which assigns the whole component.
  */
 export async function assignThread(
   tx: Transaction,
   userId: string,
   keys: readonly string[],
-): Promise<string | null> {
-  const neighbours = await tx.execute<{ threadId: string | null }>(sql`
+): Promise<string> {
+  const neighbours = await tx.execute<{ threadId: string }>(sql`
     select distinct m.thread_id as "threadId"
     from messages m
     where m.user_id = ${userId} and ${threadAdjacency('m', textArray(keys))}
   `);
-  if (neighbours.length === 0) return uuidv7();
-  const threadIds: string[] = [];
-  for (const row of neighbours) {
-    if (row.threadId === null) return null;
-    threadIds.push(row.threadId);
-  }
+  const threadIds = neighbours.map((row) => row.threadId);
+  if (threadIds.length === 0) return uuidv7();
   if (threadIds.length === 1) return threadIds[0];
 
   // A bridge: the threads it joins become one, kept under the id of the
@@ -191,7 +180,7 @@ export async function assignThread(
 /** One stored row as the component computation sees it. */
 export type ThreadRow = {
   id: string;
-  threadId: string | null;
+  threadId: string;
   keys: Array<string | null>;
 };
 
@@ -293,7 +282,7 @@ function chooseThreadIds(groups: readonly ThreadRow[][]): string[] {
   groups.forEach((group, index) => {
     const sizes = new Map<string, number>();
     for (const row of group) {
-      if (row.threadId !== null) sizes.set(row.threadId, (sizes.get(row.threadId) ?? 0) + 1);
+      sizes.set(row.threadId, (sizes.get(row.threadId) ?? 0) + 1);
     }
     for (const [threadId, size] of sizes) candidates.push({ group: index, threadId, size });
   });
@@ -348,7 +337,7 @@ export async function rethread(
     for (const row of await componentRows(tx, userId, pending)) known.set(row.id, row);
     const newThreads = [...known.values()]
       .map((row) => row.threadId)
-      .filter((threadId): threadId is string => threadId !== null && !seenThreads.has(threadId));
+      .filter((threadId) => !seenThreads.has(threadId));
     for (const threadId of newThreads) seenThreads.add(threadId);
     if (newThreads.length === 0) break;
     const carriers = await tx.execute<{ id: string }>(sql`
@@ -387,43 +376,31 @@ export async function rethread(
 }
 
 /** A row that was just deleted, as `DELETE … RETURNING` hands it back. */
-export interface RemovedThreadMember extends ThreadKeyFields {
-  threadId: string | null;
+export interface RemovedThreadMember {
+  threadId: string;
 }
 
 /**
  * Restore the invariant after rows were deleted: whatever is left of their
  * threads may have fallen apart (a deleted row was the bridge). Call with
  * {@link withThreadLock} held, in the transaction that deleted them.
- *
- * A removed row that was never assigned has no thread to re-split, so its
- * former neighbours are re-derived instead — that also assigns them.
  */
 export async function rethreadAfterDelete(
   tx: Transaction,
   userId: string,
   removed: readonly RemovedThreadMember[],
 ): Promise<void> {
-  const threadIds = [
-    ...new Set(removed.map((row) => row.threadId).filter((id): id is string => id !== null)),
-  ];
-  const unassignedKeys = [
-    ...new Set(removed.filter((row) => row.threadId === null).flatMap(threadKeysOf)),
-  ];
-  const seeds = new Set<string>();
-  if (threadIds.length > 0) {
-    const rows = await tx.execute<{ id: string }>(sql`
-      select m.id from messages m
-      where m.user_id = ${userId} and m.thread_id = any(${textArray(threadIds)})
-    `);
-    for (const row of rows) seeds.add(row.id);
+  const threadIds = [...new Set(removed.map((row) => row.threadId))];
+  if (threadIds.length === 0) return;
+  const rows = await tx.execute<{ id: string }>(sql`
+    select m.id from messages m
+    where m.user_id = ${userId} and m.thread_id = any(${textArray(threadIds)})
+  `);
+  if (rows.length > 0) {
+    await rethread(
+      tx,
+      userId,
+      rows.map((row) => row.id),
+    );
   }
-  if (unassignedKeys.length > 0) {
-    const rows = await tx.execute<{ id: string }>(sql`
-      select m.id from messages m
-      where m.user_id = ${userId} and ${threadAdjacency('m', textArray(unassignedKeys))}
-    `);
-    for (const row of rows) seeds.add(row.id);
-  }
-  if (seeds.size > 0) await rethread(tx, userId, [...seeds]);
 }
