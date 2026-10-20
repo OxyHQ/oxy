@@ -21,6 +21,7 @@ jest.mock('../senderAvatar.service', () => ({
 jest.mock('../assetServiceSingleton', () => ({ assetService: { unlinkFile: jest.fn() } }));
 
 import { randomUUID } from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
@@ -55,6 +56,12 @@ async function store(
     })
     .returning({ id: messages.id });
   return row.id;
+}
+
+async function mailboxIdFor(userId: string, specialUse: string): Promise<string> {
+  const mailbox = await emailService.getMailboxBySpecialUse(userId, specialUse);
+  if (!mailbox) throw new Error(`no ${specialUse} mailbox`);
+  return mailbox.id;
 }
 
 /** Route every socket emit into one list, as `{ event, payload }` pairs in order. */
@@ -109,5 +116,100 @@ describe('bulk changes', () => {
       { event: 'email:unread_count', payload: { mailboxId: source.id, unread: 0 } },
       { event: 'email:unread_count', payload: { mailboxId: target.id, unread: 3 } },
     ]);
+  });
+});
+
+describe('moving one message', () => {
+  it('announces a move to Trash from the folder it left, and moves nothing else', async () => {
+    const userId = await owner();
+    await emailService.ensureMailboxes(userId);
+    const inbox = await mailboxIdFor(userId, '\\Inbox');
+    const trash = await mailboxIdFor(userId, '\\Trash');
+    const messageId = await store(userId, inbox, { seen: false });
+    const bystander = await store(userId, inbox, { seen: false });
+
+    const emitted = captureEmits();
+    await emailService.deleteMessage(userId, messageId);
+
+    expect(emitted).toEqual([
+      {
+        event: 'email:changed',
+        payload: { id: messageId, mailboxIds: [inbox, trash], reason: 'moved' },
+      },
+      // The bystander and the welcome message provisioning filed.
+      { event: 'email:unread_count', payload: { mailboxId: inbox, unread: 2 } },
+      { event: 'email:unread_count', payload: { mailboxId: trash, unread: 1 } },
+    ]);
+    const [kept] = await getDb()
+      .select({ mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(eq(messages.id, bystander));
+    expect(kept.mailboxId).toBe(inbox);
+  });
+
+  it('reports a message that is not the caller`s before a missing Trash', async () => {
+    const mine = await owner();
+    const theirs = await owner();
+    const myBox = await emailService.createMailbox(mine, `Mine-${unique()}`);
+    const theirBox = await emailService.createMailbox(theirs, `Theirs-${unique()}`);
+    const myMessage = await store(mine, myBox.id);
+    const theirMessage = await store(theirs, theirBox.id);
+
+    // Neither account was provisioned, so neither has a Trash.
+    await expect(emailService.deleteMessage(mine, theirMessage)).rejects.toThrow(
+      /^Message not found$/,
+    );
+    await expect(emailService.deleteMessage(mine, myMessage)).rejects.toThrow(
+      /^Trash mailbox not found$/,
+    );
+  });
+
+  /**
+   * The source folder used to be read BEFORE the move's transaction, so a
+   * concurrent move in between made the announcement name a folder the row
+   * had already left. It is now read under the row lock the move takes.
+   */
+  it('announces the folder a row really left when another move commits first', async () => {
+    const userId = await owner();
+    const a = await emailService.createMailbox(userId, `A-${unique()}`);
+    const b = await emailService.createMailbox(userId, `B-${unique()}`);
+    const c = await emailService.createMailbox(userId, `C-${unique()}`);
+    const messageId = await store(userId, a.id);
+
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const isLocked = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const firstMove = getDb().transaction(async (tx) => {
+      await tx.update(messages).set({ mailboxId: b.id }).where(eq(messages.id, messageId));
+      locked();
+      await held;
+    });
+    await isLocked;
+
+    const emitted = captureEmits();
+    const secondMove = emailService.bulkMoveMessages(userId, [messageId], c.id);
+    // Let the second move reach the row lock before the first one commits.
+    for (let i = 0; i < 100; i++) {
+      const [waiting] = await getDb().execute<{ count: number }>(
+        sql`select count(*)::int as count from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`,
+      );
+      if (waiting.count > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    release();
+    await firstMove;
+
+    expect(await secondMove).toEqual({ matchedCount: 1, modifiedCount: 1 });
+    expect(emitted.find((e) => e.event === 'email:changed')?.payload).toEqual({
+      id: messageId,
+      mailboxIds: [b.id, c.id],
+      reason: 'moved',
+    });
   });
 });

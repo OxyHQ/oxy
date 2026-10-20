@@ -910,6 +910,75 @@ async function scheduledAmong(
     .where(and(eq(messages.userId, userId), isNotNull(messages.scheduledAt), where));
 }
 
+/** A row {@link moveRows} took out of one folder and filed in another. */
+interface MovedRow {
+  id: string;
+  fromMailboxId: string;
+}
+
+/**
+ * Move this user's rows matching `where` into `target`, inside `tx`.
+ *
+ * The rows are read and locked by the transaction's first statement, so the
+ * folder each one is reported as leaving is the folder it was in when it
+ * moved. Both move paths used to read it BEFORE their transaction: a
+ * concurrent move of the same row in between made the announcement name a
+ * folder the row had already left, and a client viewing the one it really
+ * left never re-read. The same read says which rows are scheduled and how
+ * many the caller owns, so neither needs a query of its own. Locked in id
+ * order, so two overlapping bulk moves cannot deadlock on each other.
+ *
+ * A row already in `target` is matched but not written.
+ */
+async function moveRows(
+  tx: Transaction,
+  userId: string,
+  where: SQL,
+  target: { id: string; specialUse: string | null },
+): Promise<{ matched: number; moved: MovedRow[] }> {
+  const held = await tx
+    .select({
+      id: messages.id,
+      messageId: messages.messageId,
+      mailboxId: messages.mailboxId,
+      scheduledAt: messages.scheduledAt,
+    })
+    .from(messages)
+    .where(and(eq(messages.userId, userId), where))
+    .orderBy(asc(messages.id))
+    .for('update');
+
+  // A scheduled message taken out of Sent is no longer going out.
+  if (target.specialUse !== '\\Sent') {
+    await unscheduleMessages(
+      tx,
+      userId,
+      held.filter((row) => row.scheduledAt !== null),
+      'kept',
+    );
+  }
+
+  const leaving = held.filter((row) => row.mailboxId !== target.id);
+  if (leaving.length > 0) {
+    await tx
+      .update(messages)
+      .set({ mailboxId: target.id })
+      .where(
+        and(
+          eq(messages.userId, userId),
+          inArray(
+            messages.id,
+            leaving.map((row) => row.id),
+          ),
+        ),
+      );
+  }
+  return {
+    matched: held.length,
+    moved: leaving.map((row) => ({ id: row.id, fromMailboxId: row.mailboxId })),
+  };
+}
+
 /** Assemble one message row plus its children into the wire shape. */
 function toMessageDto(
   row: MessageRow & Partial<MessageBodies>,
@@ -2060,47 +2129,52 @@ class EmailService {
     messageId: string,
     targetMailboxId: string,
   ): Promise<MessageDto> {
-    const db = getDb();
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
 
-    // Read the source mailbox BEFORE the update: a client viewing the folder the
-    // message is leaving needs to hear about it just as much as one viewing the
-    // folder it lands in, and after the write that id is gone.
-    const [before] = await db
-      .select({ mailboxId: messages.mailboxId })
-      .from(messages)
-      .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
-      .limit(1);
-
-    const moved = await db.transaction(async (tx) => {
-      // A scheduled message taken out of Sent is no longer going out.
-      if (targetMailbox.specialUse !== '\\Sent') {
-        await unscheduleMessages(
-          tx,
-          userId,
-          await scheduledAmong(tx, userId, eq(messages.id, messageId)),
-          'kept',
-        );
-      }
-      const [row] = await tx
-        .update(messages)
-        .set({ mailboxId: targetMailbox.id })
-        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
-        .returning({ id: messages.id });
-      return row;
-    });
-
-    if (!moved) throw new NotFoundError('Message not found');
-
-    const dto = await readMessageDto(db, moved.id);
-    await emitEmailChanged({
-      userId,
-      id: dto.id,
-      mailboxIds: [before?.mailboxId, targetMailbox.id],
-      reason: 'moved',
-    });
+    const touched = await this.relocateMessage(userId, messageId, targetMailbox);
+    const dto = await readMessageDto(getDb(), messageId);
+    // A client viewing the folder the message is leaving needs to hear about
+    // it just as much as one viewing the folder it lands in.
+    await emitEmailChanged({ userId, id: dto.id, mailboxIds: touched, reason: 'moved' });
     return dto;
+  }
+
+  /**
+   * Move one message without reading it back or announcing it, for the paths
+   * that do either themselves. Answers the folders the move touched: the one
+   * it left (none when it was already there), then `target`.
+   */
+  private async relocateMessage(
+    userId: string,
+    messageId: string,
+    target: { id: string; specialUse: string | null },
+  ): Promise<string[]> {
+    const { matched, moved } = await getDb().transaction((tx) =>
+      moveRows(tx, userId, eq(messages.id, messageId), target),
+    );
+    if (matched === 0) throw new NotFoundError('Message not found');
+    return [...moved.map((row) => row.fromMailboxId), target.id];
+  }
+
+  /**
+   * {@link relocateMessage} into the user's Trash.
+   *
+   * Which 404 wins is unchanged from when the message was read first: a
+   * message that is not the caller's is reported before a missing Trash. The
+   * extra read happens only on that path.
+   */
+  private async trashMessage(userId: string, messageId: string): Promise<string[]> {
+    const trash = await this.getMailboxBySpecialUse(userId, '\\Trash');
+    if (!trash) {
+      const [owned] = await getDb()
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+        .limit(1);
+      throw new NotFoundError(owned ? 'Trash mailbox not found' : 'Message not found');
+    }
+    return this.relocateMessage(userId, messageId, trash);
   }
 
   /**
@@ -2234,46 +2308,30 @@ class EmailService {
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
     if (messageIds.length === 0) return { matchedCount: 0, modifiedCount: 0 };
 
-    const db = getDb();
-    const owned = and(inArray(messages.id, messageIds), eq(messages.userId, userId));
-
-    // Source mailboxes, read before the write for the same reason as in
-    // `moveMessage`.
-    const sources = await db
-      .select({ id: messages.id, mailboxId: messages.mailboxId })
-      .from(messages)
-      .where(owned);
-    const sourceById = new Map(sources.map((row) => [row.id, row.mailboxId]));
-
-    const [matchedRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(messages)
-      .where(owned);
-    const modified = await db.transaction(async (tx) => {
-      // A scheduled message taken out of Sent is no longer going out.
-      if (targetMailbox.specialUse !== '\\Sent') {
-        await unscheduleMessages(tx, userId, await scheduledAmong(tx, userId, owned), 'kept');
-      }
-      return tx
-        .update(messages)
-        .set({ mailboxId: targetMailbox.id })
-        .where(and(owned, not(eq(messages.mailboxId, targetMailbox.id))))
-        .returning({ id: messages.id });
-    });
+    const { matched, moved } = await getDb().transaction((tx) =>
+      moveRows(tx, userId, inArray(messages.id, messageIds), targetMailbox),
+    );
 
     await emitEmailChangedMany({
       userId,
-      changes: modified.map((row) => ({
+      changes: moved.map((row) => ({
         id: row.id,
-        mailboxIds: [sourceById.get(row.id), targetMailbox.id],
+        mailboxIds: [row.fromMailboxId, targetMailbox.id],
       })),
       reason: 'moved',
     });
 
-    return { matchedCount: matchedRow?.count ?? 0, modifiedCount: modified.length };
+    return { matchedCount: matched, modifiedCount: moved.length };
   }
 
   async deleteMessage(userId: string, messageId: string, permanent = false): Promise<void> {
+    if (!permanent) {
+      // Move to Trash. Nothing reads the message back: this answers nothing.
+      const touched = await this.trashMessage(userId, messageId);
+      await emitEmailChanged({ userId, id: messageId, mailboxIds: touched, reason: 'moved' });
+      return;
+    }
+
     const db = getDb();
     const [message] = await db
       .select({
@@ -2287,28 +2345,21 @@ class EmailService {
       .limit(1);
     if (!message) throw new NotFoundError('Message not found');
 
-    if (permanent) {
-      // Unlink the attachments in the file manager first — it owns blob
-      // lifecycle. The `message_attachments` rows themselves CASCADE.
-      await this.deleteMessageAttachments(message);
-      await db.transaction(async (tx) => {
-        // A scheduled message deleted before it is due is cancelled with it:
-        // its claim must not go on answering its key as a send to come.
-        if (message.scheduledAt) await unscheduleMessages(tx, userId, [message], 'deleted');
-        await tx.delete(messages).where(eq(messages.id, messageId));
-      });
-      await emitEmailChanged({
-        userId,
-        id: message.id,
-        mailboxIds: [message.mailboxId],
-        reason: 'deleted',
-      });
-    } else {
-      // Move to Trash
-      const trash = await this.getMailboxBySpecialUse(userId, '\\Trash');
-      if (!trash) throw new NotFoundError('Trash mailbox not found');
-      await this.moveMessage(userId, messageId, trash.id);
-    }
+    // Unlink the attachments in the file manager first — it owns blob
+    // lifecycle. The `message_attachments` rows themselves CASCADE.
+    await this.deleteMessageAttachments(message);
+    await db.transaction(async (tx) => {
+      // A scheduled message deleted before it is due is cancelled with it:
+      // its claim must not go on answering its key as a send to come.
+      if (message.scheduledAt) await unscheduleMessages(tx, userId, [message], 'deleted');
+      await tx.delete(messages).where(eq(messages.id, messageId));
+    });
+    await emitEmailChanged({
+      userId,
+      id: message.id,
+      mailboxIds: [message.mailboxId],
+      reason: 'deleted',
+    });
   }
 
   /**
