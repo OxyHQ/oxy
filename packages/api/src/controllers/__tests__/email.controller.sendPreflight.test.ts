@@ -30,7 +30,7 @@ jest.mock('../../services/senderAvatar.service', () => ({
 
 import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { messages } from '../../db/schema/messages';
+import { emailOutbox } from '../../db/schema/emailOutbox';
 import { users } from '../../db/schema/users';
 import { emailService } from '../../services/email.service';
 import { recordSuppression } from '../../services/emailSuppression.service';
@@ -52,22 +52,18 @@ async function account(username: string | null = `pre${unique().slice(0, 10)}`):
 /** A provisioned account that has already sent its whole day's allowance. */
 async function exhausted(): Promise<string> {
   const userId = await account();
-  await emailService.ensureMailboxes(userId);
-  const sent = await emailService.getMailboxBySpecialUse(userId, '\\Sent');
-  if (!sent) throw new Error('no Sent mailbox');
   await getDb()
-    .insert(messages)
+    .insert(emailOutbox)
     .values(
       Array.from({ length: FREE_DAILY_SEND_LIMIT }, () => ({
         userId,
-        mailboxId: sent.id,
         messageId: `<${unique()}@oxy.so>`,
-        fromAddress: 'me@oxy.so',
-        subject: '',
-        size: 10,
-        seen: true,
-        date: new Date(),
-        receivedAt: new Date(),
+        payload: {
+          from: { address: 'me@oxy.so' },
+          to: [{ address: 'friend@example.com' }],
+          subject: '',
+          text: '',
+        },
       })),
     );
   return userId;
