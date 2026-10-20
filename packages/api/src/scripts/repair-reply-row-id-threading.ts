@@ -20,6 +20,10 @@
  * purpose: a recipient's copy names the SENDER's row, and that row's
  * `message_id` is the header the sender meant to write.
  *
+ * A repaired row's keys change, so it can join (or leave) a conversation:
+ * each repair runs under the owner's thread lock and re-derives the row's
+ * `thread_id` with `rethread` (`services/emailThreading.ts`).
+ *
  * Idempotent. Refuses to run without an explicit mode:
  *
  *   bun run packages/api/src/scripts/repair-reply-row-id-threading.ts --dry-run
@@ -35,6 +39,7 @@ import { rfcMessageIdSchema } from '@oxy.so/contracts';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { messages } from '../db/schema/messages';
+import { rethread, withThreadLock } from '../services/emailThreading';
 import { logger } from '../utils/logger';
 
 /** A row id as it was written: a UUID, optionally wrapped in angle brackets. */
@@ -60,7 +65,12 @@ export async function repairReplyRowIdThreading(options: {
 
   for (;;) {
     const page = await db
-      .select({ id: messages.id, inReplyTo: messages.inReplyTo, references: messages.references })
+      .select({
+        id: messages.id,
+        userId: messages.userId,
+        inReplyTo: messages.inReplyTo,
+        references: messages.references,
+      })
       .from(messages)
       .where(
         and(
@@ -103,10 +113,14 @@ export async function repairReplyRowIdThreading(options: {
       );
 
       if (options.apply) {
-        await db
-          .update(messages)
-          .set({ inReplyTo: parent.messageId, references })
-          .where(eq(messages.id, row.id));
+        await db.transaction(async (tx) => {
+          await withThreadLock(tx, row.userId);
+          await tx
+            .update(messages)
+            .set({ inReplyTo: parent.messageId, references })
+            .where(eq(messages.id, row.id));
+          await rethread(tx, row.userId, [row.id]);
+        });
       }
       stats.repaired += 1;
     }
