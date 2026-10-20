@@ -508,7 +508,6 @@ export class AccountService {
             // non-reserved preset), which is what every account got before this
             // field existed.
             color,
-            verified: true,
             type: 'local',
             kind: input.kind,
             accountCategories: input.accountCategories,
