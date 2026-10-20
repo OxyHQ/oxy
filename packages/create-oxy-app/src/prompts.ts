@@ -24,7 +24,7 @@ function bail(): never {
   process.exit(1);
 }
 
-function unwrap<T>(value: T | symbol): T {
+function unwrap<T>(value: T | typeof p.CANCEL_SYMBOL): T {
   if (p.isCancel(value)) {
     bail();
   }
@@ -43,7 +43,7 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
       await p.text({
         message: 'What is your app called?',
         placeholder: 'My Oxy App',
-        validate: (value) => (value.trim().length === 0 ? 'Name is required' : undefined),
+        validate: (value) => (value?.trim() ? undefined : 'Name is required'),
       }),
     );
   }
