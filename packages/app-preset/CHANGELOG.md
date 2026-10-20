@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.4.0
+
+### Fixed
+
+- Metro watches the app's install root instead of `../..` of the project. The
+  root is the nearest ancestor whose `package.json` declares `workspaces`, else
+  the nearest one holding a lockfile, else the git checkout's top level — never
+  above the checkout. For a single-package app at `~/Oxy/<repo>`, `../..` was the
+  home directory: Metro crawled every sibling repository and worktree with its
+  `node_modules` and ran out of memory. Monorepo apps (`packages/<app>`) still
+  watch the monorepo root.
+- Agent worktrees under `<root>/.claude/worktrees` are blocked like
+  `<root>/.worktrees`.
+
+### Added
+
+- `workspaceRoot` option to set the install root explicitly, and the
+  `findWorkspaceRoot(projectRoot)` export that computes the default.
+
 ## 3.3.1
 
 ### Fixed
