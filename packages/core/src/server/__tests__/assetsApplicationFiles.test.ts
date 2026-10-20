@@ -406,6 +406,132 @@ describe('OxyServer.assets.references.reconcile — an inventory of one entity t
     });
   });
 
+  describe("Oxy's refusals (429)", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const refusal = (retryAfterSeconds?: number) =>
+      Object.assign(new Error('Too many reconciliation requests. Please slow down.'), {
+        status: 429,
+        code: 'RATE_LIMITED',
+        ...(retryAfterSeconds === undefined ? {} : { details: { retryAfterSeconds } }),
+      });
+
+    /** A server that refuses the requests `refuse` picks, in order, then serves them. */
+    function stubRefusing(refuse: (method: string, url: string) => Error | undefined) {
+      const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+      const sent: Array<{ method: string; url: string; at: number; body: unknown }> = [];
+      const spy = jest
+        .spyOn(oxy, 'serviceRequest')
+        .mockImplementation(async (method: string, url: string, body?: unknown) => {
+          const refused = refuse(method, url);
+          if (refused) throw refused;
+          sent.push({ method, url, at: Date.now(), body });
+          if (method === 'POST' && url === '/assets/service/references/reconcile') {
+            return { sessionId: 'session-1', entityType: 'listing', expiresAt: 'x' };
+          }
+          if (method === 'POST' && url.endsWith('/commit')) return committed;
+          return { accepted: 0, total: 0 };
+        });
+      return { oxy, spy, sent };
+    }
+
+    it('waits out a refused page for the Retry-After Oxy names, and sends every page', async () => {
+      let refusals = 1;
+      const { oxy, sent } = stubRefusing((method) =>
+        method === 'PUT' &&
+        sent.filter((call) => call.method === 'PUT').length === 1 &&
+        refusals-- > 0
+          ? refusal(7)
+          : undefined,
+      );
+      async function* inventory() {
+        for (let index = 0; index < 2500; index += 1) yield pair(index);
+      }
+
+      const pending = oxy.assets.references.reconcile('listing', inventory());
+      await jest.advanceTimersByTimeAsync(6_000);
+      // Still waiting: Oxy said seven seconds.
+      expect(sent.filter((call) => call.method === 'PUT')).toHaveLength(1);
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      await expect(pending).resolves.toEqual(committed);
+      const pages = sent.filter((call) => call.method === 'PUT');
+      expect(pages.map((call) => (call.body as { items: unknown[] }).items.length)).toEqual([
+        1000, 1000, 500,
+      ]);
+      // The refused page went again, unchanged: nothing was dropped.
+      expect((pages[1].body as { items: Array<{ fileId: string }> }).items[0].fileId).toBe(
+        'file-1000',
+      );
+    });
+
+    it('paces pages at least 300 ms apart', async () => {
+      const { oxy, sent } = stubRefusing(() => undefined);
+      async function* inventory() {
+        for (let index = 0; index < 4000; index += 1) yield pair(index);
+      }
+
+      const pending = oxy.assets.references.reconcile('listing', inventory());
+      await jest.advanceTimersByTimeAsync(5_000);
+      await pending;
+
+      const at = sent.filter((call) => call.method === 'PUT').map((call) => call.at);
+      expect(at).toHaveLength(4);
+      for (let index = 1; index < at.length; index += 1) {
+        expect(at[index] - at[index - 1]).toBeGreaterThanOrEqual(300);
+      }
+    });
+
+    it('waits out a refused release, so the session is let go', async () => {
+      let releaseRefusals = 2;
+      const { oxy, sent } = stubRefusing((method) =>
+        method === 'DELETE' && releaseRefusals-- > 0 ? refusal(1) : undefined,
+      );
+
+      const pending = oxy.assets.references.reconcile('listing', [pair(1)], { dryRun: true });
+      await jest.advanceTimersByTimeAsync(5_000);
+      await pending;
+
+      expect(sent.at(-1)).toMatchObject({
+        method: 'DELETE',
+        url: '/assets/service/references/reconcile/session-1',
+      });
+    });
+
+    it('gives up after eight refusals of one page, releases, and rethrows the refusal', async () => {
+      const { oxy, spy } = stubRefusing((method) => (method === 'PUT' ? refusal() : undefined));
+
+      const pending = oxy.assets.references.reconcile('listing', [pair(1)]);
+      const assertion = expect(pending).rejects.toMatchObject({ status: 429 });
+      // 2, 4, 8, 16, 32 s then the 60 s cap three times.
+      await jest.advanceTimersByTimeAsync(10 * 60_000);
+      await assertion;
+
+      expect(spy.mock.calls.filter(([method]) => method === 'PUT')).toHaveLength(9);
+      expect(spy.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+        'DELETE',
+        '/assets/service/references/reconcile/session-1',
+      ]);
+      expect(spy.mock.calls.some(([, url]) => String(url).endsWith('/commit'))).toBe(false);
+    });
+
+    it('does not retry a failure that is not a refusal', async () => {
+      const { oxy, spy } = stubRefusing((method) =>
+        method === 'PUT' ? Object.assign(new Error('conflict'), { status: 409 }) : undefined,
+      );
+
+      await expect(oxy.assets.references.reconcile('listing', [pair(1)])).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(spy.mock.calls.filter(([method]) => method === 'PUT')).toHaveLength(1);
+    });
+  });
+
   it('releases the session when the inventory fails, then rethrows', async () => {
     const { oxy, spy } = stubServer();
     async function* failing() {
