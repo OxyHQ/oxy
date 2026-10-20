@@ -199,11 +199,13 @@ async function realLifeCount(subjectUserId: string): Promise<number> {
  * real-life attestations, biometric signal, and sybil penalty. Mirrors
  * `User.verified` to `isRealPerson` so the reputation `deriveTrustTier` promotes
  * a real person to the `verified` tier; when `verified` actually flips, the
- * reputation balance is recalculated and `userCache` invalidated.
+ * reputation balance is recalculated and `userCache` invalidated. Only a
+ * `personal` account is a person: a project, organization, bot or channel keeps
+ * its score but is never mirrored to `verified`.
  */
 export async function recomputePersonhood(userId: string): Promise<PersonhoodStatusRow> {
   const [user] = await getDb()
-    .select({ isSeedVerifier: users.isSeedVerifier, verified: users.verified })
+    .select({ isSeedVerifier: users.isSeedVerifier, verified: users.verified, kind: users.kind })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -269,8 +271,9 @@ export async function recomputePersonhood(userId: string): Promise<PersonhoodSta
 
   // Mirror onto users.verified so the reputation tier reflects personhood. Only
   // write + recompute + invalidate when the flag actually changes.
-  if ((user?.verified === true) !== derived.isRealPerson) {
-    await getDb().update(users).set({ verified: derived.isRealPerson }).where(eq(users.id, userId));
+  const verified = derived.isRealPerson && user?.kind === 'personal';
+  if ((user?.verified === true) !== verified) {
+    await getDb().update(users).set({ verified }).where(eq(users.id, userId));
     await reputationService.recalculateBalance(userId);
     userCache.invalidate(userId);
   }

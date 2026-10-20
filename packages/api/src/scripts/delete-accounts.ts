@@ -43,7 +43,7 @@
  * Env: DATABASE_URL (and the API's usual env: Redis, S3 for mailbox data).
  */
 
-import { eq, or, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { closeRedis } from '../config/redis';
 import { users } from '../db/schema/users';
@@ -54,6 +54,7 @@ import {
   type AccountDeletionResult,
 } from '../services/accountDeletion.service';
 import { logger } from '../utils/logger';
+import { resolveOperatorAccount } from '../utils/resolveUserIdentifier';
 
 export interface DeleteAccountsArgs {
   identifiers: string[];
@@ -117,28 +118,12 @@ export async function planAccountDeletions(
   const seen = new Set<string>();
 
   for (const identifier of identifiers) {
-    const matches = await getDb()
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        publicKey: users.publicKey,
-        type: users.type,
-        kind: users.kind,
-        accountStatus: users.accountStatus,
-      })
-      .from(users)
-      .where(or(eq(users.id, identifier), sql`lower(${users.username}) = lower(${identifier})`))
-      .limit(2);
-
-    if (matches.length !== 1) {
-      refused.push({
-        identifier,
-        reason: matches.length === 0 ? 'no such account' : 'names more than one account',
-      });
+    const resolved = await resolveOperatorAccount(identifier);
+    if ('reason' in resolved) {
+      refused.push({ identifier, reason: resolved.reason });
       continue;
     }
-    const [account] = matches;
+    const { account } = resolved;
     if (seen.has(account.id)) continue;
     seen.add(account.id);
 

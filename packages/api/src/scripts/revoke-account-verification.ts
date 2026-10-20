@@ -27,71 +27,51 @@
  * Env: DATABASE_URL (and the API's usual env: Redis for the user cache).
  */
 
-import { eq, or, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { closeRedis } from '../config/redis';
 import { users } from '../db/schema/users';
 import { reputationService } from '../services/reputation.service';
 import { logger } from '../utils/logger';
+import { resolveOperatorAccount } from '../utils/resolveUserIdentifier';
 
 const USAGE = 'Usage: revoke-account-verification <username|id>... [--confirm]';
 
-interface Target {
-  id: string;
-  username: string | null;
-  verified: boolean;
-}
-
 interface Report {
-  revoked: Array<{ id: string; username: string | null; trustTier?: string }>;
+  /** With `--confirm`, each entry also carries the trust tier it dropped to. */
+  toRevoke: Array<{ id: string; username: string | null; trustTier?: string }>;
   alreadyUnverified: Array<{ id: string; username: string | null }>;
   refused: Array<{ identifier: string; reason: string }>;
 }
 
 async function run(identifiers: readonly string[], confirm: boolean): Promise<Report> {
-  const report: Report = { revoked: [], alreadyUnverified: [], refused: [] };
-  const targets: Target[] = [];
+  const report: Report = { toRevoke: [], alreadyUnverified: [], refused: [] };
+  const seen = new Set<string>();
 
   for (const identifier of identifiers) {
-    const matches = await getDb()
-      .select({
-        id: users.id,
-        username: users.username,
-        kind: users.kind,
-        verified: users.verified,
-      })
-      .from(users)
-      .where(or(eq(users.id, identifier), sql`lower(${users.username}) = lower(${identifier})`))
-      .limit(2);
+    const resolved = await resolveOperatorAccount(identifier);
+    if ('reason' in resolved) {
+      report.refused.push({ identifier, reason: resolved.reason });
+      continue;
+    }
+    const { account } = resolved;
+    if (seen.has(account.id)) continue;
+    seen.add(account.id);
 
-    if (matches.length !== 1) {
-      report.refused.push({
-        identifier,
-        reason: matches.length === 0 ? 'no such account' : 'names more than one account',
-      });
-    } else if (matches[0].kind === 'personal') {
+    if (account.kind === 'personal') {
       report.refused.push({ identifier, reason: 'a personal account is verified by personhood' });
     } else {
-      targets.push(matches[0]);
+      const entry = { id: account.id, username: account.username };
+      (account.verified ? report.toRevoke : report.alreadyUnverified).push(entry);
     }
   }
 
-  if (report.refused.length > 0) return report;
+  if (report.refused.length > 0 || !confirm) return report;
 
-  for (const target of targets) {
-    if (!target.verified) {
-      report.alreadyUnverified.push({ id: target.id, username: target.username });
-      continue;
-    }
-    if (!confirm) {
-      report.revoked.push({ id: target.id, username: target.username });
-      continue;
-    }
-    await getDb().update(users).set({ verified: false }).where(eq(users.id, target.id));
-    const balance = await reputationService.recalculateBalance(target.id);
-    report.revoked.push({ id: target.id, username: target.username, trustTier: balance.trustTier });
+  for (const entry of report.toRevoke) {
+    await getDb().update(users).set({ verified: false }).where(eq(users.id, entry.id));
+    entry.trustTier = (await reputationService.recalculateBalance(entry.id)).trustTier;
   }
-
   return report;
 }
 

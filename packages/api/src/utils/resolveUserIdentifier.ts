@@ -35,7 +35,7 @@
  * so nothing can read a public key in its place.
  */
 
-import { sql } from 'drizzle-orm';
+import { eq, or, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { ConflictError } from './error';
@@ -88,4 +88,31 @@ export async function resolveUserByIdentifier(
     username: row.username ?? undefined,
     email: row.email ?? undefined,
   };
+}
+
+/** An account an operator named, or why the name does not pick exactly one. */
+export type OperatorAccountResolution =
+  | { account: typeof users.$inferSelect }
+  | { reason: 'no such account' | 'names more than one account' };
+
+/**
+ * Resolve an operator script's argument — an account id or a username — to
+ * exactly one account. The username side is spelled as the index is built, like
+ * `resolveUserByIdentifier` above.
+ */
+export async function resolveOperatorAccount(
+  identifier: string,
+): Promise<OperatorAccountResolution> {
+  const matches = await getDb()
+    .select()
+    .from(users)
+    .where(
+      or(
+        eq(users.id, identifier),
+        sql`lower(btrim(${users.username})) = lower(btrim(${identifier}))`,
+      ),
+    )
+    .limit(2);
+  if (matches.length === 1) return { account: matches[0] };
+  return { reason: matches.length === 0 ? 'no such account' : 'names more than one account' };
 }

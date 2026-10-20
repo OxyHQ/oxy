@@ -644,6 +644,15 @@ describe('recomputePersonhood — the evidence formula over stored rows', () => 
     expect(await isUserVerified(subjectUserId)).toBe(true);
   });
 
+  it('never mirrors personhood onto a non-personal account', async () => {
+    const projectId = await makeAccount({ kind: 'project', isSeedVerifier: true });
+
+    const status = await recomputePersonhood(projectId);
+
+    expect(status.isRealPerson).toBe(true);
+    expect(await isUserVerified(projectId)).toBe(false);
+  });
+
   it('does NOT read a non-biometric attestation as a biometric signal', async () => {
     // The metadata gate is jsonb CONTAINMENT, not a text compare: a real-life
     // attestation with no biometric flag must contribute the real-life axis and
