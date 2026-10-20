@@ -54,16 +54,56 @@ interface ValidRecipient {
   aliasTag?: string;
 }
 
-// Rate limit: 60 authenticated emails per minute (generous for inbound webhook).
+/**
+ * The envelope recipients of an inbound request, as one rate-limit key:
+ * lower-cased, trimmed, de-duplicated and sorted, so the same recipients are
+ * the same bucket however the header spells them. The worker sends one
+ * recipient per request (Cloudflare invokes it once per RCPT TO).
+ */
+export function envelopeRecipientsKey(req: Request): string {
+  const header = req.headers['x-envelope-to'];
+  const raw = Array.isArray(header) ? header.join(',') : (header ?? '');
+  const recipients = [
+    ...new Set(
+      raw
+        .split(',')
+        .map((addr) => addr.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+  // A request without one is answered 400 by the route; it still counts.
+  return recipients.length > 0 ? recipients.join(',') : 'no-envelope-recipient';
+}
+
 // Mounted in server.ts after shared-secret verification so unauthenticated
-// traffic cannot consume Cloudflare Email Routing's delivery quota.
-export const inboundRateLimit = rateLimit({
+// traffic cannot consume Cloudflare Email Routing's delivery quota. A refusal
+// is a 429, which the worker (`workers/email-inbound`) retries rather than
+// bouncing.
+//
+// The budget used to be 60 a minute for the WHOLE platform, so one busy
+// mailing list delayed every other user's mail with it. It is now per
+// recipient, with a platform-wide backstop well above any one recipient.
+const inboundRecipientRateLimit = rateLimit({
+  prefix: 'rl:email:inbound:rcpt:',
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: envelopeRecipientsKey,
+  message: 'Too many inbound emails for this recipient, please try again later.',
+});
+
+const inboundGlobalRateLimit = rateLimit({
   prefix: 'rl:email:inbound:',
   windowMs: 60 * 1000,
-  max: 60,
+  max: 6000,
   keyGenerator: () => 'email-inbound-global',
   message: 'Too many inbound emails, please try again later.',
 });
+
+/**
+ * Both inbound budgets, the recipient's own first: a flood refused there is
+ * not also charged to the backstop every other recipient shares.
+ */
+export const inboundRateLimit = [inboundRecipientRateLimit, inboundGlobalRateLimit];
 
 /**
  * Verify the webhook secret from the Authorization header.
