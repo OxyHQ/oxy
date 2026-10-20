@@ -150,6 +150,39 @@ type EmailPageCursor =
   | { version: 1; kind: 'messages'; pinned: boolean; date: string; id: string }
   | { version: 1; kind: 'search'; rank: number; date: string; id: string };
 
+/**
+ * The order every message list is read in: pinned first, then newest, with
+ * the id as the tiebreak a keyset cursor needs.
+ *
+ * Spelled `desc nulls last` because that is how the listing indexes are built
+ * (0004, `messages_user_id_mailbox_id_pinned_date_idx`). Drizzle's `desc()`
+ * renders a bare `desc`, which Postgres reads as `desc nulls FIRST`: no index
+ * here matches it, so the planner fetched and sorted every row of the folder
+ * before applying the LIMIT. Matched, the index gives `(pinned, date)` and
+ * only the id ties within each are sorted, as far as the LIMIT reaches. All
+ * three columns are NOT NULL, so the rows come back in exactly the same order
+ * either way.
+ */
+export const MESSAGE_LIST_ORDER: readonly SQL[] = [
+  sql`${messages.pinned} desc nulls last`,
+  sql`${messages.date} desc nulls last`,
+  sql`${messages.id} desc nulls last`,
+];
+
+/**
+ * The rows strictly after `cursor` in {@link MESSAGE_LIST_ORDER}, as ONE row
+ * comparison. It is the same set as the OR-chain
+ * `pinned < p or (pinned = p and (date < d or (date = d and id < i)))` — the
+ * three are NOT NULL, so no NULL can make a row comparison unknown — but an
+ * index scan can start at the cursor instead of filtering its way there.
+ */
+export function messageListAfter(cursor: { pinned: boolean; date: string; id: string }): SQL {
+  return sql`(${messages.pinned}, ${messages.date}, ${messages.id}) < (${sql.param(
+    cursor.pinned,
+    messages.pinned,
+  )}, ${sql.param(new Date(cursor.date), messages.date)}, ${sql.param(cursor.id, messages.id)})`;
+}
+
 function encodeEmailPageCursor(cursor: EmailPageCursor): string {
   return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
@@ -1943,30 +1976,14 @@ class EmailService {
       ...(unseenOnly ? [eq(messages.seen, false)] : []),
       ...(label ? [sql`${messages.labels} @> array[${label}]::text[]`] : []),
     );
-    const where = and(
-      baseWhere,
-      ...(cursor
-        ? [
-            or(
-              lt(messages.pinned, cursor.pinned),
-              and(
-                eq(messages.pinned, cursor.pinned),
-                or(
-                  lt(messages.date, new Date(cursor.date)),
-                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
-                ),
-              ),
-            ),
-          ]
-        : []),
-    );
+    const where = and(baseWhere, ...(cursor ? [messageListAfter(cursor)] : []));
 
     const [fetchedRows, [countRow]] = await Promise.all([
       db
         .select(PUBLIC_MESSAGE_COLUMNS)
         .from(messages)
         .where(where)
-        .orderBy(desc(messages.pinned), desc(messages.date), desc(messages.id))
+        .orderBy(...MESSAGE_LIST_ORDER)
         .limit(cursorMode ? limit + 1 : limit)
         .offset(cursorMode ? 0 : offset),
       db.select({ total: sql<number>`count(*)::int` }).from(messages).where(baseWhere),
@@ -4597,10 +4614,11 @@ class EmailService {
                     ),
                   ),
                 )
-              : or(
-                  lt(messages.date, new Date(cursor.date)),
-                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
-                ),
+              : // The same row comparison as `messageListAfter`, without `pinned`.
+                sql`(${messages.date}, ${messages.id}) < (${sql.param(
+                  new Date(cursor.date),
+                  messages.date,
+                )}, ${sql.param(cursor.id, messages.id)})`,
           ]
         : []),
     );
@@ -4626,7 +4644,8 @@ class EmailService {
                 desc(messages.date),
                 desc(messages.id),
               ]
-            : [desc(messages.date), desc(messages.id)]),
+            : // `nulls last`, as in MESSAGE_LIST_ORDER: the spelling indexes use.
+              [sql`${messages.date} desc nulls last`, sql`${messages.id} desc nulls last`]),
         )
         .limit(cursorMode ? limit + 1 : limit)
         .offset(cursorMode ? 0 : offset);
@@ -5575,7 +5594,8 @@ class EmailService {
         .select(PUBLIC_MESSAGE_COLUMNS)
         .from(messages)
         .where(where)
-        .orderBy(desc(messages.pinned), desc(messages.date))
+        // `nulls last`, as in MESSAGE_LIST_ORDER: the spelling the index uses.
+        .orderBy(sql`${messages.pinned} desc nulls last`, sql`${messages.date} desc nulls last`)
         .limit(options.limit)
         .offset(options.offset),
       db.select({ total: sql<number>`count(*)::int` }).from(messages).where(where),
