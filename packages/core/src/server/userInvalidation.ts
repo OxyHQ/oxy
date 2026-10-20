@@ -129,9 +129,14 @@ export interface OxyUserInvalidationHandlerOptions {
   /**
    * The backend's `OxyServer` (or any `OxyServices`). When supplied, its GET
    * response cache is swept for the invalidated user — this is the whole reason
-   * a backend that has no cache of its own still benefits from subscribing.
+   * a backend that has no cache of its own still benefits from subscribing —
+   * and, on an `OxyServer`, so are its cached session validations, so a
+   * suspended account stops validating at once rather than within the TTL.
    */
-  oxy?: { readonly http: OxyIdentityCacheEvictor };
+  oxy?: {
+    readonly http: OxyIdentityCacheEvictor;
+    invalidateSessionValidations?(filter: { userId: string }): void;
+  };
   /**
    * App-specific eviction (e.g. a Redis identity cache the app maintains itself).
    * May be async; a rejection is routed to `onError` and never escapes.
@@ -177,6 +182,7 @@ export function createOxyUserInvalidationHandler(
     if (oxy) {
       try {
         evictOxyIdentityCache(oxy.http, event.userId);
+        oxy.invalidateSessionValidations?.({ userId: event.userId });
       } catch (error) {
         // A cache sweep must never cost us the app-specific eviction below.
         onError?.(error, raw);

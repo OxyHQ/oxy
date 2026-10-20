@@ -89,7 +89,7 @@ import {
   ServerReputationApi,
 } from './namespaces';
 import { ServerSafetyApi } from './safety';
-import { ServerSessionApi } from './session';
+import { SESSION_VALIDATION_CACHE_TTL_MS, ServerSessionApi } from './session';
 
 export interface OxyServerConfig extends OxyConfig {
   /** This service's application credential. Omit to use workload identity (ADR 0026). */
@@ -129,6 +129,15 @@ export interface OxyServerConfig extends OxyConfig {
    * cache.
    */
   appPermissionsCacheTtlMs?: number;
+  /**
+   * How long one successful user-bearer validation (`session.validate` with an
+   * `accessToken`, which `middleware.auth()` runs on every request) is reused
+   * on this process, per session and token (default 30 000 ms). This is the
+   * longest a revoked session keeps working here when no invalidation signal
+   * reaches it. `0` disables the cache; `auth({ freshSession: true })` skips it
+   * on one route.
+   */
+  sessionValidationCacheTtlMs?: number;
 }
 
 /**
@@ -238,6 +247,7 @@ export class OxyServer extends OxyServices {
    */
   private anonymousServiceTokenRetryAt = 0;
   private readonly configuredApplicationId: string | null;
+  private readonly sessionValidationTtlMs: number;
   private readonly appPermissions: OxyAppPermissionsResolver;
 
   /**
@@ -272,6 +282,11 @@ export class OxyServer extends OxyServices {
     if (!Number.isFinite(ttl) || ttl < 0) {
       throw new Error('appPermissionsCacheTtlMs must be a non-negative number of milliseconds');
     }
+    const sessionTtl = config.sessionValidationCacheTtlMs ?? SESSION_VALIDATION_CACHE_TTL_MS;
+    if (!Number.isFinite(sessionTtl) || sessionTtl < 0) {
+      throw new Error('sessionValidationCacheTtlMs must be a non-negative number of milliseconds');
+    }
+    this.sessionValidationTtlMs = sessionTtl;
     this.configuredApplicationId = config.applicationId?.trim() || null;
     this.appPermissions = new OxyAppPermissionsResolver({
       ttlMs: ttl,
@@ -345,7 +360,8 @@ export class OxyServer extends OxyServices {
   }
   /** Session state, plus validation through a reviewed supervised action. */
   override get session(): ServerSessionApi {
-    if (!this._serverSession) this._serverSession = new ServerSessionApi(this.context);
+    if (!this._serverSession)
+      this._serverSession = new ServerSessionApi(this.context, this.sessionValidationTtlMs);
     return this._serverSession;
   }
 
@@ -572,6 +588,15 @@ export class OxyServer extends OxyServices {
    */
   invalidateAppPermissions(filter: { userId?: string } = {}): void {
     this.appPermissions.invalidate(filter);
+  }
+
+  /**
+   * Drop cached session validations — all of them, one user's or one
+   * session's. `createOxyUserInvalidationHandler` calls it for the user named
+   * by each `oxy:user:invalidate` event.
+   */
+  invalidateSessionValidations(filter: { userId?: string; sessionId?: string } = {}): void {
+    this.session.invalidateValidations(filter);
   }
 
   private async defaultApplicationId(): Promise<string | null> {
