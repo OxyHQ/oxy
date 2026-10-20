@@ -61,7 +61,6 @@ import {
   isDelegatedActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
-  usernameSchemaForAccountKind,
   type AccountCategoryId,
   type AvatarCharacter,
 } from '@oxy.so/contracts';
@@ -79,10 +78,16 @@ import {
   isUserColorPreset,
   normalizeUserColor,
 } from '../utils/profileColor';
-import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { liveAgentSessionOwns } from './agentKeyAuthority.service';
+import {
+  canonicalUsername,
+  insertAccount,
+  insertAncestors,
+  insertOrganizationProfiles,
+  rejectingTakenUsername,
+} from './accountCreation.service';
 import { archiveAccountForRetention } from './accountFinancialHolds.service';
 import { recordAccountDeletedEvent, type RecordedAccountEvent } from './accountEvents.service';
 import {
@@ -107,27 +112,6 @@ import {
  * ever held this".
  */
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
-
-/**
- * The unique index `users.username` is held by, named so a lost race can be told
- * apart from every other constraint on the same table. Declared in
- * `db/schema/users.ts` as `uniqueIndex('users_lower_username_key')`; Postgres
- * reports an expression index's own name in `constraint_name`, verified against
- * a real violation.
- */
-const USERNAME_UNIQUE_INDEX = 'users_lower_username_key';
-
-/**
- * The 409 a taken handle produces, wherever it is detected.
- *
- * One shape for both detections — the probe in `assertUsernameAvailable` and the
- * `users_lower_username_key` violation a lost race raises — because a client
- * retrying with a fresh suggestion cannot be asked to recognise two. `field` is
- * what tells it WHICH input to change.
- */
-function usernameTakenError(username: string): ConflictError {
-  return new ConflictError(`The username "${username}" is already taken`, { field: 'username' });
-}
 
 /**
  * Reject a name half that the display-name policy would not allow.
@@ -385,15 +369,43 @@ export function resolveEffectiveMembership<T extends MembershipLike>(
 // Internal reads
 // ===========================================================================
 
-/** Load an account with its materialised path, or null. */
-async function loadAccount(db: Database, accountId: string): Promise<AccountWithAncestors | null> {
-  const [account] = await db
-    .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+/**
+ * Accounts with their materialised paths, keyed by id — ONE query: each path is
+ * a correlated `array(...)` over `user_ancestors`, root first.
+ *
+ * `lock` row-locks the accounts inside a transaction, in id order so two
+ * transactions locking the same pair cannot deadlock: `share` for a parent a
+ * child is being hung under (it must not move or be archived mid-create),
+ * `update` for a move.
+ */
+async function loadAccounts(
+  db: DatabaseOrTransaction,
+  accountIds: string[],
+  lock?: 'share' | 'update',
+): Promise<Map<string, AccountWithAncestors>> {
+  const query = db
+    .select({
+      ...publicColumns(users, PROTECTED_COLUMNS_BY_TABLE),
+      ancestorPath: sql<
+        string[]
+      >`array(select ${userAncestors.ancestorId} from ${userAncestors} where ${userAncestors.userId} = ${users.id} order by ${userAncestors.depth})`,
+    })
     .from(users)
-    .where(eq(users.id, accountId))
-    .limit(1);
-  if (!account) return null;
-  return { account, ancestors: await loadAncestors(db, accountId) };
+    .where(inArray(users.id, accountIds))
+    .orderBy(asc(users.id));
+  const rows = await (lock ? query.for(lock) : query);
+  return new Map(
+    rows.map(({ ancestorPath, ...account }) => [account.id, { account, ancestors: ancestorPath }]),
+  );
+}
+
+/** Load one account with its materialised path, or null. */
+async function loadAccount(
+  db: DatabaseOrTransaction,
+  accountId: string,
+  lock?: 'share' | 'update',
+): Promise<AccountWithAncestors | null> {
+  return (await loadAccounts(db, [accountId], lock)).get(accountId) ?? null;
 }
 
 /** The root→parent path of one account. */
@@ -407,18 +419,30 @@ async function loadAncestors(db: DatabaseOrTransaction, accountId: string): Prom
 }
 
 /**
- * Replace one account's materialised path.
+ * Rows per `user_ancestors` insert: three parameters each, well under Postgres'
+ * 65535-parameter limit for any subtree a move can carry.
+ */
+const ANCESTOR_INSERT_CHUNK = 5000;
+
+/**
+ * Replace the materialised paths of several accounts at once.
  *
- * Delete-then-insert rather than a positional update: the path is addressed by
+ * Delete-then-insert rather than a positional update: a path is addressed by
  * `(user_id, depth)` and a move changes its LENGTH, so an in-place update would
  * leave the tail of a shortened path behind.
  */
-async function writeAncestors(tx: Database, accountId: string, ancestors: string[]): Promise<void> {
-  await tx.delete(userAncestors).where(eq(userAncestors.userId, accountId));
-  if (ancestors.length === 0) return;
-  await tx
-    .insert(userAncestors)
-    .values(ancestors.map((ancestorId, depth) => ({ userId: accountId, depth, ancestorId })));
+async function replaceAncestors(
+  tx: DatabaseOrTransaction,
+  paths: Map<string, string[]>,
+): Promise<void> {
+  if (paths.size === 0) return;
+  await tx.delete(userAncestors).where(inArray(userAncestors.userId, [...paths.keys()]));
+  const rows = [...paths].flatMap(([userId, path]) =>
+    path.map((ancestorId, depth) => ({ userId, depth, ancestorId })),
+  );
+  for (let i = 0; i < rows.length; i += ANCESTOR_INSERT_CHUNK) {
+    await tx.insert(userAncestors).values(rows.slice(i, i + ANCESTOR_INSERT_CHUNK));
+  }
 }
 
 export class AccountService {
@@ -427,9 +451,15 @@ export class AccountService {
   // -------------------------------------------------------------------------
 
   /**
-   * Create a child account under `parentAccountId`. Mints a no-login account
-   * row of the requested non-personal `kind`, wires its tree fields, and records
-   * the creator as an `owner` member of the new account.
+   * Create a child account under `parentAccountId`: a no-login account of a
+   * non-personal `kind`, its tree fields, and its creator as `owner`.
+   *
+   * Everything that needs no database is judged first. Then ONE transaction
+   * reads the parent with its path under a share lock — it can neither move nor
+   * be archived while a child is hung under it — and, with `authorize`, decides
+   * the creator's `children:create` over the parent from that same read, so the
+   * route never loads the parent twice. Without `authorize` the caller has
+   * already decided (the internal seed scripts).
    *
    * One transaction: an account whose owner membership failed to write is an
    * account nobody can administer.
@@ -438,6 +468,7 @@ export class AccountService {
     parentAccountId: string,
     creatorUserId: string,
     input: CreateChildAccountInput,
+    options: { authorize?: { sessionId?: string } } = {},
   ): Promise<{ account: AccountRow; membership: AccountMemberRow }> {
     if (!CHILD_ACCOUNT_KINDS.includes(input.kind)) {
       throw new BadRequestError(
@@ -449,33 +480,19 @@ export class AccountService {
     // (`ACCOUNT_CATEGORY_KINDS`). A child kind that did not would make this
     // silently permissive, which is why the two lists are asserted equal in
     // `@oxy.so/contracts`' own test rather than left to agree by luck.
-    const db = getDb();
-    const parent = await loadAccount(db, parentAccountId);
-    if (!parent) {
-      throw new NotFoundError('Parent account not found');
-    }
-
-    if (parent.ancestors.length + 1 > MAX_ACCOUNT_DEPTH) {
-      throw new BadRequestError(`Maximum account nesting depth (${MAX_ACCOUNT_DEPTH}) exceeded`);
-    }
-    if (channelCannotParentChannel(parent.account.kind, input.kind)) {
-      throw new BadRequestError('A channel cannot own another channel');
-    }
-
-    const username = await this.assertUsernameAvailable(input.username, input.kind);
-
     if (input.organizationType !== undefined && input.kind !== 'organization')
       throw new BadRequestError('Organization type requires an organization account');
-    assertValidAccountName(input.name, input.kind);
-
     // `createAccountRequestSchema` refuses this on the wire; the service repeats
     // it because `createChildAccount` has other callers than that route.
     if (input.character !== undefined && input.kind !== 'bot') {
       throw new BadRequestError('Only a bot account carries an avatar character');
     }
+    assertValidAccountName(input.name, input.kind);
 
-    // After `assertUsernameAvailable`, so the reserved-color gate weighs the handle
-    // the account will actually carry. `null` for the id: the row does not exist
+    const username = canonicalUsername(input.username, input.kind);
+
+    // After `canonicalUsername`, so the reserved-color gate weighs the handle the
+    // account will actually carry. `null` for the id: the row does not exist
     // yet, so there is no subscription to resolve and only the handle branch can
     // pass — see `assertColorNotReserved`.
     const color = input.color === undefined ? undefined : normalizeUserColor(input.color);
@@ -484,73 +501,99 @@ export class AccountService {
       await assertColorNotReserved(color, { accountId: null, username });
     }
 
-    const ancestors = childAncestorsOf(parent);
-    const rootAccountId = childRootOf(parent);
+    const { account, membership } = await getDb().transaction(async (tx) => {
+      const loaded = await loadAccount(tx, parentAccountId, 'share');
+      const parent = loaded && loaded.account.accountStatus !== 'archived' ? loaded : null;
 
-    // The probe in `assertUsernameAvailable` answered a moment ago; another
-    // request can have taken the name since. `users_lower_username_key` is what
-    // makes that safe, and this is what makes it LEGIBLE: the loser of the race
-    // gets the same 409 as the loser of the probe, never a 500 that a retrying
-    // client cannot act on.
-    const { account, membership } = await this.rejectingTakenUsername(username, () =>
-      db.transaction(async (tx) => {
-        const [created] = await tx
-          .insert(users)
-          .values({
-            username,
-            nameFirst: input.name?.first,
-            nameLast: input.name?.last,
-            nameDisplay: input.name?.displayName,
-            bio: input.bio,
-            description: input.description,
-            avatar: input.avatar,
-            // `undefined` leaves the column to its `$defaultFn` (a random
-            // non-reserved preset), which is what every account got before this
-            // field existed.
-            color,
-            type: 'local',
-            kind: input.kind,
-            accountCategories: input.accountCategories,
-            // `undefined` leaves the column to its `false` default, so a caller
-            // that says nothing gets exactly today's behaviour. Only an explicit
-            // `true` opts the new account out of discovery.
-            privacyIsPrivateAccount: input.isPrivateAccount,
-            character:
-              input.kind === 'bot' ? (input.character ?? avatarCharacterFor(username)) : null,
-            parentAccountId: parent.account.id,
-            rootAccountId,
-            accountStatus: 'active',
-          })
-          .returning();
-
-        await writeAncestors(tx, created.id, ancestors);
-
-        const [member] = await tx
-          .insert(accountMembers)
-          .values({
-            accountId: created.id,
-            memberUserId: creatorUserId,
-            role: 'owner',
-            inherit: true,
-            status: 'active',
-            invitedByUserId: creatorUserId,
-            joinedAt: new Date(),
-          })
-          .returning();
-
-        if (input.kind === 'organization' && input.organizationType !== undefined) {
-          await tx
-            .update(organizationProfiles)
-            .set({ organizationType: input.organizationType })
-            .where(eq(organizationProfiles.accountId, created.id));
+      if (options.authorize) {
+        // A missing or archived parent answers exactly like one the creator
+        // cannot reach, so this route cannot be used to learn which ids exist.
+        // The authority is the creator's role over the parent — an organization
+        // is not a member of itself, and `account:act_as` (held by editors) must
+        // not stand in for `children:create`.
+        const access = parent
+          ? await this.effectiveAccessForAccount(
+              creatorUserId,
+              parent.account,
+              options.authorize.sessionId,
+              tx,
+              parent.ancestors,
+            )
+          : null;
+        if (!access) {
+          throw new ForbiddenError('You do not have access to the parent account');
         }
-        return { account: created, membership: member };
-      }),
-    );
+        if (!access.permissions.includes('children:create')) {
+          throw new ForbiddenError('Missing required permission: children:create');
+        }
+      }
+      if (!parent) {
+        throw new NotFoundError('Parent account not found');
+      }
+      if (parent.ancestors.length + 1 > MAX_ACCOUNT_DEPTH) {
+        throw new BadRequestError(`Maximum account nesting depth (${MAX_ACCOUNT_DEPTH}) exceeded`);
+      }
+      if (channelCannotParentChannel(parent.account.kind, input.kind)) {
+        throw new BadRequestError('A channel cannot own another channel');
+      }
+
+      const created = await insertAccount(tx, {
+        username,
+        nameFirst: input.name?.first,
+        nameLast: input.name?.last,
+        nameDisplay: input.name?.displayName,
+        bio: input.bio,
+        description: input.description,
+        avatar: input.avatar,
+        // `undefined` leaves the column to its `$defaultFn` (a random
+        // non-reserved preset).
+        color,
+        type: 'local',
+        kind: input.kind,
+        accountCategories: input.accountCategories,
+        // `undefined` leaves the column to its `false` default; only an
+        // explicit `true` opts the new account out of discovery.
+        privacyIsPrivateAccount: input.isPrivateAccount,
+        character: input.kind === 'bot' ? (input.character ?? avatarCharacterFor(username)) : null,
+        parentAccountId: parent.account.id,
+        rootAccountId: childRootOf(parent),
+        accountStatus: 'active',
+      });
+
+      await insertAncestors(tx, created.id, childAncestorsOf(parent));
+
+      // Before the owner membership: `organization_member_authority` admits an
+      // owner only onto a claimed organization.
+      if (input.kind === 'organization') {
+        await insertOrganizationProfiles(tx, [
+          {
+            accountId: created.id,
+            claimStatus: 'claimed',
+            // `undefined` leaves the column to its `other` default.
+            organizationType: input.organizationType,
+          },
+        ]);
+      }
+
+      const [member] = await tx
+        .insert(accountMembers)
+        .values({
+          accountId: created.id,
+          memberUserId: creatorUserId,
+          role: 'owner',
+          inherit: true,
+          status: 'active',
+          invitedByUserId: creatorUserId,
+          joinedAt: new Date(),
+        })
+        .returning();
+
+      return { account: created, membership: member };
+    });
 
     logger.info('Account created', {
       accountId: account.id,
-      parentAccountId: parent.account.id,
+      parentAccountId,
       kind: input.kind,
       createdBy: creatorUserId,
     });
@@ -562,62 +605,66 @@ export class AccountService {
    * Re-parent `accountId` under `newParentId`. Rejects self-parenting, cycles
    * (the new parent being a descendant), and any move that would push the
    * subtree past `MAX_ACCOUNT_DEPTH`. Personal accounts are always roots and may
-   * not be moved. The subtree's materialised paths and roots are rewritten
-   * atomically — with no session-less fallback, so a standalone deployment can
-   * no longer leave the tree half-rewritten.
+   * not be moved.
+   *
+   * One transaction with both accounts row-locked, and a constant number of
+   * statements whatever the subtree's size: one read of every path in it, one
+   * delete and one (chunked) insert of the rewritten paths, one update of the
+   * roots.
    */
   async moveAccount(accountId: string, newParentId: string): Promise<AccountRow> {
     if (accountId === newParentId) {
       throw new BadRequestError('An account cannot be its own parent');
     }
 
-    const db = getDb();
-    const [account, newParent] = await Promise.all([
-      loadAccount(db, accountId),
-      loadAccount(db, newParentId),
-    ]);
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-    if (!newParent) {
-      throw new NotFoundError('New parent account not found');
-    }
-    if (account.account.kind === 'personal') {
-      throw new BadRequestError('A personal account is always a root and cannot be moved');
-    }
-    if (wouldCreateCycle(accountId, newParent)) {
-      throw new BadRequestError('Cannot move an account beneath itself or one of its descendants');
-    }
-    if (channelCannotParentChannel(newParent.account.kind, account.account.kind)) {
-      throw new BadRequestError('A channel cannot own another channel');
-    }
+    const { moved, affectedIds } = await getDb().transaction(async (tx) => {
+      const loaded = await loadAccounts(tx, [accountId, newParentId], 'update');
+      const account = loaded.get(accountId);
+      const newParent = loaded.get(newParentId);
+      if (!account) {
+        throw new NotFoundError('Account not found');
+      }
+      if (!newParent) {
+        throw new NotFoundError('New parent account not found');
+      }
+      if (account.account.kind === 'personal') {
+        throw new BadRequestError('A personal account is always a root and cannot be moved');
+      }
+      if (wouldCreateCycle(accountId, newParent)) {
+        throw new BadRequestError(
+          'Cannot move an account beneath itself or one of its descendants',
+        );
+      }
+      if (channelCannotParentChannel(newParent.account.kind, account.account.kind)) {
+        throw new BadRequestError('A channel cannot own another channel');
+      }
 
-    const oldSelfAncestors = account.ancestors;
-    const newSelfAncestors = childAncestorsOf(newParent);
-    const newRoot = childRootOf(newParent);
+      const oldSelfAncestors = account.ancestors;
+      const newSelfAncestors = childAncestorsOf(newParent);
+      const newRoot = childRootOf(newParent);
 
-    const affectedIds: string[] = [accountId];
-
-    const moved = await db.transaction(async (tx) => {
-      // Every account whose path contains this one — the whole subtree, in one
-      // indexed read (`user_ancestors_ancestor_id_idx`), which is the reason the
-      // path is materialised at all.
-      const descendantIds = (
-        await tx
-          .select({ userId: userAncestors.userId })
-          .from(userAncestors)
-          .where(eq(userAncestors.ancestorId, accountId))
-      ).map((row) => row.userId);
-
+      // Every path in the subtree, in one read: the accounts whose path contains
+      // this one (`user_ancestors_ancestor_id_idx`, the reason the path is
+      // materialised at all), each with its whole path, root first.
+      const subtreeRows = await tx
+        .select({ userId: userAncestors.userId, ancestorId: userAncestors.ancestorId })
+        .from(userAncestors)
+        .where(
+          sql`${userAncestors.userId} in (select d.user_id from user_ancestors d where d.ancestor_id = ${accountId})`,
+        )
+        .orderBy(asc(userAncestors.userId), asc(userAncestors.depth));
       const descendantPaths = new Map<string, string[]>();
-      let maxDescDepth = oldSelfAncestors.length;
-      for (const descendantId of descendantIds) {
-        const path = await loadAncestors(tx, descendantId);
-        descendantPaths.set(descendantId, path);
-        maxDescDepth = Math.max(maxDescDepth, path.length);
+      for (const row of subtreeRows) {
+        const path = descendantPaths.get(row.userId);
+        if (path) path.push(row.ancestorId);
+        else descendantPaths.set(row.userId, [row.ancestorId]);
       }
 
       // Depth guard over the whole subtree.
+      let maxDescDepth = oldSelfAncestors.length;
+      for (const path of descendantPaths.values()) {
+        maxDescDepth = Math.max(maxDescDepth, path.length);
+      }
       const subtreeRelativeDepth = maxDescDepth - oldSelfAncestors.length;
       if (newSelfAncestors.length + subtreeRelativeDepth > MAX_ACCOUNT_DEPTH) {
         throw new BadRequestError(
@@ -629,20 +676,26 @@ export class AccountService {
         .update(users)
         .set({ parentAccountId: newParent.account.id, rootAccountId: newRoot })
         .where(eq(users.id, accountId))
-        .returning();
-      await writeAncestors(tx, accountId, newSelfAncestors);
+        .returning(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));
 
+      const rewritten = new Map<string, string[]>([[accountId, newSelfAncestors]]);
       for (const [descendantId, path] of descendantPaths) {
-        await writeAncestors(
-          tx,
+        rewritten.set(
           descendantId,
           rewriteDescendantAncestors(oldSelfAncestors, newSelfAncestors, path),
         );
-        await tx.update(users).set({ rootAccountId: newRoot }).where(eq(users.id, descendantId));
-        affectedIds.push(descendantId);
+      }
+      await replaceAncestors(tx, rewritten);
+
+      const descendantIds = [...descendantPaths.keys()];
+      if (descendantIds.length > 0) {
+        await tx
+          .update(users)
+          .set({ rootAccountId: newRoot })
+          .where(inArray(users.id, descendantIds));
       }
 
-      return updated;
+      return { moved: updated, affectedIds: [accountId, ...descendantIds] };
     });
 
     for (const id of affectedIds) {
@@ -731,7 +784,7 @@ export class AccountService {
     }
 
     if (input.username !== undefined) {
-      set.username = await this.assertUsernameAvailable(input.username, account.kind, accountId);
+      set.username = canonicalUsername(input.username, account.kind);
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name, account.kind);
@@ -769,10 +822,9 @@ export class AccountService {
     }
     if (input.links !== undefined) set.links = input.links;
 
-    // Same race as creation, on the rename: `set.username` was probed, and the
-    // window between the probe and this statement is another request's chance to
-    // take it.
-    const updated = await this.rejectingTakenUsername(set.username, () =>
+    // A rename is decided by the unique index, like creation: a taken handle is
+    // the same 409 whether it was taken long ago or a moment before this write.
+    const updated = await rejectingTakenUsername(set.username, () =>
       db.transaction(async (tx) => {
         if (input.organizationType !== undefined) {
           await tx
@@ -920,14 +972,15 @@ export class AccountService {
    * Effective access of `userId` over an already-identified account.
    *
    * Takes an object rather than an id so a caller that has already loaded the
-   * account keeps reading naturally; only the id is used, because the
-   * materialised path lives in `user_ancestors` now and is read here either way.
+   * account keeps reading naturally. A caller that loaded its materialised path
+   * too passes it as `ancestors`, and it is not read a second time.
    */
   async effectiveAccessForAccount(
     userId: string,
     account: { id?: unknown; _id?: unknown; kind?: unknown },
     sessionId?: string,
     db: DatabaseOrTransaction = getDb(),
+    knownAncestors?: string[],
   ): Promise<EffectiveAccess | null> {
     const raw = account.id ?? account._id;
     const accountId = typeof raw === 'string' ? raw : String(raw ?? '');
@@ -958,7 +1011,7 @@ export class AccountService {
       (directoryProfile.claimStatus !== 'claimed' || directoryProfile.status !== 'active')
     )
       return null;
-    const ancestors = await loadAncestors(db, accountId);
+    const ancestors = knownAncestors ?? (await loadAncestors(db, accountId));
     const pathIds = [accountId, ...ancestors];
 
     const rows = await db
@@ -1654,118 +1707,6 @@ export class AccountService {
       throw new NotFoundError('Member not found');
     }
     return member;
-  }
-
-  /**
-   * The canonical form of a requested username, once it is known to be legal and
-   * free. Throws rather than adapting.
-   *
-   * ## It used to RENAME, silently
-   *
-   * This method suffixed a counter on collision — ask for `pepe`, get `pepe1`,
-   * and nobody is told. It is the same defect as the `.toLowerCase()` that used
-   * to live in these same lines: both hand the caller back an account under a
-   * name they did not ask for. A handle is chosen by a person; a server that
-   * quietly picks a different one has answered a question nobody asked.
-   *
-   * The consumers were already written for the refusal. Alia's
-   * `lib/agent-identity.ts` says so outright — "this proposes and never decides.
-   * `POST /accounts` is the authority, its duplicate answer is the only true one,
-   * and the CLIENT retries with a fresh suggestion" — and its
-   * `bot-account.ts` implements a retry loop keyed on **409**. That 409 never
-   * arrived, so the loop was dead code and the owner got `community-maestro1`.
-   * The cost-centre seed goes further and treats a suffix as a FAILURE, because
-   * there the username IS the slug.
-   *
-   * ## Legality and availability are one question here
-   *
-   * Holds the request to `usernameSchema` — the SAME policy signup, public-key
-   * registration, sign-up and `PUT /users/me` apply. This path governs every
-   * managed account, and its own rule (`^[\w.-]+$`, dots, no length bound at
-   * all) is how a bot could take a name no person could ask for, in the very same
-   * unique index.
-   *
-   * ## And the one exception, which only this path can apply
-   *
-   * A `bot` account's handle must also end in `bot`
-   * ({@link usernameSchemaForAccountKind}). The kind is what decides, so it is
-   * passed in rather than inferred from the name: `createChildAccount` knows the
-   * kind it is minting, and a rename knows the kind of the row it is renaming.
-   * Guessing from the string would make `abbot` a bot and a bot called `luna` a
-   * person.
-   *
-   * The probe is written against the EXPRESSION the unique index is built on —
-   * `lower(btrim(username))`, `db/schema/users.ts` — so a candidate that differs
-   * only by case conflicts here rather than at the constraint.
-   *
-   * ## And the probe alone is not enough
-   *
-   * This is a check-then-insert, so it is a race: the name can be taken between
-   * this answer and the write. `users_lower_username_key` is what keeps that
-   * correct — no duplicate can exist — but the loser's failure surfaces as a
-   * driver error. The callers therefore translate that constraint into the SAME
-   * `ConflictError`, so both the caller who loses the probe and the caller who
-   * loses the race get a 409 rather than one of them getting a 500.
-   */
-  /**
-   * Run a write that stores a username, turning a lost race into the SAME 409 the
-   * probe produces.
-   *
-   * Only `users_lower_username_key` is translated, by NAME. A `users` write can
-   * violate `users_lower_public_key_key` or `users_federation_actor_uri_key`
-   * just as easily, and reporting either as "that username is taken" would send the
-   * caller to fix a field that was never the problem — a confident, wrong error
-   * message, which is worse than the 500 it replaced. Everything else propagates
-   * untouched.
-   *
-   * `username` may be absent: an update that does not rename cannot lose this
-   * race, and there is no name to put in the message. The column is nullable, so
-   * `null` is one of the ways it arrives.
-   */
-  private async rejectingTakenUsername<T>(
-    username: string | null | undefined,
-    write: () => Promise<T>,
-  ): Promise<T> {
-    try {
-      return await write();
-    } catch (error) {
-      if (typeof username === 'string' && violatesUniqueIndex(error, USERNAME_UNIQUE_INDEX)) {
-        throw usernameTakenError(username);
-      }
-      throw error;
-    }
-  }
-
-  private async assertUsernameAvailable(
-    requested: string,
-    kind: AccountKind | null | undefined,
-    excludeId?: string,
-  ): Promise<string> {
-    const parsed = usernameSchemaForAccountKind(kind).safeParse(requested);
-    if (!parsed.success) {
-      // The ISSUE's message, not the base constant: a bot handle can fail either
-      // half of the rule, and "must end in bot" told to somebody who typed `a.b`
-      // sends them to append a label and be refused a second time. Zod reports
-      // the base policy first, so the message always names the thing that is
-      // actually wrong.
-      throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
-    }
-    const username = parsed.data;
-
-    const clauses = [sql`lower(btrim(${users.username})) = lower(btrim(${username}))`];
-    if (excludeId) {
-      clauses.push(ne(users.id, excludeId));
-    }
-    const [taken] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(and(...clauses))
-      .limit(1);
-    if (taken) {
-      throw usernameTakenError(username);
-    }
-
-    return username;
   }
 }
 

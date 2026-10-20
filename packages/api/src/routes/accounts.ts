@@ -547,32 +547,12 @@ router.post(
     // is wherever the session is standing.
     const parentAccountId = body.parentAccountId ?? subjectId;
 
-    // WHETHER it may be created is a question about the OPERATOR. The authority
-    // is the human's role over that parent, never the parent's implicit
-    // ownership of itself — an organization is not a member of itself, so asking
-    // the subject returned `null` and refused an owner the right to build under
-    // their own organization.
-    //
-    // Deliberately NOT solved by letting an account own itself. `account:act_as`
-    // is carried by `editor` as well as `owner` and `admin`, while
-    // `children:create` is not, so implicit self-ownership would hand every
-    // editor who switches a permission their role withholds. Asking the operator
-    // gives each person exactly the role they already hold here.
-    const access = await accountService.resolveEffectiveAccess(
-      operatorId,
-      parentAccountId,
-      req.sessionId,
-    );
-    if (!access) {
-      throw new ForbiddenError('You do not have access to the parent account');
-    }
-    if (!access.permissions.includes('children:create')) {
-      throw new ForbiddenError('Missing required permission: children:create');
-    }
-
-    // WHO OWNS the new account is a question about the operator too: the owner
-    // member of an account is a person, and the person here is the human, not
-    // the organization they are wearing.
+    // WHETHER it may be created is a question about the OPERATOR, and so is WHO
+    // OWNS it: the authority is the human's role over that parent — an
+    // organization is not a member of itself — and the owner member of an
+    // account is a person, not the organization they are wearing.
+    // `createChildAccount` decides `children:create` on the same locked read of
+    // the parent it builds under, so the parent is loaded once.
     const { account, membership } = await accountService.createChildAccount(
       parentAccountId,
       operatorId,
@@ -592,6 +572,7 @@ router.post(
         isPrivateAccount: body.isPrivateAccount,
         character: body.character,
       },
+      { authorize: { sessionId: req.sessionId } },
     );
 
     const node: AccountNode = {

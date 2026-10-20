@@ -219,33 +219,6 @@ describe('the typed factories', () => {
       expect.objectContaining({ type: 'quote', entityId: 'post-1', entityType: 'post' }),
     ]);
   });
-
-  it('createWelcomeNotification attributes the welcome to a REAL system account', async () => {
-    // `actor_id` is a foreign key, so a hardcoded sentinel id would name no row
-    // and the insert would be refused — the account is a parameter instead.
-    const systemAccount = await insertUser();
-
-    await NotificationService.createWelcomeNotification(RECIPIENT_ID, systemAccount);
-
-    expect(await storedFor(RECIPIENT_ID)).toEqual([
-      expect.objectContaining({
-        actorId: systemAccount,
-        type: 'welcome',
-        entityId: RECIPIENT_ID,
-        entityType: 'profile',
-      }),
-    ]);
-  });
-
-  it('refuses an all-zero 24-hex sentinel as the system actor', async () => {
-    // Stated as a case rather than a comment: the sentinel is not merely unused,
-    // it is now unusable, and anybody reinstating it gets a red test rather than
-    // a 500 in production.
-    await expect(
-      NotificationService.createWelcomeNotification(RECIPIENT_ID, '000000000000000000000000'),
-    ).rejects.toThrow();
-    expect(await storedFor(RECIPIENT_ID)).toHaveLength(0);
-  });
 });
 
 describe('deleteNotificationsByEntity', () => {

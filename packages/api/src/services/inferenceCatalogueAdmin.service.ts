@@ -46,7 +46,7 @@ import {
   normalizeInferenceDeploymentAvailabilityScope,
   priceVersions,
 } from '../db/schema';
-import { violatesUniqueIndex } from '../utils/postgresErrors';
+import { isUniqueViolation } from '@oxy.so/db';
 import { composeModelReference } from './inferenceCatalogue.service';
 
 /** The four transitions this workflow offers, as the route layer names them. */
@@ -168,7 +168,7 @@ const APPROVED_IDENTITY_CONFLICT =
 export function classifyDeploymentPermissionWriteError(
   error: unknown,
 ): DeploymentPermissionRefused | undefined {
-  return violatesUniqueIndex(error, APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
+  return isUniqueViolation(error, APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
     ? new DeploymentPermissionRefused(APPROVED_IDENTITY_CONFLICT)
     : undefined;
 }

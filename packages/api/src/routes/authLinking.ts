@@ -42,7 +42,7 @@ import { linkAuthMethodSchema, type LinkAuthMethodBody } from '../schemas/authLi
 import sessionService from '../services/session.service.js';
 import { rateLimit } from '../middleware/rateLimiter.js';
 import { hashedIpKey } from '../utils/ipKey.js';
-import { isUniqueViolation } from '../utils/postgresErrors.js';
+import { isUniqueViolation } from '@oxy.so/db';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils.js';
 import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';

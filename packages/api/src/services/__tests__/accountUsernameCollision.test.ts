@@ -1,42 +1,26 @@
 /**
- * A taken username is REFUSED, never renamed — and refused the same way whichever
- * of the two detections fires.
+ * A taken username is REFUSED, never renamed — and refused the same way whether
+ * it was taken long ago or a moment before the write.
  *
  * ## What this replaces
  *
  * `AccountService` used to suffix a counter on collision: ask for `pepe`, get
- * `pepe1`, and nobody is told. The account exists, the request returns 200, and
- * the defect only surfaces when a human looks the handle up. It is the same shape
- * as the `.toLowerCase()` that lived in the same fifteen lines — the server
- * answering with a name the caller did not choose.
+ * `pepe1`, and nobody is told. The consumers were already written for a refusal:
+ * Alia's `bot-account.ts` retries with a fresh suggestion on **409**.
  *
- * The consumers were already written for a refusal. Alia's `lib/agent-identity.ts`
- * states it ("this proposes and never decides. `POST /accounts` is the authority,
- * its duplicate answer is the only true one, and the CLIENT retries with a fresh
- * suggestion") and `bot-account.ts` implements a retry loop keyed on **409** —
- * a loop that could never run, because the 409 never came.
+ * ## One detection: the index
  *
- * ## Why the race is the test that matters, and why it had to be FORCED
+ * There is no availability probe. `users_lower_username_key` decides, and
+ * `accountCreation.service.ts` translates its violation — only that index, by
+ * name — into `UsernameTakenError`, a 409 naming the field. An untranslated
+ * driver error would be a **500** a retrying client cannot act on.
  *
- * The availability probe is a check-then-insert, so two requests can both be told
- * the name is free. `users_lower_username_key` guarantees the outcome is still
- * correct — no duplicate can exist — but the loser's failure arrives as a driver
- * error, and an unclassified driver error is a **500**. Fixing only the probe
- * would fix the easy half and leave a client that retries on 409 stuck on a 500
- * it cannot act on.
- *
- * Firing N creations at once does not RELIABLY test that, which is worse than not
- * testing it. Written that way first and measured: with the constraint
- * translation deleted, the concurrent test passed on one run and failed on the
- * next, because whether the probes serialise is a matter of interleaving. A test
- * that only sometimes takes the path it is named after reports a green that means
- * nothing on the run that matters.
- *
- * `forces the loser onto the constraint` below takes the path deliberately: an
- * UNCOMMITTED transaction holds the row, so the racer's probe cannot see it
- * (asserted), the racer's insert blocks on the index (waited for in `pg_locks`,
- * not slept on), and only then does the holder commit. The test FAILS if it
- * cannot establish that setup, so it can never pass vacuously.
+ * Firing N creations at once does not RELIABLY reach the contended path. `forces
+ * the loser onto the constraint` below takes it deliberately: an UNCOMMITTED
+ * transaction holds the row (invisible to the racer, asserted), the racer's
+ * insert blocks on the index (waited for in `pg_locks`, not slept on), and only
+ * then does the holder commit. The test FAILS if it cannot establish that setup,
+ * so it can never pass vacuously.
  */
 
 import { eq, sql } from 'drizzle-orm';
@@ -159,13 +143,13 @@ describe('a taken username is refused, not renamed', () => {
   });
 });
 
-describe('the lost race gets the same answer as the lost probe', () => {
+describe('the lost race gets the same answer as a name taken long ago', () => {
   /**
    * Wait until a backend is BLOCKED on the users index, rather than sleeping.
    *
    * The point of the whole test is that the racer reached the insert, and a
    * `setTimeout` only assumes it. This observes it: an insert waiting on a lock
-   * IS the racer sitting inside the window between the probe and the write.
+   * IS the racer contending for the name.
    *
    * Returns false if it never blocks, and the caller fails the test — a run that
    * could not establish the race must be RED, never a quiet pass.
@@ -186,13 +170,12 @@ describe('the lost race gets the same answer as the lost probe', () => {
   }
 
   /**
-   * The real thing: the loser goes through `users_lower_username_key`, not the
-   * probe.
+   * The real thing: the loser goes through `users_lower_username_key` while the
+   * winner's row is still uncommitted.
    *
-   * An uncommitted transaction holds the name. The racer's probe cannot see an
-   * uncommitted row — asserted below, so the 409 it eventually gets cannot have
-   * come from the probe — its insert blocks on the index, and the holder commits
-   * only once that block is observed.
+   * An uncommitted transaction holds the name — invisible to the racer, asserted
+   * below — the racer's insert blocks on the index, and the holder commits only
+   * once that block is observed.
    */
   it('forces the loser onto the constraint, and it is still a 409', async () => {
     const ownerId = await seedOwner();
@@ -215,8 +198,7 @@ describe('the lost race gets the same answer as the lost probe', () => {
     await inserted;
 
     // The precondition, asserted rather than assumed: the row is invisible
-    // outside the open transaction, so `assertUsernameAvailable` reports FREE and
-    // the racer must proceed to the insert.
+    // outside the open transaction, so the racer's insert is what meets it.
     const visibleNow = await getDb()
       .select({ id: users.id })
       .from(users)
@@ -236,7 +218,7 @@ describe('the lost race gets the same answer as the lost probe', () => {
     const outcome = await racer;
 
     // If this fails the test proved nothing, so it fails LOUDLY rather than
-    // letting the assertion below pass on the probe's 409.
+    // letting the assertion below pass without the race having happened.
     expect(reachedTheInsert).toBe(true);
     expect(outcome).toEqual({ ok: false, status: 409 });
   });

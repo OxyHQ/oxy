@@ -10,7 +10,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
@@ -27,6 +27,10 @@ import {
 } from '../utils/error';
 import { readProfilePersonalization } from '../services/profilePersonalization.service';
 import { userService } from '../services/user.service';
+import {
+  upsertAutomatedAccount,
+  type AutomatedAccountFields,
+} from '../services/accountCreation.service';
 import graphCache from '../utils/graphCache';
 import { assetService } from '../services/assetServiceSingleton';
 import { UsersController } from '../controllers/users.controller';
@@ -1593,73 +1597,27 @@ router.put(
       }
     }
 
-    // Build the row predicate and the column payload — never touch auth fields.
-    // `existingPredicate` stays a predicate because the two branches key on
-    // different unique indexes.
-    const setFields: Record<string, unknown> = { username };
-
-    // For agent / automated, refuse to clobber a username already taken
-    // by a local user — that would be account takeover via the
-    // federation pipeline.
-    // Written against the EXPRESSION the unique index is built on
-    // (`lower(btrim(username))`, `db/schema/users.ts`); a plain `username = $1`
-    // is correct-looking, case-sensitive, and would miss a collision the
-    // index would then reject as a 500.
-    const [localCollision] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(
-        and(
-          sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-          sql`${users.type} not in ('agent', 'automated')`,
-        ),
-      )
-      .limit(1);
-    if (localCollision) {
-      throw new ConflictError('Username is already taken by a non-automated user');
-    }
-    const existingPredicate =
-      and(
-        sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-        inArray(users.type, ['agent', 'automated']),
-      ) ?? sql`false`;
+    // The column payload — never an auth field.
+    const fields: AutomatedAccountFields = {};
     if (typeof ownerId === 'string') {
-      setFields.automationOwnerId = ownerId;
-    }
-
-    // Type immutability check: if a user already exists, its `type` must
-    // match what the caller is asserting. We never allow a federated user
-    // to be silently re-typed as an agent, or vice versa. The same read also
-    // supplies the existing avatar file id below, so one round trip answers
-    // both.
-    const [existingByFilter] = await getDb()
-      .select({ id: users.id, type: users.type, avatar: users.avatar })
-      .from(users)
-      .where(existingPredicate)
-      .limit(1);
-    if (existingByFilter && existingByFilter.type !== type) {
-      throw new ConflictError('Cannot change the type of an existing user');
+      fields.automationOwnerId = ownerId;
     }
 
     // Clean free-text fields sourced from untrusted remote actors
-    // (federated/agent/automated) before persisting. The bio renders as TEXT in
-    // client apps, so we decode entities + strip tags (sanitizePlainText) rather
-    // than HTML-entity-escape it — escaping would store a literal `&#x27;`/`&amp;`
+    // (agent/automated) before persisting. The bio renders as TEXT in client
+    // apps, so we decode entities + strip tags (sanitizePlainText) rather than
+    // HTML-entity-escape it — escaping would store a literal `&#x27;`/`&amp;`
     // that the client then double-renders. XSS protection comes from tag-
     // stripping here plus the client's text-rendering auto-escape, not entity
     // escaping. (See utils/sanitize.ts sanitizePlainText.)
     if (typeof displayName === 'string') {
-      // Strip disallowed characters (emoji/symbols/shortcodes) from federated
-      // names. cleanDisplayName's output can never contain an XSS vector and is
-      // already clean, so it owns the name field here.
-      // The COLUMN PROPERTY, not a `name.first` dot path: drizzle keys
-      // `set()`/`values()` by property name and SILENTLY IGNORES a key that
-      // names no column, so a dot path would store nothing and every federated
-      // actor resolved through here would land with a null display name.
-      setFields.nameFirst = cleanDisplayName(displayName);
+      // Strip disallowed characters (emoji/symbols/shortcodes). cleanDisplayName's
+      // output can never contain an XSS vector and is already clean, so it owns
+      // the name field here.
+      fields.nameFirst = cleanDisplayName(displayName);
     }
     if (typeof bio === 'string') {
-      setFields.bio = sanitizePlainText(bio);
+      fields.bio = sanitizePlainText(bio);
     }
 
     // Avatar handling splits two ways:
@@ -1670,34 +1628,16 @@ router.put(
     //    lands shortly after. The scheduler throttles forced re-downloads and
     //    sends conditional (ETag / Last-Modified) requests.
     //  - A non-URL value is already a stored file id; set it synchronously.
-    let remoteAvatarUrl: string | undefined;
-    let existingAvatarFileId: string | undefined;
-    if (typeof avatar === 'string' && avatar.startsWith('http')) {
-      existingAvatarFileId = existingByFilter?.avatar ?? undefined;
-      remoteAvatarUrl = avatar;
-    } else if (typeof avatar === 'string') {
-      // Non-URL avatar (already a file ID) — set directly
-      setFields.avatar = avatar;
+    const remoteAvatarUrl =
+      typeof avatar === 'string' && avatar.startsWith('http') ? avatar : undefined;
+    if (typeof avatar === 'string' && !remoteAvatarUrl) {
+      fields.avatar = avatar;
     }
 
-    // `type` is written only on INSERT, never on update — the immutability
-    // check above already rejected a mismatched update, and re-writing it would
-    // make that check the only thing standing between a caller and a silent
-    // re-type. Column DEFAULTs apply on insert.
-    let resolvedUserId: string;
-    if (existingByFilter) {
-      await getDb().update(users).set(setFields).where(eq(users.id, existingByFilter.id));
-      resolvedUserId = existingByFilter.id;
-    } else {
-      const [inserted] = await getDb()
-        .insert(users)
-        .values({ ...setFields, type })
-        .returning({ id: users.id });
-      if (!inserted) {
-        throw new Error('Failed to resolve user');
-      }
-      resolvedUserId = inserted.id;
-    }
+    // One read of the handle's holder decides insert, update or 409 — see
+    // `upsertAutomatedAccount`.
+    const resolved = await upsertAutomatedAccount(type, username, fields);
+    const resolvedUserId = resolved.id;
 
     const user = await userService.readAccountDocument(resolvedUserId);
     if (!user) {
@@ -1716,7 +1656,7 @@ router.put(
     // Read as a FILE ID, through the one helper that owns that question: the third
     // argument below is the file the download DELETES when it replaces it, and
     // a legacy `users.avatar` can still hold a remote URL, which is not a file.
-    const existingStoredFileId = storedAvatarFileId(existingAvatarFileId);
+    const existingStoredFileId = storedAvatarFileId(resolved.previousAvatar ?? undefined);
     if (remoteAvatarUrl && (forceAvatarRefresh || existingStoredFileId === undefined)) {
       federationService.scheduleAvatarRefresh(
         resolvedUserId,

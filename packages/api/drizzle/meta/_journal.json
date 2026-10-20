@@ -1310,6 +1310,13 @@
       "when": 1792459526895,
       "tag": "0187_application_invitation_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1792464477634,
+      "tag": "0188_drop_organization_owner_profile_trigger",
+      "breakpoints": true
     }
   ]
 }

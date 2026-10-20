@@ -21,11 +21,6 @@ jest.mock('../../services/account.service', () => ({
   __esModule: true,
   accountService: {
     createChildAccount: (...args: unknown[]) => mockCreateChildAccount(...args),
-    resolveEffectiveAccess: jest.fn(async () => ({
-      role: 'owner',
-      permissions: ['children:create'],
-      inherit: true,
-    })),
   },
 }));
 
@@ -57,6 +52,13 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import accountsRouter from '../accounts';
+
+/**
+ * The route never decides `children:create` itself: it asks the service to,
+ * on the same locked read of the parent it builds under. Every call carries
+ * that request — a call without it would create with no authority check at all.
+ */
+const AUTHORIZED = { authorize: expect.objectContaining({}) };
 import { errorHandler } from '../../middleware/errorHandler';
 
 interface JsonResponse {
@@ -155,6 +157,7 @@ describe('POST /accounts', () => {
       OPERATOR_ID,
       OPERATOR_ID,
       expect.objectContaining({ kind: 'channel', username: 'daily-news' }),
+      AUTHORIZED,
     );
   });
 
@@ -170,6 +173,7 @@ describe('POST /accounts', () => {
         OPERATOR_ID,
         OPERATOR_ID,
         expect.objectContaining({ kind }),
+        AUTHORIZED,
       );
     },
   );
@@ -204,6 +208,7 @@ describe('POST /accounts', () => {
       OPERATOR_ID,
       OPERATOR_ID,
       expect.objectContaining({ isPrivateAccount: true }),
+      AUTHORIZED,
     );
   });
 

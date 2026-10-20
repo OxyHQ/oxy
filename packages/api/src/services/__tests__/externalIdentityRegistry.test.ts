@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { PgDatabase } from 'drizzle-orm/pg-core';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import {
   registerExternalIdentity,
@@ -26,6 +27,48 @@ function input(acct: string, actor = `https://bridge.example/users/${acct}`) {
     profile: { displayName: 'External person' },
   };
 }
+it('writes a new federated account once, born with the profile a refresh would write', async () => {
+  const acct = `${name()}@social.example`;
+  const updates = jest.spyOn(PgDatabase.prototype, 'update');
+  const userUpdates = () => updates.mock.calls.filter(([table]) => table === users).length;
+  try {
+    const { userId } = await registerExternalIdentity(input(acct));
+    // No `UPDATE users` follows the insert of a fresh account.
+    expect(userUpdates()).toBe(0);
+    const [row] = await getDb()
+      .select({
+        username: users.username,
+        type: users.type,
+        federationDomain: users.federationDomain,
+        nameFirst: users.nameFirst,
+        nameDisplay: users.nameDisplay,
+        avatar: users.avatar,
+        federationLastResolvedAt: users.federationLastResolvedAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+    expect(row).toMatchObject({
+      username: acct,
+      type: 'federated',
+      federationDomain: 'social.example',
+      nameFirst: 'External person',
+      nameDisplay: 'External person',
+      avatar: null,
+    });
+    expect(row.federationLastResolvedAt).toBeInstanceOf(Date);
+
+    // A later registration of the same identity is a refresh, and does update.
+    await registerExternalIdentity({ ...input(acct), profile: { displayName: 'Renamed' } });
+    expect(userUpdates()).toBe(1);
+    const [refreshed] = await getDb()
+      .select({ nameDisplay: users.nameDisplay })
+      .from(users)
+      .where(eq(users.id, userId));
+    expect(refreshed.nameDisplay).toBe('Renamed');
+  } finally {
+    updates.mockRestore();
+  }
+});
 it('concurrent bridge aliases converge while independent same handles stay separate', async () => {
   const handle = name();
   const a = input(`${handle}@instagram.com`);

@@ -70,7 +70,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -773,6 +773,61 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
     ).toBe(400);
     const agent = await resolveUser({ type: 'agent', username: `agent${token()}`, ownerId: id });
     expect(agent.status).toBe(200);
+  });
+
+  it('updates the agent that holds a handle and refuses to re-type it', async () => {
+    const username = `agent${token()}`;
+    const created = await resolveUser({ type: 'agent', username, displayName: 'First' });
+    expect(created.status).toBe(200);
+    const id = String(created.body.data?.id);
+
+    const updated = await resolveUser({ type: 'agent', username, displayName: 'Second' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data?.id).toBe(id);
+    const [row] = await getDb()
+      .select({ nameFirst: users.nameFirst, type: users.type })
+      .from(users)
+      .where(eq(users.id, id));
+    expect(row).toEqual({ nameFirst: 'Second', type: 'agent' });
+
+    expect((await resolveUser({ type: 'automated', username })).status).toBe(409);
+  });
+
+  it('a resolve that loses the race to create a handle updates the winner instead of failing', async () => {
+    const username = `agent${token()}`;
+    // The winner's row exists but is uncommitted: the resolve's read cannot see
+    // it, so it inserts — and blocks on the unique index until the winner commits,
+    // then loses with a violation. That is the race, made deterministic.
+    let winnerId = '';
+    let raced = false;
+    let response: Promise<JsonResponse> | undefined;
+    await getDb().transaction(async (tx) => {
+      const [winner] = await tx
+        .insert(users)
+        .values({ username, type: 'agent' })
+        .returning({ id: users.id });
+      winnerId = winner.id;
+      response = resolveUser({ type: 'agent', username, displayName: 'Loser' });
+      for (let waited = 0; waited < 5_000; waited += 25) {
+        const [blocked] = await getDb().execute<{ n: number }>(
+          sql`select count(*)::int as n from pg_stat_activity
+              where datname = current_database() and wait_event_type = 'Lock'`,
+        );
+        raced = blocked.n > 0;
+        if (raced) break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+    });
+    const resolved = await (response as Promise<JsonResponse>);
+    // The resolve really did wait on the winner's row, so it really did lose.
+    expect(raced).toBe(true);
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data?.id).toBe(winnerId);
+    const [row] = await getDb()
+      .select({ nameFirst: users.nameFirst })
+      .from(users)
+      .where(eq(users.id, winnerId));
+    expect(row.nameFirst).toBe('Loser');
   });
 
   it('normalizes source display names and strips markup from source biographies', async () => {

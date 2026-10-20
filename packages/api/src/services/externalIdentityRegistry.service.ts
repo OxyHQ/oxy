@@ -9,6 +9,7 @@ import {
   externalIdentityClaims,
 } from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
+import { insertAccount } from './accountCreation.service';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
 import {
@@ -443,6 +444,29 @@ function assertCompatibleSource(
   }
 }
 
+/**
+ * The `users` columns a registration copies from the source, written alike when
+ * the account is created and on every later refresh — one list, so a column
+ * cannot be refreshed but never set at birth, or the reverse.
+ */
+function federatedProfileColumns(
+  canonicalAcct: string,
+  network: string,
+  profile: RegisterExternalIdentityInput['profile'],
+) {
+  return {
+    username: canonicalAcct,
+    federationDomain: network,
+    nameFirst: profile.displayName || null,
+    nameDisplay: profile.displayName || null,
+    bio: profile.bio || null,
+    description: profile.bio || null,
+    federationLastResolvedAt: new Date(),
+    federationUnavailableAt: null,
+    federationUnavailableReason: null,
+  };
+}
+
 export async function registerExternalIdentity(input: RegisterExternalIdentityInput) {
   // Persist bounded source claims only; immutable identity proof has its own field.
   input = {
@@ -611,19 +635,13 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
           : [];
         let userId = sameSubject?.userId ?? renamedFrom?.userId ?? named?.id ?? legacy?.id;
         if (!userId) {
-          const [user] = await tx
-            .insert(users)
-            .values({
-              username: canonicalAcct,
-              type: 'federated',
-              federationActorUri: input.actorUri,
-              federationDomain: network,
-              nameFirst: input.profile.displayName || null,
-              nameDisplay: input.profile.displayName || null,
-              bio: input.profile.bio || null,
-              description: input.profile.bio || null,
-            })
-            .returning();
+          // Born with the whole source profile: the refresh below is skipped for
+          // it, so nothing is written to this row twice.
+          const user = await insertAccount(tx, {
+            ...federatedProfileColumns(canonicalAcct, network, input.profile),
+            type: 'federated',
+            federationActorUri: input.actorUri,
+          });
           userId = user.id;
           createdUser = true;
         }
@@ -659,22 +677,16 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       // Meta CDN URL expires and 403s; measured on ibaillanos@instagram.com), so any
       // non-file-id value is cleared on every registration and the mirror is
       // rescheduled against the fresh source picture. A stored file id is kept: it
-      // is the previous good mirror.
-      await tx
-        .update(users)
-        .set({
-          username: canonicalAcct,
-          federationDomain: network,
-          nameFirst: input.profile.displayName || null,
-          nameDisplay: input.profile.displayName || null,
-          bio: input.profile.bio || null,
-          description: input.profile.bio || null,
-          avatar: avatarKeepingMirror(),
-          federationLastResolvedAt: new Date(),
-          federationUnavailableAt: null,
-          federationUnavailableReason: null,
-        })
-        .where(eq(users.id, identity.userId));
+      // is the previous good mirror. A user created above has no avatar and
+      // already carries these columns.
+      if (!createdUser)
+        await tx
+          .update(users)
+          .set({
+            ...federatedProfileColumns(canonicalAcct, network, input.profile),
+            avatar: avatarKeepingMirror(),
+          })
+          .where(eq(users.id, identity.userId));
       const actorValues = {
         canonicalAcct,
         transportAcct: normalizeExternalAcct(input.transportAcct),

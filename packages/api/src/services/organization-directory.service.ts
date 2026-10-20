@@ -1,6 +1,6 @@
 import { alias } from 'drizzle-orm/pg-core';
 import userCache from '../utils/userCache';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { and, asc, eq, gt, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import type {
   SafetyOrganizationsInput,
@@ -17,6 +17,7 @@ import type {
   UpdateOrganization,
 } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
+import { insertNeutralOrganizations, neutralOrganizationId } from './accountCreation.service';
 import {
   users,
   blocks,
@@ -302,32 +303,12 @@ export async function safetyOrganizationIdentities(actor: string, input: SafetyO
 
 async function insertNeutral(
   db: DatabaseOrTransaction,
-  input: CreateOrganization,
+  organization: CreateOrganization,
+  avatar?: string,
 ): Promise<string> {
-  const [account] = await db
-    .insert(users)
-    .values({
-      kind: 'organization',
-      type: 'local',
-      username: `org${randomUUID().replace(/-/g, '').slice(0, 20)}`,
-      nameDisplay: input.name,
-      verified: false,
-      parentAccountId: null,
-      rootAccountId: null,
-      privacyIsPrivateAccount: false,
-    })
-    .returning({ id: users.id });
-  if (!account) throw new Error('Organization insert returned no identity');
-  await db.insert(organizationProfiles).values({
-    accountId: account.id,
-    organizationType: input.organizationType,
-    legalName: input.legalName ?? null,
-    websiteUrl: input.websiteUrl ?? null,
-    countryCode: input.countryCode ?? null,
-    aliases: input.aliases ?? [],
-    claimStatus: 'unclaimed',
-  });
-  return account.id;
+  const accountId = neutralOrganizationId();
+  await insertNeutralOrganizations(db, [{ accountId, organization, avatar }]);
+  return accountId;
 }
 export async function createNeutralOrganization(input: CreateOrganization): Promise<Organization> {
   return getDb().transaction(async (tx) => getOrganization(await insertNeutral(tx, input), tx));
@@ -663,9 +644,7 @@ export async function importOrganizationExternal(
     }
     const accountId = input.accountId
       ? (await getOrganization(input.accountId, tx)).accountId
-      : await insertNeutral(tx, input.organization);
-    if (input.avatarFileId && !input.accountId)
-      await tx.update(users).set({ avatar: input.avatarFileId }).where(eq(users.id, accountId));
+      : await insertNeutral(tx, input.organization, input.avatarFileId);
     await tx
       .insert(organizationExternalIds)
       .values({ namespace: input.namespace, externalId: input.externalId, accountId });
@@ -863,31 +842,14 @@ export async function importOrganizationBatch(
           'Imported images must be public assets owned by the importing application account',
         );
     }
-    const additions = missing.map((item) => ({ ...item, accountId: randomUUID() }));
+    const additions = missing.map((item) => ({ ...item, accountId: neutralOrganizationId() }));
     if (additions.length) {
-      await tx.insert(users).values(
-        additions.map((item) => ({
-          id: item.accountId,
-          kind: 'organization' as const,
-          type: 'local' as const,
-          username: `org${item.accountId.replace(/-/g, '').slice(0, 20)}`,
-          nameDisplay: item.organization.name,
-          avatar: item.avatarFileId ?? null,
-          verified: false,
-          parentAccountId: null,
-          rootAccountId: null,
-          privacyIsPrivateAccount: false,
-        })),
-      );
-      await tx.insert(organizationProfiles).values(
+      await insertNeutralOrganizations(
+        tx,
         additions.map((item) => ({
           accountId: item.accountId,
-          organizationType: item.organization.organizationType,
-          legalName: item.organization.legalName ?? null,
-          websiteUrl: item.organization.websiteUrl ?? null,
-          countryCode: item.organization.countryCode ?? null,
-          aliases: item.organization.aliases ?? [],
-          claimStatus: 'unclaimed' as const,
+          organization: item.organization,
+          avatar: item.avatarFileId,
         })),
       );
       await tx.insert(organizationExternalIds).values(
