@@ -92,7 +92,12 @@ import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
 import { acceptOutboundMessage, deliverClaimed } from './emailDelivery.service';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
-import { buildSnippet, emitEmailNew, emitEmailChanged } from './inboxRealtime';
+import {
+  buildSnippet,
+  emitEmailChanged,
+  emitEmailChangedMany,
+  emitEmailNew,
+} from './inboxRealtime';
 import {
   adoptScheduledClaim,
   cancelScheduledClaims,
@@ -2210,16 +2215,12 @@ class EmailService {
       .where(and(owned, or(...differs)))
       .returning({ id: messages.id, mailboxId: messages.mailboxId });
 
-    // One event per changed message: a client folds them into the same
-    // invalidation, and a single aggregate event would not say which rows moved.
-    for (const row of modified) {
-      await emitEmailChanged({
-        userId,
-        id: row.id,
-        mailboxIds: [row.mailboxId],
-        reason: 'flags',
-      });
-    }
+    // One event per changed message, one recount per folder they are in.
+    await emitEmailChangedMany({
+      userId,
+      changes: modified.map((row) => ({ id: row.id, mailboxIds: [row.mailboxId] })),
+      reason: 'flags',
+    });
 
     return { matchedCount, modifiedCount: modified.length };
   }
@@ -2260,14 +2261,14 @@ class EmailService {
         .returning({ id: messages.id });
     });
 
-    for (const row of modified) {
-      await emitEmailChanged({
-        userId,
+    await emitEmailChangedMany({
+      userId,
+      changes: modified.map((row) => ({
         id: row.id,
         mailboxIds: [sourceById.get(row.id), targetMailbox.id],
-        reason: 'moved',
-      });
-    }
+      })),
+      reason: 'moved',
+    });
 
     return { matchedCount: matchedRow?.count ?? 0, modifiedCount: modified.length };
   }

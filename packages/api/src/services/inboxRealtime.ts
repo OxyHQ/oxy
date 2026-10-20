@@ -14,7 +14,7 @@
  * to succeed when the socket layer is down.
  */
 
-import { and, eq, not, sql } from 'drizzle-orm';
+import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { getDb } from '../config/postgres';
 import { mailboxes } from '../db/schema/mailboxes';
@@ -212,16 +212,31 @@ export function resolveFolder(
   return 'inbox';
 }
 
-/** Count the unread messages in one mailbox. */
-async function countUnread(mailboxId: string): Promise<number> {
-  // The count `mailboxes.unseen_messages` used to cache. The partial index
-  // `messages_unseen_idx` (`where not seen`) makes it an index-only scan over
-  // just the unread rows.
-  const [row] = await getDb()
-    .select({ unread: sql<number>`count(*)::int` })
+/**
+ * The unread count of each named mailbox, in ONE grouped query.
+ *
+ * The count `mailboxes.unseen_messages` used to cache. Led by `user_id`, the
+ * predicate is the prefix of the partial index `messages_unseen_idx`
+ * (`where not seen`), so it is an index-only scan over just the unread rows of
+ * these folders. A mailbox with no unread mail has no group and reads as 0.
+ */
+async function unreadCounts(
+  userId: string,
+  mailboxIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (mailboxIds.length === 0) return new Map();
+  const rows = await getDb()
+    .select({ mailboxId: messages.mailboxId, unread: sql<number>`count(*)::int` })
     .from(messages)
-    .where(and(eq(messages.mailboxId, mailboxId), not(messages.seen)));
-  return row?.unread ?? 0;
+    .where(
+      and(
+        eq(messages.userId, userId),
+        inArray(messages.mailboxId, [...mailboxIds]),
+        not(messages.seen),
+      ),
+    )
+    .groupBy(messages.mailboxId);
+  return new Map(rows.map((row) => [row.mailboxId, row.unread]));
 }
 
 export interface EmitEmailNewArgs {
@@ -284,9 +299,10 @@ export async function emitEmailNew(args: EmitEmailNewArgs): Promise<void> {
 
     io.to(room).emit('email:new', payload);
 
+    const unread = await unreadCounts(args.userId, [args.mailboxId]);
     const unreadPayload: EmailUnreadCountEvent = {
       mailboxId: args.mailboxId,
-      unread: await countUnread(args.mailboxId),
+      unread: unread.get(args.mailboxId) ?? 0,
     };
     io.to(room).emit('email:unread_count', unreadPayload);
   } catch (err) {
@@ -295,6 +311,12 @@ export async function emitEmailNew(args: EmitEmailNewArgs): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/** One changed message, as {@link emitEmailChangedMany} announces it. */
+export interface EmailChange {
+  id: string;
+  mailboxIds: ReadonlyArray<string | null | undefined>;
 }
 
 /**
@@ -311,24 +333,53 @@ export async function emitEmailChanged(args: {
   mailboxIds: ReadonlyArray<string | null | undefined>;
   reason: EmailChangedReason;
 }): Promise<void> {
+  await emitEmailChangedMany({
+    userId: args.userId,
+    changes: [{ id: args.id, mailboxIds: args.mailboxIds }],
+    reason: args.reason,
+  });
+}
+
+/**
+ * {@link emitEmailChanged} for a batch of messages that changed for the same
+ * reason — a bulk flag change or move.
+ *
+ * Still one `email:changed` per message, in order: the wire is unchanged, a
+ * client folds them into the same invalidation, and a single aggregate event
+ * would not say which rows moved. What is batched is the recount: ONE grouped
+ * query and one `email:unread_count` per distinct mailbox, after every change
+ * is announced. Looping {@link emitEmailChanged} over a 100-row bulk move ran
+ * up to 200 sequential counts, most of them of the same two folders.
+ */
+export async function emitEmailChangedMany(args: {
+  userId: string;
+  changes: ReadonlyArray<EmailChange>;
+  reason: EmailChangedReason;
+}): Promise<void> {
   try {
+    if (args.changes.length === 0) return;
     const io = getIO();
     if (!io) return;
 
-    const mailboxIds = [...new Set(args.mailboxIds.filter((id): id is string => !!id))];
     const room = `user:${args.userId}`;
+    const touched = new Set<string>();
 
-    const payload: EmailChangedEvent = {
-      id: args.id,
-      mailboxIds,
-      reason: args.reason,
-    };
-    io.to(room).emit('email:changed', payload);
+    for (const change of args.changes) {
+      const mailboxIds = [...new Set(change.mailboxIds.filter((id): id is string => !!id))];
+      for (const mailboxId of mailboxIds) touched.add(mailboxId);
+      const payload: EmailChangedEvent = {
+        id: change.id,
+        mailboxIds,
+        reason: args.reason,
+      };
+      io.to(room).emit('email:changed', payload);
+    }
 
-    for (const mailboxId of mailboxIds) {
+    const unread = await unreadCounts(args.userId, [...touched]);
+    for (const mailboxId of touched) {
       const unreadPayload: EmailUnreadCountEvent = {
         mailboxId,
-        unread: await countUnread(mailboxId),
+        unread: unread.get(mailboxId) ?? 0,
       };
       io.to(room).emit('email:unread_count', unreadPayload);
     }

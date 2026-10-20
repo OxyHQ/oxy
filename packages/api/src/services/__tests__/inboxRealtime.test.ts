@@ -41,7 +41,13 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
-import { buildSnippet, emitEmailChanged, emitEmailNew, resolveFolder } from '../inboxRealtime';
+import {
+  buildSnippet,
+  emitEmailChanged,
+  emitEmailChangedMany,
+  emitEmailNew,
+  resolveFolder,
+} from '../inboxRealtime';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -289,6 +295,82 @@ describe('emitEmailChanged', () => {
       mailboxIds: string[];
     };
     expect(changed.mailboxIds).toEqual([mailboxId]);
+  });
+});
+
+describe('emitEmailChangedMany', () => {
+  /**
+   * A 100-row bulk move used to loop `emitEmailChanged`, which recounted BOTH
+   * folders after every row: up to 200 sequential counts of the same two
+   * mailboxes. The wire keeps one `email:changed` per row; the recount is one
+   * grouped query and one `email:unread_count` per distinct folder.
+   */
+  it('announces every row but recounts each folder once, in one query', async () => {
+    const userId = await account();
+    const inbox = await folder(userId, '\\Inbox', 'INBOX');
+    const archive = await folder(userId, '\\Archive', 'Archive');
+    await seedUnread(userId, inbox, 4);
+    await seedUnread(userId, archive, 9);
+
+    const { emit } = captureSocket();
+    const ids = Array.from({ length: 100 }, () => unique());
+    const select = jest.spyOn(getDb(), 'select');
+    try {
+      await emitEmailChangedMany({
+        userId,
+        changes: ids.map((id) => ({ id, mailboxIds: [inbox, archive] })),
+        reason: 'moved',
+      });
+      expect(select).toHaveBeenCalledTimes(1);
+    } finally {
+      select.mockRestore();
+    }
+
+    const changed = emit.mock.calls.filter(([e]) => e === 'email:changed').map(([, p]) => p);
+    expect(changed).toEqual(
+      ids.map((id) => ({ id, mailboxIds: [inbox, archive], reason: 'moved' })),
+    );
+
+    const counts = emit.mock.calls.filter(([e]) => e === 'email:unread_count').map(([, p]) => p);
+    // Exact and non-zero, per folder: a grouped count that lost its GROUP BY
+    // would report 13 for both, and one that lost a mailbox would report 0.
+    expect(counts).toEqual([
+      { mailboxId: inbox, unread: 4 },
+      { mailboxId: archive, unread: 9 },
+    ]);
+  });
+
+  it('counts only the caller`s unread mail, and reports an empty folder as 0', async () => {
+    const userId = await account();
+    const stranger = await account();
+    const inbox = await folder(userId, '\\Inbox', 'INBOX');
+    const empty = await folder(userId, '\\Archive', 'Archive');
+    await seedUnread(userId, inbox, 2);
+    // Another account's unread rows filed under the same mailbox id must not
+    // count: the recount is keyed by user first.
+    await seedUnread(stranger, inbox, 5);
+
+    const { emit } = captureSocket();
+    await emitEmailChangedMany({
+      userId,
+      changes: [
+        { id: unique(), mailboxIds: [inbox] },
+        { id: unique(), mailboxIds: [empty, null] },
+      ],
+      reason: 'flags',
+    });
+
+    const counts = emit.mock.calls.filter(([e]) => e === 'email:unread_count').map(([, p]) => p);
+    expect(counts).toEqual([
+      { mailboxId: inbox, unread: 2 },
+      { mailboxId: empty, unread: 0 },
+    ]);
+  });
+
+  it('emits nothing for an empty batch', async () => {
+    const { emit } = captureSocket();
+    await emitEmailChangedMany({ userId: await account(), changes: [], reason: 'flags' });
+    expect(emit).not.toHaveBeenCalled();
   });
 });
 
