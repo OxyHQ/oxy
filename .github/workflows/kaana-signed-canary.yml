@@ -373,10 +373,21 @@ jobs:
               | if $mode == "realtime" then .containerOverrides[0].command += ["realtime"] else . end
             ')
 
+          # Where SERVICE runs: its capacity provider strategy when it has one (the
+          # oxy-ec2 capacity, whose revisions are EC2-only), otherwise its launch
+          # type. This revision is derived from its live one, so a hard-coded
+          # FARGATE would be refused once the service is on EC2.
+          placement_service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0]' --output json)
+          placement_strategy=$(jq -c '.capacityProviderStrategy // []' <<<"$placement_service_json")
+          if [[ "$placement_strategy" != "[]" ]]; then
+            placement=(--capacity-provider-strategy "$placement_strategy")
+          else
+            placement=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$placement_service_json")")
+          fi
           run_json=$(aws ecs run-task \
             --cluster "$CLUSTER" \
             --task-definition "$canary_task_definition" \
-            --launch-type FARGATE \
+            "${placement[@]}" \
             --network-configuration "$network" \
             --overrides "$overrides" \
             --started-by "gh-kaana-canary-${GITHUB_RUN_ID}")
