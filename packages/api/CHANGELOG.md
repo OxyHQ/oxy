@@ -24,6 +24,26 @@ through the items' primary key in its own order (without the `ORDER BY` the
 planner scanned the whole table), `SKIP LOCKED`, 15 s statement timeout.
 `open` and `committing` sessions are never touched.
 
+### Fixed (the asset-variant queue holds a bounded window — migration `0193`, pre)
+
+Every upload added a rendition job to BullMQ, so a bulk import made the queue the
+whole backlog: on 2026-10-20 398,416 jobs (~380 MB) filled the 384 MB
+noeviction node, every Redis write failed (workers could not even complete a
+job), and the worker loop logged ~1,600 errors a second. The backlog now lives
+in Postgres (`file_rendition_requests`, one row per file awaiting renditions,
+settled by the job that builds it — only while it is still the newest request).
+An upload adds its job directly only while the queue is under 2,000; the worker
+fleet's scheduler (one pass at a time, advisory lock) tops it up to 1,000 from
+the oldest requests at a lower priority, leases them for 30 minutes (a job lost
+with Redis is found again), and takes any job beyond the bound back into the
+table — which drains the existing backlog with no manual step. Completed and
+failed jobs are no longer kept in Redis. The worker pauses on a Redis error and
+resumes after a bounded exponential backoff (BullMQ retries a failing script
+with no delay), and every error stream is logged as a once-a-minute summary.
+`QueueDepth` is the queue's real depth (waiting, prioritized, delayed);
+`OldestWaitingJobAgeSeconds` is the oldest request's age, wherever it waits;
+`PendingRenditionRequests` is new.
+
 ### Fixed (the application storage observation — migration `0192`, pre)
 
 The lifecycle sweep's storage observation (ADR 0043 D2) read every live
