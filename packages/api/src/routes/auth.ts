@@ -731,6 +731,9 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
     }
     const expectedSecretHash = Buffer.from(resolvedCredential.secretHash);
     const providedSecretHash = Buffer.from(
+      // codeql[js/insufficient-password-hash] Application client secrets are
+      // generated from 32 random bytes, not user-chosen passwords. Their
+      // persisted SHA-256 fingerprint is the established credential format.
       crypto.createHash('sha256').update(oauth.clientSecret).digest('hex'),
     );
     if (
