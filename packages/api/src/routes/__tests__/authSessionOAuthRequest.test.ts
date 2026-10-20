@@ -145,14 +145,16 @@ async function client(
     })
     .returning({ id: applications.id });
   const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(applicationCredentials).values({
-    applicationId: app.id,
-    name: 'client',
-    publicKey: clientId,
-    type: 'confidential',
-    secretHash: createHash('sha256').update(CLIENT_SECRET).digest('hex'),
-    environment: 'production',
-  });
+  await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: app.id,
+      name: 'client',
+      publicKey: clientId,
+      type: 'confidential',
+      secretHash: createHash('sha256').update(CLIENT_SECRET).digest('hex'),
+      environment: 'production',
+    });
   return { clientId, applicationId: app.id };
 }
 
