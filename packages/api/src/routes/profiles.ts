@@ -38,6 +38,7 @@ import { userIdentityFields, deriveIsAgent, deriveIsFederated } from '../utils/u
 import {
   publicUserColumns,
   publicUserFollowCounts,
+  publicUserReputationTotal,
   toPublicUserView,
   type PublicUserView,
 } from '../utils/publicUserProjection';
@@ -213,18 +214,24 @@ export function formatProfileResult(u: RecommendationRow) {
   };
 }
 
+/** One public profile as the single-profile routes read it. */
+interface LoadedProfile {
+  view: PublicUserView;
+  stats: { followers: number; following: number };
+  reputationTotal: number;
+}
+
 /**
- * Load ONE public profile by a predicate, with its follower/following totals.
+ * Load ONE public profile by a predicate, with its follower/following totals and
+ * its public reputation total.
  *
  * The totals are correlated aggregates on the same row rather than separate
  * grouped aggregations afterwards. A join on a real foreign key cannot silently
  * match nothing on an id-type mismatch.
  */
-async function loadProfileByPredicate(
-  predicate: SQL,
-): Promise<{ view: PublicUserView; stats: { followers: number; following: number } } | null> {
+async function loadProfileByPredicate(predicate: SQL): Promise<LoadedProfile | null> {
   const [row] = await getDb()
-    .select({ ...publicUserColumns, ...publicUserFollowCounts })
+    .select({ ...publicUserColumns, ...publicUserFollowCounts, ...publicUserReputationTotal })
     .from(users)
     .where(and(predicate, visibleOrganizationIdentityPredicate()))
     .limit(1);
@@ -232,7 +239,20 @@ async function loadProfileByPredicate(
   return {
     view: toPublicUserView(row),
     stats: { followers: row.followersCount, following: row.followingCount },
+    reputationTotal: row.reputationTotal,
   };
+}
+
+/**
+ * A single-profile response: the public user DTO, its `_count` and its
+ * `reputationTotal`. The total rides the profile so a profile screen renders it
+ * with the follower counts instead of asking `GET /reputation/:userId/balance`
+ * afterwards.
+ */
+function formatSingleProfile(profile: LoadedProfile) {
+  const response = userService.formatUserResponse(profile.view, profile.stats);
+  response.reputationTotal = profile.reputationTotal;
+  return response;
 }
 
 /**
@@ -427,7 +447,7 @@ router.get(
     const user = profile.view;
 
     // Format response with stats
-    const response = userService.formatUserResponse(user, profile.stats);
+    const response = formatSingleProfile(profile);
 
     // Viewer-relative relationship: computed in the SAME handler (no second
     // round-trip) from the Follow model when the request is authenticated.
@@ -654,7 +674,7 @@ router.get(
       if (localUser.accountStatus === 'archived' || localUser.reputationTier === 'restricted') {
         return sendSuccess(res, null);
       }
-      const response = userService.formatUserResponse(localUser, localProfile.stats);
+      const response = formatSingleProfile(localProfile);
 
       // Viewer-relative relationship: same in-handler computation as the two
       // sibling single-profile routes (/profiles/username/:username and
@@ -695,7 +715,7 @@ router.get(
     }
 
     const user = resolvedProfile.view;
-    const response = userService.formatUserResponse(user, resolvedProfile.stats);
+    const response = formatSingleProfile(resolvedProfile);
 
     // Same viewer-relative relationship as the local branch above. A
     // freshly-discovered actor is now a known Oxy row (`resolveAndUpsert`

@@ -45,6 +45,7 @@ jest.mock('../../utils/logger', () => ({
 
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { reputationBalances } from '../../db/schema/reputationBalances';
 import { userFollows } from '../../db/schema/userFollows';
 import { userLinkedAccounts } from '../../db/schema/userLinkedAccounts';
 import { users } from '../../db/schema/users';
@@ -206,6 +207,8 @@ describe('GET /profiles/username/:username — wire shape', () => {
         { followerId: follower, followedId: id },
         { followerId: id, followedId: followed },
       ]);
+    // A real reputation snapshot, so `reputationTotal` is read rather than defaulted.
+    await getDb().insert(reputationBalances).values({ userId: id, total: 42 });
 
     const [stored] = await getDb()
       .select({ createdAt: users.createdAt, updatedAt: users.updatedAt })
@@ -241,6 +244,7 @@ describe('GET /profiles/username/:username — wire shape', () => {
       // Linked-account aliases (`docs/identity/linked-accounts.md`); none here.
       alsoKnownAs: [],
       _count: { followers: 1, following: 1 },
+      reputationTotal: 42,
     });
     expect(safeParseContract(userResponseSchema, res.body.data)).not.toBeNull();
   });

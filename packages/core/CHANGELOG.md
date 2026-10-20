@@ -1,5 +1,14 @@
 # Changelog — `@oxy.so/core`
 
+## 6.2.0
+
+### Added
+
+- `User.reputationTotal`: the public reputation total, on single-profile reads
+  (`/profiles/username/:username`, `/profiles/resolve`). A profile screen reads
+  it with `_count` instead of calling `oxy.reputation.balance(userId)` after the
+  profile loads. Served by the Oxy API from this release on; older APIs omit it.
+
 ## 6.1.0
 
 Needs `@oxy.so/contracts` 5.1.0 and the Oxy API with migration
