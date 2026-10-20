@@ -6,7 +6,7 @@ import theme from './emailTheme.generated.json';
 const light = theme.light;
 const dark = theme.dark;
 const font = 'Arial, Helvetica, sans-serif';
-export const WELCOME_EMAIL_MARKER = 'data-oxy-welcome-version="2"';
+export const WELCOME_EMAIL_MARKER = 'data-oxy-welcome-version="3"';
 const typeStyle = (role: keyof typeof theme.typography): string => {
   const token = theme.typography[role];
   return `font-family:${font};font-size:${token.fontSize};line-height:${token.lineHeight};font-weight:${token.fontWeight};`;
@@ -26,25 +26,111 @@ const inboxTips = [
     'Pin a message to keep it close, or snooze it until you have time to come back. You can try either on this welcome email.',
   ],
 ] as const;
-const apps = [
+type WelcomeApp = {
+  name: string;
+  description: string;
+  image?: string;
+  here?: boolean;
+};
+
+const appGroups: { title: string; apps: WelcomeApp[] }[] = [
   {
-    name: 'Mention',
-    description:
-      'Share what you are thinking, discover conversations and connect with people on an open social network.',
-    image: 'mention.png',
-    url: 'https://oxy.so/mention',
+    title: 'Social and conversations',
+    apps: [
+      {
+        name: 'Mention',
+        description: 'An open social network for conversations and community.',
+        image: 'mention.png',
+      },
+      {
+        name: 'Allo',
+        description: 'Private messaging with encrypted chats, voice and media.',
+        image: 'allo.png',
+      },
+      {
+        name: 'Inbox',
+        description: 'Email, thoughtfully organised. You are already here.',
+        image: 'inbox.png',
+        here: true,
+      },
+    ],
   },
   {
-    name: 'Allo',
-    description: 'Make space for everyday conversations with the people who matter to you.',
-    image: 'allo.png',
-    url: 'https://oxy.so/apps/allo',
+    title: 'Notes, work and ideas',
+    apps: [
+      {
+        name: 'Noted',
+        description: 'A workspace for notes, thoughts and ideas.',
+        image: 'noted.png',
+      },
+      { name: 'Nilo', description: 'A workspace for documents and databases.' },
+      { name: 'Codea', description: 'A modern web editor with AI assistance.', image: 'codea.png' },
+    ],
   },
   {
-    name: 'Alia',
-    description: 'Meet your AI assistant for questions, ideas and help with everyday tasks.',
-    image: 'alia.svg',
-    url: 'https://oxy.so/ai',
+    title: 'AI, search and the web',
+    apps: [
+      {
+        name: 'Alia',
+        description: 'Your assistant for questions, ideas and everyday tasks.',
+        image: 'alia-mark.svg',
+      },
+      {
+        name: 'Clarity',
+        description: 'Search and explore useful information.',
+        image: 'clarity.png',
+      },
+      {
+        name: 'Astro Browser',
+        description: 'Explore the open web with a privacy-first browser.',
+        image: 'astro.svg',
+      },
+      { name: 'Kaana', description: 'Oxy’s AI and inference platform.', image: 'kaana.svg' },
+    ],
+  },
+  {
+    title: 'Money and commerce',
+    apps: [
+      { name: 'FairCoin', description: 'A community-run digital currency.', image: 'faircoin.svg' },
+      { name: 'FAIRWallet', description: 'Manage your FairCoin.', image: 'faircoin-wallet.svg' },
+      {
+        name: 'FairCoin Explorer',
+        description: 'Explore activity on the FairCoin network.',
+        image: 'faircoin-explorer.png',
+      },
+      { name: 'Peable', description: 'Payments across Oxy.', image: 'peable.png' },
+      {
+        name: 'Mercaria',
+        description: 'An open marketplace for people and goods.',
+        image: 'mercaria.png',
+      },
+      {
+        name: 'Wholesale by Mercaria',
+        description: 'Tools for stores, products and suppliers.',
+        image: 'wholesale.svg',
+      },
+    ],
+  },
+  {
+    title: 'Home, mobility and open technology',
+    apps: [
+      { name: 'Homiio', description: 'Find a place to call home.', image: 'homiio.png' },
+      { name: 'Moovo', description: 'Local courier and transport services.', image: 'moovo.png' },
+      { name: 'GoWay', description: 'Maps and navigation.', image: 'goway.svg' },
+      { name: 'Willo', description: 'Smart home controls.' },
+      {
+        name: 'OxyOS',
+        description: 'A privacy-first operating system for Oxy.',
+        image: 'oxyos.png',
+      },
+      {
+        name: 'Commons by Oxy',
+        description: 'A self-sovereign identity wallet and secure sign-in approvals.',
+        image: 'commons-app.png',
+      },
+      { name: 'TNP', description: 'An open namespace for digital identity.', image: 'tnp.png' },
+      { name: 'Atlas', description: 'Browse apps in the Oxy app store.' },
+    ],
   },
 ] as const;
 const sections = {
@@ -61,11 +147,11 @@ const sections = {
     url: 'https://accounts.oxy.so/personal-info',
   },
   apps: {
-    title: 'One account. More to discover.',
+    title: 'A whole ecosystem, in your corner.',
     description:
-      'Inbox is just the beginning. Explore more from Oxy and choose Continue with Oxy when you sign in. You can use the account you already created.',
-    action: 'Explore Oxy apps',
-    url: 'https://oxy.so/apps',
+      'From conversations and creative tools to payments, travel and self-owned identity, Oxy has an app for many parts of everyday life. Here is a wider look at what you can explore with your Oxy account.',
+    action: 'Explore all Oxy products',
+    url: 'https://oxy.so/products',
   },
   security: {
     title: 'A good time for a security check',
@@ -156,9 +242,12 @@ export function renderWelcomeEmail(displayName: string, recipientAddress: string
     actionText(sections.profile),
     sections.apps.title,
     sections.apps.description,
-    ...apps.map(
-      ({ name, description, url }) => `${name}\n${description}\nDiscover ${name}: ${url}`,
-    ),
+    ...appGroups.flatMap(({ title, apps: groupApps }) => [
+      title,
+      ...groupApps.map(
+        ({ name, description, here }) => `${name}${here ? ' (you are here)' : ''}\n${description}`,
+      ),
+    ]),
     `${sections.apps.action}: ${sections.apps.url}`,
     actionText(sections.security),
     actionText(sections.privacy),
@@ -211,7 +300,7 @@ export function renderWelcomeEmail(displayName: string, recipientAddress: string
           <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">${inboxTips.map(([title, description], i) => `<tr><td valign="top" width="32" class="oxy-brand" style="padding:0 12px 20px 0;color:${light.primary};${typeStyle('sectionTitle')}">${i + 1}.</td><td align="left" style="padding:0 0 20px;"><h3 class="oxy-heading" style="${typeStyle('body')}font-weight:700;color:${light['card-foreground']};margin:0 0 6px;">${title}</h3><p class="oxy-muted" style="${typeStyle('body')}color:${light['muted-foreground']};margin:0;">${description}</p></td></tr>`).join('')}</table>`)}
         ${actionCard('A familiar face', sections.profile)}
         ${card(`${eyebrow('More from Oxy')}${heading(sections.apps.title)}${paragraph(sections.apps.description)}
-          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">${apps.map(({ name, description, image: asset, url }) => `<tr><td valign="top" width="64" style="padding:4px 16px 24px 0;">${image(`https://oxy.so/images/apps/${asset}`, '', 48, true)}</td><td align="left" style="padding:0 0 24px;"><h3 style="${typeStyle('body')}font-weight:700;margin:0 0 6px;"><a class="oxy-brand" href="${url}" target="_blank" rel="noopener noreferrer" style="color:${light.primary};text-decoration:underline;">${name}</a></h3><p class="oxy-muted" style="${typeStyle('body')}color:${light['muted-foreground']};margin:0;">${description}</p></td></tr>`).join('')}</table>
+          <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">${appGroups.map(({ title, apps: groupApps }) => `<tr><td colspan="2" align="left" class="oxy-brand" style="padding:8px 0 12px;color:${light.primary};${typeStyle('bodySmall')}font-weight:700;letter-spacing:.5px;">${title}</td></tr>${groupApps.map(({ name, description, image: asset, here }) => `<tr><td valign="top" width="48" style="padding:2px 12px 16px 0;">${asset ? image(`https://oxy.so/images/apps/${asset}`, '', 32, true) : `<div class="oxy-inset oxy-brand" style="width:32px;height:32px;border:1px solid ${light.border};border-radius:${theme.radius.card};background:${light.background};color:${light.primary};text-align:center;${typeStyle('body')}font-weight:700;padding-top:6px;">${name[0]}</div>`}</td><td align="left" style="padding:0 0 16px;"><h3 class="oxy-heading" style="${typeStyle('body')}font-weight:700;color:${light['card-foreground']};margin:0 0 3px;">${name}${here ? ` <span class="oxy-brand" style="color:${light.primary};font-size:11px;font-weight:500;">· YOU ARE HERE</span>` : ''}</h3><p class="oxy-muted" style="${typeStyle('bodySmall')}color:${light['muted-foreground']};margin:0;">${description}</p></td></tr>`).join('')}`).join('')}</table>
           ${button(sections.apps.action, sections.apps.url)}`)}
         ${actionCard('Peace of mind', sections.security)}
         ${actionCard('You decide', sections.privacy)}
