@@ -24,7 +24,7 @@
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const mockCreateSession = jest.fn();
 const mockEmitAuthSessionUpdate = jest.fn();
@@ -436,7 +436,11 @@ describe('POST /auth/session/create — browser origin gate', () => {
 
   it('binds an OAuth request on a custom-scheme redirect URI to NO origin', async () => {
     const app = await application({ type: 'first_party', redirectUris: commonsRedirectUris });
-    const clientId = await credential(app.id);
+    const clientSecret = 'oauth-client-secret';
+    const clientId = await credential(app.id, {
+      type: 'confidential',
+      secretHash: createHash('sha256').update(clientSecret).digest('hex'),
+    });
     const sessionToken = token();
 
     const res = await request('POST', '/auth/session/create', {
@@ -444,6 +448,7 @@ describe('POST /auth/session/create — browser origin gate', () => {
         sessionToken,
         clientId,
         oauth: {
+          clientSecret,
           redirectUri: 'commons://',
           codeChallenge: 'a'.repeat(43),
           codeChallengeMethod: 'S256',
