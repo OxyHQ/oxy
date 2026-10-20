@@ -29,6 +29,7 @@ import {
 } from '../services/appAssertion.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { hashedIpKey } from '../utils/ipKey';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -69,6 +70,18 @@ async function answer(
     res.status(status).json(await run(caller));
   } catch (error) {
     if (!(error instanceof AppAssertionRefusal)) throw error;
+    // A refusal is a decision about a registry row or a session, never a fault,
+    // and the response says only the code: log it, or "why is this app's
+    // assertion 403?" has no answer short of reading the database.
+    const body = req.body as { applicationId?: unknown; platform?: unknown } | undefined;
+    logger.info('[app-assertion] refused', {
+      code: error.code,
+      route: req.path,
+      applicationId: body?.applicationId,
+      platform: body?.platform,
+      origin: req.headers.origin,
+      sessionApplicationId: caller.sessionApplicationId,
+    });
     res.status(error.status).json({ error: error.code, message: error.message });
   }
 }

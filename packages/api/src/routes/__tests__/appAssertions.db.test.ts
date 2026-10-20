@@ -80,6 +80,10 @@ import { appAttestKeys } from '../../db/schema/appAttestKeys';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import {
+  declareApplicationWebOrigins,
+  readApplicationRecognition,
+} from '../../services/applicationRecognition.service';
 import appAssertionsRouter from '../appAssertions';
 import applicationsRouter from '../applications';
 
@@ -374,6 +378,38 @@ describe('web: the browser’s Origin', () => {
     }
     const otherOrigin = await ask(w.otherIds.origin);
     expect(otherOrigin.body.error).toBe('origin_not_registered');
+  });
+
+  it('a seeded declaration makes an undeclared app assertable, adds only, and never takes another app’s origin', async () => {
+    const w = await world();
+    const [row] = await getDb()
+      .insert(applications)
+      .values({ name: `Seeded ${randomUUID()}`, ownerAccountId: w.org, status: 'active' })
+      .returning({ id: applications.id });
+    const origin = `https://seeded-${randomUUID().slice(0, 8)}.example`;
+    const ask = () => as(w.person).assertion({ applicationId: row.id, platform: 'web' }, origin);
+    expect((await ask()).body.error).toBe('platform_not_registered');
+
+    await expect(declareApplicationWebOrigins(row.id, [origin])).resolves.toEqual([origin]);
+    await expect(declareApplicationWebOrigins(row.id, [origin])).resolves.toEqual([]);
+    expect((await ask()).status).toBe(200);
+
+    // Staff's own entries survive a re-seed.
+    const staffOrigin = `https://staff-${randomUUID().slice(0, 8)}.example`;
+    const written = await request(server)
+      .put(`/applications/${row.id}/recognition`)
+      .set('x-test-user', w.staff)
+      .set('x-test-staff', 'true')
+      .send({ webOrigins: [origin, staffOrigin], android: null, ios: null });
+    expect(written.status).toBe(200);
+    await declareApplicationWebOrigins(row.id, [origin]);
+    expect((await readApplicationRecognition(row.id)).webOrigins).toEqual(
+      [origin, staffOrigin].sort(),
+    );
+
+    await expect(declareApplicationWebOrigins(row.id, [w.otherIds.origin])).rejects.toThrow(
+      /already another application/,
+    );
   });
 
   it('refuses an application that is not active, and a session that is another application’s', async () => {
