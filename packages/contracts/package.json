@@ -69,7 +69,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
@@ -77,7 +77,9 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
+    "generate:profile-colors": "node scripts/generate-profile-colors.mjs",
+    "check:profile-colors": "node scripts/generate-profile-colors.mjs --check"
   },
   "dependencies": {
     "zod": "^3.25.64"
@@ -85,6 +87,7 @@
   "devDependencies": {
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@oxy.so/bloom": "catalog:"
   }
 }

@@ -479,15 +479,15 @@ describe('GET /profiles/recommendations — scored ranking', () => {
 
   it("carries each account's accent colour", async () => {
     const teal = await account({ username: handle('teal'), avatar: 'file_a', color: 'teal' });
-    const amber = await account({ username: handle('amber'), avatar: 'file_b', color: 'amber' });
-    const { viewer } = await viewerWithOverlap([teal, amber]);
+    const yellow = await account({ username: handle('yellow'), avatar: 'file_b', color: 'yellow' });
+    const { viewer } = await viewerWithOverlap([teal, yellow]);
     currentUserId = viewer;
 
     const res = await getRecommendations('?limit=50');
 
     const byId = new Map((res.body.data ?? []).map((row) => [row.id, row]));
     expect(byId.get(teal)?.color).toBe('teal');
-    expect(byId.get(amber)?.color).toBe('amber');
+    expect(byId.get(yellow)?.color).toBe('yellow');
     expect(safeParseContract(recommendationResponseSchema, res.body.data)).not.toBeNull();
   });
 

@@ -1,3 +1,4 @@
+import { APP_COLOR_NAMES } from '@oxy.so/bloom/color-presets';
 /**
  * Shared types + per-account color resolution for the auth chooser's views.
  *
@@ -8,12 +9,7 @@
  */
 
 import type { AccountStorageUsageResponse } from '@oxy.so/core';
-import {
-  APP_COLOR_NAMES,
-  APP_COLOR_PRESETS,
-  type AppColorName,
-  type useTheme,
-} from '@oxy.so/bloom/theme';
+import { APP_COLOR_PRESETS, type useTheme } from '@oxy.so/bloom/theme';
 import type { AccountDialogMenuSection } from '../../navigation/accountDialogManager';
 import type { useI18n } from '../../hooks/useI18n';
 
@@ -132,14 +128,19 @@ export interface SignInAlternatives {
  * renders in EVERY consumer regardless of NativeWind availability.
  */
 export function resolveAccentHex(color: string | null, fallback: string): string {
-  const preset = toPreset(color);
-  return preset ? APP_COLOR_PRESETS[preset].hex : fallback;
-}
+  const normalized = color?.trim().toLowerCase();
+  if (!normalized) return fallback;
 
-/** Narrow a stored color string to a known `AppColorName`, or `undefined`. */
-export function toPreset(color: string | null): AppColorName | undefined {
-  if (!color) return undefined;
-  return (APP_COLOR_NAMES as readonly string[]).includes(color)
-    ? (color as AppColorName)
-    : undefined;
+  if (/^#[0-9a-f]{3}$/i.test(normalized)) {
+    return `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`;
+  }
+  if (/^#[0-9a-f]{6}$/i.test(normalized)) return normalized;
+
+  // `amber` was the retired name for `yellow`; existing user records are
+  // migrated, but inboxes can still render cached account data during rollout.
+  const preset = normalized === 'amber' ? 'yellow' : normalized;
+  if (APP_COLOR_NAMES.includes(preset as (typeof APP_COLOR_NAMES)[number])) {
+    return APP_COLOR_PRESETS[preset as (typeof APP_COLOR_NAMES)[number]].hex;
+  }
+  return fallback;
 }

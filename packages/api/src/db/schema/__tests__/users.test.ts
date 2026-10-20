@@ -1,3 +1,4 @@
+import { FREE_USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts';
 import { organizationProfiles } from '../organizationProfiles';
 import { insertAccountFixtures } from '../../__fixtures__/accountIdentity';
 /**
@@ -394,11 +395,20 @@ describe('defaults', () => {
     const [row] = await insertAccountFixtures({}, { color: users.color });
 
     expect(USER_COLOR_PRESETS).toContain(row.color);
-    expect(row.color).not.toBe('oxy');
-    // The generator itself, sampled — a single insert could pass by luck.
-    const sampled = new Set(Array.from({ length: 200 }, () => randomUserColor()));
-    expect(sampled.has('oxy')).toBe(false);
-    expect(sampled.size).toBeGreaterThan(1);
+    expect(FREE_USER_PROFILE_COLOR_PRESETS).toContain(row.color);
+    const random = jest.spyOn(Math, 'random');
+    try {
+      const assigned = FREE_USER_PROFILE_COLOR_PRESETS.map((_, index) => {
+        random.mockReturnValue((index + 0.5) / FREE_USER_PROFILE_COLOR_PRESETS.length);
+        return randomUserColor();
+      });
+      expect(assigned).toEqual(FREE_USER_PROFILE_COLOR_PRESETS);
+      expect(assigned).not.toContain('oxy');
+      expect(assigned).not.toContain('faircoin');
+      expect(assigned).not.toContain('mono');
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it('stores an ObjectId hex verbatim and mints uuid v7 otherwise', async () => {

@@ -89,6 +89,7 @@ import {
   MAX_ACCOUNT_CATEGORIES,
   TRUST_TIERS as CONTRACT_TRUST_TIERS,
   USER_PROFILE_COLOR_PRESETS,
+  FREE_USER_PROFILE_COLOR_PRESETS,
   type AccountCategoryId,
   type AccountCategoryKind,
   type AccountKind as ContractAccountKind,
@@ -841,6 +842,7 @@ export const users = pgTable(
 
 /** A random non-premium preset — the default applied to a new account. */
 export function randomUserColor(): string {
-  const selectable = USER_COLOR_PRESETS.filter((color) => color !== 'oxy');
-  return selectable[Math.floor(Math.random() * selectable.length)];
+  return FREE_USER_PROFILE_COLOR_PRESETS[
+    Math.floor(Math.random() * FREE_USER_PROFILE_COLOR_PRESETS.length)
+  ];
 }

@@ -1,3 +1,4 @@
+import { USER_PROFILE_COLORS } from '@oxy.so/contracts';
 /**
  * The `users.color` WRITE policy.
  *
@@ -24,21 +25,20 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { USER_COLOR_PRESETS, users, type UserColorPreset } from '../db/schema/users';
 import { BadRequestError } from './error';
-import { isPremiumSubscriptionPlan, resolveUserSubscriptionPlan } from './subscriptionPlan';
 import { readProfilePersonalization } from '../services/profilePersonalization.service';
 
 /**
  * Presets that are not simply available.
  *
- * `oxy` is Oxy's own brand. It is IN `USER_COLOR_PRESETS` — the database has to
- * admit it, or the account whose brand it is could not hold it — and gated here
- * instead.
+ * Bloom owns these gates. Its generated contract keeps brand identities out
+ * of ordinary writes while the database can still store them for their owners.
  *
- * `satisfies` ties the list to the catalogue, so dropping a preset from
- * `USER_COLOR_PRESETS` fails this file's typecheck rather than leaving a gate
- * standing over a value nothing can hold any more.
+ * The list is derived, so adding a brand preset in Bloom also protects its
+ * identity here after the generated contract is updated.
  */
-const RESERVED_COLOR_PRESETS = ['oxy'] as const satisfies readonly UserColorPreset[];
+const RESERVED_COLOR_PRESETS = USER_PROFILE_COLORS.filter(({ gate }) => gate === 'handle').map(
+  ({ name }) => name,
+);
 
 /**
  * The canonical stored form of a color: trimmed and lower-cased.
@@ -75,7 +75,7 @@ async function storedUsername(accountId: string): Promise<string | null> {
  *
  * The rule is the one `updateUserProfile` has always enforced on a person's own
  * profile, stated for any subject: the account whose HANDLE is the brand may
- * wear it, and so may an independently premium subscriber.
+ * wear it. Handle-owned identities are never granted by a subscription.
  *
  * ## The subject is the account being COLOURED, never the administrator
  *
@@ -108,10 +108,5 @@ export async function assertColorNotReserved(
     subject.username ?? (subject.accountId ? await storedUsername(subject.accountId) : null);
   if (handle && normalizeUserColor(handle) === color) return;
 
-  if (
-    subject.accountId &&
-    isPremiumSubscriptionPlan(await resolveUserSubscriptionPlan(subject.accountId))
-  )
-    return;
-  throw new BadRequestError(`The ${color} color is exclusive to premium subscribers`);
+  throw new BadRequestError(`The ${color} color is reserved for the ${color} account`);
 }
