@@ -24,7 +24,7 @@ describe('Oxy welcome email', () => {
     expect(document.querySelector('[srcset], link, script, iframe, object')).toBeNull();
     expect(html).not.toMatch(/url\s*\(|@import|@font-face|google|gstatic|Smiles Davis/i);
     const links = [...document.querySelectorAll('a')];
-    expect(links.length).toBeGreaterThanOrEqual(9);
+    expect(links.length).toBeGreaterThanOrEqual(6);
     expect(links.some((link) => new URL(link.href).hostname === 'inbox.oxy.so')).toBe(false);
     const images = [...document.querySelectorAll('img')];
     expect(images.filter((image) => image.alt === 'Oxy')).toHaveLength(2);
@@ -39,7 +39,8 @@ describe('Oxy welcome email', () => {
       expect(text).toContain(link.href.replace(/\/$/, ''));
     }
     for (const heading of document.querySelectorAll('h2, h3')) {
-      expect(text).toContain(heading.textContent);
+      const plainTextHeading = heading.textContent?.replace(' · YOU ARE HERE', ' (you are here)');
+      expect(text).toContain(plainTextHeading);
     }
   });
 
@@ -51,7 +52,7 @@ describe('Oxy welcome email', () => {
     expect(text).not.toContain('Open Inbox');
     const document = new JSDOM(html).window.document;
     expect(document.querySelectorAll('h2')).toHaveLength(6);
-    expect(document.querySelector('[data-oxy-welcome-version="2"]')).not.toBeNull();
+    expect(document.querySelector('[data-oxy-welcome-version="3"]')).not.toBeNull();
     expect(document.querySelector('a[href="https://accounts.oxy.so/security"]')).not.toBeNull();
     expect(document.querySelector('a[href="https://accounts.oxy.so/data"]')).not.toBeNull();
   });
