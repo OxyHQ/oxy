@@ -889,7 +889,7 @@ router.get(
  *                     expiresAt: { type: string, format: date-time }
  *       400: { description: Invalid input or expiry. }
  *       401: { description: Service or requester proof missing or no longer current. }
- *       403: { description: Live presenter or requester authority refused. }
+ *       403: { description: "Live presenter or requester authority refused, or the tool does not name the requester among its catalogue actors." }
  *       409: { description: Catalogue pin is not current. }
  */
 router.post(
@@ -1177,7 +1177,7 @@ const agentRunAuthorizationSchema = z
  *       201: { description: Automation execution authority for one exact tool and resource. }
  *       400: { description: Invalid input, tool or expiry. }
  *       401: { description: Service principal missing or no longer active. }
- *       403: { description: The bot, its owner or the owner's authority over the account did not hold. }
+ *       403: { description: "The bot, its owner or the owner's authority over the account did not hold, or the catalogue does not let an agent execute the tool (tool_not_available_to_actor)." }
  */
 router.post(
   '/agent-run-authorizations',
