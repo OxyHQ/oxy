@@ -39,7 +39,8 @@ describe('Oxy welcome email', () => {
       expect(text).toContain(link.href.replace(/\/$/, ''));
     }
     for (const heading of document.querySelectorAll('h2, h3')) {
-      expect(text).toContain(heading.textContent);
+      const plainTextHeading = heading.textContent?.replace(' · YOU ARE HERE', ' (you are here)');
+      expect(text).toContain(plainTextHeading);
     }
   });
 
