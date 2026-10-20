@@ -441,7 +441,9 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     reason:
       'Housekeeping only — every read of a reconciliation session filters ' +
       '`expires_at > now()` itself. The day of grace answers a late page ' +
-      '"expired" rather than "unknown"; its items go with it (CASCADE).',
+      '"expired" rather than "unknown". Its items are already gone: the ' +
+      'large-upload worker deletes them in bounded batches once the session ' +
+      'ends (`sweepEndedReconciliations`), so the CASCADE deletes nothing.',
   },
   {
     table: fileEventDeliveries,

@@ -5,7 +5,8 @@
  * `complete` request handed off after its wait, and any whose verifier died —
  * and aborts the `uploading` ones nobody completed by their deadline (S3
  * discards their parts; a storage reservation is released). It also resumes a
- * reference reconciliation commit whose task died (ADR 0043 D6). Leases make it
+ * reference reconciliation commit whose task died, and deletes the items of
+ * reconciliation sessions that ended (ADR 0043 D6). Leases make it
  * safe on every task at once (`FileUploadSessionService.verify`).
  *
  * ON by default: there is nothing to do until an application opens an upload.
@@ -19,7 +20,10 @@ import { logger } from '../utils/logger';
 import { fileUploadSessionService } from './fileUploadSessionSingleton';
 import { fileIngestService } from './fileIngestSingleton';
 import { refetchLargeImport } from './fileImport.service';
-import { resumeStalledReconciliationCommits } from './fileReferenceReconciliation.service';
+import {
+  resumeStalledReconciliationCommits,
+  sweepEndedReconciliations,
+} from './fileReferenceReconciliation.service';
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
@@ -45,6 +49,12 @@ async function tick(): Promise<void> {
     // task died (a deploy) is taken over here once the lease has passed.
     const commits = await resumeStalledReconciliationCommits();
     if (commits > 0) logger.info('[FileUploads] Reconciliation commits resumed', { commits });
+    // A session that ended without deleting its items (it expired open, or a
+    // delete was interrupted) loses them here, a bounded batch per pass.
+    const swept = await sweepEndedReconciliations();
+    if (swept.retired > 0 || swept.deleted > 0) {
+      logger.info('[FileUploads] Reconciliation items swept', { ...swept });
+    }
   } catch (error) {
     logger.error(
       '[FileUploads] Sweep failed',
