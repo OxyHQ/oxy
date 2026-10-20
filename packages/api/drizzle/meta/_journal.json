@@ -1345,6 +1345,13 @@
       "when": 1792475528862,
       "tag": "0192_messages_user_scoped_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1792475532725,
+      "tag": "0193_messages_thread_id",
+      "breakpoints": true
     }
   ]
 }

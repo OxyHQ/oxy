@@ -216,6 +216,22 @@ export const messages = pgTable(
      */
     relayMessageId: text(),
     /**
+     * The conversation this message belongs to: an INTERNAL grouping key, never
+     * on the wire (the wire `threadId` is still the smallest member row id).
+     *
+     * Two messages share a thread exactly when they are connected through the
+     * Message-ID adjacency the thread walk follows (`threadKeys` in
+     * `email.service.ts`), so every row of one connected component carries the
+     * same value and no other row does. `services/emailThreading.ts` is the
+     * only writer and keeps that true on insert, delete and key change, under a
+     * per-user advisory lock.
+     *
+     * NULL means "not assigned yet": rows stored before the column existed,
+     * until `src/scripts/backfill-message-threads.ts` has run. Reads fall back to
+     * the walk for them.
+     */
+    threadId: text(),
+    /**
      * For received mail that is the sender's OWN outbound message coming back
      * (they addressed themselves, or were on the recipient list): the Sent row
      * it is a copy of, matched by the `X-Oxy-Sent-Id` header we stamp on send.
