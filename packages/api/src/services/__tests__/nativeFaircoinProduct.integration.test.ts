@@ -190,7 +190,7 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
             amountMinorUnits: offer.grossMinorUnits,
             interval: offer.interval,
           })),
-          invoiceIssuer: { legalName: 'The Oxy Collective, Inc.', id: 'issuer_fixture' },
+          invoiceIssuer: { legalName: 'Oxy Platforms, Inc.', id: 'issuer_fixture' },
           sellerId: 'seller_fixture',
           invoiceAuthorityKeys: { fixture: remote.publicKey },
           taxQuoteAuthorityKeys: { fixture: remote.publicKey },

@@ -261,7 +261,7 @@ it('refuses a missing trusted location dependency before remote effects', async 
   await expect(provider.prepare?.(input)).rejects.toThrow('location is unconfigured');
   expect(test.retrieve).not.toHaveBeenCalled();
 });
-it('records the approved issuer and renewal choices without treating them as fiscal activation', () => {
+it('records the pending new issuer and renewal choices without fiscal activation', () => {
   const proposed = JSON.parse(
     readFileSync(
       resolve(__dirname, '../../../config/drafts/oxy-one-commercial-decisions.json'),
@@ -272,15 +272,15 @@ it('records the approved issuer and renewal choices without treating them as fis
   expect(proposed.saleCountryObjective).toBe('worldwide');
   expect(proposed.enabledSaleCountries).toEqual([]);
   expect(proposed.invoiceIssuer).toMatchObject({
-    legalName: 'The Oxy Collective, Inc.',
+    legalName: 'Oxy Platforms, Inc.',
     approved: false,
     issuerBrandApproved: true,
     taxIdentifier: null,
     registrationJurisdiction: 'US-DE',
-    legalNameStatus: 'user_attested',
+    legalNameStatus: 'incorporation_pending',
     entityType: 'C Corporation',
-    taxIdentifierStatus: 'provided_in_private_operator_identity',
-    issuerIdentityRef: 'operator:oxy-issuer-identity',
+    taxIdentifierStatus: 'pending_new_entity_verification',
+    issuerIdentityRef: null,
   });
   expect(proposed.faircoinRenewal).toEqual({
     customerChoices: ['manual_monthly', 'automatic_revocable'],
