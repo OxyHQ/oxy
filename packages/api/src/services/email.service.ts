@@ -4769,15 +4769,25 @@ class EmailService {
     refuseOverQuota(used, additionalBytes, limit);
   }
 
-/**
- * Attachments of one inbound message uploaded at a time. Each is a hash, a
- * file-manager write and an S3 put; a message with a dozen of them used to
- * pay for them one after another.
- */
-const INBOUND_UPLOAD_CONCURRENCY = 4;
-
-/** The rolling window {@link EmailService.getDailySendCount} counts sends over. */
-const DAILY_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+  /**
+   * The sends that count against the daily limit: every delivery started in
+   * the last 24 hours, plus every scheduled send not yet due — scheduling
+   * takes its slot now, not when it goes out.
+   *
+   * Counted from the outbox, which keeps a row for each send whatever becomes
+   * of its Sent copy. Moving sent mail out of Sent (or deleting it) must not
+   * give the allowance back, and the window must roll rather than jump at midnight.
+   */
+  async getDailySendCount(userId: string): Promise<number> {
+    const since = new Date(Date.now() - DAILY_SEND_WINDOW_MS);
+    const [delivered, [scheduled]] = await Promise.all([
+      countDeliveriesSince(userId, since),
+      getDb()
+        .select({ count: sql<number>`count(*)::int` })
+        .from(messages)
+        .where(and(eq(messages.userId, userId), isNotNull(messages.scheduledAt))),
+    ]);
+    return delivered + (scheduled?.count ?? 0);
   }
 
   async enforceSendLimit(userId: string, preflight?: SendPreflight): Promise<void> {
