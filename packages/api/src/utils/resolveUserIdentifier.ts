@@ -90,9 +90,24 @@ export async function resolveUserByIdentifier(
   };
 }
 
+/**
+ * The columns an operator script decides on. Named, never a whole-row
+ * `select()`: `users` carries protected columns (`protectedColumns.test.ts`).
+ */
+const operatorAccountColumns = {
+  id: users.id,
+  username: users.username,
+  email: users.email,
+  publicKey: users.publicKey,
+  type: users.type,
+  kind: users.kind,
+  accountStatus: users.accountStatus,
+  verified: users.verified,
+};
+
 /** An account an operator named, or why the name does not pick exactly one. */
 export type OperatorAccountResolution =
-  | { account: typeof users.$inferSelect }
+  | { account: { [K in keyof typeof operatorAccountColumns]: (typeof users.$inferSelect)[K] } }
   | { reason: 'no such account' | 'names more than one account' };
 
 /**
@@ -104,7 +119,7 @@ export async function resolveOperatorAccount(
   identifier: string,
 ): Promise<OperatorAccountResolution> {
   const matches = await getDb()
-    .select()
+    .select(operatorAccountColumns)
     .from(users)
     .where(
       or(
