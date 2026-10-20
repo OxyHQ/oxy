@@ -48,14 +48,15 @@ concurrency:
 #                    platform  `packages-platform`
 #                    apps      `packages-apps`
 #                    android   `android-kotlin` (by path, not closure)
+#                  and never `api-image`, which is queue-only.
 #   merge_group    everything, unconditionally. `CI complete` refuses to pass
 #   (and push)     there if ANY job was skipped (scripts/check-ci-complete.mjs),
 #                  so nothing reaches main without the complete suite passing on
 #                  the exact merged tree — the same guarantee as before, now
 #                  paid once instead of twice.
 #
-# Jobs per run (each holds one of the org's 20 concurrent runners): 14 on
-# merge_group/push and on a pull request that reaches everything (6 shards + 8);
+# Jobs per run (each holds one of the org's 20 concurrent runners): 12 on
+# merge_group/push (4 shards + 8), 11 on a pull request that reaches everything;
 # a pull request that touches one package runs `scope`, `guards`, the one suite
 # that reaches it and `CI complete` — 4 — and a docs-only one runs 3 (a skipped
 # job or matrix holds no runner). `android-kotlin` used to take a runner on
@@ -170,8 +171,8 @@ jobs:
         # the merge as `--shards`, and the merge fails on a missing or an extra
         # shard, so changing one without the other goes red, not silently thin.
         #
-        # Six, and why not more (all measured on this change's own pull
-        # request, 2026-09-29):
+        # Four (since 2026-10-20; six before), and why not more (measured on
+        # 2026-09-29 unless dated):
         #
         #   * The suite's cost was the ts-jest LanguageService, not the tests.
         #     Six hash-split shards spent 325-583s each in this step (runs
@@ -185,13 +186,17 @@ jobs:
         #     now the other half of the critical path. More shards would buy
         #     seconds and cost runners.
         #   * The org's free plan runs at most 20 jobs at once across EVERY
-        #     repository, and oxy runs have waited up to 9.7m for a runner. A
-        #     full run is 6 shards + 7 other jobs = 13 (12 before `scope`);
-        #     twelve shards, tried first here, made it 19.
+        #     repository, and oxy runs have waited up to 9.7m for a runner;
+        #     twelve shards, tried first here, made a full run 19 jobs.
+        #   * Six shards then spent ~120s each on that fixed setup for 107-232s
+        #     of tests (2026-10-15/17, 155 runs), so a third of the suite's
+        #     runner time was setup. Four keep each shard near 2m of tests and
+        #     well inside its 15m cap, for ~30s more wall time per run, and give
+        #     two runners back to the org on every run.
         #
         # jest.shardSequencer.cjs deals files by measured duration
         # (test-durations.json, refreshed from that run), not Jest's hash split.
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4]
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
     # their own caps (16m for the ffmpeg install, 15m for this runner's shard),
     # and this is their sum plus the ~5m the fixed steps cost at their observed
@@ -418,7 +423,7 @@ jobs:
       # ONE shard per runner. The whole suite measured 44m-46m of test time run
       # serially in three shards (2026-09-13: 43m54s; 2026-09-25: 881s + 891s +
       # 895s) under the ts-jest LanguageService; transpiled, eight shards took
-      # 52-115s each (run 36516187003) and six carry ~2m each. The shards are
+      # 52-115s each (run 36516187003) and four carry ~2-3m each. The shards are
       # balanced by measured duration (jest.shardSequencer.cjs), not file
       # count. 15m is far above that share on purpose: it is sized for the
       # suite's OLD speed, so a regression back to it (or a slow runner) is
@@ -521,7 +526,7 @@ jobs:
               fi
             done
           done
-          bun run coverage:merge -- --shards=6
+          bun run coverage:merge -- --shards=4
         working-directory: ./packages/api
 
       # The other half of "no test falls between two runners": the coverage
@@ -532,7 +537,7 @@ jobs:
         run: |
           mkdir -p coverage/partition
           bunx jest --listTests > coverage/partition/listed.txt
-          node scripts/check-shard-partition.mjs --shards=6 \
+          node scripts/check-shard-partition.mjs --shards=4 \
             --list=coverage/partition/listed.txt \
             --durations-out=coverage/partition/test-durations.json
         working-directory: ./packages/api
@@ -642,10 +647,14 @@ jobs:
   # layer is reused only when its inputs hash the same, so a hit skips a
   # rebuild of identical inputs, never a step this smoke asserts on: the smoke
   # runs the image, and the image is built from this tree.
+  #
+  # QUEUE-ONLY: no pull request runs it, whatever it touches, and every merge
+  # queue entry does (scripts/ci-scope.mjs QUEUE_ONLY_JOBS). `CI complete`
+  # excuses its skip on a pull request and refuses it anywhere else, so nothing
+  # reaches main without it. It needs nothing, so in the queue it starts at once.
   api-image:
     name: API Image (Bun runtime smoke)
-    needs: scope
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
@@ -1536,7 +1545,8 @@ jobs:
   #
   # On a pull request it runs only when `scope` says the change can reach it
   # (scripts/ci-scope.mjs PATH_SUITES.android: the Kotlin, the manifest
-  # plugins, the manifests, bun.lock or this file). `CI complete` excuses that
+  # plugins, the manifests or this file, or a bun.lock change to what Commons,
+  # services, expo-splash or app-preset resolve). `CI complete` excuses that
   # skip only on a pull request whose scope succeeded and said `android=false`;
   # the merge queue always runs it, and refuses a skip there.
   android-kotlin:
