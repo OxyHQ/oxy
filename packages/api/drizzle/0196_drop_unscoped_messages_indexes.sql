@@ -1,0 +1,43 @@
+-- oxy:deploy-phase=post
+--
+-- Drop the four `messages` indexes the owner-scoped ones replaced:
+--
+--  * messages_user_id_mailbox_id_pinned_date_idx → messages_user_id_mailbox_id_pinned_date_id_idx (0192)
+--  * messages_search_vector_idx                  → messages_user_id_search_vector_idx (0192)
+--  * messages_labels_idx                         → messages_user_id_labels_idx (0192)
+--  * messages_references_idx                     → messages_user_id_references_idx (0195)
+--
+-- Every query that could use one names `user_id` and is served by its
+-- replacement, and each is a full extra copy of its keys written on every
+-- insert and every update that touches them.
+--
+-- MERGE ONLY AFTER the image that reads by the stored thread key is live and
+-- pg_stat_user_indexes, sampled at least a day apart, shows idx_scan no
+-- longer growing for these four (and growing for their replacements):
+--
+--   SELECT indexrelname, idx_scan, last_idx_scan FROM pg_stat_user_indexes
+--    WHERE relname = 'messages' ORDER BY indexrelname;
+--
+-- POST: a drop is only correct once the image arriving is live. (Both images
+-- answer the same queries without these, only through the replacements, so
+-- this is the cautious side rather than a correctness requirement.)
+--
+-- ## LOCKS
+--
+-- DROP INDEX takes ACCESS EXCLUSIVE on `messages` until the transaction ends,
+-- queued behind every running read of the table. Drop them OUT OF BAND first,
+-- from a one-shot task, outside any transaction (runbook:
+-- docs/engineering/per-owner-asset-rows.md, "Rollout order") — SHARE UPDATE
+-- EXCLUSIVE only, reads and writes continue —
+--
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_user_id_mailbox_id_pinned_date_idx;
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_references_idx;
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_search_vector_idx;
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_labels_idx;
+--
+-- after which every statement below is a catalogue lookup. `IF EXISTS` is
+-- load-bearing for that route. Nothing else shares this file.
+DROP INDEX IF EXISTS "messages_user_id_mailbox_id_pinned_date_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "messages_references_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "messages_search_vector_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "messages_labels_idx";

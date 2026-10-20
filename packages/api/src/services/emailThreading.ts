@@ -80,7 +80,7 @@ export function threadKeys(alias: string): SQL {
  * The adjacency predicate — "this row's key set meets `keys`" — decomposed so
  * each arm can use an index: `messages_user_id_message_id_idx`,
  * `messages_user_id_relay_message_id_idx`, `messages_user_id_in_reply_to_idx`
- * and the GIN `messages_references_idx` respectively. Written as one array
+ * and the GIN `messages_user_id_references_idx` respectively. Written as one array
  * overlap it would be a sequential scan of every message the user owns.
  */
 export function threadAdjacency(alias: string, keys: SQL): SQL {

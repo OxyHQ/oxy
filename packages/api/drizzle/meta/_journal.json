@@ -1366,6 +1366,13 @@
       "when": 1792475595117,
       "tag": "0195_messages_user_id_references_index",
       "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1792475599066,
+      "tag": "0196_drop_unscoped_messages_indexes",
+      "breakpoints": true
     }
   ]
 }

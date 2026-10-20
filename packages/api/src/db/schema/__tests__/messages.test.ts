@@ -207,11 +207,13 @@ describe('messages — the weighted text index', () => {
   it('is served by a GIN index', async () => {
     const [row] = await getDb().execute<{ indexdef: string }>(sql`
       select indexdef from pg_indexes
-      where schemaname = 'public' and indexname = 'messages_search_vector_idx'
+      where schemaname = 'public' and indexname = 'messages_user_id_search_vector_idx'
     `);
 
     expect(row.indexdef).toContain('USING gin');
     expect(row.indexdef).toContain('search_vector');
+    // Scoped to the owner (0192): the unscoped GIN it replaced is gone (0196).
+    expect(row.indexdef).toContain('user_id');
   });
 });
 
@@ -653,7 +655,7 @@ describe('messages — the partial indexes that replaced boolean-wide ones', () 
     expect(byName.get('messages_snoozed_until_idx')).toContain('IS NOT NULL');
     expect(byName.get('messages_scheduled_at_idx')).toContain('IS NOT NULL');
     // The listing index carries the sort every list actually issues.
-    expect(byName.get('messages_user_id_mailbox_id_pinned_date_idx')).toContain('pinned');
+    expect(byName.get('messages_user_id_mailbox_id_pinned_date_id_idx')).toContain('pinned');
     // Vacuity floor. A missing index makes `get` return `undefined`, which
     // `toContain` rejects outright — but a broken catalogue query would return
     // nothing at all and this is what catches that.
