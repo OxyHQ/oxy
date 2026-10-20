@@ -196,14 +196,37 @@ export type ThreadRow = {
 };
 
 /**
+ * The user's rows that carry `key`, one parameterized index probe per arm of
+ * {@link threadAdjacency}, for a LATERAL join on one key at a time. Spelled as
+ * four probes rather than the OR so the planner cannot trade them for a scan of
+ * every row the user owns and a filter per key, which it otherwise does for a
+ * small mailbox and which costs keys × rows.
+ */
+function rowsCarrying(userId: string, key: SQL): SQL {
+  const columns = sql.raw(
+    `c.id, c.thread_id, c.message_id, c.in_reply_to, c.relay_message_id, c."references"`,
+  );
+  return sql`(
+      select ${columns} from messages c where c.user_id = ${userId} and c.message_id = ${key}
+    union all
+      select ${columns} from messages c where c.user_id = ${userId} and c.relay_message_id = ${key}
+    union all
+      select ${columns} from messages c where c.user_id = ${userId} and c.in_reply_to = ${key}
+    union all
+      select ${columns} from messages c where c.user_id = ${userId} and c."references" @> array[${key}]
+  )`;
+}
+
+/**
  * Every row of every component that contains one of `seedIds`.
  *
- * Walks KEYS rather than rows: each key is expanded once, so a conversation
- * where every message names the same root costs one lookup per member, not one
- * per pair of members. (The row walk the reads use re-expands the whole thread
- * from every member it reaches; on a 5000-message thread that is 25 million
- * index probes.) The component is the same either way: a row is reached
- * exactly when it carries a reached key.
+ * Walks KEYS rather than rows: the recursion is over the set of reached keys,
+ * so each key is expanded once, and a conversation where every message names
+ * the same root costs one lookup per member, not one per pair of members. (The
+ * row walk the reads use re-expands the whole thread from every member it
+ * reaches; on a 5000-message thread that is 25 million index probes.) The
+ * component is the same either way: a row is in it exactly when it carries a
+ * reached key, which is how the members are collected at the end.
  */
 async function componentRows(
   tx: Transaction,
@@ -218,14 +241,12 @@ async function componentRows(
       union
         select unnest(${threadKeys('linked')})
         from reached
-        join messages linked
-          on linked.user_id = ${userId}
-         and ${threadAdjacency('linked', sql`array[reached.key]`)}
+        cross join lateral ${rowsCarrying(userId, sql`reached.key`)} linked
     )
-    select member.id, member.thread_id as "threadId", ${threadKeys('member')} as keys
-    from messages member
-    where member.user_id = ${userId}
-      and ${threadAdjacency('member', sql`(select array_agg(key) from reached)::text[]`)}
+    select distinct on (member.id)
+           member.id, member.thread_id as "threadId", ${threadKeys('member')} as keys
+    from reached
+    cross join lateral ${rowsCarrying(userId, sql`reached.key`)} member
   `);
 }
 
@@ -315,6 +336,11 @@ export async function rethread(
   seedIds: readonly string[],
   options: { dryRun?: boolean } = {},
 ): Promise<RethreadResult> {
+  // The recursive key walk's cost estimate rests on the planner's fixed guess
+  // for a work table, far past `jit_above_cost`, so Postgres compiles it:
+  // measured, 2.2 s of JIT for a walk that executes in 5 ms. Off for this
+  // transaction only.
+  await tx.execute(sql`set local jit = off`);
   const known = new Map<string, ThreadRow>();
   const seenThreads = new Set<string>();
   let pending = [...new Set(seedIds)];

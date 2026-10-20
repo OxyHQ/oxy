@@ -313,6 +313,20 @@ export const messages = pgTable(
       .on(t.userId, t.relayMessageId)
       .where(sql`${t.relayMessageId} is not null`),
     index('messages_references_idx').using('gin', t.references),
+    // (4c) The `References` arm of the thread adjacency, scoped to the owner.
+    // `emailThreading.ts` probes one key at a time (`references @> array[key]`
+    // AND `user_id = …`); with only (4) the planner ANDs it with a bitmap of
+    // every row the user owns — 200k entries per probe on a large mailbox.
+    // `btree_gin` makes it one GIN scan. Supersedes (4); a later `post`
+    // migration drops (4) once `pg_stat_user_indexes` shows it idle.
+    // `fastupdate = off`: a thread write probes this index once per key, and
+    // GIN's pending list (fastupdate's default) is scanned linearly by every
+    // probe until vacuum merges it — measured 2.4 ms per probe instead of
+    // 0.02 ms while a backfill was writing. Each insert pays for its own few
+    // entries instead.
+    index('messages_user_id_references_idx')
+      .using('gin', t.userId, t.references)
+      .with({ fastupdate: false }),
     // (4b) A conversation's members by its stored key: the thread read, a list
     // page's thread counts, and every merge or split `emailThreading.ts` makes.
     index('messages_user_id_thread_id_idx').on(t.userId, t.threadId),
