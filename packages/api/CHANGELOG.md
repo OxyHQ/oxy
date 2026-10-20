@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed (the application storage observation — migration `0192`, pre)
+
+The lifecycle sweep's storage observation (ADR 0043 D2) read every live
+application file's heap row and ran a correlated sum over `file_variants` per
+row; on production (2.19M application files, 7.5M renditions) one run took over
+two hours. It also ran after its run was marked completed, outside the lease,
+so the next hour's run started another — three at once on the shared database,
+slowing every Oxy product. Now it reads only indexes that carry `size`
+(`files_application_live_bytes_idx`, and `size` added to
+`file_variants_file_id_type_idx` and `files_owner_application_id_created_at_idx`
+— built `CONCURRENTLY` out of band; the migration swaps them in), runs inside
+the run's lease, and each statement is cancelled after 4 minutes. Measured on
+production: "stored" 13 s, "added" 4 ms for an hour's window.
+`applicationStoredBytes` (`GET /applications/:appId/storage`) uses the same index-only form;
+its response is unchanged.
+
 ### Added (`POST /apps/invitations/email`, scope `invitations:email` — migrations `0186`, `0187`)
 
 An application can have Oxy send ONE fixed-template invitation email for it —

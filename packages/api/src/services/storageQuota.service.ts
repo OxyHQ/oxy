@@ -12,6 +12,7 @@ import {
   type ProductBillingCatalogue,
 } from './productBillingCatalogue.service';
 import { readSubjectProductAccess } from './productAccessPersistence.service';
+import { RENDITIONS_OF_F, ROW_BYTES } from './applicationStorageObservation';
 
 export function legacyStorageLimit(plan: string): number {
   return plan === 'business' ? 5 * 1024 ** 4 : plan === 'pro' ? 2 * 1024 ** 4 : 15 * 1024 ** 3;
@@ -171,20 +172,14 @@ export async function applicationStoredBytes(
   db: DatabaseOrTransaction,
   applicationId: string,
 ): Promise<ApplicationStorageUsage> {
-  const [row] = await db
-    .select({
-      files: sql<string>`count(*)`,
-      bytes: sql<string>`coalesce(sum(${files.size} + coalesce((
-    select sum(${fileVariants.size}) from ${fileVariants} where "file_variants"."file_id" = "files"."id"
-  ), 0)), 0)`,
-    })
-    .from(files)
-    .where(
-      and(
-        eq(files.ownerApplicationId, applicationId),
-        inArray(files.status, [...FILE_LIVE_STATUSES]),
-      ),
-    );
+  // Index-only, as the storage observation measures it (`files_application_live_bytes_idx`
+  // and a renditions probe per row): one of Oxy's applications holds millions of rows.
+  const [row] = await db.execute<{ files: string; bytes: string }>(sql`
+    select count(*) as files, coalesce(sum(${ROW_BYTES}), 0) as bytes
+      from files f
+      ${RENDITIONS_OF_F}
+     where f.owner_application_id = ${applicationId}
+       and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})`);
   return {
     applicationId,
     // postgres.js decodes `count`/`sum` (int8/numeric) as strings.

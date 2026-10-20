@@ -16,6 +16,18 @@
  * No table: both come from `files` (`owner_application_id`, `created_at`) at
  * the run's instant, so a missed run loses nothing.
  *
+ * ## Its cost
+ *
+ * Both measures read only indexes: `files_application_live_bytes_idx` (what
+ * is stored), `files_owner_application_id_created_at_idx` (what was added, a
+ * range per application) and `file_variants_file_id_type_idx` (a row's
+ * renditions), each carrying `size` (migration 0192). Measured on production
+ * (2.19M application rows, 7.5M renditions): "stored" 13 s reading ~90 MB.
+ * Before them one run read the heaps at random for over two hours on the
+ * shared database, and runs piled up. Every statement runs under
+ * {@link OBSERVATION_STATEMENT_TIMEOUT_MS}, inside the sweep's lease, so a bad
+ * plan fails the observation instead of outliving the run.
+ *
  * ## The growth anomaly
  *
  * An application's last 24 hours are ANOMALOUS when
@@ -62,6 +74,16 @@ export const STORAGE_METRIC_NAMESPACE = 'Oxy/FileStorage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GIB = 1024 * 1024 * 1024;
+
+/**
+ * Each measuring statement of an observation is cancelled past this. The
+ * sweep's lease (`SWEEP_LEASE_MS`, renewed just before it observes) must
+ * outlast all of them — a test holds the two together.
+ */
+export const OBSERVATION_STATEMENT_TIMEOUT_MS = 4 * 60 * 1000;
+
+/** The measuring statements an observation runs: what is stored, what was added. */
+export const OBSERVATION_STATEMENTS = 2;
 
 /** Days before the last 24 hours that make up an application's trailing average. */
 export const TRAILING_DAYS = 7;
@@ -163,18 +185,26 @@ export function evaluateGrowth(
   return { anomalous: reasons.length > 0, reasons };
 }
 
-/** A row's bytes as the quota counts them: the original plus every rendition. */
-const ROW_BYTES = sql.raw(
-  `(f.size + coalesce((select sum(v.size) from file_variants v where v.file_id = f.id), 0))`,
+/**
+ * A row's renditions, joined to `files f` as `renditions`: an index-only probe
+ * of `file_variants_file_id_type_idx` per row.
+ */
+export const RENDITIONS_OF_F = sql.raw(
+  `left join lateral (select sum(v.size) as bytes from file_variants v where v.file_id = f.id) renditions on true`,
 );
+
+/** A row's bytes as the quota counts them: the original plus every rendition. */
+export const ROW_BYTES = sql.raw(`(f.size + coalesce(renditions.bytes, 0))`);
 
 /**
  * Every application that owns a live file or created one in the trailing
- * window, measured at `now`. One statement per measure; nothing is written.
+ * window, measured at `now`. One read-only transaction, each statement bounded
+ * by `statementTimeoutMs`; nothing is written.
  */
 export async function observeApplicationStorage(
   now: Date,
   db: DatabaseOrTransaction = getDb(),
+  { statementTimeoutMs = OBSERVATION_STATEMENT_TIMEOUT_MS }: { statementTimeoutMs?: number } = {},
 ): Promise<ApplicationStorageObservation[]> {
   // Raw SQL binds no `Date`: each instant goes as ISO text, cast once.
   const at = (instant: Date) => sql`${instant.toISOString()}::timestamptz`;
@@ -182,33 +212,50 @@ export async function observeApplicationStorage(
   const dayStart = at(new Date(now.getTime() - DAY_MS));
   const windowStart = at(new Date(now.getTime() - (TRAILING_DAYS + 1) * DAY_MS));
 
-  const stored = await db.execute<{ application_id: string; files: string; bytes: string }>(sql`
-    select f.owner_application_id as application_id,
-           count(*) as files,
-           coalesce(sum(${ROW_BYTES}), 0) as bytes
-      from files f
-     where f.owner_application_id is not null
-       and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
-     group by f.owner_application_id`);
+  const { stored, added } = await db.transaction(async (tx) => {
+    // `SET` takes no bind parameter; the value is an integer we computed.
+    await tx.execute(
+      sql.raw(`set local statement_timeout = ${Math.max(1, Math.floor(statementTimeoutMs))}`),
+    );
 
-  // Every status: what an application ADDED, whatever became of it since.
-  const added = await db.execute<{
-    application_id: string;
-    recent_files: string;
-    recent_bytes: string;
-    trailing_files: string;
-    trailing_bytes: string;
-  }>(sql`
-    select f.owner_application_id as application_id,
-           count(*) filter (where f.created_at >= ${dayStart}) as recent_files,
-           coalesce(sum(${ROW_BYTES}) filter (where f.created_at >= ${dayStart}), 0) as recent_bytes,
-           count(*) filter (where f.created_at < ${dayStart}) as trailing_files,
-           coalesce(sum(${ROW_BYTES}) filter (where f.created_at < ${dayStart}), 0) as trailing_bytes
-      from files f
-     where f.owner_application_id is not null
-       and f.created_at >= ${windowStart}
-       and f.created_at < ${until}
-     group by f.owner_application_id`);
+    const stored = await tx.execute<{ application_id: string; files: string; bytes: string }>(sql`
+      select f.owner_application_id as application_id,
+             count(*) as files,
+             coalesce(sum(${ROW_BYTES}), 0) as bytes
+        from files f
+        ${RENDITIONS_OF_F}
+       where f.owner_application_id is not null
+         and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
+       group by f.owner_application_id`);
+
+    // Every status: what an application ADDED, whatever became of it since.
+    // Per application (`owner_application_id = a.id`), so each is a range of
+    // `files_owner_application_id_created_at_idx`; every owner is an
+    // `applications` row (the RESTRICT foreign key).
+    const added = await tx.execute<{
+      application_id: string;
+      recent_files: string;
+      recent_bytes: string;
+      trailing_files: string;
+      trailing_bytes: string;
+    }>(sql`
+      select a.id as application_id,
+             count(*) filter (where f.created_at >= ${dayStart}) as recent_files,
+             coalesce(sum(${ROW_BYTES}) filter (where f.created_at >= ${dayStart}), 0) as recent_bytes,
+             count(*) filter (where f.created_at < ${dayStart}) as trailing_files,
+             coalesce(sum(${ROW_BYTES}) filter (where f.created_at < ${dayStart}), 0) as trailing_bytes
+        from applications a
+        join lateral (
+          select f.id, f.size, f.created_at
+            from files f
+           where f.owner_application_id = a.id
+             and f.created_at >= ${windowStart}
+             and f.created_at < ${until}
+        ) f on true
+        ${RENDITIONS_OF_F}
+       group by a.id`);
+    return { stored, added };
+  });
 
   const byId = new Map<string, ApplicationStorageObservation>();
   const entry = (applicationId: string): ApplicationStorageObservation => {
