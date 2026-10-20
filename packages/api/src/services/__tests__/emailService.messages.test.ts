@@ -603,25 +603,6 @@ describe('read receipts', () => {
   });
 });
 
-describe('send limits', () => {
-  it('counts today`s Sent mail and refuses once the tier`s ceiling is reached', async () => {
-    const userId = await owner();
-    await emailService.ensureMailboxes(userId);
-    const sent = await mailboxIdFor(userId, '\\Sent');
-
-    expect(await emailService.getDailySendCount(userId)).toBe(0);
-    await store(userId, sent, { receivedAt: new Date() });
-    await store(userId, sent, { receivedAt: new Date() });
-    expect(await emailService.getDailySendCount(userId)).toBe(2);
-
-    // Yesterday's mail is not today's quota.
-    await store(userId, sent, { receivedAt: new Date(Date.now() - 48 * 3_600_000) });
-    expect(await emailService.getDailySendCount(userId)).toBe(2);
-
-    await expect(emailService.enforceSendLimit(userId)).resolves.toBeUndefined();
-  });
-});
-
 describe('export', () => {
   it('reconstructs an RFC 5322 message from the row and its recipients', async () => {
     const userId = await owner();

@@ -103,6 +103,7 @@ import {
   adoptScheduledClaim,
   cancelScheduledClaims,
   claimSend,
+  countDeliveriesSince,
   findSendClaim,
   inClaimTransaction,
   isWaitingScheduledClaim,
@@ -142,6 +143,9 @@ const EMAIL_SEARCH_MAX_TIME_MS = 5_000;
  * pay for them one after another.
  */
 const INBOUND_UPLOAD_CONCURRENCY = 4;
+
+/** The rolling window {@link EmailService.getDailySendCount} counts sends over. */
+const DAILY_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Rows loaded per page when sweeping every message of a user or mailbox. */
 const ATTACHMENT_SWEEP_PAGE_SIZE = 500;
@@ -4765,34 +4769,21 @@ class EmailService {
     refuseOverQuota(used, additionalBytes, limit);
   }
 
-  /** `sentMailboxId`, when given, is the caller's {@link sendPreflight} read of it. */
-  async getDailySendCount(userId: string, sentMailboxId?: string | null): Promise<number> {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+/**
+ * Attachments of one inbound message uploaded at a time. Each is a hash, a
+ * file-manager write and an S3 put; a message with a dozen of them used to
+ * pay for them one after another.
+ */
+const INBOUND_UPLOAD_CONCURRENCY = 4;
 
-    const mailboxId =
-      sentMailboxId === undefined
-        ? (await this.getMailboxBySpecialUse(userId, '\\Sent'))?.id
-        : sentMailboxId;
-    if (!mailboxId) return 0;
-
-    const [row] = await getDb()
-      .select({ count: sql<number>`count(*)::int` })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.userId, userId),
-          eq(messages.mailboxId, mailboxId),
-          gte(messages.receivedAt, startOfDay),
-        ),
-      );
-    return row?.count ?? 0;
+/** The rolling window {@link EmailService.getDailySendCount} counts sends over. */
+const DAILY_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
   }
 
   async enforceSendLimit(userId: string, preflight?: SendPreflight): Promise<void> {
     const tier = preflight?.tier ?? (await this.getUserTier(userId));
     const limit = EMAIL_QUOTAS[tier].dailySendLimit;
-    const count = await this.getDailySendCount(userId, preflight?.sentMailboxId);
+    const count = await this.getDailySendCount(userId);
     if (count >= limit) {
       throw new BadRequestError('Daily send limit reached');
     }
