@@ -11,6 +11,10 @@ updates:
     labels:
       - "type: deps"
     open-pull-requests-limit: 10
+    # Each rebase reruns the full CI, and Dependabot rebased every open PR on
+    # each merge to main, mostly red PRs nothing had changed in (the org shares
+    # 20 Actions jobs). Comment `@dependabot rebase` on one ready to land.
+    rebase-strategy: disabled
 
   - package-ecosystem: github-actions
     directory: /
