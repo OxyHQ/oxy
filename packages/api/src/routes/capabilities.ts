@@ -7,6 +7,8 @@ import { z } from 'zod';
 import {
   actorRefSchema,
   agentRequesterCeilingWriteSchema,
+  catalogToolAllowsActor,
+  catalogToolActors,
   foregroundExecutionAuthorizationInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
@@ -887,7 +889,7 @@ router.get(
  *                     expiresAt: { type: string, format: date-time }
  *       400: { description: Invalid input or expiry. }
  *       401: { description: Service or requester proof missing or no longer current. }
- *       403: { description: Live presenter or requester authority refused. }
+ *       403: { description: "Live presenter or requester authority refused, or the tool does not name the requester among its catalogue actors." }
  *       409: { description: Catalogue pin is not current. }
  */
 router.post(
@@ -1032,6 +1034,14 @@ router.post(
       response.status(400).json({ error: 'tool_not_available_for_resource' });
       return;
     }
+    if (!catalogToolAllowsActor(tool, input.actor.type)) {
+      response.status(403).json({
+        error: 'tool_not_available_to_actor',
+        actor: input.actor.type,
+        allowedActors: catalogToolActors(tool),
+      });
+      return;
+    }
     if (input.ceilingId !== undefined) {
       // A ceiling reaches the PERSON PRESENT's own authority at the app's account
       // root, never another owner's data (ADR 0042).
@@ -1167,7 +1177,7 @@ const agentRunAuthorizationSchema = z
  *       201: { description: Automation execution authority for one exact tool and resource. }
  *       400: { description: Invalid input, tool or expiry. }
  *       401: { description: Service principal missing or no longer active. }
- *       403: { description: The bot, its owner or the owner's authority over the account did not hold. }
+ *       403: { description: "The bot, its owner or the owner's authority over the account did not hold, or the catalogue does not let an agent execute the tool (tool_not_available_to_actor)." }
  */
 router.post(
   '/agent-run-authorizations',
@@ -1224,6 +1234,14 @@ router.post(
       !tool.resourceTypes.includes(input.resource.resourceType)
     ) {
       response.status(400).json({ error: 'tool_not_available_for_resource' });
+      return;
+    }
+    if (!catalogToolAllowsActor(tool, 'agent')) {
+      response.status(403).json({
+        error: 'tool_not_available_to_actor',
+        actor: 'agent',
+        allowedActors: catalogToolActors(tool),
+      });
       return;
     }
     const sensitiveLimitError = autonomousSensitiveToolLimitError(input.maximumAutonomy, tool, []);
@@ -1469,6 +1487,7 @@ router.post(
         const capabilityNames = capabilities.map((entry) => entry.capability);
         const toolNames = catalog.catalog.tools
           .filter((tool) => tool.exposure.includes('internal'))
+          .filter((tool) => catalogToolAllowsActor(tool, 'agent'))
           .filter((tool) => tool.resourceTypes.includes(grant.resourceType))
           .filter(
             (tool) =>
@@ -1577,6 +1596,7 @@ router.post(
         const resourceType = catalog.catalog.accountResourceType;
         const toolNames = catalog.catalog.tools
           .filter((tool) => tool.exposure.includes('internal'))
+          .filter((tool) => catalogToolAllowsActor(tool, 'agent'))
           .filter((tool) => tool.resourceTypes.includes(resourceType))
           .filter(
             (tool) =>

@@ -81,6 +81,24 @@ const TOOLS: CatalogTool[] = [
     limitKeys: [],
     invocation: { method: 'POST', path: '/mail' },
   },
+  {
+    // A present-requester-only read (ADR 0025): no agent may ever execute it.
+    name: 'readViewerGraph',
+    version: '1.0.0',
+    description: 'Read the present viewer graph.',
+    inputSchema: { type: 'object', additionalProperties: false },
+    outputSchema: { type: 'object' },
+    capabilityPackage: 'read',
+    requiredCapabilities: ['mail.read'],
+    resourceTypes: ['account'],
+    effect: 'read',
+    idempotency: 'none',
+    rollback: 'none',
+    exposure: ['internal'],
+    actors: ['requester'],
+    limitKeys: [],
+    invocation: { method: 'GET', path: '/viewer/graph' },
+  },
 ];
 
 /**
@@ -496,5 +514,92 @@ describe('the unattended agent-run lane', () => {
     await expect(evaluate(w, created.body.authorization.id, randomUUID())).resolves.toEqual({
       decision: { allowed: false, reason: 'requested_autonomy_exceeds_effective_policy' },
     });
+  });
+});
+
+describe('a tool whose catalogue actors exclude agents', () => {
+  function serviceToken(w: World) {
+    return signServiceTokenEd25519({
+      type: 'service',
+      appId: w.coordinator.applicationId,
+      appName: 'Alia fixture',
+      credentialId: w.coordinator.credentialId,
+      ownerAccountId: w.ownerId,
+      environment: 'production',
+      tier: 'internal',
+      scopes: w.scopes,
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60,
+    });
+  }
+  function server() {
+    const app = express();
+    app.use(express.json());
+    app.use('/capabilities', capabilitiesRouter);
+    return app;
+  }
+
+  it('is refused at the agent-run lane with the catalogue reason', async () => {
+    const w = await world();
+    const created = await request(server())
+      .post('/capabilities/agent-run-authorizations')
+      .set('Authorization', `Bearer ${serviceToken(w)}`)
+      .send({
+        actorAccountId: w.agentId,
+        ownerAccountId: w.ownerId,
+        sessionId: `session-${randomUUID()}`,
+        resource: {
+          appId: w.appSlug,
+          effectiveAccountId: w.agentId,
+          resourceType: 'account',
+          resourceId: w.agentId,
+        },
+        tool: 'readViewerGraph',
+        maximumAutonomy: 'read_only',
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      });
+    expect(created.status).toBe(403);
+    expect(created.body).toEqual({
+      error: 'tool_not_available_to_actor',
+      actor: 'agent',
+      allowedActors: ['requester'],
+    });
+  });
+
+  it("is refused by the issuing authority even on the agent's own account", async () => {
+    const w = await world();
+    const id = await authorize(w, {
+      effectiveAccountId: w.agentId,
+      tool: 'readViewerGraph',
+      maximumAutonomy: 'read_only',
+    });
+    await expect(evaluate(w, id)).resolves.toEqual({
+      decision: { allowed: false, reason: 'tool_not_available_to_actor' },
+    });
+    // The same lane, the same account, a tool with no declaration: allowed.
+    const readMail = await authorize(w, {
+      effectiveAccountId: w.agentId,
+      tool: 'readMail',
+      maximumAutonomy: 'read_only',
+    });
+    expect((await evaluate(w, readMail)).decision.allowed).toBe(true);
+  });
+
+  it("is never listed in an agent's capability map, even under a grant of its package", async () => {
+    const w = await world();
+    await grant(w, ['read'], 'read_only');
+    const map = await request(server())
+      .post('/capabilities/capability-map')
+      .set('Authorization', `Bearer ${serviceToken(w)}`)
+      .send({
+        requesterAccountId: w.ownerId,
+        ownerAccountId: w.ownerId,
+        actorAccountId: w.agentId,
+      });
+    expect(map.status).toBe(200);
+    expect(map.body.assignments).toHaveLength(1);
+    expect(map.body.assignments[0].toolNames).toEqual(['readMail']);
   });
 });

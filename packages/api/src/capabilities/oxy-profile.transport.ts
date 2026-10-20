@@ -6,7 +6,7 @@ import { createInternalCatalogMcpHttpService } from '@oxy.so/mcp';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { activeCapabilityCatalog, digestCatalog } from '../services/capabilityCatalog.service';
 import { reauthorizeCapabilityTicket } from '../services/capabilityAuthority.service';
-import { oxyProfileCapabilityCatalog } from './oxy-profile.catalog';
+import { oxyProfileCapabilityCatalog, oxyProfileToolAllowsActor } from './oxy-profile.catalog';
 import { executeOxyProfileRead } from './oxy-profile.handlers';
 
 function ticketVerifier() {
@@ -86,7 +86,7 @@ export async function handleOxyProfileInternalMcp(
           return { allowed: false, reason: 'capability_required' };
         const claims = context.principal.claims;
         if (
-          claims.actor.type !== 'requester' ||
+          !oxyProfileToolAllowsActor(claims.tool, claims.actor.type) ||
           !(await reauthorizeCapabilityTicket(claims)).allowed
         ) {
           return { allowed: false, reason: 'foreground_authority_required' };
