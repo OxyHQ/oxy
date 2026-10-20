@@ -10,7 +10,6 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailOutbox, type EmailOutboxPayload } from '../../db/schema/emailOutbox';
 import { mailboxes } from '../../db/schema/mailboxes';
-import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import {
   cancelEmailOutbox,
@@ -21,6 +20,7 @@ import {
   retryEmailOutbox,
   toMessageDelivery,
 } from '../emailOutbox.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -56,9 +56,8 @@ afterAll(async () => {
 });
 
 async function sentMessage(): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@oxy.so>`,
@@ -66,8 +65,8 @@ async function sentMessage(): Promise<string> {
       subject: 'Sent',
       size: 1,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

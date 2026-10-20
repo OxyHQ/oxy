@@ -37,12 +37,12 @@ import { and, eq } from 'drizzle-orm';
 import { DEFAULT_MAILBOXES } from '../../config/email.config';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
-import { messages } from '../../db/schema/messages';
 import { senderAvatars } from '../../db/schema/senderAvatars';
 import { users } from '../../db/schema/users';
 import { emailService } from '../../services/email.service';
 import { settleAvatarResolutions } from '../../services/senderAvatar.service';
 import { getMessage, listMailboxes, listMessages } from '../email.controller';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -124,9 +124,8 @@ async function store(values: {
   inReplyTo?: string;
   references?: string[];
 }): Promise<{ id: string; messageId: string }> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId: owner,
       mailboxId: folder,
       messageId: `<${unique()}@example.com>`,
@@ -135,8 +134,8 @@ async function store(values: {
       text: 'body',
       size: 4,
       ...values,
-    })
-    .returning({ id: messages.id, messageId: messages.messageId });
+    },
+  ]);
   return row;
 }
 

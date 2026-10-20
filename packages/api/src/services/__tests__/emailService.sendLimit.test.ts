@@ -17,10 +17,10 @@ jest.mock('../assetServiceSingleton', () => ({ assetService: { unlinkFile: jest.
 import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailOutbox } from '../../db/schema/emailOutbox';
-import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 import { claimSend } from '../emailOutbox.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 const HOUR = 3_600_000;
@@ -51,9 +51,8 @@ async function mailboxIdFor(userId: string, specialUse: string): Promise<string>
 /** A send as `acceptOutboundMessage` leaves it: a Sent copy and the claim delivering it. */
 async function sent(userId: string): Promise<string> {
   const messageId = `<${unique()}@oxy.so>`;
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId: await mailboxIdFor(userId, '\\Sent'),
       messageId,
@@ -62,8 +61,8 @@ async function sent(userId: string): Promise<string> {
       size: 10,
       seen: true,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   await claimSend({ userId, messageId, messageRowId: row.id, payload, owner: 'test' });
   return row.id;
 }

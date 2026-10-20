@@ -42,6 +42,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { ConflictError } from '../../utils/error';
 import { emailService, renameLabelInSearchQuery } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -59,9 +60,8 @@ async function folder(userId: string): Promise<string> {
 }
 
 async function store(userId: string, mailboxId: string, labels: string[]): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -70,8 +70,8 @@ async function store(userId: string, mailboxId: string, labels: string[]): Promi
       size: 1,
       labels,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

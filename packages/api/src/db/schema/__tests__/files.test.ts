@@ -25,6 +25,7 @@ import { mailboxes } from '../mailboxes';
 import { messageAttachments } from '../messageAttachments';
 import { messages } from '../messages';
 import { users } from '../users';
+import { insertMessageRows } from '../../../../test-support/messageRows';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -555,9 +556,8 @@ describe('message_attachments — ON DELETE no action on file_id', () => {
       .insert(mailboxes)
       .values({ userId, name: 'Inbox', path: `INBOX-${unique()}` })
       .returning({ id: mailboxes.id });
-    const [message] = await getDb()
-      .insert(messages)
-      .values({
+    const [message] = await insertMessageRows([
+      {
         userId,
         mailboxId: mailbox.id,
         messageId: `<${unique()}@oxy.so>`,
@@ -565,8 +565,8 @@ describe('message_attachments — ON DELETE no action on file_id', () => {
         subject: '',
         size: 2048,
         date: new Date(),
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
 
     await getDb().insert(messageAttachments).values({

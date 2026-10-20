@@ -40,7 +40,6 @@ jest.mock('../../utils/logger', () => ({
 import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
-import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import {
   buildSnippet,
@@ -49,6 +48,7 @@ import {
   emitEmailNew,
   resolveFolder,
 } from '../inboxRealtime';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -83,9 +83,8 @@ async function folder(userId: string, specialUse: string, name: string): Promise
 /** `unread` unseen messages plus one already-read one, so the filter matters. */
 async function seedUnread(userId: string, mailboxId: string, unread: number): Promise<void> {
   for (let i = 0; i < unread; i++) {
-    await getDb()
-      .insert(messages)
-      .values({
+    await insertMessageRows([
+      {
         userId,
         mailboxId,
         messageId: `<seed-${unique()}@example.com>`,
@@ -94,11 +93,11 @@ async function seedUnread(userId: string, mailboxId: string, unread: number): Pr
         size: 10,
         seen: false,
         date: new Date(),
-      });
+      },
+    ]);
   }
-  await getDb()
-    .insert(messages)
-    .values({
+  await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<seen-${unique()}@example.com>`,
@@ -107,7 +106,8 @@ async function seedUnread(userId: string, mailboxId: string, unread: number): Pr
       size: 10,
       seen: true,
       date: new Date(),
-    });
+    },
+  ]);
 }
 
 function captureSocket() {

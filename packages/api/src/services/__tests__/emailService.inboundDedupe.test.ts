@@ -55,6 +55,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 import { fallbackMessageId } from '../inboundMime';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -127,9 +128,8 @@ describe('storeIncomingMessage — a message the user sent themselves', () => {
     const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
     if (!sent) throw new Error('no Sent mailbox');
     const messageId = `<self-${unique()}@oxy.so>`;
-    const [original] = await getDb()
-      .insert(messages)
-      .values({
+    const [original] = await insertMessageRows([
+      {
         userId: user.id,
         mailboxId: sent.id,
         messageId,
@@ -138,8 +138,8 @@ describe('storeIncomingMessage — a message the user sent themselves', () => {
         size: 10,
         seen: true,
         date: new Date(),
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
 
     const copy = await emailService.storeIncomingMessage(
       incoming(user.username, messageId, {
@@ -226,16 +226,18 @@ describe('storeIncomingMessage — a message delivered twice', () => {
     const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
     if (!sent) throw new Error('no Sent mailbox');
     const messageId = `<self-retry-${unique()}@oxy.so>`;
-    await getDb().insert(messages).values({
-      userId: user.id,
-      mailboxId: sent.id,
-      messageId,
-      fromAddress: user.address,
-      subject: 'Note to self',
-      size: 10,
-      seen: true,
-      date: new Date(),
-    });
+    await insertMessageRows([
+      {
+        userId: user.id,
+        mailboxId: sent.id,
+        messageId,
+        fromAddress: user.address,
+        subject: 'Note to self',
+        size: 10,
+        seen: true,
+        date: new Date(),
+      },
+    ]);
     const copy = incoming(user.username, messageId, {
       from: { name: '', address: user.address },
       headers: { 'x-oxy-sent-id': messageId },

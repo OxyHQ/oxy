@@ -36,6 +36,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { SYSTEM_LABELS } from '../../constants/systemLabels';
 import { emailService } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -49,9 +50,8 @@ async function messageIn(userId: string, initialLabels: string[] = []): Promise<
     .insert(mailboxes)
     .values({ userId, name: 'INBOX', path: `INBOX-${unique()}`, specialUse: '\\Inbox' })
     .returning({ id: mailboxes.id });
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId: mailbox.id,
       messageId: `<${unique()}@example.com>`,
@@ -60,8 +60,8 @@ async function messageIn(userId: string, initialLabels: string[] = []): Promise<
       size: 10,
       labels: initialLabels,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

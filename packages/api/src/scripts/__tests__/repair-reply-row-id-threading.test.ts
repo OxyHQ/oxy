@@ -7,6 +7,7 @@ import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { repairReplyRowIdThreading } from '../repair-reply-row-id-threading';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -29,9 +30,8 @@ async function fixture() {
     .values({ userId: user.id, name: 'INBOX', path: 'INBOX', specialUse: '\\Inbox' })
     .returning();
   const insert = async (values: Partial<typeof messages.$inferInsert>) => {
-    const [row] = await db
-      .insert(messages)
-      .values({
+    const [row] = await insertMessageRows([
+      {
         userId: user.id,
         mailboxId: mailbox.id,
         messageId: `<m-${unique()}@example.com>`,
@@ -40,8 +40,8 @@ async function fixture() {
         size: 1,
         date: new Date(),
         ...values,
-      })
-      .returning();
+      },
+    ]);
     return row;
   };
 

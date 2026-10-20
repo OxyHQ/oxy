@@ -41,6 +41,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { createInboxMcpHttpService } from '../inbox-mcp-http';
 import { INBOX_MCP_CATALOG } from '../inbox.handlers';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 let server: Server;
 let externalFetch: jest.SpiedFunction<typeof fetch>;
@@ -66,9 +67,8 @@ async function seedAccount(label: string) {
       path: `fixture-${label}`,
     })
     .returning({ id: mailboxes.id });
-  const [message] = await getDb()
-    .insert(messages)
-    .values({
+  const [message] = await insertMessageRows([
+    {
       userId: account.id,
       mailboxId: mailbox.id,
       messageId: `<${randomUUID()}@example.test>`,
@@ -77,8 +77,8 @@ async function seedAccount(label: string) {
       text: `Body ${label}`,
       size: 10,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return { accountId: account.id, mailboxId: mailbox.id, messageId: message.id };
 }
 
