@@ -159,6 +159,13 @@ export interface User {
     followers?: number;
     following?: number;
   };
+  /**
+   * Public reputation total — the figure `GET /reputation/:userId/balance` gives
+   * a caller who is not the subject. Present on single-profile reads
+   * (`/profiles/username/:username`, `/profiles/resolve`), so a profile screen
+   * renders it with `_count` instead of requesting the balance separately.
+   */
+  reputationTotal?: number;
   accountExpiresAfterInactivityDays?: number | null; // Days of inactivity before account expires (null = never expire)
   /**
    * Account-graph classification — WHAT this account is.

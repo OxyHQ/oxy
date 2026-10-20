@@ -387,6 +387,8 @@ describe('GET /profiles/resolve — wire shape', () => {
       isFederated: true,
       fediverseSharing: true,
       _count: { followers: 0, following: 0 },
+      // No reputation snapshot: the account has no ledger entries, so 0.
+      reputationTotal: 0,
     });
     expect(safeParseContract(userResponseSchema, res.body.data)).not.toBeNull();
   });

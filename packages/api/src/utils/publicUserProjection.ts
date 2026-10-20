@@ -30,6 +30,8 @@
  *    is a correlated `count(*)` served by
  *    `user_follows_followed_id_created_at_id_idx` and the follower/followed
  *    unique index, so it is a MEASUREMENT and can never drift from the edges.
+ * 4. {@link publicUserReputationTotal} — the public reputation total, for the
+ *    single-profile reads only.
  *
  * `public_key` is deliberately NOT selected. The DTO `id` is always the stable
  * account id, and the social graph these lists feed (follow edges, the viewer
@@ -40,6 +42,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { AccountCategoryId, AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { qualified } from '@oxy.so/db';
+import { reputationBalances } from '../db/schema/reputationBalances';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';
@@ -206,6 +209,18 @@ export interface PublicUserRow {
 export const publicUserFollowCounts = {
   followersCount: sql<number>`(select count(*)::int from ${userFollows} where ${qualified(userFollows.followedId)} = ${qualified(users.id)})`,
   followingCount: sql<number>`(select count(*)::int from ${userFollows} where ${qualified(userFollows.followerId)} = ${qualified(users.id)})`,
+} as const;
+
+/**
+ * The account's public reputation total, the same figure
+ * `GET /reputation/:userId/balance` serves a caller who is not the subject.
+ *
+ * Read from the `reputation_balances` snapshot (unique on `user_id`). Every
+ * award and reversal recalculates that snapshot, so an account without a row
+ * has no ledger entries and its total is exactly 0.
+ */
+export const publicUserReputationTotal = {
+  reputationTotal: sql<number>`coalesce((select ${qualified(reputationBalances.total)} from ${reputationBalances} where ${qualified(reputationBalances.userId)} = ${qualified(users.id)}), 0)::int`,
 } as const;
 
 /** A `null` column becomes an ABSENT property — `undefined`, never `null`. */
