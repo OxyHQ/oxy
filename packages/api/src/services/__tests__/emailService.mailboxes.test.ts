@@ -2,10 +2,11 @@
  * The three mailbox counters, and the quota, against a REAL Postgres.
  *
  * `total_messages`, `unseen_messages` and `size` were columns on `mailboxes`
- * kept current by eighteen hand-written `$inc` sites. They are now derived from
- * `messages`, which means the DTO is identical and the drift is gone — but it
- * also means every one of these numbers now comes from a JOIN that can be
- * wrong in a way that produces ZERO rather than an error.
+ * kept current by eighteen hand-written `$inc` sites, and they drifted. They are
+ * columns again, written only by the triggers on `messages`
+ * (`db/schema/mailboxCounters.ts`) and read through `services/folderCounts.ts`,
+ * which falls back to an aggregate for a folder not counted yet. Either path
+ * can be wrong in a way that produces ZERO rather than an error.
  *
  * So every assertion here is an EXACT NON-ZERO number against rows written in
  * the same test. `toBeGreaterThanOrEqual(0)` or "a mailbox came back" would
@@ -271,7 +272,8 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
   });
 
   it('follows a flag change with no counter write anywhere', async () => {
-    // The eighteen `$inc` sites are gone; flipping `seen` IS the update.
+    // The eighteen `$inc` sites are gone; flipping `seen` IS the update, and
+    // the trigger carries it to the folder.
     const userId = await owner();
     const folder = await emailService.createMailbox(userId, `Flags-${unique()}`);
 
@@ -461,7 +463,7 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
   });
 });
 
-describe('getQuotaUsage — summed from the messages, not from a counter', () => {
+describe('getQuotaUsage — the sum of the trigger-maintained folder counters', () => {
   it('sums every folder`s bytes for the owner and nobody else', async () => {
     const userId = await owner();
     const other = await owner();
