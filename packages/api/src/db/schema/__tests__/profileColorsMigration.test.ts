@@ -35,6 +35,11 @@ it('migrates amber while preserving chosen presets and exact legacy hex seeds', 
       'utf8',
     );
     await tx.execute(sql.raw(post));
+    const finalCheck = readFileSync(
+      resolve(__dirname, '../../../../drizzle/0191_canonical_profile_color_check.sql'),
+      'utf8',
+    );
+    await tx.execute(sql.raw(finalCheck));
     const rows = await tx
       .select()
       .from(users)

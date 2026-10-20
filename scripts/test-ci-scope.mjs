@@ -449,12 +449,12 @@ expectScope(
 
 // ── The lockfile walk ──────────────────────────────────────────────────────
 expectScope(
-  'a-bloom-only-lock-change-runs-only-apps',
+  'a-bloom-lock-change-runs-suites-that-reach-contracts',
   (root) => bumpIntegrity(root, '@oxy.so/bloom'),
-  { api: false, platform: false, apps: true },
+  { api: true, platform: true, apps: true },
   {
-    api: 'reachable from this suite are identical',
-    platform: 'reachable from this suite are identical',
+    api: 'changes what this suite resolves',
+    platform: 'changes what this suite resolves',
     apps: 'changes what this suite resolves',
   },
 );

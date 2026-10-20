@@ -1,5 +1,5 @@
 {
-  "id": "38cbce0c-c721-4982-bf98-fd7caeb44622",
+  "id": "51703b58-6e8b-49d9-880f-df954acfb7b0",
   "prevId": "238ad257-7883-444b-a9a4-0c5429898620",
   "version": "7",
   "dialect": "postgresql",
@@ -37209,7 +37209,7 @@
         },
         "users_color_check": {
           "name": "users_color_check",
-          "value": "\"users\".\"color\" in ('teal', 'blue', 'green', 'yellow', 'red', 'purple', 'pink', 'sky', 'orange', 'mint', 'oxy', 'faircoin', 'pumpkin', 'gray', 'brown', 'peach', 'rose', 'mono', 'grove', 'ember', 'merlot', 'cobalt', 'jade', 'pine', 'olive', 'lagoon', 'navy', 'azure', 'violet', 'lavender', 'plum', 'cherry', 'chocolate', 'graphite', 'forest-fire', 'malachite-rush', 'moss-voltage', 'viridian-orbit', 'acid-canopy', 'pacific-flare', 'reef-pulse', 'electric-tide', 'arctic-signal', 'ultramarine-gold', 'midnight-citrus', 'persimmon-wave', 'solar-flux', 'paprika-current', 'crimson-spark', 'flamenco-sun', 'saffron-depth', 'clay-current', 'bronze-neon', 'copper-field', 'umber-signal', 'amethyst-current', 'ruby-current', 'orchid-flare', 'garnet-acid', 'indigo-ember', 'raspberry-gold', 'ink-orange', 'charcoal-lime', 'pewter-current') or \"users\".\"color\" ~* '^#([0-9a-f]{3}|[0-9a-f]{6})$'"
+          "value": "\"users\".\"color\" in ('amber', 'teal', 'blue', 'green', 'yellow', 'red', 'purple', 'pink', 'sky', 'orange', 'mint', 'oxy', 'faircoin', 'pumpkin', 'gray', 'brown', 'peach', 'rose', 'mono', 'grove', 'ember', 'merlot', 'cobalt', 'jade', 'pine', 'olive', 'lagoon', 'navy', 'azure', 'violet', 'lavender', 'plum', 'cherry', 'chocolate', 'graphite', 'forest-fire', 'malachite-rush', 'moss-voltage', 'viridian-orbit', 'acid-canopy', 'pacific-flare', 'reef-pulse', 'electric-tide', 'arctic-signal', 'ultramarine-gold', 'midnight-citrus', 'persimmon-wave', 'solar-flux', 'paprika-current', 'crimson-spark', 'flamenco-sun', 'saffron-depth', 'clay-current', 'bronze-neon', 'copper-field', 'umber-signal', 'amethyst-current', 'ruby-current', 'orchid-flare', 'garnet-acid', 'indigo-ember', 'raspberry-gold', 'ink-orange', 'charcoal-lime', 'pewter-current') or \"users\".\"color\" ~* '^#([0-9a-f]{3}|[0-9a-f]{6})$'"
         },
         "users_account_expires_after_inactivity_days_check": {
           "name": "users_account_expires_after_inactivity_days_check",

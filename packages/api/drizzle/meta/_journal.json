@@ -1331,6 +1331,13 @@
       "when": 1792470001000,
       "tag": "0190_canonical_profile_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1792470002000,
+      "tag": "0191_canonical_profile_color_check",
+      "breakpoints": true
     }
   ]
 }

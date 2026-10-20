@@ -1,7 +1,4 @@
 -- oxy:deploy-phase=post
 -- The new image no longer assigns amber. Preserve existing choices and hex seeds.
 UPDATE users SET color = 'yellow' WHERE color = 'amber';--> statement-breakpoint
-UPDATE users SET theme_preference_color_preset = 'yellow' WHERE theme_preference_color_preset = 'amber';--> statement-breakpoint
-SET CONSTRAINTS ALL IMMEDIATE;--> statement-breakpoint
-ALTER TABLE "users" DROP CONSTRAINT "users_color_check";--> statement-breakpoint
-ALTER TABLE "users" ADD CONSTRAINT "users_color_check" CHECK ("users"."color" in ('teal', 'blue', 'green', 'yellow', 'red', 'purple', 'pink', 'sky', 'orange', 'mint', 'oxy', 'faircoin', 'pumpkin', 'gray', 'brown', 'peach', 'rose', 'mono', 'grove', 'ember', 'merlot', 'cobalt', 'jade', 'pine', 'olive', 'lagoon', 'navy', 'azure', 'violet', 'lavender', 'plum', 'cherry', 'chocolate', 'graphite', 'forest-fire', 'malachite-rush', 'moss-voltage', 'viridian-orbit', 'acid-canopy', 'pacific-flare', 'reef-pulse', 'electric-tide', 'arctic-signal', 'ultramarine-gold', 'midnight-citrus', 'persimmon-wave', 'solar-flux', 'paprika-current', 'crimson-spark', 'flamenco-sun', 'saffron-depth', 'clay-current', 'bronze-neon', 'copper-field', 'umber-signal', 'amethyst-current', 'ruby-current', 'orchid-flare', 'garnet-acid', 'indigo-ember', 'raspberry-gold', 'ink-orange', 'charcoal-lime', 'pewter-current') or "users"."color" ~* '^#([0-9a-f]{3}|[0-9a-f]{6})$');
+UPDATE users SET theme_preference_color_preset = 'yellow' WHERE theme_preference_color_preset = 'amber';
