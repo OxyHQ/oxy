@@ -312,6 +312,22 @@ describe('createChildAccount', () => {
   });
 
   /**
+   * `users.verified` is personhood (`recomputePersonhood`), and it promotes the
+   * account to the `verified` trust tier — validator pool, ranking weight. A
+   * child account is not a person, so creating one must not mint either.
+   */
+  test('a new child account of every kind is not verified', async () => {
+    const root = await seedAccount();
+    for (const kind of CHILD_ACCOUNT_KINDS) {
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind,
+        username: uniqueUsernameFor(kind, 'unverified'),
+      });
+      expect(account.verified).toBe(false);
+    }
+  });
+
+  /**
    * THE FIELD REACHES THE COLUMN, and saying nothing leaves the default.
    *
    * Both halves are load-bearing and they fail differently. A create path that
