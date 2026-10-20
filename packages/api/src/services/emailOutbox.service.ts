@@ -81,6 +81,24 @@ function isOutboxDelivery() {
 }
 
 /**
+ * How many deliveries this user's sends started since `since`: every
+ * immediate send claims one row when it is accepted, and a scheduled send
+ * becomes one when it falls due. A scheduled claim still waiting, or one
+ * cancelled with its message, never went out and is not counted. Whatever
+ * becomes of the Sent copy afterwards — moved, deleted — the row stays.
+ * Served by `email_outbox_user_created_idx`.
+ */
+export async function countDeliveriesSince(userId: string, since: Date): Promise<number> {
+  const [row] = await getDb()
+    .select({ count: sql<number>`count(*)::int` })
+    .from(emailOutbox)
+    .where(
+      and(eq(emailOutbox.userId, userId), gte(emailOutbox.createdAt, since), isOutboxDelivery()),
+    );
+  return row?.count ?? 0;
+}
+
+/**
  * Cancel the claims of these scheduled messages (by RFC Message-ID), in the
  * transaction that unschedules or deletes them: a scheduled message that will
  * not be sent must not leave a claim that answers its key as if it would.
