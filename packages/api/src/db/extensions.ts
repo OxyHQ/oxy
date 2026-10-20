@@ -39,4 +39,16 @@ export const REQUIRED_EXTENSIONS: readonly RequiredExtension[] = [
       'database owner can create it without `rds_superuser`, and it ships with ' +
       'every mainline `postgres` / `postgis/postgis` image.',
   },
+  {
+    name: 'btree_gin',
+    reason:
+      '`messages_user_id_search_vector_idx` and `messages_user_id_labels_idx` are ' +
+      'GIN indexes that lead with the `text` column `user_id`, and GIN has no ' +
+      'operator class for a scalar `text` without btree_gin. Every mail search and ' +
+      'label view is scoped to one user; an index over `search_vector` or `labels` ' +
+      'alone matches the term across EVERY mailbox on the platform and filters the ' +
+      'owner out afterwards, so its cost grows with all the mail stored rather than ' +
+      'with the one mailbox being searched. Trusted (PG13+), like pg_trgm: a ' +
+      'database owner can create it without `rds_superuser`.',
+  },
 ];
