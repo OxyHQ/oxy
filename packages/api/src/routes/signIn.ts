@@ -26,11 +26,9 @@ import {
   emailSignInConfirmRequestSchema,
   emailSignInLinkRequestSchema,
   emailSignInStartRequestSchema,
-  isValidUsername,
   passwordSignInRequestSchema,
   secondFactorSignInRequestSchema,
   signUpRequestSchema,
-  USERNAME_INVALID_MESSAGE,
   type EmailSignInChooseRequest,
   type EmailSignInCollectRequest,
   type EmailSignInConfirmRequest,
@@ -40,14 +38,19 @@ import {
   type SecondFactorSignInRequest,
   type SignUpRequest,
 } from '@oxy.so/contracts';
-import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
-import { notifications } from '../db/schema/notifications';
 import { users } from '../db/schema/users';
 import { requireAuthWebOrigin, requireOfficialOrigin } from '../middleware/officialOrigin';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { spendSignupTicket } from '../services/accountEmail.service';
+import type { AccountRow } from '../services/account.service';
+import {
+  UsernameTakenError,
+  canonicalUsername,
+  createPersonalAccount,
+  welcomeNewAccount,
+} from '../services/accountCreation.service';
 import {
   approveEmailSignInLink,
   chooseEmailSignInAccount,
@@ -64,11 +67,9 @@ import {
   mintSignInSession,
 } from '../services/signInSession.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ApiError, BadRequestError, RateLimitedError } from '../utils/error';
+import { ApiError, RateLimitedError } from '../utils/error';
 import { hashEmail } from '../utils/contactHash';
 import { hashedIpKey } from '../utils/ipKey';
-import { logger } from '../utils/logger';
-import { normalizeUsername } from '../utils/username';
 import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 
 const router = Router();
@@ -93,9 +94,6 @@ const chooseLimiter = ipLimiter('email-choose', HOUR, 60);
 const passwordLimiter = ipLimiter('password', 15 * 60 * 1000, 30);
 const secondFactorLimiter = ipLimiter('second-factor', 15 * 60 * 1000, 30);
 const signupLimiter = ipLimiter('signup', HOUR, 10);
-
-/** The SQLSTATE-named unique index a sign-up can collide with. */
-const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
 
 function envelopeOf(body: {
   deviceName?: string;
@@ -279,21 +277,11 @@ router.post(
   validate({ body: signUpRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as SignUpRequest;
-    const username = normalizeUsername(body.username);
-    if (!isValidUsername(username)) {
-      throw new BadRequestError(USERNAME_INVALID_MESSAGE);
-    }
-    const db = getDb();
-    const [taken] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
-      .limit(1);
-    if (taken) throw new ApiError(409, 'Username already taken', SIGN_IN_ERROR_CODES.usernameTaken);
+    const username = canonicalUsername(body.username, 'personal');
 
-    let account: { id: string; username: string | null; avatar: string | null };
+    let account: AccountRow;
     try {
-      account = await db.transaction(async (tx) => {
+      account = await getDb().transaction(async (tx) => {
         await spendSignupTicket(tx, body.emailTicket, body.email);
         // One address holds at most EMAIL_ACCOUNTS_MAX accounts. Serialised per
         // address, so two sign-ups cannot both see room for one more.
@@ -310,38 +298,18 @@ router.post(
             SIGN_IN_ERROR_CODES.emailAccountsFull,
           );
         }
-        const [created] = await tx
-          .insert(users)
-          .values({ username, email: body.email })
-          .returning({ id: users.id, username: users.username, avatar: users.avatar });
-        return created;
+        return createPersonalAccount(tx, username, { email: body.email });
       });
     } catch (error) {
-      if (isUniqueViolation(error, USERNAME_UNIQUE_CONSTRAINT)) {
+      // The unique index decides, not a probe: losing the name to an earlier
+      // account and losing a race for it are the same 409.
+      if (error instanceof UsernameTakenError) {
         throw new ApiError(409, 'Username already taken', SIGN_IN_ERROR_CODES.usernameTaken);
       }
       throw error;
     }
 
-    try {
-      await db.insert(notifications).values({
-        recipientId: account.id,
-        actorId: account.id,
-        type: 'welcome',
-        entityId: account.id,
-        entityType: 'profile',
-        read: false,
-      });
-    } catch (error) {
-      logger.error(
-        'Failed to create welcome notification during sign-up',
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          component: 'signIn',
-          userId: account.id,
-        },
-      );
-    }
+    await welcomeNewAccount(account.id);
 
     res.status(200).json(await mintSignInSession(req, account, envelopeOf(body)));
   }),

@@ -336,6 +336,54 @@ describe('canonical organization directory', () => {
       ),
     ).toContain(org.accountId);
   });
+  it('writes the same rows for one neutral organization and for an imported one', async () => {
+    const organization = {
+      name: `Same Shape ${randomUUID().slice(0, 8)}`,
+      organizationType: 'nonprofit' as const,
+      legalName: 'Same Shape Foundation',
+      websiteUrl: 'https://same-shape.example',
+      countryCode: 'ES',
+    };
+    const created = await directory.createNeutralOrganization(organization);
+    const imported = await directory.importOrganizationBatch(
+      {
+        namespace: `test_${randomUUID().replace(/-/g, '')}`,
+        items: [{ externalId: 'one', organization, evidenceReference: 'source/proof' }],
+      },
+      { applicationId: randomUUID(), ownerAccountId: await person() },
+    );
+    const importedId = imported.items[0]?.accountId;
+    if (!importedId) throw new Error('Missing import result');
+    const shape = async (accountId: string) => {
+      const [row] = await getDb()
+        .select({
+          username: users.username,
+          kind: users.kind,
+          type: users.type,
+          nameDisplay: users.nameDisplay,
+          avatar: users.avatar,
+          verified: users.verified,
+          parentAccountId: users.parentAccountId,
+          rootAccountId: users.rootAccountId,
+          privacyIsPrivateAccount: users.privacyIsPrivateAccount,
+          organizationType: organizationProfiles.organizationType,
+          legalName: organizationProfiles.legalName,
+          websiteUrl: organizationProfiles.websiteUrl,
+          countryCode: organizationProfiles.countryCode,
+          aliases: organizationProfiles.aliases,
+          claimStatus: organizationProfiles.claimStatus,
+          status: organizationProfiles.status,
+        })
+        .from(users)
+        .innerJoin(organizationProfiles, eq(organizationProfiles.accountId, users.id))
+        .where(eq(users.id, accountId));
+      if (!row) throw new Error('Missing organization rows');
+      const { username, ...rest } = row;
+      expect(username).toMatch(/^org[0-9a-f]{20}$/);
+      return rest;
+    };
+    expect(await shape(importedId)).toEqual(await shape(created.accountId));
+  });
   it('bulk imports neutral identities idempotently without mutating existing names', async () => {
     const actor = { applicationId: randomUUID(), ownerAccountId: await person() };
     const namespace = `test_${randomUUID().replace(/-/g, '')}`;

@@ -5,10 +5,8 @@ import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { authChallenges } from '../db/schema/authChallenges';
-import { notifications } from '../db/schema/notifications';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions } from '../db/schema/sessions';
-import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';
 import type { SessionAuthResponse, ClientSession } from '../types/session';
@@ -22,18 +20,22 @@ import { formatUserResponse, type UserLike } from '../utils/userTransform';
 import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
-import type { AuthRequest } from '../middleware/auth';
 import {
-  accountActorChainFromSession,
-  isValidUsername,
-  USERNAME_INVALID_MESSAGE,
-} from '@oxy.so/contracts';
+  UsernameTakenError,
+  canonicalUsername,
+  createPersonalAccount,
+  welcomeNewAccount,
+  type CanonicalUsername,
+} from '../services/accountCreation.service';
+import { isUniqueViolation } from '@oxy.so/db';
+import { BadRequestError } from '../utils/error';
+import type { AuthRequest } from '../middleware/auth';
+import { accountActorChainFromSession } from '@oxy.so/contracts';
 import {
   meetsRegistrationPowDifficulty,
   REGISTRATION_POW_DIFFICULTY_BITS,
   registrationPowMessage,
 } from '@oxy.so/protocol';
-import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 
 /**
@@ -105,29 +107,6 @@ async function resolveActingSession(
   return { sessionId, userId: session.userId.toString(), deviceId: session.deviceId };
 }
 
-/**
- * The unique constraint a Postgres `23505` (unique_violation) names, or null
- * when `error` is not one.
- *
- * This is the port of the `E11000` / `keyPattern` handling below it: the
- * pre-checks in `register` cannot close the race between "does this identifier
- * exist" and the insert, so the database's own answer is what decides. Postgres
- * reports the INDEX name, which is why the identifier indexes in
- * `db/schema/users.ts` are named rather than left to drizzle's derivation.
- */
-function violatedUniqueIndex(error: unknown): string | null {
-  // Drizzle wraps the driver error, and only the driver's own error carries
-  // `code`/`constraint_name` — so both levels are inspected rather than
-  // whichever one happens to surface today.
-  for (const level of [error, (error as { cause?: unknown } | null)?.cause]) {
-    if (typeof level !== 'object' || level === null) continue;
-    const candidate = level as { code?: unknown; constraint_name?: unknown };
-    if (candidate.code !== '23505') continue;
-    if (typeof candidate.constraint_name === 'string') return candidate.constraint_name;
-  }
-  return null;
-}
-
 // Challenge expiration time (5 minutes)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
@@ -186,9 +165,14 @@ export class SessionController {
       // The username is required and written with the key in one insert: an
       // account never exists without one (the email sign-up path in
       // `routes/signIn.ts` holds the same invariant).
-      const normalizedUsername = typeof username === 'string' ? normalizeUsername(username) : '';
-      if (!isValidUsername(normalizedUsername)) {
-        return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
+      let canonical: CanonicalUsername;
+      try {
+        canonical = canonicalUsername(typeof username === 'string' ? username : '', 'personal');
+      } catch (error) {
+        if (error instanceof BadRequestError) {
+          return res.status(400).json({ message: error.message });
+        }
+        throw error;
       }
 
       // Validate public key format
@@ -238,72 +222,18 @@ export class SessionController {
         }
       }
 
-      // Check if user already exists (by publicKey only - that's the identity).
-      // `lower(btrim(...))` is the expression `users_lower_public_key_key` is
-      // built on — a plain equality would be case-sensitive and would not use it.
-      const [existingUser] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
-        .limit(1);
+      // No existence probes: the unique indexes on the key and the username
+      // decide, and the catch below maps each to its 409. A probe would be a
+      // round trip that cannot close the race anyway.
+      //
+      // The account (identity is the publicKey) and its origin auth method are
+      // one transaction: an account whose only credential failed to insert
+      // could never be signed into.
+      const user = await db.transaction((tx) =>
+        createPersonalAccount(tx, canonical, { publicKey }),
+      );
 
-      if (existingUser) {
-        return res.status(409).json({
-          message: 'Identity already registered',
-        });
-      }
-
-      // Case-insensitive, via the expression `users_lower_username_key` indexes.
-      const [existingUsername] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(sql`lower(btrim(${users.username})) = lower(btrim(${normalizedUsername}))`)
-        .limit(1);
-      if (existingUsername) {
-        return res.status(409).json({ message: 'Username already taken' });
-      }
-
-      // Create the account (identity is the publicKey) together with the origin
-      // auth method, so the account's provenance is captured consistently with
-      // the social-auth path. One transaction: an account whose only credential
-      // failed to insert could never be signed into.
-      const user = await db.transaction(async (tx) => {
-        const [created] = await tx
-          .insert(users)
-          .values({
-            publicKey,
-            username: normalizedUsername,
-          })
-          .returning(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));
-        await tx.insert(userAuthMethods).values({
-          userId: created.id,
-          type: 'identity',
-          methodPublicKey: publicKey,
-        });
-        return created;
-      });
-
-      // Create welcome notification (non-blocking - don't fail registration if this fails)
-      try {
-        await db.insert(notifications).values({
-          recipientId: user.id,
-          actorId: user.id,
-          type: 'welcome',
-          entityId: user.id,
-          entityType: 'profile',
-          read: false,
-        });
-      } catch (notificationError) {
-        logger.error(
-          'Failed to create welcome notification during registration',
-          notificationError,
-          {
-            component: 'SessionController',
-            method: 'register',
-            userId: user.id,
-          },
-        );
-      }
+      await welcomeNewAccount(user.id);
 
       const userData = formatUserResponse(user);
       if (!userData) {
@@ -315,18 +245,15 @@ export class SessionController {
         user: userData,
       });
     } catch (error) {
-      // The identifier pre-checks above cannot close the race between the check
-      // and the insert; the unique indexes do, and this maps each to the same
-      // 409 the pre-check would have returned.
-      const violated = violatedUniqueIndex(error);
-      if (violated === 'users_lower_public_key_key') {
-        return res.status(409).json({ message: 'Identity already registered' });
-      }
-      if (violated === 'users_lower_username_key') {
+      if (error instanceof UsernameTakenError) {
         return res.status(409).json({ message: 'Username already taken' });
       }
-      // One identity key authenticates exactly one account.
-      if (violated === 'user_auth_methods_lower_method_public_key_key') {
+      // The key is held by an account already — as its own identity, or (one
+      // identity key authenticates exactly one account) as another's method.
+      if (
+        isUniqueViolation(error, 'users_lower_public_key_key') ||
+        isUniqueViolation(error, 'user_auth_methods_lower_method_public_key_key')
+      ) {
         return res.status(409).json({ message: 'Identity already registered' });
       }
 

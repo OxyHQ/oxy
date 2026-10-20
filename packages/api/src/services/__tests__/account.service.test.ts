@@ -14,7 +14,7 @@ import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
  * The whole run shares one database, so every test mints its own accounts.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   ACCOUNT_CATEGORY_IDS,
   CHILD_ACCOUNT_KINDS,
@@ -23,6 +23,7 @@ import {
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { MAX_ACCOUNT_DEPTH, userAncestors } from '../../db/schema/userAncestors';
+import { organizationProfiles } from '../../db/schema/organizationProfiles';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import {
@@ -325,6 +326,162 @@ describe('createChildAccount', () => {
       });
       expect(account.verified).toBe(false);
     }
+  });
+
+  /**
+   * An owned organization is born WITH its directory profile — `claimed`, with
+   * the type asked for — written by the create itself. Nothing conjures it from
+   * the owner membership any more (migration 0188 dropped that trigger), so a
+   * create that forgot it would fail the deferred `organization_directory_required`
+   * check rather than leave an organization without a profile.
+   */
+  test('writes an owned organization its claimed directory profile and type', async () => {
+    const root = await seedAccount();
+
+    const { account } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'organization',
+      username: uniqueUsername('typed'),
+      organizationType: 'nonprofit',
+    });
+    const untyped = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'organization',
+      username: uniqueUsername('untyped'),
+    });
+
+    const profiles = await getDb()
+      .select({
+        accountId: organizationProfiles.accountId,
+        claimStatus: organizationProfiles.claimStatus,
+        organizationType: organizationProfiles.organizationType,
+      })
+      .from(organizationProfiles)
+      .where(inArray(organizationProfiles.accountId, [account.id, untyped.account.id]));
+    expect(profiles).toEqual(
+      expect.arrayContaining([
+        { accountId: account.id, claimStatus: 'claimed', organizationType: 'nonprofit' },
+        { accountId: untyped.account.id, claimStatus: 'claimed', organizationType: 'other' },
+      ]),
+    );
+  });
+
+  test('writes no directory profile for a kind that is not an organization', async () => {
+    const root = await seedAccount();
+    const { account } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'project',
+      username: uniqueUsername('proj'),
+    });
+    const rows = await getDb()
+      .select()
+      .from(organizationProfiles)
+      .where(eq(organizationProfiles.accountId, account.id));
+    expect(rows).toEqual([]);
+  });
+
+  test('refuses to hang a child under an archived parent', async () => {
+    const root = await seedAccount();
+    await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, root.id));
+
+    await expect(
+      accountService.createChildAccount(root.id, root.id, {
+        kind: 'project',
+        username: uniqueUsername('orphan'),
+      }),
+    ).rejects.toThrow(/parent account not found/i);
+  });
+
+  describe('with authorize', () => {
+    test("creates under the creator's own personal account", async () => {
+      const root = await seedAccount();
+      const { account } = await accountService.createChildAccount(
+        root.id,
+        root.id,
+        { kind: 'project', username: uniqueUsername('own') },
+        { authorize: {} },
+      );
+      expect(account.parentAccountId).toBe(root.id);
+    });
+
+    test('creates under an account where an inherited role grants children:create', async () => {
+      const owner = await seedAccount();
+      const admin = await seedAccount();
+      const org = await accountService.createChildAccount(owner.id, owner.id, {
+        kind: 'organization',
+        username: uniqueUsername('org'),
+      });
+      const project = await accountService.createChildAccount(org.account.id, owner.id, {
+        kind: 'project',
+        username: uniqueUsername('proj'),
+      });
+      await seedMember(org.account.id, admin.id, 'admin', { inherit: true });
+
+      const { account, membership } = await accountService.createChildAccount(
+        project.account.id,
+        admin.id,
+        { kind: 'channel', username: uniqueUsername('chan') },
+        { authorize: {} },
+      );
+      expect(await ancestorsOf(account.id)).toEqual([owner.id, org.account.id, project.account.id]);
+      expect(membership.memberUserId).toBe(admin.id);
+    });
+
+    test('refuses a creator with no access, without creating anything', async () => {
+      const owner = await seedAccount();
+      const stranger = await seedAccount();
+      const username = uniqueUsername('nope');
+
+      await expect(
+        accountService.createChildAccount(
+          owner.id,
+          stranger.id,
+          { kind: 'project', username },
+          { authorize: {} },
+        ),
+      ).rejects.toThrow(/do not have access to the parent account/i);
+      const rows = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, username));
+      expect(rows).toEqual([]);
+    });
+
+    test('refuses a member whose role lacks children:create', async () => {
+      const owner = await seedAccount();
+      const viewer = await seedAccount();
+      const org = await accountService.createChildAccount(owner.id, owner.id, {
+        kind: 'organization',
+        username: uniqueUsername('org'),
+      });
+      await seedMember(org.account.id, viewer.id, 'viewer');
+
+      await expect(
+        accountService.createChildAccount(
+          org.account.id,
+          viewer.id,
+          { kind: 'project', username: uniqueUsername('proj') },
+          { authorize: {} },
+        ),
+      ).rejects.toThrow(/missing required permission: children:create/i);
+    });
+
+    test('answers a missing or archived parent exactly like one out of reach', async () => {
+      const owner = await seedAccount();
+      const archived = await seedAccount();
+      await getDb()
+        .update(users)
+        .set({ accountStatus: 'archived' })
+        .where(eq(users.id, archived.id));
+
+      for (const parentId of [archived.id, '01a00000-0000-7000-8000-000000000000']) {
+        await expect(
+          accountService.createChildAccount(
+            parentId,
+            parentId === archived.id ? archived.id : owner.id,
+            { kind: 'project', username: uniqueUsername('ghost') },
+            { authorize: {} },
+          ),
+        ).rejects.toThrow(/do not have access to the parent account/i);
+      }
+    });
   });
 
   /**
@@ -654,6 +811,83 @@ describe('moveAccount', () => {
     expect(await ancestorsOf(child.id)).toEqual([newRoot.id, a.id]);
     expect((await reload(child.id)).rootAccountId).toBe(newRoot.id);
     expect((await reload(child.id)).parentAccountId).toBe(a.id);
+  });
+
+  test('rewrites a deep subtree in one pass: every path, every root, nothing else', async () => {
+    const oldRoot = await seedAccount();
+    const top = await accountService.createChildAccount(oldRoot.id, oldRoot.id, {
+      kind: 'organization',
+      username: uniqueUsername('top'),
+    });
+    const mid = await accountService.createChildAccount(top.account.id, oldRoot.id, {
+      kind: 'project',
+      username: uniqueUsername('mid'),
+    });
+    const leaves = await Promise.all(
+      ['a', 'b', 'c'].map((tag) =>
+        accountService.createChildAccount(mid.account.id, oldRoot.id, {
+          kind: 'channel',
+          username: uniqueUsername(`leaf-${tag}`),
+        }),
+      ),
+    );
+    const sibling = await accountService.createChildAccount(oldRoot.id, oldRoot.id, {
+      kind: 'project',
+      username: uniqueUsername('sibling'),
+    });
+    const newRoot = await seedAccount();
+    const newParent = await accountService.createChildAccount(newRoot.id, newRoot.id, {
+      kind: 'organization',
+      username: uniqueUsername('dest'),
+    });
+
+    const moved = await accountService.moveAccount(mid.account.id, newParent.account.id);
+
+    expect(moved.parentAccountId).toBe(newParent.account.id);
+    expect(moved.rootAccountId).toBe(newRoot.id);
+    expect(await ancestorsOf(mid.account.id)).toEqual([newRoot.id, newParent.account.id]);
+    for (const leaf of leaves) {
+      expect(await ancestorsOf(leaf.account.id)).toEqual([
+        newRoot.id,
+        newParent.account.id,
+        mid.account.id,
+      ]);
+      expect(await reload(leaf.account.id)).toMatchObject({
+        rootAccountId: newRoot.id,
+        parentAccountId: mid.account.id,
+      });
+    }
+    // Outside the subtree nothing moved.
+    expect(await ancestorsOf(top.account.id)).toEqual([oldRoot.id]);
+    expect(await ancestorsOf(sibling.account.id)).toEqual([oldRoot.id]);
+    expect((await reload(sibling.account.id)).rootAccountId).toBe(oldRoot.id);
+  });
+
+  test('refuses a move that would push the deepest descendant past the depth limit', async () => {
+    const root = await seedAccount();
+    let parentId = root.id;
+    const chain: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const { account } = await accountService.createChildAccount(parentId, root.id, {
+        kind: 'project',
+        username: uniqueUsername(`chain${i}`),
+      });
+      chain.push(account.id);
+      parentId = account.id;
+    }
+    let deepParentId = root.id;
+    for (let i = 0; i < MAX_ACCOUNT_DEPTH - 2; i += 1) {
+      const { account } = await accountService.createChildAccount(deepParentId, root.id, {
+        kind: 'project',
+        username: uniqueUsername(`deep${i}`),
+      });
+      deepParentId = account.id;
+    }
+
+    await expect(accountService.moveAccount(chain[0], deepParentId)).rejects.toThrow(
+      /maximum account nesting depth/i,
+    );
+    expect(await ancestorsOf(chain[2])).toEqual([root.id, chain[0], chain[1]]);
   });
 
   test('rejects self-parenting', async () => {

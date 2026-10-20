@@ -18,15 +18,6 @@
  * `entityType` discriminates it, and two of the three values (`post`, `reply`)
  * name rows in MENTION's database rather than this one — see the header of
  * `db/schema/notifications.ts`. So an entity id is validated by nothing.
- *
- * ## `createWelcomeNotification` needs a real system account
- *
- * `actor_id` DOES carry a foreign key (`users`, `ON DELETE CASCADE`), so a
- * hardcoded sentinel "system" id that names no row would be REJECTED rather
- * than silently creating a notification attributed to an account that does not
- * exist. The system actor is therefore a PARAMETER: the caller supplies the
- * account the welcome is attributed to, and the foreign key checks it. Nothing
- * in this package calls it today.
  */
 
 import { eq } from 'drizzle-orm';
@@ -177,23 +168,6 @@ export class NotificationService {
       type: 'quote',
       entityId: postId,
       entityType: 'post',
-    });
-  }
-
-  /**
-   * Create a welcome notification for new users.
-   *
-   * `systemActorId` must name a real account: `notifications.actor_id` is a
-   * foreign key, so a sentinel id that names no row is rejected. See the module
-   * header.
-   */
-  static async createWelcomeNotification(recipientId: string, systemActorId: string) {
-    return this.createNotification({
-      recipientId,
-      actorId: systemActorId,
-      type: 'welcome',
-      entityId: recipientId,
-      entityType: 'profile',
     });
   }
 

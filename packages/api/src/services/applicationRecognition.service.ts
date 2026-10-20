@@ -13,7 +13,7 @@ import { asc, eq } from 'drizzle-orm';
 import type { ApplicationRecognition, ApplicationRecognitionWrite } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { applicationRecognition, applicationWebOrigins } from '../db/schema/applicationRecognition';
-import { isUniqueViolation } from '../utils/postgresErrors';
+import { isUniqueViolation } from '@oxy.so/db';
 import { ConflictError } from '../utils/error';
 
 /** An application's declaration; an application nobody declared declares nothing. */

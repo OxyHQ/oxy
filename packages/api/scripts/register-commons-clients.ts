@@ -74,6 +74,7 @@ import { applicationCredentials } from '../src/db/schema/applicationCredentials'
 import { applications } from '../src/db/schema/applications';
 import { users } from '../src/db/schema/users';
 import { accountService } from '../src/services/account.service';
+import { UsernameTakenError } from '../src/services/accountCreation.service';
 import type { ApplicationType } from '../src/db/schema/applications';
 import {
   IDENTITY_APPROVAL_CAPABILITY,
@@ -239,23 +240,23 @@ async function resolveTargets(dryRun: boolean): Promise<ResolvedTargets> {
   const ownerAccountAction: RecordAction = oxyOrg ? 'unchanged' : 'create';
 
   if (!oxyOrg && !dryRun) {
+    // The unique index decides which handle is free: a taken one is a
+    // `UsernameTakenError` (case-insensitively, like the index), and the next
+    // suffix is tried. No probe can be more right than the index it imitates.
     const baseUsername = `${OXY_OWNER_USERNAME}-org`;
-    let username = baseUsername;
-    for (let suffix = 1; suffix <= 1000; suffix += 1) {
-      const [taken] = await getDb()
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-      if (!taken) break;
-      username = `${baseUsername}${suffix}`;
+    for (let suffix = 0; !oxyOrg && suffix <= 1000; suffix += 1) {
+      try {
+        const { account } = await accountService.createChildAccount(oxyId, oxyId, {
+          kind: 'organization',
+          username: suffix === 0 ? baseUsername : `${baseUsername}${suffix}`,
+          name: { first: oxyAccountName },
+        });
+        oxyOrg = account;
+      } catch (error) {
+        if (!(error instanceof UsernameTakenError)) throw error;
+      }
     }
-    const { account } = await accountService.createChildAccount(oxyId, oxyId, {
-      kind: 'organization',
-      username,
-      name: { first: oxyAccountName },
-    });
-    oxyOrg = account;
+    if (!oxyOrg) throw new Error(`No free handle for the Oxy organization under "${baseUsername}"`);
   }
 
   const ownerAccountId = oxyOrg?.id ?? null;

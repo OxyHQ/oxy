@@ -66,7 +66,7 @@ import { appAttestKeys } from '../db/schema/appAttestKeys';
 import { applicationWebOrigins } from '../db/schema/applicationRecognition';
 import { applications } from '../db/schema/applications';
 import { logger } from '../utils/logger';
-import { isUniqueViolation } from '../utils/postgresErrors';
+import { isUniqueViolation } from '@oxy.so/db';
 import {
   type AppAttestEnvironment,
   AppAttestVerificationError,
