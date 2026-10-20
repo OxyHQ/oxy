@@ -106,6 +106,19 @@ const SERVICE_RECONCILE_PAGE_TIMEOUT_MS = 30_000;
 const SERVICE_RECONCILE_COMMIT_TIMEOUT_MS = 30_000;
 /** How long `reconcile` waits for a commit Oxy runs in the background. */
 const SERVICE_RECONCILE_COMMIT_WAIT_MS = 60 * 60_000;
+/**
+ * The least time between two pages of one inventory. Oxy allows an application
+ * 240 inventory requests a minute (`appReferenceReconcileLimiter`); one
+ * inventory paced at 200 a minute never meets that on its own, and leaves room
+ * for a second task of the same application.
+ */
+const SERVICE_RECONCILE_PAGE_INTERVAL_MS = 300;
+/** How many refusals (429) one reconciliation request waits out before failing. */
+const SERVICE_RECONCILE_RATE_LIMIT_RETRIES = 8;
+/** The wait after a refusal that names no `retryAfterSeconds`; doubled per refusal. */
+const SERVICE_RECONCILE_RATE_LIMIT_FALLBACK_MS = 2_000;
+/** The longest one wait may be, whatever the refusal says. */
+const SERVICE_RECONCILE_RATE_LIMIT_MAX_WAIT_MS = 60_000;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 /** A header value fetch accepts on every runtime: printable ASCII only. */
 const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
@@ -268,6 +281,10 @@ export class ServerAssetsApi extends AssetsApi {
      * `dryRun` returns the counts and changes nothing. One reconciliation per
      * entity type at a time (409 `RECONCILIATION_IN_PROGRESS`); if sending the
      * inventory fails, the session is released before the error is rethrown.
+     *
+     * Pages go at most 200 a minute, under Oxy's 240 a minute per application,
+     * and every request waits out a refusal (429) for the `Retry-After` Oxy
+     * names before sending again — so an inventory needs no pacing of its own.
      */
     reconcile: (
       entityType: string,
@@ -385,29 +402,43 @@ export class ServerAssetsApi extends AssetsApi {
   ): Promise<ServiceReferenceReconcileResult> {
     const service = lane(this.ctx);
     const dryRun = options.dryRun === true;
-    const { sessionId } = await service.request<{ sessionId: string }>(
-      'POST',
-      '/assets/service/references/reconcile',
-      { entityType },
-      // Not retried: a lost answer to a begin that succeeded would make the
-      // retry a 409 against its own session.
-      { cache: false, retry: false },
+    // Every request below waits out Oxy's refusals (429): a refused request
+    // never ran, so sending it again is safe whatever its method — and one
+    // refused page used to fail the whole inventory.
+    const { sessionId } = await waitingOutRateLimits(() =>
+      service.request<{ sessionId: string }>(
+        'POST',
+        '/assets/service/references/reconcile',
+        { entityType },
+        // Not retried on a lost answer: a begin that succeeded would make the
+        // retry a 409 against its own session.
+        { cache: false, retry: false },
+      ),
     );
     const path = `/assets/service/references/reconcile/${encodeURIComponent(sessionId)}`;
     const release = () =>
-      service.request('DELETE', path, undefined, { cache: false }).catch(() => undefined);
+      waitingOutRateLimits(() =>
+        service.request('DELETE', path, undefined, { cache: false }),
+      ).catch(() => undefined);
     let result: ServiceReferenceReconcileResult;
     try {
       let page: ServiceReferenceInventoryItem[] = [];
+      let lastPageAt = 0;
       const flush = async () => {
         if (page.length === 0) return;
         const items = page;
         page = [];
-        await service.request(
-          'PUT',
-          path,
-          { items },
-          { cache: false, timeout: SERVICE_RECONCILE_PAGE_TIMEOUT_MS },
+        const wait = lastPageAt + SERVICE_RECONCILE_PAGE_INTERVAL_MS - Date.now();
+        if (wait > 0) await sleep(wait);
+        lastPageAt = Date.now();
+        // A page is idempotent (a pair sent twice counts once).
+        await waitingOutRateLimits(() =>
+          service.request(
+            'PUT',
+            path,
+            { items },
+            { cache: false, timeout: SERVICE_RECONCILE_PAGE_TIMEOUT_MS },
+          ),
         );
       };
       for await (const { fileId, entityId } of items) {
@@ -417,13 +448,13 @@ export class ServerAssetsApi extends AssetsApi {
       await flush();
       // A large inventory can take longer than a request may: Oxy answers 202
       // while it is still committing, and the outcome is read back.
-      const answer = await service.request<
-        ServiceReferenceReconcileResult | { status: 'committing' }
-      >(
-        'POST',
-        `${path}/commit`,
-        { dryRun, background: true },
-        { cache: false, retry: false, timeout: SERVICE_RECONCILE_COMMIT_TIMEOUT_MS },
+      const answer = await waitingOutRateLimits(() =>
+        service.request<ServiceReferenceReconcileResult | { status: 'committing' }>(
+          'POST',
+          `${path}/commit`,
+          { dryRun, background: true },
+          { cache: false, retry: false, timeout: SERVICE_RECONCILE_COMMIT_TIMEOUT_MS },
+        ),
       );
       result = isCommitting(answer) ? await waitForCommit(service, path, sessionId) : answer;
     } catch (error) {
@@ -1480,6 +1511,49 @@ interface ReconcileSessionAnswer {
  * {@link SERVICE_RECONCILE_COMMIT_WAIT_MS} rejects with
  * `RECONCILIATION_WAIT_TIMEOUT` — Oxy finishes the commit regardless.
  */
+/**
+ * Send a reconciliation request, waiting out Oxy's refusals (429): up to
+ * {@link SERVICE_RECONCILE_RATE_LIMIT_RETRIES} of them, each for the
+ * `retryAfterSeconds` Oxy names (its `Retry-After`), else a doubling fallback,
+ * never longer than {@link SERVICE_RECONCILE_RATE_LIMIT_MAX_WAIT_MS}. Any
+ * other failure, and the refusal past the last, is thrown as it came.
+ */
+async function waitingOutRateLimits<T>(send: () => Promise<T>): Promise<T> {
+  for (let refusals = 0; ; refusals += 1) {
+    try {
+      return await send();
+    } catch (error: unknown) {
+      if (extractErrorStatus(error) !== 429 || refusals >= SERVICE_RECONCILE_RATE_LIMIT_RETRIES) {
+        throw error;
+      }
+      await sleep(rateLimitWaitMs(error, refusals));
+    }
+  }
+}
+
+/** How long to wait after a refusal: what Oxy said, else the doubling fallback; capped. */
+function rateLimitWaitMs(error: unknown, refusals: number): number {
+  const said = retryAfterSeconds(error);
+  const wait =
+    said !== undefined ? said * 1000 : SERVICE_RECONCILE_RATE_LIMIT_FALLBACK_MS * 2 ** refusals;
+  return Math.min(wait, SERVICE_RECONCILE_RATE_LIMIT_MAX_WAIT_MS);
+}
+
+/** `details.retryAfterSeconds` of a refusal (`RateLimitedError` on the server), if any. */
+function retryAfterSeconds(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const candidates = [
+    (error as { details?: { retryAfterSeconds?: unknown } }).details,
+    (error as { response?: { data?: { details?: { retryAfterSeconds?: unknown } } } }).response
+      ?.data?.details,
+  ];
+  for (const details of candidates) {
+    const seconds = details?.retryAfterSeconds;
+    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) return seconds;
+  }
+  return undefined;
+}
+
 async function waitForCommit(
   service: ServiceLane,
   path: string,
@@ -1498,9 +1572,9 @@ async function waitForCommit(
     }
     await sleep(interval);
     interval = nextPollInterval(interval);
-    const state = await service.request<ReconcileSessionAnswer>('GET', path, undefined, {
-      cache: false,
-    });
+    const state = await waitingOutRateLimits(() =>
+      service.request<ReconcileSessionAnswer>('GET', path, undefined, { cache: false }),
+    );
     if (state.status === 'committing') continue;
     if (state.error) {
       throw new OxyApiError(state.error.message, {

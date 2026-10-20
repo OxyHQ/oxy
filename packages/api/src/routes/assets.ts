@@ -2887,7 +2887,9 @@ router.delete(
 
 /**
  * Its own limiter: an inventory of a large entity type is hundreds of pages,
- * and must not starve the same application's per-write reference calls.
+ * and must not starve the same application's per-write reference calls. It
+ * counts the begin and the PAGES only; the session's control calls have their
+ * own (below).
  */
 const appReferenceReconcileLimiter = rateLimit({
   prefix: 'rl:asset-app:reconcile:',
@@ -2900,6 +2902,27 @@ const appReferenceReconcileLimiter = rateLimit({
       return `asset-app:reconcile:${serviceApp.appId}`;
     }
     return `asset-app:reconcile:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * The commit, the status read and the release of a session, on a budget of
+ * their own. A client that has spent the page budget must still be able to
+ * finish or let go of its session: when the release shared it, the refusal
+ * that ended an inventory refused its release too, and the session stayed
+ * open, blocking its entity type until it expired.
+ */
+const appReferenceReconcileControlLimiter = rateLimit({
+  prefix: 'rl:asset-app:reconcile-control:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many reconciliation requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:reconcile-control:${serviceApp.appId}`;
+    }
+    return `asset-app:reconcile-control:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -2977,7 +3000,7 @@ router.put(
 router.post(
   '/service/references/reconcile/:sessionId/commit',
   serviceAuthMiddleware,
-  appReferenceReconcileLimiter,
+  appReferenceReconcileControlLimiter,
   validate({ params: reconcileSessionParams, body: commitReconcileBodySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     const appId = await requireActiveApplication(req, ['files:references:write']);
@@ -3010,7 +3033,7 @@ router.post(
 router.get(
   '/service/references/reconcile/:sessionId',
   serviceAuthMiddleware,
-  appReferenceReconcileLimiter,
+  appReferenceReconcileControlLimiter,
   validate({ params: reconcileSessionParams }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     const appId = await requireActiveApplication(req, ['files:references:write']);
@@ -3028,7 +3051,7 @@ router.get(
 router.delete(
   '/service/references/reconcile/:sessionId',
   serviceAuthMiddleware,
-  appReferenceReconcileLimiter,
+  appReferenceReconcileControlLimiter,
   validate({ params: reconcileSessionParams }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     const appId = await requireActiveApplication(req, ['files:references:write']);

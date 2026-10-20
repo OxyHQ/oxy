@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 6.2.1
+
+### Fixed
+
+- `OxyServer.assets.references.reconcile` no longer fails a whole inventory on
+  one refused page. Pages go at most 200 a minute (Oxy allows an application
+  240), and every request of the session — begin, page, commit, status, release
+  — waits out a 429 for the `retryAfterSeconds` Oxy names (else a doubling
+  fallback, at most 60 s, eight times) before sending again. A refused request
+  never ran, so sending it again is safe. Before, the first 429 failed the
+  inventory and the release that followed was refused too, which left the
+  session open and the entity type blocked until it expired. An application's
+  own pacing of the inventory is no longer needed (and does no harm).
+
 ## 6.2.0
 
 ### Added
