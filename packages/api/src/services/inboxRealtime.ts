@@ -14,12 +14,12 @@
  * to succeed when the socket layer is down.
  */
 
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { getDb } from '../config/postgres';
 import { mailboxes } from '../db/schema/mailboxes';
-import { messages } from '../db/schema/messages';
 import { logger } from '../utils/logger';
+import { unreadCounts } from './folderCounts';
 import { getIO } from '../utils/socket';
 import type {
   EmailChangedEvent,
@@ -212,33 +212,6 @@ export function resolveFolder(
   return 'inbox';
 }
 
-/**
- * The unread count of each named mailbox, in ONE grouped query.
- *
- * The count `mailboxes.unseen_messages` used to cache. Led by `user_id`, the
- * predicate is the prefix of the partial index `messages_unseen_idx`
- * (`where not seen`), so it is an index-only scan over just the unread rows of
- * these folders. A mailbox with no unread mail has no group and reads as 0.
- */
-async function unreadCounts(
-  userId: string,
-  mailboxIds: readonly string[],
-): Promise<Map<string, number>> {
-  if (mailboxIds.length === 0) return new Map();
-  const rows = await getDb()
-    .select({ mailboxId: messages.mailboxId, unread: sql<number>`count(*)::int` })
-    .from(messages)
-    .where(
-      and(
-        eq(messages.userId, userId),
-        inArray(messages.mailboxId, [...mailboxIds]),
-        not(messages.seen),
-      ),
-    )
-    .groupBy(messages.mailboxId);
-  return new Map(rows.map((row) => [row.mailboxId, row.unread]));
-}
-
 export interface EmitEmailNewArgs {
   userId: string;
   /** The stored row's primary key. */
@@ -299,7 +272,7 @@ export async function emitEmailNew(args: EmitEmailNewArgs): Promise<void> {
 
     io.to(room).emit('email:new', payload);
 
-    const unread = await unreadCounts(args.userId, [args.mailboxId]);
+    const unread = await unreadCounts(getDb(), args.userId, [args.mailboxId]);
     const unreadPayload: EmailUnreadCountEvent = {
       mailboxId: args.mailboxId,
       unread: unread.get(args.mailboxId) ?? 0,
@@ -375,7 +348,7 @@ export async function emitEmailChangedMany(args: {
       io.to(room).emit('email:changed', payload);
     }
 
-    const unread = await unreadCounts(args.userId, [...touched]);
+    const unread = await unreadCounts(getDb(), args.userId, [...touched]);
     for (const mailboxId of touched) {
       const unreadPayload: EmailUnreadCountEvent = {
         mailboxId,
