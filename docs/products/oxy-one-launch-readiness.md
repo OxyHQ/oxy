@@ -1,5 +1,23 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## Operating company transition (2026-10-20)
+
+Oxy Platforms, Inc. is the intended operating company and prospective Oxy One
+invoice issuer. Its Delaware incorporation is in progress; payment for formation
+is not evidence of completed incorporation or fiscal verification. The current
+draft names the new company with `approved: false`, no tax identifier, no reused
+operator identity reference, and commercial activation disabled. The runtime
+configuration requires the new legal name; deploying it requires a separately
+verified issuer record and seller/processor bindings for the new entity.
+
+Earlier sections naming The Oxy Collective, Inc. record prior decisions. They
+do not approve the new entity, transfer software or trademark ownership, or
+replace historical invoice identities. Existing licences and ownership notices
+remain unchanged. Incorporation completion, issuer identity, tax registrations,
+explicit sale-country coverage and the existing checkout acceptance gates must
+be verified before enabling sales.
+
+
 ## 2026-10-11 inactive checkout review
 
 Peable #118 is integrated at `6f13df1cc9bbbced6ea1990818de1a18e450e87e`; main CI passed. The next exact packages are `@peable.to/shared-types@0.3.3-oxy-one.0` and `@peable.to/sdk@0.2.6-oxy-one.0`, both under `oxy-one`. Publication is already authorized but still requires an existing authenticated local publisher; the cloud has no npm session. Compare registry downloads with the same locally verified artifacts actually published, not with another machine's archive hashes. Registry dependency adoption and final CI are pending in Oxy #1648; temporary tarballs prove integration only.

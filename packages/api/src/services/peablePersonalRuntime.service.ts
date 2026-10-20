@@ -37,7 +37,7 @@ const pinnedKeysSchema = z
 export const peablePersonalRuntimeConfigurationSchema = peablePersonalManagementConfigurationSchema
   .extend({
     invoiceIssuer: z
-      .object({ legalName: z.literal('The Oxy Collective, Inc.'), id: z.string().min(1) })
+      .object({ legalName: z.literal('Oxy Platforms, Inc.'), id: z.string().min(1) })
       .strict(),
     sellerId: z.string().min(1),
     invoiceAuthorityKeys: pinnedKeysSchema,

@@ -44,7 +44,7 @@ const configuration = {
   offers: [
     { offerId: 'one', offerVersion: 1, planId: source.planId, providerPriceId: source.priceId },
   ],
-  invoiceIssuer: { legalName: 'The Oxy Collective, Inc.' as const, id: 'issuer_fixture' },
+  invoiceIssuer: { legalName: 'Oxy Platforms, Inc.' as const, id: 'issuer_fixture' },
   sellerId: 'seller_fixture',
   invoiceAuthorityKeys: { fixture: publicKey },
   taxQuoteAuthorityKeys: { fixture: publicKey },
