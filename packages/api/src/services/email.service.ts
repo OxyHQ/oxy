@@ -84,6 +84,7 @@ import {
 import { logger } from '../utils/logger';
 import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
+import { mapWithConcurrency } from '../utils/mapWithConcurrency';
 import { resolveEmailFromName } from '../utils/displayName';
 import { renderWelcomeEmail } from './welcomeEmail';
 import { createHash, randomUUID } from 'node:crypto';
@@ -134,6 +135,13 @@ const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
  * page and the count run inside one.
  */
 const EMAIL_SEARCH_MAX_TIME_MS = 5_000;
+
+/**
+ * Attachments of one inbound message uploaded at a time. Each is a hash, a
+ * file-manager write and an S3 put; a message with a dozen of them used to
+ * pay for them one after another.
+ */
+const INBOUND_UPLOAD_CONCURRENCY = 4;
 
 /** Rows loaded per page when sweeping every message of a user or mailbox. */
 const ATTACHMENT_SWEEP_PAGE_SIZE = 500;
@@ -2108,6 +2116,23 @@ class EmailService {
     messageId: string,
     flags: Partial<MessageFlagsDto>,
   ): Promise<MessageDto> {
+    const updated = await this.writeMessageFlags(userId, messageId, flags);
+    const dto = await readMessageDto(getDb(), updated.id);
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [dto.mailboxId],
+      reason: 'flags',
+    });
+    return dto;
+  }
+
+  /** {@link updateMessageFlags} without the read-back or the announcement. */
+  private async writeMessageFlags(
+    userId: string,
+    messageId: string,
+    flags: Partial<MessageFlagsDto>,
+  ): Promise<{ id: string }> {
     const db = getDb();
     const owned = and(eq(messages.id, messageId), eq(messages.userId, userId));
 
@@ -2121,15 +2146,7 @@ class EmailService {
     if (!updated) {
       throw new NotFoundError('Message not found');
     }
-
-    const dto = await readMessageDto(db, updated.id);
-    await emitEmailChanged({
-      userId,
-      id: dto.id,
-      mailboxIds: [dto.mailboxId],
-      reason: 'flags',
-    });
-    return dto;
+    return updated;
   }
 
   async moveMessage(
@@ -2475,19 +2492,44 @@ class EmailService {
     let storedMessageId: string;
     try {
       if (params.attachments && params.attachments.length > 0) {
-        for (const att of params.attachments) {
-          const held = await findLiveFileBySha256ForOwner(
-            createHash('sha256').update(att.content).digest('hex'),
-            { ownerUserId: userId, systemOwner: null },
-          );
-          const file = await assetService.uploadFileDirect(
-            userId,
-            att.content,
-            att.contentType,
-            att.filename,
-            'private',
-            { source: 'email-inbound' },
-          );
+        // Uploaded side by side, stored in the message's own order. Which
+        // bytes the user already holds is read for every attachment first, so
+        // the uploads still start in that order. A failed upload lets the ones
+        // in flight finish, so every file this delivery created is in
+        // `createdFileIds` before the catch below runs.
+        const attachments = params.attachments;
+        const heldIds = await mapWithConcurrency(
+          attachments,
+          INBOUND_UPLOAD_CONCURRENCY,
+          async (att) => {
+            const held = await findLiveFileBySha256ForOwner(
+              createHash('sha256').update(att.content).digest('hex'),
+              { ownerUserId: userId, systemOwner: null },
+            );
+            return held?.id ?? null;
+          },
+        );
+        const uploaded = await mapWithConcurrency(
+          attachments,
+          INBOUND_UPLOAD_CONCURRENCY,
+          async (att, index) => {
+            const file = await assetService.uploadFileDirect(
+              userId,
+              att.content,
+              att.contentType,
+              att.filename,
+              'private',
+              { source: 'email-inbound' },
+            );
+            // Two attachments with the same bytes come back as the one row
+            // the first of them created.
+            if (file.id !== heldIds[index] && !createdFileIds.includes(file.id)) {
+              createdFileIds.push(file.id);
+            }
+            return { att, file };
+          },
+        );
+        for (const { att, file } of uploaded) {
           storedAttachments.push({
             fileId: file.id,
             name: file.originalName || att.filename,
@@ -2497,7 +2539,6 @@ class EmailService {
             isInline: att.isInline ?? false,
           });
           uploadedFiles.push({ fileId: file.id });
-          if (file.id !== held?.id) createdFileIds.push(file.id);
         }
       }
 
@@ -2567,22 +2608,24 @@ class EmailService {
     // must not fail.
     if (uploadedFiles.length > 0) {
       const msgIdForLink = storedMessageId;
-      for (const { fileId } of uploadedFiles) {
-        try {
-          await assetService.linkFile(fileId, {
-            applicationId: INBOX_APPLICATION_ID,
-            entityType: 'message',
-            entityId: msgIdForLink,
-            createdByUserId: userId,
-          });
-        } catch (err) {
-          logger.warn('Failed to link inbound attachment to message', {
-            fileId,
-            messageId: msgIdForLink,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
+      await Promise.all(
+        uploadedFiles.map(async ({ fileId }) => {
+          try {
+            await assetService.linkFile(fileId, {
+              applicationId: INBOX_APPLICATION_ID,
+              entityType: 'message',
+              entityId: msgIdForLink,
+              createdByUserId: userId,
+            });
+          } catch (err) {
+            logger.warn('Failed to link inbound attachment to message', {
+              fileId,
+              messageId: msgIdForLink,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }),
+      );
     }
 
     logger.info('Incoming email stored', {
@@ -2605,8 +2648,9 @@ class EmailService {
     // rule moved out of the Inbox, marked read or deleted still buzzed the
     // phone and toasted on every open client. A failing rule is logged and
     // delivery carries on: the message is stored, and that is what matters.
+    let filedByRules: string[] = [];
     try {
-      await this.applyFilters(userId, storedMessageId);
+      filedByRules = await this.applyFilters(userId, storedMessageId);
     } catch (err) {
       logger.warn('Email filter application failed', {
         messageId: storedMessageId,
@@ -2629,13 +2673,13 @@ class EmailService {
     const stillNew = dto.mailboxId === mailbox.id && !dto.flags.seen;
 
     if (!stillNew) {
-      // The filter actions already emitted their own `email:changed`; this one
-      // names the delivery folder as well, so a client showing either side
-      // re-reads even if a rule's emit was lost. No toast, no unread bump.
+      // The filter actions announce nothing of their own — nothing had been
+      // told about this message yet — so this one event names every folder
+      // they touched, the delivery folder first. No toast, no unread bump.
       await emitEmailChanged({
         userId,
         id: dto.id,
-        mailboxIds: dto.mailboxId === mailbox.id ? [mailbox.id] : [mailbox.id, dto.mailboxId],
+        mailboxIds: [...new Set([mailbox.id, ...filedByRules, dto.mailboxId])],
         reason: dto.mailboxId === mailbox.id ? 'flags' : 'moved',
       });
       return dto;
@@ -3690,6 +3734,24 @@ class EmailService {
     add: string[],
     remove: string[],
   ): Promise<MessageDto> {
+    const updated = await this.writeMessageLabels(userId, messageId, add, remove);
+    const dto = await readMessageDto(getDb(), updated.id);
+    await emitEmailChanged({
+      userId,
+      id: dto.id,
+      mailboxIds: [dto.mailboxId],
+      reason: 'labels',
+    });
+    return dto;
+  }
+
+  /** {@link updateMessageLabels} without the read-back or the announcement. */
+  private async writeMessageLabels(
+    userId: string,
+    messageId: string,
+    add: string[],
+    remove: string[],
+  ): Promise<{ id: string }> {
     const db = getDb();
 
     // Validate that labels being added actually exist for this user. A system
@@ -3734,15 +3796,7 @@ class EmailService {
       .returning({ id: messages.id });
 
     if (!updated) throw new NotFoundError('Message not found');
-
-    const dto = await readMessageDto(db, updated.id);
-    await emitEmailChanged({
-      userId,
-      id: dto.id,
-      mailboxIds: [dto.mailboxId],
-      reason: 'labels',
-    });
-    return dto;
+    return updated;
   }
 
   // ─── Filters ─────────────────────────────────────────────────────────
@@ -3860,8 +3914,12 @@ class EmailService {
    * Apply user's enabled email filters to an incoming message.
    * Called after the message is stored in storeIncomingMessage().
    * Batch-loads all enabled filters once, then evaluates each.
+   *
+   * Announces nothing: the caller announces the delivery once, naming the
+   * folders answered here — every one a rule moved the message out of or
+   * into, in order.
    */
-  async applyFilters(userId: string, messageId: string): Promise<void> {
+  async applyFilters(userId: string, messageId: string): Promise<string[]> {
     const db = getDb();
     const filterRows = await db
       .select()
@@ -3869,7 +3927,7 @@ class EmailService {
       .where(and(eq(emailFilters.userId, userId), eq(emailFilters.enabled, true)))
       .orderBy(asc(emailFilters.order));
 
-    if (filterRows.length === 0) return;
+    if (filterRows.length === 0) return [];
 
     const filters = await loadFilterChildren(db, filterRows);
 
@@ -3884,7 +3942,7 @@ class EmailService {
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
-    if (!row) return;
+    if (!row) return [];
 
     const recipients = (await loadRecipients(db, [row.id])).get(row.id) ?? emptyRecipients();
     const [attachmentCountRow] = await db
@@ -3900,13 +3958,15 @@ class EmailService {
       attachmentCount: attachmentCountRow?.count ?? 0,
     };
 
+    const touched: string[] = [];
     for (const filter of filters) {
       const matches = this.evaluateFilterConditions(message, filter.conditions, filter.matchAll);
       if (!matches) continue;
 
-      await this.executeFilterActions(userId, messageId, filter.actions);
+      touched.push(...(await this.executeFilterActions(userId, messageId, filter.actions)));
       // Continue to next filter — multiple filters may apply
     }
+    return touched;
   }
 
   /**
@@ -3994,41 +4054,48 @@ class EmailService {
   }
 
   /**
-   * Execute filter actions on a message.
+   * Execute filter actions on a message, through the non-announcing halves of
+   * the user-facing writes: each of those reads the message back and emits
+   * `email:changed` with fresh unread counts, which for a message nothing has
+   * been told about yet was work for no one. Answers the folders the actions
+   * moved it out of and into.
    */
   private async executeFilterActions(
     userId: string,
     messageId: string,
     actions: FilterActionDto[],
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const touched: string[] = [];
     for (const action of actions) {
       try {
         switch (action.type) {
           case 'move':
             if (action.value) {
-              await this.moveMessage(userId, messageId, action.value);
+              const target = await this.getMailboxById(userId, action.value);
+              if (!target) throw new NotFoundError('Target mailbox not found');
+              touched.push(...(await this.relocateMessage(userId, messageId, target)));
             }
             break;
           case 'label':
             if (action.value) {
-              await this.updateMessageLabels(userId, messageId, [action.value], []);
+              await this.writeMessageLabels(userId, messageId, [action.value], []);
             }
             break;
           case 'star':
-            await this.updateMessageFlags(userId, messageId, { starred: true });
+            await this.writeMessageFlags(userId, messageId, { starred: true });
             break;
           case 'mark-read':
-            await this.updateMessageFlags(userId, messageId, { seen: true });
+            await this.writeMessageFlags(userId, messageId, { seen: true });
             break;
           case 'archive': {
             const archive = await this.getMailboxBySpecialUse(userId, '\\Archive');
             if (archive) {
-              await this.moveMessage(userId, messageId, archive.id);
+              touched.push(...(await this.relocateMessage(userId, messageId, archive)));
             }
             break;
           }
           case 'delete': {
-            await this.deleteMessage(userId, messageId, false);
+            touched.push(...(await this.trashMessage(userId, messageId)));
             break;
           }
           case 'forward':
@@ -4054,6 +4121,7 @@ class EmailService {
         });
       }
     }
+    return touched;
   }
 
   /**
