@@ -93,6 +93,15 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  it('declares each web origin once, as an exact https origin, and Mention’s own', () => {
+    // A web app proves itself by its Origin (ADR 0045); an app that declares none
+    // is refused on every assertion, and an origin names exactly one application.
+    const origins = SEED_APPS.flatMap((spec) => spec.webOrigins ?? []);
+    expect(new Set(origins).size).toBe(origins.length);
+    for (const origin of origins) expect(origin).toMatch(/^https:\/\/[^/?#@]+$/);
+    expect(specNamed('Mention').webOrigins).toEqual(['https://mention.earth']);
+  });
+
   it('pins the Oxy profile registrar with no OAuth public client or workload authority', () => {
     expect(OXY_PROFILE_REGISTRAR_SPEC).toMatchObject({
       id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,

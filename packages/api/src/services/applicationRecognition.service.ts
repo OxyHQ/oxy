@@ -3,13 +3,14 @@
  * assertions.
  *
  * The ONLY writer of `application_recognition` and `application_web_origins`.
- * Its one write caller is the staff lane of the application administration
+ * Its write callers are the staff lane of the application administration
  * router (`PUT /applications/:appId/recognition`), on the same terms as the
- * application's agents (ADR 0044): staff AND `app:update`. The reader is
+ * application's agents (ADR 0044): staff AND `app:update`, and the official-app
+ * seed (`declareApplicationWebOrigins`), which only ever adds. The reader is
  * `appAssertion.service.ts`.
  */
 
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import type { ApplicationRecognition, ApplicationRecognitionWrite } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { applicationRecognition, applicationWebOrigins } from '../db/schema/applicationRecognition';
@@ -96,4 +97,61 @@ export async function removeApplicationRecognition(applicationId: string): Promi
   await getDb()
     .delete(applicationRecognition)
     .where(eq(applicationRecognition.applicationId, applicationId));
+}
+
+/**
+ * Add `origins` to the application's declared web origins, creating its
+ * (empty) declaration when it has none. The official-app seed's write: it is
+ * additive and idempotent, so an Android, iOS or extra web origin staff wrote
+ * through `writeApplicationRecognition` survives a re-seed. Returns the origins
+ * it added; a second run returns none.
+ *
+ * Throws when an origin is already another application's — a seed must not
+ * move an identity between applications.
+ */
+export async function declareApplicationWebOrigins(
+  applicationId: string,
+  origins: readonly string[],
+): Promise<string[]> {
+  if (origins.length === 0) return [];
+  return getDb().transaction(async (tx) => {
+    const taken = await tx
+      .select({ origin: applicationWebOrigins.origin })
+      .from(applicationWebOrigins)
+      .where(
+        and(
+          inArray(applicationWebOrigins.origin, [...origins]),
+          ne(applicationWebOrigins.applicationId, applicationId),
+        ),
+      );
+    if (taken.length > 0) {
+      throw new ConflictError(
+        `Web origin ${taken.map(({ origin }) => origin).join(', ')} is already another application’s`,
+      );
+    }
+    await tx.insert(applicationRecognition).values({ applicationId }).onConflictDoNothing();
+    const added = await tx
+      .insert(applicationWebOrigins)
+      .values(origins.map((origin) => ({ origin, applicationId })))
+      .onConflictDoNothing()
+      .returning({ origin: applicationWebOrigins.origin });
+    return added.map(({ origin }) => origin);
+  });
+}
+
+/** The subset of `origins` the application has not declared yet (the seed's dry run). */
+export async function undeclaredApplicationWebOrigins(
+  applicationId: string,
+  origins: readonly string[],
+): Promise<string[]> {
+  if (origins.length === 0) return [];
+  const declared = new Set(
+    (
+      await getDb()
+        .select({ origin: applicationWebOrigins.origin })
+        .from(applicationWebOrigins)
+        .where(eq(applicationWebOrigins.applicationId, applicationId))
+    ).map(({ origin }) => origin),
+  );
+  return origins.filter((origin) => !declared.has(origin));
 }

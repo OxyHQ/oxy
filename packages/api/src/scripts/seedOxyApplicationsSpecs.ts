@@ -59,6 +59,17 @@ export interface SeedAppSpec {
   type: SeedAppType;
   redirectUris: string[];
   /**
+   * The exact `https://` origins of the application's web client, as a browser
+   * sends them in `Origin` (ADR 0045). `POST /apps/assertions` refuses a web
+   * proof — `platform_not_registered`, then `origin_not_registered` — for an
+   * application that declares none, so a first-party web app that calls it
+   * (every `OxyProvider` does, unprompted) needs its origin here. The seed ADDS
+   * them to `application_web_origins`; it never removes an origin staff wrote
+   * through `PUT /applications/:appId/recognition`, and refuses one that is
+   * already another application's.
+   */
+  webOrigins?: string[];
+  /**
    * App-level scopes. Defaults to `['user:read']`. A PRIVILEGED scope (e.g.
    * `federation:write`) is staff-only and is never self-grantable via the API —
    * granting it here (in this canonical seed, run by staff) is the supported way
@@ -435,6 +446,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Oxy Accounts',
     description: 'Official Oxy account management app (My Account).',
     websiteUrl: 'https://accounts.oxy.so',
+    webOrigins: ['https://accounts.oxy.so'],
     type: 'first_party',
     redirectUris: ['https://accounts.oxy.so'],
   },
@@ -442,6 +454,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Oxy Console',
     description: 'Official Oxy developer console (Cloud).',
     websiteUrl: 'https://console.oxy.so',
+    webOrigins: ['https://console.oxy.so'],
     type: 'first_party',
     redirectUris: ['https://console.oxy.so'],
   },
@@ -450,6 +463,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Oxy Inbox',
     description: 'Official Oxy email/inbox app.',
     websiteUrl: 'https://inbox.oxy.so',
+    webOrigins: ['https://inbox.oxy.so'],
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
     scopes: ['user:read', 'inference:invoke', 'catalogs:write', 'capability-events:publish'],
@@ -459,6 +473,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Oxy Auth',
     description: 'Official Oxy authentication app and third-party OAuth Identity Provider.',
     websiteUrl: 'https://auth.oxy.so',
+    webOrigins: ['https://auth.oxy.so'],
     type: 'first_party',
     // The auth app is the third-party OAuth IdP, the browser bridge and the
     // page an email sign-in link opens (ADR 0030), and it consumes
@@ -472,6 +487,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Mention',
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
+    webOrigins: ['https://mention.earth'],
     // Mention erases a deleted Oxy account's data on this push (OxyHQ/Mention#1169),
     // and reconciles from GET /account-events when it misses one.
     webhookUrl: 'https://api.mention.earth/webhooks/oxy/account-events',
@@ -529,6 +545,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Homiio',
     description: 'Official Oxy real estate platform.',
     websiteUrl: 'https://homiio.com',
+    webOrigins: ['https://homiio.com'],
     type: 'first_party',
     // Web and native explicit re-consent callbacks. The custom scheme is
     // intentionally exact: PKCE + state bind the native return, and neither the
@@ -574,6 +591,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Clarity',
     description: 'Official Clarity product client',
     websiteUrl: 'https://clarity.surf',
+    webOrigins: ['https://clarity.surf', 'https://clarity.oxy.so'],
     type: 'first_party',
     redirectUris: ['https://clarity.surf', 'https://clarity.oxy.so', 'clarity://'],
     scopes: ['user:read'],
@@ -584,6 +602,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Allo',
     description: 'Official Oxy encrypted messaging app.',
     websiteUrl: 'https://allo.you',
+    webOrigins: ['https://allo.you'],
     type: 'first_party',
     // One redirect URI, because Allo has one hostname. `https://allo.oxy.so`
     // was the second until that alias was retired (Allo #128): its DNS record is
@@ -596,6 +615,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Alia',
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',
+    webOrigins: ['https://alia.onl'],
     // Alia remains `internal` because rollout/canary gates distinguish the agent
     // runtime from customer-facing official products. Catalogue availability no
     // longer carries an Alia-specific identity: both `first_party` and `internal`
@@ -620,6 +640,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Syra',
     description: 'Official Oxy app.',
     websiteUrl: 'https://syra.fm',
+    webOrigins: ['https://syra.fm'],
     type: 'first_party',
     redirectUris: ['https://syra.fm'],
     // ADR 0043 rollout stage 4: Syra's catalogue artwork moves out of its own
@@ -634,6 +655,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'TNP',
     description: 'Official Oxy alternative DNS/namespace system.',
     websiteUrl: 'https://tnp.network',
+    webOrigins: ['https://tnp.network'],
     type: 'first_party',
     redirectUris: ['https://tnp.network'],
   },
@@ -660,6 +682,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Peable',
     description: 'Official Peable payments app.',
     websiteUrl: 'https://peable.to',
+    webOrigins: ['https://peable.to'],
     type: 'first_party',
     redirectUris: ['https://peable.to'],
     // ADR 0043 D4: Peable records which of its records (a receipt, a
@@ -677,6 +700,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Noted',
     description: 'Official Oxy notes app.',
     websiteUrl: 'https://noted.oxy.so',
+    webOrigins: ['https://noted.oxy.so'],
     type: 'first_party',
     redirectUris: ['https://noted.oxy.so'],
     scopes: [
@@ -704,6 +728,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     legacyNames: ['Marketplace'],
     description: 'Official Oxy marketplace app — buy and sell new and secondhand items.',
     websiteUrl: 'https://mercaria.co',
+    webOrigins: ['https://mercaria.co'],
     type: 'first_party',
     // Storefront (mercaria.co) + the two first-party admin surfaces that share
     // this client: the store/merchant dashboard and the point-of-sale app.
@@ -747,6 +772,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Moovo',
     description: 'Official Oxy courier/transport app — send packages, food, and moves.',
     websiteUrl: 'https://moovo.now',
+    webOrigins: ['https://moovo.now'],
     type: 'first_party',
     redirectUris: ['https://moovo.now', 'https://go.moovo.now', 'https://hub.moovo.now'],
     // ADR 0043: category art is the MOOVO APPLICATION's own file
@@ -768,6 +794,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description:
       'Bring your account to Oxy: connect Mastodon, Bluesky and more, and your profile, follows and posts come with you.',
     websiteUrl: 'https://move.oxy.so',
+    webOrigins: ['https://move.oxy.so'],
     // `first_party` makes it trusted (`isTrustedApplication`), which is what
     // mints its service tokens with `tier: 'internal'`.
     type: 'first_party',
@@ -809,6 +836,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'GoWay',
     description: 'Official Oxy maps and navigation app.',
     websiteUrl: 'https://goway.to',
+    webOrigins: ['https://goway.to'],
     type: 'first_party',
     redirectUris: ['https://goway.to'],
     // `files:references:write`: GoWay records and withdraws its own uses of
@@ -822,6 +850,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Nilo',
     description: 'Official Oxy workspace app.',
     websiteUrl: 'https://nilo.so',
+    webOrigins: ['https://nilo.so'],
     type: 'first_party',
     redirectUris: ['https://nilo.so'],
     // - `inference:invoke`: Nilo's one-shot AI actions on a member's own text
@@ -864,6 +893,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Willo',
     description: 'Official Oxy smart home control app.',
     websiteUrl: 'https://willo.sh',
+    webOrigins: ['https://willo.sh'],
     type: 'first_party',
     redirectUris: ['https://willo.sh'],
     // Isolated activity-only principal: no feature-write or inference
@@ -875,6 +905,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description:
       'The Oxy App Store — the storefront people browse before they choose an app, and where they review one afterwards.',
     websiteUrl: 'https://atlas.oxy.so',
+    webOrigins: ['https://atlas.oxy.so'],
     type: 'first_party',
     // The storefront is readable signed out, so this client exists for exactly
     // one thing: signing somebody in to write a review. Only the app's own
@@ -886,6 +917,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description:
       'Official Oxy participatory moderation platform — reviewers are assigned cases by the server and review them blind.',
     websiteUrl: 'https://crowdsource.oxy.so',
+    webOrigins: ['https://crowdsource.oxy.so'],
     // CrowdSource erases or anonymises a deleted Oxy account's reviewer profile,
     // reports and community notes on this push (OxyHQ/Mention#1178), and
     // reconciles from GET /account-events when it misses one.

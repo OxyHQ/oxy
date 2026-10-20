@@ -32,6 +32,11 @@ application's agents (`requireStaff` + `app:update`):
 - `signingCertSha256`: the SHA-256 of each certificate Play reports for the app
   (the Play Console's app-signing key, and the upload key if builds signed with
   it are distributed), `keytool`'s digest lowercased without colons.
+- The official apps' web origins are declared in the seed
+  (`webOrigins` in `seedOxyApplicationsSpecs.ts`) and added, never removed, by
+  `scripts/seed-oxy-applications.ts`; Android and iOS identities are staff's.
+  Every refusal is logged at info as `[app-assertion] refused` with its code,
+  application, platform and `Origin`.
 - Tables: `application_recognition` (one row per application) and
   `application_web_origins` (one row per origin). An origin, an Android package
   and an iOS team + bundle can each belong to one application only; a write that

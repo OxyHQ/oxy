@@ -22,6 +22,10 @@
  *
  * Safety:
  *   - No deletes, no drops, no modification of unrelated documents.
+ *   - Application web origins (`spec.webOrigins`, ADR 0045) in
+ *                      `application_web_origins`, additive only: an origin staff
+ *                      added is never removed, one that is another application's
+ *                      aborts the run.
  *   - Re-running performs 0 inserts once seeded (verified by the summary).
  *   - DRY_RUN=true reports the plan without writing.
  *
@@ -64,6 +68,10 @@ import {
   excludeWorkloadRows,
 } from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
+import {
+  declareApplicationWebOrigins,
+  undeclaredApplicationWebOrigins,
+} from '../src/services/applicationRecognition.service';
 import { users } from '../src/db/schema/users';
 import {
   selectSeedEntriesByExactIds,
@@ -109,6 +117,7 @@ interface MappingRow {
   websiteUrl?: string;
   createdApplication: boolean;
   createdCredential: boolean;
+  webOriginsAdded: string[];
 }
 
 const DRY_RUN_PLACEHOLDER_ID = '000000000000000000000000';
@@ -260,6 +269,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   let credentialsCreated = 0;
   let legacyCredentialsRevoked = 0;
   let credentialsReused = 0;
+  let webOriginsDeclared = 0;
 
   for (const spec of seedApps) {
     let createdApplication = false;
@@ -443,7 +453,20 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       }
     }
 
+    // ADR 0045: a web app proves itself by its `Origin`, so the origins the spec
+    // declares must be registered or every `POST /apps/assertions` from the app
+    // is a 403. Additive; a dry run reports what a real run would add.
+    const webOrigins = spec.webOrigins ?? [];
+    const webOriginsAdded =
+      application && application.id !== DRY_RUN_PLACEHOLDER_ID
+        ? dryRun
+          ? await undeclaredApplicationWebOrigins(application.id, webOrigins)
+          : await declareApplicationWebOrigins(application.id, webOrigins)
+        : webOrigins;
+    webOriginsDeclared += webOriginsAdded.length;
+
     mapping.push({
+      webOriginsAdded,
       app: spec.name,
       type: spec.type,
       applicationId,
@@ -471,6 +494,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     legacyAppsRetired,
     legacyCredentialsRevoked,
     credentialsReused,
+    webOriginsDeclared,
   });
 
   const [{ value: ownedAppCount }] = await getDb()
