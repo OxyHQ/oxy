@@ -808,11 +808,24 @@ describe('empty scopes cannot silently consent at any OAuth entry', () => {
 
   it('rejects a third-party empty request before persisting an AuthSession', async () => {
     const app = await client();
+    const clientSecret = 'oauth-client-secret';
+    await getDb()
+      .update(applicationCredentials)
+      .set({
+        type: 'confidential',
+        secretHash: createHash('sha256').update(clientSecret).digest('hex'),
+      })
+      .where(eq(applicationCredentials.publicKey, app.clientId));
     const { challenge } = pkce();
     const result = await post('/auth/session/create', {
       sessionToken: randomBytes(32).toString('hex'),
       clientId: app.clientId,
-      oauth: { redirectUri: REDIRECT, codeChallenge: challenge, codeChallengeMethod: 'S256' },
+      oauth: {
+        clientSecret,
+        redirectUri: REDIRECT,
+        codeChallenge: challenge,
+        codeChallengeMethod: 'S256',
+      },
     });
     expect(result.status).toBe(400);
     expect(result.body.error).toBe('invalid_scope');
