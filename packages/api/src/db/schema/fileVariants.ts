@@ -52,8 +52,9 @@ export const fileVariants = pgTable(
   },
   (t) => [
     // Serves both reads there are: every variant of a file, and one variant by
-    // type.
-    index('file_variants_file_id_type_idx').on(t.fileId, t.type),
+    // type. `size` rides along so a file's rendition bytes (the quota, the
+    // storage observation) are an index-only probe.
+    index('file_variants_file_id_type_idx').on(t.fileId, t.type, t.size),
     check('file_variants_size_check', sql`${t.size} is null or ${t.size} >= 0`),
   ],
 );

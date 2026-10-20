@@ -269,10 +269,18 @@ export const files = pgTable(
     // cursor), and the referencing-row probe the `RESTRICT` foreign key runs
     // when an application row is deleted — `owner_application_id = $1`
     // implies the partial predicate, so tombstones are covered too. Partial,
-    // so the user-owned 99.99% of the table costs it nothing.
+    // so the user-owned 99.99% of the table costs it nothing. `size` rides
+    // along so the storage observation's "added in a window" measure is an
+    // index-only range per application (`applicationStorageObservation.ts`).
     index('files_owner_application_id_created_at_idx')
-      .on(t.ownerApplicationId, t.createdAt.desc(), t.id.desc())
+      .on(t.ownerApplicationId, t.createdAt.desc(), t.id.desc(), t.size)
       .where(sql`${t.ownerApplicationId} is not null`),
+    // What each application STORES (its live rows and their bytes), index-only:
+    // the storage observation and `applicationStoredBytes`. `id` joins the
+    // renditions (`file_variants_file_id_type_idx`, which carries `size` too).
+    index('files_application_live_bytes_idx')
+      .on(t.ownerApplicationId, t.id, t.size)
+      .where(sql`${t.ownerApplicationId} is not null and ${liveStatusPredicate(t.status)}`),
     // The lifecycle sweep (`fileLifecycle.worker.ts`, ADR 0043 D5). Each is
     // partial to exactly the rows one step reads, so the account-owned 99% of
     // the table costs them nothing:

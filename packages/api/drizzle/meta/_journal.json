@@ -1338,6 +1338,13 @@
       "when": 1792470002000,
       "tag": "0191_canonical_profile_color_check",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1792501947209,
+      "tag": "0192_application_storage_covering_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -19,7 +19,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 const mockInfo = jest.fn();
 const mockError = jest.fn();
@@ -33,18 +33,24 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { applications, fileVariants, files, users } from '../../db/schema';
+import { applications, fileLifecycleSweeps, fileVariants, files, users } from '../../db/schema';
 import {
   type ApplicationStorageObservation,
   DEFAULT_GROWTH_THRESHOLDS,
   evaluateGrowth,
   type GrowthThresholds,
   growthThresholdsFromEnv,
+  OBSERVATION_STATEMENT_TIMEOUT_MS,
+  OBSERVATION_STATEMENTS,
   observeApplicationStorage,
   publishApplicationStorageMetrics,
   STORAGE_METRIC_NAMESPACE,
 } from '../applicationStorageObservation';
-import { runFileLifecycleSweep } from '../fileLifecycle.worker';
+import {
+  claimFileLifecycleSweep,
+  runFileLifecycleSweep,
+  SWEEP_LEASE_MS,
+} from '../fileLifecycle.worker';
 import { applicationStoredBytes } from '../storageQuota.service';
 
 jest.setTimeout(60_000);
@@ -423,28 +429,35 @@ describe('what is published', () => {
   });
 });
 
+function quietActions() {
+  return {
+    trashUnusedApplicationFile: async () => null,
+    purgeTrashedApplicationFile: async () => false,
+    purgeBlockedApplicationFile: async () => false,
+    sweepStaleUpload: async () => 'not_due' as const,
+    storedObjectExists: async () => false,
+    unpublishTrashedFile: async () => false,
+  };
+}
+
+function emptySummary() {
+  return {
+    applicationsWithFiles: 0,
+    totalStoredBytes: 0,
+    totalBytesAdded24h: 0,
+    anomalies: [],
+    published: [],
+  };
+}
+
 describe('the lifecycle sweep carries the observation', () => {
   it('reports it, and a failed observation does not fail the run', async () => {
-    const quietActions = {
-      trashUnusedApplicationFile: async () => null,
-      purgeTrashedApplicationFile: async () => false,
-      purgeBlockedApplicationFile: async () => false,
-      sweepStaleUpload: async () => 'not_due' as const,
-      storedObjectExists: async () => false,
-      unpublishTrashedFile: async () => false,
-    };
-    const summary = {
-      applicationsWithFiles: 0,
-      totalStoredBytes: 0,
-      totalBytesAdded24h: 0,
-      anomalies: [],
-      published: [],
-    };
+    const summary = emptySummary();
     const observed = jest.fn(async () => summary);
     const report = await runFileLifecycleSweep({
       mode: 'report',
       force: true,
-      actions: quietActions,
+      actions: quietActions(),
       observeStorage: observed,
     });
     expect(report?.storage).toBe(summary);
@@ -453,7 +466,7 @@ describe('the lifecycle sweep carries the observation', () => {
     const failed = await runFileLifecycleSweep({
       mode: 'report',
       force: true,
-      actions: quietActions,
+      actions: quietActions(),
       observeStorage: async () => {
         throw new Error('statement timeout');
       },
@@ -464,5 +477,68 @@ describe('the lifecycle sweep carries the observation', () => {
       '[FileLifecycle] Storage observation failed; the next run measures again',
       expect.objectContaining({ sweepId: failed?.id, error: 'statement timeout' }),
     );
+  });
+
+  // 2026-10-20: the observation ran after the run was marked completed, outside
+  // its lease, took over two hours, and the next hour's run started another —
+  // three at once on the shared database.
+  it('observes inside the run: while it measures, no other run can start', async () => {
+    const seen: { status: string | undefined; rival: unknown }[] = [];
+    const report = await runFileLifecycleSweep({
+      mode: 'report',
+      force: true,
+      actions: quietActions(),
+      observeStorage: async () => {
+        const [run] = await getDb()
+          .select({ status: fileLifecycleSweeps.status })
+          .from(fileLifecycleSweeps)
+          .where(eq(fileLifecycleSweeps.status, 'running'));
+        // `force` skips the schedule, never the lease.
+        const rival = await claimFileLifecycleSweep({ mode: 'report', force: true }, new Date());
+        seen.push({ status: run?.status, rival });
+        return emptySummary();
+      },
+    });
+    expect(seen).toEqual([{ status: 'running', rival: null }]);
+    const [after] = await getDb()
+      .select({ status: fileLifecycleSweeps.status })
+      .from(fileLifecycleSweeps)
+      .where(eq(fileLifecycleSweeps.id, report?.id ?? ''));
+    expect(after?.status).toBe('completed');
+  });
+
+  it('ends before the lease it runs under does', () => {
+    expect(OBSERVATION_STATEMENTS * OBSERVATION_STATEMENT_TIMEOUT_MS).toBeLessThan(SWEEP_LEASE_MS);
+  });
+
+  it('cancels a statement past its timeout instead of leaving it running', async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let signalLocked = () => {};
+    const locked = new Promise<void>((resolve) => {
+      signalLocked = resolve;
+    });
+    // Another session holds the renditions table, so the measure waits on it.
+    const holder = getDb().transaction(async (tx) => {
+      await tx.execute(sql`lock table file_variants in access exclusive mode`);
+      signalLocked();
+      await held;
+    });
+    await locked;
+    try {
+      const error: unknown = await observeApplicationStorage(new Date(), getDb(), {
+        statementTimeoutMs: 200,
+      }).then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+      const cause = error instanceof Error ? error.cause : undefined;
+      expect(`${String(error)} ${String(cause)}`).toMatch(/statement timeout/);
+    } finally {
+      release();
+      await holder;
+    }
   });
 });

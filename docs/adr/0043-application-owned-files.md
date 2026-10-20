@@ -753,7 +753,12 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   `TotalBytesAdded24h`, `ApplicationGrowthAnomalies`; each anomaly is also an
   ERROR log line `[FileStorage] Application storage growth anomaly` naming the
   application. The alarm lives in oxy-infra (runbook below). The measurement
-  rides the sweep's lease and schedule (`FILE_LIFECYCLE_MODE=off` stops it).
+  runs inside the sweep's run, before it is marked completed, under its lease
+  and schedule (`FILE_LIFECYCLE_MODE=off` stops it); each statement is bounded
+  (4 minutes) so it ends before the lease does. It reads only indexes
+  carrying `size` (migration `0192`). Until 0192 it ran after the run
+  completed, outside the lease, reading the heaps at random: on 2026-10-20 one
+  took over two hours and three ran at once on the shared database.
 - **Applications deleted before D8.** The sweep's first step,
   `deletedApplications`, finds every `deleted` application that still owns a
   live file or holds a reference and, in `enforce`, runs D8's own
