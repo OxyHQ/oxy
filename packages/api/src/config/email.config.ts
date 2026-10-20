@@ -181,6 +181,10 @@ export const CARD_EXTRACTION_CONFIG = {
   // Email receipt/import can be externally triggered. Keep metered inference
   // closed until the reviewed Inbox routing profile is fully operational.
   enabled: getEnvBoolean('CARD_EXTRACTION_ENABLED', false),
+  // Bounded like AI labeling: every stored message is a metered call, and an
+  // unbounded fan-out of them is what a burst of inbound mail would become.
+  maxConcurrent: Math.max(1, getEnvNumber('CARD_EXTRACTION_MAX_CONCURRENT', 2)),
+  maxQueueSize: Math.max(0, getEnvNumber('CARD_EXTRACTION_MAX_QUEUE_SIZE', 100)),
 };
 
 /** Encryption settings */

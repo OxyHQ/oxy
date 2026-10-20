@@ -24,13 +24,17 @@ import { labels as labelsTable } from '../db/schema/labels';
 import { messages } from '../db/schema/messages';
 import { SYSTEM_LABELS, isSystemLabel } from '../constants/systemLabels';
 import { AI_LABELING_CONFIG } from '../config/email.config';
+import { BoundedJobQueue } from '../utils/boundedJobQueue';
 import { logger } from '../utils/logger';
+import { emitEmailChanged } from './inboxRealtime';
 import { executeInboxPointInference, inboxCompletionText } from './inboxInference.service';
 
 class AiLabelingService {
-  private activeJobs = 0;
-  private readonly queue: Array<{ userId: string; messageId: string }> = [];
-  private processingScheduled = false;
+  private readonly jobs = new BoundedJobQueue({
+    name: 'AI labeling',
+    maxConcurrent: AI_LABELING_CONFIG.maxConcurrent,
+    maxQueueSize: AI_LABELING_CONFIG.maxQueueSize,
+  });
 
   /**
    * Enqueue background AI labeling with bounded concurrency/backpressure.
@@ -41,51 +45,15 @@ class AiLabelingService {
       return false;
     }
 
-    if (this.queue.length >= AI_LABELING_CONFIG.maxQueueSize) {
+    // `classifyAndLabel` logs its own failures and never rejects.
+    if (this.jobs.enqueue(() => this.classifyAndLabel(userId, messageId)) === null) {
       logger.warn('AI labeling queue full; dropping classification job', {
         messageId,
         maxQueueSize: AI_LABELING_CONFIG.maxQueueSize,
       });
       return false;
     }
-
-    this.queue.push({ userId, messageId });
-    this.scheduleProcessing();
     return true;
-  }
-
-  private scheduleProcessing(): void {
-    if (this.processingScheduled) {
-      return;
-    }
-
-    this.processingScheduled = true;
-    queueMicrotask(() => {
-      this.processingScheduled = false;
-      this.processQueue();
-    });
-  }
-
-  private processQueue(): void {
-    while (this.activeJobs < AI_LABELING_CONFIG.maxConcurrent && this.queue.length > 0) {
-      const job = this.queue.shift();
-      if (!job) {
-        return;
-      }
-
-      this.activeJobs += 1;
-      this.classifyAndLabel(job.userId, job.messageId)
-        .catch((error) => {
-          logger.warn('AI labeling failed', {
-            messageId: job.messageId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        })
-        .finally(() => {
-          this.activeJobs -= 1;
-          this.scheduleProcessing();
-        });
-    }
   }
 
   /**
@@ -166,7 +134,7 @@ class AiLabelingService {
           sql`, `,
         )}]::text[]`;
 
-        await getDb()
+        const [labelled] = await getDb()
           .update(messages)
           .set({
             labels: sql`(
@@ -181,8 +149,19 @@ class AiLabelingService {
               ) as entry
             )`,
           })
-          .where(and(eq(messages.id, messageId), eq(messages.userId, userId)));
+          .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+          .returning({ mailboxId: messages.mailboxId });
         logger.info('AI labels applied', { messageId, labels: assignedLabels });
+        // The labels land seconds after the message was announced; without
+        // this an open client shows them only on its next refresh.
+        if (labelled) {
+          await emitEmailChanged({
+            userId,
+            id: messageId,
+            mailboxIds: [labelled.mailboxId],
+            reason: 'labels',
+          });
+        }
       }
     } catch (error) {
       // Never throw — this is fire-and-forget

@@ -28,8 +28,10 @@ import { getDb } from '../config/postgres';
 import { qualified } from '@oxy.so/db';
 import { MESSAGE_CARD_TYPES, messages, type MessageHighlight } from '../db/schema/messages';
 import { messageAttachments } from '../db/schema/messageAttachments';
+import { BoundedJobQueue } from '../utils/boundedJobQueue';
 import { logger } from '../utils/logger';
 import { CARD_EXTRACTION_CONFIG } from '../config/email.config';
+import { emitEmailChanged } from './inboxRealtime';
 import { executeInboxPointInference, inboxCompletionText } from './inboxInference.service';
 
 /** Bytes of message body handed to the extractor. */
@@ -57,13 +59,34 @@ interface ExtractionResult {
 }
 
 class CardExtractionService {
+  private readonly jobs = new BoundedJobQueue({
+    name: 'Card extraction',
+    maxConcurrent: CARD_EXTRACTION_CONFIG.maxConcurrent,
+    maxQueueSize: CARD_EXTRACTION_CONFIG.maxQueueSize,
+  });
+
   /**
-   * Extract structured card data and highlights from a message.
-   * Fire-and-forget — failures are logged, never thrown.
+   * Extract structured card data and highlights from a message, through a
+   * bounded queue: every stored message used to start its own extraction at
+   * once, so a burst of inbound mail was the same burst of metered calls.
+   * Resolves when the extraction has run, or at once when the queue is full
+   * and it is dropped. Fire-and-forget — failures are logged, never thrown.
    */
   async extractAndUpdate(userId: string, messageId: string): Promise<void> {
     if (!CARD_EXTRACTION_CONFIG.enabled) return;
 
+    const done = this.jobs.enqueue(() => this.extract(userId, messageId));
+    if (done === null) {
+      logger.warn('Card extraction queue full; dropping extraction job', {
+        messageId,
+        maxQueueSize: CARD_EXTRACTION_CONFIG.maxQueueSize,
+      });
+      return;
+    }
+    await done;
+  }
+
+  private async extract(userId: string, messageId: string): Promise<void> {
     try {
       const db = getDb();
       const [message] = await db
@@ -134,15 +157,26 @@ class CardExtractionService {
         update.highlights = result.highlights;
       }
 
-      await db
+      const [updated] = await db
         .update(messages)
         .set(update)
-        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)));
+        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+        .returning({ mailboxId: messages.mailboxId });
       logger.info('Card extraction complete', {
         messageId,
         cardType: result.card?.type ?? 'none',
         highlightCount: result.highlights.length,
       });
+      // Like AI labels, the card lands after the message was announced; an
+      // open client re-reads it now instead of on its next refresh.
+      if (updated) {
+        await emitEmailChanged({
+          userId,
+          id: messageId,
+          mailboxIds: [updated.mailboxId],
+          reason: 'labels',
+        });
+      }
     } catch (error) {
       logger.warn('Card extraction failed', {
         messageId,
