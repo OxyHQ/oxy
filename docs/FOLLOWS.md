@@ -80,6 +80,11 @@ Then render:
 <FollowTargetButton targetId={id} verb="subscribe" applicationName="Mercaria" />
 ```
 
+`verb` is `follow`, `subscribe`, `join` or `watch`, translated from core's
+`follow.*` strings; `labels` overrides the words for a verb outside that list.
+The user-graph `FollowButton` takes the same two props, so a fediverse community
+reads "Join"/"Joined": `<FollowButton userId={id} username={handle} verb="join" />`.
+
 Keeping something else in step with the follow — a local shelf, a ranking
 signal — goes through `onChange`, which fires only on an accepted write:
 

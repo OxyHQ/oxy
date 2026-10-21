@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 6.4.0
+
+### Added
+
+- Locale strings `follow.*` in every locale: the follow buttons' words per
+  verb (`follow.verbs.{follow,subscribe,join,watch}.{idle,active}`), their
+  accessibility lines (`undo`, `undoNamed`, `checking`, `checkingNamed`),
+  `follow.pending`, `follow.disabled`, `follow.named` (a label beside a
+  handle) and the "Follow all" button's `follow.all.*`.
+
 ## 6.3.0
 
 Needs `@oxy.so/contracts` 5.3.0.

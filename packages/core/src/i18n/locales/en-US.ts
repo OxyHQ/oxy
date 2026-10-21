@@ -2437,5 +2437,54 @@ const dict = {
       confirm: 'Remove',
     },
   },
+  // The follow buttons' words, per verb. `named` puts a state label beside a
+  // handle and holds no verb of its own, so it reads right for every verb and
+  // for a caller's own labels.
+  follow: {
+    pending: 'Requested',
+    disabled: 'Off here',
+    named: '{{label}} {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Follow',
+        active: 'Following',
+        undo: 'Unfollows this account',
+        undoNamed: 'Unfollows {{name}}',
+        checking: 'Checking follow status',
+        checkingNamed: 'Checking whether you follow {{name}}',
+      },
+      subscribe: {
+        idle: 'Subscribe',
+        active: 'Subscribed',
+        undo: 'Unsubscribes',
+        undoNamed: 'Unsubscribes from {{name}}',
+        checking: 'Checking subscription status',
+        checkingNamed: 'Checking whether you subscribe to {{name}}',
+      },
+      join: {
+        idle: 'Join',
+        active: 'Joined',
+        undo: 'Leaves',
+        undoNamed: 'Leaves {{name}}',
+        checking: 'Checking membership',
+        checkingNamed: 'Checking whether you are a member of {{name}}',
+      },
+      watch: {
+        idle: 'Watch',
+        active: 'Watching',
+        undo: 'Stops watching',
+        undoNamed: 'Stops watching {{name}}',
+        checking: 'Checking watch status',
+        checkingNamed: 'Checking whether you watch {{name}}',
+      },
+    },
+    all: {
+      idle: 'Follow all',
+      hint: 'Follows all {{count}} accounts',
+      hintOne: 'Follows {{count}} account',
+      undoHint: 'Unfollows all {{count}} accounts',
+      undoHintOne: 'Unfollows {{count}} account',
+    },
+  },
 };
 export default dict;

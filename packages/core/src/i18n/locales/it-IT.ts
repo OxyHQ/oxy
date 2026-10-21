@@ -539,5 +539,51 @@ const dict = {
         '«{{filename}}» è ancora usato in {{count}} punti delle tue app. Eliminandolo, scompare anche da lì. Eliminarlo definitivamente?',
     },
   },
+  follow: {
+    pending: 'Richiesto',
+    disabled: 'Disattivato qui',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Segui',
+        active: 'Segui già',
+        undo: 'Smette di seguire questo account',
+        undoNamed: 'Smette di seguire {{name}}',
+        checking: 'Verifica se segui questo account',
+        checkingNamed: 'Verifica se segui {{name}}',
+      },
+      subscribe: {
+        idle: 'Iscriviti',
+        active: 'Iscritto',
+        undo: 'Annulla l’iscrizione',
+        undoNamed: 'Annulla l’iscrizione a {{name}}',
+        checking: 'Verifica dell’iscrizione',
+        checkingNamed: 'Verifica se sei iscritto a {{name}}',
+      },
+      join: {
+        idle: 'Unisciti',
+        active: 'Membro',
+        undo: 'Esce dal gruppo',
+        undoNamed: 'Esce da {{name}}',
+        checking: 'Verifica dell’adesione',
+        checkingNamed: 'Verifica se sei membro di {{name}}',
+      },
+      watch: {
+        idle: 'Osserva',
+        active: 'In osservazione',
+        undo: 'Smette di osservare',
+        undoNamed: 'Smette di osservare {{name}}',
+        checking: 'Verifica dell’osservazione',
+        checkingNamed: 'Verifica se osservi {{name}}',
+      },
+    },
+    all: {
+      idle: 'Segui tutti',
+      hint: 'Segue tutti i {{count}} account',
+      hintOne: 'Segue {{count}} account',
+      undoHint: 'Smette di seguire tutti i {{count}} account',
+      undoHintOne: 'Smette di seguire {{count}} account',
+    },
+  },
 };
 export default dict;

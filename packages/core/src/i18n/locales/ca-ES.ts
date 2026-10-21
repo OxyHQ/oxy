@@ -540,5 +540,51 @@ const dict = {
         '«{{filename}}» encara es fa servir en {{count}} lloc(s) de les teves aplicacions. Si l’elimines, també en desapareixerà. Vols eliminar-lo definitivament?',
     },
   },
+  follow: {
+    pending: 'Sol·licitat',
+    disabled: 'Desactivat aquí',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Segueix',
+        active: 'Seguint',
+        undo: 'Deixa de seguir aquest compte',
+        undoNamed: 'Deixa de seguir {{name}}',
+        checking: 'Comprovant si segueixes aquest compte',
+        checkingNamed: 'Comprovant si segueixes {{name}}',
+      },
+      subscribe: {
+        idle: "Subscriu-t'hi",
+        active: 'Subscrit',
+        undo: 'Cancel·la la subscripció',
+        undoNamed: 'Cancel·la la subscripció a {{name}}',
+        checking: 'Comprovant la subscripció',
+        checkingNamed: 'Comprovant si estàs subscrit a {{name}}',
+      },
+      join: {
+        idle: "Uneix-t'hi",
+        active: 'Membre',
+        undo: 'Deixa de ser membre',
+        undoNamed: 'Deixa de ser membre de {{name}}',
+        checking: "Comprovant si n'ets membre",
+        checkingNamed: 'Comprovant si ets membre de {{name}}',
+      },
+      watch: {
+        idle: 'Vigila',
+        active: 'Vigilant',
+        undo: 'Deixa de vigilar',
+        undoNamed: 'Deixa de vigilar {{name}}',
+        checking: 'Comprovant si ho vigiles',
+        checkingNamed: 'Comprovant si vigiles {{name}}',
+      },
+    },
+    all: {
+      idle: 'Segueix-los tots',
+      hint: 'Segueix els {{count}} comptes',
+      hintOne: 'Segueix {{count}} compte',
+      undoHint: 'Deixa de seguir els {{count}} comptes',
+      undoHintOne: 'Deixa de seguir {{count}} compte',
+    },
+  },
 };
 export default dict;

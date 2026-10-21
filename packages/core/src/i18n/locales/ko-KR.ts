@@ -533,5 +533,51 @@ const dict = {
         '"{{filename}}"은(는) 앱의 {{count}}곳에서 아직 사용 중입니다. 삭제하면 그곳에서도 사라집니다. 영구적으로 삭제하시겠습니까?',
     },
   },
+  follow: {
+    pending: '요청됨',
+    disabled: '여기서는 꺼짐',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: '팔로우',
+        active: '팔로잉',
+        undo: '이 계정의 팔로우를 취소합니다',
+        undoNamed: '{{name}} 팔로우를 취소합니다',
+        checking: '팔로우 상태 확인 중',
+        checkingNamed: '{{name}}을(를) 팔로우하는지 확인 중',
+      },
+      subscribe: {
+        idle: '구독',
+        active: '구독 중',
+        undo: '구독을 취소합니다',
+        undoNamed: '{{name}} 구독을 취소합니다',
+        checking: '구독 상태 확인 중',
+        checkingNamed: '{{name}}을(를) 구독하는지 확인 중',
+      },
+      join: {
+        idle: '가입',
+        active: '가입됨',
+        undo: '탈퇴합니다',
+        undoNamed: '{{name}}에서 탈퇴합니다',
+        checking: '가입 상태 확인 중',
+        checkingNamed: '{{name}}에 가입했는지 확인 중',
+      },
+      watch: {
+        idle: '지켜보기',
+        active: '지켜보는 중',
+        undo: '지켜보기를 중단합니다',
+        undoNamed: '{{name}} 지켜보기를 중단합니다',
+        checking: '지켜보기 상태 확인 중',
+        checkingNamed: '{{name}}을(를) 지켜보는지 확인 중',
+      },
+    },
+    all: {
+      idle: '모두 팔로우',
+      hint: '계정 {{count}}개를 모두 팔로우합니다',
+      hintOne: '계정 {{count}}개를 팔로우합니다',
+      undoHint: '계정 {{count}}개의 팔로우를 모두 취소합니다',
+      undoHintOne: '계정 {{count}}개의 팔로우를 취소합니다',
+    },
+  },
 };
 export default dict;

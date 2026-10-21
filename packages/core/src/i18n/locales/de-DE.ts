@@ -550,5 +550,51 @@ const dict = {
         '„{{filename}}“ wird noch an {{count}} Stelle(n) in deinen Apps verwendet. Beim Löschen verschwindet sie auch dort. Endgültig löschen?',
     },
   },
+  follow: {
+    pending: 'Angefragt',
+    disabled: 'Hier aus',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Folgen',
+        active: 'Folge ich',
+        undo: 'Entfolgt diesem Konto',
+        undoNamed: 'Entfolgt {{name}}',
+        checking: 'Folgestatus wird geprüft',
+        checkingNamed: 'Es wird geprüft, ob du {{name}} folgst',
+      },
+      subscribe: {
+        idle: 'Abonnieren',
+        active: 'Abonniert',
+        undo: 'Beendet das Abo',
+        undoNamed: 'Beendet das Abo von {{name}}',
+        checking: 'Abo-Status wird geprüft',
+        checkingNamed: 'Es wird geprüft, ob du {{name}} abonniert hast',
+      },
+      join: {
+        idle: 'Beitreten',
+        active: 'Beigetreten',
+        undo: 'Tritt aus',
+        undoNamed: 'Tritt aus {{name}} aus',
+        checking: 'Mitgliedschaft wird geprüft',
+        checkingNamed: 'Es wird geprüft, ob du Mitglied von {{name}} bist',
+      },
+      watch: {
+        idle: 'Beobachten',
+        active: 'Beobachtet',
+        undo: 'Beendet das Beobachten',
+        undoNamed: 'Beendet das Beobachten von {{name}}',
+        checking: 'Beobachtungsstatus wird geprüft',
+        checkingNamed: 'Es wird geprüft, ob du {{name}} beobachtest',
+      },
+    },
+    all: {
+      idle: 'Allen folgen',
+      hint: 'Folgt allen {{count}} Konten',
+      hintOne: 'Folgt {{count}} Konto',
+      undoHint: 'Entfolgt allen {{count}} Konten',
+      undoHintOne: 'Entfolgt {{count}} Konto',
+    },
+  },
 };
 export default dict;

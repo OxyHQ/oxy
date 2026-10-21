@@ -11,10 +11,9 @@ import { APP_COLOR_NAMES } from '@oxy.so/bloom/color-presets';
 import type { AccountStorageUsageResponse } from '@oxy.so/core';
 import { APP_COLOR_PRESETS, type useTheme } from '@oxy.so/bloom/theme';
 import type { AccountDialogMenuSection } from '../../navigation/accountDialogManager';
-import type { useI18n } from '../../hooks/useI18n';
 
 export type Theme = ReturnType<typeof useTheme>;
-export type Translate = ReturnType<typeof useI18n>['t'];
+export type { Translate } from '../../hooks/useI18n';
 
 /**
  * One SUBORDINATE action on a sign-in surface — an alternative revealed behind

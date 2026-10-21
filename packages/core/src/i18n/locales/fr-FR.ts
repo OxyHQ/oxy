@@ -552,5 +552,51 @@ const dict = {
         '« {{filename}} » est encore utilisé à {{count}} endroit(s) dans vos applications. Le supprimer l’en retire aussi. Le supprimer définitivement ?',
     },
   },
+  follow: {
+    pending: 'Demandé',
+    disabled: 'Désactivé ici',
+    named: '{{label}} : {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Suivre',
+        active: 'Abonné',
+        undo: 'Cesse de suivre ce compte',
+        undoNamed: 'Cesse de suivre {{name}}',
+        checking: 'Vérification du suivi',
+        checkingNamed: 'Vérification : suivez-vous {{name}} ?',
+      },
+      subscribe: {
+        idle: "S'abonner",
+        active: 'Abonné',
+        undo: 'Résilie l’abonnement',
+        undoNamed: 'Résilie l’abonnement à {{name}}',
+        checking: 'Vérification de l’abonnement',
+        checkingNamed: 'Vérification : êtes-vous abonné à {{name}} ?',
+      },
+      join: {
+        idle: 'Rejoindre',
+        active: 'Membre',
+        undo: 'Quitte le groupe',
+        undoNamed: 'Quitte {{name}}',
+        checking: 'Vérification de l’adhésion',
+        checkingNamed: 'Vérification : êtes-vous membre de {{name}} ?',
+      },
+      watch: {
+        idle: 'Surveiller',
+        active: 'Surveillé',
+        undo: 'Arrête de surveiller',
+        undoNamed: 'Arrête de surveiller {{name}}',
+        checking: 'Vérification de la surveillance',
+        checkingNamed: 'Vérification : surveillez-vous {{name}} ?',
+      },
+    },
+    all: {
+      idle: 'Tout suivre',
+      hint: 'Suit les {{count}} comptes',
+      hintOne: 'Suit {{count}} compte',
+      undoHint: 'Cesse de suivre les {{count}} comptes',
+      undoHintOne: 'Cesse de suivre {{count}} compte',
+    },
+  },
 };
 export default dict;

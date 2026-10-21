@@ -30,9 +30,11 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () =>
 
 jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ctx,
+  useOptionalOxy: () => null,
 }));
 
 jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn() },
 }));
 

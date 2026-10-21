@@ -27,7 +27,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button, LinkButton } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useI18n } from '../hooks/useI18n';
+import { type Translate, useI18n } from '../hooks/useI18n';
 import { LogoIcon } from './logo/LogoIcon';
 
 /** The requesting application, resolved by the caller (never user-supplied raw). */
@@ -132,8 +132,6 @@ const SCOPE_LABEL_KEYS: Readonly<Record<string, string>> = {
   'inference:providers:write': 'consent.scopes.inferenceProvidersWrite',
   'federation:write': 'consent.scopes.federationWrite',
 };
-
-type Translate = ReturnType<typeof useI18n>['t'];
 
 /** One permission row of the "Permissions requested" list. */
 interface PermissionRow {

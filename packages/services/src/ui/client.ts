@@ -23,12 +23,14 @@ export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
-export { FollowTargetButton } from './components/FollowTargetButton';
 export type {
-  FollowTargetButtonProps,
-  FollowVerb,
-  FollowLabels,
-} from './components/FollowTargetButton';
+  FollowButtonProps,
+  SingleFollowButtonProps,
+  MultiFollowButtonProps,
+} from './components/FollowButton';
+export { FollowTargetButton } from './components/FollowTargetButton';
+export type { FollowTargetButtonProps } from './components/FollowTargetButton';
+export type { FollowVerb, FollowLabels } from './components/followLabels';
 export { default as ProfileButton } from './components/ProfileButton';
 export type { ProfileButtonProps } from './components/ProfileButton';
 export { default as PeableButton } from './components/PeableButton';

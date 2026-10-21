@@ -530,5 +530,51 @@ const dict = {
         'لا يزال «{{filename}}» مستخدمًا في {{count}} موضع في تطبيقاتك. حذفه يزيله من هناك أيضًا. هل تريد حذفه نهائيًا؟',
     },
   },
+  follow: {
+    pending: 'تم الطلب',
+    disabled: 'متوقفة هنا',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'متابعة',
+        active: 'تتم المتابعة',
+        undo: 'يلغي متابعة هذا الحساب',
+        undoNamed: 'يلغي متابعة {{name}}',
+        checking: 'جارٍ التحقق من حالة المتابعة',
+        checkingNamed: 'جارٍ التحقق مما إذا كنت تتابع {{name}}',
+      },
+      subscribe: {
+        idle: 'اشتراك',
+        active: 'مشترك',
+        undo: 'يلغي الاشتراك',
+        undoNamed: 'يلغي الاشتراك في {{name}}',
+        checking: 'جارٍ التحقق من الاشتراك',
+        checkingNamed: 'جارٍ التحقق مما إذا كنت مشتركًا في {{name}}',
+      },
+      join: {
+        idle: 'انضمام',
+        active: 'منضم',
+        undo: 'يغادر',
+        undoNamed: 'يغادر {{name}}',
+        checking: 'جارٍ التحقق من العضوية',
+        checkingNamed: 'جارٍ التحقق مما إذا كنت عضوًا في {{name}}',
+      },
+      watch: {
+        idle: 'مراقبة',
+        active: 'تتم المراقبة',
+        undo: 'يوقف المراقبة',
+        undoNamed: 'يوقف مراقبة {{name}}',
+        checking: 'جارٍ التحقق من حالة المراقبة',
+        checkingNamed: 'جارٍ التحقق مما إذا كنت تراقب {{name}}',
+      },
+    },
+    all: {
+      idle: 'متابعة الكل',
+      hint: 'يتابع جميع الحسابات ({{count}})',
+      hintOne: 'يتابع الحساب ({{count}})',
+      undoHint: 'يلغي متابعة جميع الحسابات ({{count}})',
+      undoHintOne: 'يلغي متابعة الحساب ({{count}})',
+    },
+  },
 };
 export default dict;

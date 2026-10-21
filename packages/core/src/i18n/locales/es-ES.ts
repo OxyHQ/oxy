@@ -2449,5 +2449,51 @@ const dict = {
       confirm: 'Quitar',
     },
   },
+  follow: {
+    pending: 'Solicitado',
+    disabled: 'Desactivado aquí',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Seguir',
+        active: 'Siguiendo',
+        undo: 'Deja de seguir esta cuenta',
+        undoNamed: 'Deja de seguir a {{name}}',
+        checking: 'Comprobando si sigues esta cuenta',
+        checkingNamed: 'Comprobando si sigues a {{name}}',
+      },
+      subscribe: {
+        idle: 'Suscribirse',
+        active: 'Suscrito',
+        undo: 'Cancela la suscripción',
+        undoNamed: 'Cancela la suscripción a {{name}}',
+        checking: 'Comprobando la suscripción',
+        checkingNamed: 'Comprobando si estás suscrito a {{name}}',
+      },
+      join: {
+        idle: 'Unirse',
+        active: 'Unido',
+        undo: 'Deja de ser miembro',
+        undoNamed: 'Deja de ser miembro de {{name}}',
+        checking: 'Comprobando si eres miembro',
+        checkingNamed: 'Comprobando si eres miembro de {{name}}',
+      },
+      watch: {
+        idle: 'Vigilar',
+        active: 'Vigilando',
+        undo: 'Deja de vigilar',
+        undoNamed: 'Deja de vigilar {{name}}',
+        checking: 'Comprobando si lo vigilas',
+        checkingNamed: 'Comprobando si vigilas {{name}}',
+      },
+    },
+    all: {
+      idle: 'Seguir a todos',
+      hint: 'Sigue a las {{count}} cuentas',
+      hintOne: 'Sigue a {{count}} cuenta',
+      undoHint: 'Deja de seguir las {{count}} cuentas',
+      undoHintOne: 'Deja de seguir {{count}} cuenta',
+    },
+  },
 };
 export default dict;

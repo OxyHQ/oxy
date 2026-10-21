@@ -519,5 +519,51 @@ const dict = {
         '“{{filename}}”仍在你的应用中的 {{count}} 处使用。删除后，它也会从那里消失。要永久删除吗？',
     },
   },
+  follow: {
+    pending: '已请求',
+    disabled: '此处已关闭',
+    named: '{{label}}：{{name}}',
+    verbs: {
+      follow: {
+        idle: '关注',
+        active: '已关注',
+        undo: '取消关注此账号',
+        undoNamed: '取消关注 {{name}}',
+        checking: '正在检查关注状态',
+        checkingNamed: '正在检查你是否关注了 {{name}}',
+      },
+      subscribe: {
+        idle: '订阅',
+        active: '已订阅',
+        undo: '取消订阅',
+        undoNamed: '取消订阅 {{name}}',
+        checking: '正在检查订阅状态',
+        checkingNamed: '正在检查你是否订阅了 {{name}}',
+      },
+      join: {
+        idle: '加入',
+        active: '已加入',
+        undo: '退出',
+        undoNamed: '退出 {{name}}',
+        checking: '正在检查成员身份',
+        checkingNamed: '正在检查你是否是 {{name}} 的成员',
+      },
+      watch: {
+        idle: '追踪',
+        active: '追踪中',
+        undo: '停止追踪',
+        undoNamed: '停止追踪 {{name}}',
+        checking: '正在检查追踪状态',
+        checkingNamed: '正在检查你是否追踪了 {{name}}',
+      },
+    },
+    all: {
+      idle: '全部关注',
+      hint: '关注全部 {{count}} 个账号',
+      hintOne: '关注 {{count}} 个账号',
+      undoHint: '取消关注全部 {{count}} 个账号',
+      undoHintOne: '取消关注 {{count}} 个账号',
+    },
+  },
 };
 export default dict;

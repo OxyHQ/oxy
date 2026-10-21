@@ -22,6 +22,8 @@
  * small vocabulary of defaults and a full override, rather than a lookup keyed
  * on kind — a kind→verb table in this package would need a release every time
  * an application invents a kind, which is exactly the coupling #809 removes.
+ * The vocabulary and its translated words live in `followLabels`, shared with
+ * `FollowButton`.
  *
  * ## Relationship to the legacy `FollowButton`
  *
@@ -58,36 +60,7 @@ import {
   type FollowDuration,
   type FollowMenuItem,
 } from './followRules';
-
-/**
- * The small vocabulary of verbs the ecosystem actually uses. An application
- * whose verb is not here passes `labels` instead — the escape hatch exists so
- * this union never has to grow to accommodate one product's wording.
- */
-export type FollowVerb = 'follow' | 'subscribe' | 'join' | 'watch';
-
-export interface FollowLabels {
-  /** Not following yet. */
-  idle: string;
-  /** Following, and this application acts on it. */
-  active: string;
-  /** Asked, waiting for the other side to accept. */
-  pending: string;
-  /** Following globally, but switched off in this application. */
-  disabled: string;
-}
-
-const VERB_LABELS: Record<FollowVerb, FollowLabels> = {
-  follow: { idle: 'Follow', active: 'Following', pending: 'Requested', disabled: 'Off here' },
-  subscribe: {
-    idle: 'Subscribe',
-    active: 'Subscribed',
-    pending: 'Requested',
-    disabled: 'Off here',
-  },
-  join: { idle: 'Join', active: 'Joined', pending: 'Requested', disabled: 'Off here' },
-  watch: { idle: 'Watch', active: 'Watching', pending: 'Requested', disabled: 'Off here' },
-};
+import { type FollowLabels, type FollowVerb, useFollowLabels } from './followLabels';
 
 const HOUR = 60 * 60;
 
@@ -106,7 +79,7 @@ export interface FollowTargetButtonProps {
   /** The registered target's id. Registration is separate — see the SDK. */
   targetId: string;
   verb?: FollowVerb;
-  /** Full override, for a verb the vocabulary above does not carry. */
+  /** Full override, for a verb the vocabulary does not carry. */
   labels?: Partial<FollowLabels>;
   size?: 'sm' | 'md' | 'lg';
   style?: StyleProp<ViewStyle>;
@@ -170,7 +143,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
     toast.error(message);
   }, [targetId]);
 
-  const text = useMemo(() => ({ ...VERB_LABELS[verb], ...labels }), [verb, labels]);
+  const text = useFollowLabels(verb, labels);
 
   const label = useMemo(() => {
     if (status.globalState === 'requested') return text.pending;

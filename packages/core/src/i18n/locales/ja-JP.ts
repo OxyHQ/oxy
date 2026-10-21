@@ -537,5 +537,51 @@ const dict = {
         '「{{filename}}」はアプリ内の{{count}}か所でまだ使われています。削除するとそこからも消えます。完全に削除しますか？',
     },
   },
+  follow: {
+    pending: 'リクエスト済み',
+    disabled: 'ここではオフ',
+    named: '{{label}}：{{name}}',
+    verbs: {
+      follow: {
+        idle: 'フォロー',
+        active: 'フォロー中',
+        undo: 'このアカウントのフォローを解除します',
+        undoNamed: '{{name}}のフォローを解除します',
+        checking: 'フォロー状況を確認中',
+        checkingNamed: '{{name}}をフォローしているか確認中',
+      },
+      subscribe: {
+        idle: '登録',
+        active: '登録済み',
+        undo: '登録を解除します',
+        undoNamed: '{{name}}の登録を解除します',
+        checking: '登録状況を確認中',
+        checkingNamed: '{{name}}を登録しているか確認中',
+      },
+      join: {
+        idle: '参加',
+        active: '参加中',
+        undo: '退出します',
+        undoNamed: '{{name}}から退出します',
+        checking: '参加状況を確認中',
+        checkingNamed: '{{name}}に参加しているか確認中',
+      },
+      watch: {
+        idle: 'ウォッチ',
+        active: 'ウォッチ中',
+        undo: 'ウォッチを解除します',
+        undoNamed: '{{name}}のウォッチを解除します',
+        checking: 'ウォッチ状況を確認中',
+        checkingNamed: '{{name}}をウォッチしているか確認中',
+      },
+    },
+    all: {
+      idle: 'すべてフォロー',
+      hint: '{{count}}件のアカウントをすべてフォローします',
+      hintOne: '{{count}}件のアカウントをフォローします',
+      undoHint: '{{count}}件のアカウントのフォローをすべて解除します',
+      undoHintOne: '{{count}}件のアカウントのフォローを解除します',
+    },
+  },
 };
 export default dict;

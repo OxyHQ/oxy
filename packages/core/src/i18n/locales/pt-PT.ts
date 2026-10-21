@@ -542,5 +542,51 @@ const dict = {
         '«{{filename}}» ainda é usado em {{count}} sítio(s) nas suas aplicações. Ao eliminá-lo, desaparece também daí. Eliminá-lo definitivamente?',
     },
   },
+  follow: {
+    pending: 'Pedido enviado',
+    disabled: 'Desativado aqui',
+    named: '{{label}}: {{name}}',
+    verbs: {
+      follow: {
+        idle: 'Seguir',
+        active: 'A seguir',
+        undo: 'Deixa de seguir esta conta',
+        undoNamed: 'Deixa de seguir {{name}}',
+        checking: 'A verificar se segues esta conta',
+        checkingNamed: 'A verificar se segues {{name}}',
+      },
+      subscribe: {
+        idle: 'Subscrever',
+        active: 'Subscrito',
+        undo: 'Cancela a subscrição',
+        undoNamed: 'Cancela a subscrição de {{name}}',
+        checking: 'A verificar a subscrição',
+        checkingNamed: 'A verificar se subscreves {{name}}',
+      },
+      join: {
+        idle: 'Aderir',
+        active: 'Membro',
+        undo: 'Sai do grupo',
+        undoNamed: 'Sai de {{name}}',
+        checking: 'A verificar se és membro',
+        checkingNamed: 'A verificar se és membro de {{name}}',
+      },
+      watch: {
+        idle: 'Acompanhar',
+        active: 'A acompanhar',
+        undo: 'Deixa de acompanhar',
+        undoNamed: 'Deixa de acompanhar {{name}}',
+        checking: 'A verificar se acompanhas',
+        checkingNamed: 'A verificar se acompanhas {{name}}',
+      },
+    },
+    all: {
+      idle: 'Seguir todos',
+      hint: 'Segue as {{count}} contas',
+      hintOne: 'Segue {{count}} conta',
+      undoHint: 'Deixa de seguir as {{count}} contas',
+      undoHintOne: 'Deixa de seguir {{count}} conta',
+    },
+  },
 };
 export default dict;

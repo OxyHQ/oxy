@@ -466,7 +466,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "6.3.0",
+      "version": "6.4.0",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
@@ -671,7 +671,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "12.5.0",
+      "version": "12.6.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",
@@ -997,7 +997,7 @@
     "@lottiefiles/dotlottie-react": "^0.19.9",
     "@noble/curves": "^1.9.7",
     "@oxy.so/bloom": "12.0.0",
-    "@oxy.so/core": "^6.3.0",
+    "@oxy.so/core": "^6.4.0",
     "@shopify/react-native-skia": "2.14.0",
     "@tanstack/query-async-storage-persister": "^5.101",
     "@tanstack/query-sync-storage-persister": "^5.101",
