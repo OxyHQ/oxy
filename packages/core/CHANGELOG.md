@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 6.9.2
+
+### Fixed
+
+- Large uploads from a web page failed before sending a byte on every Oxy origin
+  whose Content-Security-Policy comes from `buildOxyCspDirectives` (mention.earth,
+  accounts, auth, console and inbox, among others): `assets.upload` over 64 MiB
+  and `assets.uploadLarge` PUT their parts straight to the Oxy Files bucket
+  (ADR 0047), and `connect-src` did not allow its host. The baseline's
+  `connect-src` now carries
+  `https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com`, R2's S3
+  endpoint for the bucket (the only host that serves its S3 API). An app picks it
+  up by moving to 6.9.2 and redeploying the page that sends its CSP.
+
 ## 6.9.1
 
 ### Fixed
