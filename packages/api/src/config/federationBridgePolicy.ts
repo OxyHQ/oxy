@@ -205,7 +205,8 @@ export function identityDomainOfHost(host: string | null | undefined): string | 
   if (!host) return undefined;
   const lowered = host.toLowerCase();
   const entry = FEDERATION_BRIDGE_POLICY.find(
-    (candidate) => candidate.host === lowered && candidate.network.id !== FEDERATION_NETWORKS.bluesky.id,
+    (candidate) =>
+      candidate.host === lowered && candidate.network.id !== FEDERATION_NETWORKS.bluesky.id,
   );
   return entry?.network.domain;
 }
