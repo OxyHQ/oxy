@@ -39,7 +39,7 @@ process.env.REFRESH_TOKEN_SECRET ??= 'boot-gate-refresh-token-secret-32-chars';
 process.env.AWS_REGION ??= 'us-west-2';
 process.env.AWS_ACCESS_KEY_ID ??= 'boot-gate';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'boot-gate';
-process.env.AWS_S3_BUCKET ??= 'boot-gate';
+process.env.R2_BUCKET ??= 'boot-gate';
 
 import { createServer } from 'node:net';
 import type { Server } from 'node:http';

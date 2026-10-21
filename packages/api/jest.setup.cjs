@@ -13,7 +13,11 @@ const TEST_ENVIRONMENT = {
   AWS_REGION: 'us-east-1',
   AWS_ACCESS_KEY_ID: 'test_aws_access_key',
   AWS_SECRET_ACCESS_KEY: 'test_aws_secret_key',
-  AWS_S3_BUCKET: 'test-bucket',
+  // Oxy Files' store (ADR 0047): a local endpoint no unit test reaches.
+  R2_BUCKET: 'test-bucket',
+  R2_ENDPOINT: 'http://127.0.0.1:9000',
+  R2_ACCESS_KEY_ID: 'test_r2_access_key',
+  R2_SECRET_ACCESS_KEY: 'test_r2_secret_key',
   // Tests that write authority rows read them back live (utils/authorityCache.ts).
   OXY_AUTHORITY_CACHE_TTL_MS: '0',
 };

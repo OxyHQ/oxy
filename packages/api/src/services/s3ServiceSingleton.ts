@@ -17,17 +17,6 @@ import { createS3Service, type S3Service } from './s3Service';
 import { getCdnInvalidationQueue } from './cdnInvalidation';
 import type { S3Config } from '../types/s3.types';
 
-export interface ObjectStorageConfig {
-  /** Where every object is written and read. */
-  primary: S3Config;
-  /**
-   * The store being migrated from, while a migration is in progress: deletes
-   * are repeated there, listings include it, and a copy takes a source not yet
-   * migrated from it. Never written.
-   */
-  legacy?: S3Config;
-}
-
 /**
  * Oxy Files lives in Cloudflare R2 (ADR 0047), reached through R2's S3 API with
  * a token scoped to its one bucket:
@@ -37,31 +26,17 @@ export interface ObjectStorageConfig {
  *   R2_ACCESS_KEY_ID       } the bucket's R2 API token (SSM /oxy/<app>/R2_*)
  *   R2_SECRET_ACCESS_KEY   }
  *
- * `AWS_S3_BUCKET` names the S3 bucket the files are migrating FROM; with R2
- * configured it is only the legacy store above, reached with the task role.
- * Without `R2_BUCKET` it is still the primary store — the state before the
- * cutover, and nothing else. Its own names, never `AWS_ENDPOINT_URL` /
- * `AWS_ACCESS_KEY_ID`: every AWS SDK client in the process reads those, so they
- * would send SES, STS and CloudFront calls to R2 with R2's keys.
+ * Its own names, never `AWS_ENDPOINT_URL` / `AWS_ACCESS_KEY_ID`: every AWS SDK
+ * client in the process reads those, so they would send SES and STS calls to R2
+ * with R2's keys. Local development points R2_ENDPOINT at a MinIO.
  */
-export function objectStorageConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): ObjectStorageConfig {
-  const awsBucket = env.AWS_S3_BUCKET?.trim() || '';
-  const aws: S3Config = {
-    region: env.AWS_REGION || 'us-east-1',
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    bucketName: awsBucket,
-    endpointUrl: env.AWS_ENDPOINT_URL,
-  };
-  const r2Bucket = env.R2_BUCKET?.trim();
-  if (!r2Bucket) return { primary: aws };
-
+export function objectStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env): S3Config {
+  const bucketName = env.R2_BUCKET?.trim() ?? '';
   const endpointUrl = env.R2_ENDPOINT?.trim() ?? '';
   const accessKeyId = env.R2_ACCESS_KEY_ID?.trim() ?? '';
   const secretAccessKey = env.R2_SECRET_ACCESS_KEY?.trim() ?? '';
   const missing = Object.entries({
+    R2_BUCKET: bucketName,
     R2_ENDPOINT: endpointUrl,
     R2_ACCESS_KEY_ID: accessKeyId,
     R2_SECRET_ACCESS_KEY: secretAccessKey,
@@ -69,27 +44,20 @@ export function objectStorageConfigFromEnv(
     .filter(([, value]) => value === '')
     .map(([name]) => name);
   if (missing.length > 0) {
-    throw new Error(
-      `R2_BUCKET is set but ${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not`,
-    );
+    throw new Error(`Oxy Files' object store needs ${missing.join(', ')}`);
   }
-  return {
-    // R2 has one region; `auto` is what its S3 API expects.
-    primary: { region: 'auto', endpointUrl, bucketName: r2Bucket, accessKeyId, secretAccessKey },
-    ...(awsBucket ? { legacy: aws } : {}),
-  };
+  // R2 has one region; `auto` is what its S3 API expects.
+  return { region: 'auto', endpointUrl, bucketName, accessKeyId, secretAccessKey };
 }
 
-/** A store configured from the environment, reporting deletes to `listener`. */
+/** The store configured from the environment, reporting deletes to `listener`. */
 export function createObjectStorage(
   listener?: Parameters<typeof createS3Service>[1],
   env: NodeJS.ProcessEnv = process.env,
 ): S3Service {
-  const { primary, legacy } = objectStorageConfigFromEnv(env);
-  return createS3Service(primary, listener, legacy ? createS3Service(legacy) : undefined);
+  return createS3Service(objectStorageConfigFromEnv(env), listener);
 }
 
-// The media bucket is the CDN's origin, so every delete here is also a CDN
-// purge (a no-op with a warning while the CDN is not configured — see
-// cdnInvalidation.ts).
+// The bucket is the CDN's origin, so every delete here is also a cloud.oxy.so
+// purge (a no-op with a warning while the purge is not configured).
 export const s3Service = createObjectStorage(getCdnInvalidationQueue());

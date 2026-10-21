@@ -17,12 +17,10 @@ import { waitForDatabaseConnection } from './utils/dbConnection';
 const WORKER_MAX_POOL_SIZE = 5;
 const CONNECT_TIMEOUT_MS = 30_000;
 
-// The object store is R2 (R2_* — ADR 0047), or the S3 bucket before the
-// cutover, reached with the task role.
-const missingEnvironment = ['DATABASE_URL', 'QUEUE_REDIS_URL'].filter((name) => !process.env[name]);
-if (!process.env.R2_BUCKET && !process.env.AWS_S3_BUCKET) {
-  missingEnvironment.push('R2_BUCKET (or AWS_S3_BUCKET)');
-}
+// The object store is R2 (ADR 0047); the token is checked with it at load.
+const missingEnvironment = ['DATABASE_URL', 'QUEUE_REDIS_URL', 'R2_BUCKET', 'R2_ENDPOINT'].filter(
+  (name) => !process.env[name],
+);
 
 if (missingEnvironment.length > 0) {
   logger.error('Asset-variant worker environment is incomplete', {

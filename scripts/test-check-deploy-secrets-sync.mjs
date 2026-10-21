@@ -323,7 +323,7 @@ expectVerdict(
 
 const removeNamesUnreadable = createFixture();
 edit(removeNamesUnreadable, WORKFLOW, 'remove-names-unparseable', (text) =>
-  text.replace(',"INBOX_APPLICATION_SECRET"]', ',INBOX_APPLICATION_SECRET]'),
+  text.replace(',"CDN_CLOUDFRONT_DISTRIBUTION_ID"]', ',CDN_CLOUDFRONT_DISTRIBUTION_ID]'),
 );
 expectVerdict(
   'remove-names-unparseable',

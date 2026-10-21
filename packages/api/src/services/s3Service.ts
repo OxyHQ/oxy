@@ -69,31 +69,14 @@ function isNoSuchUpload(error: unknown): boolean {
   return s3ErrorName(error) === 'NoSuchUpload';
 }
 
-function isMissingObject(error: unknown): boolean {
-  const name = s3ErrorName(error);
-  const status = (error as { $metadata?: { httpStatusCode?: number } } | null)?.$metadata
-    ?.httpStatusCode;
-  return name === 'NoSuchKey' || name === 'NotFound' || status === 404;
-}
-
 export class S3Service {
   private s3Client: S3Client;
   private bucketName: string;
   private endpointUrl?: string;
   private region: string;
   private readonly deletedObjectListener?: DeletedObjectListener;
-  /**
-   * The store being migrated FROM, while a migration is in progress (ADR 0047).
-   * Nothing is written to it. A delete is repeated there — a copy left behind
-   * would be copied back by R2's on-read migration (Sippy) or served by the
-   * old CDN — listings include it, and a copy whose source has not been
-   * migrated yet takes the source from it first.
-   */
-  private readonly legacy?: S3Service;
-
-  constructor(config: S3Config, deletedObjectListener?: DeletedObjectListener, legacy?: S3Service) {
+  constructor(config: S3Config, deletedObjectListener?: DeletedObjectListener) {
     this.deletedObjectListener = deletedObjectListener;
-    this.legacy = legacy;
     // Explicit keys only when both are configured (R2, local dev); otherwise
     // the default provider chain resolves the ECS task role.
     const { accessKeyId, secretAccessKey } = config;
@@ -393,9 +376,6 @@ export class S3Service {
       });
 
       await this.s3Client.send(command);
-      // Both stores, or the delete is not done: an object left in the store
-      // being migrated from is copied back on the next read (ADR 0047).
-      await this.legacy?.deleteFile(key);
     } catch (error) {
       throw new Error(`Failed to delete file from S3: ${error}`);
     }
@@ -486,76 +466,14 @@ export class S3Service {
 
       const response = await this.s3Client.send(command);
 
-      const listed: FileInfo[] = (response.Contents ?? []).map((item) => ({
+      return (response.Contents ?? []).map((item) => ({
         key: item.Key!,
         size: item.Size || 0,
         lastModified: item.LastModified!,
         bucket: this.bucketName,
       }));
-      if (!this.legacy) return listed;
-      // A key only the store being migrated from holds still has to be found:
-      // the deletion worker lists a prefix to delete everything under it.
-      const seen = new Set(listed.map((item) => item.key));
-      for (const item of await this.legacy.listFiles(prefix, maxKeys)) {
-        if (!seen.has(item.key)) listed.push(item);
-      }
-      return listed;
     } catch (error) {
       throw new Error(`Failed to list files from S3: ${error}`);
-    }
-  }
-
-  /**
-   * Bring `key` over from the store being migrated from, keeping its
-   * Content-Type, Content-Disposition, Cache-Control and metadata. For a
-   * server-side copy whose source has not been migrated yet: R2 serves a GET
-   * of such an object from S3 (Sippy) but a CopyObject from it is NoSuchKey.
-   * Returns false when there is no store to migrate from or it lacks the key.
-   */
-  private async adoptFromLegacy(key: string): Promise<boolean> {
-    if (!this.legacy) return false;
-    const source = await this.legacy.getObjectWithMetadata(key);
-    if (!source) return false;
-    const upload = new Upload({
-      client: this.s3Client,
-      params: {
-        Bucket: this.bucketName,
-        Key: key,
-        Body: source.body,
-        ContentType: source.contentType,
-        ContentDisposition: source.contentDisposition,
-        CacheControl: source.cacheControl,
-        Metadata: source.metadata,
-      },
-    });
-    await upload.done();
-    logger.info('Object adopted from the legacy store before a copy', { key });
-    return true;
-  }
-
-  /** GET with the HTTP metadata a copy must keep; null when the key does not exist. */
-  async getObjectWithMetadata(key: string): Promise<{
-    body: Readable;
-    contentType?: string;
-    contentDisposition?: string;
-    cacheControl?: string;
-    metadata?: Record<string, string>;
-  } | null> {
-    try {
-      const response = await this.s3Client.send(
-        new GetObjectCommand({ Bucket: this.bucketName, Key: key }),
-      );
-      if (!response.Body) return null;
-      return {
-        body: response.Body as Readable,
-        contentType: response.ContentType,
-        contentDisposition: response.ContentDisposition,
-        cacheControl: response.CacheControl,
-        metadata: response.Metadata,
-      };
-    } catch (error) {
-      if (isMissingObject(error)) return null;
-      throw error;
     }
   }
 
@@ -657,13 +575,7 @@ export class S3Service {
       return;
     }
     try {
-      try {
-        await this.copyObject(sourceKey, destinationKey);
-      } catch (error) {
-        // A source still only in the store being migrated from (ADR 0047).
-        if (!isMissingObject(error) || !(await this.adoptFromLegacy(sourceKey))) throw error;
-        await this.copyObject(sourceKey, destinationKey);
-      }
+      await this.copyObject(sourceKey, destinationKey);
     } catch (error) {
       if (isCopySourceTooLarge(error)) {
         const head = await this.headObject(sourceKey);
@@ -682,14 +594,6 @@ export class S3Service {
    * Content-Disposition and Cache-Control (what `MetadataDirective: COPY`
    * gives a single copy). An interrupted copy is aborted, leaving nothing.
    */
-  /** Whether THIS store holds `key` itself (a listing never falls through to a migration source). */
-  private async isStoredHere(key: string): Promise<boolean> {
-    const listed = await this.s3Client.send(
-      new ListObjectsV2Command({ Bucket: this.bucketName, Prefix: key, MaxKeys: 1 }),
-    );
-    return listed.Contents?.[0]?.Key === key;
-  }
-
   private async copyObject(sourceKey: string, destinationKey: string): Promise<void> {
     await this.s3Client.send(
       new CopyObjectCommand({
@@ -705,15 +609,6 @@ export class S3Service {
     destinationKey: string,
     size: number,
   ): Promise<void> {
-    // `UploadPartCopy` reads the source from THIS store; one still only in the
-    // store being migrated from is brought over first (ADR 0047). Asked by a
-    // LISTING, not a HEAD: R2 answers a HEAD of a not-yet-migrated object from
-    // the old store (Sippy), and a part copy of it would still be NoSuchKey.
-    if (this.legacy && !(await this.isStoredHere(sourceKey))) {
-      if (!(await this.adoptFromLegacy(sourceKey))) {
-        throw new Error(`Failed to copy a large file in S3: ${sourceKey} does not exist`);
-      }
-    }
     const head = await this.s3Client.send(
       new HeadObjectCommand({ Bucket: this.bucketName, Key: sourceKey }),
     );
@@ -1053,9 +948,8 @@ export class S3Service {
 export function createS3Service(
   config: S3Config,
   deletedObjectListener?: DeletedObjectListener,
-  legacy?: S3Service,
 ): S3Service {
-  return new S3Service(config, deletedObjectListener, legacy);
+  return new S3Service(config, deletedObjectListener);
 }
 
 // No additional type exports needed - interfaces are already exported
