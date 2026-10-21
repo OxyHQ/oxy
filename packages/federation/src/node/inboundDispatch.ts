@@ -127,6 +127,13 @@ export interface InboundDelivery {
     followActivityId: string,
     remoteActorUri: string,
   ): Promise<void>;
+  /** Send a Reject(Follow) back — required when {@link InboundDispatcherConfig.refusesFollower} is wired. */
+  sendReject?(
+    localOxyUserId: string,
+    localUsername: string,
+    followActivityId: string,
+    remoteActorUri: string,
+  ): Promise<void>;
 }
 
 /** Adapters + hooks an {@link InboundDispatcher} is built from. */
@@ -152,8 +159,16 @@ export interface InboundDispatcherConfig {
   actorResolver: InboundActorResolver;
   /** The AP follow-record store. */
   follows: InboundFollowStore;
-  /** The delivery service (send the Accept). */
+  /** The delivery service (send the Accept, or the Reject). */
   delivery: InboundDelivery;
+  /**
+   * Whether the local account REFUSES this follower — a community that banned
+   * them. A refused Follow is answered with a `Reject` (the account exists and is
+   * public, so saying no reveals nothing), and no edge or follow row is written.
+   * Asked after the follower resolves, so the app answers by Oxy id. Absent ⇒
+   * every Follow is accepted, as before.
+   */
+  refusesFollower?(localUserId: string, followerOxyUserId: string): Promise<boolean>;
   /**
    * Best-effort: notify the local user of a newly-accepted inbound follow.
    * NEVER throws (it handles its own errors); a failure must not fail (and thus
@@ -303,6 +318,15 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
     // in the Oxy graph — skip before touching any state or delivering an Accept.
     if (followerOxyUserId === localUserId) {
       logger.debug(`[Federation] ignoring self-follow from ${actorUri} to ${username}`);
+      return;
+    }
+
+    if (config.refusesFollower && (await config.refusesFollower(localUserId, followerOxyUserId))) {
+      if (!config.delivery.sendReject) {
+        throw new Error('refusesFollower is wired without delivery.sendReject');
+      }
+      await config.delivery.sendReject(localUserId, username, String(activity.id), actorUri);
+      logger.info(`Rejected follow from ${actorUri} to ${username}`);
       return;
     }
 
