@@ -61,7 +61,7 @@ const DIGEST = {
 } as const;
 
 const MODEL_ANSWER = JSON.stringify({
-  summary: 'Ana needs the quarterly numbers by Friday; the rest can wait.',
+  summary: 'Ana asks for the quarterly numbers by Friday.',
   items: [
     { ref: 'm1', section: 'needs_you', note: 'Wants the quarterly numbers by Friday.' },
     { ref: 'm1', section: 'today', note: 'Named twice: dropped.' },
@@ -179,6 +179,51 @@ beforeEach(() => {
 });
 
 describe('POST /email/ai/daily-brief', () => {
+  it('grounds an earlier-only brief in message content without exposing the unread total', async () => {
+    mockGetDigest.mockResolvedValue({
+      today: { received: 0, unread: 0, starred: 0 },
+      messages: [],
+      earlierUnread: {
+        total: 210,
+        messages: [
+          digestMessage({
+            id: 'msg_invoice',
+            fromName: 'Studio North',
+            subject: 'Website invoice',
+            receivedAt: new Date('2026-09-01T09:00:00.000Z'),
+            excerpt: 'The website invoice is €350, due on September 8.',
+          }),
+        ],
+      },
+    });
+    mockExecute.mockResolvedValue({
+      requestId: 'earlier_only',
+      text: JSON.stringify({
+        summary: 'Studio North sent the website invoice for €350, due September 8.',
+        items: [{ ref: 'e1', section: 'earlier', note: 'Website invoice due September 8.' }],
+      }),
+    });
+
+    const response = await postJson(server, { startAt: START_AT, endAt: END_AT });
+
+    expect(response.status).toBe(200);
+    expect(response.body.items).toEqual([expect.objectContaining({ messageId: 'msg_invoice' })]);
+    const input = mockExecute.mock.calls[0]?.[0];
+    const system = input.messages[0].content[0].text;
+    const prompt = input.messages[1].content[0].text;
+    expect(prompt).not.toContain('210');
+    expect(prompt).toContain('this is not the complete backlog');
+    expect(prompt).toContain('From: Studio North');
+    expect(prompt).toContain('Subject: Website invoice');
+    expect(prompt).toContain('€350, due on September 8');
+    expect(system).toContain('Lead with a concrete fact from the messages');
+    expect(system).toContain(
+      'If there is no mail from today, summarize the relevant earlier messages',
+    );
+    expect(system).toContain('Never claim there are no urgent requests');
+    expect(system).toContain('Unread is a reading state, not evidence');
+  });
+
   it('passes the validated UTC interval to the digest and answers with the brief as data', async () => {
     const response = await postJson(server, { startAt: START_AT, endAt: END_AT, locale: 'es-ES' });
 
@@ -187,7 +232,7 @@ describe('POST /email/ai/daily-brief', () => {
       body: {
         schemaVersion: 1,
         requestId: 'request_daily_brief_exact',
-        summary: 'Ana needs the quarterly numbers by Friday; the rest can wait.',
+        summary: 'Ana asks for the quarterly numbers by Friday.',
         counts: { received: 2, unread: 1, starred: 0, earlierUnread: 1 },
         items: [
           {

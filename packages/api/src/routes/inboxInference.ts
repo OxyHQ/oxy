@@ -1,5 +1,4 @@
 import { Router, type Response } from 'express';
-import { z } from 'zod';
 import {
   inboxComposeRequestSchema,
   inboxDailyBriefRequestSchema,
@@ -14,6 +13,7 @@ import {
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { inboxDailyBriefQuerySchema } from '../schemas/inboxInference.schemas';
 import { rateLimit } from '../middleware/rateLimiter';
 import { emailService, type MessageDto } from '../services/email.service';
 import {
@@ -168,7 +168,7 @@ router.post('/compose', validate({ body: inboxComposeRequestSchema }), asyncHand
 
 router.post('/daily-brief', validate({
   body: inboxDailyBriefRequestSchema,
-  query: z.object({ includeActions: z.enum(['true', 'false']).optional() }).strict(),
+  query: inboxDailyBriefQuerySchema,
 }), asyncHandler(async (request: AuthRequest, response) => {
   const body = request.body as InboxDailyBriefRequest;
   const includeActions = request.query.includeActions === 'true';
