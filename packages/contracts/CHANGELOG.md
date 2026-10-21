@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.6.0
+
+### Added
+
+- `@oxy.so/contracts/client` exports `USER_PROFILE_COLORS`,
+  `USER_PROFILE_COLOR_PRESETS` and `FREE_USER_PROFILE_COLOR_PRESETS`, so a client
+  can offer exactly the colours the API will store (and who may wear which gated
+  one) without importing the Zod root.
+
 ## 5.5.0
 
 Oxy hosts communities.

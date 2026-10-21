@@ -453,7 +453,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "5.5.0",
+      "version": "5.6.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -672,7 +672,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "12.8.0",
+      "version": "12.9.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",

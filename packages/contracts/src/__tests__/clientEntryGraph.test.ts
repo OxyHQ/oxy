@@ -94,10 +94,11 @@ describe('@oxy.so/contracts/client entry graph', () => {
     expect(Object.fromEntries(externals)).toEqual({});
   });
 
-  it('only reaches the pure capability helpers and product catalogue outside src/client/', () => {
+  it('only reaches the pure capability helpers, product catalogue and colour table outside src/client/', () => {
     expect(files.filter((file) => !file.startsWith('client/'))).toEqual([
       'capabilityBindings.ts',
       'products/one.ts',
+      'profileColors.generated.ts',
     ]);
   });
 
