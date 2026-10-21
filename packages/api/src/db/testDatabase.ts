@@ -29,7 +29,8 @@ import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import postgres from 'postgres';
+import { openPostgresClient } from '@oxy.so/db';
+import type postgres from 'postgres';
 import { ConfigurationError } from '../config/env';
 
 /** Bytes of randomness in a throwaway database name. */
@@ -152,7 +153,7 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
 
   // Owned BEFORE it exists, so no reaper ever sees it labelled and unowned.
   await holdOwnership(baseUrl, name);
-  const create = postgres(maintenanceUrl(baseUrl), { max: 1 });
+  const create = openPostgresClient(maintenanceUrl(baseUrl), { client: { max: 1 } });
   let created = false;
   try {
     await create.unsafe(`create database "${name}"`);
@@ -160,7 +161,7 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
     const owner = `${OWNER_LABEL}${hostname()}/${process.pid}`.replace(/'/g, "''");
     await create.unsafe(`comment on database "${name}" is '${owner}'`);
     if (options.billingSandboxNamespace) {
-      const fresh = postgres(url, { max: 1 });
+      const fresh = openPostgresClient(url, { client: { max: 1 } });
       try {
         const rows =
           await fresh`select current_database() as name, (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public') as tables`;
@@ -238,12 +239,14 @@ function ownershipKey(name: string): string {
  * distro), so a pid that is dead here can be a live run there.
  */
 async function holdOwnership(baseUrl: string, name: string): Promise<void> {
-  const session = postgres(maintenanceUrl(baseUrl), {
-    max: 1,
-    // Never recycled: a new connection would not hold the lock.
-    max_lifetime: 0,
-    idle_timeout: 0,
-    connection: { application_name: `oxy-jest owner ${name}` },
+  const session = openPostgresClient(maintenanceUrl(baseUrl), {
+    client: {
+      max: 1,
+      // Never recycled: a new connection would not hold the lock.
+      max_lifetime: 0,
+      idle_timeout: 0,
+      connection: { application_name: `oxy-jest owner ${name}` },
+    },
   });
   try {
     await session`select pg_advisory_lock(hashtextextended(${ownershipKey(name)}, 0))`;
@@ -276,7 +279,7 @@ async function releaseOwnership(name: string): Promise<void> {
 export async function reapOrphanedTestDatabases(): Promise<string[]> {
   const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!baseUrl) return [];
-  const admin = postgres(maintenanceUrl(baseUrl), { max: 1 });
+  const admin = openPostgresClient(maintenanceUrl(baseUrl), { client: { max: 1 } });
   try {
     const rows = await admin<{ name: string; label: string | null }[]>`
       select datname as name, shobj_description(oid, 'pg_database') as label
@@ -319,7 +322,7 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
     );
   }
 
-  const remove = postgres(maintenanceUrl(databaseUrl), { max: 1 });
+  const remove = openPostgresClient(maintenanceUrl(databaseUrl), { client: { max: 1 } });
   try {
     await remove.unsafe(`drop database if exists "${name}" with (force)`);
   } finally {
