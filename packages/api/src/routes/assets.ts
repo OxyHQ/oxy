@@ -163,6 +163,7 @@ import {
   MEDIA_TOKEN_TTL_SECONDS,
   signMediaToken,
 } from '../utils/mediaToken';
+import { ASSET_MULTIPART_FILE_MAX_BYTES, USE_PRESIGNED_UPLOAD } from '../constants/assetUpload';
 import {
   FEDERATION_CACHE_MAX_BYTES,
   USER_MEDIA_MAX_BYTES,
@@ -185,7 +186,33 @@ interface AuthenticatedRequest extends express.Request {
 }
 
 const router = express.Router();
-const upload = multer(); // memory storage
+/**
+ * One multipart `file`, in memory, at most {@link ASSET_MULTIPART_FILE_MAX_BYTES}.
+ * Over it: 413 {@link USE_PRESIGNED_UPLOAD}, Oxy's own JSON answer, before the
+ * proxy in front of the API would refuse the body with an HTML one. Multer's
+ * other refusals (an unexpected field) are the caller's mistake: a 400.
+ */
+const multipartFile = multer({ limits: { fileSize: ASSET_MULTIPART_FILE_MAX_BYTES } }).single(
+  'file',
+);
+const singleMultipartFile: express.RequestHandler = (req, res, next) => {
+  multipartFile(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      next(
+        err.code === 'LIMIT_FILE_SIZE'
+          ? new ApiError(
+              413,
+              `A file over ${ASSET_MULTIPART_FILE_MAX_BYTES} bytes is uploaded by presigned PUT: POST /assets/init, PUT the bytes to its uploadUrl, then POST /assets/complete`,
+              USE_PRESIGNED_UPLOAD,
+              { maxBytes: ASSET_MULTIPART_FILE_MAX_BYTES },
+            )
+          : new BadRequestError(err.message),
+      );
+      return;
+    }
+    next(err);
+  });
+};
 /** Reviewed own-file operations: authentication still proves the original bearer. */
 const ownAssetAuth: express.RequestHandler = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
@@ -652,6 +679,12 @@ router.post(
  *                   type: string
  *                 file:
  *                   type: object
+ *                   description: >
+ *                     The committed asset: `id`, `sha256`, `size`, `mime`,
+ *                     `ext`, `originalName`, `visibility`, `metadata`,
+ *                     `status`, `usageCount`, `createdAt`, `updatedAt`,
+ *                     `links`, `variants` — every field `/assets/upload`
+ *                     answers, and the record's lifecycle.
  *       400:
  *         description: Validation failed.
  *       401:
@@ -699,7 +732,12 @@ router.post(
         sha256: file.sha256,
         size: file.size,
         mime: file.mime,
+        ext: file.ext,
         originalName: file.originalName,
+        // As `POST /assets/upload` answers them, so a client's upload returns
+        // one shape whichever path the bytes took.
+        visibility: file.visibility,
+        metadata: file.metadata,
         status: file.status,
         usageCount: file.links.length,
         createdAt: file.createdAt,
@@ -714,13 +752,14 @@ router.post(
 /**
  * @route POST /api/assets/:id/upload-direct
  * @desc Direct upload via API (bypasses browser CORS for presigned PUT)
+ *       At most 90 MiB, like `/assets/upload`: 413 `USE_PRESIGNED_UPLOAD` over it.
  * @access Private
  */
 router.post(
   '/:id/upload-direct',
   ownAssetAuth,
   validate({ params: assetIdParams }),
-  upload.single('file'),
+  singleMultipartFile,
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
     if (!user?._id) {
@@ -779,7 +818,10 @@ router.post(
  *       Convenience endpoint that wraps the init/PUT/complete flow into a
  *       single multipart upload. The backend computes the SHA-256 itself.
  *       Use this for small files where the round-trip cost outweighs the
- *       benefit of direct-to-S3 streaming.
+ *       benefit of direct-to-S3 streaming. A file over 90 MiB is refused
+ *       with 413 `USE_PRESIGNED_UPLOAD`: upload it with `/assets/init`, a PUT
+ *       to the presigned URL and `/assets/complete` (the SDK's
+ *       `assets.upload` does so itself above 64 MiB).
  *     requestBody:
  *       required: true
  *       content:
@@ -806,11 +848,16 @@ router.post(
  *         description: Missing file or malformed metadata.
  *       401:
  *         description: Missing or invalid bearer token.
+ *       413:
+ *         description: >
+ *           `USE_PRESIGNED_UPLOAD` — the file is over 90 MiB
+ *           (`details.maxBytes`); upload it by presigned PUT
+ *           (`/assets/init`, PUT, `/assets/complete`).
  */
 router.post(
   '/upload',
   ownAssetAuth,
-  upload.single('file'),
+  singleMultipartFile,
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
     if (!user?._id) {

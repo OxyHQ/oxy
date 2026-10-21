@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Changed (a multipart upload is at most 90 MiB, refused as JSON 413 `USE_PRESIGNED_UPLOAD`)
+
+`POST /assets/upload` and `POST /assets/:id/upload-direct` buffered a file of
+any size in memory. They now take at most 90 MiB
+(`ASSET_MULTIPART_FILE_MAX_BYTES`): over it, 413 `USE_PRESIGNED_UPLOAD` with
+`details.maxBytes`, telling the client to upload by `/assets/init`, a
+presigned PUT and `/assets/complete`. The proxy api.oxy.so moves behind
+refuses any body over 100 MB with an HTML 413 of its own; this answers first,
+in Oxy's shape. `@oxy.so/core`'s `assets.upload` already sends nothing over
+64 MiB this way. No first-party caller sends more (ALB logs, 14 days: no
+end-user request over 50 MB). Multer's other refusals (an unexpected field)
+are 400 instead of 500.
+
+### Changed (`/assets/complete` answers every field `/assets/upload` does)
+
+Its `file` now also carries `ext`, `visibility` and `metadata`, so a client
+maps a presigned upload to the same `UploadedAsset` a multipart one returns.
+Additive.
+
+### Fixed (an idle `/v1/realtime` session outlives the proxies)
+
+The edge never pinged a realtime customer, while a session may sit idle for
+its `idleTimeoutMs` (two minutes by default): longer than the load balancer's
+60 s idle timeout and the CDN proxy's 100 s, so an idle session's socket was
+cut under it. The edge now pings every customer every 25 s from the upgrade
+on (`REALTIME_HEARTBEAT_INTERVAL_MS`) and terminates one that left the
+previous ping unanswered; its session detaches as for any lost customer.
+
 ### Changed (no reconciliation session's items are ever one delete)
 
 A commit and a release used to delete the session's items in one statement:

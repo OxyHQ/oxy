@@ -8612,7 +8612,8 @@
                       "type": "string"
                     },
                     "file": {
-                      "type": "object"
+                      "type": "object",
+                      "description": "The committed asset: `id`, `sha256`, `size`, `mime`, `ext`, `originalName`, `visibility`, `metadata`, `status`, `usageCount`, `createdAt`, `updatedAt`, `links`, `variants` — every field `/assets/upload` answers, and the record's lifecycle.\n"
                     }
                   }
                 }
@@ -13802,7 +13803,7 @@
           "Files"
         ],
         "summary": "Upload a file in a single request",
-        "description": "Convenience endpoint that wraps the init/PUT/complete flow into a single multipart upload. The backend computes the SHA-256 itself. Use this for small files where the round-trip cost outweighs the benefit of direct-to-S3 streaming.\n",
+        "description": "Convenience endpoint that wraps the init/PUT/complete flow into a single multipart upload. The backend computes the SHA-256 itself. Use this for small files where the round-trip cost outweighs the benefit of direct-to-S3 streaming. A file over 90 MiB is refused with 413 `USE_PRESIGNED_UPLOAD`: upload it with `/assets/init`, a PUT to the presigned URL and `/assets/complete` (the SDK's `assets.upload` does so itself above 64 MiB).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -13844,6 +13845,9 @@
           },
           "401": {
             "description": "Missing or invalid bearer token."
+          },
+          "413": {
+            "description": "`USE_PRESIGNED_UPLOAD` — the file is over 90 MiB (`details.maxBytes`); upload it by presigned PUT (`/assets/init`, PUT, `/assets/complete`).\n"
           }
         },
         "operationId": "postAssetsUpload"
@@ -14647,7 +14651,7 @@
           "Files"
         ],
         "summary": "Direct upload via API (bypasses browser CORS for presigned PUT)",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/assets.ts` to fill in summary, description, request/response examples.",
+        "description": "At most 90 MiB, like `/assets/upload`: 413 `USE_PRESIGNED_UPLOAD` over it.",
         "parameters": [
           {
             "name": "id",

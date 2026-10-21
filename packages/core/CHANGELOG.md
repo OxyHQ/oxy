@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased
+
+### Changed
+
+- `oxy.assets.upload` never sends a request body the API's proxy refuses
+  (100 MB), for any file size, on the web and on React Native. A file over
+  `ASSET_MULTIPART_UPLOAD_MAX_BYTES` (64 MiB, exported) goes straight to
+  storage — hash, `/assets/init`, presigned PUT, `/assets/complete` — and is
+  answered in the same `{ file: UploadedAsset }` shape, `onProgress(100)` at
+  the end as before. An SVG of any size stays on the API path, which
+  sanitizes it. Needs the API's `/assets/complete` that answers `ext`,
+  `visibility` and `metadata`.
+- On React Native a descriptor without a `size` is read once into a native
+  Blob (through RN's `XMLHttpRequest`, never Expo's `fetch`, which copies the
+  bytes into the JS heap) to learn its size; a small one still goes into the
+  multipart body as-is, and a uri RN cannot read that way goes multipart as
+  before. Pass `size` when it is known to skip the read.
+- `oxy.assets.uploadLarge` works on React Native: its hashing reads RN Blobs
+  through `FileReader.readAsArrayBuffer` (RN's Blob has no `arrayBuffer`),
+  8 MiB at a time, and the PUT goes through `XMLHttpRequest` wherever it
+  exists, so React Native reports bytes sent too. The PUT names the signed
+  `Content-Type` explicitly.
+- `completeUpload` is bounded like an upload (10 minutes), not by the 5 s
+  JSON default: a public file's bytes are copied under the public prefix
+  before it answers. `CompletedAssetUpload['file']` gains `ext`,
+  `visibility` and `metadata`.
+
 ## 6.5.0
 
 ### Added
