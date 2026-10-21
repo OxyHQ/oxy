@@ -606,6 +606,13 @@ const dict = {
     },
     errors: {
       update: 'Não foi possível atualizar o estado',
+      read: 'Não foi possível verificar o estado',
+      mode: 'Não foi possível alterar a definição desta aplicação',
+      offline: 'Está offline. Verifique a ligação e tente novamente.',
+      signedOut: 'Inicie sessão novamente para continuar',
+      forbidden: 'Esta aplicação não tem permissão para fazer isso',
+      notFound: 'Isto já não está disponível',
+      rateLimited: 'Demasiadas tentativas. Tente novamente daqui a pouco.',
     },
   },
 };

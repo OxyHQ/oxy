@@ -60,7 +60,12 @@ import {
   type FollowDuration,
   type FollowMenuItem,
 } from './followRules';
-import { type FollowLabels, type FollowVerb, useFollowLabels } from './followLabels';
+import {
+  describeFollowError,
+  type FollowLabels,
+  type FollowVerb,
+  useFollowLabels,
+} from './followLabels';
 import { useI18n } from '../hooks/useI18n';
 
 const HOUR = 60 * 60;
@@ -149,8 +154,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   );
 
   const reportMutationFailure = useCallback(() => {
-    const message = useFollowTargetStore.getState().errors[targetId] ?? t('follow.errors.update');
-    toast.error(message);
+    toast.error(describeFollowError(useFollowTargetStore.getState().errors[targetId], t));
   }, [targetId, t]);
 
   const label = useMemo(() => {

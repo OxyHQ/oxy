@@ -5,6 +5,7 @@ import type {
   BulkUnfollowResult,
   FollowMutationResult,
 } from '@oxy.so/core';
+import { type FollowErrorCode, toFollowErrorCode } from '../utils/followErrors';
 
 interface FollowState {
   // Tri-state follow map: a MISSING key means UNKNOWN (status not yet resolved),
@@ -14,7 +15,8 @@ interface FollowState {
   followingUsers: Record<string, boolean>;
   loadingUsers: Record<string, boolean>;
   fetchingUsers: Record<string, boolean>;
-  errors: Record<string, string | null>;
+  /** Why the last read or write of a user failed, as a code — never text. */
+  errors: Record<string, FollowErrorCode | null>;
   // Follower counts for each user
   followerCounts: Record<string, number>;
   followingCounts: Record<string, number>;
@@ -192,14 +194,13 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         })
         .catch((error: unknown) => {
           if (generation !== batchGeneration) return;
-          const message =
-            (error instanceof Error ? error.message : null) || 'Failed to fetch follow status';
+          const code = toFollowErrorCode(error, 'read_failed');
           set((state) => {
             const fetchingUsers = { ...state.fetchingUsers };
             const errors = { ...state.errors };
             for (const id of ids) {
               fetchingUsers[id] = false;
-              errors[id] = message;
+              errors[id] = code;
             }
             return { fetchingUsers, errors };
           });
@@ -274,8 +275,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
           loadingUsers: { ...state.loadingUsers, [userId]: false },
           errors: {
             ...state.errors,
-            [userId]:
-              (error instanceof Error ? error.message : null) || 'Failed to update follow status',
+            [userId]: toFollowErrorCode(error, 'update_failed'),
           },
         };
       });
@@ -327,15 +327,14 @@ export const useFollowStore = create<FollowState>((set, get) => ({
             } else {
               followingUsers[entry.userId] = prev;
             }
-            errors[entry.userId] = 'Failed to update follow status';
+            errors[entry.userId] = 'update_failed';
           }
         }
         return { followingUsers, loadingUsers, errors };
       });
       return result;
     } catch (error: unknown) {
-      const message =
-        (error instanceof Error ? error.message : null) || 'Failed to update follow status';
+      const code = toFollowErrorCode(error, 'update_failed');
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
         const followingUsers = { ...state.followingUsers };
@@ -349,7 +348,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
             followingUsers[uid] = prev;
           }
           loadingUsers[uid] = false;
-          errors[uid] = message;
+          errors[uid] = code;
         }
         return { followingUsers, loadingUsers, errors };
       });
@@ -401,15 +400,14 @@ export const useFollowStore = create<FollowState>((set, get) => ({
             } else {
               followingUsers[entry.userId] = prev;
             }
-            errors[entry.userId] = 'Failed to update follow status';
+            errors[entry.userId] = 'update_failed';
           }
         }
         return { followingUsers, loadingUsers, errors };
       });
       return result;
     } catch (error: unknown) {
-      const message =
-        (error instanceof Error ? error.message : null) || 'Failed to update follow status';
+      const code = toFollowErrorCode(error, 'update_failed');
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
         const followingUsers = { ...state.followingUsers };
@@ -423,7 +421,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
             followingUsers[uid] = prev;
           }
           loadingUsers[uid] = false;
-          errors[uid] = message;
+          errors[uid] = code;
         }
         return { followingUsers, loadingUsers, errors };
       });

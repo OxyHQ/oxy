@@ -603,6 +603,13 @@ const dict = {
     },
     errors: {
       update: 'Impossibile aggiornare lo stato',
+      read: 'Impossibile verificare lo stato',
+      mode: 'Impossibile modificare l’impostazione di questa app',
+      offline: 'Sei offline. Controlla la connessione e riprova.',
+      signedOut: 'Accedi di nuovo per continuare',
+      forbidden: 'Questa app non ha il permesso di farlo',
+      notFound: 'Non è più disponibile',
+      rateLimited: 'Troppi tentativi. Riprova tra poco.',
     },
   },
 };

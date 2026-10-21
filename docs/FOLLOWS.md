@@ -136,6 +136,11 @@ a refusal becomes error state so the button can render it — so a caller that
 awaits them without reading the result would mirror failures as successes into
 whatever it is keeping in step.
 
+**`error` is a code, not a sentence.** A `FollowErrorCode` (`update_failed`,
+`offline`, `forbidden`, …) taken from the API's code and status, never its
+message; `useFollowErrorMessage()` words it in the app's language through core's
+`follow.errors.*` strings, the same mapping both follow buttons toast with.
+
 **A namespace you claimed by mistake can be given back, while it is empty.**
 `DELETE /v2/follow-targets/namespaces/<namespace>` (or
 `oxyServices.follows.releaseNamespace('<namespace>')`), holder only, refused once

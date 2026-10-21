@@ -616,6 +616,13 @@ const dict = {
     },
     errors: {
       update: 'Impossible de mettre à jour le statut',
+      read: 'Impossible de vérifier le statut',
+      mode: 'Impossible de modifier le réglage de cette app',
+      offline: 'Vous êtes hors ligne. Vérifiez votre connexion et réessayez.',
+      signedOut: 'Reconnectez-vous pour continuer',
+      forbidden: 'Cette app n’est pas autorisée à faire cela',
+      notFound: 'Ce contenu n’est plus disponible',
+      rateLimited: 'Trop de tentatives. Réessayez dans un instant.',
     },
   },
 };

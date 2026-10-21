@@ -2,11 +2,12 @@
 // Expand this as needed to better reflect the real return type.
 
 import type { BulkFollowResult } from '@oxy.so/core';
+import type { FollowErrorCode } from '../utils/followErrors';
 
 export type SingleFollowResult = {
   isFollowing: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: FollowErrorCode | null;
   toggleFollow: () => Promise<void>;
   setFollowStatus: (following: boolean) => void;
   fetchStatus: () => Promise<void>;
@@ -20,7 +21,10 @@ export type SingleFollowResult = {
 };
 
 export type MultiFollowResult = {
-  followData: Record<string, { isFollowing: boolean; isLoading: boolean; error: string | null }>;
+  followData: Record<
+    string,
+    { isFollowing: boolean; isLoading: boolean; error: FollowErrorCode | null }
+  >;
   toggleFollowForUser: (userId: string) => Promise<void>;
   setFollowStatusForUser: (userId: string, following: boolean) => void;
   fetchStatusForUser: (userId: string) => Promise<void>;

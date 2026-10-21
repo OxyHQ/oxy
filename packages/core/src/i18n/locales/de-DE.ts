@@ -614,6 +614,13 @@ const dict = {
     },
     errors: {
       update: 'Der Status konnte nicht aktualisiert werden',
+      read: 'Der Status konnte nicht abgerufen werden',
+      mode: 'Die Einstellung dieser App konnte nicht geändert werden',
+      offline: 'Du bist offline. Prüfe deine Verbindung und versuche es erneut.',
+      signedOut: 'Melde dich erneut an, um fortzufahren',
+      forbidden: 'Diese App darf das nicht',
+      notFound: 'Das ist nicht mehr verfügbar',
+      rateLimited: 'Zu viele Versuche. Versuche es gleich noch einmal.',
     },
   },
 };

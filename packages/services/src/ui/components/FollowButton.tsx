@@ -9,8 +9,14 @@ import { useFollowStore } from '../stores/followStore';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '../hooks/useI18n';
+import { toFollowErrorCode } from '../utils/followErrors';
 import { describeFollowAllButton, describeFollowButton } from './followButtonAccessibility';
-import { type FollowLabels, type FollowVerb, useFollowLabels } from './followLabels';
+import {
+  describeFollowError,
+  type FollowLabels,
+  type FollowVerb,
+  useFollowLabels,
+} from './followLabels';
 
 /** Props shared by both single- and multi-user follow modes. */
 interface FollowButtonBaseProps {
@@ -101,13 +107,10 @@ const FollowButtonInner = memo(function FollowButtonInner({
       // Ignore presses while a mutation is in flight or the status is still unknown.
       if (disabled || isLoading || !isKnown) return;
 
-      try {
-        const accepted = await toggleFollow();
-        if (accepted) onFollowChange?.(!isFollowing);
-      } catch (err: unknown) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || t('follow.errors.update'));
-      }
+      // `toggleFollow` never rejects: a refusal is rolled back and its code
+      // recorded in the store, which is what the toast words.
+      if (await toggleFollow()) onFollowChange?.(!isFollowing);
+      else toast.error(describeFollowError(useFollowStore.getState().errors[userId], t));
     },
     [
       disabled,
@@ -117,6 +120,7 @@ const FollowButtonInner = memo(function FollowButtonInner({
       onFollowChange,
       isFollowing,
       preventParentActions,
+      userId,
       t,
     ],
   );
@@ -234,8 +238,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
           onFollowChange?.(false);
           onBulkUnfollow?.(result);
         } catch (err: unknown) {
-          const error = err instanceof Error ? err : new Error(String(err));
-          toast.error(error.message || t('follow.errors.update'));
+          toast.error(describeFollowError(toFollowErrorCode(err, 'update_failed'), t));
         } finally {
           setIsSubmitting(false);
         }
@@ -261,8 +264,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
         }
         onBulkFollow?.(result);
       } catch (err: unknown) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || t('follow.errors.update'));
+        toast.error(describeFollowError(toFollowErrorCode(err, 'update_failed'), t));
       } finally {
         setIsSubmitting(false);
       }

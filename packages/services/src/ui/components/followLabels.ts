@@ -8,8 +8,9 @@
  * drawn.
  */
 
-import { useMemo } from 'react';
-import { useI18n } from '../hooks/useI18n';
+import { useCallback, useMemo } from 'react';
+import { type Translate, useI18n } from '../hooks/useI18n';
+import type { FollowErrorCode } from '../utils/followErrors';
 
 /**
  * The small vocabulary of verbs the ecosystem actually uses. An application
@@ -45,4 +46,37 @@ export function useFollowLabels(
     }),
     [t, verb, overrides],
   );
+}
+
+/** The `follow.errors.*` string for each code — the one place a code becomes words. */
+const FOLLOW_ERROR_KEYS: Record<FollowErrorCode, string> = {
+  read_failed: 'follow.errors.read',
+  update_failed: 'follow.errors.update',
+  mode_failed: 'follow.errors.mode',
+  offline: 'follow.errors.offline',
+  signed_out: 'follow.errors.signedOut',
+  forbidden: 'follow.errors.forbidden',
+  not_found: 'follow.errors.notFound',
+  rate_limited: 'follow.errors.rateLimited',
+};
+
+/**
+ * What a follow error says, in the current language. Every component that
+ * shows a follow failure reads it here; a missing code (a failure the store
+ * did not record) reads as the generic "could not update".
+ */
+export function describeFollowError(
+  code: FollowErrorCode | null | undefined,
+  t: Translate,
+): string {
+  return t(FOLLOW_ERROR_KEYS[code ?? 'update_failed']);
+}
+
+/**
+ * `describeFollowError` bound to the current language, for an application that
+ * renders `useFollowTarget().error` (or `useFollow().error`) itself.
+ */
+export function useFollowErrorMessage(): (code: FollowErrorCode | null | undefined) => string {
+  const { t } = useI18n();
+  return useCallback((code) => describeFollowError(code, t), [t]);
 }

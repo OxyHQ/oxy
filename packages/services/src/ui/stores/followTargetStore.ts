@@ -24,6 +24,7 @@
 
 import { create } from 'zustand';
 import type { FollowApplicationMode, FollowRecord, FollowStatus } from '@oxy.so/contracts';
+import type { FollowErrorCode } from '../utils/followErrors';
 
 /** The status of one target, or `undefined` when it has never been read. */
 type StatusMap = Record<string, FollowStatus | undefined>;
@@ -32,7 +33,8 @@ interface FollowTargetState {
   statuses: StatusMap;
   /** In-flight writes, per target. Reads do not set this — only mutations do. */
   pending: Record<string, boolean>;
-  errors: Record<string, string | undefined>;
+  /** Why the last read or write of a target failed, as a code — never text. */
+  errors: Record<string, FollowErrorCode | undefined>;
 
   setStatus: (targetId: string, status: FollowStatus) => void;
   /**
@@ -42,7 +44,7 @@ interface FollowTargetState {
    */
   seed: (entries: Record<string, FollowStatus>) => void;
   setPending: (targetId: string, pending: boolean) => void;
-  setError: (targetId: string, error: string | undefined) => void;
+  setError: (targetId: string, error: FollowErrorCode | undefined) => void;
   /** Drop everything. Called on identity change — see the note below. */
   reset: () => void;
 }

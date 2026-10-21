@@ -2513,6 +2513,13 @@ const dict = {
     },
     errors: {
       update: 'No se pudo actualizar el estado',
+      read: 'No se pudo comprobar el estado',
+      mode: 'No se pudo cambiar el ajuste de esta aplicación',
+      offline: 'No tienes conexión. Compruébala y vuelve a intentarlo.',
+      signedOut: 'Vuelve a iniciar sesión para continuar',
+      forbidden: 'Esta aplicación no tiene permiso para hacerlo',
+      notFound: 'Esto ya no está disponible',
+      rateLimited: 'Demasiados intentos. Vuelve a intentarlo en un momento.',
     },
   },
 };
