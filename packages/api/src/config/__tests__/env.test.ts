@@ -24,7 +24,10 @@ const REQUIRED_BASE_ENV: Record<string, string> = {
   ACCESS_TOKEN_SECRET: 'a'.repeat(64),
   REFRESH_TOKEN_SECRET: 'b'.repeat(64),
   AWS_REGION: 'eu-west-1',
-  AWS_S3_BUCKET: 'test-bucket',
+  R2_BUCKET: 'test-bucket',
+  R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com',
+  R2_ACCESS_KEY_ID: 'test-key',
+  R2_SECRET_ACCESS_KEY: 'test-secret',
 };
 
 describe('isValidHostname', () => {

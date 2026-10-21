@@ -52,7 +52,9 @@ common_env=(
   --env=REFRESH_TOKEN_SECRET=ci-smoke-refresh-secret-0123456789abcdef0123456789abcde
   --env=DEVICE_ID_SALT=ci-smoke-device-salt-0123456789abcdef0123456789abcdef0123
   --env=SERVICE_TOKEN_PRIVATE_KEY --env=SERVICE_TOKEN_SIGNING_KEY_ID=ci-smoke
-  --env=AWS_REGION=us-west-2 --env=AWS_S3_BUCKET=ci-smoke-throwaway --env=AWS_EC2_METADATA_DISABLED=true
+  --env=AWS_REGION=us-west-2 --env=AWS_EC2_METADATA_DISABLED=true
+  --env=R2_BUCKET=ci-smoke-throwaway --env=R2_ENDPOINT=https://ci-smoke.invalid
+  --env=R2_ACCESS_KEY_ID=ci-smoke --env=R2_SECRET_ACCESS_KEY=ci-smoke-secret
 )
 
 # ── 1. Runtime ───────────────────────────────────────────────────────────────

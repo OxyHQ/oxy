@@ -312,7 +312,7 @@ expectVerdict(
 
 const retiredNotRemoved = createFixture();
 edit(retiredNotRemoved, WORKFLOW, 'retired-binding-not-removed', (text) =>
-  text.replace(',"INBOX_APPLICATION_SECRET"]', ']'),
+  text.replace(',"INBOX_APPLICATION_SECRET"', ''),
 );
 expectVerdict(
   'retired-binding-not-removed',
@@ -379,7 +379,7 @@ edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     'const required: (keyof RequiredEnvVars)[] = [\n' +
       "    'ACCESS_TOKEN_SECRET',\n    'REFRESH_TOKEN_SECRET',\n    'DEVICE_ID_SALT',\n" +
-      "    'AWS_REGION',\n    'AWS_S3_BUCKET',\n    'REDIS_URL',\n  ];",
+      "    'AWS_REGION',\n    'R2_BUCKET',\n    'REDIS_URL',\n  ];",
   ),
 );
 expectVerdict(
