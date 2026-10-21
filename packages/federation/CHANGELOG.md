@@ -14,6 +14,8 @@ A local community is a FEP-1b12 `Group` other servers can follow and post into.
 - `createActorRouter({ fetchModerators })` serves
   `GET /users/:username/moderators` as an `OrderedCollection` of actor ids for a
   community; any other account 404s. Not mounted when omitted.
+- `LocalDeleteEventPayload.communityOxyUserId`: the community a deleted post was
+  written in, so the app can relay the deletion to that community's followers.
 
 ## 2.5.1
 
