@@ -1,8 +1,8 @@
 # Changelog — `@oxy.so/core`
 
-## Unreleased
+## 6.9.0
 
-Security fix. Needs the `@oxy.so/contracts` release carrying
+Security fix. Needs `@oxy.so/contracts` 5.4.0, the release carrying
 `sessionRevocation.ts` (`oxySessionRevocationEventSchema`, the
 `/service-events` names) and an Oxy API serving `/service-events`.
 
