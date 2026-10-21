@@ -37,8 +37,8 @@ plugins: [
 
 This adds the iOS `keychain-access-groups` entitlement
 (`$(AppIdentifierPrefix)group.so.oxy.shared`), the Oxy `expo-build-properties`
-defaults (iOS `deploymentTarget 16.4`; Android `compileSdk 36` / `targetSdk 35` /
-ProGuard + resource shrinking), and `@oxy.so/services/plugins/withOxySharedPermissions`:
+defaults (iOS `deploymentTarget 16.4`; Android ProGuard + resource shrinking — the
+Android compile/target SDK and build tools are the Expo SDK's own, never pinned here), and `@oxy.so/services/plugins/withOxySharedPermissions`:
 the app declares and requests the signature-level `so.oxy.permission.IDENTITY` and
 `so.oxy.permission.DEVICE_SESSION`, with `<queries>` for the Commons and Accounts
 providers. That is how silent "Sign in with Oxy" works on Android: each Oxy app

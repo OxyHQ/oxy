@@ -25,7 +25,11 @@ module.exports = {
   expo: {
     name: APP_NAME,
     slug: 'Oxy',
-    version: '1.0.0',
+    // The OTA compatibility boundary (withOxyUpdates sets runtimeVersion
+    // policy 'appVersion'): bump it whenever the native layer changes, so a
+    // binary built from older native code never receives JS that needs newer
+    // native modules. 1.1.0 is the first Expo SDK 58 build.
+    version: '1.1.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'accounts',

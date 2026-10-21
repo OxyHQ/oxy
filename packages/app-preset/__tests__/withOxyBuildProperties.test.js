@@ -75,3 +75,25 @@ test('passes the opt-in GIF/WebP decoder switches through beside the Android def
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('leaves the Android compile/target SDK and build tools to the Expo SDK template', () => {
+  // SDK 58's Expo modules require compileSdk 37: a pinned 36 failed every release
+  // build in :expo:checkReleaseAarMetadata. The template owns these levels.
+  for (const key of ['compileSdkVersion', 'targetSdkVersion', 'buildToolsVersion']) {
+    assert.equal(key in withOxyBuildProperties.DEFAULTS.android, false, key);
+  }
+});
+
+test('still lets an app hold an Android level back through an override', () => {
+  const root = fakeApp();
+  try {
+    const result = withOxyBuildProperties(
+      { name: 'app', _internal: { projectRoot: root } },
+      { android: { targetSdkVersion: 35 } },
+    );
+    assert.equal(result.appliedBuildProperties.android.targetSdkVersion, 35);
+    assert.equal(result.appliedBuildProperties.android.enableProguardInReleaseBuilds, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
