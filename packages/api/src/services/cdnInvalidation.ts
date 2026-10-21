@@ -42,6 +42,7 @@ import { randomUUID } from 'node:crypto';
 import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
 import { PUBLIC_KEY_PREFIX } from '../config/cdn';
 import { logger } from '../utils/logger';
+import { CloudflarePurgeQueue } from './cdnPurge';
 
 /** Wildcard paths per request; CloudFront's in-progress ceiling is 15 per distribution. */
 export const MAX_WILDCARDS_PER_REQUEST = 5;
@@ -417,21 +418,65 @@ export class CdnInvalidationQueue {
   }
 }
 
-let singleton: CdnInvalidationQueue | null = null;
+/** What a delete path tells the CDN, and what shutdown flushes. */
+export interface CdnEdgeQueue {
+  enqueueDeletedKey(key: string): void;
+  enqueuePath(path: string): void;
+  flush(): Promise<void>;
+  pendingPaths(): string[];
+}
 
-/** The process-wide queue, configured from `CDN_CLOUDFRONT_DISTRIBUTION_ID`. */
-export function getCdnInvalidationQueue(): CdnInvalidationQueue {
+/**
+ * Every CDN that may hold a copy, told about the same deletes. `cloud.oxy.so`
+ * moves from CloudFront to a Cloudflare Worker (ADR 0047); until the
+ * distribution is deleted, a viewer whose resolver still has its address can
+ * be served from either, so both forget. Each queue is a no-op (with one
+ * warning) while its own configuration is absent.
+ */
+export class CdnEdgeQueues implements CdnEdgeQueue {
+  constructor(private readonly queues: CdnEdgeQueue[]) {}
+
+  enqueueDeletedKey(key: string): void {
+    for (const queue of this.queues) queue.enqueueDeletedKey(key);
+  }
+
+  enqueuePath(path: string): void {
+    for (const queue of this.queues) queue.enqueuePath(path);
+  }
+
+  async flush(): Promise<void> {
+    await Promise.all(this.queues.map((queue) => queue.flush()));
+  }
+
+  pendingPaths(): string[] {
+    return this.queues.flatMap((queue) => queue.pendingPaths());
+  }
+}
+
+let singleton: CdnEdgeQueues | null = null;
+
+/**
+ * The process-wide queues: CloudFront from `CDN_CLOUDFRONT_DISTRIBUTION_ID`,
+ * Cloudflare from `CLOUDFLARE_ZONE_ID` + `CLOUDFLARE_CACHE_PURGE_TOKEN`.
+ */
+export function getCdnInvalidationQueue(): CdnEdgeQueues {
   if (!singleton) {
-    singleton = new CdnInvalidationQueue({
-      distributionId: process.env.CDN_CLOUDFRONT_DISTRIBUTION_ID,
-    });
+    singleton = new CdnEdgeQueues([
+      new CdnInvalidationQueue({
+        distributionId: process.env.CDN_CLOUDFRONT_DISTRIBUTION_ID,
+      }),
+      new CloudflarePurgeQueue({
+        zoneId: process.env.CLOUDFLARE_ZONE_ID,
+        token: process.env.CLOUDFLARE_CACHE_PURGE_TOKEN,
+      }),
+    ]);
   }
   return singleton;
 }
 
 /** Graceful-shutdown hook: send whatever is pending, for at most `timeoutMs`. Never throws. */
 export async function flushCdnInvalidations(
-  queue: CdnInvalidationQueue | null = singleton,
+  queue: CdnEdgeQueue | null = singleton,
   timeoutMs = SHUTDOWN_FLUSH_TIMEOUT_MS,
 ): Promise<void> {
   if (!queue) return;

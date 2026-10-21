@@ -400,13 +400,18 @@ describe('configured presigned admission', () => {
     const initial = await service.initUpload(f.payer, hash, content.length, 'image/png');
     const repair = await service.initUpload(f.payer, hash, content.length + 1, 'image/png');
     for (const result of [initial, repair]) {
-      expect(result.requiredHeaders).toEqual({ 'If-None-Match': '*' });
+      const checksum = Buffer.from(hash, 'hex').toString('base64');
+      expect(result.requiredHeaders).toEqual({
+        'x-amz-checksum-sha256': checksum,
+        'If-None-Match': '*',
+      });
       const url = new URL(result.uploadUrl);
       expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
       expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('if-none-match');
-      expect(url.searchParams.get('x-amz-checksum-sha256')).toBe(
-        Buffer.from(hash, 'hex').toString('base64'),
-      );
+      // A signed HEADER, never a query parameter: R2 ignores the query form
+      // and stores bytes that do not hash to it (ADR 0047).
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('x-amz-checksum-sha256');
+      expect(url.searchParams.get('x-amz-checksum-sha256')).toBeNull();
       expect(url.searchParams.get('X-Amz-Expires')).toBe('60');
     }
     expect(initial.fileId).toBe(repair.fileId);

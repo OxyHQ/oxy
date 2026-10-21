@@ -1,0 +1,27 @@
+# cloud.oxy.so — Oxy Files' public CDN (docs/adr/0047-oxy-files-on-cloudflare-r2.md).
+# Deployed by .github/workflows/deploy-cloud-worker.yml on a push to main; never by hand.
+name = "oxy-cloud"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+# No *.workers.dev and no preview hostname: the Worker answers only its routes.
+workers_dev = false
+preview_urls = false
+
+# The edge host while cloud.oxy.so is still CloudFront: the same Worker over the
+# same buckets, for verification before the DNS cutover (ADR 0047, runbook 61).
+routes = [{ pattern = "cloud-edge.oxy.so", custom_domain = true }]
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "oxy-files"
+
+[[r2_buckets]]
+binding = "WEBSITE_LEGACY"
+bucket_name = "oxy-website-legacy-media"
+
+[vars]
+API_ORIGIN = "https://api.oxy.so"
+
+[observability]
+enabled = true
+head_sampling_rate = 0.01

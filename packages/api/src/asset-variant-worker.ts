@@ -17,10 +17,12 @@ import { waitForDatabaseConnection } from './utils/dbConnection';
 const WORKER_MAX_POOL_SIZE = 5;
 const CONNECT_TIMEOUT_MS = 30_000;
 
-// AWS keys are optional: without them the S3 client resolves the task role.
-const missingEnvironment = ['DATABASE_URL', 'QUEUE_REDIS_URL', 'AWS_S3_BUCKET'].filter(
-  (name) => !process.env[name],
-);
+// The object store is R2 (R2_* — ADR 0047), or the S3 bucket before the
+// cutover, reached with the task role.
+const missingEnvironment = ['DATABASE_URL', 'QUEUE_REDIS_URL'].filter((name) => !process.env[name]);
+if (!process.env.R2_BUCKET && !process.env.AWS_S3_BUCKET) {
+  missingEnvironment.push('R2_BUCKET (or AWS_S3_BUCKET)');
+}
 
 if (missingEnvironment.length > 0) {
   logger.error('Asset-variant worker environment is incomplete', {

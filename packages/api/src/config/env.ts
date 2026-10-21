@@ -51,8 +51,17 @@ export interface RequiredEnvVars {
   // provider chain resolves the ECS task role, which is how production runs.
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
-  AWS_S3_BUCKET: string;
+  // The S3 bucket Oxy Files is migrating FROM, or — before the R2 cutover —
+  // the store itself (ADR 0047; `services/s3ServiceSingleton.ts`).
+  AWS_S3_BUCKET?: string;
   AWS_ENDPOINT_URL?: string; // Optional for S3-compatible services
+
+  // Oxy Files' object store: Cloudflare R2 (ADR 0047). One of R2_BUCKET or
+  // AWS_S3_BUCKET is required; R2_BUCKET needs the other three.
+  R2_BUCKET?: string;
+  R2_ENDPOINT?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
 
   // Public media CDN. All public asset URLs handed to clients are built from
   // this origin (CloudFront `cloud.oxy.so` over the media bucket's `public/`
@@ -265,7 +274,6 @@ export function validateRequiredEnvVars(): void {
     'ACCESS_TOKEN_SECRET',
     'REFRESH_TOKEN_SECRET',
     'AWS_REGION',
-    'AWS_S3_BUCKET',
   ];
 
   const missing: string[] = [];
@@ -274,6 +282,17 @@ export function validateRequiredEnvVars(): void {
   for (const key of required) {
     if (!process.env[key]) {
       missing.push(key);
+    }
+  }
+
+  // Oxy Files needs an object store: R2 (ADR 0047), or the S3 bucket before
+  // the cutover. `objectStorageConfigFromEnv` holds the rest of the rule.
+  if (!process.env.R2_BUCKET && !process.env.AWS_S3_BUCKET) {
+    missing.push('R2_BUCKET (or AWS_S3_BUCKET)');
+  }
+  if (process.env.R2_BUCKET) {
+    for (const key of ['R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
+      if (!process.env[key]) missing.push(key);
     }
   }
 
@@ -471,6 +490,8 @@ export function getSanitizedConfig(): Record<string, string> {
     AWS_REGION: process.env.AWS_REGION || ENV_DEFAULTS.AWS_REGION,
     AWS_S3_BUCKET: process.env.AWS_S3_BUCKET || '',
     AWS_ENDPOINT_URL: process.env.AWS_ENDPOINT_URL || 'default',
+    R2_BUCKET: process.env.R2_BUCKET || '',
+    R2_ENDPOINT: process.env.R2_ENDPOINT || '',
     ASSET_CDN_URL: process.env.ASSET_CDN_URL || 'https://cloud.oxy.so',
     DATABASE_URL: process.env.DATABASE_URL ? maskConnectionString(process.env.DATABASE_URL) : '',
   };

@@ -33,7 +33,7 @@ import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMeta
 import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';
 import { userService, type AccountDocument } from './user.service';
 import { AssetService } from './assetService';
-import { createS3Service } from './s3Service';
+import { s3Service } from './s3ServiceSingleton';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import {
@@ -991,29 +991,12 @@ export async function getUserActor(
 let _assetService: AssetService | null = null;
 
 /**
- * Required env var for federated avatar storage on S3.
- * It is validated at boot by `validateRequiredEnvVars()` in `config/env.ts`,
- * but we re-assert here so the failure mode is a loud throw at the call site
- * (with the relevant variable name) rather than an opaque AWS error.
- * Credentials are optional: without the static keys the S3 client resolves the
- * ECS task role through the default provider chain.
+ * The asset service federation uses for stored avatars, on the process's one
+ * object store (`s3ServiceSingleton`), created on first use.
  */
 function getAssetService(): AssetService {
   if (!_assetService) {
-    const bucketName = process.env.AWS_S3_BUCKET;
-
-    if (!bucketName) {
-      throw new Error('AWS_S3_BUCKET is required for the federation service');
-    }
-
-    const s3 = createS3Service({
-      region: process.env.AWS_REGION || 'us-east-1',
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      bucketName,
-      endpointUrl: process.env.AWS_ENDPOINT_URL,
-    });
-    _assetService = new AssetService(s3);
+    _assetService = new AssetService(s3Service);
   }
   return _assetService;
 }

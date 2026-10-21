@@ -2,7 +2,8 @@
  * Asset CDN configuration and key-placement rules.
  *
  * Hard contract: NO raw AWS S3 (`*.amazonaws.com`) URL may ever reach a client.
- * Public media is served through Oxy's own CloudFront CDN (`cloud.oxy.so`);
+ * Public media is served through Oxy's own CDN (`cloud.oxy.so`, a Cloudflare
+ * Worker over the R2 bucket — ADR 0047; CloudFront before it);
  * private/access-controlled media is streamed through our own origin
  * (`api.oxy.so`). This module owns the single source of truth for:
  *
@@ -10,10 +11,9 @@
  *  2. The S3 key prefix that decides whether an object is reachable by the CDN.
  *  3. The mapping between an S3 storage key and the CDN-relative path.
  *
- * CloudFront wiring (managed in `oxy-infra/terraform-uswest2`): the
- * `cloud.oxy.so` distribution points at the media bucket with
- * `origin_path = /public`. CloudFront PREPENDS that origin path to every
- * request, so a request for `cloud.oxy.so/content/..` fetches the S3 object
+ * CDN wiring (`workers/cloud`, as the CloudFront distribution's
+ * `origin_path = /public` before it): the CDN PREPENDS `public/` to every
+ * object path, so a request for `cloud.oxy.so/content/..` reads the object
  * `public/content/..`. Therefore:
  *
  *   stored S3 key  =  public/content/{y}/{m}/..       (objects under the prefix)
