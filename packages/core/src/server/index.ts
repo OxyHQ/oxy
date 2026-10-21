@@ -206,6 +206,7 @@ export {
   formatOxyCspPolicy,
   inlineScriptCspHash,
   OXY_CSP_BASELINE,
+  OXY_FILES_UPLOAD_ORIGIN,
 } from './securityHeaders';
 export type {
   OxyCspDirective,

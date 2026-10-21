@@ -95,14 +95,18 @@ const OXY_API_WEBSOCKET_ORIGIN = 'wss://api.oxy.so';
 const OXY_CDN_ORIGIN = 'https://cloud.oxy.so';
 
 /**
- * Where a browser sends an upload's bytes: the Oxy Files R2 bucket's S3 endpoint
- * (OxyHQ/oxy ADR 0047). `assets.upload` over 64 MiB and `assets.uploadLarge`
- * PUT every part to a presigned URL on this host, never through the API, so a
- * page whose `connect-src` lacks it fails every large upload before a byte is
- * sent. R2 serves the S3 API only on the account host (a custom domain cannot
- * carry it); oxy-infra's `R2_ENDPOINT` for oxy-api is this same origin.
+ * Where a browser sends an upload's bytes: the Oxy Files R2 bucket (OxyHQ/oxy
+ * ADR 0047). `assets.upload` over 64 MiB and `assets.uploadLarge` PUT every
+ * part to a presigned URL on this host, never through the API, so a page whose
+ * `connect-src` lacks it fails every large upload before a byte is sent. The
+ * API signs virtual-hosted URLs — the bucket is the first label of the host,
+ * `oxy-files.<account>.r2.cloudflarestorage.com` — and R2 serves the S3 API
+ * only on the account's hosts (a custom domain cannot carry it). The Oxy API's
+ * tests sign a real part URL with production's endpoint and bucket and require
+ * its origin to equal this.
  */
-const OXY_FILES_UPLOAD_ORIGIN = 'https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
+export const OXY_FILES_UPLOAD_ORIGIN =
+  'https://oxy-files.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
 
 /** The CSP directives an Oxy app may extend, in Helmet's camelCase spelling. */
 export type OxyCspDirective =

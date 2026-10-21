@@ -39,7 +39,10 @@ function cspOf(block: string): string {
   return line.trim().slice('Content-Security-Policy:'.length).trim();
 }
 
-const OXY_FILES_UPLOAD_ORIGIN = 'https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
+// The host the API's presigned part URLs name (virtual-hosted: bucket first).
+// Spelled out, not imported: the test pins the value, not just the wiring.
+const OXY_FILES_UPLOAD_ORIGIN =
+  'https://oxy-files.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
 
 describe('@oxy.so/core/server buildOxyCspDirectives', () => {
   it('carries the Cloudflare Insights beacon on BOTH halves of the baseline', () => {
