@@ -25,6 +25,7 @@ import {
 import type { ResolvedVerificationMethods, VerificationMethodResolver } from '../identity/resolver';
 import { type NodeFetch, readBoundedJson } from './httpFetch';
 import {
+  DEFAULT_CLIENT_BODY_TIMEOUT_MS,
   DEFAULT_CLIENT_MAX_REDIRECTS,
   DEFAULT_CLIENT_TIMEOUT_MS,
   DEFAULT_DID_DOC_MAX_BYTES,
@@ -34,6 +35,8 @@ import {
 export interface DidWebResolverOptions {
   /** Time-to-first-byte deadline for the `did.json` fetch (ms). */
   headersTimeoutMs?: number;
+  /** Whole-body read deadline for the `did.json`, once its headers arrived (ms). */
+  bodyTimeoutMs?: number;
   /** Redirect budget for the `did.json` fetch (each re-validated by the transport). */
   maxRedirects?: number;
   /** Bounded read ceiling for the fetched `did.json`. */
@@ -124,6 +127,7 @@ export function createDidWebResolver(
   const headersTimeoutMs = options.headersTimeoutMs ?? DEFAULT_CLIENT_TIMEOUT_MS;
   const maxRedirects = options.maxRedirects ?? DEFAULT_CLIENT_MAX_REDIRECTS;
   const maxBytes = options.maxBytes ?? DEFAULT_DID_DOC_MAX_BYTES;
+  const bodyTimeoutMs = options.bodyTimeoutMs ?? DEFAULT_CLIENT_BODY_TIMEOUT_MS;
 
   return {
     async resolve(subjectDid: string): Promise<ResolvedVerificationMethods | null> {
@@ -137,7 +141,7 @@ export function createDidWebResolver(
           res.destroy();
           return null;
         }
-        const body = await readBoundedJson(res, maxBytes);
+        const body = await readBoundedJson(res, maxBytes, bodyTimeoutMs);
         const parsed = didDocumentSchema.safeParse(body);
         if (!parsed.success) {
           return null;

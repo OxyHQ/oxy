@@ -48,7 +48,12 @@ export type {
 } from './nodeClient';
 
 // ── Injected transport contract + bounded readers ──────────────────────────────
-export { readBoundedBytes, readBoundedJson, ResponseTooLargeError } from './httpFetch';
+export {
+  readBoundedBytes,
+  readBoundedJson,
+  ResponseTooLargeError,
+  ResponseTimeoutError,
+} from './httpFetch';
 export type { NodeFetch, NodeFetchInit, NodeFetchResponse } from './httpFetch';
 
 // ── did:web verification-method resolver ───────────────────────────────────────
@@ -78,6 +83,8 @@ export {
   NODE_SYNC_PUSH_PATH,
   NODE_BLOBS_PATH,
   DEFAULT_CLIENT_TIMEOUT_MS,
+  DEFAULT_CLIENT_BODY_TIMEOUT_MS,
+  DEFAULT_BLOB_BODY_TIMEOUT_MS,
   DEFAULT_CLIENT_MAX_REDIRECTS,
   DEFAULT_HEAD_MAX_BYTES,
   DEFAULT_LOG_MAX_BYTES,

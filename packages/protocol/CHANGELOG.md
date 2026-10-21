@@ -1,5 +1,26 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.5.0
+
+Same `@oxy.so/contracts`.
+
+### Fixed
+
+- `readBoundedBytes` / `readBoundedJson` give the WHOLE body a deadline
+  (`timeoutMs`, third argument, default `DEFAULT_CLIENT_BODY_TIMEOUT_MS`,
+  15 s), not only a byte cap. A node that sent its headers and then stalled
+  the body held the reader, and with it the background ingest, open forever;
+  it now ends with the stream destroyed and a `ResponseTimeoutError`, distinct
+  from `ResponseTooLargeError`, which a caller treats as transient.
+
+### Added
+
+- `ResponseTimeoutError` (carries `timeoutMs`).
+- `NodeClientOptions.bodyTimeoutMs` (JSON responses, default
+  `DEFAULT_CLIENT_BODY_TIMEOUT_MS`) and `blobBodyTimeoutMs` (`getBlob`,
+  default `DEFAULT_BLOB_BODY_TIMEOUT_MS`, 60 s);
+  `DidWebResolverOptions.bodyTimeoutMs` for the `did.json` read.
+
 ## 1.4.1
 
 Needs `@oxy.so/contracts` ^5.0.0.

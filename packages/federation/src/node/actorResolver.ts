@@ -27,6 +27,7 @@ import {
   type NetworkIdentityCandidate,
 } from '../networkIdentity';
 import type { NormalizedExternalActor } from '../index';
+import { readBodyChunks, ResponseBodyTooLargeError } from './boundedBody';
 import type { SignedFetch } from './signedFetch';
 import type { ReportActorGoneOutcome } from './identityBridge';
 
@@ -53,37 +54,31 @@ const COLLECTION_BODY_MAX_BYTES = 64 * 1024;
 const COLLECTION_WITHHELD_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 410]);
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
+/**
+ * Deadline for reading a whole actor/collection/error body once its headers
+ * arrived. `signedFetch`'s timeout ends at the headers, so without this a remote
+ * that stalls mid-body would hold the resolver open.
+ */
+const BODY_TIMEOUT_MS = 10_000;
+
 async function readBoundedResponseBody(res: Response, maxBytes: number): Promise<string> {
   const contentLength = res.headers.get('content-length');
   if (contentLength) {
     const declaredBytes = Number(contentLength);
     if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
       await res.body?.cancel().catch(() => {});
-      throw new Error(`Remote response exceeds ${maxBytes} byte limit`);
+      throw new ResponseBodyTooLargeError(maxBytes);
     }
   }
 
   if (!res.body) return '';
 
   const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8', { fatal: true });
-  let bytesRead = 0;
-  let text = '';
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytesRead += value.byteLength;
-      if (bytesRead > maxBytes) {
-        await reader.cancel().catch(() => {});
-        throw new Error(`Remote response exceeds ${maxBytes} byte limit`);
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-    return text + decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
+  const body = await readBodyChunks(
+    { read: () => reader.read(), cancel: () => void reader.cancel().catch(() => {}) },
+    { maxBytes, timeoutMs: BODY_TIMEOUT_MS },
+  );
+  return new TextDecoder('utf-8', { fatal: true }).decode(body);
 }
 
 async function readBoundedJson(res: Response, maxBytes: number): Promise<Record<string, unknown>> {

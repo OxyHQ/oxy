@@ -578,7 +578,7 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.5.0",
+      "version": "2.5.1",
       "dependencies": {
         "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || 4.11.0-oxy-one.0",
         "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0",
@@ -636,7 +636,7 @@
     },
     "packages/protocol": {
       "name": "@oxy.so/protocol",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "dependencies": {
         "@noble/curves": "catalog:",
         "@oxy.so/contracts": "workspace:^",

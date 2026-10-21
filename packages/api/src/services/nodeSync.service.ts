@@ -88,6 +88,7 @@ import { logger } from '../utils/logger';
 import {
   NODE_INGEST_BATCH,
   NODE_INGEST_MAX_ITERATIONS,
+  NODE_INGEST_BODY_TIMEOUT_MS,
   NODE_INGEST_FETCH_TIMEOUT_MS,
   NODE_INGEST_MAX_BYTES,
   NODE_LAST_ERROR_MAX_LEN,
@@ -107,8 +108,10 @@ type IngestOutcome =
  * The injected transport for the protocol {@link NodeClient}: a thin adapter over
  * `@oxy.so/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects). The client owns the bounded-body reads; this
- * adapter only hands it the SSRF-safe streamed response. The read-path invariant
- * still holds — this runs ONLY in the background ingest worker.
+ * adapter only hands it the SSRF-safe streamed response, and `destroy` is what
+ * the client's body deadline calls on a node that stalls after its headers.
+ * The read-path invariant still holds — this runs ONLY in the background ingest
+ * worker.
  */
 const nodeFetch: NodeFetch = async (url, init) => {
   const result = await safeFetch(url, {
@@ -131,6 +134,7 @@ function makeNodeClient(endpoint: string): NodeClient {
     baseUrl: endpoint,
     fetch: nodeFetch,
     headersTimeoutMs: NODE_INGEST_FETCH_TIMEOUT_MS,
+    bodyTimeoutMs: NODE_INGEST_BODY_TIMEOUT_MS,
     maxRedirects: 1,
     logMaxBytes: NODE_INGEST_MAX_BYTES,
   });
@@ -398,7 +402,10 @@ async function ingestEnvelope(env: SignedRecordEnvelope, userId: string): Promis
  * Ingest a user's chain from their registered node into Oxy's local mirror.
  *
  * Background-safe: NEVER throws. A missing/revoked/unreachable node is a no-op
- * (or records `lastError`) — the mirror simply stays as-is. On success the
+ * (or records `lastError`) — the mirror simply stays as-is. Every fetch failure,
+ * a body that outran its deadline (`ResponseTimeoutError`) included, is
+ * transient: it ends this run with `lastError`, and the next sweep retries from
+ * the local head, so records already appended are never re-pulled. On success the
  * `user_nodes` cursor (= Oxy's local head seq) and `lastSyncedAt` advance, and
  * the user cache is invalidated when the materialized records/DID changed.
  */
