@@ -362,15 +362,29 @@ export const appCapabilityCatalogRegistrations = pgTable(
     registeredByApplicationId: text()
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
-    registeredByCredentialId: text()
-      .notNull()
-      .references(() => applicationCredentials.id, { onDelete: 'cascade' }),
+    /**
+     * How the registration was authorized. `credential`: an application's
+     * `catalogs:write` credential posted it (`registeredByCredentialId` names
+     * it). `first_party`: Oxy's own deploy registered a catalogue it ships, with
+     * no credential involved — see ADR 0048.
+     */
+    source: text().notNull().default('credential'),
+    registeredByCredentialId: text().references(() => applicationCredentials.id, {
+      onDelete: 'cascade',
+    }),
     deployedAt: timestamptz().notNull(),
     active: boolean().notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check('app_capability_catalog_source_check', sql`${t.source} in ('credential', 'first_party')`),
+    // A registration is attributable to exactly one authority: a credential, or
+    // Oxy's own deploy. Never both, never neither.
+    check(
+      'app_capability_catalog_credential_source_check',
+      sql`(${t.source} = 'credential') = (${t.registeredByCredentialId} is not null)`,
+    ),
     unique('app_capability_catalog_version_digest_key').on(t.appSlug, t.version, t.digest),
     uniqueIndex('app_capability_catalog_active_key').on(t.appSlug).where(sql`${t.active}`),
     index('app_capability_catalog_application_idx').on(t.registeredByApplicationId),

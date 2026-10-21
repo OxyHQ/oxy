@@ -227,13 +227,16 @@ jobs:
       # only be PENDING if it EXISTS, so "no post-phase marker anywhere in
       # drizzle/" is a sound reason to skip the post-migration one-shot task.
       # (Since 0047 there always is one, so in practice the task always runs —
-      # which is why it runs CONCURRENTLY with the catalog registration below.)
+      # which is why it runs CONCURRENTLY with the catalog registrations below.)
       #
-      # The two tasks are independent: the migration applies `post` DDL (drops
-      # the NEW image no longer reads), and the registration is one HTTP POST
-      # of Inbox's capability catalog to api.oxy.so, served by the new image.
-      # Neither reads what the other writes, and a DROP's ACCESS EXCLUSIVE lock
-      # only queues a concurrent statement on that one table for its duration.
+      # The tasks are independent: the migration applies `post` DDL (drops
+      # the NEW image no longer reads); the Inbox registration is one HTTP POST
+      # of Inbox's capability catalog to api.oxy.so, served by the new image;
+      # the Oxy registration writes the catalogue this image ships straight to
+      # `app_capability_catalog_registrations` (ADR 0048), so the registered
+      # catalogue never lags the code that reads it. None reads what another
+      # writes, and a DROP's ACCESS EXCLUSIVE lock only queues a concurrent
+      # statement on that one table for its duration.
       # Each one-shot is ~80s, ~60s of it Fargate provisioning (run
       # 36505794567: 01:24:19 -> 01:25:39 and 01:25:41 -> 01:27:01), so running
       # them side by side saves one of those.
@@ -258,14 +261,24 @@ jobs:
               {
                 label: "Inbox catalog registration",
                 command: ["bun", "run", "packages/api/scripts/register-inbox-capability-catalog.ts"]
+              },
+              {
+                label: "Oxy catalog registration",
+                command: ["bun", "run", "packages/api/scripts/register-oxy-capability-catalog.ts"]
               }
             ]')
             echo "This release carries post-rollout migrations."
           else
-            tasks=$(jq -cn '[{
-              label: "Inbox catalog registration",
-              command: ["bun", "run", "packages/api/scripts/register-inbox-capability-catalog.ts"]
-            }]')
+            tasks=$(jq -cn '[
+              {
+                label: "Inbox catalog registration",
+                command: ["bun", "run", "packages/api/scripts/register-inbox-capability-catalog.ts"]
+              },
+              {
+                label: "Oxy catalog registration",
+                command: ["bun", "run", "packages/api/scripts/register-oxy-capability-catalog.ts"]
+              }
+            ]')
             echo "No post-rollout migrations in this release."
           fi
           echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
