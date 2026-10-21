@@ -7,9 +7,9 @@ compatibility_date = "2026-10-01"
 workers_dev = false
 preview_urls = false
 
-# The edge host while cloud.oxy.so is still CloudFront: the same Worker over the
-# same buckets, for verification before the DNS cutover (ADR 0047, runbook 61).
-routes = [{ pattern = "cloud-edge.oxy.so", custom_domain = true }]
+# A custom domain: Cloudflare owns the DNS record. It replaced the CNAME to
+# CloudFront on the cutover (ADR 0047; oxy-infra runbook 61).
+routes = [{ pattern = "cloud.oxy.so", custom_domain = true }]
 
 [[r2_buckets]]
 binding = "FILES"

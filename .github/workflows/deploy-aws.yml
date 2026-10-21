@@ -327,13 +327,20 @@ jobs:
           # CloudFront invalidation of deleted public objects. Also a repository
           # variable: unset renders "", which the API reads as off (one warning),
           # so this can merge before oxy-infra grants cloudfront:CreateInvalidation.
+          # R2_BUCKET / R2_ENDPOINT (+ the R2_* token below) make Cloudflare R2
+          # Oxy Files' store (ADR 0047); AWS_S3_BUCKET, still on the revision,
+          # is then the legacy store deletes are mirrored into until the
+          # migration is retired. CLOUDFLARE_ZONE_ID (oxy.so) and
+          # CLOUDFLARE_CACHE_PURGE_TOKEN turn on the cloud.oxy.so purge. The
+          # asset-variant worker re-asserts the same storage bindings
+          # (deploy-asset-variant-worker.sh).
           # INBOX_EVENT_OUTBOX_WORKER_ENABLED: Inbox's durable event outbox
           # (new_email…) had no worker in production, so no event ever reached
           # Alia. Alia time-boxes outreach on late events (OxyHQ/Alia#684), so
           # the backlog this releases cannot turn into stale "important email"
           # messages.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
+            {"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","R2_BUCKET":"oxy-files","R2_ENDPOINT":"https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com","CLOUDFLARE_ZONE_ID":"7f70358609578c4a1f24dbf6cb9c4498","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
           # Re-assert the Terraform-declared ADOT sidecar because releases are
           # rendered from the currently-running task revision. It carries TRACES
           # only, to X-Ray, sampled at 1% by OTEL_TRACES_SAMPLER above: at ~45M
@@ -375,7 +382,7 @@ jobs:
           # unable to pull secrets`), so a NEW name is written to SSM first and
           # bound here second (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md).
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
+            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID","R2_ACCESS_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/R2_ACCESS_KEY_ID","R2_SECRET_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/R2_SECRET_ACCESS_KEY","CLOUDFLARE_CACHE_PURGE_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CLOUDFLARE_CACHE_PURGE_TOKEN"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
