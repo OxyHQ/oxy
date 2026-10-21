@@ -192,7 +192,10 @@ export function dailyBriefSystemPrompt(language: string): string {
     '{"summary":"...","items":[{"ref":"m1","section":"needs_you","note":"..."}]}',
     '',
     `- "summary": at most ${DAILY_BRIEF_SUMMARY_CHARS} characters, in ${language}, addressing the owner as "you".`,
-    '  The overall picture of the day in one to three sentences: what stands out, not a list and not the counts alone.',
+    '  The overall picture of the day in one or two short sentences: the topics, requests and deadlines that stand out.',
+    '  Never mention how many emails or messages there are, including received, read, unread or starred counts.',
+    '  This also applies to item notes and groups of similar emails. The brief is cached while messages are read.',
+    '  Keep meaningful dates, times, amounts and quantities from message content; these are not mailbox counts.',
     '- "items": the messages worth naming, each once, most important first.',
     '  - "ref": the message\'s reference exactly as given, like "m3" or "e1".',
     `  - "section": "needs_you" when the message asks the owner for something — a reply, a decision, a payment,`,
@@ -202,7 +205,7 @@ export function dailyBriefSystemPrompt(language: string): string {
     `  - "note": at most ${NOTE_CHARS / 2} characters, in ${language}: why it matters or what is asked, with any date,`,
     '    time or amount the message states. Do not repeat the sender or the subject; they are shown beside it.',
     '  Several similar messages (receipts, confirmations, newsletters from one sender) are one item: name the most',
-    "  relevant one and say in its note how many there are. Leave out what is not worth the owner's minute.",
+    "  relevant one and describe the shared topic without a count. Leave out what is not worth the owner's minute.",
     '',
     'Rules: use only facts present in the messages; never invent a request, deadline, amount or name.',
     'A message marked answered has already been replied to.',
@@ -212,11 +215,9 @@ export function dailyBriefSystemPrompt(language: string): string {
 
 export function dailyBriefUserPrompt(digest: InboxDailyBriefDigest, now: Date): string {
   const { today, earlierUnread } = digest;
-  const lines = [
-    `Today in the inbox: ${today.received} received, ${today.unread} still unread, ${today.starred} starred.`,
-  ];
+  const lines = ['Messages from today in the inbox:'];
   if (digest.messages.length < today.received) {
-    lines.push(`The ${digest.messages.length} newest are listed.`);
+    lines.push('Only the newest messages are listed; this is not the complete inbox.');
   }
   lines.push(
     '',
@@ -225,9 +226,9 @@ export function dailyBriefUserPrompt(digest: InboxDailyBriefDigest, now: Date): 
   if (earlierUnread.total > 0) {
     lines.push(
       '',
-      `Unread from before today: ${earlierUnread.total}.` +
+      'Unread messages from before today:' +
         (earlierUnread.messages.length < earlierUnread.total
-          ? ` The ${earlierUnread.messages.length} newest are listed.`
+          ? ' Only the newest messages are listed; this is not the complete backlog.'
           : ''),
       ...earlierUnread.messages.map((message, index) =>
         describeMessage(`e${index + 1}`, message, now),

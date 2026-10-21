@@ -231,7 +231,19 @@ describe('POST /email/ai/daily-brief', () => {
     const [system, user] = input.messages;
     expect(system?.content[0]?.text).toContain('in Spanish');
     const prompt = user?.content[0]?.text ?? '';
-    expect(prompt).toContain('Today in the inbox: 2 received, 1 still unread, 0 starred.');
+    expect(prompt).toContain('Messages from today in the inbox:');
+    expect(prompt).not.toContain('2 received, 1 still unread, 0 starred');
+    expect(prompt).not.toMatch(/Unread from before today: \d/);
+    expect(system?.content[0]?.text).toContain(
+      'Never mention how many emails or messages there are',
+    );
+    expect(system?.content[0]?.text).toContain(
+      'This also applies to item notes and groups of similar emails',
+    );
+    expect(system?.content[0]?.text).toContain(
+      'Keep meaningful dates, times, amounts and quantities',
+    );
+    expect(system?.content[0]?.text).not.toContain('say in its note how many there are');
     expect(prompt).toContain('<message ref="m1">\nFrom: Ana García <ana@example.test>');
     expect(prompt).toContain('Excerpt: Can you send me the quarterly numbers by Friday?');
     expect(prompt).toContain('<message ref="e1">');
