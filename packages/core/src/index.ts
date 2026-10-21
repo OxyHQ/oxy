@@ -89,7 +89,7 @@ export type {
   PushTokenPlatform,
   RegisterPushTokenInput,
 } from './api/notifications';
-export { assetUrlCacheTTL } from './api/assets';
+export { ASSET_MULTIPART_UPLOAD_MAX_BYTES, assetUrlCacheTTL } from './api/assets';
 export type {
   AssetsApi,
   AssetRecord,

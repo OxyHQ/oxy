@@ -556,12 +556,16 @@ export interface RNFileDescriptor {
 }
 
 /**
- * Asset upload input — accepted by `OxyServices.assetUpload` and `uploadRawFile`.
+ * Asset upload input — accepted by `oxy.assets.upload`.
  *
- * - `File` / `Blob`: standard web browser path. `assetUpload` appends the
- *   Blob to FormData directly.
+ * - `File` / `Blob`: standard web browser path. `upload` appends the Blob to
+ *   FormData directly.
  * - {@link RNFileDescriptor}: React Native path. FormData reads the file from
  *   disk via the URI during the multipart request.
+ *
+ * A file over `ASSET_MULTIPART_UPLOAD_MAX_BYTES` goes straight to storage
+ * instead, whichever shape it came in; pass `size` on a descriptor when it is
+ * known, or `upload` reads the file once to learn it.
  */
 export type AssetUploadInput = File | Blob | RNFileDescriptor;
 

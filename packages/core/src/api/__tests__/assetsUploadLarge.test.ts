@@ -80,7 +80,8 @@ describe('assets.initUpload / completeUpload', () => {
       'POST',
       '/assets/complete',
       { fileId: 'f1', originalName: 'clip.mp4', size: 3, mime: 'video/mp4' },
-      { cache: false },
+      // Bounded like an upload: a public file's bytes are copied before it answers.
+      { cache: false, timeout: 10 * 60 * 1000 },
     );
   });
 });

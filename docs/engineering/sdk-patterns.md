@@ -50,6 +50,7 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 
 - On React Native (Expo 56), FormData uploads route through `XMLHttpRequest` — do NOT use fetch for multipart uploads on RN (Expo 56's fetch rejects RN file descriptors).
 - **Web `{uri}` upload descriptors:** the browser's `FormData` can't read bytes from a `{uri}` object (only RN's can). On web, `oxy.assets.upload` materializes `{uri}` → `Blob` via `fetch` before appending (core ≥3.10.1); the API rejects 0-byte uploads with `400 Empty file`. Never persist/append an empty file.
+- **Large uploads never go through the API.** api.oxy.so's proxy refuses any body over 100 MB, so `oxy.assets.upload` sends a file over `ASSET_MULTIPART_UPLOAD_MAX_BYTES` (64 MiB) by presigned PUT (hash → `/assets/init` → PUT → `/assets/complete`) and maps the answer to `/assets/upload`'s shape; the API refuses a multipart file over 90 MiB with 413 `USE_PRESIGNED_UPLOAD`. An SVG always takes the API path (sanitized). On RN a size-less descriptor is read once into a NATIVE Blob through RN's `XMLHttpRequest` to learn its size — never Expo's `fetch`, whose `.blob()` and Blob bodies copy the bytes into the JS heap — hashed through `FileReader.readAsArrayBuffer` (RN's Blob has no `arrayBuffer`) and PUT through `XMLHttpRequest`.
 
 ## Offline Mutation Queue (services)
 
