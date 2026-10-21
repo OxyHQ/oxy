@@ -26,16 +26,26 @@ function signRegistration(appId: string, version: string, digest: string): strin
   return `${signing.keyId}.${signature.toString('base64url')}`;
 }
 
-export async function registerCapabilityCatalog(input: {
+/** Who authorized a registration: an application's credential, or Oxy's own deploy. */
+type CatalogRegistrationAuthority =
+  | { source: 'credential'; applicationId: string; credentialId: string }
+  | { source: 'first_party'; applicationId: string };
+
+async function persistCapabilityCatalog(input: {
   catalog: unknown;
-  applicationId: string;
-  credentialId: string;
+  authority: CatalogRegistrationAuthority;
   deployedAt?: Date;
 }) {
   const catalog = appCapabilityCatalogSchema.parse(input.catalog);
   const digest = digestCatalog(catalog);
   const signature = signRegistration(catalog.appId, catalog.version, digest);
   const deployedAt = input.deployedAt ?? new Date();
+  const { authority } = input;
+  const authorityColumns = {
+    source: authority.source,
+    registeredByApplicationId: authority.applicationId,
+    registeredByCredentialId: authority.source === 'credential' ? authority.credentialId : null,
+  };
   return getDb().transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`capability-catalog:${catalog.appId}`}, 0))`,
@@ -47,7 +57,7 @@ export async function registerCapabilityCatalog(input: {
       .from(appCapabilityCatalogRegistrations)
       .where(eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId))
       .limit(1);
-    if (existingOwner && existingOwner.registeredByApplicationId !== input.applicationId) {
+    if (existingOwner && existingOwner.registeredByApplicationId !== authority.applicationId) {
       throw new Error('Catalog appId is already owned by another application');
     }
     await tx
@@ -68,8 +78,7 @@ export async function registerCapabilityCatalog(input: {
         catalog,
         digest,
         signature,
-        registeredByApplicationId: input.applicationId,
-        registeredByCredentialId: input.credentialId,
+        ...authorityColumns,
         deployedAt,
         active: true,
       })
@@ -83,8 +92,7 @@ export async function registerCapabilityCatalog(input: {
           audience: catalog.audience,
           catalog,
           signature,
-          registeredByApplicationId: input.applicationId,
-          registeredByCredentialId: input.credentialId,
+          ...authorityColumns,
           deployedAt,
           active: true,
           updatedAt: new Date(),
@@ -93,6 +101,41 @@ export async function registerCapabilityCatalog(input: {
       .returning();
     if (!registration) throw new Error('Catalog registration was not persisted');
     return registration;
+  });
+}
+
+/** An application registers its own catalogue with its `catalogs:write` credential. */
+export function registerCapabilityCatalog(input: {
+  catalog: unknown;
+  applicationId: string;
+  credentialId: string;
+  deployedAt?: Date;
+}) {
+  return persistCapabilityCatalog({
+    catalog: input.catalog,
+    deployedAt: input.deployedAt,
+    authority: {
+      source: 'credential',
+      applicationId: input.applicationId,
+      credentialId: input.credentialId,
+    },
+  });
+}
+
+/**
+ * Oxy's deploy registers a catalogue Oxy itself ships (ADR 0048). There is no
+ * credential: the caller is the release running inside Oxy's own VPC, and the
+ * owning application is the platform registrar that already holds the namespace.
+ */
+export function registerFirstPartyCapabilityCatalog(input: {
+  catalog: unknown;
+  applicationId: string;
+  deployedAt?: Date;
+}) {
+  return persistCapabilityCatalog({
+    catalog: input.catalog,
+    deployedAt: input.deployedAt,
+    authority: { source: 'first_party', applicationId: input.applicationId },
   });
 }
 

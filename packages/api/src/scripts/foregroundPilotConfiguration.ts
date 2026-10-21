@@ -894,6 +894,11 @@ export async function rollbackForegroundPilotConfiguration(plan: ForegroundPilot
         },
         'rollback catalogue pin',
       );
+      // The pilot registered through an ephemeral credential; a first-party
+      // registration (ADR 0048) has none, so it is not this operation's to undo.
+      const creatorCredentialId = registration.registeredByCredentialId;
+      if (creatorCredentialId === null)
+        throw new Error('I05 rollback catalogue creator changed; fresh plan required');
       const [creator] = await tx
         .select({
           id: applicationCredentials.id,
@@ -902,12 +907,12 @@ export async function rollbackForegroundPilotConfiguration(plan: ForegroundPilot
           name: applicationCredentials.name,
         })
         .from(applicationCredentials)
-        .where(eq(applicationCredentials.id, registration.registeredByCredentialId))
+        .where(eq(applicationCredentials.id, creatorCredentialId))
         .for('update');
       exact(
         creator,
         {
-          id: registration.registeredByCredentialId,
+          id: creatorCredentialId,
           status: 'revoked',
           applicationId: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
           name: `I05 ephemeral registrar ${plan.nonce}`,

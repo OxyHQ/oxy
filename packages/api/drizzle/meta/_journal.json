@@ -1387,6 +1387,13 @@
       "when": 1792558362800,
       "tag": "0198_upload_sessions_without_application",
       "breakpoints": true
+    },
+    {
+      "idx": 199,
+      "version": "7",
+      "when": 1792603561228,
+      "tag": "0199_first_party_catalog_registration",
+      "breakpoints": true
     }
   ]
 }

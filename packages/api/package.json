@@ -13,6 +13,7 @@
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
     "register:inbox-catalog": "bun run scripts/register-inbox-capability-catalog.ts",
+    "register:oxy-catalog": "bun run scripts/register-oxy-capability-catalog.ts",
     "seed:oxy-applications": "bun run scripts/seed-oxy-applications.ts",
     "seed:internal-cost-centers": "bun run scripts/seed-internal-cost-centers.ts",
     "seed:inference-catalogue": "bun run scripts/seed-inference-catalogue.ts",
