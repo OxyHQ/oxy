@@ -1,5 +1,22 @@
 # Changelog — `@oxy.so/core`
 
+## 6.5.0
+
+### Added
+
+- `oxyTrustProxy`, an Express `trust proxy` function for every Oxy backend:
+  `app.set('trust proxy', oxyTrustProxy)`. It trusts the socket peer only when
+  it is private (the ALB, a sidecar, a local proxy) and the next hop only when
+  it is a published Cloudflare edge address, so `req.ip` is the real client
+  whether the hostname is DNS-only or proxied by Cloudflare, and a forged
+  `X-Forwarded-For` is never believed. `trust proxy = 1` reported Cloudflare's
+  edge as the client on a proxied hostname, collapsing every rate limit and
+  auth throttle onto a handful of addresses.
+- `resolveClientIp(req)`, the same rule for a raw `IncomingMessage` (a `ws`
+  upgrade, a socket.io handshake's `socket.request`).
+- `isCloudflareAddress`, `isPrivateProxyAddress`, `CLOUDFLARE_IPV4_RANGES`,
+  `CLOUDFLARE_IPV6_RANGES`.
+
 ## 6.4.0
 
 ### Added

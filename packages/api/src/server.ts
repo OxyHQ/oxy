@@ -8,6 +8,7 @@ import {
 import { shutdownTelemetry } from './telemetry';
 import { routeMetricsMiddleware, stopRouteMetrics } from './middleware/routeMetrics';
 import express from 'express';
+import { oxyTrustProxy } from '@oxy.so/core/server';
 import http from 'node:http';
 import { count, ne, sql } from 'drizzle-orm';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
@@ -251,9 +252,10 @@ try {
 
 const app = express();
 
-// Trust proxy - required when behind a reverse proxy (Cloudflare, nginx, etc.)
-// This is needed for express-rate-limit to work correctly with X-Forwarded-For headers
-app.set('trust proxy', 1);
+// req.ip is the real client behind the ALB and, once api.oxy.so is proxied,
+// Cloudflare: the private socket peer and one Cloudflare edge hop are trusted,
+// nothing a caller wrote is (`oxyTrustProxy`, @oxy.so/core/server).
+app.set('trust proxy', oxyTrustProxy);
 
 // Per-route request metrics (CloudWatch EMF). First, so every response is
 // measured, including those the MCP mounts and the limiters below answer.

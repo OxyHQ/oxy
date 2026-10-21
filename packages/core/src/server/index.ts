@@ -112,6 +112,17 @@ export type {
 export { createOxyRateLimit } from './rateLimit';
 export type { OxyRateLimitOptions } from './rateLimit';
 
+// The real client address behind the ALB and, for a proxied hostname,
+// Cloudflare: `app.set('trust proxy', oxyTrustProxy)` (Node-only).
+export {
+  CLOUDFLARE_IPV4_RANGES,
+  CLOUDFLARE_IPV6_RANGES,
+  isCloudflareAddress,
+  isPrivateProxyAddress,
+  oxyTrustProxy,
+  resolveClientIp,
+} from './clientIp';
+
 // SSRF-safe upstream fetch + URL validation (Node-only).
 export {
   assertSafePublicUrl,
