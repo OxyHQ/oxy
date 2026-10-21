@@ -117,7 +117,7 @@ interface JsonResponse {
   readonly body: Record<string, unknown>;
 }
 
-function postJson(server: http.Server, body: unknown): Promise<JsonResponse> {
+function postJson(server: http.Server, body: unknown, query = ''): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const encoded = Buffer.from(JSON.stringify(body), 'utf8');
   return new Promise((resolve, reject) => {
@@ -126,7 +126,7 @@ function postJson(server: http.Server, body: unknown): Promise<JsonResponse> {
         method: 'POST',
         host: '127.0.0.1',
         port: address.port,
-        path: '/daily-brief',
+        path: `/daily-brief${query}`,
         headers: {
           'content-type': 'application/json',
           'content-length': encoded.length,
@@ -251,6 +251,70 @@ describe('POST /email/ai/daily-brief', () => {
     expect(prompt).toContain('Subject: Use the code •••• to complete your account setup');
     expect(prompt).not.toContain('118512');
   });
+
+  it('returns grounded Alia actions only to opted-in clients', async () => {
+    const actions = [
+      {
+        label: 'Draft reply',
+        prompt: 'Help me draft a reply to Ana about the quarterly numbers.',
+        refs: ['m1'],
+      },
+      {
+        label: 'Review contract',
+        prompt: 'Summarize the contract Ana sent and the next steps.',
+        refs: ['e1'],
+      },
+    ];
+    mockExecute.mockResolvedValue({
+      requestId: 'request_actions',
+      text: JSON.stringify({ ...JSON.parse(MODEL_ANSWER), actions }),
+    });
+    const response = await postJson(
+      server,
+      { startAt: START_AT, endAt: END_AT },
+      '?includeActions=true',
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.actions).toEqual([
+      { label: actions[0].label, prompt: actions[0].prompt, messageIds: ['msg_ana'] },
+      { label: actions[1].label, prompt: actions[1].prompt, messageIds: ['msg_old'] },
+    ]);
+    expect(inboxDailyBriefResponseSchema.safeParse(response.body).success).toBe(true);
+    const legacy = await postJson(server, { startAt: START_AT, endAt: END_AT });
+    expect(legacy.status).toBe(200);
+    expect(legacy.body).not.toHaveProperty('actions');
+  });
+
+  it.each([
+    [{ label: 'Only one', prompt: 'Summarize the request.', refs: ['m1'] }],
+    [
+      { label: 'Draft reply', prompt: 'Draft the reply.', refs: ['not-in-digest'] },
+      { label: 'Review request', prompt: 'Review the request.', refs: ['m1'] },
+    ],
+    Array.from({ length: 6 }, (_, i) => ({
+      label: `Action ${i}`,
+      prompt: 'Review the request.',
+      refs: ['m1'],
+    })),
+    [
+      { label: 'Duplicate', prompt: 'Draft the reply.', refs: ['m1'] },
+      { label: 'Duplicate', prompt: 'Review the request.', refs: ['m1'] },
+    ],
+  ])(
+    'rejects malformed action sets without returning misleading buttons (%#)',
+    async (...actions) => {
+      mockExecute.mockResolvedValue({
+        requestId: 'request_invalid_actions',
+        text: JSON.stringify({ ...JSON.parse(MODEL_ANSWER), actions }),
+      });
+      const response = await postJson(
+        server,
+        { startAt: START_AT, endAt: END_AT },
+        '?includeActions=true',
+      );
+      expect(response.status).toBe(502);
+    },
+  );
 
   it('writes in English when no locale is sent, and refuses a malformed one', async () => {
     await postJson(server, { startAt: START_AT, endAt: END_AT });
