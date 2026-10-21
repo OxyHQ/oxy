@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Fixed (every upstream body read has a deadline)
+
+Bodies fetched with `safeFetch` were read by nine hand-rolled readers that
+capped the bytes but not the time; `safeFetch`'s deadline ends at the response
+headers, so a server that sent its headers and stalled could hold a read open
+(the domain-proof `/.well-known/oxy-domain` check passed no other deadline at
+all). Every read now goes through `@oxy.so/core/server`'s `readResponseBody` /
+`readResponseJson` with an explicit whole-body `timeoutMs`: federation JSON
+(WebFinger, actors, Bluesky profiles) 10 s, federated avatars and repair
+downloads 15 s, the email image proxy, Instagram Graph, the Meta profile proof
+and the files-webhook challenge 10 s, the domain proof 5 s, play-session key
+authorization 3 s, linked accounts 15 s. A federated avatar whose body stalls
+or breaks off is now a transient transport failure (retried), no longer a
+permanent `too_large`. The unused `utils/boundedBody.ts` is gone.
+
 ### Changed (a multipart upload is at most 90 MiB, refused as JSON 413 `USE_PRESIGNED_UPLOAD`)
 
 `POST /assets/upload` and `POST /assets/:id/upload-direct` buffered a file of

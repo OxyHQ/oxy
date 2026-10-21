@@ -145,6 +145,13 @@ export type {
   SsrfCheckOk,
   SsrfCheckResult,
 } from './safeFetch';
+// Its body half: a byte cap and a whole-body deadline for every read (Node-only).
+export { readResponseBody, readResponseJson } from './readResponseBody';
+export type {
+  ReadResponseBodyOptions,
+  ReadResponseBodyResult,
+  ReadResponseJsonResult,
+} from './readResponseBody';
 
 // Receiving Oxy's file events (ADR 0043 D9): signature + replay window.
 export {

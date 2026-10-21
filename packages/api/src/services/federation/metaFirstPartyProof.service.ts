@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parse, type DefaultTreeAdapterMap } from 'parse5';
-import { safeFetch } from '@oxy.so/core/server';
+import { readResponseBody, safeFetch } from '@oxy.so/core/server';
 
 type Element = DefaultTreeAdapterMap['element'];
 type Node = DefaultTreeAdapterMap['node'];
@@ -392,24 +392,17 @@ async function fetchProfile(
     }
     observation.phase = 'body';
     observation.reason = 'body_error';
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    const body = response.response;
-    const timer = setTimeout(() => {
+    const body = await readResponseBody(response.response, {
+      maxBytes: MAX_BYTES,
+      timeoutMs: TIMEOUT_MS,
+    });
+    if (body.kind === 'too_large') throw new ProofRefusal('oversized_document');
+    if (body.kind === 'timeout') {
       bodyTimedOut = true;
-      body.destroy(new Error('Profile body deadline'));
-    }, TIMEOUT_MS);
-    try {
-      for await (const chunk of body) {
-        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        bytes += buffer.length;
-        if (bytes > MAX_BYTES) throw new ProofRefusal('oversized_document');
-        chunks.push(buffer);
-      }
-    } finally {
-      clearTimeout(timer);
+      throw new Error('Profile body deadline');
     }
-    const document = Buffer.concat(chunks);
+    if (body.kind === 'error') throw body.error;
+    const document = body.body;
     observation.documentHash = createHash('sha256').update(document).digest('hex');
     observation.phase = 'owner';
     observation.reason = 'invalid_document';

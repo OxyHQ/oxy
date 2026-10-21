@@ -60,7 +60,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
-import { safeFetch } from '@oxy.so/core/server';
+import { readResponseBody, safeFetch } from '@oxy.so/core/server';
 import {
   signedRecordEnvelopeSchema,
   domainVerificationRequestSchema,
@@ -136,6 +136,8 @@ const DNS_PREFIX = '_oxy-identity.';
 const TXT_PREFIX = 'oxy-domain-verification=';
 const WELL_KNOWN_PATH = '/.well-known/oxy-domain';
 const MAX_WELL_KNOWN_BYTES = 1024;
+/** Deadline for the proof's headers, and again for its body (≤ 1 KiB). */
+const WELL_KNOWN_TIMEOUT_MS = 5_000;
 
 // RFC 1035 hostname: 1+ dot-separated labels of letters/digits/hyphens (no
 // leading/trailing hyphen), at least one dot, total length bounded.
@@ -163,26 +165,6 @@ function domainMatches(column: PgColumn, domain: string): SQL {
   return sql`lower(${column}) = ${domain}`;
 }
 
-/** Read up to `maxBytes` of a response stream as UTF-8, then stop. */
-function readBoundedText(stream: NodeJS.ReadableStream, maxBytes: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    stream.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total >= maxBytes) {
-        chunks.push(chunk.subarray(0, chunk.length - (total - maxBytes)));
-        (stream as { destroy?: () => void }).destroy?.();
-        resolve(Buffer.concat(chunks).toString('utf8'));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    stream.on('error', reject);
-  });
-}
-
 /** True when a DNS-TXT proof for `token` is published at `_oxy-identity.<domain>`. */
 async function checkDnsProof(domain: string, token: string): Promise<boolean> {
   try {
@@ -205,14 +187,18 @@ async function checkWellKnownProof(domain: string, token: string): Promise<boole
   try {
     const result = await safeFetch(`https://${domain}${WELL_KNOWN_PATH}`, {
       maxRedirects: 2,
-      headersTimeoutMs: 5000,
+      headersTimeoutMs: WELL_KNOWN_TIMEOUT_MS,
     });
     if (result.status < 200 || result.status >= 300) {
       result.response.destroy();
       return false;
     }
-    const body = await readBoundedText(result.response, MAX_WELL_KNOWN_BYTES);
-    return body.trim() === token;
+    // A proof is the token alone, so a body over the cap is no proof.
+    const body = await readResponseBody(result.response, {
+      maxBytes: MAX_WELL_KNOWN_BYTES,
+      timeoutMs: WELL_KNOWN_TIMEOUT_MS,
+    });
+    return body.kind === 'ok' && body.body.toString('utf8').trim() === token;
   } catch (error) {
     logger.debug('well-known domain proof fetch failed', {
       component: 'identity',

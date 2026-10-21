@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 6.8.0
+
+### Added
+
+- `readResponseBody(response, { maxBytes, timeoutMs })` and
+  `readResponseJson` in `@oxy.so/core/server`: the body half of `safeFetch`.
+  `safeFetch`'s `headersTimeoutMs` ends at the response headers, so a server
+  that sent its headers and then stalled held a plain `'data'`/`'end'` reader
+  forever. These cap the bytes and give the whole body one deadline, destroy
+  the stream past either, settle exactly once with their timer cleared and
+  listeners removed, and never reject: the answer is `ok`, `too_large`,
+  `timeout` or `error` (plus `invalid_json`). Both limits are required.
+
 ## 6.7.0
 
 ### Changed

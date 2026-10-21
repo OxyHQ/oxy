@@ -17,11 +17,15 @@ import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import crypto from 'crypto';
-import type { IncomingMessage } from 'http';
 import { Readable, Transform } from 'stream';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
+import {
+  readResponseBody,
+  safeFetch,
+  SsrfRejection,
+  type SafeFetchResult,
+} from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
 import { FEDERATION_MEDIA_CACHE_PURPOSE, isAllowedCacheMime } from '../constants/federationCache';
 import { VariantService } from './variantService';
@@ -227,6 +231,10 @@ export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'in_use' | '
 const STORAGE_DELETION_DRAIN_OWNER = `asset-delete:${process.pid}:${crypto.randomBytes(4).toString('hex')}`;
 
 const FEDERATION_REPAIR_MAX_BYTES = 10 * 1024 * 1024;
+/** Headers deadline of a repair download, and its whole-request `AbortSignal`. */
+const FEDERATION_REPAIR_FETCH_TIMEOUT_MS = 15_000;
+/** Whole-body deadline of a repair download (≤ 10 MiB): the fetch's own budget. */
+const FEDERATION_REPAIR_BODY_TIMEOUT_MS = 15_000;
 const FEDERATION_REPAIR_MAX_REDIRECTS = 3;
 const FEDERATION_REPAIR_USER_AGENT = 'OxyHQ/1.0 (Federation Asset Repair)';
 
@@ -356,50 +364,12 @@ export class AssetService {
   }
 
   /**
-   * Read an {@link IncomingMessage} body into a Buffer, aborting (and destroying
-   * the stream) the moment it would exceed `maxBytes`. Returns `null` when the
-   * cap is exceeded. The caller short-circuits on the advertised
-   * `content-length` before calling this; this is the streaming backstop for a
-   * server that understated (or omitted) its length.
-   */
-  private readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<Buffer | null> {
-    return new Promise<Buffer | null>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      let total = 0;
-      let settled = false;
-
-      const finish = (value: Buffer | null): void => {
-        if (settled) return;
-        settled = true;
-        resolve(value);
-      };
-
-      response.on('data', (chunk: Buffer) => {
-        total += chunk.length;
-        if (total > maxBytes) {
-          response.destroy();
-          finish(null);
-          return;
-        }
-        chunks.push(chunk);
-      });
-      response.on('end', () => finish(Buffer.concat(chunks, total)));
-      response.on('error', (err) => {
-        if (settled) return;
-        settled = true;
-        reject(err);
-      });
-      response.on('close', () => finish(null));
-    });
-  }
-
-  /**
    * Fetch a remote federation image for storage repair through the shared,
    * DNS-pinned {@link safeFetch} (`@oxy.so/core/server`). safeFetch resolves the
    * host once, connects to the validated IP, re-validates every redirect hop,
    * and denies private/loopback/link-local/metadata IPs — closing the
    * DNS-rebinding TOCTOU window that a separate validate-then-`fetch` left open.
-   * safeFetch does NOT bound the body, so we enforce the byte cap here.
+   * safeFetch does NOT bound the body; `readResponseBody` caps its bytes and time.
    */
   private async fetchFederationRepairImage(
     remoteUrl: string,
@@ -422,8 +392,8 @@ export class AssetService {
       result = await safeFetch(remoteUrl, {
         method: 'GET',
         maxRedirects: FEDERATION_REPAIR_MAX_REDIRECTS,
-        headersTimeoutMs: 15_000,
-        signal: AbortSignal.timeout(15_000),
+        headersTimeoutMs: FEDERATION_REPAIR_FETCH_TIMEOUT_MS,
+        signal: AbortSignal.timeout(FEDERATION_REPAIR_FETCH_TIMEOUT_MS),
         headers: {
           Accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8',
           'User-Agent': FEDERATION_REPAIR_USER_AGENT,
@@ -482,16 +452,30 @@ export class AssetService {
         return null;
       }
 
-      const buffer = await this.readBodyLimited(result.response, FEDERATION_REPAIR_MAX_BYTES);
-      if (!buffer || buffer.length === 0) {
-        logger.warn('Federation repair image has invalid size', {
+      const body = await readResponseBody(result.response, {
+        maxBytes: FEDERATION_REPAIR_MAX_BYTES,
+        timeoutMs: FEDERATION_REPAIR_BODY_TIMEOUT_MS,
+      });
+      if (body.kind === 'too_large') {
+        logger.warn('Federation repair image is too large', {
           remoteHost: finalHost,
-          size: buffer?.length ?? 0,
+          maxBytes: FEDERATION_REPAIR_MAX_BYTES,
         });
         return null;
       }
+      if (body.kind !== 'ok') {
+        logger.warn('Federation repair download failed while reading body', {
+          remoteHost: finalHost,
+          error: body.kind === 'timeout' ? 'body timeout' : body.error.message,
+        });
+        return null;
+      }
+      if (body.body.length === 0) {
+        logger.warn('Federation repair image has invalid size', { remoteHost: finalHost, size: 0 });
+        return null;
+      }
 
-      return { buffer, mime };
+      return { buffer: body.body, mime };
     } catch (error) {
       result.response.destroy();
       logger.warn('Federation repair download failed while reading body', {

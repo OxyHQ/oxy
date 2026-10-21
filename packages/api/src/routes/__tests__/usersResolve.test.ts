@@ -22,6 +22,7 @@ class FakeSsrfRejection extends Error {
 
 jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: FakeSsrfRejection,
 }));

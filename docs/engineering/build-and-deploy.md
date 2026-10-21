@@ -252,6 +252,7 @@ Build-vs-source distinction: production/Docker consumes the built `dist/` (the D
 - `packages/core/src/server/auth.ts` — `createOptionalOxyAuth`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`
 - `packages/core/src/server/rateLimit.ts` — `createOxyRateLimit`
 - `packages/core/src/server/safeFetch.ts` — `safeFetch(url, opts)`, `assertSafePublicUrl` (SSRF-safe fetch; DNS-pinned, private-IP denylist, bounded redirects, Bun `{all:true}` lookup-array contract)
+- `packages/core/src/server/readResponseBody.ts` — `readResponseBody` / `readResponseJson` (a `safeFetch` body: byte cap + whole-body deadline, never rejects)
 - `packages/core/src/server/cors.ts` — `createOxyCors({ appOrigins, allowCredentials })` (deny-by-default allowlist, auto-allows `*.oxy.so`, NEVER wildcard+credentials)
 - `packages/core/src/server/verifySecret.ts` — `verifySecret(provided, expected)` (constant-time `crypto.timingSafeEqual` + length guard)
 - `packages/core/src/api/reputation.ts` — `oxy.reputation` (read-only reads; awards via `OxyServer.reputation.award`). It declares NO wire types: the family lives in `packages/contracts/src/reputation.ts` (see "Oxy Trust" section)

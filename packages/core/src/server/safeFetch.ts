@@ -20,6 +20,12 @@
  *    time, so the address we validated is exactly the address Node connects to.
  *  - Redirects are followed manually (bounded) so every hop is re-validated and
  *    redirect bodies (potentially unbounded) are destroyed, not drained.
+ *  - Two deadlines, one per half: `headersTimeoutMs` here bounds the request up
+ *    to the response headers; the body is read with `readResponseBody`
+ *    (`./readResponseBody`), which caps its bytes and gives the whole body a
+ *    deadline. Past the headers only the caller's `signal` still reaches the
+ *    response; without one, a server that sends its headers and stalls holds
+ *    any other reader open.
  *
  * Node-only: this module imports `node:http`/`node:https`/`node:dns` and is
  * exported solely from `@oxy.so/core/server`. It MUST NOT be reachable from the
@@ -47,8 +53,8 @@ export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:'
 /**
  * Time-to-first-byte deadline: how long to wait for the upstream to establish
  * the connection and send its RESPONSE HEADERS before aborting. Enforced via
- * `req.setTimeout` on the `ClientRequest`; once headers arrive, the caller owns
- * the (longer) streaming lifetime of the response body.
+ * `req.setTimeout` on the `ClientRequest`. Once headers arrive the body is the
+ * caller's, read with `readResponseBody` and its own deadline.
  */
 export const UPSTREAM_HEADERS_TIMEOUT_MS = 8_000;
 
@@ -298,7 +304,8 @@ export interface SafeFetchOptions {
   redirect?: 'follow' | 'manual';
   /**
    * Time-to-first-byte deadline in milliseconds (connect + response headers).
-   * Defaults to {@link UPSTREAM_HEADERS_TIMEOUT_MS}.
+   * Defaults to {@link UPSTREAM_HEADERS_TIMEOUT_MS}. The body is outside it:
+   * `readResponseBody` takes its own `timeoutMs`.
    */
   headersTimeoutMs?: number;
   /**
@@ -314,8 +321,9 @@ export interface SafeFetchOptions {
  */
 export interface SafeFetchResult {
   /**
-   * The response. The caller OWNS draining/destroying this
-   * stream (stream it to the client, or buffer a bounded prefix, then destroy).
+   * The response. The caller OWNS draining/destroying this stream: pipe it to
+   * the client, or buffer it with `readResponseBody` (byte cap + body
+   * deadline). No deadline of `safeFetch` covers it.
    */
   response: IncomingMessage;
   /** The HTTP status code of the response. */
@@ -399,7 +407,9 @@ function fetchOnce(
  * follows a bounded number of redirects (destroying redirect bodies), and
  * returns the first non-redirect response.
  *
- * The caller owns the returned response stream — drain or destroy it.
+ * The caller owns the returned response stream — read it with
+ * `readResponseBody`, pipe it, or destroy it. `headersTimeoutMs` ends at
+ * the headers; the body needs its own deadline.
  *
  * @throws {SsrfRejection} when any hop targets a blocked address/host/port.
  * @throws {UpstreamError} on redirect-loop / malformed-redirect / timeout.

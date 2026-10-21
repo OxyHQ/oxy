@@ -5,9 +5,8 @@
  * and provide tracking protection for users.
  */
 
-import type { IncomingMessage } from 'node:http';
 import type { Request, Response as ExpressResponse } from 'express';
-import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { readResponseBody, safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
@@ -16,6 +15,7 @@ import crypto from 'crypto';
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
 const FETCH_TIMEOUT = 10000; // 10 seconds
+const BODY_TIMEOUT_MS = 10_000; // a 10 MB image at ≥ 1 MB/s; the fetch's own budget
 const MAX_REDIRECTS = 3;
 const TRACKING_PIXEL_THRESHOLD = 100; // bytes
 const FONT_EXTENSIONS = /\.(ttf|otf|woff2?|eot)(\?|$)/i;
@@ -48,44 +48,6 @@ function parseProxyUrl(urlString: string): string {
   }
 
   return url.href;
-}
-
-/**
- * What reading an upstream body came to. `incomplete` is a stream that closed
- * before it ended — the fetch timing out mid-body, or the upstream hanging up
- * — and is an upstream failure, not a body that was too large.
- */
-type LimitedBody = { kind: 'ok'; buffer: Buffer } | { kind: 'too_large' } | { kind: 'incomplete' };
-
-function readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<LimitedBody> {
-  return new Promise<LimitedBody>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    let settled = false;
-
-    const finish = (value: LimitedBody): void => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-
-    response.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        response.destroy();
-        finish({ kind: 'too_large' });
-        return;
-      }
-      chunks.push(chunk);
-    });
-    response.on('end', () => finish({ kind: 'ok', buffer: Buffer.concat(chunks, total) }));
-    response.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      reject(err);
-    });
-    response.on('close', () => finish({ kind: 'incomplete' }));
-  });
 }
 
 // ─── Tracking Protection ──────────────────────────────────────────
@@ -307,15 +269,17 @@ async function fetchResource(normalizedUrl: string, decodedUrl: string): Promise
         return { kind: 'refused', message: 'Only images and fonts allowed' };
       }
 
-      const body = await readBodyLimited(response, MAX_IMAGE_SIZE);
+      const body = await readResponseBody(response, {
+        maxBytes: MAX_IMAGE_SIZE,
+        timeoutMs: BODY_TIMEOUT_MS,
+      });
       if (body.kind === 'too_large') {
         return { kind: 'refused', message: 'Resource too large' };
       }
-      if (body.kind === 'incomplete') {
-        // Answered as any other failed fetch, below.
-        throw new Error('Upstream closed before the body ended');
-      }
-      const { buffer } = body;
+      // A body that stalled or broke off is answered as any other failed fetch, below.
+      if (body.kind === 'timeout') throw new Error('Upstream body timed out');
+      if (body.kind === 'error') throw body.error;
+      const buffer = body.body;
 
       // Block tracking pixels (very small images)
       if (buffer.length < TRACKING_PIXEL_THRESHOLD) {

@@ -13,7 +13,7 @@
  * join an already-pinned Instagram identity (see the registry).
  */
 import type { IncomingMessage } from 'http';
-import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { readResponseJson, safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
 import { logger } from '../../utils/logger';
 import { sanitizePlainText } from '../../utils/sanitize';
@@ -27,6 +27,8 @@ export const INSTAGRAM_NETWORK_DOMAIN = 'instagram.com';
 const GRAPH_API_VERSION = 'v23.0';
 const GRAPH_FETCH_TIMEOUT_MS = 10_000;
 const GRAPH_MAX_JSON_BYTES = 256 * 1024;
+/** Whole-body deadline for a ≤ 256 KiB answer: the fetch's own budget. */
+const GRAPH_BODY_TIMEOUT_MS = 10_000;
 /** Business Discovery allows ~200 calls/hour per token: cache both outcomes briefly. */
 const RESULT_CACHE_TTL_MS = 10 * 60_000;
 const RESULT_CACHE_MAX_ENTRIES = 1_000;
@@ -137,41 +139,17 @@ function fail(
   return { ok: false, reason };
 }
 
-function readJsonLimited(response: IncomingMessage): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    let settled = false;
-    const finish = (value: Record<string, unknown> | null) => {
-      if (!settled) {
-        settled = true;
-        resolve(value);
-      }
-    };
-    response.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > GRAPH_MAX_JSON_BYTES) {
-        response.destroy();
-        finish(null);
-        return;
-      }
-      chunks.push(chunk);
-    });
-    response.on('end', () => {
-      try {
-        const parsed: unknown = JSON.parse(Buffer.concat(chunks, total).toString('utf-8'));
-        finish(
-          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-            ? (parsed as Record<string, unknown>)
-            : null,
-        );
-      } catch {
-        finish(null);
-      }
-    });
-    response.on('error', () => finish(null));
-    response.on('close', () => finish(null));
+/** The Graph answer's top-level object, or `null` when it is too large, late, broken or not an object. */
+async function readGraphJson(response: IncomingMessage): Promise<Record<string, unknown> | null> {
+  const result = await readResponseJson(response, {
+    maxBytes: GRAPH_MAX_JSON_BYTES,
+    timeoutMs: GRAPH_BODY_TIMEOUT_MS,
   });
+  if (result.kind !== 'ok') return null;
+  const { value } = result;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 /** Highest percentage in Meta's `x-app-usage` header, or undefined when absent/unparseable. */
@@ -238,7 +216,7 @@ export async function fetchInstagramGraphProfile(
   const usage = appUsagePercent(res.headers['x-app-usage']);
   if (usage !== undefined && usage >= APP_USAGE_COOLDOWN_PERCENT)
     cooldownUntil = Date.now() + THROTTLE_COOLDOWN_MS;
-  const body = await readJsonLimited(res.response);
+  const body = await readGraphJson(res.response);
   if (!body)
     return fail('unreadable_document', {
       username,

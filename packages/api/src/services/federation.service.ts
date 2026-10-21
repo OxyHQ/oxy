@@ -24,7 +24,13 @@ import {
   localActorTypeForAccountKind,
 } from '@oxy.so/federation';
 import { createTcoLinkExpander } from '@oxy.so/federation/node';
-import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
+import {
+  readResponseBody,
+  readResponseJson,
+  safeFetch,
+  SsrfRejection,
+  type SafeFetchResult,
+} from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
 import { type ACCOUNT_KINDS, users } from '../db/schema/users';
@@ -154,6 +160,14 @@ const FEDIVERSE_HANDLE_REGEX = /^@?[\w.-]+@[\w.-]+\.\w+$/;
 const FEDERATION_FETCH_TIMEOUT_MS = 10_000;
 /** Time-to-first-byte deadline for avatar/media downloads. */
 const FEDERATION_AVATAR_FETCH_TIMEOUT_MS = 15_000;
+/**
+ * Whole-body deadlines once the headers are in. Each equals its fetch's
+ * deadline, which the fetch's `AbortSignal` already holds from the request's
+ * start: a JSON document is at most 2 MiB (≥ 200 KiB/s), an avatar at most
+ * 25 MiB, and the actor documents and avatars peers serve are KBs to a few MB.
+ */
+const FEDERATION_JSON_BODY_TIMEOUT_MS = 10_000;
+const FEDERATION_AVATAR_BODY_TIMEOUT_MS = 15_000;
 /** Largest avatar STORED as-is (the historical 5MB limit); larger ones are re-encoded. */
 const FEDERATION_MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 /** Largest avatar DOWNLOADED at all: animated 6–8 MB WebP/GIF avatars are common. */
@@ -175,8 +189,9 @@ const FEDERATION_MAX_JSON_BYTES = 2 * 1024 * 1024;
  *
  * Returns the validated, non-redirect {@link SafeFetchResult}, or `null` when the
  * URL is not https, is rejected by the SSRF guard, or the request fails. The
- * caller OWNS the returned `response` stream — read it via the bounded readers
- * below, which always destroy the stream.
+ * caller OWNS the returned `response` stream — read it with
+ * {@link readFederationJson} or `readResponseBody`, which cap its bytes and
+ * time.
  */
 async function safeFederationFetch(
   rawUrl: string,
@@ -241,54 +256,16 @@ const expandTcoLinks = createTcoLinkExpander({
 });
 
 /**
- * Read an {@link IncomingMessage} body into a Buffer, aborting (and destroying
- * the stream) the moment it would exceed `maxBytes`. Returns `null` when the cap
- * is exceeded. The caller should short-circuit on the advertised
- * `content-length` (from the validated response headers) before calling this.
+ * A federation JSON document (WebFinger JRD, actor, profile), or `null` when it
+ * is over {@link FEDERATION_MAX_JSON_BYTES}, not JSON, or not complete within
+ * {@link FEDERATION_JSON_BODY_TIMEOUT_MS}.
  */
-function readBodyLimited(response: IncomingMessage, maxBytes: number): Promise<Buffer | null> {
-  return new Promise<Buffer | null>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    let settled = false;
-
-    const finish = (value: Buffer | null): void => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-
-    response.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        response.destroy();
-        finish(null);
-        return;
-      }
-      chunks.push(chunk);
-    });
-    response.on('end', () => finish(Buffer.concat(chunks, total)));
-    response.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      reject(err);
-    });
-    response.on('close', () => finish(null));
+async function readFederationJson<T>(response: IncomingMessage): Promise<T | null> {
+  const result = await readResponseJson<T>(response, {
+    maxBytes: FEDERATION_MAX_JSON_BYTES,
+    timeoutMs: FEDERATION_JSON_BODY_TIMEOUT_MS,
   });
-}
-
-/**
- * Read a bounded JSON document from an {@link IncomingMessage}. Returns `null`
- * when the body exceeds {@link FEDERATION_MAX_JSON_BYTES} or is not valid JSON.
- */
-async function readJsonLimited<T>(response: IncomingMessage): Promise<T | null> {
-  const buffer = await readBodyLimited(response, FEDERATION_MAX_JSON_BYTES);
-  if (!buffer || buffer.length === 0) return null;
-  try {
-    return JSON.parse(buffer.toString('utf-8')) as T;
-  } catch {
-    return null;
-  }
+  return result.kind === 'ok' ? result.value : null;
 }
 
 // System user ID for federated avatar ownership
@@ -1058,7 +1035,7 @@ class FederationService {
         return null;
       }
 
-      const data = await readJsonLimited<{
+      const data = await readFederationJson<{
         subject?: string;
         links?: Array<{ rel?: string; type?: string; href?: string }>;
       }>(res.response);
@@ -1175,7 +1152,7 @@ class FederationService {
         res?.response.destroy();
         return null;
       }
-      const actor = await readJsonLimited<Record<string, unknown>>(res.response);
+      const actor = await readFederationJson<Record<string, unknown>>(res.response);
       return actor?.id === actorUri ? actor : null;
     } catch {
       return null;
@@ -1212,7 +1189,7 @@ class FederationService {
           res?.status,
         );
       }
-      const actor = await readJsonLimited<Record<string, unknown>>(res.response);
+      const actor = await readFederationJson<Record<string, unknown>>(res.response);
       if (!actor)
         return resolutionFailure('actor_document', 'unreadable_document', { actorUri }, res.status);
       if (typeof actor.id !== 'string' || !actor.inbox)
@@ -1281,7 +1258,7 @@ class FederationService {
       response.response.destroy();
       return null;
     }
-    const profile = await readJsonLimited<Record<string, unknown>>(response.response);
+    const profile = await readFederationJson<Record<string, unknown>>(response.response);
     if (
       profile?.did !== did ||
       typeof profile.handle !== 'string' ||
@@ -1903,10 +1880,18 @@ class FederationService {
         return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
       }
 
-      const buffer = await readBodyLimited(res.response, FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES);
-      if (!buffer) {
+      const body = await readResponseBody(res.response, {
+        maxBytes: FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES,
+        timeoutMs: FEDERATION_AVATAR_BODY_TIMEOUT_MS,
+      });
+      if (body.kind === 'too_large') {
         return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
       }
+      // A body that stalled or broke off says nothing about the picture.
+      if (body.kind !== 'ok') {
+        return { ...avatarFailure('transient', 'transport'), etag, lastModified };
+      }
+      const buffer = body.body;
       if (buffer.length === 0) {
         return { ...avatarFailure('transient', 'empty_body'), etag, lastModified };
       }

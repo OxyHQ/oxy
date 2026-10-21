@@ -12,12 +12,12 @@
  * carries nothing to protect.
  *
  * Through `safeFetch` (public addresses only, DNS-pinned, no redirects), at
- * most {@link CHALLENGE_TIMEOUT_MS}, reading at most
- * {@link CHALLENGE_MAX_BODY_BYTES} of the answer.
+ * most {@link CHALLENGE_TIMEOUT_MS} for the headers and again for the body,
+ * reading at most {@link CHALLENGE_MAX_BODY_BYTES} of the answer.
  */
 
 import crypto from 'node:crypto';
-import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { readResponseJson, safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { ApiError } from '../utils/error';
 import { FILE_EVENT_SIGNATURE_HEADER, fileEventSignatureHeader } from './fileEvents.service';
 
@@ -64,29 +64,17 @@ export async function verifyFilesWebhookEndpoint(url: string, secret: string): P
     throw refused(`The endpoint answered the challenge with HTTP ${status}`);
   }
 
-  const chunks: Buffer[] = [];
-  let size = 0;
-  try {
-    for await (const chunk of response) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      size += buffer.length;
-      if (size > CHALLENGE_MAX_BODY_BYTES) {
-        response.destroy();
-        throw refused('The endpoint answered the challenge with too large a body');
-      }
-      chunks.push(buffer);
-    }
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
+  const answer = await readResponseJson(response, {
+    maxBytes: CHALLENGE_MAX_BODY_BYTES,
+    timeoutMs: CHALLENGE_TIMEOUT_MS,
+  });
+  if (answer.kind === 'too_large') {
+    throw refused('The endpoint answered the challenge with too large a body');
+  }
+  if (answer.kind === 'timeout' || answer.kind === 'error') {
     throw refused('The endpoint could not be read');
   }
-
-  let answered: unknown;
-  try {
-    answered = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  } catch {
-    answered = undefined;
-  }
+  const answered = answer.kind === 'ok' ? answer.value : undefined;
   if (
     typeof answered !== 'object' ||
     answered === null ||
