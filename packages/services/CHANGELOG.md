@@ -1,5 +1,16 @@
 # Changelog
 
+## [12.7.0] - 2026-10-21
+
+### Added
+
+- `useAccountColor` (and `resolveAccountColor`) from `@oxy.so/services/ui/client`:
+  one hook that applies the account's colour (`user.color`, falling back to
+  `themePreference.colorPreset`) to the Bloom theme, so every Oxy app wears the
+  same colour instead of each re-deriving it. The API already refuses `oxy` and
+  `faircoin` to any other handle and `mono` without its benefit, on both
+  fields. An app with a plan of its own passes `canUse` to withhold a name.
+
 ## [12.6.0] - 2026-10-21
 
 Needs `@oxy.so/core` 6.4.0.

@@ -45,6 +45,7 @@ export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyCo
 
 // Hooks
 export { useAuth } from './hooks/useAuth';
+export { useAccountColor, resolveAccountColor } from './hooks/useAccountColor';
 // This app's Oxy-signed assertion of which app it is (ADR 0045), for an SDK
 // that attaches it to its own requests without pulling in the account screens.
 export {
