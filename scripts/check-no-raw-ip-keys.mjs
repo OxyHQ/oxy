@@ -158,22 +158,16 @@ const ALLOWED_IP_SOURCES = [
     count: 1,
     why:
       'the proxy-chain resolver itself. `resolveClientIp` is `oxyTrustProxy` (Express `trust ' +
-      "proxy`) applied to a raw IncomingMessage: it decides WHICH address is the client and " +
+      'proxy`) applied to a raw IncomingMessage: it decides WHICH address is the client and ' +
       'returns it to a caller that must still hash it; it stores and logs nothing.',
-  },
-  {
-    file: 'packages/core/src/server/clientIp.ts',
-    expression: "request.headers['x-forwarded-for']",
-    count: 1,
-    why:
-      'the same resolver reading the chain the ALB (and Cloudflare) wrote, walked by the same ' +
-      'trust rule as Express, so a forged entry is never believed. Nothing is persisted.',
   },
   {
     file: 'packages/core/src/server/clientIp.ts',
     expression: '"x-forwarded-for"',
     count: 1,
-    why: 'the header name of the expression above, as the lexer sees the index literal.',
+    why:
+      'the same resolver reading the chain the ALB (and Cloudflare) wrote, walked by the same ' +
+      'trust rule as Express, so a forged entry is never believed. Nothing is persisted.',
   },
   {
     file: 'packages/api/src/utils/ipKey.ts',

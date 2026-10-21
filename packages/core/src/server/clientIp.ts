@@ -97,6 +97,9 @@ const CLOUDFLARE_V6 = CLOUDFLARE_IPV6_RANGES.map(splitCidr);
 const PRIVATE_V4 = PRIVATE_IPV4_RANGES.map(splitCidr);
 const PRIVATE_V6 = PRIVATE_IPV6_RANGES.map(splitCidr);
 
+/** The chain the ALB (and Cloudflare before it) appends to. */
+const FORWARDED_FOR = 'x-forwarded-for';
+
 function inRanges(
   rawIp: string,
   v4: ReadonlyArray<readonly [string, number]>,
@@ -157,7 +160,7 @@ export function resolveClientIp(
   if (!socketAddress) {
     return undefined;
   }
-  const header = request.headers['x-forwarded-for'];
+  const header = request.headers[FORWARDED_FOR];
   const forwarded = (Array.isArray(header) ? header.join(',') : (header ?? ''))
     .split(',')
     .map((entry) => entry.trim())
