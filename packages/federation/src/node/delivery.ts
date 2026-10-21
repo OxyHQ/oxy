@@ -351,6 +351,13 @@ export interface DeliveryService {
     followActivityId: string,
     remoteActorUri: string,
   ): Promise<void>;
+  /** Send a Reject(Follow) back to a remote actor — the same envelope as the Accept. */
+  sendReject(
+    localOxyUserId: string,
+    localUsername: string,
+    followActivityId: string,
+    remoteActorUri: string,
+  ): Promise<void>;
   /** Rebroadcast the FULL actor document as an Update(Person) to remote followers. */
   federateActorUpdate(actorOxyUserId: string, username: string): Promise<void>;
 }
@@ -716,7 +723,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     return true;
   }
 
-  async function sendAccept(
+  /** Answer a remote Follow: `Accept` or `Reject`, one envelope for both. */
+  async function sendFollowResponse(
+    type: 'Accept' | 'Reject',
     localOxyUserId: string,
     localUsername: string,
     followActivityId: string,
@@ -725,16 +734,16 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     const actor = await config.store.findActorByUri(remoteActorUri);
     if (!actor) return;
     // `inboxUrl` is schema-optional (atproto actors have none); an AP actor we
-    // are sending Accept(Follow) to always has one. When neither inbox is known the
-    // local follow is already removed — just skip the outbound delivery.
+    // are answering always has one. When neither inbox is known, skip the
+    // outbound delivery.
     const targetInbox = actor.sharedInboxUrl ?? actor.inboxUrl;
     if (!targetInbox) {
-      logger.warn(`[FedSync] cannot send Accept(Follow) to ${remoteActorUri}: actor has no inbox`);
+      logger.warn(`[FedSync] cannot send ${type}(Follow) to ${remoteActorUri}: actor has no inbox`);
       return;
     }
     if (isBlockedUrl(targetInbox) || isBlockedUrl(remoteActorUri)) {
       logger.warn(
-        `[FedDeliver] refusing Accept(Follow) delivery to blocked origin ${remoteActorUri}`,
+        `[FedDeliver] refusing ${type}(Follow) delivery to blocked origin ${remoteActorUri}`,
       );
       return;
     }
@@ -743,8 +752,8 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
 
     const activity: Record<string, unknown> = {
       '@context': AP_CONTEXT,
-      id: `${localActorUri}/accepts/${Date.now()}`,
-      type: 'Accept',
+      id: `${localActorUri}/${type === 'Accept' ? 'accepts' : 'rejects'}/${Date.now()}`,
+      type,
       actor: localActorUri,
       object: {
         id: followActivityId,
@@ -758,6 +767,36 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     if (!delivered) {
       await queueDelivery(activity, targetInbox, localOxyUserId);
     }
+  }
+
+  function sendAccept(
+    localOxyUserId: string,
+    localUsername: string,
+    followActivityId: string,
+    remoteActorUri: string,
+  ): Promise<void> {
+    return sendFollowResponse(
+      'Accept',
+      localOxyUserId,
+      localUsername,
+      followActivityId,
+      remoteActorUri,
+    );
+  }
+
+  function sendReject(
+    localOxyUserId: string,
+    localUsername: string,
+    followActivityId: string,
+    remoteActorUri: string,
+  ): Promise<void> {
+    return sendFollowResponse(
+      'Reject',
+      localOxyUserId,
+      localUsername,
+      followActivityId,
+      remoteActorUri,
+    );
   }
 
   async function federateActorUpdate(actorOxyUserId: string, username: string): Promise<void> {
@@ -819,6 +858,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     sendFollow,
     sendUndoFollow,
     sendAccept,
+    sendReject,
     federateActorUpdate,
   };
 }

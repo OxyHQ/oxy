@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/federation`
 
+
+## 2.7.0
+
+### Added
+
+- `createInboundDispatcher({ refusesFollower })`: a local account may refuse a
+  follower (a community that banned them). The Follow is answered with a
+  `Reject` and no Oxy edge or follow row is written. Needs
+  `delivery.sendReject`.
+- `DeliveryService.sendReject(...)`: the `Reject(Follow)` counterpart of
+  `sendAccept`, the same envelope.
+
 ## 2.6.0
 
 A local community is a FEP-1b12 `Group` other servers can follow and post into.

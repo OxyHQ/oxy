@@ -31,11 +31,13 @@ function makeRig(
     validate?: (activity: Record<string, unknown>) => InboundActivityValidation;
     blockedHosts?: string[];
     withMoveHandler?: boolean;
+    refusedFollowers?: string[];
   } = {},
 ) {
   const moves: Array<{ activityId: string; oldActorUri: string; targetActorUri: string }> = [];
   const bridgeFollowCalls: Array<[string, string]> = [];
   const bridgeUnfollowCalls: Array<[string, string]> = [];
+  const rejectsSent: string[] = [];
   const acceptsSent: Array<{
     localOxyUserId: string;
     localUsername: string;
@@ -109,7 +111,16 @@ function makeRig(
       sendAccept: async (localOxyUserId, localUsername, followActivityId, remoteActorUri) => {
         acceptsSent.push({ localOxyUserId, localUsername, followActivityId, remoteActorUri });
       },
+      sendReject: async (_localOxyUserId, _localUsername, followActivityId) => {
+        rejectsSent.push(followActivityId);
+      },
     },
+    ...(overrides.refusedFollowers
+      ? {
+          refusesFollower: async (_localUserId: string, followerOxyUserId: string) =>
+            overrides.refusedFollowers?.includes(followerOxyUserId) ?? false,
+        }
+      : {}),
     onInboundFollowAccepted: async (localUserId, followerOxyUserId, actorUri) => {
       onInboundFollowAcceptedCalls.push([localUserId, followerOxyUserId, actorUri]);
     },
@@ -140,6 +151,7 @@ function makeRig(
     bridgeFollowCalls,
     bridgeUnfollowCalls,
     acceptsSent,
+    rejectsSent,
     inboundAcceptedUpserts,
     deletedFollowIds,
     contentActivities,
@@ -172,6 +184,18 @@ describe('inbound Follow', () => {
       },
     ]);
     expect(rig.onInboundFollowAcceptedCalls).toEqual([['u-alice', 'u-bob', REMOTE_ACTOR]]);
+  });
+
+  it('answers a refused follower with Reject, writing nothing', async () => {
+    const rig = makeRig({ refusedFollowers: ['u-bob'] });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Follow', id: 'f9', actor: REMOTE_ACTOR, object: LOCAL_ACTOR },
+      REMOTE_ACTOR,
+    );
+    expect(rig.rejectsSent).toEqual(['f9']);
+    expect(rig.acceptsSent).toEqual([]);
+    expect(rig.bridgeFollowCalls).toEqual([]);
+    expect(rig.inboundAcceptedUpserts).toEqual([]);
   });
 
   it('drops the Follow (no bridge/accept) when the target has sharing OFF', async () => {
