@@ -1394,6 +1394,13 @@ jobs:
         if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
         run: bun run test
         working-directory: ./packages/core
+      # The Bun-runtime tests: every Oxy backend runs on Bun and Jest runs on Node,
+      # which is how core 6.9.0 shipped a revocation feed that crashed every Bun
+      # backend on connect (`autoUnref` → `ws._socket.unref`). Real Socket.IO, in Bun.
+      - name: 'Core Tests: test under Bun'
+        if: ${{ !cancelled() && steps.build-protocol.outcome == 'success' }}
+        run: bun run test:bun
+        working-directory: ./packages/core
 
       # Ship CLI and Node package tests (both `bun test`) — both build
       # contracts, protocol and core first.
