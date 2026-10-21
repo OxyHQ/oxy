@@ -1,6 +1,6 @@
 # Changelog: `@oxy.so/contracts`
 
-## Unreleased
+## 5.4.0
 
 ### Added
 
