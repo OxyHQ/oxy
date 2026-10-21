@@ -245,7 +245,6 @@ export function instrumentTrafficFetch(
 // to be an internal service. Region is infrastructure metadata, never IP geo.
 const OXY_API_SERVICES: Record<string, string> = {
   'api.oxy.so': 'oxy-api',
-  'api.website.oxy.so': 'website',
   'website-api.oxy.so': 'website',
   'api.mention.earth': 'mention',
   'api.mercaria.co': 'mercaria',
