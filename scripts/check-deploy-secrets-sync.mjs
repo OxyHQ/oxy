@@ -122,6 +122,10 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
     ['QUEUE_REDIS_URL', '/oxy/_shared/QUEUE_REDIS_URL'],
     ['META_GRAPH_ACCESS_TOKEN', '/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN'],
     ['META_IG_BUSINESS_ACCOUNT_ID', '/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID'],
+    // Oxy Files' R2 bucket token and the cloud.oxy.so purge token (ADR 0047).
+    ['R2_ACCESS_KEY_ID', '/oxy/oxy-api/R2_ACCESS_KEY_ID'],
+    ['R2_SECRET_ACCESS_KEY', '/oxy/oxy-api/R2_SECRET_ACCESS_KEY'],
+    ['CLOUDFLARE_CACHE_PURGE_TOKEN', '/oxy/oxy-api/CLOUDFLARE_CACHE_PURGE_TOKEN'],
   ].map(([name, path]) => [name, `${SSM_ARN_PREFIX}${path}`]),
 );
 

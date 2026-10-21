@@ -88,19 +88,36 @@ if [[ "$phase" == "start" ]]; then
   # oxy-oxy-asset-variant-worker:10 (2026-09-12) carries it. The render carries
   # forward whatever the running revision binds, so this keeps the binding from
   # depending on nobody ever registering a revision without it.
+  #
+  # The object store is re-asserted the same way: the worker reads originals
+  # and writes renditions in Oxy Files' R2 bucket with oxy-api's bucket token,
+  # and purges what it deletes from cloud.oxy.so (ADR 0047). The parameters
+  # exist before this line names them (oxy-infra runbook 61); a binding to a
+  # missing one registers fine and then cannot START.
+  ssm="arn:aws:ssm:us-west-2:237343248947:parameter"
   rendered_task_definition="$(jq \
     --arg name "$worker_container" \
     --arg image "$IMAGE_URI" \
-    --arg queue_redis_url "arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL" '
+    --argjson secrets "$(jq -n --arg ssm "$ssm" '[
+      {name: "QUEUE_REDIS_URL", valueFrom: "\($ssm)/oxy/_shared/QUEUE_REDIS_URL"},
+      {name: "R2_ACCESS_KEY_ID", valueFrom: "\($ssm)/oxy/oxy-api/R2_ACCESS_KEY_ID"},
+      {name: "R2_SECRET_ACCESS_KEY", valueFrom: "\($ssm)/oxy/oxy-api/R2_SECRET_ACCESS_KEY"},
+      {name: "CLOUDFLARE_CACHE_PURGE_TOKEN", valueFrom: "\($ssm)/oxy/oxy-api/CLOUDFLARE_CACHE_PURGE_TOKEN"}
+    ]')" \
+    --argjson environment '[
+      {"name": "R2_BUCKET", "value": "oxy-files"},
+      {"name": "R2_ENDPOINT", "value": "https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com"},
+      {"name": "CLOUDFLARE_ZONE_ID", "value": "7f70358609578c4a1f24dbf6cb9c4498"}
+    ]' '
     del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+    | ($secrets | map(.name)) as $secretNames
+    | ($environment | map(.name)) as $environmentNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
           | .command = ["bun", "packages/api/dist/asset-variant-worker.js"]
-          | .secrets = ((.secrets // [] | map(select(.name != "QUEUE_REDIS_URL"))) + [{
-              name: "QUEUE_REDIS_URL",
-              valueFrom: $queue_redis_url
-            }])
+          | .secrets = ((.secrets // [] | map(select(.name as $n | $secretNames | index($n) | not))) + $secrets)
+          | .environment = ((.environment // [] | map(select(.name as $n | $environmentNames | index($n) | not))) + $environment)
         else . end
       )
   ' <<<"$task_definition")"
