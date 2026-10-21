@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Fixed (`reclassify-federated-accounts` cannot be held by one row)
+
+`mapWithConcurrency` waits for every row it started, so one actor fetch that
+never settled held its batch, and the run, forever (it stalled three times in
+production with no log, no summary and no query). Each actor fetch, which is
+read-only, now gets a 120 s deadline (`ROW_FETCH_DEADLINE_MS`): past it the row
+is refused as `fetch_timeout` and the batch moves on. `--apply` registers the
+profile it already fetched (`federationService.registerFetchedActorProfile`,
+the persistence half of `resolveExternalActorIdentity`) instead of fetching the
+actor a second time with no deadline, so the write is never raced against a
+timer. A `progress` line per batch (scanned, changed, refused, last id) makes a
+stall attributable.
+
+### Fixed (stripping tags from remote text is linear)
+
+`sanitizePlainText` tested every `<` against the rest of the text when no `>`
+followed it: quadratic, so a 2 MiB remote actor document of unclosed `<` would
+hold the event loop for minutes, where no deadline can fire. Same output, now
+linear.
+
 ### Fixed (every upstream body read has a deadline)
 
 Bodies fetched with `safeFetch` were read by nine hand-rolled readers that

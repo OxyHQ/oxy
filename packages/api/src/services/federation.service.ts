@@ -1617,6 +1617,15 @@ class FederationService {
     return this.persistResolvedProfile(profile, opts);
   }
 
+  /**
+   * Register a profile already fetched with {@link fetchActorProfileResult}: the
+   * persistence half of {@link resolveExternalActorIdentity}, with the same
+   * checks and writes, for a caller that puts its own deadline on the fetch.
+   */
+  async registerFetchedActorProfile(profile: ExternalActorProfile) {
+    return this.persistResolvedProfile(profile, {});
+  }
+
   /** Register a freshly fetched source profile and project the canonical person. */
   private async persistResolvedProfile(
     profile: ExternalActorProfile,

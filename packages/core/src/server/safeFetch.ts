@@ -21,7 +21,8 @@
  *  - Redirects are followed manually (bounded) so every hop is re-validated and
  *    redirect bodies (potentially unbounded) are destroyed, not drained.
  *  - Two deadlines, one per half: `headersTimeoutMs` here bounds the request up
- *    to the response headers; the body is read with `readResponseBody`
+ *    to the response headers (each hop's DNS lookup included, which also
+ *    honours `signal`); the body is read with `readResponseBody`
  *    (`./readResponseBody`), which caps its bytes and gives the whole body a
  *    deadline. Past the headers only the caller's `signal` still reaches the
  *    response; without one, a server that sends its headers and stalls holds
@@ -39,6 +40,7 @@ import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns
 import type { LookupFunction } from 'node:net';
 import { isIP } from 'node:net';
 import { URL } from 'node:url';
+import { withDeadline } from './deadline';
 import { extractEmbeddedIpv4, ipv4InCidr, ipv6InCidr } from './ipCidr';
 
 /** Maximum accepted length of an input URL (DoS guard). */
@@ -57,6 +59,15 @@ export const ALLOWED_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:'
  * caller's, read with `readResponseBody` and its own deadline.
  */
 export const UPSTREAM_HEADERS_TIMEOUT_MS = 8_000;
+
+/**
+ * Longest {@link assertSafePublicUrl} waits for its DNS lookup when the caller
+ * names no deadline. The lookup is the system resolver's (`getaddrinfo`),
+ * which no socket timeout or `AbortSignal` reaches, so without its own
+ * deadline one unanswered lookup holds its caller for as long as the resolver
+ * likes. `safeFetch` passes its `headersTimeoutMs` and `signal` instead.
+ */
+export const DNS_LOOKUP_TIMEOUT_MS = 8_000;
 
 /** Maximum number of HTTP redirects to follow; each hop is re-validated. */
 export const MAX_REDIRECTS = 5;
@@ -135,6 +146,8 @@ export interface SsrfCheckFail {
   ok: false;
   /** Human-readable, non-sensitive reason (safe to log; not echoed to clients). */
   reason: string;
+  /** The check could not finish (the lookup outran its deadline): unknown, not refused. */
+  incomplete?: true;
 }
 
 export type SsrfCheckResult = SsrfCheckOk | SsrfCheckFail;
@@ -174,8 +187,15 @@ export function isBlockedIp(rawIp: string): boolean {
  *
  * Re-run this on EVERY redirect hop so a public hostname cannot redirect (or
  * DNS-rebind) into an internal address.
+ *
+ * The lookup waits at most `lookupTimeoutMs` (default
+ * {@link DNS_LOOKUP_TIMEOUT_MS}) and no longer than `signal`; either ending it
+ * is an `incomplete` failure.
  */
-export async function assertSafePublicUrl(rawUrl: string): Promise<SsrfCheckResult> {
+export async function assertSafePublicUrl(
+  rawUrl: string,
+  options: { lookupTimeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<SsrfCheckResult> {
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     return { ok: false, reason: 'missing url' };
   }
@@ -240,9 +260,20 @@ export async function assertSafePublicUrl(rawUrl: string): Promise<SsrfCheckResu
 
   // Resolve the hostname. `all: true` returns every A/AAAA record so we can
   // reject if ANY of them is internal.
+  // A lookup cannot be cancelled, only abandoned: the deadline ends the wait.
   let records: Array<{ address: string; family: number }>;
   try {
-    records = await dnsLookup(literalHost, { all: true });
+    const lookup = await withDeadline(dnsLookup(literalHost, { all: true }), {
+      timeoutMs: options.lookupTimeoutMs ?? DNS_LOOKUP_TIMEOUT_MS,
+      signal: options.signal,
+    });
+    if (lookup.kind === 'timeout') {
+      return { ok: false, reason: 'dns lookup timed out', incomplete: true };
+    }
+    if (lookup.kind === 'aborted') {
+      return { ok: false, reason: 'request aborted', incomplete: true };
+    }
+    records = lookup.value;
   } catch {
     return { ok: false, reason: 'dns resolution failed' };
   }
@@ -447,9 +478,13 @@ export async function safeFetch(
       throw new UpstreamError('request aborted');
     }
 
-    const guard = await assertSafePublicUrl(currentUrl);
+    // The lookup shares the headers deadline and the caller's signal.
+    const guard = await assertSafePublicUrl(currentUrl, {
+      lookupTimeoutMs: headersTimeoutMs,
+      signal,
+    });
     if (!guard.ok) {
-      throw new SsrfRejection(guard.reason);
+      throw guard.incomplete ? new UpstreamError(guard.reason) : new SsrfRejection(guard.reason);
     }
 
     const target = new URL(currentUrl);

@@ -147,6 +147,12 @@ describe('@oxy.so/core/server safeFetch — assertSafePublicUrl', () => {
     if (!result.ok) expect(result.reason).toBe('dns resolution failed');
   });
 
+  it('stops waiting for a lookup that never answers at its deadline', async () => {
+    mockDnsLookup.mockReturnValue(new Promise(() => undefined));
+    const result = await assertSafePublicUrl('https://stalled.example/', { lookupTimeoutMs: 20 });
+    expect(result).toEqual({ ok: false, reason: 'dns lookup timed out', incomplete: true });
+  });
+
   it('allows a public hostname resolving to public IPs and pins the first record', async () => {
     mockDnsLookup.mockResolvedValue([
       { address: '93.184.216.34', family: 4 },
