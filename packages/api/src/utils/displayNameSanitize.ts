@@ -1,5 +1,11 @@
 /**
- * Display-name character policy.
+ * Account-name cleaning for untrusted input: the strip-side twin of
+ * `@oxy.so/core`'s `isValidAccountName`. {@link cleanAccountName} picks the
+ * policy from the account's `kind` (`ACCOUNT_NAME_POLICY_BY_KIND` in
+ * `@oxy.so/contracts`); a person's name goes through {@link cleanDisplayName},
+ * a title through {@link cleanAccountTitle}.
+ *
+ * Display-name (person) character policy.
  *
  * A clean display name is composed ONLY of:
  *   - letters from the curated ALLOWLIST of scripts real names use — NOT `\p{L}`
@@ -68,6 +74,12 @@
  */
 
 import {
+  ACCOUNT_TITLE_DISALLOWED_SOURCE,
+  ACCOUNT_TITLE_MAX_LENGTH,
+  accountNamePolicyForKind,
+  type AccountKind,
+} from '@oxy.so/contracts';
+import {
   DISPLAY_NAME_DISALLOWED_SOURCE,
   DISPLAY_NAME_ORPHANED_MARK_SOURCE,
   DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE,
@@ -122,6 +134,14 @@ const ORPHANED_MARK_PATTERN = new RegExp(DISPLAY_NAME_ORPHANED_MARK_SOURCE, 'gu'
  */
 const UNFLANKED_SEPARATOR_PATTERN = new RegExp(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE, 'gu');
 
+/** Every character the title policy disallows, compiled from the contract's source. */
+const TITLE_DISALLOWED_PATTERN = new RegExp(ACCOUNT_TITLE_DISALLOWED_SOURCE, 'gu');
+
+/** Cap `value` at `max` code units, trimming again in case the cut landed on a space. */
+function capped(value: string, max: number): string {
+  return value.length <= max ? value : value.slice(0, max).trim();
+}
+
 /**
  * Produce a clean display name from arbitrary (possibly federated/untrusted)
  * input. The transformation order is significant:
@@ -164,9 +184,55 @@ export function cleanDisplayName(raw: string): string {
       .replace(ORPHANED_MARK_PATTERN, '')
       .replace(UNFLANKED_SEPARATOR_PATTERN, ' '),
   );
+  return capped(collapsed, MAX_DISPLAY_NAME_LENGTH);
+}
 
-  if (collapsed.length <= MAX_DISPLAY_NAME_LENGTH) {
-    return collapsed;
-  }
-  return collapsed.slice(0, MAX_DISPLAY_NAME_LENGTH).trim();
+/**
+ * Produce a clean title from arbitrary input: `:shortcode:` tokens (a remote
+ * server's custom emoji, which render as nothing here) and every character the
+ * title policy disallows become spaces, then the canonical single-line
+ * normalizer collapses whitespace, and the result is capped. Digits and
+ * punctuation are kept — they belong to titles. The output always satisfies
+ * `isValidAccountName(output, kind)` for every non-personal kind, and holds no
+ * `<` or `>`, so it carries no markup.
+ */
+export function cleanAccountTitle(raw: string): string {
+  const collapsed = normalizeInlineText(
+    String(raw)
+      .normalize('NFC')
+      .replace(SHORTCODE_PATTERN, ' ')
+      .replace(TITLE_DISALLOWED_PATTERN, ' '),
+  );
+  return capped(collapsed, ACCOUNT_TITLE_MAX_LENGTH);
+}
+
+/** Clean an untrusted name for an account of `kind`, by that kind's policy. */
+export function cleanAccountName(raw: string, kind: AccountKind | null | undefined): string {
+  return accountNamePolicyForKind(kind) === 'person'
+    ? cleanDisplayName(raw)
+    : cleanAccountTitle(raw);
+}
+
+/**
+ * The `users` name columns for ONE untrusted name string — what a federated
+ * source or an automated account supplies — cleaned by `kind` and stored in the
+ * shape that kind has on every path:
+ *
+ *  - a person's name in `nameFirst` (the column people search and the
+ *    `first`/`last` readers see) and `nameDisplay`;
+ *  - a title in `nameDisplay` alone, exactly where a native organization,
+ *    project, bot or channel keeps it — a title is nobody's given name.
+ *
+ * `nameLast` is always cleared: one string never carries a family name.
+ */
+export function untrustedNameColumns(
+  raw: string | null | undefined,
+  kind: AccountKind | null | undefined,
+): { nameFirst: string | null; nameLast: null; nameDisplay: string | null } {
+  const name = cleanAccountName(raw ?? '', kind) || null;
+  return {
+    nameFirst: accountNamePolicyForKind(kind) === 'person' ? name : null,
+    nameLast: null,
+    nameDisplay: name,
+  };
 }

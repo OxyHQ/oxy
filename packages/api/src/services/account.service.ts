@@ -46,7 +46,7 @@ import { getDb, type Database, type DatabaseOrTransaction } from '../config/post
 import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
-import { organizationNameSchema } from '@oxy.so/contracts';
+import { accountNameSchema, type ChildAccountKind } from '@oxy.so/contracts';
 import { organizationProfiles } from '../db/schema/organizationProfiles';
 import { publicColumns } from '@oxy.so/db/assert';
 import {
@@ -72,7 +72,7 @@ import {
   type AccountRole,
 } from '../utils/accountRoles';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/error';
-import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
+import { accountNameInvalidMessage, isValidAccountName } from '@oxy.so/core';
 import {
   assertColorNotReserved,
   isUserColorPreset,
@@ -114,30 +114,26 @@ import {
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
 
 /**
- * Reject a name half that the display-name policy would not allow.
+ * Reject a name that the account-name policy for `kind` would not allow.
  *
  * Account create/update is a second write path onto the same `users` columns
- * `updateUserProfile` guards, so it has to run the same policy — otherwise the
- * policy is only enforced on whichever path the caller happens to pick.
+ * `updateUserProfile` guards, so it runs the same kind-aware check
+ * (`isValidAccountName`) — otherwise the policy is only enforced on whichever
+ * path the caller happens to pick. The lengths are the wire's
+ * (`accountNameSchema`), restated here because this service has callers other
+ * than the route that parses it.
  */
 function assertValidAccountName(
   name: { first?: string; last?: string; displayName?: string } | undefined,
-  kind?: string,
+  kind: AccountKind,
 ): void {
   if (!name || typeof name !== 'object') return;
-  // Organization titles use the directory policy; human name halves and other
-  // account kinds retain the existing character policy and 100-character cap.
-  for (const part of ['first', 'last', 'displayName'] as const) {
-    const value = name[part];
-    if (typeof value !== 'string') continue;
-    const valid =
-      kind === 'organization' && part === 'displayName'
-        ? value === '' || organizationNameSchema.safeParse(value).success
-        : value.trim().length <= 100 && isValidDisplayName(value);
-    if (typeof value === 'string' && !valid) {
-      throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
-    }
-  }
+  const valid =
+    accountNameSchema.safeParse(name).success &&
+    [name.first, name.last, name.displayName].every(
+      (value) => typeof value !== 'string' || isValidAccountName(value, kind),
+    );
+  if (!valid) throw new BadRequestError(accountNameInvalidMessage(kind));
 }
 
 /**
@@ -242,7 +238,7 @@ export interface AccountNode {
 }
 
 export interface CreateChildAccountInput {
-  kind: Exclude<AccountKind, 'personal'>;
+  kind: ChildAccountKind;
   username: string;
   name?: { first?: string; last?: string; displayName?: string };
   bio?: string;

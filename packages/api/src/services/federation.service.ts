@@ -21,6 +21,7 @@ import {
   federatedUsernameFromUpstreamUrl,
   INSTANCE_ACTOR_USERNAME,
   normalizeAlsoKnownAs,
+  localActorTypeForAccountKind,
 } from '@oxy.so/federation';
 import { createTcoLinkExpander } from '@oxy.so/federation/node';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
@@ -41,10 +42,11 @@ import {
   type FederatedAvatarWrite,
 } from '../utils/federatedAvatar';
 import { composeDisplayName } from '../utils/displayName';
-import { cleanDisplayName } from '../utils/displayNameSanitize';
+import { cleanAccountName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
 import {
   deriveExternalActorProfile,
+  externalProfileKind,
   type ExternalActorProfile,
 } from './federation/externalIdentityPolicy';
 import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
@@ -684,27 +686,11 @@ interface BuildActorOptions {
 }
 
 /**
- * Map an account `kind` to its ActivityPub actor `type`. A personal account is a
- * `Person`; organizations/projects/bots/channels map to the corresponding AP
- * actor types so remote servers render them appropriately.
- *
- * A channel is a `Service`: a non-human publishing identity nobody logs into.
- * `Group` would be wrong — remote implementations that treat `Group` specially
- * read it as a community that re-broadcasts its members' posts, whereas a
- * channel publishes its own.
+ * The text a source profile hands the identity registry: the name UNCLEANED
+ * (the registry cleans it by kind) and the kind the source declares.
  */
-function actorTypeForKind(kind: AccountKind | undefined): string {
-  switch (kind) {
-    case 'organization':
-      return 'Organization';
-    case 'project':
-      return 'Group';
-    case 'bot':
-    case 'channel':
-      return 'Service';
-    default:
-      return 'Person';
-  }
+function federatedProfile(profile: ExternalActorProfile) {
+  return { displayName: profile.displayName, bio: profile.bio, kind: externalProfileKind(profile) };
 }
 
 /**
@@ -758,7 +744,7 @@ function buildActor(opts: BuildActorOptions): Record<string, unknown> {
           ]
         : ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
     id: actorUrl,
-    type: actorTypeForKind(kind),
+    type: localActorTypeForAccountKind(kind),
     preferredUsername: username,
     name,
     summary: summary ?? '',
@@ -1412,19 +1398,22 @@ class FederationService {
         protocol: profile.protocol,
         stableId: profile.stableId,
         evidenceLinks: profile.evidenceLinks,
-        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
+        profile: federatedProfile(profile),
         verifiedInstagramPin: { documentHash: own.documentHash, verifiedAt: own.fetchedAt },
       });
     const evidence = await fetchMetaFirstPartyProfilePair({ sourceAcct: source.username });
-    const normalizeName = (value: string) =>
-      cleanDisplayName(value).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+    // Both sides of every comparison are cleaned by the policy of the SOURCE
+    // profile's kind, so a title is never compared against a person's cleaning.
+    const normalizeName = (value: string, kind: AccountKind | undefined) =>
+      cleanAccountName(value, kind).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
     if (source.domain === 'instagram.com' && evidence.instagramProfile) {
       const own = evidence.instagramProfile;
       if (
         own.canonicalAcct !== source.username ||
-        (normalizeName(source.displayName) &&
-          normalizeName(own.displayName) &&
-          normalizeName(source.displayName) !== normalizeName(own.displayName))
+        (normalizeName(source.displayName, externalProfileKind(source)) &&
+          normalizeName(own.displayName, externalProfileKind(source)) &&
+          normalizeName(source.displayName, externalProfileKind(source)) !==
+            normalizeName(own.displayName, externalProfileKind(source)))
       )
         return refuse('source_profile_contradiction');
       const pin = await recordInstagramSourcePin(source.actorUri, own, {
@@ -1477,8 +1466,8 @@ class FederationService {
       [instagram, pair.instagram],
       [threads, pair.threads],
     ] as const) {
-      const sourceName = normalizeName(profile.displayName);
-      const firstPartyName = normalizeName(document.displayName);
+      const sourceName = normalizeName(profile.displayName, externalProfileKind(profile));
+      const firstPartyName = normalizeName(document.displayName, externalProfileKind(profile));
       if (sourceName && firstPartyName && sourceName !== firstPartyName)
         return refuse('source_profile_contradiction');
     }
@@ -1490,7 +1479,7 @@ class FederationService {
         protocol: profile.protocol,
         stableId: profile.stableId,
         evidenceLinks: profile.evidenceLinks,
-        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
+        profile: federatedProfile(profile),
       });
     const instagramRegistration =
       source.domain === 'instagram.com' ? registered : await persist(instagram);
@@ -1681,7 +1670,7 @@ class FederationService {
       protocol: profile.protocol,
       stableId: profile.stableId,
       evidenceLinks: profile.evidenceLinks,
-      profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
+      profile: federatedProfile(profile),
     });
     // First-party badge proofs bind bridge actors; a Graph source is admitted by
     // the registry's pinned graph-id check and never records or revokes them.
@@ -2455,7 +2444,7 @@ class FederationService {
         protocol: profile.protocol,
         stableId: profile.stableId,
         evidenceLinks: profile.evidenceLinks,
-        profile: { displayName: cleanDisplayName(profile.displayName), bio: profile.bio },
+        profile: federatedProfile(profile),
       });
       const identityProof = await this.refreshMetaIdentityProof(profile, registered);
       userId = registered.identity.userId;
@@ -2477,9 +2466,7 @@ class FederationService {
       const setFields: Partial<typeof users.$inferInsert> = {};
       let avatarWrite: FederatedAvatarWrite | undefined;
 
-      if (profile.displayName) {
-        setFields.nameFirst = cleanDisplayName(profile.displayName);
-      }
+      // The name and kind were written by `registerExternalIdentity` above.
       setFields.federationLastResolvedAt = new Date();
       if (typeof profile.bio === 'string') {
         const safeBio = sanitizePlainText(profile.bio);

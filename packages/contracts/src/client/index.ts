@@ -43,6 +43,15 @@ export {
 } from './accountGraph';
 
 export {
+  ACCOUNT_NAME_POLICY_BY_KIND,
+  ACCOUNT_TITLE_DISALLOWED_SOURCE,
+  ACCOUNT_TITLE_MAX_LENGTH,
+  accountNamePolicyForKind,
+  accountTitleCheck,
+  isPlainTextTitle,
+} from './accountName';
+
+export {
   EMAIL_CODE_LENGTH,
   EMAIL_CODE_MAX_ATTEMPTS,
   EMAIL_CODE_TTL_MS,

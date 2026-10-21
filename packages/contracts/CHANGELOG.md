@@ -1,5 +1,33 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.3.0
+
+One account-name policy, chosen by account kind.
+
+### Added
+
+- `community` account kind: a forum its members post into and that
+  re-broadcasts them (an ActivityPub `Group`, such as a Lemmy or Mbin
+  community). Recorded for federated communities; it is not a child kind, so
+  `POST /accounts` cannot create one. Its actor nature is `operated`, it is
+  neither a delegated subject nor a switch target, and it may carry categories.
+  `ChildAccountKind` excludes it.
+- `ACCOUNT_NAME_POLICY_BY_KIND` / `accountNamePolicyForKind`: `personal` is
+  named by the person policy (`@oxy.so/core` `isValidDisplayName`); every other
+  kind by the title policy.
+- The title policy, defined once: `accountTitleSchema` (root) and
+  `accountTitleCheck` (client), `isPlainTextTitle`,
+  `ACCOUNT_TITLE_DISALLOWED_SOURCE` and `ACCOUNT_TITLE_MAX_LENGTH`.
+
+### Changed
+
+- `organizationNameSchema` / `organizationNameCheck` ARE the title policy, and
+  `ORGANIZATION_NAME_MAX_LENGTH` is its cap; their message is now
+  `Name must be plain text`.
+- `createAccountRequestSchema` holds every child kind's `name.displayName` to
+  the title policy. A project, bot or channel title may now hold up to 300
+  characters (was 100) and may not hold `<`, `>` or control characters.
+
 ## 5.2.0
 
 Additive: capability catalogue tools declare which actor types may execute them.

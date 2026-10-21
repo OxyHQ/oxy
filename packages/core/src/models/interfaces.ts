@@ -290,13 +290,14 @@ export interface LoginResponse {
 }
 
 /**
- * The actor of a notification as `GET /notifications` populates it — the raw
- * stored name, not a composed display name.
+ * The actor of a notification as `GET /notifications` populates it. `name` is
+ * the canonical structured name of every user DTO: render `name.displayName`,
+ * which carries a non-personal actor's title as well as a person's name.
  */
 export interface NotificationActor {
   _id: string;
   username?: string;
-  name?: { first: string; last: string };
+  name?: UserNameResponse;
   avatar?: string;
 }
 

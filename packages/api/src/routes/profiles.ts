@@ -36,6 +36,7 @@ import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
 import { userIdentityFields, deriveIsAgent, deriveIsFederated } from '../utils/userTransform';
 import {
+  accountNameColumns,
   publicUserColumns,
   publicUserFollowCounts,
   publicUserReputationTotal,
@@ -137,6 +138,8 @@ interface RecommendationRow {
    */
   nameFirst?: string | null;
   nameLast?: string | null;
+  /** A non-personal account's title lives here alone, never in `nameFirst`. */
+  nameDisplay?: string | null;
   avatar?: string | null;
   /** The account's accent colour, public on every profile serializer. */
   color?: string | null;
@@ -167,8 +170,7 @@ const recommendationColumns = {
   _id: users.id,
   username: users.username,
   publicKey: users.publicKey,
-  nameFirst: users.nameFirst,
-  nameLast: users.nameLast,
+  ...accountNameColumns,
   avatar: users.avatar,
   color: users.color,
   description: users.description,
@@ -1285,10 +1287,10 @@ async function buildRecommendationsScored(
     .select({
       ...recommendationColumns,
       reputationRankWeight: users.reputationRankWeight,
-      // completeness = (has avatar + has structured name + has bio/description) / 3
+      // completeness = (has avatar + has a name + has bio/description) / 3
       completenessScore: sql<number>`(
         (case when ${filled(sql`${users.avatar}`)} then 1 else 0 end)
-        + (case when ${filled(sql`${users.nameFirst}`)} or ${filled(sql`${users.nameLast}`)} then 1 else 0 end)
+        + (case when ${filled(sql`${users.nameFirst}`)} or ${filled(sql`${users.nameLast}`)} or ${filled(sql`${users.nameDisplay}`)} then 1 else 0 end)
         + (case when ${filled(sql`${users.bio}`)} or ${filled(sql`${users.description}`)} then 1 else 0 end)
       )::double precision / 3`,
       verifiedScore: sql<number>`(case when ${users.verified} then 1 else 0 end)::double precision`,

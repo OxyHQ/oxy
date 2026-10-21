@@ -25,7 +25,9 @@ jest.mock('../../utils/userCache', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../config/postgres';
-import { getUserActor, getUserKeyPair, type ActorSourceUser } from '../federation.service';
+import { ACCOUNT_KINDS } from '@oxy.so/contracts';
+import { localActorTypeForAccountKind } from '@oxy.so/federation';
+import { getUserActor, getUserKeyPair } from '../federation.service';
 
 const DOMAIN = 'mention.earth';
 
@@ -65,17 +67,10 @@ describe('getUserActor', () => {
     });
   });
 
-  it('maps each account kind onto its ActivityPub actor type', async () => {
-    const kinds: Array<[NonNullable<ActorSourceUser['kind']>, string]> = [
-      ['personal', 'Person'],
-      ['organization', 'Organization'],
-      ['project', 'Group'],
-      ['bot', 'Service'],
-    ];
-
-    for (const [kind, expected] of kinds) {
+  it('announces each account kind by the shared actor-type table', async () => {
+    for (const kind of ACCOUNT_KINDS) {
       const actor = await getUserActor({ username: `kind-${kind}`, kind }, DOMAIN);
-      expect(actor).toMatchObject({ type: expected });
+      expect(actor).toMatchObject({ type: localActorTypeForAccountKind(kind) });
     }
   });
 

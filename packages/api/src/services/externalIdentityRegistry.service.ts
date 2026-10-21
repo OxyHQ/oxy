@@ -8,7 +8,8 @@ import {
   externalIdentityActors,
   externalIdentityClaims,
 } from '../db/schema/externalIdentities';
-import { users } from '../db/schema/users';
+import { users, type AccountKind } from '../db/schema/users';
+import { cleanAccountName, untrustedNameColumns } from '../utils/displayNameSanitize';
 import { insertAccount } from './accountCreation.service';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
@@ -33,7 +34,17 @@ export interface RegisterExternalIdentityInput {
    * Oxy Cloud file id or nothing, and only the avatar mirror writes it (see
    * `FederationService.mirrorFederatedAvatar`).
    */
-  profile: { displayName?: string; bio?: string };
+  profile: {
+    /** The source's own display string, UNCLEANED: the registry cleans it by `kind`. */
+    displayName?: string;
+    bio?: string;
+    /**
+     * The account kind the source declares (an ActivityPub actor's `type`, read
+     * through `accountKindForActor`). Absent when the source has no such notion
+     * (atproto, Instagram Graph): the stored kind is then kept.
+     */
+    kind?: AccountKind;
+  };
   /** Only source-controlled, verified rel=me / alsoKnownAs links, never biography text. */
   evidenceLinks?: string[];
   stableId?: string;
@@ -430,15 +441,19 @@ function assertCompatibleSource(
   }
   // Recyclable handles retain a documented residual risk. A contradictory
   // nonempty profile is nevertheless a refusal, never a last-writer merge.
+  // Names compare by their LETTERS: a row stored before names were cleaned by
+  // kind lost its digits, and must not contradict the same title with them.
   const normalizeName = (value: string | null | undefined) =>
     (value ?? '')
       .normalize('NFKC')
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}]/gu, '');
+      .replace(/[^\p{L}]/gu, '');
   const previousName = normalizeName(
     existing.nameDisplay || [existing.nameFirst, existing.nameLast].filter(Boolean).join(' '),
   );
-  const incomingName = normalizeName(input.profile.displayName);
+  const incomingName = normalizeName(
+    cleanAccountName(input.profile.displayName ?? '', input.profile.kind),
+  );
   if (previousName && incomingName && previousName !== incomingName) {
     throw new ConflictError('External source profile contradicts the existing account');
   }
@@ -448,17 +463,20 @@ function assertCompatibleSource(
  * The `users` columns a registration copies from the source, written alike when
  * the account is created and on every later refresh — one list, so a column
  * cannot be refreshed but never set at birth, or the reverse.
+ *
+ * The name is cleaned and shaped by `kind` (`untrustedNameColumns`).
  */
 function federatedProfileColumns(
   canonicalAcct: string,
   network: string,
   profile: RegisterExternalIdentityInput['profile'],
+  kind: AccountKind,
 ) {
   return {
     username: canonicalAcct,
     federationDomain: network,
-    nameFirst: profile.displayName || null,
-    nameDisplay: profile.displayName || null,
+    kind,
+    ...untrustedNameColumns(profile.displayName, kind),
     bio: profile.bio || null,
     description: profile.bio || null,
     federationLastResolvedAt: new Date(),
@@ -638,7 +656,12 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
           // Born with the whole source profile: the refresh below is skipped for
           // it, so nothing is written to this row twice.
           const user = await insertAccount(tx, {
-            ...federatedProfileColumns(canonicalAcct, network, input.profile),
+            ...federatedProfileColumns(
+              canonicalAcct,
+              network,
+              input.profile,
+              input.profile.kind ?? 'personal',
+            ),
             type: 'federated',
             federationActorUri: input.actorUri,
           });
@@ -679,14 +702,22 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
       // rescheduled against the fresh source picture. A stored file id is kept: it
       // is the previous good mirror. A user created above has no avatar and
       // already carries these columns.
-      if (!createdUser)
+      if (!createdUser) {
+        // A source without a kind of its own keeps the one the row already has.
+        const kind =
+          input.profile.kind ??
+          (
+            await tx.select({ kind: users.kind }).from(users).where(eq(users.id, identity.userId))
+          )[0]?.kind ??
+          'personal';
         await tx
           .update(users)
           .set({
-            ...federatedProfileColumns(canonicalAcct, network, input.profile),
+            ...federatedProfileColumns(canonicalAcct, network, input.profile, kind),
             avatar: avatarKeepingMirror(),
           })
           .where(eq(users.id, identity.userId));
+      }
       const actorValues = {
         canonicalAcct,
         transportAcct: normalizeExternalAcct(input.transportAcct),

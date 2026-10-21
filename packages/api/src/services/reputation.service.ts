@@ -90,6 +90,7 @@ import {
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { accountNameColumns } from '../utils/publicUserProjection';
 
 /**
  * An open transaction on the reputation tables.
@@ -160,6 +161,8 @@ export interface ReputationLeaderboardRow {
     username: string | null;
     nameFirst: string | null;
     nameLast: string | null;
+    /** A non-personal account's title lives here alone, never in `nameFirst`. */
+    nameDisplay: string | null;
     avatar: string | null;
     publicKey: string | null;
   };
@@ -1120,8 +1123,7 @@ class ReputationService {
         trustTier: reputationBalances.trustTier,
         userId: users.id,
         username: users.username,
-        nameFirst: users.nameFirst,
-        nameLast: users.nameLast,
+        ...accountNameColumns,
         avatar: users.avatar,
         publicKey: users.publicKey,
       })
@@ -1147,6 +1149,7 @@ class ReputationService {
           username: row.username,
           nameFirst: row.nameFirst,
           nameLast: row.nameLast,
+          nameDisplay: row.nameDisplay,
           avatar: row.avatar,
           publicKey: row.publicKey,
         },

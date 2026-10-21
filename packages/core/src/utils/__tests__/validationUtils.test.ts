@@ -9,6 +9,7 @@ import {
   isValidEmail,
   isValidPassword,
   isValidDisplayName,
+  isValidAccountName,
   DISPLAY_NAME_ALLOWED_SCRIPTS,
   DISPLAY_NAME_DISALLOWED_SOURCE,
   DISPLAY_NAME_ORPHANED_MARK_SOURCE,
@@ -145,6 +146,23 @@ describe('Validation Utils', () => {
       expect(isValidPassword('')).toBe(false);
       expect(isValidPassword('short')).toBe(false); // too short
       expect(isValidPassword('1234567')).toBe(false); // too short
+    });
+  });
+
+  describe('isValidAccountName', () => {
+    it('holds a person to the name policy and every other kind to the title policy', () => {
+      expect(isValidAccountName('Agenda 2030', 'personal')).toBe(false);
+      expect(isValidAccountName('Agenda 2030', undefined)).toBe(false);
+      expect(isValidAccountName('a'.repeat(81), 'personal')).toBe(false);
+      for (const kind of ['organization', 'project', 'bot', 'channel', 'community'] as const) {
+        expect(isValidAccountName('Agenda 2030', kind)).toBe(true);
+        expect(isValidAccountName('a'.repeat(301), kind)).toBe(false);
+      }
+      for (const kind of ['personal', 'channel'] as const) {
+        expect(isValidAccountName('<b>Ada</b>', kind)).toBe(false);
+        expect(isValidAccountName('Ada\u0007', kind)).toBe(false);
+        expect(isValidAccountName('', kind)).toBe(true);
+      }
     });
   });
 

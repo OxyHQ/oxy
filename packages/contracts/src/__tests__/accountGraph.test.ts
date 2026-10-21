@@ -21,10 +21,18 @@ import { BOT_USERNAME_INVALID_MESSAGE } from '../username';
 import { userResponseSchema } from '../userResponse';
 
 describe('@oxy.so/contracts account kinds', () => {
-  it('carries channel as a child kind, and personal as the only root', () => {
-    expect([...ACCOUNT_KINDS]).toEqual(['personal', 'organization', 'project', 'bot', 'channel']);
+  it('carries channel as a child kind, and never personal or community', () => {
+    expect([...ACCOUNT_KINDS]).toEqual([
+      'personal',
+      'organization',
+      'project',
+      'bot',
+      'channel',
+      'community',
+    ]);
     expect([...CHILD_ACCOUNT_KINDS]).toEqual(['organization', 'project', 'bot', 'channel']);
     expect(CHILD_ACCOUNT_KINDS).not.toContain('personal');
+    expect(CHILD_ACCOUNT_KINDS).not.toContain('community');
   });
 
   it('accepts a channel as a create-account kind', () => {
@@ -136,6 +144,7 @@ describe('@oxy.so/contracts account kinds', () => {
       project: true,
       bot: true,
       channel: false,
+      community: false,
     });
   });
 
@@ -155,6 +164,7 @@ describe('@oxy.so/contracts account kinds', () => {
       project: true,
       bot: false,
       channel: false,
+      community: false,
     });
   });
 
@@ -187,33 +197,16 @@ describe('@oxy.so/contracts account kinds', () => {
     }
   });
 
-  it('shares the directory title limit for organizations while preserving other account limits', () => {
-    const input = {
-      kind: 'organization',
-      username: 'organization',
-      name: { displayName: 'A'.repeat(300) },
-    };
-    expect(createAccountRequestSchema.safeParse(input).success).toBe(true);
-    expect(
-      createAccountRequestSchema.safeParse({ ...input, name: { displayName: 'A'.repeat(301) } })
-        .success,
-    ).toBe(false);
-    expect(
-      createAccountRequestSchema.safeParse({
-        ...input,
-        kind: 'project',
-        name: { displayName: 'A'.repeat(101) },
-      }).success,
-    ).toBe(false);
-    for (const displayName of ['3M', '7-Eleven', 'AT&T']) {
-      expect(
-        createAccountRequestSchema.safeParse({ ...input, name: { displayName } }).success,
-      ).toBe(true);
-    }
-    for (const displayName of ['<script>', 'Company\u0000']) {
-      expect(
-        createAccountRequestSchema.safeParse({ ...input, name: { displayName } }).success,
-      ).toBe(false);
+  it('names every child kind by the title policy', () => {
+    for (const kind of CHILD_ACCOUNT_KINDS) {
+      const input = { kind, username: kind === 'bot' ? 'helperbot' : 'studio' };
+      const parses = (displayName: string) =>
+        createAccountRequestSchema.safeParse({ ...input, name: { displayName } }).success;
+      expect(parses('Studio 54')).toBe(true);
+      expect(parses('A'.repeat(300))).toBe(true);
+      expect(parses('A'.repeat(301))).toBe(false);
+      expect(parses('<script>')).toBe(false);
+      expect(parses('Company\u0000')).toBe(false);
     }
   });
 
@@ -338,6 +331,7 @@ describe('@oxy.so/contracts account categories', () => {
       project: true,
       bot: true,
       channel: true,
+      community: true,
     });
   });
 
@@ -363,7 +357,7 @@ describe('@oxy.so/contracts account categories', () => {
       });
       expect(parsed.success).toBe(true);
     }
-    expect([...ACCOUNT_CATEGORY_KINDS].sort()).toEqual([...CHILD_ACCOUNT_KINDS].sort());
+    expect(CHILD_ACCOUNT_KINDS.every((kind) => ACCOUNT_CATEGORY_KINDS.includes(kind))).toBe(true);
   });
 
   /**

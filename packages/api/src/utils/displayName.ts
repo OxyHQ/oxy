@@ -17,6 +17,23 @@ export interface NameParts {
   displayName?: string | null;
 }
 
+/** An account's flat `users` name columns, as any select of `accountNameColumns` returns them. */
+export interface AccountNameColumns {
+  nameFirst?: string | null;
+  nameLast?: string | null;
+  nameDisplay?: string | null;
+}
+
+/**
+ * The flat name columns as the {@link NameParts} every composer here reads. The
+ * one mapping from storage to name: a title lives in `nameDisplay` alone, so a
+ * reader that maps only `first`/`last` renders a non-personal account as its
+ * handle.
+ */
+export function accountNameParts(row: AccountNameColumns): NameParts {
+  return { first: row.nameFirst, last: row.nameLast, displayName: row.nameDisplay };
+}
+
 export interface DisplayNameSource {
   name?: NameParts | null;
   username?: string | null;

@@ -36,6 +36,7 @@ import { buildUserDid, OXY_DID } from '../did.service';
 import { formatUserResponse } from '../../utils/userTransform';
 import { getAssetCdnUrl } from '../../config/cdn';
 import { logger } from '../../utils/logger';
+import { accountNameColumns } from '../../utils/publicUserProjection';
 
 const ALG = 'ES256K-DER-SHA256' as const;
 
@@ -74,8 +75,7 @@ export async function buildSignedPublicCard(userId: string): Promise<SignedPubli
     .select({
       _id: users.id,
       username: users.username,
-      nameFirst: users.nameFirst,
-      nameLast: users.nameLast,
+      ...accountNameColumns,
       avatar: users.avatar,
       publicKey: users.publicKey,
       verified: users.verified,

@@ -1051,6 +1051,8 @@ import {
 import federationRoutes from './routes/federation';
 import { createWebfingerHandler } from './routes/webfinger';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
+import { accountNameParts } from './utils/displayName';
+import { accountNameColumns } from './utils/publicUserProjection';
 
 // Federation domain constant — used by nodeinfo, webfinger, and actor endpoints
 const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
@@ -1072,8 +1074,7 @@ async function findFederatableUserByUsername(username: string) {
     .select({
       id: users.id,
       username: users.username,
-      nameFirst: users.nameFirst,
-      nameLast: users.nameLast,
+      ...accountNameColumns,
       avatar: users.avatar,
       bio: users.bio,
       description: users.description,
@@ -1131,7 +1132,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
 
     const actor = await getUserActor({
       username: user.username,
-      name: { first: user.nameFirst, last: user.nameLast },
+      name: accountNameParts(user),
       avatar: user.avatar,
       bio: user.bio,
       description: user.description,

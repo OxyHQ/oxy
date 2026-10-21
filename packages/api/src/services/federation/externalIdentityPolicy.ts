@@ -1,4 +1,10 @@
-import { canonicalFederationHost, readProxyDeclarations } from '@oxy.so/federation';
+import type { AccountKind } from '@oxy.so/contracts';
+import {
+  type ActorKindSignals,
+  accountKindForActor,
+  canonicalFederationHost,
+  readProxyDeclarations,
+} from '@oxy.so/federation';
 import { federationBridges } from '../../config/federationBridgePolicy';
 import { decodeHtmlEntities, sanitizePlainText } from '../../utils/sanitize';
 
@@ -10,6 +16,13 @@ export interface ExternalActorProfile {
   transportAcct: string;
   protocol: 'activitypub' | 'atproto' | 'instagram-graph';
   displayName: string;
+  /**
+   * The actor-document fields that decide the account kind (`type`,
+   * `postingRestrictedToMods`), read through {@link externalProfileKind}.
+   * Absent for sources with no such notion (atproto profiles, Instagram
+   * Graph), which never change a stored kind.
+   */
+  actor?: ActorKindSignals;
   avatarUrl?: string;
   bio: string;
   evidenceLinks: string[];
@@ -145,6 +158,7 @@ export function deriveExternalActorProfile(
     transportAcct: transport,
     protocol: 'activitypub',
     displayName: typeof actor.name === 'string' ? decodeHtmlEntities(actor.name) : local,
+    actor: { type: actor.type, postingRestrictedToMods: actor.postingRestrictedToMods },
     avatarUrl: typeof icon?.url === 'string' ? icon.url : undefined,
     bio: normalizeExternalBio(normalizedBio, domain, host),
     evidenceLinks: [
@@ -152,4 +166,15 @@ export function deriveExternalActorProfile(
     ],
     stableId,
   };
+}
+
+/**
+ * The account kind a source profile declares, read from the one actor-type
+ * table (`accountKindForActor` in `@oxy.so/federation`), or `undefined` for a
+ * source that declares none.
+ */
+export function externalProfileKind(
+  profile: Pick<ExternalActorProfile, 'actor'>,
+): AccountKind | undefined {
+  return profile.actor ? accountKindForActor(profile.actor) : undefined;
 }

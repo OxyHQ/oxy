@@ -119,7 +119,8 @@ export interface PeopleSearchMatchOptions {
  *
  * `ILIKE '%term%'` and not a `tsvector`: this is an unanchored,
  * case-insensitive substring match over `username` / `name.first` /
- * `name.last` / `description`, which no b-tree could serve either — a
+ * `name.last` / `name.displayName` (a non-personal account's title lives there
+ * alone) / `description`, which no b-tree could serve either — a
  * partial-word query (`ali` → `alice`) is the documented behaviour, and a
  * lexeme index would silently stop answering it.
  *
@@ -179,6 +180,7 @@ export function peopleSearchMatch(term: string, options: PeopleSearchMatchOption
         sql`lower(btrim(${users.username})) like ${prefix}`,
         sql`lower(${users.nameFirst}) like ${prefix}`,
         sql`lower(${users.nameLast}) like ${prefix}`,
+        sql`lower(${users.nameDisplay}) like ${prefix}`,
       ) ?? sql`false`
     );
   }
@@ -189,6 +191,7 @@ export function peopleSearchMatch(term: string, options: PeopleSearchMatchOption
     sql`${users.username} ilike ${pattern}`,
     sql`${users.nameFirst} ilike ${pattern}`,
     sql`${users.nameLast} ilike ${pattern}`,
+    sql`${users.nameDisplay} ilike ${pattern}`,
   ];
 
   if (includeDescription) {
@@ -346,6 +349,7 @@ export function profileQualityPredicate(): SQL {
     nonEmpty(sql`${users.avatar}`),
     nonEmpty(sql`${users.nameFirst}`),
     nonEmpty(sql`${users.nameLast}`),
+    nonEmpty(sql`${users.nameDisplay}`),
     nonEmpty(sql`${users.bio}`),
     nonEmpty(sql`${users.description}`),
     eq(users.verified, true),

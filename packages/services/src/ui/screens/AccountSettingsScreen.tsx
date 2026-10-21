@@ -1,9 +1,4 @@
 import type React from 'react';
-import {
-  ORGANIZATION_NAME_MAX_LENGTH,
-  organizationNameCheck,
-  checkContract,
-} from '@oxy.so/contracts/client';
 import { OrganizationSettings } from '../components/organizations/OrganizationSettings';
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
@@ -16,10 +11,11 @@ import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
-  DISPLAY_NAME_INVALID_MESSAGE,
+  accountNameInvalidKey,
+  accountNameInvalidMessage,
+  accountNameMaxLength,
   getNormalizedUserHandle,
-  isValidDisplayName,
-  MAX_DISPLAY_NAME_LENGTH,
+  isValidAccountName,
   type UpdateAccountInput,
 } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
@@ -29,7 +25,6 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { clearedFieldsFromAccountUpdate, upsertCachedUser } from '../hooks/queries/userCache';
 
-const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
 
 const errorMessage = (error: unknown, fallback: string): string =>
@@ -158,22 +153,12 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
         setDisplayNameError('');
         return;
       }
-      if (node?.account.kind === 'organization') {
-        setDisplayNameError(
-          checkContract(organizationNameCheck, trimmed) !== null
-            ? ''
-            : t('organizationDirectory.invalidName'),
-        );
-        return;
-      }
-      const nameParts = trimmed.split(/\s+/).filter(Boolean);
-      const first = nameParts[0] || '';
-      const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-      const invalidPart = [first, last].find((part) => part && !isValidDisplayName(part));
+      const kind = node?.account.kind;
       setDisplayNameError(
-        invalidPart
-          ? t('accounts.settings.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE
-          : '',
+        isValidAccountName(trimmed, kind)
+          ? ''
+          : t(`accounts.settings.displayName.${accountNameInvalidKey(kind)}`) ||
+              accountNameInvalidMessage(kind),
       );
     },
     [node?.account.kind, t],
@@ -235,11 +220,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
                       value={displayName}
                       onChangeText={handleDisplayNameChange}
                       isInvalid={Boolean(displayNameError)}
-                      maxLength={
-                        node?.account.kind === 'organization'
-                          ? ORGANIZATION_NAME_MAX_LENGTH
-                          : DISPLAY_NAME_MAX
-                      }
+                      maxLength={accountNameMaxLength(node?.account.kind)}
                     />
                   </TextField>
                   {displayNameError ? (

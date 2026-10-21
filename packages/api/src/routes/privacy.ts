@@ -20,6 +20,8 @@ import {
   targetIdParams,
   privacySettingsSchema,
 } from '../schemas/privacy.schemas';
+import { accountNameParts, formatUserNameResponse } from '../utils/displayName';
+import { accountNameColumns } from '../utils/publicUserProjection';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -130,8 +132,7 @@ const createUserListHandler = (relation: UserRelation) =>
         counterpartyId: relation.counterparty,
         username: users.username,
         avatar: users.avatar,
-        nameFirst: users.nameFirst,
-        nameLast: users.nameLast,
+        ...accountNameColumns,
         createdAt: relation.table.createdAt,
       })
       .from(relation.table)
@@ -146,7 +147,7 @@ const createUserListHandler = (relation: UserRelation) =>
           _id: row.counterpartyId,
           username: row.username ?? undefined,
           avatar: row.avatar ?? undefined,
-          name: { first: row.nameFirst ?? undefined, last: row.nameLast ?? undefined },
+          name: formatUserNameResponse({ name: accountNameParts(row) }),
         },
         createdAt: row.createdAt,
       })),

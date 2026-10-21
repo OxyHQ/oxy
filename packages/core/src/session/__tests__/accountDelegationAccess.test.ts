@@ -36,6 +36,7 @@ describe('resolveAccountDelegationAccess', () => {
       project: { hasStanding: true, canActAs: true },
       bot: { hasStanding: true, canActAs: true },
       channel: { hasStanding: true, canActAs: false },
+      community: { hasStanding: true, canActAs: false },
     });
   });
 

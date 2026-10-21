@@ -55,7 +55,8 @@
  */
 
 import { normalizeInlineText } from '@oxy.so/core';
-import { cleanDisplayName } from './displayNameSanitize';
+import type { AccountKind } from '@oxy.so/contracts';
+import { cleanAccountName } from './displayNameSanitize';
 
 /** Max stored length of a link card's title, in code units after normalization. */
 export const MAX_LINK_TITLE_LENGTH = 200;
@@ -130,16 +131,16 @@ function inlineTextNormalizer(maxLength: number): (value: string) => string {
 }
 
 /** The text leaves of the `name` sub-document. `full` is a schema VIRTUAL. */
-const NAME_TEXT_KEYS = ['first', 'last'] as const;
+const NAME_TEXT_KEYS = ['first', 'last', 'displayName'] as const;
 
 /**
- * Canonicalize the `name` sub-document with the SAME cleaner the FEDERATED write
- * paths use (`cleanDisplayName`): NFC, the display-name character policy,
- * whitespace collapse, length cap.
+ * Canonicalize the `name` sub-document with the SAME kind-aware cleaner the
+ * FEDERATED write paths use (`cleanAccountName`): NFC, the character policy of
+ * the account's kind, whitespace collapse, length cap.
  *
  * Before this, the native path was the odd one out. `sanitizeProfileUpdate` skips
- * `name`, the `NameSchema` has no `trim`, and `isValidDisplayName` only checks the
- * CHARACTER SET — a space is a legal display-name character, so `"Ana"` + 20
+ * `name`, the `NameSchema` has no `trim`, and `isValidAccountName` only checks the
+ * CHARACTER SET — a space is a legal name character, so `"Ana"` + 20
  * spaces + `"Gómez"` passed validation and was stored verbatim, while the exact
  * same string arriving from a federated actor was collapsed. In `user.service` the
  * character policy is validated (and rejected with a 400) BEFORE this runs, so
@@ -148,9 +149,9 @@ const NAME_TEXT_KEYS = ['first', 'last'] as const;
  * Non-object values, and non-string parts, are passed through untouched for the
  * caller's own handling.
  */
-export function normalizeProfileName(value: unknown): unknown {
+export function normalizeProfileName(value: unknown, kind: AccountKind | undefined): unknown {
   if (!isUnknownRecord(value)) return value;
-  return withNormalizedKeys(value, NAME_TEXT_KEYS, cleanDisplayName);
+  return withNormalizedKeys(value, NAME_TEXT_KEYS, (part) => cleanAccountName(part, kind));
 }
 
 /**

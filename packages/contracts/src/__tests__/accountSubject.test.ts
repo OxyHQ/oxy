@@ -24,6 +24,7 @@ describe('account actor nature', () => {
       project: 'operated',
       bot: 'agent',
       channel: 'operated',
+      community: 'operated',
     });
     expect(accountKindActorNature(undefined)).toBeNull();
     expect(accountKindActorNature(null)).toBeNull();

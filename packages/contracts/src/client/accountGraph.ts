@@ -20,7 +20,7 @@
  * #1520): it owns resources, holds roles, plans and a balance, receives funds
  * and pays for itself under the same rules as a person, and is its own actor.
  */
-export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'channel';
+export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'channel' | 'community';
 
 /**
  * The union is spelled out above and the array proves coverage BOTH ways
@@ -40,16 +40,23 @@ export const ACCOUNT_KINDS = [
   'project',
   'bot',
   'channel',
+  'community',
 ] as const satisfies readonly AccountKind[];
 
 /** `never` while `ACCOUNT_KINDS` covers the union. */
 export type AccountKindGap = Exclude<AccountKind, (typeof ACCOUNT_KINDS)[number]>;
 
 /**
- * Kinds that may be CREATED as children of another account. Exactly
- * `ACCOUNT_KINDS` minus `personal`, which is always a tree root.
+ * Kinds that may be CREATED as children of another account: `ACCOUNT_KINDS`
+ * minus `personal`, which is always a tree root, and minus `community`.
+ *
+ * A `community` is a forum its members post INTO and that re-broadcasts what
+ * they post (an ActivityPub `Group`: a Lemmy or Mbin community). Oxy records
+ * remote communities; it does not host one, because nothing here forwards a
+ * member's post to the community's followers yet. Creating one would make an
+ * account that promises that and cannot keep it.
  */
-export type ChildAccountKind = Exclude<AccountKind, 'personal'>;
+export type ChildAccountKind = Exclude<AccountKind, 'personal' | 'community'>;
 
 export const CHILD_ACCOUNT_KINDS = [
   'organization',
@@ -360,6 +367,7 @@ export const ACCOUNT_CATEGORY_KINDS = [
   'project',
   'bot',
   'channel',
+  'community',
 ] as const satisfies readonly AccountKind[];
 
 export type AccountCategoryKind = (typeof ACCOUNT_CATEGORY_KINDS)[number];

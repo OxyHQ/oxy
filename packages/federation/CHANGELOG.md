@@ -1,5 +1,29 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.5.0
+
+One actor-type table for both directions, shared with the Oxy API.
+
+### Added
+
+- `accountKindForActor({ type, postingRestrictedToMods })`: the Oxy account
+  kind a REMOTE actor is recorded as, derived from
+  `LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND`. `Person` → `personal`, `Organization` →
+  `organization`, `Service` and `Application` → `bot`, a `Group` only its
+  moderators post into (PeerTube channels, WordPress multi-author blogs) →
+  `channel`, any other `Group` → `community`; an unknown type → `personal`.
+  `ActorKindSignals` names its input.
+
+### Changed
+
+- `LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND` covers the new `community` kind
+  (`@oxy.so/contracts` 5.3.0) as `Group`, and `LocalActorType` admits `Group`
+  for it alone. With an older contracts install, `community` is not a kind and
+  is announced as `Person`, as before.
+- The Oxy API's own actors now read this table, so an Oxy project or channel is
+  announced as `Organization` (it was `Group` and `Service`), the same as every
+  app on this package.
+
 ## 2.4.2
 
 ### Changed

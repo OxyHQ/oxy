@@ -85,7 +85,8 @@ import { logger } from '../utils/logger';
 import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { mapWithConcurrency } from '../utils/mapWithConcurrency';
-import { resolveEmailFromName } from '../utils/displayName';
+import { accountNameParts, type NameParts, resolveEmailFromName } from '../utils/displayName';
+import { accountNameColumns } from '../utils/publicUserProjection';
 import { renderWelcomeEmail } from './welcomeEmail';
 import { createHash, randomUUID } from 'node:crypto';
 import { aiLabelingService } from './aiLabeling.service';
@@ -1387,23 +1388,20 @@ function toContactDto(row: typeof contacts.$inferSelect): ContactDto {
  * username the address is derived from, and the name parts
  * `resolveEmailFromName` composes a display name out of.
  *
- * Shaped as `DisplayNameSource` so it feeds that helper directly. `name.full`
- * and `name.displayName` are derived, with no column behind them, so there is
- * nothing else to select.
+ * Shaped as `DisplayNameSource` so it feeds that helper directly, read from
+ * `accountNameColumns` so an account named by a title sends under it.
  */
 async function loadSenderIdentity(
   db: Database,
   userId: string,
-): Promise<
-  { username: string | null; name: { first: string | null; last: string | null } } | undefined
-> {
+): Promise<{ username: string | null; name: NameParts } | undefined> {
   const [row] = await db
-    .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
+    .select({ username: users.username, ...accountNameColumns })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (!row) return undefined;
-  return { username: row.username, name: { first: row.first, last: row.last } };
+  return { username: row.username, name: accountNameParts(row) };
 }
 
 /**

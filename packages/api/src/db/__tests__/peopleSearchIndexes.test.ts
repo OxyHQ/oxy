@@ -1,7 +1,7 @@
 /**
  * People search must be index-servable, and must stay that way.
  *
- * `peopleSearchMatch` is four OR-ed leading-wildcard `ILIKE '%term%'` tests. No
+ * `peopleSearchMatch` is five OR-ed leading-wildcard `ILIKE '%term%'` tests. No
  * b-tree and no `tsvector` can answer a substring question, so until
  * `users_people_search_trgm_idx` existed every people search — the query behind
  * a search box, fired as the user types — read the whole `users` table.
@@ -21,7 +21,7 @@
  * 3. **The index expression still matches the predicate.** This is the one that
  *    earns its keep long-term. `PEOPLE_SEARCH_TRGM_EXPRESSION` is read FROM the
  *    schema and asserted against the catalogue's own `indexdef`, so adding a
- *    fifth searched column to `peopleSearchMatch` without extending the index
+ *    sixth searched column to `peopleSearchMatch` without extending the index
  *    fails here — instead of silently restoring the sequential scan, which no
  *    functional test can see because the answers stay correct.
  */
@@ -43,6 +43,7 @@ const PREFIX_INDEXES = [
   'users_lower_username_prefix_idx',
   'users_lower_name_first_prefix_idx',
   'users_lower_name_last_prefix_idx',
+  'users_lower_name_display_prefix_idx',
 ];
 
 /** Collapse whitespace so a formatting difference is not a failure. */
@@ -237,6 +238,24 @@ describe('the coarse prefilter does not become the predicate', () => {
         sql`select id from users where ${peopleSearchMatch('aliceb')}`,
       );
       expect(found.map((row) => row.id)).toContain(seeded.id);
+    } finally {
+      await getDb().delete(users).where(eq(users.id, seeded.id));
+    }
+  });
+
+  it('finds an account named only by a title, by substring and by prefix', async () => {
+    const [seeded] = await getDb()
+      .insert(users)
+      .values({ username: 'xq7titled', kind: 'channel', nameDisplay: 'Radio 3' })
+      .returning({ id: users.id });
+
+    try {
+      for (const term of ['radio 3', 'ra']) {
+        const rows = await getDb().execute<{ id: string }>(
+          sql`select id from users where ${peopleSearchMatch(term)}`,
+        );
+        expect(rows.map((row) => row.id)).toContain(seeded.id);
+      }
     } finally {
       await getDb().delete(users).where(eq(users.id, seeded.id));
     }

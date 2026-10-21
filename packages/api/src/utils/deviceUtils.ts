@@ -7,6 +7,7 @@ import { users } from '../db/schema/users';
 import { logger } from './logger';
 import { formatUserResponse } from './userTransform';
 import sessionCache from './sessionCache';
+import { accountNameColumns } from './publicUserProjection';
 
 export interface DeviceFingerprint {
   userAgent: string;
@@ -416,8 +417,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
         username: users.username,
         email: users.email,
         avatar: users.avatar,
-        nameFirst: users.nameFirst,
-        nameLast: users.nameLast,
+        ...accountNameColumns,
         color: users.color,
         publicKey: users.publicKey,
       })
@@ -439,7 +439,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
 
     for (const row of rows) {
       // `formatUserResponse` reads the flat Drizzle row directly (`id` +
-      // `nameFirst`/`nameLast`); it is the ONE serializer that owns
+      // the `accountNameColumns`); it is the ONE serializer that owns
       // `name.displayName`, so nothing is recomposed here.
       const formattedUser = formatUserResponse({
         id: row.userId,
@@ -448,6 +448,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
         avatar: row.avatar,
         nameFirst: row.nameFirst,
         nameLast: row.nameLast,
+        nameDisplay: row.nameDisplay,
         color: row.color,
         publicKey: row.publicKey,
       });

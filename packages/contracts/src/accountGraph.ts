@@ -9,11 +9,9 @@
 
 import { z } from 'zod';
 import { avatarCharacterSchema } from './avatarCharacter';
-import {
-  ORGANIZATION_TYPES,
-  ORGANIZATION_NAME_MAX_LENGTH,
-  organizationNameSchema,
-} from './organizations';
+import { accountTitleSchema } from './accountName';
+import { ACCOUNT_TITLE_MAX_LENGTH } from './client/accountName';
+import { ORGANIZATION_TYPES } from './organizations';
 import { usernameSchema, usernameSchemaForAccountKind } from './username';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
@@ -108,7 +106,7 @@ export const accountNameSchema = z
   .object({
     first: z.string().trim().max(100).optional(),
     last: z.string().trim().max(100).optional(),
-    displayName: z.string().trim().max(ORGANIZATION_NAME_MAX_LENGTH).optional(),
+    displayName: z.string().trim().max(ACCOUNT_TITLE_MAX_LENGTH).optional(),
   })
   .optional();
 
@@ -121,7 +119,7 @@ export const accountNameSchema = z
  * this route. The refinement the single-valued predecessor needed disappeared
  * along with the restriction that made it necessary. A child kind that does NOT
  * accept categories would break that reasoning silently, so
- * `__tests__/accountGraph.test.ts` asserts the two lists agree.
+ * `__tests__/accountGraph.test.ts` asserts every child kind is a category kind.
  */
 export const createAccountRequestSchema = z
   .object({
@@ -223,10 +221,10 @@ export const createAccountRequestSchema = z
 
     const displayName = request.name?.displayName;
     if (displayName) {
-      const parsedName =
-        request.kind === 'organization'
-          ? organizationNameSchema.safeParse(displayName)
-          : z.string().max(100).safeParse(displayName);
+      // A child kind is never `personal`, so every child is named by the
+      // title policy; the person policy's character classes live in
+      // `@oxy.so/core`, which this package cannot import.
+      const parsedName = accountTitleSchema.safeParse(displayName);
       if (!parsedName.success) {
         for (const issue of parsedName.error.issues) {
           ctx.addIssue({ ...issue, path: ['name', 'displayName', ...issue.path] });

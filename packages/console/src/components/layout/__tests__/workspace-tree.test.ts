@@ -75,7 +75,7 @@ describe('buildWorkspaceTree', () => {
    * is deliberately unfiltered, so a bot is still listed, opened and administered
    * there.
    */
-  it('lists every switchable kind, and neither a channel nor a bot', () => {
+  it('lists every switchable kind, and neither a channel, a community nor a bot', () => {
     const accounts = ACCOUNT_KINDS.map((kind) =>
       node(kind, kind, kind === 'personal' ? 'self' : 'owner'),
     );
@@ -92,6 +92,7 @@ describe('buildWorkspaceTree', () => {
       project: true,
       bot: false,
       channel: false,
+      community: false,
     });
   });
 

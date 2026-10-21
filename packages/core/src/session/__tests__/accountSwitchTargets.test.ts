@@ -45,6 +45,7 @@ describe('isSwitchTargetAccount', () => {
       // reason, and the switcher offered a seat inside one. Somebody took it.
       bot: false,
       channel: false,
+      community: false,
     });
   });
 
