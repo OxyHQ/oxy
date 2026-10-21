@@ -31,6 +31,8 @@ export type {
 export { FollowTargetButton } from './components/FollowTargetButton';
 export type { FollowTargetButtonProps } from './components/FollowTargetButton';
 export type { FollowVerb, FollowLabels } from './components/followLabels';
+export { useFollowErrorMessage } from './components/followLabels';
+export type { FollowErrorCode } from './utils/followErrors';
 export { default as ProfileButton } from './components/ProfileButton';
 export type { ProfileButtonProps } from './components/ProfileButton';
 export { default as PeableButton } from './components/PeableButton';

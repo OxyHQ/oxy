@@ -145,7 +145,7 @@ describe('toggleFollowUser (optimistic)', () => {
     expect(accepted).toBe(false);
     expect(useFollowStore.getState().followingUsers.u1).toBe(false);
     expect(useFollowStore.getState().loadingUsers.u1).toBe(false);
-    expect(useFollowStore.getState().errors.u1).toBe('boom');
+    expect(useFollowStore.getState().errors.u1).toBe('update_failed');
   });
 
   it('rolls back to UNKNOWN when there was no prior value', async () => {

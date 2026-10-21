@@ -1,5 +1,34 @@
 # Changelog
 
+## [12.8.0] - 2026-10-21
+
+Needs `@oxy.so/core` 6.11.0.
+
+### Changed
+
+- The follow stores and hooks hold a stable `FollowErrorCode` instead of
+  English text: `useFollowTarget().error`, `useFollow().error` /
+  `followData[id].error`, `useFollowForButton().error` and the `errors` maps of
+  `useFollowTargetStore` and the follow store. A server refusal keeps the
+  server's code and status (`offline`, `signed_out`, `forbidden`, `not_found`,
+  `rate_limited`), never its message; anything else names the action
+  (`read_failed`, `update_failed`, `mode_failed`).
+- `FollowButton` and `FollowTargetButton` word every failure through one
+  mapping onto core's `follow.errors.*` strings, in the app's language. The
+  single-user `FollowButton` now shows that toast when a follow is refused,
+  instead of failing silently.
+- A signed-out follow from `useFollow` rejects with `OxyAuthenticationError`.
+
+### Added
+
+- `useFollowErrorMessage()` and the `FollowErrorCode` type, for an app that
+  renders a follow hook's `error` itself.
+
+### Removed
+
+- The English fallbacks "Could not follow", "Could not unfollow", "Could not
+  read follow status", "Failed to update follow status" and friends.
+
 ## [12.7.0] - 2026-10-21
 
 ### Added

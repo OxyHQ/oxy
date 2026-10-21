@@ -12,6 +12,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
+import { OxyApiError } from '@oxy.so/core';
 import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
 import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
 
@@ -61,7 +62,9 @@ describe('useFollowTarget reports whether the server accepted', () => {
   it('resolves FALSE when the server refuses, and does not reject', async () => {
     // A refused write is the ordinary case, not an exception: a missing scope,
     // a revoked grant, a target that has gone. The hook turns it into state.
-    oxyServices.follows.followTarget.mockRejectedValue(new Error('Missing scope: follows:write'));
+    oxyServices.follows.followTarget.mockRejectedValue(
+      new OxyApiError('Missing scope: follows:write', { status: 403, code: 'FORBIDDEN' }),
+    );
 
     const { result } = renderHook(() => useFollowTarget('target-1'));
     let outcome: boolean | undefined;
@@ -72,8 +75,8 @@ describe('useFollowTarget reports whether the server accepted', () => {
     expect(outcome).toBe(false);
     // The optimistic flip is rolled back, so the button tells the truth...
     expect(result.current.isFollowing).toBe(false);
-    // ...and the reason is available to render, rather than thrown away.
-    expect(result.current.error).toContain('follows:write');
+    // ...and the reason is kept as the server's code, never its English text.
+    expect(result.current.error).toBe('forbidden');
   });
 
   it('resolves false for an unfollow the server refuses', async () => {
@@ -123,7 +126,7 @@ describe('useFollowTarget reports whether the server accepted', () => {
     });
 
     expect(result.current.isUnknown).toBe(false);
-    expect(result.current.error).toContain('network down');
+    expect(result.current.error).toBe('read_failed');
   });
 
   it('refetches when initialStatus is incomplete (following without relationshipId)', async () => {

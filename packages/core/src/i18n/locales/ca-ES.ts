@@ -604,6 +604,13 @@ const dict = {
     },
     errors: {
       update: 'No s’ha pogut actualitzar l’estat',
+      read: 'No s’ha pogut comprovar l’estat',
+      mode: 'No s’ha pogut canviar la configuració d’aquesta aplicació',
+      offline: 'No tens connexió. Comprova-la i torna-ho a provar.',
+      signedOut: 'Torna a iniciar la sessió per continuar',
+      forbidden: 'Aquesta aplicació no té permís per fer-ho',
+      notFound: 'Això ja no està disponible',
+      rateLimited: 'Massa intents. Torna-ho a provar d’aquí a una estona.',
     },
   },
 };

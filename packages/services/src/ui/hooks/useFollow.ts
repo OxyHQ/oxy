@@ -2,7 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFollowStore } from '../stores/followStore';
 import { useOxy } from '../context/oxyRuntimeContext';
-import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
+import {
+  OxyAuthenticationError,
+  type OxyServices,
+  type BulkFollowResult,
+  type BulkUnfollowResult,
+} from '@oxy.so/core';
+import type { FollowErrorCode } from '../utils/followErrors';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from './queries/queryKeys';
 import { patchCachedUserRelationship } from './queries/userCacheRelationship';
@@ -79,8 +85,8 @@ export const useFollow = (userId?: string | string[]) => {
   // nested `followData` shape is then assembled in a `useMemo` below.
   const followFlat = useFollowStore(
     useShallow((s) => {
-      if (isSingleUser) return {} as Record<string, boolean | string | null>;
-      const flat: Record<string, boolean | string | null> = {};
+      if (isSingleUser) return {} as Record<string, boolean | FollowErrorCode | null>;
+      const flat: Record<string, boolean | FollowErrorCode | null> = {};
       for (const uid of userIds) {
         flat[`${uid}:isFollowing`] = s.followingUsers[uid] ?? false;
         flat[`${uid}:isLoading`] = s.loadingUsers[uid] ?? false;
@@ -91,14 +97,16 @@ export const useFollow = (userId?: string | string[]) => {
   );
 
   const followData = useMemo(() => {
-    const data: Record<string, { isFollowing: boolean; isLoading: boolean; error: string | null }> =
-      {};
+    const data: Record<
+      string,
+      { isFollowing: boolean; isLoading: boolean; error: FollowErrorCode | null }
+    > = {};
     if (isSingleUser) return data;
     for (const uid of userIds) {
       data[uid] = {
         isFollowing: Boolean(followFlat[`${uid}:isFollowing`]),
         isLoading: Boolean(followFlat[`${uid}:isLoading`]),
-        error: (followFlat[`${uid}:error`] as string | null) ?? null,
+        error: (followFlat[`${uid}:error`] as FollowErrorCode | null) ?? null,
       };
     }
     return data;
@@ -128,7 +136,8 @@ export const useFollow = (userId?: string | string[]) => {
   const toggleFollow = useCallback(async () => {
     if (!isSingleUser || !userId)
       throw new Error('toggleFollow is only available for single user mode');
-    if (!canUsePrivateApi) throw new Error('Authentication is required to follow users');
+    if (!canUsePrivateApi)
+      throw new OxyAuthenticationError('Authentication is required to follow users');
     const currentlyFollowing = useFollowStore.getState().followingUsers[userId] ?? false;
     const accepted = await useFollowStore
       .getState()
@@ -209,7 +218,8 @@ export const useFollow = (userId?: string | string[]) => {
   // Multi-user callbacks
   const toggleFollowForUser = useCallback(
     async (targetUserId: string) => {
-      if (!canUsePrivateApi) throw new Error('Authentication is required to follow users');
+      if (!canUsePrivateApi)
+        throw new OxyAuthenticationError('Authentication is required to follow users');
       const currentState = useFollowStore.getState().followingUsers[targetUserId] ?? false;
       const accepted = await useFollowStore
         .getState()
@@ -240,13 +250,15 @@ export const useFollow = (userId?: string | string[]) => {
 
   // Bulk follow — follows ALL users in ONE network call (never unfollows).
   const followAllUsers = useCallback(async (): Promise<BulkFollowResult> => {
-    if (!canUsePrivateApi) throw new Error('Authentication is required to follow users');
+    if (!canUsePrivateApi)
+      throw new OxyAuthenticationError('Authentication is required to follow users');
     return useFollowStore.getState().followManyUsers(userIds, oxyServices);
   }, [canUsePrivateApi, userIds, oxyServices]);
 
   // Bulk unfollow — unfollows ALL users in ONE network call (idempotent; never follows).
   const unfollowAllUsers = useCallback(async (): Promise<BulkUnfollowResult> => {
-    if (!canUsePrivateApi) throw new Error('Authentication is required to unfollow users');
+    if (!canUsePrivateApi)
+      throw new OxyAuthenticationError('Authentication is required to unfollow users');
     return useFollowStore.getState().unfollowManyUsers(userIds, oxyServices);
   }, [canUsePrivateApi, userIds, oxyServices]);
 

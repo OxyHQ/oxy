@@ -2504,6 +2504,13 @@ const dict = {
     },
     errors: {
       update: 'Could not update follow status',
+      read: 'Could not check follow status',
+      mode: 'Could not change this app’s setting for this follow',
+      offline: 'You’re offline. Check your connection and try again.',
+      signedOut: 'Sign in again to continue',
+      forbidden: 'This app isn’t allowed to do that',
+      notFound: 'This is no longer available',
+      rateLimited: 'Too many attempts. Try again in a moment.',
     },
   },
 };

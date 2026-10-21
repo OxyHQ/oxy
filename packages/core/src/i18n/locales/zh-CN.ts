@@ -583,6 +583,13 @@ const dict = {
     },
     errors: {
       update: '无法更新状态',
+      read: '无法检查状态',
+      mode: '无法更改此应用的设置',
+      offline: '你已离线。请检查网络连接后重试。',
+      signedOut: '请重新登录以继续',
+      forbidden: '此应用无权执行此操作',
+      notFound: '此内容已不可用',
+      rateLimited: '尝试次数过多，请稍后再试。',
     },
   },
 };

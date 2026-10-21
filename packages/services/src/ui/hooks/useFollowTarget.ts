@@ -25,6 +25,11 @@ import {
   useFollowTargetStore,
   withApplicationMode,
 } from '../stores/followTargetStore';
+import {
+  type FollowActionErrorCode,
+  type FollowErrorCode,
+  toFollowErrorCode,
+} from '../utils/followErrors';
 
 export interface UseFollowTargetResult {
   status: FollowStatus;
@@ -36,11 +41,12 @@ export interface UseFollowTargetResult {
   /** True until the first read settles. Distinct from "not following". */
   isUnknown: boolean;
   isPending: boolean;
-  error: string | undefined;
+  /** Why the last read or write failed — a code; `useFollowErrorMessage()` words it. */
+  error: FollowErrorCode | undefined;
   /**
    * Every mutation resolves to whether the server ACCEPTED it.
    *
-   * They never reject — a refusal becomes `error` in the store, so the button
+   * They never reject — a refusal becomes an `error` code in the store, so the button
    * can render it — which means a caller that only awaits them cannot tell a
    * write that happened from one that did not. Returning the outcome is what
    * lets a caller mirror the change somewhere else without mirroring failures
@@ -92,14 +98,13 @@ export function useFollowTarget(
       useFollowTargetStore.getState().setError(targetId, undefined);
     } catch (e) {
       const store = useFollowTargetStore.getState();
-      const message = e instanceof Error ? e.message : 'Could not read follow status';
       // Leave `isUnknown` false so the button stays interactive and can retry.
       // A failed read is not the same as "never asked" — disabling forever would
       // strand the user with no affordance when the network blips.
       if (!store.statuses[targetId]) {
         store.setStatus(targetId, UNKNOWN_FOLLOW_STATUS);
       }
-      store.setError(targetId, message);
+      store.setError(targetId, toFollowErrorCode(e, 'read_failed'));
     }
   }, [targetId, canUsePrivateApi, oxyServices]);
 
@@ -119,7 +124,7 @@ export function useFollowTarget(
     async (
       optimistic: FollowStatus,
       run: () => Promise<FollowStatus | undefined>,
-      failureMessage: string,
+      failure: FollowActionErrorCode,
     ): Promise<boolean> => {
       if (!targetId) return false;
       const store = useFollowTargetStore.getState();
@@ -136,7 +141,7 @@ export function useFollowTarget(
         // Back to what was true, not to a guess. Clearing the entry instead
         // would make the next render ask again and flash the wrong state.
         if (previous) s.setStatus(targetId, previous);
-        s.setError(targetId, e instanceof Error ? e.message : failureMessage);
+        s.setError(targetId, toFollowErrorCode(e, failure));
         return false;
       } finally {
         useFollowTargetStore.getState().setPending(targetId, false);
@@ -161,7 +166,7 @@ export function useFollowTarget(
         // than reconstructing one: `effectiveState`'s derivation lives there,
         // and a client recomputing it is a second implementation of one rule.
         async () => (await oxyServices.follows.followTarget(targetId, opts)).status,
-        'Could not follow',
+        'update_failed',
       );
     },
     [targetId, current, mutate, oxyServices],
@@ -176,7 +181,7 @@ export function useFollowTarget(
         await oxyServices.follows.unfollowTarget(relationshipId);
         return { ...UNKNOWN_FOLLOW_STATUS };
       },
-      'Could not unfollow',
+      'update_failed',
     );
   }, [targetId, current.relationshipId, mutate, oxyServices]);
 
@@ -190,7 +195,7 @@ export function useFollowTarget(
         await oxyServices.follows.setApplicationMode(relationshipId, 'disabled');
         return optimistic;
       },
-      'Could not change this app’s setting for this follow',
+      'mode_failed',
     );
   }, [targetId, current, mutate, oxyServices]);
 
@@ -204,7 +209,7 @@ export function useFollowTarget(
         await oxyServices.follows.restoreInheritance(relationshipId);
         return optimistic;
       },
-      'Could not change this app’s setting for this follow',
+      'mode_failed',
     );
   }, [targetId, current, mutate, oxyServices]);
 

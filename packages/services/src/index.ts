@@ -346,6 +346,8 @@ export {
 export type { FollowDuration, FollowMenuItem } from './ui/components/followRules';
 export type { FollowTargetButtonProps } from './ui/components/FollowTargetButton';
 export type { FollowVerb, FollowLabels } from './ui/components/followLabels';
+export { useFollowErrorMessage } from './ui/components/followLabels';
+export type { FollowErrorCode } from './ui/utils/followErrors';
 export { useFollowTarget } from './ui/hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';
 export {

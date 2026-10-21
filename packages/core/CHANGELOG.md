@@ -1,5 +1,14 @@
 # Changelog — `@oxy.so/core`
 
+## 6.11.0
+
+### Added
+
+- `follow.errors.{read,mode,offline,signedOut,forbidden,notFound,rateLimited}`
+  in all 11 locales, beside the existing `follow.errors.update`: the words
+  `@oxy.so/services` 12.8.0 gives each follow error code, so a failed follow no
+  longer toasts English (or the server's English message) in every language.
+
 ## 6.10.0
 
 ### Added
