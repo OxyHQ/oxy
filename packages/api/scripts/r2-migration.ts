@@ -4,7 +4,7 @@
  * byte it reads comes out of R2 (no egress charge) and S3 is only LISTED and
  * HEADed, so nothing it does crosses an AWS NAT.
  *
- *   bun scripts/r2-migration.ts compare  --s3 <bucket> --r2 <bucket> --out <dir>
+ *   bun scripts/r2-migration.ts compare  --s3 <bucket> --r2 <bucket> --out <dir> [--prefix <p>]
  *   bun scripts/r2-migration.ts repair-metadata --s3 <bucket> --r2 <bucket> --out <dir> [--apply]
  *   bun scripts/r2-migration.ts verify-sha256 --r2 <bucket> --out <dir> --sample <n> [--files-db]
  *   bun scripts/r2-migration.ts remove-extra --r2 <bucket> --out <dir> --before <ISO time> [--apply]
@@ -136,7 +136,8 @@ type Shard = { prefix: string; direct: boolean };
 
 async function discoverShards(client: S3Client, bucket: string): Promise<Shard[]> {
   const shards: Shard[] = [];
-  let level: string[] = [''];
+  // `--prefix` limits the comparison to one subtree (the website's legacy images).
+  let level: string[] = [flag('prefix') ?? ''];
   for (let depth = 0; depth < SHARD_DEPTH && level.length > 0; depth += 1) {
     const nextLevel: string[] = [];
     await pool(level, CONCURRENCY, async (prefix) => {
