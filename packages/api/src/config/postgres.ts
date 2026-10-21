@@ -9,11 +9,11 @@
  * `getDb()`.
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type postgres from 'postgres';
 import { logger } from '../utils/logger';
 import { ConfigurationError, getEnvNumber } from './env';
-import { DATABASE_CASING } from '@oxy.so/db';
+import { DEFAULT_POOL_STATEMENT_TIMEOUT_MS, createDatabase, resolveQueryLimits } from '@oxy.so/db';
 import * as schema from '../db/schema';
 import { assertPersistedBillingNamespace, readPersistedBillingNamespace } from './billingNamespace';
 
@@ -81,12 +81,32 @@ export async function connectPostgres(): Promise<Database> {
   }
 
   const maxPoolSize = getEnvNumber('PG_MAX_POOL_SIZE', DEFAULT_MAX_POOL_SIZE);
-  const instanceClient = postgres(url, {
-    max: maxPoolSize,
-    idle_timeout: getEnvNumber('PG_IDLE_TIMEOUT_SECONDS', DEFAULT_IDLE_TIMEOUT_SECONDS),
-    connect_timeout: getEnvNumber('PG_CONNECT_TIMEOUT_SECONDS', DEFAULT_CONNECT_TIMEOUT_SECONDS),
-    max_lifetime: getEnvNumber('PG_MAX_LIFETIME_SECONDS', DEFAULT_MAX_LIFETIME_SECONDS),
-    onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+  // `statement_timeout` on every connection, and the client-side deadline that
+  // destroys a connection the server has gone silent on, both from
+  // `@oxy.so/db` (see its `client.ts`). A one-shot that legitimately runs
+  // longer statements raises PG_STATEMENT_TIMEOUT_MS on its task (the deadline
+  // follows it); 0 lifts both.
+  const limits = resolveQueryLimits({
+    statementTimeoutMs: getEnvNumber('PG_STATEMENT_TIMEOUT_MS', DEFAULT_POOL_STATEMENT_TIMEOUT_MS),
+    queryDeadlineMs: process.env.PG_QUERY_DEADLINE_MS
+      ? getEnvNumber('PG_QUERY_DEADLINE_MS', 0)
+      : undefined,
+  });
+  // `createDatabase` builds the handle with `DATABASE_CASING`: drizzle applies
+  // `casing` at RUNTIME when building SQL, drizzle-kit applies it at GENERATE
+  // time when emitting DDL, and they must agree or queries reference columns
+  // the migrations never created.
+  const { db: candidate, client: instanceClient } = createDatabase({
+    databaseUrl: url,
+    schema,
+    ...limits,
+    client: {
+      max: maxPoolSize,
+      idle_timeout: getEnvNumber('PG_IDLE_TIMEOUT_SECONDS', DEFAULT_IDLE_TIMEOUT_SECONDS),
+      connect_timeout: getEnvNumber('PG_CONNECT_TIMEOUT_SECONDS', DEFAULT_CONNECT_TIMEOUT_SECONDS),
+      max_lifetime: getEnvNumber('PG_MAX_LIFETIME_SECONDS', DEFAULT_MAX_LIFETIME_SECONDS),
+      onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+    },
   });
 
   // postgres.js connects lazily, so constructing the pool proves nothing. Issue
@@ -100,7 +120,6 @@ export async function connectPostgres(): Promise<Database> {
     throw error;
   }
 
-  const candidate = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
   try {
     billingDeclaration = await readPersistedBillingNamespace(candidate);
     assertPersistedBillingNamespace(billingDeclaration);
@@ -109,13 +128,9 @@ export async function connectPostgres(): Promise<Database> {
     throw error;
   }
   client = instanceClient;
-  // Drizzle applies `casing` at RUNTIME when building SQL, drizzle-kit applies
-  // it at GENERATE time when emitting DDL. They must agree or queries reference
-  // columns the migrations never created — so both read the SAME constant, and
-  // `@oxy.so/db` owns it.
   db = candidate;
 
-  logger.info('Connected to PostgreSQL successfully', { maxPoolSize });
+  logger.info('Connected to PostgreSQL successfully', { maxPoolSize, ...limits });
   assertPersistedBillingNamespace(billingDeclaration);
   return db;
 }

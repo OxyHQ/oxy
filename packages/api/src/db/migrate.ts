@@ -89,7 +89,8 @@
  */
 
 import { createHash } from 'node:crypto';
-import postgres from 'postgres';
+import type postgres from 'postgres';
+import { openPostgresClient } from '@oxy.so/db';
 import { type MigrationRun, MIGRATION_RUNS, runMigrations } from '@oxy.so/db/migrate';
 import { ConfigurationError } from '../config/env';
 import { logger } from '../utils/logger';
@@ -236,7 +237,7 @@ async function main(): Promise<void> {
   // The lock's own connection, taken before `runMigrations` reads anything, so
   // the pending calculation inside it cannot be invalidated by another
   // migrator between its read and its apply.
-  const lockClient = postgres(url, { max: 1 });
+  const lockClient = openPostgresClient(url, { client: { max: 1 } });
 
   try {
     await acquireMigrationLock(lockClient);

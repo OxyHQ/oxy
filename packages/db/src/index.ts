@@ -1,5 +1,16 @@
 export { DATABASE_CASING, qualified, sqlColumnName } from './casing';
 export {
+  DEFAULT_CONNECT_TIMEOUT_SECONDS,
+  DEFAULT_KEEP_ALIVE_SECONDS,
+  DEFAULT_POOL_STATEMENT_TIMEOUT_MS,
+  QUERY_DEADLINE_FLOOR_MS,
+  QUERY_DEADLINE_GRACE_MS,
+  openPostgresClient,
+  resolveQueryLimits,
+  type OpenPostgresClientOptions,
+  type QueryLimits,
+} from './client';
+export {
   bytea,
   createdAt,
   generatedId,
@@ -47,3 +58,4 @@ export {
   isUniqueViolation,
   sqlStateOf,
 } from './pgErrors';
+export { QUERY_DEADLINE_EXCEEDED, QueryDeadlineError, isQueryDeadlineError } from './socket';

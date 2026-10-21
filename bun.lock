@@ -528,7 +528,7 @@
     },
     "packages/db": {
       "name": "@oxy.so/db",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "bin": {
         "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js",
       },
