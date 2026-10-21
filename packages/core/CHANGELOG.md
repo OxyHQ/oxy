@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 6.9.3
+
+### Fixed
+
+- 6.9.2 allowed the wrong host. The Oxy API signs virtual-hosted part URLs —
+  `https://oxy-files.fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com/…`,
+  the bucket as the first label — and a CSP host-source matches one host
+  exactly, so 6.9.2's bare account host admitted no URL the API ever signs:
+  measured from a real Chromium page on mention.earth carrying 6.9.2's policy,
+  the PUT was still refused. The baseline now names the bucket host, exported as
+  `OXY_FILES_UPLOAD_ORIGIN`; an Oxy API test signs a real part URL with
+  production's endpoint and bucket and requires its origin to equal it.
+
 ## 6.9.2
 
 ### Fixed
