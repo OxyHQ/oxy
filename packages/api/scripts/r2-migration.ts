@@ -628,7 +628,8 @@ async function replayDeletions(): Promise<void> {
       );
       return page.Contents?.[0]?.Key === key;
     };
-    const toPurge: string[] = [];
+    // Objects in R2 that S3 no longer has: the deletions S3 alone received.
+    const orphans: string[] = [];
     await pool([...keys], 16, async (key) => {
       counts.candidates += 1;
       if (!(await inR2(key))) {
@@ -639,24 +640,41 @@ async function replayDeletions(): Promise<void> {
         counts.inS3 += 1;
         return;
       }
-      const base = key.replace(/^public\//, '');
-      const [used] = await sql<{ n: number }[]>`
-        select (
-          (select count(*) from files f where f.status <> 'deleted'
-             and (f.storage_key = ${key} or f.storage_key = ${base}))
-          + (select count(*) from file_variants v join files f on f.id = v.file_id
-             where f.status <> 'deleted' and (v.key = ${key} or v.key = ${base}))
-        )::int as n`;
-      if ((used?.n ?? 0) > 0) {
-        counts.inUse += 1;
-        report.write(`${JSON.stringify({ key, kept: 'in use' })}\n`);
-        return;
-      }
-      if (apply) await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
-      counts.deleted += 1;
-      if (key.startsWith('public/')) toPurge.push(`https://cloud.oxy.so/${base}`);
-      report.write(`${JSON.stringify({ key, deleted: apply })}\n`);
+      orphans.push(key);
     });
+
+    // Whether a row still names each orphan, asked once per batch rather than
+    // once per key. Neither `files.storage_key` nor `file_variants.key` is
+    // indexed, so the per-key form scanned both tables for EVERY candidate —
+    // 16 at a time: the 2026-10-21 05:55 preview ran at 10 average active
+    // sessions on the shared database, ~550k blocks read per key. A batch is
+    // one hashed scan of each, and it is asked right before that batch's
+    // deletes, so a key that came into use during the run is still kept.
+    const USE_CHECK_BATCH = 2000;
+    const toPurge: string[] = [];
+    for (let offset = 0; offset < orphans.length; offset += USE_CHECK_BATCH) {
+      const batch = orphans.slice(offset, offset + USE_CHECK_BATCH);
+      const names = [...new Set(batch.flatMap((key) => [key, key.replace(/^public\//, '')]))];
+      const usedRows = await sql<{ key: string }[]>`
+        select f.storage_key as key from files f
+         where f.status <> 'deleted' and f.storage_key = any(${names})
+        union
+        select v.key from file_variants v join files f on f.id = v.file_id
+         where f.status <> 'deleted' and v.key = any(${names})`;
+      const used = new Set(usedRows.map((row) => row.key));
+      await pool(batch, 16, async (key) => {
+        const base = key.replace(/^public\//, '');
+        if (used.has(key) || used.has(base)) {
+          counts.inUse += 1;
+          report.write(`${JSON.stringify({ key, kept: 'in use' })}\n`);
+          return;
+        }
+        if (apply) await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+        counts.deleted += 1;
+        if (key.startsWith('public/')) toPurge.push(`https://cloud.oxy.so/${base}`);
+        report.write(`${JSON.stringify({ key, deleted: apply })}\n`);
+      });
+    }
     const zone = process.env.CLOUDFLARE_ZONE_ID;
     const token = process.env.CLOUDFLARE_CACHE_PURGE_TOKEN;
     if (apply && toPurge.length > 0 && zone && token) {
