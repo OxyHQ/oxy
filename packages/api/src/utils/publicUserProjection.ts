@@ -39,6 +39,7 @@
  * public row needs no key material.
  */
 
+import { identityDomainOfHost } from '../config/federationBridgePolicy';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AccountCategoryId, AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { qualified } from '@oxy.so/db';
@@ -252,7 +253,7 @@ export function toPublicUserView(row: PublicUserRow): PublicUserView {
     row.federationActorUri !== null || row.federationDomain !== null
       ? {
           actorUri: optional(row.federationActorUri),
-          domain: optional(row.federationDomain),
+          domain: identityDomainOfHost(row.federationDomain) ?? optional(row.federationDomain),
         }
       : undefined;
 

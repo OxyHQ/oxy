@@ -3,7 +3,7 @@ import {
   identityLinks,
   normalizeExternalBio,
 } from '../externalIdentityPolicy';
-import { federationBridges } from '../../../config/federationBridgePolicy';
+import { federationBridges, identityDomainOfHost } from '../../../config/federationBridgePolicy';
 import { BRIDGED_ACTOR_FIXTURES } from '../__fixtures__/bridgedActors';
 
 const notice =
@@ -181,5 +181,14 @@ describe('Oxy external identity policy', () => {
         "<a href='https://instagram.com/alice' rel='nofollow me'>one</a><a href='https://threads.net/@bob'>two</a>",
       ),
     ).toEqual(['https://instagram.com/alice']);
+  });
+});
+
+describe('identityDomainOfHost', () => {
+  it('names the network behind a bridge host, and nothing else', () => {
+    expect(identityDomainOfHost('bird.makeup')).toBe('x.com');
+    expect(identityDomainOfHost('KILOGRAM.makeup')).toBe('instagram.com');
+    expect(identityDomainOfHost('bsky.brid.gy')).toBeUndefined();
+    expect(identityDomainOfHost('mastodon.social')).toBeUndefined();
   });
 });

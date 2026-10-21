@@ -92,6 +92,7 @@ const router = Router();
 router.use(optionalUserOrServiceAuth);
 import { PAGINATION } from '../utils/constants';
 import { resolveOperatorId } from '../middleware/operator';
+import { identityDomainOfHost } from '../config/federationBridgePolicy';
 
 // Constants
 /**
@@ -208,7 +209,7 @@ export function formatProfileResult(u: RecommendationRow) {
     isFederated: deriveIsFederated(u.type),
     isAgent: deriveIsAgent(u.kind),
     isAutomated: u.type === 'automated',
-    instance: u.federationDomain ?? undefined,
+    instance: identityDomainOfHost(u.federationDomain) ?? u.federationDomain ?? undefined,
     _count: {
       followers: u.followersCount || 0,
       following: u.followingCount || 0,
