@@ -26,6 +26,11 @@ import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { digestIdentityPayload } from './identityProof.service';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
+import {
+  announceSessionRevocations,
+  deactivateSessionRows,
+  type RevokedSession,
+} from './sessionRevocation.service';
 import { verifyReauth } from './reauth.service';
 
 function denied() {
@@ -282,7 +287,13 @@ export async function requestAgentKeyOperation(
   });
 }
 
-async function revokeMethods(tx: Transaction, targetId: string, methodId?: string) {
+/** Revoke agent keys; the sessions they signed end with them (announced by the caller after commit). */
+async function revokeMethods(
+  tx: Transaction,
+  revokedSessions: RevokedSession[],
+  targetId: string,
+  methodId?: string,
+) {
   const revoked = await tx
     .update(userAuthMethods)
     .set({ revokedAt: new Date() })
@@ -297,7 +308,7 @@ async function revokeMethods(tx: Transaction, targetId: string, methodId?: strin
     .returning({ id: userAuthMethods.id, publicKey: userAuthMethods.methodPublicKey });
   if (revoked.length) {
     const ids = revoked.map((r) => r.id);
-    await tx.update(sessions).set({ isActive: false }).where(inArray(sessions.authMethodId, ids));
+    revokedSessions.push(...(await deactivateSessionRows(tx, inArray(sessions.authMethodId, ids))));
     await tx
       .update(authCodes)
       .set({ expiresAt: new Date(), usedAt: new Date() })
@@ -335,7 +346,8 @@ export async function executeAgentKeyOperation(
     await verifyReauth(actorId, proof.reauth, 'credentials_manage');
     reauthenticatedActorId = actorId;
   }
-  return getDb().transaction(async (tx) => {
+  const revokedSessions: RevokedSession[] = [];
+  const result = await getDb().transaction(async (tx) => {
     const context = await operationContext(tx, sessionId, targetId, operation);
     const [challenge] = await tx
       .select({ id: authChallenges.id, expiresAt: authChallenges.expiresAt })
@@ -383,11 +395,11 @@ export async function executeAgentKeyOperation(
     await tx.update(authChallenges).set({ used: true }).where(eq(authChallenges.id, challenge.id));
     const revokedIds =
       operation.operation === 'recover'
-        ? await revokeMethods(tx, targetId)
+        ? await revokeMethods(tx, revokedSessions, targetId)
         : operation.operation === 'revoke'
-          ? await revokeMethods(tx, targetId, operation.methodId)
+          ? await revokeMethods(tx, revokedSessions, targetId, operation.methodId)
           : operation.operation === 'rotate' && operation.retireCurrent && context.methodId
-            ? await revokeMethods(tx, targetId, context.methodId)
+            ? await revokeMethods(tx, revokedSessions, targetId, context.methodId)
             : [];
     let keyId = context.methodId;
     if (operation.operation !== 'revoke') {
@@ -431,6 +443,8 @@ export async function executeAgentKeyOperation(
     });
     return { methodId: keyId, revokedMethodIds: revokedIds };
   });
+  announceSessionRevocations(revokedSessions);
+  return result;
 }
 
 /** A live autonomous self or a current credential governor may inspect public key metadata. */

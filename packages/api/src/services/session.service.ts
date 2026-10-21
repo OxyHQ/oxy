@@ -41,6 +41,11 @@ import deviceSessionService from './deviceSession.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { broadcastDeviceState } from '../utils/socket';
+import {
+  announceSessionRevocations,
+  announceUserSessionsRevoked,
+  deactivateSessionRows,
+} from './sessionRevocation.service';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
@@ -1277,24 +1282,22 @@ class SessionService {
       // `deactivate` never DELETES — only the expiry sweep removes a row, which
       // is what keeps every `session_id` reference from another table
       // lifecycle-independent.
-      const deactivated = await getDb()
-        .update(sessions)
-        .set({ isActive: false })
-        .where(
-          and(
-            eq(sessions.sessionId, sessionId),
-            eq(sessions.isActive, true),
-            ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : []),
-          ),
-        )
-        .returning({ id: sessions.id });
+      const deactivated = await deactivateSessionRows(
+        getDb(),
+        and(
+          eq(sessions.sessionId, sessionId),
+          ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : []),
+        ),
+      );
 
       if (options && deactivated.length !== 1) {
         throw new Error('SESSION_DEACTIVATION_CAS_MISMATCH');
       }
 
-      // Invalidate cache
+      // Every cache, on every task and every Oxy backend (also when the row was
+      // already inactive: this task's tier may still hold it).
       sessionCache.invalidate(sessionId);
+      announceSessionRevocations(deactivated);
       managedSessionRecheckAt.delete(sessionId);
 
       logger.info('[SessionService] Deactivated session', { sessionId: sessionId.substring(0, 8) });
@@ -1329,20 +1332,16 @@ class SessionService {
    */
   async deactivateAllUserSessions(userId: string, excludeSessionId?: string): Promise<number> {
     try {
-      const deactivated = await getDb()
-        .update(sessions)
-        .set({ isActive: false })
-        .where(
-          and(
-            eq(sessions.userId, userId),
-            eq(sessions.isActive, true),
-            ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
-          ),
-        )
-        .returning({ id: sessions.id });
+      const deactivated = await deactivateSessionRows(
+        getDb(),
+        and(
+          eq(sessions.userId, userId),
+          ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
+        ),
+      );
 
-      // Invalidate all cached sessions for this user
-      sessionCache.invalidateUserSessions(userId);
+      // Every cached session of this user, on every task and every Oxy backend.
+      announceUserSessionsRevoked(userId);
 
       logger.info('[SessionService] Deactivated sessions for user', {
         count: deactivated.length,

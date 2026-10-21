@@ -223,6 +223,8 @@ import { getRedisClient, closeRedis } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
 import { startAuthorityCacheInvalidationSubscriber } from './utils/authorityCache';
 import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
+import { startServiceEvents } from './utils/serviceEvents';
+import { OXY_SERVICE_EVENTS_NAMESPACE } from '@oxy.so/contracts';
 import { initializeIO, socketRoomsFor } from './utils/socket';
 import { resolveSocketIdentity } from './utils/socketAuth';
 import performanceMiddleware, { getMemoryStats, getDatabaseStats } from './middleware/performance';
@@ -442,6 +444,11 @@ if (redis) {
   authorityCacheInvalidationSubscriber = startAuthorityCacheInvalidationSubscriber(redis);
 }
 
+// `/service-events`: session revocations to every Oxy backend's `OxyServer`,
+// relayed from every task over Valkey (utils/serviceEvents.ts). Internal-tier
+// service tokens only.
+const serviceEvents = startServiceEvents(io.of(OXY_SERVICE_EVENTS_NAMESPACE), redis);
+
 // Store io instance in app for use in controllers
 app.set('io', io);
 
@@ -648,6 +655,7 @@ async function gracefulShutdown(signal: string) {
     await authorityCacheInvalidationSubscriber.stop();
     authorityCacheInvalidationSubscriber = null;
   }
+  await serviceEvents.stop();
   await closeRedis();
   await closePostgres();
   await shutdownTelemetry();

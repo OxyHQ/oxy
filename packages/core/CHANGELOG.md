@@ -1,5 +1,58 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased
+
+Security fix. Needs the `@oxy.so/contracts` release carrying
+`sessionRevocation.ts` (`oxySessionRevocationEventSchema`, the
+`/service-events` names) and an Oxy API serving `/service-events`.
+
+### The session-validation cache, stated plainly
+
+Since 6.2.0 (the entry below is filed under 6.1.0, which never had it),
+`middleware.auth()` and `middleware.socket()` reuse a successful
+`GET /session/validate-header/:id` answer on the process for
+`sessionValidationCacheTtlMs` (default 30 s), per session and SHA-256 of the
+bearer, never past the token's `exp`. Through 6.8.0 nothing told that cache a
+session had been revoked unless the app wired `oxy:user:invalidate` itself —
+and that broadcast never carried logouts at all — so on every backend a
+signed-out, signed-out-everywhere, removed-device, deleted or archived session
+kept validating for up to 30 s per process.
+
+### Fixed
+
+- The cache is used ONLY while `OxyServer`'s own revocation feed from Oxy is
+  live. `OxyServer` opens it by itself, the first time the auth middleware
+  would use the cache: a Socket.IO connection to `/service-events` on the API
+  origin, authenticated with the service token it already mints (`serviceAuth`
+  or workload identity). No app wiring, no Redis client. The feed is live while
+  connected and a heartbeat arrived within 12 s; Oxy sends heartbeats only
+  while it can still hear revocations.
+- Not live — never connected yet, disconnected, heartbeat late, or no service
+  token at all (a test, a local checkout) — every request asks Oxy and nothing
+  is stored. Every interruption drops every entry, and an answer in flight
+  across one is not stored.
+- Oxy announces every session it ends: logout, sign-out everywhere, device
+  removal, an account switched away from, an operator or admin revocation, a
+  credential change that ends sessions, supervision enrollment, agent-key
+  revocation, account deletion and archive. The announced session's entries (or
+  every entry of the account, whose cached identity is swept too) are dropped
+  at once, and nothing for it is stored for the TTL after, so a late answer
+  from an API task that had not heard yet cannot re-cache it.
+- A delegated session's answer (an operator acting as another account) is no
+  longer cached at all: Oxy re-checks a delegate's authority lazily, so there is
+  no moment at which to announce its loss.
+- The feed's connection is unref'd and reconnects by itself with a fresh token;
+  `OxyServer.dispose()` closes it. Oxy admits only internal-tier service tokens;
+  any other backend never caches.
+
+Unchanged: `auth({ freshSession: true })`, `session.validate(id, { fresh: true })`,
+`sessionValidationCacheTtlMs: 0`, `invalidateSessionValidations()` and
+`createOxyUserInvalidationHandler({ oxy })`.
+
+### Added
+
+- `ServerSessionApi.applyRevocation(event)`.
+
 ## 6.8.0
 
 ### Added

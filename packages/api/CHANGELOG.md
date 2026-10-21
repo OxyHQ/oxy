@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Fixed (every ended session is announced, and every task forgets it at once)
+
+Every write that ends a session goes through `services/sessionRevocation.service.ts`
+(`deactivateSessionRows`, then `announceSessionRevocations` /
+`announceUserSessionsRevoked` once it committed); a census test fails the build
+on a writer that does not. Each announcement goes on Valkey to every API task,
+which drops the session from its in-memory `sessionCache` tier — before this,
+another task kept validating a logged-out session for up to five minutes — and
+relays it on the new `/service-events` Socket.IO namespace to every connected
+Oxy backend, whose `@oxy.so/core` validation cache now depends on it.
+`/service-events` admits only internal-tier service tokens whose owner may
+operate, closes each socket when its token expires, and sends a heartbeat every
+5 s only while the task's own Valkey round trip works.
+
+Newly covered by an announcement and a cache drop: agent-key revocation (its
+sessions were deactivated but left in every task's cache) and supervision
+enrollment of sessions operated by the child. Archiving an account now also
+ends every session that speaks as it or is operated by it.
+
 ### Fixed (`reclassify-federated-accounts` cannot be held by one row)
 
 `mapWithConcurrency` waits for every row it started, so one actor fetch that

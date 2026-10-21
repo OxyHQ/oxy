@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/contracts`
 
+## Unreleased
+
+### Added
+
+- `sessionRevocation.ts`: the session-revocation feed oxy-api serves to Oxy
+  backends. `OXY_SERVICE_EVENTS_NAMESPACE` (`/service-events`),
+  `OXY_SESSION_REVOKED_EVENT`, `OXY_SERVICE_EVENTS_HEARTBEAT_EVENT`,
+  `OXY_SERVICE_EVENTS_HEARTBEAT_MS` (5 s), `OXY_SERVICE_EVENTS_STALE_AFTER_MS`
+  (12 s), `OXY_SERVICE_EVENTS_FORBIDDEN`, `oxySessionRevocationEventSchema`
+  (`{ sessionId?, userId, at }`; without `sessionId`, every session of the
+  account) and `oxyServiceEventsHeartbeatSchema`. Ids only.
+
 ## 5.3.0
 
 One account-name policy, chosen by account kind.

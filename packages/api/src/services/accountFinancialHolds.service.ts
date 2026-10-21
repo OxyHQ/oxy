@@ -55,13 +55,20 @@
  * not change while the process runs; a migration means a new process.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, or, sql } from 'drizzle-orm';
 import { executeRows } from '@oxy.so/db';
 import { getDb, type Transaction } from '../config/postgres';
 import { LIVE_PRODUCT_PLAN_STATUSES } from '@oxy.so/contracts';
 import { inferenceProviderConnections } from '../db/schema/inferenceProviderConnections';
 import { accessSubscriptionSources } from '../db/schema/productAccess';
 import { users } from '../db/schema/users';
+import { sessions } from '../db/schema/sessions';
+import {
+  announceSessionRevocations,
+  announceUserSessionsRevoked,
+  deactivateSessionRows,
+  type RevokedSession,
+} from './sessionRevocation.service';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 import { ConflictError, NotFoundError } from '../utils/error';
@@ -433,6 +440,7 @@ async function establishAccountClosureFence(
   archive: boolean,
   withinTransaction?: (tx: Transaction) => Promise<void>,
 ): Promise<void> {
+  const revoked: RevokedSession[] = [];
   await getDb().transaction(async (tx) => {
     // Provider-connection creation takes this same row lock before it commits
     // metadata. Whichever operation locks first therefore decides the outcome:
@@ -498,10 +506,22 @@ async function establishAccountClosureFence(
 
     if (archive) {
       await tx.update(users).set({ accountStatus: 'archived' }).where(eq(users.id, account.id));
+      // An archived account has no access anywhere, so no session may speak as
+      // it or be operated by it. Announced once this commits.
+      revoked.push(
+        ...(await deactivateSessionRows(
+          tx,
+          or(eq(sessions.userId, account.id), eq(sessions.operatedByUserId, account.id)),
+        )),
+      );
     }
 
     if (withinTransaction) await withinTransaction(tx);
   });
+  if (archive) {
+    announceSessionRevocations(revoked);
+    announceUserSessionsRevoked(accountId);
+  }
 }
 
 /** Fence a retryable self-delete without locking the person out mid-cleanup. */
