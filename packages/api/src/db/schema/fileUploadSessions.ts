@@ -103,8 +103,13 @@ export const fileUploadSessions = pgTable(
     ownerUserId: text(),
     /** The application that will own the file (`kind = 'application'`). No foreign key: see the header. */
     ownerApplicationId: text(),
-    /** The application whose service token opened the session; only it may continue it. */
-    uploaderApplicationId: text().notNull(),
+    /**
+     * The application that opened the session; only it may continue it. NULL is
+     * the owner's own session on Oxy's shared device session (a signed-in person
+     * uploading through `POST /assets/uploads` from an official app): only the
+     * owner may continue it, from a session that names no application either.
+     */
+    uploaderApplicationId: text(),
     /** Declared SHA-256 (lowercase hex) — verified against the assembled object. */
     sha256: text().notNull(),
     /** Declared size in bytes — every part's size and the assembled object's are checked against it. */

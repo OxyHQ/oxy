@@ -33,6 +33,12 @@ import type {
   RNFileDescriptor,
 } from '../models/interfaces';
 import { AssetUrlResolutionError } from '../OxyServices.errors';
+import {
+  type DirectUploadApi,
+  type DirectUploadSession,
+  type DirectUploadTuning,
+  runDirectUpload,
+} from './directUpload';
 import { extractErrorStatus } from '../utils/errorUtils';
 
 /**
@@ -142,15 +148,22 @@ export interface CompletedAssetUpload {
 
 /** One progress report from {@link AssetsApi.uploadLarge}. */
 export interface LargeUploadProgress {
-  /** `hash` reads the bytes once to address them; `upload` sends them. */
-  phase: 'hash' | 'upload';
+  /**
+   * `hash` reads the bytes once to address them; `upload` sends them straight
+   * to storage; `verify` waits while Oxy checks the assembled file's SHA-256.
+   */
+  phase: 'hash' | 'upload' | 'verify';
   /** Bytes done in this phase. */
   loaded: number;
   /** The file's size. */
   total: number;
 }
 
-export interface LargeUploadOptions {
+export interface LargeUploadOptions
+  extends Pick<
+    DirectUploadTuning,
+    'partConcurrency' | 'partAttempts' | 'partTimeoutMs' | 'verifyTimeoutMs' | 'signal'
+  > {
   /** Defaults to the Blob's own `type`; one of the two is required. */
   mime?: string;
   /** Defaults to a `File`'s name, else `file`. */
@@ -163,6 +176,9 @@ export interface LargeUploadOptions {
 
 /** The committed asset, and whether the bytes were already stored (no PUT). */
 export type LargeUploadResult = CompletedAssetUpload & { deduplicated: boolean };
+
+/** The largest file Oxy stores (the upload sessions' ceiling, 8 GiB). */
+export const MAX_UPLOAD_BYTES = 8 * 1024 ** 3;
 
 /**
  * How much of the file is held in memory at once while hashing, in bytes. The
@@ -198,15 +214,6 @@ function presignedUploadRequest(
   // Native's does not for every Blob).
   if (mime && !headers.has('Content-Type')) headers.set('Content-Type', mime);
   return { target, headers };
-}
-
-/**
- * Whether a finished PUT landed where it was sent. A redirect changes the host
- * or the path; the query is compared only when the transport kept it byte for
- * byte, because a native stack (React Native's) may re-encode it.
- */
-function landedOnTarget(responseURL: string, url: string): boolean {
-  return !responseURL || responseURL === url || responseURL.split('?')[0] === url.split('?')[0];
 }
 
 /**
@@ -311,47 +318,6 @@ export class AssetsApi {
     if (!result.ok) throw new Error(`Presigned upload failed (${result.status})`);
   }
 
-  /**
-   * The same PUT as {@link putPresignedUpload}, through `XMLHttpRequest`: the
-   * browser reports bytes sent, and on React Native it is the transport that
-   * sends a native Blob from the native blob store (the `fetch` Expo installs
-   * would copy it into the JS heap first). Refuses a redirect: the bytes go to
-   * exactly the URL the API presigned.
-   */
-  private putPresignedUploadWithXhr(
-    init: AssetInitResponse,
-    body: Blob,
-    mime: string,
-    onProgress: (loaded: number) => void,
-    timeout?: number,
-  ): Promise<void> {
-    const { target, headers } = presignedUploadRequest(init, mime);
-    const url = target.toString();
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', url);
-      xhr.withCredentials = false;
-      if (timeout) xhr.timeout = timeout;
-      headers.forEach((value, name) => {
-        xhr.setRequestHeader(name, value);
-      });
-      if (xhr.upload) xhr.upload.onprogress = (event) => onProgress(event.loaded);
-      xhr.onload = () => {
-        if (!landedOnTarget(xhr.responseURL, url)) {
-          reject(new Error('Presigned upload was redirected'));
-        } else if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`Presigned upload failed (${xhr.status})`));
-        }
-      };
-      xhr.onerror = () => reject(new Error('Presigned upload failed (network)'));
-      xhr.onabort = () => reject(new Error('Presigned upload aborted'));
-      xhr.ontimeout = () => reject(new Error('Presigned upload timed out'));
-      xhr.send(body);
-    });
-  }
-
   // ── Upload ───────────────────────────────────────────────────────────────
 
   /**
@@ -387,16 +353,23 @@ export class AssetsApi {
   }
 
   /**
-   * Upload a large file straight to storage, never through the API: hash →
-   * {@link initUpload} → presigned PUT → {@link completeUpload}.
+   * Upload a file straight to storage, never through the API: a presigned,
+   * parallel, resumable MULTIPART upload (ADR 0047, `./directUpload.ts`), up to
+   * {@link MAX_UPLOAD_BYTES} (8 GiB).
    *
-   * The file is hashed in {@link LARGE_UPLOAD_HASH_CHUNK_BYTES} slices, so it is
-   * never held in memory whole, and it is hashed BEFORE `init` because the
-   * presigned URL must be used within the init's short expiry. When the bytes
-   * are already stored, `init` answers an empty URL and the PUT is skipped
-   * (`deduplicated: true`). Wherever `XMLHttpRequest` exists (browsers, React
-   * Native) the PUT goes through it, so `onProgress` sees bytes sent; elsewhere
-   * (Node, Bun) it uses `fetch` and reports the upload once, when it finishes.
+   *   hash → open (`POST /assets/uploads`) → PUT 8 MiB+ parts in parallel →
+   *   complete → Oxy verifies the SHA-256 → the file
+   *
+   * The file is hashed {@link LARGE_UPLOAD_HASH_CHUNK_BYTES} at a time and sent
+   * part by part, so it is never held in memory whole. A part that fails is
+   * retried with backoff, with a fresh URL when storage refuses an expired one;
+   * when one keeps failing (the connection is gone) this throws
+   * `DirectUploadInterruptedError` and the session stays open: calling again
+   * with the same file sends only the parts storage does not hold yet.
+   * `options.signal` stops it the same way; {@link abortUpload} discards it.
+   * When the bytes are already yours nothing is sent (`deduplicated: true`).
+   * `onProgress` reports `hash`, then `upload` (bytes sent — through
+   * `XMLHttpRequest` wherever it exists, React Native included), then `verify`.
    *
    * Takes any Blob that can be sliced: a browser's, Node's or Bun's, or React
    * Native's (read through its `FileReader`). {@link upload} calls this itself
@@ -406,6 +379,7 @@ export class AssetsApi {
   async uploadLarge(blob: Blob, options: LargeUploadOptions = {}): Promise<LargeUploadResult> {
     const size = blob.size;
     if (size === 0) throw new Error('Cannot upload an empty file');
+    if (size > MAX_UPLOAD_BYTES) throw new Error('A file can be at most 8 GiB');
     const mime = options.mime || blob.type;
     if (!mime) throw new Error('uploadLarge needs a MIME type');
     const name =
@@ -416,9 +390,8 @@ export class AssetsApi {
   }
 
   /**
-   * The presigned pipeline behind {@link uploadLarge} and a large
-   * {@link upload}. `timeout` bounds the PUT (none when absent) and the commit
-   * (default {@link ASSET_UPLOAD_TIMEOUT_MS}).
+   * The multipart pipeline behind {@link uploadLarge} and a large
+   * {@link upload}. `timeout`, when given, bounds the whole upload.
    */
   private async uploadPresigned(
     blob: Blob,
@@ -428,46 +401,100 @@ export class AssetsApi {
     timeout?: number,
   ): Promise<LargeUploadResult> {
     const size = blob.size;
+    if (size > MAX_UPLOAD_BYTES) throw new Error('A file can be at most 8 GiB');
     const report = (phase: LargeUploadProgress['phase'], loaded: number) =>
       options.onProgress?.({ phase, loaded, total: size });
 
-    report('hash', 0);
-    const digest = await sha256OfBlob(blob, (loaded) => report('hash', loaded));
-
-    const init = await this.initUpload({ sha256: digest, size, mime });
-    const deduplicated = !init.uploadUrl;
-    if (deduplicated) {
-      report('upload', size);
-    } else {
-      // The PUT carries the declared MIME, which is what the URL was signed for.
-      const body = blob.type === mime ? blob : blob.slice(0, size, mime);
-      report('upload', 0);
-      if (typeof XMLHttpRequest !== 'undefined') {
-        await this.putPresignedUploadWithXhr(
-          init,
-          body,
-          mime,
-          (loaded) => report('upload', loaded),
-          timeout,
-        );
-      } else {
-        await this.putPresignedUpload(init, body);
+    // One signal for the caller's stop and the whole-upload bound.
+    const controller = new AbortController();
+    const stop = () => controller.abort();
+    options.signal?.addEventListener('abort', stop, { once: true });
+    if (options.signal?.aborted) controller.abort();
+    const timer = timeout ? setTimeout(stop, timeout) : undefined;
+    try {
+      report('hash', 0);
+      const sha256 = await sha256OfBlob(blob, (loaded) => report('hash', loaded));
+      if (controller.signal.aborted) {
+        const error = new Error('Upload aborted');
+        error.name = 'AbortError';
+        throw error;
       }
-      report('upload', size);
-    }
 
-    const completed = await this.commitUpload(
-      {
-        fileId: init.fileId,
-        originalName: name,
+      const api = this.directUploadApi();
+      const opened = await api.open({
+        sha256,
         size,
         mime,
+        filename: name,
         ...(options.visibility ? { visibility: options.visibility } : {}),
         ...(options.metadata ? { metadata: options.metadata } : {}),
-      },
-      timeout ?? ASSET_UPLOAD_TIMEOUT_MS,
-    );
-    return { ...completed, deduplicated };
+      });
+      const deduplicated = opened.uploadId === null;
+      const session = deduplicated
+        ? opened
+        : await runDirectUpload(api, blob, opened, {
+            partConcurrency: options.partConcurrency,
+            partAttempts: options.partAttempts,
+            partTimeoutMs: options.partTimeoutMs,
+            verifyTimeoutMs: options.verifyTimeoutMs,
+            signal: controller.signal,
+            onProgress: options.onProgress,
+          });
+      if (deduplicated) report('upload', size);
+      const fileId = session.file?.id;
+      if (!fileId) throw new Error(`Upload ${session.status}`);
+      this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
+      const { file } = await this.get(fileId);
+      return {
+        assetId: file.id,
+        file: {
+          id: file.id,
+          sha256: file.sha256,
+          size: file.size,
+          mime: file.mime,
+          ext: file.ext,
+          visibility: file.visibility ?? options.visibility ?? 'private',
+          status: file.status,
+          usageCount: file.usageCount,
+          createdAt: file.createdAt,
+          updatedAt: file.updatedAt,
+          links: file.links,
+          variants: file.variants,
+          ...(file.originalName ? { originalName: file.originalName } : {}),
+          ...(file.metadata ? { metadata: file.metadata } : {}),
+        },
+        deduplicated: deduplicated || session.deduplicated === true,
+      };
+    } finally {
+      if (timer) clearTimeout(timer);
+      options.signal?.removeEventListener('abort', stop);
+    }
+  }
+
+  /**
+   * Discard an unfinished upload: storage drops its parts and any storage
+   * reservation is released. The id is `DirectUploadInterruptedError.uploadId`.
+   */
+  async abortUpload(uploadId: string): Promise<void> {
+    await this.ctx.request('DELETE', `/assets/uploads/${enc(uploadId)}`, undefined, {
+      cache: false,
+    });
+  }
+
+  /** The upload-session calls, as the signed-in person. */
+  private directUploadApi(): DirectUploadApi {
+    const call = <T>(method: 'GET' | 'POST', url: string, body?: unknown) =>
+      this.ctx.request<T>(method, url, body, { cache: false, timeout: 60_000 });
+    return {
+      open: (request) => call<DirectUploadSession>('POST', '/assets/uploads', request),
+      partUrls: (uploadId, partNumbers) =>
+        call<DirectUploadSession>('POST', `/assets/uploads/${enc(uploadId)}/parts`, {
+          partNumbers,
+        }),
+      complete: (uploadId) =>
+        call<DirectUploadSession>('POST', `/assets/uploads/${enc(uploadId)}/complete`),
+      describe: (uploadId) => call<DirectUploadSession>('GET', `/assets/uploads/${enc(uploadId)}`),
+    };
   }
 
   /**

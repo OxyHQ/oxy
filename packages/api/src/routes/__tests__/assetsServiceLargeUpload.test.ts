@@ -18,6 +18,8 @@
  *  6. Resume: the same bytes reopened answer the open session with what S3 holds.
  *  7. A third-party application's upload is reserved against its developer's
  *     plan before a byte is sent, and released when it does not become a file.
+ *  8. A signed-in person's own upload (`/assets/uploads`, ADR 0047) is the same
+ *     session: theirs, continued only from the same kind of session.
  */
 
 process.env.LARGE_UPLOAD_COMPLETE_WAIT_MS = '3000';
@@ -30,6 +32,7 @@ import { Readable } from 'node:stream';
 import { and, eq, isNull } from 'drizzle-orm';
 
 const mockServiceAuthMiddleware = jest.fn();
+const mockAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
 
 interface MockMultipart {
   key: string;
@@ -129,7 +132,8 @@ const mockS3 = {
 };
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
+  authMiddleware: (...args: unknown[]) =>
+    (mockAuthMiddleware as (...a: unknown[]) => unknown)(...args),
   serviceAuthMiddleware: (...args: unknown[]) => mockServiceAuthMiddleware(...args),
 }));
 
@@ -969,5 +973,128 @@ describe("a third-party application's upload and its developer's plan (ADR 0043 
           ),
         ),
     ).toEqual([]);
+  });
+});
+
+/** Authenticate as `userId`, through a session of `applicationId` (null: the shared device session). */
+function signedInAs(userId: string, applicationId: string | null = null): void {
+  mockAuthMiddleware.mockImplementation(
+    (req: { user?: unknown; oxyToken?: unknown }, _res: unknown, next: () => void) => {
+      req.user = { id: userId, _id: userId };
+      req.oxyToken = { subjectAccountId: userId, applicationId, sessionId: 's-1' };
+      next();
+    },
+  );
+}
+
+describe("POST /assets/uploads — a signed-in person's upload, straight to storage (ADR 0047)", () => {
+  afterEach(() => {
+    mockAuthMiddleware.mockImplementation((_req: unknown, _res: unknown, next: () => void) =>
+      next(),
+    );
+  });
+
+  it('stores a large video the person owns, private by default, after verifying it', async () => {
+    const person = await account();
+    signedInAs(person);
+    const bytes = randomBytes(8 * 1024 * 1024 + 1024);
+
+    const { open, complete } = await uploadWhole('/assets/uploads', bytes, {
+      mime: 'video/mp4',
+      filename: 'holiday.mp4',
+    });
+
+    expect(open.status).toBe(201);
+    expect(open.body.data).toMatchObject({ status: 'uploading', partCount: 2 });
+    expect(complete.status).toBe(200);
+    const stored = await fileRow(complete.body.data.file.id);
+    expect(stored).toMatchObject({
+      ownerUserId: person,
+      ownerApplicationId: null,
+      visibility: 'private',
+      sha256: sha(bytes),
+      originalName: 'holiday.mp4',
+    });
+    expect(mockObjects.get(stored.storageKey)?.bytes.equals(bytes)).toBe(true);
+    const row = await sessionRow(open.body.data.uploadId);
+    expect(row).toMatchObject({ ownerUserId: person, uploaderApplicationId: null });
+  });
+
+  it('resumes after a dropped connection: the reopen answers what storage holds', async () => {
+    const person = await account();
+    signedInAs(person);
+    const bytes = randomBytes(8 * 1024 * 1024 + 10);
+    const body = { sha256: sha(bytes), size: bytes.length, mime: 'video/mp4' };
+    const first = await request('POST', '/assets/uploads', body);
+    putPart(first.body.data.parts[0].url, bytes.subarray(0, 8 * 1024 * 1024));
+
+    const again = await request('POST', '/assets/uploads', body);
+    expect(again.body.data.uploadId).toBe(first.body.data.uploadId);
+    expect(again.body.data.uploadedParts).toEqual([{ partNumber: 1, size: 8 * 1024 * 1024 }]);
+    expect(again.body.data.parts.map((part: { partNumber: number }) => part.partNumber)).toEqual([
+      2,
+    ]);
+  });
+
+  it("is nobody else's to continue: another person, or the same person through an application, gets 404", async () => {
+    const person = await account();
+    signedInAs(person);
+    const bytes = randomBytes(1024);
+    const opened = await request('POST', '/assets/uploads', {
+      sha256: sha(bytes),
+      size: bytes.length,
+      mime: 'application/pdf',
+    });
+    const uploadId = opened.body.data.uploadId;
+
+    signedInAs(await account());
+    expect((await request('GET', `/assets/uploads/${uploadId}`)).status).toBe(404);
+    signedInAs(person, await application());
+    expect((await request('GET', `/assets/uploads/${uploadId}`)).status).toBe(404);
+    signedInAs(person);
+    expect((await request('GET', `/assets/uploads/${uploadId}`)).status).toBe(200);
+    expect((await request('DELETE', `/assets/uploads/${uploadId}`)).body.data.status).toBe(
+      'aborted',
+    );
+  });
+
+  it("an application's session uploads for the person, and may read back what it stored", async () => {
+    const person = await account();
+    const appId = await application();
+    signedInAs(person, appId);
+    const bytes = randomBytes(2048);
+    const { complete } = await uploadWhole('/assets/uploads', bytes, { mime: 'application/pdf' });
+    expect(complete.status).toBe(200);
+    const row = await sessionRow(complete.body.data.uploadId);
+    expect(row.uploaderApplicationId).toBe(appId);
+  });
+
+  it("refuses a reference (a person's upload is not an application's use) and executables", async () => {
+    signedInAs(await account());
+    const bytes = randomBytes(64);
+    const withReference = await request('POST', '/assets/uploads', {
+      sha256: sha(bytes),
+      size: bytes.length,
+      mime: 'application/pdf',
+      reference: { entityType: 'post', entityId: 'p1' },
+    });
+    expect(withReference.status).toBe(400);
+    const program = await request('POST', '/assets/uploads', {
+      sha256: sha(bytes),
+      size: bytes.length,
+      mime: 'application/x-msdownload',
+      filename: 'setup.exe',
+    });
+    expect(program.status).toBe(415);
+  });
+
+  it('refuses more than 8 GiB before a byte is sent', async () => {
+    signedInAs(await account());
+    const tooBig = await request('POST', '/assets/uploads', {
+      sha256: 'a'.repeat(64),
+      size: 8 * 1024 ** 3 + 1,
+      mime: 'video/mp4',
+    });
+    expect(tooBig.status).toBe(413);
   });
 });

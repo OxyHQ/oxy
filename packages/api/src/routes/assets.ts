@@ -6,7 +6,12 @@ import multer from 'multer';
 import { assetService } from '../services/assetServiceSingleton';
 import { AssetService } from '../services/assetService';
 import { s3Service } from '../services/s3ServiceSingleton';
-import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
+import {
+  authMiddleware,
+  serviceAuthMiddleware,
+  type AuthRequest,
+  type ServiceAuthRequest,
+} from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
 import { resolveOperatorId } from '../middleware/operator';
 import { requireStaff } from '../middleware/requireStaff';
@@ -71,6 +76,7 @@ import {
   userMediaImportBodySchema,
   appLargeUploadBodySchema,
   userMediaLargeUploadBodySchema,
+  ownLargeUploadBodySchema,
   largeUploadParams,
   largeUploadPartsBodySchema,
   appAdoptBodySchema,
@@ -2513,7 +2519,8 @@ function largeUploadHandlers(
   admit: (
     req: ServiceAuthRequest,
     wantsReference: boolean,
-  ) => Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }>,
+  ) => Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string | null }>,
+  defaultVisibility: FileVisibility = 'public',
 ) {
   const load = async (req: ServiceAuthRequest) => {
     const { owner, uploaderApplicationId } = await admit(req, false);
@@ -2528,7 +2535,7 @@ function largeUploadHandlers(
       const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
         ...rest,
         ...(withAudio ? { metadata: withAudio } : {}),
-        visibility: body.visibility ?? 'public',
+        visibility: body.visibility ?? defaultVisibility,
       });
       sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
     }),
@@ -2722,6 +2729,137 @@ router.delete(
   appFileManageLimiter,
   validate({ params: largeUploadParams }),
   userMediaLargeUpload.abort,
+);
+
+// ---------------------------------------------------------------------------
+// A person's own large uploads (ADR 0043 stage 4b, ADR 0047): the same resumable
+// multipart sessions, opened by the signed-in person's own session. The client
+// PUTs every part straight to storage; no byte passes through the API (or
+// through any proxy's body limit). The SDK's `assets.uploadLarge`, and
+// `assets.upload` for anything over one part, go this way.
+// ---------------------------------------------------------------------------
+
+/** Per-person ceiling on opening and completing uploads: each is a storage write. */
+const ownLargeUploadLimiter = rateLimit({
+  prefix: 'rl:asset-own:upload:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_UPLOAD_MAX_PER_MINUTE,
+  message: 'Too many uploads. Please slow down.',
+  keyGenerator: (req: express.Request) =>
+    `asset-own:upload:${(req as AuthRequest).user?.id ?? hashedIpKey(req)}`,
+});
+
+/** Per-person ceiling on part URLs, status reads and aborts. */
+const ownLargeUploadManageLimiter = rateLimit({
+  prefix: 'rl:asset-own:manage:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many upload requests. Please slow down.',
+  keyGenerator: (req: express.Request) =>
+    `asset-own:manage:${(req as AuthRequest).user?.id ?? hashedIpKey(req)}`,
+});
+
+/**
+ * The signed-in person owns the file; the session's application (NULL on Oxy's
+ * shared device session) is the uploader, so only the same session kind can
+ * continue it, and a third-party application may read back what it uploaded
+ * for them. Never a reference: a person's upload is not an application's use.
+ */
+async function admitOwnLargeUpload(
+  req: ServiceAuthRequest,
+): Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string | null }> {
+  const authed = req as unknown as AuthRequest;
+  const userId = authed.user?.id;
+  if (!userId) throw new UnauthorizedError('Authentication required');
+  return {
+    owner: { kind: 'account', userId },
+    uploaderApplicationId: authed.oxyToken?.applicationId ?? null,
+  };
+}
+
+const ownLargeUpload = largeUploadHandlers('account', admitOwnLargeUpload, 'private');
+
+/**
+ * @route POST /api/assets/uploads
+ * @desc Open (or resume) a large upload of a file the SIGNED-IN PERSON will own.
+ *       Body `{ sha256, size, mime, visibility?, filename?, metadata?, audio? }`
+ *       (visibility defaults to `private`, as `/assets/complete`'s): any type
+ *       but executables, installers and active documents (415), at most 8 GiB
+ *       (413), never blocked bytes (451), within the person's storage plan (413
+ *       `STORAGE_QUOTA_EXCEEDED`, reserved for the whole file). 201 `{ uploadId,
+ *       status: 'uploading', partSize, partCount, expiresAt, parts }` (the first
+ *       100 presigned part URLs; PUT exactly `size` bytes to each, straight to
+ *       storage). The same bytes already open answer that session with the parts
+ *       storage holds (`uploadedParts`) — the resume after a dropped connection.
+ *       Bytes the person already owns answer 200 `{ uploadId: null, status:
+ *       'completed', file, deduplicated: true }`. An upload not completed within
+ *       a day of its last part-URL request (a week at most) is aborted, and the
+ *       bucket's lifecycle discards any part left after ten days.
+ * @access Signed-in person (own session)
+ */
+router.post(
+  '/uploads',
+  ownAssetAuth,
+  ownLargeUploadLimiter,
+  validate({ body: ownLargeUploadBodySchema }),
+  ownLargeUpload.open,
+);
+
+/**
+ * @route GET /api/assets/uploads/:uploadId
+ * @desc One of the person's large uploads as it stands (as
+ *       `GET /service/app/uploads/:uploadId`): poll it after a 202 `complete`.
+ * @access Signed-in person (own session)
+ */
+router.get(
+  '/uploads/:uploadId',
+  ownAssetAuth,
+  ownLargeUploadManageLimiter,
+  validate({ params: largeUploadParams }),
+  ownLargeUpload.describe,
+);
+
+/**
+ * @route POST /api/assets/uploads/:uploadId/parts
+ * @desc Presigned part URLs: `{ partNumbers }` (1–100) → `{ parts }`, valid an
+ *       hour, also sliding the upload's idle deadline.
+ * @access Signed-in person (own session)
+ */
+router.post(
+  '/uploads/:uploadId/parts',
+  ownAssetAuth,
+  ownLargeUploadManageLimiter,
+  validate({ params: largeUploadParams, body: largeUploadPartsBodySchema }),
+  ownLargeUpload.parts,
+);
+
+/**
+ * @route POST /api/assets/uploads/:uploadId/complete
+ * @desc Assemble and verify (as `POST /service/app/uploads/:uploadId/complete`):
+ *       200 with the file, 202 `verifying` (poll the GET), 409
+ *       `UPLOAD_INCOMPLETE` naming missing parts, or the upload's own error.
+ * @access Signed-in person (own session)
+ */
+router.post(
+  '/uploads/:uploadId/complete',
+  ownAssetAuth,
+  ownLargeUploadLimiter,
+  validate({ params: largeUploadParams }),
+  ownLargeUpload.complete,
+);
+
+/**
+ * @route DELETE /api/assets/uploads/:uploadId
+ * @desc Abort an unfinished upload: storage discards its parts and any
+ *       reservation is released.
+ * @access Signed-in person (own session)
+ */
+router.delete(
+  '/uploads/:uploadId',
+  ownAssetAuth,
+  ownLargeUploadManageLimiter,
+  validate({ params: largeUploadParams }),
+  ownLargeUpload.abort,
 );
 
 /** How widely each visibility shows a file: an adopted copy may not show it wider. */

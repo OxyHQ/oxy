@@ -89,7 +89,9 @@ export type {
   PushTokenPlatform,
   RegisterPushTokenInput,
 } from './api/notifications';
-export { ASSET_MULTIPART_UPLOAD_MAX_BYTES, assetUrlCacheTTL } from './api/assets';
+export { ASSET_MULTIPART_UPLOAD_MAX_BYTES, assetUrlCacheTTL, MAX_UPLOAD_BYTES } from './api/assets';
+export { DirectUploadInterruptedError } from './api/directUpload';
+export type { DirectUploadProgress } from './api/directUpload';
 export type {
   AssetsApi,
   AssetRecord,

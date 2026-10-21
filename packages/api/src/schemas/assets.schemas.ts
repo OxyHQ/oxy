@@ -402,6 +402,16 @@ export const userMediaLargeUploadBodySchema = z
   })
   .strict();
 
+// POST /assets/uploads — the signed-in person will own it. No `reference`: a
+// person's upload is not an application's use of a file.
+const { reference: _reference, ...ownLargeUploadShape } = largeUploadShape;
+export const ownLargeUploadBodySchema = z
+  .object({
+    ...ownLargeUploadShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();
+
 export const largeUploadParams = z.object({
   uploadId: z.string().trim().min(1).max(64),
 });
