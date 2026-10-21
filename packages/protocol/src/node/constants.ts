@@ -89,6 +89,16 @@ export const NODE_BLOBS_PATH = '/blobs';
 /** Default time-to-first-byte deadline for a NodeClient request (ms). */
 export const DEFAULT_CLIENT_TIMEOUT_MS = 8_000;
 
+/**
+ * Default deadline for reading a whole JSON response body (head, log page,
+ * write result, `did.json`) once its headers have arrived (ms). The headers
+ * deadline above ends at the headers; this one stops a peer that then stalls.
+ */
+export const DEFAULT_CLIENT_BODY_TIMEOUT_MS = 15_000;
+
+/** Default deadline for reading a whole fetched blob body (up to {@link DEFAULT_MAX_BLOB_BYTES}) (ms). */
+export const DEFAULT_BLOB_BODY_TIMEOUT_MS = 60_000;
+
 /** Default redirect budget for a NodeClient request (each re-validated upstream). */
 export const DEFAULT_CLIENT_MAX_REDIRECTS = 1;
 

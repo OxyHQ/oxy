@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.5.1
+
+### Fixed
+
+- Response bodies have a deadline as well as a byte cap. An actor, collection
+  or error body (10 s) and a failed delivery's debug preview (5 s) are read
+  through one bounded reader, so a remote that sends its headers and then
+  stalls the body no longer holds the resolver or the delivery worker open:
+  the stream is cancelled and the read fails as a transient error (an actor
+  fetch returns nothing, a collection count is `undefined`, a preview is
+  empty), exactly as a network failure does.
+
 ## 2.5.0
 
 One actor-type table for both directions, shared with the Oxy API.

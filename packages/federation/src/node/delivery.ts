@@ -26,6 +26,7 @@
 
 import type { AccountKind } from '@oxy.so/contracts';
 import { AP_CONTEXT } from '../apContext';
+import { readBodyChunks } from './boundedBody';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import type { LocalActorBuilder } from '../actorObject';
@@ -34,6 +35,8 @@ import type { LocalActorBuilder } from '../actorObject';
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
 /** How many bytes of a failed-delivery response body are read for the debug log. */
 const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
+/** Deadline for reading that preview once the response headers arrived. */
+const DELIVERY_RESPONSE_PREVIEW_TIMEOUT_MS = 5_000;
 
 /** The ActivityStreams public collection — the `to` addressee of a public activity. */
 const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
@@ -278,25 +281,28 @@ export interface DeliveryServiceConfig<TActor extends DeliveryActorFields> {
   isBlockedDomain(host: string): boolean;
 }
 
-/** Read a bounded prefix of a failed-delivery response body for the debug log. */
+/**
+ * Read a bounded prefix of a failed-delivery response body for the debug log,
+ * within {@link DELIVERY_RESPONSE_PREVIEW_TIMEOUT_MS}: an inbox that stalls its
+ * body after the headers costs the worker that long, not forever.
+ */
 async function readResponsePreview(response: DeliveryResponseStream): Promise<string> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
+  const iterator = response[Symbol.asyncIterator]();
   try {
-    for await (const chunk of response) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      totalBytes += buffer.byteLength;
-      chunks.push(buffer);
-      if (totalBytes >= DELIVERY_RESPONSE_PREVIEW_MAX_BYTES) break;
-    }
+    const preview = await readBodyChunks(
+      { read: () => iterator.next(), cancel: () => response.destroy() },
+      {
+        maxBytes: DELIVERY_RESPONSE_PREVIEW_MAX_BYTES,
+        timeoutMs: DELIVERY_RESPONSE_PREVIEW_TIMEOUT_MS,
+        overflow: 'truncate',
+      },
+    );
+    return preview.toString('utf8');
   } catch {
     return '';
   } finally {
     response.destroy();
   }
-
-  return Buffer.concat(chunks).toString('utf8', 0, DELIVERY_RESPONSE_PREVIEW_MAX_BYTES);
 }
 
 /** The outbound delivery + follow-lifecycle service. */

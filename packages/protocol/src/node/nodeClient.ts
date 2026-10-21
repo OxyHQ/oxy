@@ -8,13 +8,16 @@
  * the protocol package never depends on `@oxy.so/core`. Oxy supplies an adapter
  * over `@oxy.so/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects); a test supplies an in-process stub. Every
- * response body is read with a hard byte ceiling, so a node cannot stream an
- * unbounded body into the caller.
+ * response body is read with a hard byte ceiling AND a whole-body deadline, so
+ * a node can neither stream an unbounded body into the caller nor hold it by
+ * stalling after the headers (`ResponseTimeoutError`, which is transient).
  */
 
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { type NodeFetch, type NodeFetchInit, readBoundedBytes, readBoundedJson } from './httpFetch';
 import {
+  DEFAULT_BLOB_BODY_TIMEOUT_MS,
+  DEFAULT_CLIENT_BODY_TIMEOUT_MS,
   DEFAULT_CLIENT_MAX_REDIRECTS,
   DEFAULT_CLIENT_TIMEOUT_MS,
   DEFAULT_HEAD_MAX_BYTES,
@@ -87,6 +90,10 @@ export interface NodeClientOptions {
   fetch: NodeFetch;
   /** Time-to-first-byte deadline per request (ms). */
   headersTimeoutMs?: number;
+  /** Whole-body read deadline for a JSON response, once its headers arrived (ms). */
+  bodyTimeoutMs?: number;
+  /** Whole-body read deadline for a fetched blob (ms). */
+  blobBodyTimeoutMs?: number;
   /** Redirect budget per request (each re-validated by the transport). */
   maxRedirects?: number;
   /** Bounded read ceiling for a `/oxy/head` response. */
@@ -129,6 +136,8 @@ export class NodeClient {
   private readonly baseUrl: string;
   private readonly fetch: NodeFetch;
   private readonly headersTimeoutMs: number;
+  private readonly bodyTimeoutMs: number;
+  private readonly blobBodyTimeoutMs: number;
   private readonly maxRedirects: number;
   private readonly headMaxBytes: number;
   private readonly logMaxBytes: number;
@@ -139,6 +148,8 @@ export class NodeClient {
     this.baseUrl = trimTrailingSlashes(options.baseUrl);
     this.fetch = options.fetch;
     this.headersTimeoutMs = options.headersTimeoutMs ?? DEFAULT_CLIENT_TIMEOUT_MS;
+    this.bodyTimeoutMs = options.bodyTimeoutMs ?? DEFAULT_CLIENT_BODY_TIMEOUT_MS;
+    this.blobBodyTimeoutMs = options.blobBodyTimeoutMs ?? DEFAULT_BLOB_BODY_TIMEOUT_MS;
     this.maxRedirects = options.maxRedirects ?? DEFAULT_CLIENT_MAX_REDIRECTS;
     this.headMaxBytes = options.headMaxBytes ?? DEFAULT_HEAD_MAX_BYTES;
     this.logMaxBytes = options.logMaxBytes ?? DEFAULT_LOG_MAX_BYTES;
@@ -162,7 +173,7 @@ export class NodeClient {
       res.destroy();
       throw new NodeClientError(`node ${NODE_HEAD_PATH} responded HTTP ${res.status}`, res.status);
     }
-    const body = await readBoundedJson(res, this.headMaxBytes);
+    const body = await readBoundedJson(res, this.headMaxBytes, this.bodyTimeoutMs);
     const obj = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
     return {
       seq: typeof obj.seq === 'number' ? obj.seq : null,
@@ -188,7 +199,7 @@ export class NodeClient {
       res.destroy();
       throw new NodeClientError(`node ${NODE_LOG_PATH} responded HTTP ${res.status}`, res.status);
     }
-    const body = await readBoundedJson(res, this.logMaxBytes);
+    const body = await readBoundedJson(res, this.logMaxBytes, this.bodyTimeoutMs);
     const records = (body as { records?: unknown }).records;
     if (!Array.isArray(records)) {
       throw new NodeClientError(`node ${NODE_LOG_PATH} returned no records array`, res.status);
@@ -222,7 +233,7 @@ export class NodeClient {
         body: Buffer.from(JSON.stringify(envelope), 'utf8'),
       }),
     );
-    const body = await readBoundedJson(res, this.writeResponseMaxBytes);
+    const body = await readBoundedJson(res, this.writeResponseMaxBytes, this.bodyTimeoutMs);
     if (res.status < 200 || res.status >= 300) {
       const reason = readError(body);
       throw new NodeClientError(
@@ -258,7 +269,7 @@ export class NodeClient {
         body: Buffer.from(JSON.stringify({ records: envelopes }), 'utf8'),
       }),
     );
-    const body = await readBoundedJson(res, this.writeResponseMaxBytes);
+    const body = await readBoundedJson(res, this.writeResponseMaxBytes, this.bodyTimeoutMs);
     if (res.status < 200 || res.status >= 300) {
       const reason = readError(body);
       throw new NodeClientError(
@@ -293,7 +304,7 @@ export class NodeClient {
         res.status,
       );
     }
-    return readBoundedBytes(res, this.blobMaxBytes);
+    return readBoundedBytes(res, this.blobMaxBytes, this.blobBodyTimeoutMs);
   }
 
   /**
@@ -320,7 +331,7 @@ export class NodeClient {
         body: bytes,
       }),
     );
-    const body = await readBoundedJson(res, this.writeResponseMaxBytes);
+    const body = await readBoundedJson(res, this.writeResponseMaxBytes, this.bodyTimeoutMs);
     if (res.status < 200 || res.status >= 300) {
       const reason = readError(body);
       throw new NodeClientError(
