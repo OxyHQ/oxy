@@ -85,6 +85,28 @@ describe('Inbox point-inference contracts', () => {
       ],
     };
     expect(inboxDailyBriefResponseSchema.parse(brief)).toEqual(brief);
+    const actions = [
+      {
+        label: 'Draft reply',
+        prompt: 'Help me draft a reply about the credit request.',
+        messageIds: ['msg_1'],
+      },
+      {
+        label: 'Review request',
+        prompt: 'Explain the credit request requirements.',
+        messageIds: ['msg_1'],
+      },
+    ];
+    expect(inboxDailyBriefResponseSchema.parse({ ...brief, actions }).actions).toEqual(actions);
+    for (const invalid of [
+      actions.slice(0, 1),
+      Array(6).fill(actions[0]),
+      [{ ...actions[0], messageIds: [] }, actions[1]],
+    ]) {
+      expect(inboxDailyBriefResponseSchema.safeParse({ ...brief, actions: invalid }).success).toBe(
+        false,
+      );
+    }
     expect(
       inboxDailyBriefResponseSchema.safeParse({ ...brief, summary: 'x'.repeat(401) }).success,
     ).toBe(false);

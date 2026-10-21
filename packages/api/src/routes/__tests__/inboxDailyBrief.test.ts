@@ -61,7 +61,7 @@ const DIGEST = {
 } as const;
 
 const MODEL_ANSWER = JSON.stringify({
-  summary: 'Ana needs the quarterly numbers by Friday; the rest can wait.',
+  summary: 'Ana asks for the quarterly numbers by Friday.',
   items: [
     { ref: 'm1', section: 'needs_you', note: 'Wants the quarterly numbers by Friday.' },
     { ref: 'm1', section: 'today', note: 'Named twice: dropped.' },
@@ -117,7 +117,7 @@ interface JsonResponse {
   readonly body: Record<string, unknown>;
 }
 
-function postJson(server: http.Server, body: unknown): Promise<JsonResponse> {
+function postJson(server: http.Server, body: unknown, query = ''): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const encoded = Buffer.from(JSON.stringify(body), 'utf8');
   return new Promise((resolve, reject) => {
@@ -126,7 +126,7 @@ function postJson(server: http.Server, body: unknown): Promise<JsonResponse> {
         method: 'POST',
         host: '127.0.0.1',
         port: address.port,
-        path: '/daily-brief',
+        path: `/daily-brief${query}`,
         headers: {
           'content-type': 'application/json',
           'content-length': encoded.length,
@@ -179,6 +179,51 @@ beforeEach(() => {
 });
 
 describe('POST /email/ai/daily-brief', () => {
+  it('grounds an earlier-only brief in message content without exposing the unread total', async () => {
+    mockGetDigest.mockResolvedValue({
+      today: { received: 0, unread: 0, starred: 0 },
+      messages: [],
+      earlierUnread: {
+        total: 210,
+        messages: [
+          digestMessage({
+            id: 'msg_invoice',
+            fromName: 'Studio North',
+            subject: 'Website invoice',
+            receivedAt: new Date('2026-09-01T09:00:00.000Z'),
+            excerpt: 'The website invoice is €350, due on September 8.',
+          }),
+        ],
+      },
+    });
+    mockExecute.mockResolvedValue({
+      requestId: 'earlier_only',
+      text: JSON.stringify({
+        summary: 'Studio North sent the website invoice for €350, due September 8.',
+        items: [{ ref: 'e1', section: 'earlier', note: 'Website invoice due September 8.' }],
+      }),
+    });
+
+    const response = await postJson(server, { startAt: START_AT, endAt: END_AT });
+
+    expect(response.status).toBe(200);
+    expect(response.body.items).toEqual([expect.objectContaining({ messageId: 'msg_invoice' })]);
+    const input = mockExecute.mock.calls[0]?.[0];
+    const system = input.messages[0].content[0].text;
+    const prompt = input.messages[1].content[0].text;
+    expect(prompt).not.toContain('210');
+    expect(prompt).toContain('this is not the complete backlog');
+    expect(prompt).toContain('From: Studio North');
+    expect(prompt).toContain('Subject: Website invoice');
+    expect(prompt).toContain('€350, due on September 8');
+    expect(system).toContain('Lead with a concrete fact from the messages');
+    expect(system).toContain(
+      'If there is no mail from today, summarize the relevant earlier messages',
+    );
+    expect(system).toContain('Never claim there are no urgent requests');
+    expect(system).toContain('Unread is a reading state, not evidence');
+  });
+
   it('passes the validated UTC interval to the digest and answers with the brief as data', async () => {
     const response = await postJson(server, { startAt: START_AT, endAt: END_AT, locale: 'es-ES' });
 
@@ -187,7 +232,7 @@ describe('POST /email/ai/daily-brief', () => {
       body: {
         schemaVersion: 1,
         requestId: 'request_daily_brief_exact',
-        summary: 'Ana needs the quarterly numbers by Friday; the rest can wait.',
+        summary: 'Ana asks for the quarterly numbers by Friday.',
         counts: { received: 2, unread: 1, starred: 0, earlierUnread: 1 },
         items: [
           {
@@ -231,7 +276,19 @@ describe('POST /email/ai/daily-brief', () => {
     const [system, user] = input.messages;
     expect(system?.content[0]?.text).toContain('in Spanish');
     const prompt = user?.content[0]?.text ?? '';
-    expect(prompt).toContain('Today in the inbox: 2 received, 1 still unread, 0 starred.');
+    expect(prompt).toContain('Messages from today in the inbox:');
+    expect(prompt).not.toContain('2 received, 1 still unread, 0 starred');
+    expect(prompt).not.toMatch(/Unread from before today: \d/);
+    expect(system?.content[0]?.text).toContain(
+      'Never mention how many emails or messages there are',
+    );
+    expect(system?.content[0]?.text).toContain(
+      'This also applies to item notes and groups of similar emails',
+    );
+    expect(system?.content[0]?.text).toContain(
+      'Keep meaningful dates, times, amounts and quantities',
+    );
+    expect(system?.content[0]?.text).not.toContain('say in its note how many there are');
     expect(prompt).toContain('<message ref="m1">\nFrom: Ana García <ana@example.test>');
     expect(prompt).toContain('Excerpt: Can you send me the quarterly numbers by Friday?');
     expect(prompt).toContain('<message ref="e1">');
@@ -239,6 +296,70 @@ describe('POST /email/ai/daily-brief', () => {
     expect(prompt).toContain('Subject: Use the code •••• to complete your account setup');
     expect(prompt).not.toContain('118512');
   });
+
+  it('returns grounded Alia actions only to opted-in clients', async () => {
+    const actions = [
+      {
+        label: 'Draft reply',
+        prompt: 'Help me draft a reply to Ana about the quarterly numbers.',
+        refs: ['m1'],
+      },
+      {
+        label: 'Review contract',
+        prompt: 'Summarize the contract Ana sent and the next steps.',
+        refs: ['e1'],
+      },
+    ];
+    mockExecute.mockResolvedValue({
+      requestId: 'request_actions',
+      text: JSON.stringify({ ...JSON.parse(MODEL_ANSWER), actions }),
+    });
+    const response = await postJson(
+      server,
+      { startAt: START_AT, endAt: END_AT },
+      '?includeActions=true',
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.actions).toEqual([
+      { label: actions[0].label, prompt: actions[0].prompt, messageIds: ['msg_ana'] },
+      { label: actions[1].label, prompt: actions[1].prompt, messageIds: ['msg_old'] },
+    ]);
+    expect(inboxDailyBriefResponseSchema.safeParse(response.body).success).toBe(true);
+    const legacy = await postJson(server, { startAt: START_AT, endAt: END_AT });
+    expect(legacy.status).toBe(200);
+    expect(legacy.body).not.toHaveProperty('actions');
+  });
+
+  it.each([
+    [{ label: 'Only one', prompt: 'Summarize the request.', refs: ['m1'] }],
+    [
+      { label: 'Draft reply', prompt: 'Draft the reply.', refs: ['not-in-digest'] },
+      { label: 'Review request', prompt: 'Review the request.', refs: ['m1'] },
+    ],
+    Array.from({ length: 6 }, (_, i) => ({
+      label: `Action ${i}`,
+      prompt: 'Review the request.',
+      refs: ['m1'],
+    })),
+    [
+      { label: 'Duplicate', prompt: 'Draft the reply.', refs: ['m1'] },
+      { label: 'Duplicate', prompt: 'Review the request.', refs: ['m1'] },
+    ],
+  ])(
+    'rejects malformed action sets without returning misleading buttons (%#)',
+    async (...actions) => {
+      mockExecute.mockResolvedValue({
+        requestId: 'request_invalid_actions',
+        text: JSON.stringify({ ...JSON.parse(MODEL_ANSWER), actions }),
+      });
+      const response = await postJson(
+        server,
+        { startAt: START_AT, endAt: END_AT },
+        '?includeActions=true',
+      );
+      expect(response.status).toBe(502);
+    },
+  );
 
   it('writes in English when no locale is sent, and refuses a malformed one', async () => {
     await postJson(server, { startAt: START_AT, endAt: END_AT });

@@ -127,7 +127,7 @@ requireMatch(
 // ─── Answer ───────────────────────────────────────────────────────────
 requireMatch(
   dailyBriefRoute,
-  /const brief = briefFromModel\(inboxCompletionText\(completion\), digest\);/,
+  /const brief = briefFromModel\(inboxCompletionText\(completion\), digest, \{ includeActions \}\);/,
   "the model's answer must be resolved against the digest, never passed through",
 );
 requireMatch(

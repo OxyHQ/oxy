@@ -100,6 +100,12 @@ export const inboxDailyBriefResponseSchema = z.object({
   requestId: z.string().min(1).max(128),
   generationId: z.string().min(1).max(128).optional(),
   summary: z.string().max(400),
+  /** Returned only when the caller opts in with `?includeActions=true`. */
+  actions: z.array(z.object({
+    label: z.string().trim().min(1).max(40),
+    prompt: z.string().trim().min(1).max(600),
+    messageIds: z.array(inboxMessageIdSchema).min(1).max(10),
+  }).strict()).min(2).max(5).optional(),
   counts: z.object({
     received: z.number().int().nonnegative(),
     unread: z.number().int().nonnegative(),

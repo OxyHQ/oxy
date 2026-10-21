@@ -13,6 +13,7 @@ import {
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { inboxDailyBriefQuerySchema } from '../schemas/inboxInference.schemas';
 import { rateLimit } from '../middleware/rateLimiter';
 import { emailService, type MessageDto } from '../services/email.service';
 import {
@@ -165,8 +166,12 @@ router.post('/compose', validate({ body: inboxComposeRequestSchema }), asyncHand
   response.json(textResponse(await executeInboxPointInference(input)));
 }));
 
-router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), asyncHandler(async (request: AuthRequest, response) => {
+router.post('/daily-brief', validate({
+  body: inboxDailyBriefRequestSchema,
+  query: inboxDailyBriefQuerySchema,
+}), asyncHandler(async (request: AuthRequest, response) => {
   const body = request.body as InboxDailyBriefRequest;
+  const includeActions = request.query.includeActions === 'true';
   const digest = await getInboxDailyBriefDigest(
     userId(request),
     new Date(body.startAt),
@@ -181,15 +186,15 @@ router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), as
     userId: userId(request),
     feature: 'daily_brief',
     messages: messages(
-      dailyBriefSystemPrompt(briefLanguage(body.locale)),
+      dailyBriefSystemPrompt(briefLanguage(body.locale), { includeActions }),
       dailyBriefUserPrompt(digest, new Date()),
     ),
-    maxOutputTokens: 1_200,
+    maxOutputTokens: includeActions ? 2_400 : 1_200,
     temperature: 0.3,
     responseFormat: JSON_FORMAT,
     signal: signalFor(response),
   });
-  const brief = briefFromModel(inboxCompletionText(completion), digest);
+  const brief = briefFromModel(inboxCompletionText(completion), digest, { includeActions });
   if (!brief) {
     throw new ApiError(502, 'Inbox AI did not return a usable brief.', 'INBOX_BRIEF_INVALID', {
       requestId: completion.requestId,

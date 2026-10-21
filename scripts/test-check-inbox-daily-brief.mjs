@@ -221,7 +221,7 @@ try {
   mutate(
     trustedModel,
     'packages/api/src/routes/inboxInference.ts',
-    'const brief = briefFromModel(inboxCompletionText(completion), digest);',
+    'const brief = briefFromModel(inboxCompletionText(completion), digest, { includeActions });',
     'const brief = JSON.parse(inboxCompletionText(completion));',
   );
   verdict(trustedModel, 1);

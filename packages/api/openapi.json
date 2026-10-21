@@ -23661,7 +23661,20 @@
         ],
         "summary": "POST /email/ai/daily-brief",
         "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "includeActions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
