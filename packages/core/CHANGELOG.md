@@ -1,6 +1,6 @@
 # Changelog — `@oxy.so/core`
 
-## Unreleased
+## 6.6.0
 
 ### Changed
 
