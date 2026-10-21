@@ -8,7 +8,8 @@
  *    signature verification (Phase 2, `trustForwardedHost`) and actor-match, then
  *    202 + async dispatch to the injected inbound dispatcher,
  *  - `GET /users/:username/followers` + `/following` — the OXY follow graph
- *    (local + bridged federated edges) as paginated `OrderedCollection`s.
+ *    (local + bridged federated edges) as paginated `OrderedCollection`s,
+ *  - `GET /users/:username/moderators` — a community `Group`'s moderators.
  *
  * The CONTENT routes (`outbox`, `featured`, per-post dereference) stay in the app,
  * mounted on the SAME `/ap/users/:username/*` prefix the actor advertises.
@@ -27,7 +28,11 @@ import { discoveryCacheControl } from './httpCacheControl';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
-import type { LocalActorBuilder } from '../actorObject';
+import {
+  LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
+  localActorTypeForAccountKind,
+  type LocalActorBuilder,
+} from '../actorObject';
 
 /** Page size for the paginated followers/following collections (mirrors the outbox). */
 const FOLLOW_PAGE_SIZE = 20;
@@ -122,6 +127,12 @@ export interface ActorRouterConfig {
     offset: number,
     limit: number,
   ): Promise<FollowPage>;
+  /**
+   * A community's moderators (Oxy: its active members), served as the `Group`'s
+   * `attributedTo` collection at `GET /users/:username/moderators`. Omitted ⇒
+   * the route is not mounted; any account that is not a community 404s.
+   */
+  fetchModerators?(userId: string): Promise<User[]>;
   /** Actor HTTP response TTL in whole seconds, 0..86400. Defaults to 1800; 0 sends no-store. */
   httpCacheTtlSeconds?: number;
   /** Diagnostics sink. */
@@ -470,6 +481,43 @@ export function createActorRouter(config: ActorRouterConfig): Router {
   router.get('/users/:username/following', (req: Request, res: Response) =>
     serveFollowCollection(req, res, 'following', urls.following),
   );
+
+  // GET /ap/users/:username/moderators — a community `Group`'s moderators, the
+  // collection its `attributedTo` names. One unpaged `OrderedCollection`, the
+  // shape Lemmy and PieFed serve and read back.
+  const { fetchModerators } = config;
+  if (fetchModerators) {
+    router.get('/users/:username/moderators', async (req: Request, res: Response) => {
+      if (!config.federationEnabled) return res.status(404).json({ error: 'Federation disabled' });
+      const username = getUsername(req);
+      try {
+        const user = await config.resolveUser(username);
+        if (
+          !user ||
+          !config.consent.isSharingEnabledFromUser(user) ||
+          localActorTypeForAccountKind(user.kind) !== LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community
+        ) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        const moderators = await fetchModerators(String(user._id || user.id));
+        const orderedItems = moderators
+          .map((member) => memberActorUri(member, urls))
+          .filter((uri): uri is string => uri !== null);
+        res.set('Content-Type', apContentType);
+        res.set('Cache-Control', httpCacheControl);
+        return res.json({
+          '@context': AP_CONTEXT,
+          id: urls.moderators(username),
+          type: 'OrderedCollection',
+          totalItems: orderedItems.length,
+          orderedItems,
+        });
+      } catch (err) {
+        logger.error('Moderators collection endpoint error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+  }
 
   return router;
 }

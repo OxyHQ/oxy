@@ -396,6 +396,17 @@ export function createLocalActorBuilder(config: LocalActorBuilderConfig): LocalA
       },
     };
 
+    // A community is a FEP-1b12 `Group`: it names its moderators collection in
+    // `attributedTo` (Lemmy, PieFed; Mbin reads `moderators`) and says anybody
+    // may post into it. PeerTube refuses a `Group` without `attributedTo`, and a
+    // `Group` claiming `postingRestrictedToMods` is read as a channel by every
+    // implementation, ours included ({@link accountKindForActor}).
+    if (actorObject.type === LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community) {
+      actorObject.attributedTo = config.urls.moderators(username);
+      actorObject.moderators = config.urls.moderators(username);
+      actorObject.postingRestrictedToMods = false;
+    }
+
     const aliases = normalizeAlsoKnownAs(params.alsoKnownAs);
     if (aliases.length > 0) {
       actorObject.alsoKnownAs = aliases;

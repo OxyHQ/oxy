@@ -48,21 +48,22 @@ export type AccountKindGap = Exclude<AccountKind, (typeof ACCOUNT_KINDS)[number]
 
 /**
  * Kinds that may be CREATED as children of another account: `ACCOUNT_KINDS`
- * minus `personal`, which is always a tree root, and minus `community`.
+ * minus `personal`, which is always a tree root.
  *
  * A `community` is a forum its members post INTO and that re-broadcasts what
- * they post (an ActivityPub `Group`: a Lemmy or Mbin community). Oxy records
- * remote communities; it does not host one, because nothing here forwards a
- * member's post to the community's followers yet. Creating one would make an
- * account that promises that and cannot keep it.
+ * they post (an ActivityPub `Group`: a Lemmy or Mbin community, FEP-1b12). Its
+ * members are its moderators, and it is never acted as. Oxy holds the account;
+ * the app it lives in (Mention) is what forwards a member's post to the
+ * community's followers, so creating one is creating that promise.
  */
-export type ChildAccountKind = Exclude<AccountKind, 'personal' | 'community'>;
+export type ChildAccountKind = Exclude<AccountKind, 'personal'>;
 
 export const CHILD_ACCOUNT_KINDS = [
   'organization',
   'project',
   'bot',
   'channel',
+  'community',
 ] as const satisfies readonly ChildAccountKind[];
 
 /** `never` while `CHILD_ACCOUNT_KINDS` covers the child union. */
@@ -137,6 +138,17 @@ export function isDelegatedActAsEligibleKind(kind: AccountKind | null | undefine
  */
 export function isOperatorSwitchTargetKind(kind: AccountKind | null | undefined): boolean {
   return kind === 'organization' || kind === 'project';
+}
+
+/**
+ * Whether an account of this kind is OPERATED BY ITS MEMBERS rather than acted
+ * as: a `channel` (its members write as it) or a `community` (its members are
+ * its moderators). Neither can be the subject of a session or a delegation
+ * ({@link isDelegatedActAsEligibleKind} refuses both), so there is no right
+ * stronger than active membership to ask for, and membership is the whole of it.
+ */
+export function isMemberOperatedKind(kind: AccountKind | null | undefined): boolean {
+  return kind === 'channel' || kind === 'community';
 }
 
 /**

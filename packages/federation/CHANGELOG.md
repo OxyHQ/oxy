@@ -1,5 +1,22 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.6.0
+
+A local community is a FEP-1b12 `Group` other servers can follow and post into.
+
+### Added
+
+- `UrlBuilders.moderators(username)` → `/ap/users/<username>/moderators`.
+- The local actor of a `community` carries `attributedTo` and `moderators`
+  (both its moderators collection) and `postingRestrictedToMods: false` — what
+  Lemmy, PieFed and Mbin read a community's moderators and openness from, and
+  what PeerTube requires of any `Group`.
+- `createActorRouter({ fetchModerators })` serves
+  `GET /users/:username/moderators` as an `OrderedCollection` of actor ids for a
+  community; any other account 404s. Not mounted when omitted.
+- `LocalDeleteEventPayload.communityOxyUserId`: the community a deleted post was
+  written in, so the app can relay the deletion to that community's followers.
+
 ## 2.5.1
 
 ### Fixed

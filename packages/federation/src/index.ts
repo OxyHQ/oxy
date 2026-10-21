@@ -303,6 +303,12 @@ export interface LocalBoostEventPayload {
  */
 export interface LocalDeleteEventPayload {
   _id: unknown;
+  /**
+   * The community (Oxy account id) the post was written in, captured with the
+   * id before the row is gone, so a community that relayed the post (FEP-1b12)
+   * can relay its deletion to the same followers. Absent for an ordinary post.
+   */
+  communityOxyUserId?: string | null;
 }
 
 /**

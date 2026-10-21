@@ -900,6 +900,26 @@ router.get(
 );
 
 /**
+ * GET /users/:userId/moderators
+ *
+ * A community's moderators (its active members), public like the community.
+ * 404 for any account that is not a community — see
+ * `UserService.getCommunityModerators`.
+ *
+ * @returns {{ data: PublicUserProfile[] }}
+ */
+router.get(
+  '/:userId/moderators',
+  resolveUserId,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    await assertDiscoverableTargetUser(userId);
+    const moderators = await userService.getCommunityModerators(userId);
+    res.json({ data: moderators });
+  }),
+);
+
+/**
  * GET /users/:userId/following
  *
  * Get users that this user is following with pagination

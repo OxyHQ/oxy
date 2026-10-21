@@ -21,7 +21,7 @@ import { BOT_USERNAME_INVALID_MESSAGE } from '../username';
 import { userResponseSchema } from '../userResponse';
 
 describe('@oxy.so/contracts account kinds', () => {
-  it('carries channel as a child kind, and never personal or community', () => {
+  it('carries channel and community as child kinds, and never personal', () => {
     expect([...ACCOUNT_KINDS]).toEqual([
       'personal',
       'organization',
@@ -30,9 +30,14 @@ describe('@oxy.so/contracts account kinds', () => {
       'channel',
       'community',
     ]);
-    expect([...CHILD_ACCOUNT_KINDS]).toEqual(['organization', 'project', 'bot', 'channel']);
+    expect([...CHILD_ACCOUNT_KINDS]).toEqual([
+      'organization',
+      'project',
+      'bot',
+      'channel',
+      'community',
+    ]);
     expect(CHILD_ACCOUNT_KINDS).not.toContain('personal');
-    expect(CHILD_ACCOUNT_KINDS).not.toContain('community');
   });
 
   it('accepts a channel as a create-account kind', () => {

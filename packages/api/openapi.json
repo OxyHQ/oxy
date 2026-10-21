@@ -712,7 +712,8 @@
                       "organization",
                       "project",
                       "bot",
-                      "channel"
+                      "channel",
+                      "community"
                     ]
                   },
                   "username": {
@@ -72809,6 +72810,64 @@
           {}
         ],
         "operationId": "getUsersUserIdFollowing"
+      }
+    },
+    "/users/{userId}/moderators": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "A community's moderators (its active members), public like the community.",
+        "description": "404 for any account that is not a community — see\n`UserService.getCommunityModerators`.",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/users.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getUsersUserIdModerators"
       }
     },
     "/users/{userId}/mutuals": {

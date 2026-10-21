@@ -28,6 +28,7 @@ export {
   CHILD_ACCOUNT_KINDS,
   isDelegatedActAsEligibleKind,
   isOperatorSwitchTargetKind,
+  isMemberOperatedKind,
   isAccountKind,
   ACCOUNT_CATEGORY_IDS,
   RETIRED_ACCOUNT_CATEGORY_IDS,

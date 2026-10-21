@@ -561,11 +561,7 @@ router.post(
     }
 
     if (!isDelegatedActAsEligibleKind(account.kind)) {
-      throw new ForbiddenError(
-        account.kind === 'channel'
-          ? 'Cannot act as a channel account'
-          : 'Cannot act as a personal account',
-      );
+      throw new ForbiddenError(`Cannot act as a ${account.kind} account`);
     }
 
     // `stableDeviceKey` is MANDATORY here, not a refinement. This request has no

@@ -191,8 +191,9 @@ export interface CreateAccountInput {
    * on who creates it: `createChildAccount` writes no auth method, so it is born
    * with no login, and `POST /accounts/:id/switch` refuses it via
    * both act-as predicates, so no session can ever have a channel as its subject
-   * and therefore no bearer exists that could add one. `personal` is excluded
-   * because it is a human login, minted at signup.
+   * and therefore no bearer exists that could add one. A `community` is the same
+   * shape: its members are its moderators and nobody is ever it. `personal` is
+   * excluded because it is a human login, minted at signup.
    */
   kind: ChildAccountKind;
   /**

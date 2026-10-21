@@ -18,6 +18,7 @@ export {
   isAccountKind,
   isDelegatedActAsEligibleKind,
   isOperatorSwitchTargetKind,
+  isMemberOperatedKind,
   ACCOUNT_CATEGORY_IDS,
   ACCOUNT_CATEGORY_KINDS,
   accountCategoriesSchema,

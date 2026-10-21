@@ -216,6 +216,19 @@ describe('actor type by Oxy account kind', () => {
     ]);
   });
 
+  it('describes a community as an open FEP-1b12 Group naming its moderators', () => {
+    const community = buildActor({ ...PARAMS, kind: 'community' });
+    expect(community.type).toBe('Group');
+    expect(community.attributedTo).toBe('https://mention.earth/ap/users/nate/moderators');
+    expect(community.moderators).toBe(community.attributedTo);
+    expect(community.postingRestrictedToMods).toBe(false);
+    // Read back by the same table: an open Group is a community, not a channel.
+    expect(accountKindForActor(community)).toBe('community');
+    const person = buildActor(PARAMS);
+    expect(person).not.toHaveProperty('attributedTo');
+    expect(person).not.toHaveProperty('postingRestrictedToMods');
+  });
+
   it('covers every account kind contracts defines, with more than one answer', () => {
     // Coverage: driven by the upstream vocabulary, so a new kind fails here.
     expect(Object.keys(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND).sort()).toEqual([...ACCOUNT_KINDS].sort());
