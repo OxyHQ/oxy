@@ -7,21 +7,28 @@
  *  - two enqueues for one file produce one unit of work;
  *  - the no-Redis fallback is a BOUNDED, sequential drain and not a fallback to
  *    the unbounded in-process generation this module exists to remove;
- *  - the worker is constructed with an explicit, small concurrency.
+ *  - the worker is constructed with an explicit, small concurrency;
+ *  - Redis holds a bounded window: an upload records its request and adds its
+ *    job only while the queue has room, a job settles the request it carries,
+ *    and Redis errors are paused on and logged as a summary, never per attempt
+ *    (2026-10-20: 398,416 jobs filled the queue node and the worker loop logged
+ *    ~1,600 errors a second). The Postgres half is `renditionRequests.test.ts`.
  */
 
-type JobData = { fileId: string; activitySourceRegion?: string };
+type JobData = { fileId: string; requestedAt?: string; activitySourceRegion?: string };
 type Processor = (job: { data: JobData }) => Promise<void>;
 
 interface AddCall {
   jobId?: string;
   attempts?: number;
+  removeOnComplete?: unknown;
+  removeOnFail?: unknown;
 }
 
 type WorkerEventHandler = (
   job: {
     id: string;
-    data: { fileId: string };
+    data: JobData;
     attemptsMade: number;
     opts: { attempts?: number };
   },
@@ -54,6 +61,7 @@ jest.mock('bullmq', () => {
     static addCalls: AddCall[] = [];
     static dataCalls: JobData[] = [];
     static waiting = 0;
+    static failAdd = false;
     static oldestTimestamp: number | undefined;
     on(): this {
       return this;
@@ -65,6 +73,7 @@ jest.mock('bullmq', () => {
       return Promise.resolve(this);
     }
     add(_name: unknown, data: JobData, options: AddCall): Promise<void> {
+      if (MockQueue.failAdd) return Promise.reject(new Error('OOM command not allowed'));
       MockQueue.addCalls.push(options);
       MockQueue.dataCalls.push(data);
       return Promise.resolve();
@@ -88,6 +97,22 @@ jest.mock('../../services/workerActivity.service', () => ({
 
 const mockGenerateVariants = jest.fn(() => Promise.resolve());
 
+const REQUESTED_AT = '2026-10-20T10:00:00.000Z';
+const mockRecord = jest.fn();
+const mockRelease = jest.fn();
+const mockSettle = jest.fn();
+const mockCount = jest.fn();
+const mockOldest = jest.fn();
+jest.mock('../../services/renditionRequests', () => ({
+  recordRenditionRequest: (...args: unknown[]) => mockRecord(...args),
+  releaseRenditionRequest: (...args: unknown[]) => mockRelease(...args),
+  settleRenditionRequest: (...args: unknown[]) => mockSettle(...args),
+  countRenditionRequests: () => mockCount(),
+  oldestRenditionRequestAt: () => mockOldest(),
+  claimDueRenditionRequests: () => Promise.resolve([]),
+  adoptRenditionRequests: () => Promise.resolve(0),
+}));
+
 jest.mock('../connection', () => ({
   getAssetVariantQueueConnectionOptions: () => ({}),
   getAssetVariantQueueUrl: () =>
@@ -107,18 +132,25 @@ jest.mock('../../services/variantService', () => ({
 import { Queue, Worker } from 'bullmq';
 import { logger } from '../../utils/logger';
 import {
+  ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH,
+  ASSET_VARIANT_REQUEST_LEASE_MS,
   ASSET_VARIANT_WORKER_CONCURRENCY,
   assetVariantsJobId,
+  backOffOnWorkerErrors,
   enqueueAssetVariantGeneration,
   startAssetVariantProducer,
   startAssetVariantWorker,
   stopAssetVariantProducer,
+  ThrottledErrorLog,
+  WORKER_ERROR_BACKOFF_MAX_MS,
+  WORKER_ERROR_BACKOFF_MIN_MS,
 } from '../assetVariants.queue';
 
 const MockQueue = Queue as unknown as {
   addCalls: AddCall[];
   dataCalls: JobData[];
   waiting: number;
+  failAdd: boolean;
   oldestTimestamp: number | undefined;
 };
 const MockWorker = Worker as unknown as {
@@ -138,7 +170,20 @@ beforeEach(() => {
   MockQueue.dataCalls = [];
   mockObserveAssetJob.mockClear();
   MockQueue.waiting = 0;
+  MockQueue.failAdd = false;
   MockQueue.oldestTimestamp = undefined;
+  mockRecord.mockReset();
+  mockRecord.mockImplementation((fileId: string) =>
+    Promise.resolve({ fileId, requestedAt: new Date(REQUESTED_AT) }),
+  );
+  mockRelease.mockReset();
+  mockRelease.mockImplementation(() => Promise.resolve());
+  mockSettle.mockReset();
+  mockSettle.mockImplementation(() => Promise.resolve());
+  mockCount.mockReset();
+  mockCount.mockImplementation(() => Promise.resolve(0));
+  mockOldest.mockReset();
+  mockOldest.mockImplementation(() => Promise.resolve(null));
   MockWorker.lastOptions = undefined;
   MockWorker.failedHandler = undefined;
   mockGenerateVariants.mockClear();
@@ -226,10 +271,12 @@ describe('producer/worker separation', () => {
     expect(ASSET_VARIANT_WORKER_CONCURRENCY).toBeLessThanOrEqual(2);
   });
 
-  it('publishes queue depth and oldest-waiting age as CloudWatch embedded metrics', async () => {
+  it('publishes queue depth, the backlog and its oldest age as CloudWatch embedded metrics', async () => {
     process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     MockQueue.waiting = 7;
-    MockQueue.oldestTimestamp = Date.now() - 125_000;
+    mockCount.mockImplementation(() => Promise.resolve(398_416));
+    // The age is the backlog's oldest REQUEST, wherever it waits.
+    mockOldest.mockImplementation(() => Promise.resolve(new Date(Date.now() - 125_000)));
     const info = jest.spyOn(logger, 'info');
 
     await startAssetVariantWorker();
@@ -239,6 +286,7 @@ describe('producer/worker separation', () => {
       expect.objectContaining({
         QueueName: 'asset-variants',
         QueueDepth: 7,
+        PendingRenditionRequests: 398_416,
         OldestWaitingJobAgeSeconds: expect.any(Number),
         _aws: expect.objectContaining({ CloudWatchMetrics: expect.any(Array) }),
       }),
@@ -377,8 +425,8 @@ describe('queue activity metadata', () => {
       enqueueAssetVariantGeneration('legacy-file');
       await settle();
       expect(MockQueue.dataCalls).toEqual([
-        { fileId: 'private-file', activitySourceRegion: 'eu-west-1' },
-        { fileId: 'legacy-file' },
+        { fileId: 'private-file', requestedAt: REQUESTED_AT, activitySourceRegion: 'eu-west-1' },
+        { fileId: 'legacy-file', requestedAt: REQUESTED_AT },
       ]);
     } finally {
       if (region === undefined) delete process.env.AWS_REGION;
@@ -398,5 +446,194 @@ describe('queue activity metadata', () => {
     const failure = new Error('rendition failed');
     mockGenerateVariants.mockRejectedValueOnce(failure);
     await expect(MockWorker.processor({ data: { fileId: 'failed-file' } })).rejects.toBe(failure);
+  });
+});
+
+describe('the bounded window', () => {
+  it('records the request with a lease and adds the job when the queue has room', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantProducer();
+    MockQueue.waiting = ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH - 1;
+
+    enqueueAssetVariantGeneration('file-abc');
+    await settle();
+
+    expect(mockRecord).toHaveBeenCalledWith('file-abc', ASSET_VARIANT_REQUEST_LEASE_MS);
+    expect(MockQueue.addCalls).toHaveLength(1);
+    expect(MockQueue.addCalls[0]).toMatchObject({
+      jobId: assetVariantsJobId('file-abc'),
+      // Nothing kept in Redis: the table and the logs are the record.
+      removeOnComplete: true,
+      removeOnFail: true,
+    });
+    expect(MockQueue.dataCalls[0]).toMatchObject({ fileId: 'file-abc', requestedAt: REQUESTED_AT });
+  });
+
+  it('leaves the request to the scheduler when the queue is at its bound', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantProducer();
+    MockQueue.waiting = ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH;
+
+    enqueueAssetVariantGeneration('file-abc');
+    await settle();
+
+    expect(mockRecord).toHaveBeenCalledWith('file-abc', null);
+    expect(MockQueue.addCalls).toHaveLength(0);
+  });
+
+  it('makes the request due again when the add fails', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantProducer();
+    MockQueue.failAdd = true;
+
+    enqueueAssetVariantGeneration('file-abc');
+    await settle();
+
+    expect(mockRelease).toHaveBeenCalledWith({
+      fileId: 'file-abc',
+      requestedAt: new Date(REQUESTED_AT),
+    });
+  });
+
+  it('still adds the job when the request cannot be recorded', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantProducer();
+    mockRecord.mockImplementation(() => Promise.reject(new Error('database down')));
+
+    enqueueAssetVariantGeneration('file-abc');
+    await settle();
+
+    expect(MockQueue.dataCalls).toHaveLength(1);
+    expect(MockQueue.dataCalls[0]?.fileId).toBe('file-abc');
+    expect(MockQueue.dataCalls[0]).not.toHaveProperty('requestedAt');
+  });
+
+  it('logs a failing producer as one summary, not one line per upload', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantProducer();
+    MockQueue.failAdd = true;
+    const error = jest.spyOn(logger, 'error');
+
+    for (let i = 0; i < 50; i += 1) enqueueAssetVariantGeneration(`file-${i}`);
+    await settle();
+
+    const lines = error.mock.calls.filter(
+      ([message]) => message === 'Asset variant request could not be queued',
+    );
+    expect(lines).toHaveLength(1);
+    error.mockRestore();
+  });
+
+  it('settles the request a job carries once it is built, and not when it failed', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantWorker();
+
+    await MockWorker.processor({ data: { fileId: 'built', requestedAt: REQUESTED_AT } });
+    expect(mockSettle).toHaveBeenCalledWith({
+      fileId: 'built',
+      requestedAt: new Date(REQUESTED_AT),
+    });
+
+    mockSettle.mockClear();
+    mockGenerateVariants.mockRejectedValueOnce(new Error('ffmpeg exploded'));
+    await expect(
+      MockWorker.processor({ data: { fileId: 'broken', requestedAt: REQUESTED_AT } }),
+    ).rejects.toThrow('ffmpeg exploded');
+    expect(mockSettle).not.toHaveBeenCalled();
+  });
+
+  it('gives a request up only after the final retry', async () => {
+    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+    await startAssetVariantWorker();
+    const job = { id: 'job-1', data: { fileId: 'file-1', requestedAt: REQUESTED_AT } };
+
+    MockWorker.failedHandler?.({ ...job, attemptsMade: 2, opts: { attempts: 3 } }, new Error('x'));
+    expect(mockSettle).not.toHaveBeenCalled();
+    MockWorker.failedHandler?.({ ...job, attemptsMade: 3, opts: { attempts: 3 } }, new Error('x'));
+    expect(mockSettle).toHaveBeenCalledWith({
+      fileId: 'file-1',
+      requestedAt: new Date(REQUESTED_AT),
+    });
+  });
+});
+
+describe('Redis errors back off', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function fakeWorker() {
+    const handlers = new Map<string, (arg?: Error) => void>();
+    return {
+      paused: 0,
+      resumed: 0,
+      on(event: string, handler: (arg?: Error) => void) {
+        handlers.set(event, handler);
+        return this;
+      },
+      pause() {
+        this.paused += 1;
+        return Promise.resolve();
+      },
+      resume() {
+        this.resumed += 1;
+      },
+      emit(event: string, arg?: Error) {
+        handlers.get(event)?.(arg);
+      },
+    };
+  }
+
+  it('pauses on an error and resumes after a bounded, doubling delay', () => {
+    jest.useFakeTimers();
+    const w = fakeWorker();
+    const stop = backOffOnWorkerErrors(w as never);
+    const oom = new Error("OOM command not allowed when used memory > 'maxmemory'");
+
+    // A burst — what BullMQ's loop emits with no delay — pauses ONCE.
+    for (let i = 0; i < 1_000; i += 1) w.emit('error', oom);
+    expect(w.paused).toBe(1);
+    jest.advanceTimersByTime(WORKER_ERROR_BACKOFF_MIN_MS - 1);
+    expect(w.resumed).toBe(0);
+    jest.advanceTimersByTime(1);
+    expect(w.resumed).toBe(1);
+
+    // Still failing: twice as long, up to the cap.
+    w.emit('error', oom);
+    jest.advanceTimersByTime(WORKER_ERROR_BACKOFF_MIN_MS * 2 - 1);
+    expect(w.resumed).toBe(1);
+    jest.advanceTimersByTime(1);
+    expect(w.resumed).toBe(2);
+    for (let i = 0; i < 20; i += 1) {
+      w.emit('error', oom);
+      jest.advanceTimersByTime(WORKER_ERROR_BACKOFF_MAX_MS);
+    }
+    const resumedBefore = w.resumed;
+    w.emit('error', oom);
+    jest.advanceTimersByTime(WORKER_ERROR_BACKOFF_MAX_MS);
+    expect(w.resumed).toBe(resumedBefore + 1);
+
+    // A completed job resets it.
+    w.emit('completed');
+    w.emit('error', oom);
+    jest.advanceTimersByTime(WORKER_ERROR_BACKOFF_MIN_MS);
+    expect(w.resumed).toBe(resumedBefore + 2);
+    stop();
+  });
+
+  it('logs an error stream as one line per interval with how many it held back', () => {
+    let now = 0;
+    const log = new ThrottledErrorLog('throttled stream under test', 60_000, () => now);
+    const error = jest.spyOn(logger, 'error');
+    const lines = () =>
+      error.mock.calls.filter(([message]) => message === 'throttled stream under test');
+
+    for (let i = 0; i < 1_000; i += 1) log.note(new Error('OOM'));
+    expect(lines()).toHaveLength(1);
+    now = 60_000;
+    log.note(new Error('OOM'));
+    expect(lines()).toHaveLength(2);
+    expect(lines()[1]?.[1]).toMatchObject({ suppressedSinceLastLog: 999 });
+    error.mockRestore();
   });
 });
