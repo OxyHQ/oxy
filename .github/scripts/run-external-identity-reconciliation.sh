@@ -105,7 +105,18 @@ fi
 overrides=$(jq -nc --arg name "$container" --argjson command "$command" '{containerOverrides:[{name:$name,command:$command}]}')
 network=$(jq -c '.services[0].networkConfiguration' "$scratch/service.json")
 for attempt in $(seq 1 31); do
-  aws ecs run-task --cluster "$cluster" --task-definition "$transient_definition" --launch-type FARGATE --network-configuration "$network" --overrides "$overrides" --started-by gh-identity-reconciliation --output json > "$scratch/run-result.json"
+  # Where service runs: its capacity provider strategy when it has one (the
+  # oxy-ec2 capacity, whose revisions are EC2-only), otherwise its launch
+  # type. This revision is derived from its live one, so a hard-coded
+  # FARGATE would be refused once the service is on EC2.
+  placement_service_json=$(aws ecs describe-services --cluster "$cluster" --services "$service" --query 'services[0]' --output json)
+  placement_strategy=$(jq -c '.capacityProviderStrategy // []' <<<"$placement_service_json")
+  if [[ "$placement_strategy" != "[]" ]]; then
+    placement=(--capacity-provider-strategy "$placement_strategy")
+  else
+    placement=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$placement_service_json")")
+  fi
+  aws ecs run-task --cluster "$cluster" --task-definition "$transient_definition" "${placement[@]}" --network-configuration "$network" --overrides "$overrides" --started-by gh-identity-reconciliation --output json > "$scratch/run-result.json"
   task_arn=$(jq -r '.tasks[0].taskArn // empty' "$scratch/run-result.json")
   [[ -z "$task_arn" ]] || break
   jq -e '.failures | length > 0 and all(.[]; .reason == "RESOURCE:CPU" or ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus")))' "$scratch/run-result.json" >/dev/null || { echo 'ECS refused task' >&2; exit 1; }

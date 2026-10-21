@@ -24,7 +24,7 @@ PROFILES = {
     'oxy': {'service': 'oxy-api', 'definition': 'oxy-oxy-api:692', 'container': 'oxy-api', 'cwd': '/app/packages/api', 'parameter': '/oxy/oxy-api/DATABASE_URL'},
 }
 PROFILES['oxy_related'] = PROFILES['oxy'].copy()
-DEFINITION_QUERY = 'taskDefinition.{arn:taskDefinitionArn,family:family,status:status,executionRoleArn:executionRoleArn,cpu:cpu,memory:memory,networkMode:networkMode,requiresCompatibilities:requiresCompatibilities,runtimePlatform:runtimePlatform,containers:containerDefinitions[].{name:name,image:image,secrets:secrets,environmentNames:environment[].name,logConfiguration:logConfiguration}}'
+DEFINITION_QUERY = 'taskDefinition.{arn:taskDefinitionArn,family:family,status:status,executionRoleArn:executionRoleArn,cpu:cpu,memory:memory,networkMode:networkMode,requiresCompatibilities:requiresCompatibilities,runtimePlatform:runtimePlatform,containers:containerDefinitions[].{name:name,image:image,cpu:cpu,memory:memory,memoryReservation:memoryReservation,secrets:secrets,environmentNames:environment[].name,logConfiguration:logConfiguration}}'
 
 def aws(*args):
     result = subprocess.run(['aws', *args, '--region', REGION, '--output', 'json'], capture_output=True, text=True, timeout=40, check=False)
@@ -42,6 +42,30 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+# Fargate's valid (cpu units -> memory MiB) pairs, smallest first.
+FARGATE_SIZES = [(256, [512, 1024, 2048]), (512, [1024, 2048, 3072, 4096]),
+                 (1024, list(range(2048, 8193, 1024))), (2048, list(range(4096, 16385, 1024))),
+                 (4096, list(range(8192, 30721, 1024)))]
+
+
+def fargate_size(td, container):
+    """The ephemeral task this launches stays on Fargate. A live revision on the
+    oxy-ec2 capacity is EC2-only and has no task-level size: its container
+    carries a CPU share and a hard memory limit, so take the smallest Fargate
+    pair that holds both."""
+    if td.get('cpu') and td.get('memory'):
+        return td['cpu'], td['memory']
+    want_cpu = max(256, int(container.get('cpu') or 0))
+    want_memory = int(container.get('memory') or container.get('memoryReservation') or 512)
+    for cpu, memories in FARGATE_SIZES:
+        if cpu < want_cpu:
+            continue
+        for memory in memories:
+            if memory >= want_memory:
+                return str(cpu), str(memory)
+    raise SystemExit('No Fargate size holds the live container')
+
+
 def describe(profile):
     selected = PROFILES[profile]
     require(aws('sts', 'get-caller-identity')['Account'] == ACCOUNT, 'Wrong AWS account')
@@ -52,7 +76,7 @@ def describe(profile):
     require(service['taskDefinition'] == arn and service['pendingCount'] == 0 and service['runningCount'] == service['desiredCount'] > 0, 'Live service is not the pinned stable definition')
     require(len(service['deployments']) == 1 and service['deployments'][0]['status'] == 'PRIMARY' and service['deployments'][0].get('rolloutState') == 'COMPLETED', 'Deployment not stable')
     td = aws('ecs', 'describe-task-definition', '--task-definition', arn, '--query', DEFINITION_QUERY)
-    require(td['arn'] == arn and td['status'] == 'ACTIVE' and td['networkMode'] == 'awsvpc' and 'FARGATE' in td['requiresCompatibilities'], 'Unexpected task definition shape')
+    require(td['arn'] == arn and td['status'] == 'ACTIVE' and td['networkMode'] == 'awsvpc' and ('FARGATE' in td['requiresCompatibilities'] or td['requiresCompatibilities'] == ['EC2']), 'Unexpected task definition shape')
     require(td['runtimePlatform'] == {'cpuArchitecture': 'ARM64', 'operatingSystemFamily': 'LINUX'}, 'Unexpected runtime platform')
     containers = [row for row in td['containers'] if row['name'] == selected['container']]
     require(len(containers) == 1, 'Container missing/ambiguous')
@@ -75,7 +99,7 @@ def describe(profile):
     require(re.fullmatch(r'[A-Za-z0-9_-]{1,100}', log['options'].get('awslogs-stream-prefix', '')) is not None, 'Invalid live log stream prefix')
     require(re.fullmatch(f'arn:aws:iam::{ACCOUNT}:role/[A-Za-z0-9_/+=,.@-]+', td['executionRoleArn']) is not None, 'Unexpected execution role')
     # Only metadata names/references are returned. Environment values are never queried.
-    return {'taskDefinition': td['arn'], 'image': container['image'], 'executionRoleArn': td['executionRoleArn'], 'cpu': td['cpu'], 'memory': td['memory'], 'runtimePlatform': td['runtimePlatform'], 'network': network, 'logGroup': '/oxy/ecs', 'logStreamPrefix': log['options']['awslogs-stream-prefix'], 'databaseSecret': secret, 'stripeBindingPresent': any(row['name'] == 'STRIPE_SECRET_KEY' for row in container.get('secrets') or []) or 'STRIPE_SECRET_KEY' in container['environmentNames']}
+    return {'taskDefinition': td['arn'], 'image': container['image'], 'executionRoleArn': td['executionRoleArn'], 'cpu': fargate_size(td, container)[0], 'memory': fargate_size(td, container)[1], 'runtimePlatform': td['runtimePlatform'], 'network': network, 'logGroup': '/oxy/ecs', 'logStreamPrefix': log['options']['awslogs-stream-prefix'], 'databaseSecret': secret, 'stripeBindingPresent': any(row['name'] == 'STRIPE_SECRET_KEY' for row in container.get('secrets') or []) or 'STRIPE_SECRET_KEY' in container['environmentNames']}
 
 
 def private_json(path, value):
