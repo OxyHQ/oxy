@@ -1,5 +1,26 @@
 # Changelog — `@oxy.so/core`
 
+## 6.7.0
+
+### Changed
+
+- A file over `ASSET_MULTIPART_UPLOAD_MAX_BYTES` (and every `uploadLarge`) is
+  now a presigned **multipart** upload straight to storage (Oxy API
+  `POST /assets/uploads`, ADR 0047), up to 8 GiB, instead of one presigned PUT:
+  8 MiB+ parts in parallel (`partConcurrency`, default 4), each retried with
+  backoff (`partAttempts`, default 6), a fresh URL when storage refuses an
+  expired one, and Oxy verifies the assembled file's SHA-256. `onProgress`
+  reports `hash`, `upload` and the new `verify` phase. When a part keeps
+  failing it throws `DirectUploadInterruptedError` (`uploadId`); calling again
+  with the same file resumes and sends only the missing parts. `signal` stops
+  it; `assets.abortUpload(uploadId)` discards it. Parts go through
+  `XMLHttpRequest` wherever it exists (React Native sends slices of the native
+  Blob). Needs the API with `POST /assets/uploads`.
+
+### Added
+
+- `MAX_UPLOAD_BYTES`, `DirectUploadInterruptedError`, `DirectUploadProgress`.
+
 ## 6.6.0
 
 ### Changed

@@ -212,7 +212,7 @@ export class FileUploadSessionService {
    */
   async open(
     owner: LargeUploadOwner,
-    uploaderApplicationId: string,
+    uploaderApplicationId: string | null,
     request: OpenLargeUploadRequest,
   ): Promise<LargeUploadView> {
     const mime = normalizeContentType(request.mime);
@@ -240,8 +240,12 @@ export class FileUploadSessionService {
       const file = await this.assets.reuseOwnLiveFile(own, columns);
       // A person's file the application is storing for them: it may read it
       // back (ADR 0043 stage 4c), the bytes already being theirs included.
-      if (owner.kind === 'account') await grantUploadAccess(file.id, uploaderApplicationId);
-      const reference = await this.addReference(file, request.reference, uploaderApplicationId);
+      if (owner.kind === 'account' && uploaderApplicationId) {
+        await grantUploadAccess(file.id, uploaderApplicationId);
+      }
+      const reference = uploaderApplicationId
+        ? await this.addReference(file, request.reference, uploaderApplicationId)
+        : undefined;
       return {
         uploadId: null,
         status: 'completed',
@@ -350,7 +354,7 @@ export class FileUploadSessionService {
   async load(
     uploadId: string,
     owner: LargeUploadOwner,
-    uploaderApplicationId: string,
+    uploaderApplicationId: string | null,
   ): Promise<FileUploadSessionRow> {
     const [row] = await getDb()
       .select()
@@ -359,7 +363,9 @@ export class FileUploadSessionService {
         and(
           eq(fileUploadSessions.id, uploadId),
           eq(fileUploadSessions.kind, owner.kind),
-          eq(fileUploadSessions.uploaderApplicationId, uploaderApplicationId),
+          uploaderApplicationId === null
+            ? isNull(fileUploadSessions.uploaderApplicationId)
+            : eq(fileUploadSessions.uploaderApplicationId, uploaderApplicationId),
           ownerPredicate(owner),
         ),
       )
@@ -616,7 +622,7 @@ export class FileUploadSessionService {
         visibility: row.visibility,
         metadata: {
           ...(row.metadata ?? {}),
-          serviceAppId: row.uploaderApplicationId,
+          ...(row.uploaderApplicationId ? { serviceAppId: row.uploaderApplicationId } : {}),
           upload: 'multipart',
         },
         stagingKey: row.stagingKey,
@@ -640,12 +646,12 @@ export class FileUploadSessionService {
 
     // A person's file the uploading application stored for them: it may read
     // it back (ADR 0043 stage 4c).
-    if (row.kind === 'account') await grantUploadAccess(stored.file.id, row.uploaderApplicationId);
-    const reference = await this.addReference(
-      stored.file,
-      row.reference ?? undefined,
-      row.uploaderApplicationId,
-    );
+    // A person's own upload (no application) needs neither.
+    const uploader = row.uploaderApplicationId;
+    if (row.kind === 'account' && uploader) await grantUploadAccess(stored.file.id, uploader);
+    const reference = uploader
+      ? await this.addReference(stored.file, row.reference ?? undefined, uploader)
+      : undefined;
     await getDb()
       .update(fileUploadSessions)
       .set({
@@ -740,7 +746,7 @@ export class FileUploadSessionService {
   /** Re-opening bytes with an open session answers it — the same uploader and size only. */
   private async resume(
     row: FileUploadSessionRow,
-    uploaderApplicationId: string,
+    uploaderApplicationId: string | null,
     size: number,
   ): Promise<LargeUploadView> {
     if (row.uploaderApplicationId !== uploaderApplicationId || row.size !== size) {

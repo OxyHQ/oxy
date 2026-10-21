@@ -287,6 +287,15 @@ const POSTER_MAX_OUTPUT_BYTES = 32 * 1024 * 1024; // 32 MiB
  * would take the task down; such an image is stored and served as it is, with
  * no renditions (and a size request for it falls back like any missing one).
  */
+/**
+ * How long ffmpeg/ffprobe may read a source through its presigned URL. They
+ * stream it — the file is never downloaded whole — and reopen the URL with a
+ * new Range whenever they seek, so the URL must outlive the longest transcode of
+ * an 8 GiB upload, not just its start. Six hours: within what any signing
+ * credential the worker may hold allows (a task role's session lasts six).
+ */
+export const MEDIA_SOURCE_URL_TTL_SECONDS = 6 * 60 * 60;
+
 export const IMAGE_VARIANT_MAX_SOURCE_BYTES = 100 * 1024 * 1024;
 
 /**
@@ -672,7 +681,10 @@ export class VariantService {
     let durationSec = resolved.durationSec;
     if (isVideo && durationSec === undefined && file.storageKey) {
       try {
-        const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+        const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+          file.storageKey,
+          MEDIA_SOURCE_URL_TTL_SECONDS,
+        );
         const probed = await this.extractVideoMetadataFromUrl(videoUrl);
         if (typeof probed.duration === 'number' && probed.duration > 0) {
           durationSec = probed.duration;
@@ -705,7 +717,10 @@ export class VariantService {
     }
 
     if (file.mime.startsWith('video/')) {
-      const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+      const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+        file.storageKey,
+        MEDIA_SOURCE_URL_TTL_SECONDS,
+      );
       const probed = await this.extractVideoMetadataFromUrl(videoUrl);
       const width = typeof probed.width === 'number' && probed.width > 0 ? probed.width : undefined;
       const height =
@@ -842,7 +857,10 @@ export class VariantService {
       logger.info('Generating video variants with FFmpeg', { fileId: file.id });
 
       // Get S3 presigned URL - FFmpeg can read directly from HTTP URLs
-      const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+      const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+        file.storageKey,
+        MEDIA_SOURCE_URL_TTL_SECONDS,
+      );
 
       // Extract video metadata using S3 presigned URL (no download needed)
       const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
@@ -980,7 +998,7 @@ export class VariantService {
     logger.info('Generating audio variants with FFmpeg', { fileId: file.id });
 
     const probe = await this.probeAudio(
-      await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600),
+      await this.s3Service.getPresignedDownloadUrl(file.storageKey, MEDIA_SOURCE_URL_TTL_SECONDS),
     );
     if (!probe) {
       throw new Error(`No audio stream could be read from file ${file.id}`);
@@ -1161,7 +1179,10 @@ export class VariantService {
 
   /** The ffmpeg input options: a fresh presigned URL, protocols restricted to its own scheme. */
   private async audioInputArgs(file: FileRecord, seekSeconds = 0): Promise<string[]> {
-    const url = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+    const url = await this.s3Service.getPresignedDownloadUrl(
+      file.storageKey,
+      MEDIA_SOURCE_URL_TTL_SECONDS,
+    );
     this.validateMediaPath(url);
     return [
       '-loglevel',
@@ -1461,7 +1482,10 @@ export class VariantService {
     const posterKey = this.generateVariantKey(sha256, 'poster', 'jpg', visibility);
 
     // Get S3 presigned URL for the video (FFmpeg supports HTTP input)
-    const videoUrl = await this.s3Service.getPresignedDownloadUrl(videoStorageKey, 3600);
+    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+      videoStorageKey,
+      MEDIA_SOURCE_URL_TTL_SECONDS,
+    );
 
     // Extract metadata if not provided (using S3 URL)
     if (!metadata || !metadata.width || !metadata.height) {
@@ -2279,7 +2303,10 @@ export class VariantService {
       throw new Error(`Unsupported video mp4 rendition: ${variantType}`);
     }
 
-    const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+      file.storageKey,
+      MEDIA_SOURCE_URL_TTL_SECONDS,
+    );
     const storedVideo = file.metadata?.video as VideoProbeMetadata | undefined;
     const hasStoredDimensions =
       typeof storedVideo?.width === 'number' && typeof storedVideo?.height === 'number';
@@ -2326,7 +2353,10 @@ export class VariantService {
     // Generate poster frame directly from S3 - no temp files
     try {
       // Get S3 presigned URL and extract metadata
-      const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+      const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+        file.storageKey,
+        MEDIA_SOURCE_URL_TTL_SECONDS,
+      );
       const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
       const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
 
