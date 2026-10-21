@@ -417,11 +417,7 @@ router.post(
     // subject is a channel can be minted, so no bearer exists that could add an
     // auth method to one.
     if (!isOperatorSwitchTargetKind(account.kind)) {
-      throw new ForbiddenError(
-        account.kind === 'channel'
-          ? 'Cannot switch into a channel account'
-          : 'Cannot switch into a personal account',
-      );
+      throw new ForbiddenError(`Cannot switch into a ${account.kind} account`);
     }
 
     // Mint a REAL session for the managed account, recording the operator so the

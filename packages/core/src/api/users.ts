@@ -280,6 +280,21 @@ export class UsersApi {
   }
 
   /**
+   * A COMMUNITY's moderators — the people who operate it (its active members),
+   * public like the community. The API answers 404 for any other kind of
+   * account. Cached 5 minutes.
+   */
+  async moderators(communityId: string): Promise<User[]> {
+    const response = await this.ctx.request<{ data: User[] }>(
+      'GET',
+      `/users/${communityId}/moderators`,
+      undefined,
+      { cache: true, cacheTTL: PROFILE_TTL },
+    );
+    return (response.data ?? []).map((user) => normalizeUserIdentity(user));
+  }
+
+  /**
    * Profile recommendations. Works signed out (popular public profiles) and
    * personalises when signed in.
    *

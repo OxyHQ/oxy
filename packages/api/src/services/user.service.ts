@@ -62,7 +62,8 @@ import {
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
 import { normalizeUsername } from '../utils/username';
-import { BadRequestError, ConflictError } from '../utils/error';
+import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
+import { accountService } from './account.service';
 import type { Request } from 'express';
 import type {
   PaginatedResponse,
@@ -113,6 +114,9 @@ import {
   discoverableUserPredicate,
   visibleOrganizationIdentityPredicate,
 } from '../utils/profileQuery';
+
+/** The most moderators a community's public roster lists. */
+const MAX_COMMUNITY_MODERATORS = 100;
 
 /**
  * A profile as its OWNER sees it — the public view plus the fields
@@ -1252,6 +1256,38 @@ export class UserService {
       limit,
       offset,
     };
+  }
+
+  /**
+   * A COMMUNITY's moderators: the people its account graph says operate it —
+   * its active members, direct and inherited, resolved by
+   * {@link accountService.listMembers} (the roster the account gates admit),
+   * never a second membership read. Public like the community itself: a forum
+   * names who moderates it (Lemmy and Mbin publish the same list as the
+   * `Group`'s `attributedTo` collection, which this is the source of).
+   *
+   * Any other kind is a 404 — a channel's members are the writers its
+   * `signPosts` setting exists to keep undisclosed, and an organization's roster
+   * is `members:read`-gated. Capped at {@link MAX_COMMUNITY_MODERATORS}.
+   */
+  async getCommunityModerators(communityId: string): Promise<PublicUserProfile[]> {
+    const db = getDb();
+    const [community] = await db
+      .select({ kind: users.kind })
+      .from(users)
+      .where(eq(users.id, communityId))
+      .limit(1);
+    if (community?.kind !== 'community') {
+      throw new NotFoundError('Community not found');
+    }
+    const members = await accountService.listMembers(communityId);
+    const moderatorIds = [
+      ...new Set(
+        members.filter(({ row }) => row.status === 'active').map(({ row }) => row.memberUserId),
+      ),
+    ].slice(0, MAX_COMMUNITY_MODERATORS);
+    const moderators = await loadPublicUsersInOrder(db, moderatorIds);
+    return moderators.map((user) => this.formatUserResponse(user));
   }
 
   /**

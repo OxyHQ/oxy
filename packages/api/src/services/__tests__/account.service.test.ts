@@ -30,7 +30,7 @@ import {
   accountService,
   childAncestorsOf,
   childRootOf,
-  channelCannotParentChannel,
+  accountCannotParentSameKind,
   resolveEffectiveMembership,
   rewriteDescendantAncestors,
   wouldCreateCycle,
@@ -38,6 +38,7 @@ import {
   type AccountRow,
   type MembershipLike,
 } from '../account.service';
+import { userService } from '../user.service';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -181,10 +182,13 @@ describe('account tree pure helpers', () => {
     expect(childRootOf(node('a-root', [], null))).toBe('a-root');
   });
 
-  test('channelCannotParentChannel is true only when both parent and child are channels', () => {
-    expect(channelCannotParentChannel('channel', 'channel')).toBe(true);
-    expect(channelCannotParentChannel('channel', 'organization')).toBe(false);
-    expect(channelCannotParentChannel('personal', 'channel')).toBe(false);
+  test('accountCannotParentSameKind is true only for a member-operated kind under itself', () => {
+    expect(accountCannotParentSameKind('channel', 'channel')).toBe(true);
+    expect(accountCannotParentSameKind('community', 'community')).toBe(true);
+    expect(accountCannotParentSameKind('channel', 'organization')).toBe(false);
+    expect(accountCannotParentSameKind('channel', 'community')).toBe(false);
+    expect(accountCannotParentSameKind('organization', 'organization')).toBe(false);
+    expect(accountCannotParentSameKind('personal', 'channel')).toBe(false);
   });
 
   test('wouldCreateCycle detects self-parenting and descendant-parenting', () => {
@@ -287,6 +291,35 @@ describe('updateAccount', () => {
     const stored = await reload(account.id);
     expect(stored.nameFirst).toBe('Acme');
     expect(stored.nameLast).toBe('Corp');
+  });
+});
+
+// ===========================================================================
+// A community's public moderators
+// ===========================================================================
+
+describe('getCommunityModerators', () => {
+  test("lists a community's active members, and 404s any other kind", async () => {
+    const creator = await seedAccount();
+    const invited = await seedAccount();
+    const removed = await seedAccount();
+    const { account: community } = await accountService.createChildAccount(creator.id, creator.id, {
+      kind: 'community',
+      username: uniqueUsername('forum'),
+    });
+    await seedMember(community.id, invited.id, 'editor');
+    await seedMember(community.id, removed.id, 'editor', { status: 'removed' });
+
+    const moderators = await userService.getCommunityModerators(community.id);
+    expect(moderators.map((user) => user.id).sort()).toEqual([creator.id, invited.id].sort());
+
+    const { account: channel } = await accountService.createChildAccount(creator.id, creator.id, {
+      kind: 'channel',
+      username: uniqueUsername('chan'),
+    });
+    await expect(userService.getCommunityModerators(channel.id)).rejects.toThrow(
+      'Community not found',
+    );
   });
 });
 

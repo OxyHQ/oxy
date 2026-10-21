@@ -588,3 +588,45 @@ describe('actor router — inbox POST', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('community moderators collection', () => {
+  const moderatorsApp = () =>
+    makeActorApp({
+      actorConfig: {
+        resolveUser: async (username) =>
+          username === 'forum'
+            ? { _id: 'u-forum', kind: 'community' }
+            : username === 'alice'
+              ? { _id: 'u-alice' }
+              : null,
+        fetchModerators: async (userId) =>
+          userId === 'u-forum'
+            ? [
+                { id: 'u-alice', username: 'alice' },
+                {
+                  id: 'u-bob',
+                  username: 'bob',
+                  type: 'federated',
+                  federation: { actorUri: REMOTE_ACTOR },
+                },
+              ]
+            : [],
+      },
+    });
+
+  it('serves a community Group its moderators as actor ids', async () => {
+    const res = await request(moderatorsApp()).get('/ap/users/forum/moderators');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: urls.moderators('forum'),
+      type: 'OrderedCollection',
+      totalItems: 2,
+      orderedItems: [urls.actor('alice'), REMOTE_ACTOR],
+    });
+  });
+
+  it('404s an account that is not a community', async () => {
+    const res = await request(moderatorsApp()).get('/ap/users/alice/moderators');
+    expect(res.status).toBe(404);
+  });
+});

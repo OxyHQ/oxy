@@ -59,6 +59,7 @@ import {
   avatarCharacterFor,
   RETIRED_ACCOUNT_CATEGORY_IDS,
   isDelegatedActAsEligibleKind,
+  isMemberOperatedKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
   type AccountCategoryId,
@@ -287,15 +288,16 @@ export function childRootOf(parent: AccountWithAncestors): string {
 }
 
 /**
- * A channel has no administrator of its own — only members — so it cannot parent
- * another channel. Stated once here so service and user create/move paths share
- * the same invariant.
+ * An account operated by its members ({@link isMemberOperatedKind}: a channel, a
+ * community) has no administrator of its own — only members — so it cannot
+ * parent another account of its own kind. Stated once here so service and user
+ * create/move paths share the same invariant.
  */
-export function channelCannotParentChannel(
-  parentKind: AccountKind | string | null | undefined,
-  childKind: AccountKind | string | null | undefined,
+export function accountCannotParentSameKind(
+  parentKind: AccountKind | null | undefined,
+  childKind: AccountKind | null | undefined,
 ): boolean {
-  return parentKind === 'channel' && childKind === 'channel';
+  return parentKind === childKind && isMemberOperatedKind(childKind);
 }
 
 /**
@@ -529,8 +531,8 @@ export class AccountService {
       if (parent.ancestors.length + 1 > MAX_ACCOUNT_DEPTH) {
         throw new BadRequestError(`Maximum account nesting depth (${MAX_ACCOUNT_DEPTH}) exceeded`);
       }
-      if (channelCannotParentChannel(parent.account.kind, input.kind)) {
-        throw new BadRequestError('A channel cannot own another channel');
+      if (accountCannotParentSameKind(parent.account.kind, input.kind)) {
+        throw new BadRequestError(`A ${input.kind} cannot own another ${input.kind}`);
       }
 
       const created = await insertAccount(tx, {
@@ -631,8 +633,10 @@ export class AccountService {
           'Cannot move an account beneath itself or one of its descendants',
         );
       }
-      if (channelCannotParentChannel(newParent.account.kind, account.account.kind)) {
-        throw new BadRequestError('A channel cannot own another channel');
+      if (accountCannotParentSameKind(newParent.account.kind, account.account.kind)) {
+        throw new BadRequestError(
+          `A ${account.account.kind} cannot own another ${account.account.kind}`,
+        );
       }
 
       const oldSelfAncestors = account.ancestors;
@@ -1093,10 +1097,11 @@ export class AccountService {
    * TWO FAMILIES, TWO AUTHORITIES — collapsing them into one membership test is
    * the easy way to get this wrong, in both directions at once:
    *
-   *  - a **channel** can never be acted as ({@link isDelegatedActAsEligibleKind} refuses
-   *    it: it is a content identity, not a seat). No session can be minted whose
-   *    subject is a channel, so there is no stronger right than membership to ask
-   *    for — acting for a channel simply IS being one of its active members;
+   *  - a **channel** or **community** ({@link isMemberOperatedKind}) can never be
+   *    acted as ({@link isDelegatedActAsEligibleKind} refuses both: a content
+   *    identity and a forum, not seats). No session can be minted whose subject is
+   *    one, so there is no stronger right than membership to ask for — operating
+   *    one simply IS being one of its active members (a community's moderators);
    *  - an **act-as-eligible** account (organization / project / bot) CAN be
    *    switched into, and `account:act_as` is the right that governs that switch.
    *    Bare membership is NOT enough: an account's `billing`, `developer` and
@@ -1162,7 +1167,7 @@ export class AccountService {
 
     // Ordered so the dominant case — an ordinary personal target — costs this
     // one indexed lookup and no membership read at all.
-    if (account.kind !== 'channel' && !isDelegatedActAsEligibleKind(account.kind)) {
+    if (!isMemberOperatedKind(account.kind) && !isDelegatedActAsEligibleKind(account.kind)) {
       return false;
     }
 
@@ -1171,7 +1176,7 @@ export class AccountService {
       return false;
     }
 
-    return account.kind === 'channel' || access.permissions.includes(ACT_AS_PERMISSION);
+    return isMemberOperatedKind(account.kind) || access.permissions.includes(ACT_AS_PERMISSION);
   }
 
   /**

@@ -36,6 +36,7 @@ export {
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   isAccountKind,
   isDelegatedActAsEligibleKind,
+  isMemberOperatedKind,
   isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,

@@ -31,6 +31,11 @@ export interface UrlBuilders {
   followers(username: string): string;
   /** The actor's following collection. */
   following(username: string): string;
+  /**
+   * A community `Group`'s moderators collection — what its `attributedTo` names
+   * (Lemmy, PieFed and Mbin read the moderators from it).
+   */
+  moderators(username: string): string;
   /** The instance-wide shared inbox. */
   sharedInbox(): string;
 }
@@ -49,6 +54,7 @@ export function createUrlBuilders(domain: string, actorDomain: string = domain):
     featured: (username) => `https://${domain}/ap/users/${username}/collections/featured`,
     followers: (username) => `https://${domain}/ap/users/${username}/followers`,
     following: (username) => `https://${domain}/ap/users/${username}/following`,
+    moderators: (username) => `https://${domain}/ap/users/${username}/moderators`,
     sharedInbox: () => `https://${domain}/ap/inbox`,
   };
 }

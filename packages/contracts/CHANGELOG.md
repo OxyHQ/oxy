@@ -1,5 +1,21 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.5.0
+
+Oxy hosts communities.
+
+### Added
+
+- `isMemberOperatedKind(kind)`: a `channel` or a `community`, the kinds operated
+  by their members alone. Neither can be acted as, so active membership is the
+  whole right over one (a community's members are its moderators).
+
+### Changed
+
+- `community` is a child kind: `CHILD_ACCOUNT_KINDS` and `ChildAccountKind`
+  include it, so `POST /accounts` creates one under the caller's tree, owned by
+  the caller. The app it lives in forwards its members' posts (Mention, FEP-1b12).
+
 ## 5.4.0
 
 ### Added

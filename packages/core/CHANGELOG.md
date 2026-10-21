@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 6.10.0
+
+### Added
+
+- `users.moderators(communityId)`: a community's moderators (its active
+  members), public like the community — `GET /users/:id/moderators`, 404 for any
+  other kind. Cached 5 minutes.
+
+### Changed
+
+- `@oxy.so/contracts` 5.5.0: `accounts.create` takes `kind: 'community'`.
+
 ## 6.9.3
 
 ### Fixed

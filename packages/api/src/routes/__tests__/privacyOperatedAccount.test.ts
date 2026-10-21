@@ -30,7 +30,7 @@ import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
  * Verified by mutation: see `docs` in `accountService.operatesAccount`. Flipping
  * the final line to `true` reds the billing-member and stranger-adjacent cases;
  * flipping it to `false` reds the channel and act-as cases; deleting the
- * `kind !== 'channel'` term reds the channel case alone; removing the route
+ * `isMemberOperatedKind` term reds the channel and community cases alone; removing the route
  * guard reds all four refusals.
  */
 
@@ -136,7 +136,7 @@ function post(path: string): Promise<JsonResponse> {
 let seedCounter = 0;
 
 async function seedAccount(
-  kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel',
+  kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel' | 'community',
 ): Promise<string> {
   seedCounter += 1;
   const [row] = await insertAccountFixtures(
@@ -299,23 +299,26 @@ describe('block/restrict still work for callers who do not operate the target', 
 // ===========================================================================
 
 describe('block/restrict refuse an account the caller operates', () => {
-  it('an ACTIVE channel member cannot block the channel, and nothing is written', async () => {
-    const caller = await seedAccount('personal');
-    const channel = await seedAccount('channel');
-    // `viewer` deliberately: the WEAKEST role there is. A channel can never be
-    // acted as, so membership is the whole right over it and the permission
-    // gate must not be applied to this family.
-    await seedMembership({ accountId: channel, memberUserId: caller, role: 'viewer' });
-    callerId = caller;
+  it.each(['channel', 'community'] as const)(
+    'an ACTIVE %s member cannot block it, and nothing is written',
+    async (kind) => {
+      const caller = await seedAccount('personal');
+      const account = await seedAccount(kind);
+      // `viewer` deliberately: the WEAKEST role there is. A channel or a
+      // community can never be acted as, so membership is the whole right over
+      // it and the permission gate must not be applied to this family.
+      await seedMembership({ accountId: account, memberUserId: caller, role: 'viewer' });
+      callerId = caller;
 
-    expect(await accountService.operatesAccount(caller, channel)).toBe(true);
+      expect(await accountService.operatesAccount(caller, account)).toBe(true);
 
-    const response = await post(`/privacy/blocked/${channel}`);
+      const response = await post(`/privacy/blocked/${account}`);
 
-    expect(response.status).toBe(400);
-    expect(response.body.message).toBe('You cannot block an account you operate');
-    expect(await blockRowCount(caller, channel)).toBe(0);
-  });
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('You cannot block an account you operate');
+      expect(await blockRowCount(caller, account)).toBe(0);
+    },
+  );
 
   it('an ACTIVE channel member cannot restrict the channel either', async () => {
     const caller = await seedAccount('personal');
