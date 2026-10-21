@@ -53,11 +53,11 @@ export interface RequiredEnvVars {
   AWS_SECRET_ACCESS_KEY?: string;
   // The S3 bucket Oxy Files is migrating FROM, or — before the R2 cutover —
   // the store itself (ADR 0047; `services/s3ServiceSingleton.ts`).
-  AWS_S3_BUCKET?: string;
+  AWS_S3_BUCKET: string;
   AWS_ENDPOINT_URL?: string; // Optional for S3-compatible services
 
-  // Oxy Files' object store: Cloudflare R2 (ADR 0047). One of R2_BUCKET or
-  // AWS_S3_BUCKET is required; R2_BUCKET needs the other three.
+  // Oxy Files' object store: Cloudflare R2 (ADR 0047). R2_BUCKET needs the
+  // other three.
   R2_BUCKET?: string;
   R2_ENDPOINT?: string;
   R2_ACCESS_KEY_ID?: string;
@@ -274,6 +274,10 @@ export function validateRequiredEnvVars(): void {
     'ACCESS_TOKEN_SECRET',
     'REFRESH_TOKEN_SECRET',
     'AWS_REGION',
+    // The store before the R2 cutover, and the legacy store a migration
+    // mirrors deletes into after it (ADR 0047). R2_BUCKET replaces it here
+    // when the migration is retired.
+    'AWS_S3_BUCKET',
   ];
 
   const missing: string[] = [];
@@ -285,11 +289,7 @@ export function validateRequiredEnvVars(): void {
     }
   }
 
-  // Oxy Files needs an object store: R2 (ADR 0047), or the S3 bucket before
-  // the cutover. `objectStorageConfigFromEnv` holds the rest of the rule.
-  if (!process.env.R2_BUCKET && !process.env.AWS_S3_BUCKET) {
-    missing.push('R2_BUCKET (or AWS_S3_BUCKET)');
-  }
+  // R2 is all four variables or none (`objectStorageConfigFromEnv`).
   if (process.env.R2_BUCKET) {
     for (const key of ['R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
       if (!process.env[key]) missing.push(key);
