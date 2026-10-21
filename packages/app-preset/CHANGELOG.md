@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.5.0
+
+### Fixed
+
+- The Android build-property defaults no longer pin `compileSdkVersion` (36),
+  `targetSdkVersion` (35) or `buildToolsVersion` (`36.0.0`). Expo SDK 58's Expo
+  modules (`expo.modules.integrity`, `expo.modules.application` and 25 more)
+  require compileSdk 37, so every SDK 58 Android release build of an app using
+  the preset failed in `:expo:checkReleaseAarMetadata`. The Expo SDK's template
+  now sets all three (SDK 58: compileSdk 37, targetSdk 36, build tools 37.0.0)
+  and they follow each SDK upgrade. **targetSdk moves from 35 to 36** (Android 16
+  behaviour: edge-to-edge and predictive back are no longer opt-outs, large
+  screens ignore orientation/resizability locks) — test on a device. An app that
+  must hold a level back passes it as an `android` override.
+
 ## 3.4.0
 
 ### Fixed

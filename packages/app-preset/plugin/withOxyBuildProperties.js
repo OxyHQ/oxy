@@ -22,10 +22,13 @@ const DEFAULTS = {
   ios: {
     deploymentTarget: '16.4',
   },
+  // No compileSdkVersion / targetSdkVersion / buildToolsVersion: the Expo SDK's
+  // own template sets them (SDK 58: compileSdk 37, targetSdk 36, build tools
+  // 37.0.0), so they move with every SDK upgrade. Pinning them here broke every
+  // SDK 58 release build: SDK 58's Expo modules require compileSdk 37 and AGP's
+  // checkReleaseAarMetadata refuses compileSdk 36. An app that must hold a level
+  // back still passes it as an override.
   android: {
-    compileSdkVersion: 36,
-    targetSdkVersion: 35,
-    buildToolsVersion: '36.0.0',
     enableProguardInReleaseBuilds: true,
     enableShrinkResourcesInReleaseBuilds: true,
     useLegacyPackaging: false,
