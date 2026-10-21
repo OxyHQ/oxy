@@ -142,6 +142,26 @@ class SessionCache {
     }
   }
 
+  /**
+   * Forget one session on THIS task only — the receiving end of a revocation
+   * another task announced (`utils/serviceEvents.ts`), which has already
+   * removed the shared Redis entry itself.
+   */
+  invalidateLocal(sessionId: string): void {
+    this.local.delete(sessionId);
+    this.pendingLastActiveUpdates.delete(sessionId);
+  }
+
+  /** Forget every session of one user on THIS task only. See {@link invalidateLocal}. */
+  invalidateUserSessionsLocal(userId: string): void {
+    for (const [key, cached] of this.local.entries()) {
+      if (cached.userId === userId) {
+        this.local.delete(key);
+        this.pendingLastActiveUpdates.delete(cached.session.sessionId);
+      }
+    }
+  }
+
   shouldUpdateLastActive(sessionId: string): boolean {
     const redis = getRedisClient();
     if (redis && redis.status === 'ready') {

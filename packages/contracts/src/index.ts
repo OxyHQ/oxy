@@ -171,6 +171,19 @@ export type {
 } from './userInvalidation';
 
 export {
+  OXY_SERVICE_EVENTS_NAMESPACE,
+  OXY_SESSION_REVOKED_EVENT,
+  OXY_SERVICE_EVENTS_HEARTBEAT_EVENT,
+  OXY_SERVICE_EVENTS_HEARTBEAT_MS,
+  OXY_SERVICE_EVENTS_STALE_AFTER_MS,
+  OXY_SERVICE_EVENTS_FORBIDDEN,
+  oxySessionRevocationEventSchema,
+  oxyServiceEventsHeartbeatSchema,
+} from './sessionRevocation';
+
+export type { OxySessionRevocationEvent, OxyServiceEventsHeartbeat } from './sessionRevocation';
+
+export {
   // Schemas
   recommendationExcludeTypeSchema,
   recommendationBoostSchema,

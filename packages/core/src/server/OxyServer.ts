@@ -1,4 +1,5 @@
 import {
+  type OxySessionRevocationEvent,
   serviceTokenOptionsSchema,
   type ServiceTokenOptions,
   subjectProductAccessQuerySchema,
@@ -90,6 +91,8 @@ import {
 } from './namespaces';
 import { ServerSafetyApi } from './safety';
 import { SESSION_VALIDATION_CACHE_TTL_MS, ServerSessionApi } from './session';
+import { OxyServiceEventFeed } from './serviceEvents';
+import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
 
 export interface OxyServerConfig extends OxyConfig {
   /** This service's application credential. Omit to use workload identity (ADR 0026). */
@@ -132,10 +135,12 @@ export interface OxyServerConfig extends OxyConfig {
   /**
    * How long one successful user-bearer validation (`session.validate` with an
    * `accessToken`, which `middleware.auth()` runs on every request) is reused
-   * on this process, per session and token (default 30 000 ms). This is the
-   * longest a revoked session keeps working here when no invalidation signal
-   * reaches it. `0` disables the cache; `auth({ freshSession: true })` skips it
-   * on one route.
+   * on this process, per session and token (default 30 000 ms). The cache is
+   * used only while this server's revocation feed from Oxy is live (it needs a
+   * service token: `serviceAuth` or workload identity), so a revoked session
+   * stops validating here as soon as Oxy announces it; without the feed every
+   * request asks Oxy. `0` disables the cache; `auth({ freshSession: true })`
+   * skips it on one route.
    */
   sessionValidationCacheTtlMs?: number;
 }
@@ -249,6 +254,9 @@ export class OxyServer extends OxyServices {
   private readonly configuredApplicationId: string | null;
   private readonly sessionValidationTtlMs: number;
   private readonly appPermissions: OxyAppPermissionsResolver;
+  /** Opened the first time the validation cache would be used; see `./serviceEvents.ts`. */
+  private serviceEventFeed: OxyServiceEventFeed | null = null;
+  private disposed = false;
 
   /**
    * Express and Socket.IO middleware.
@@ -361,8 +369,18 @@ export class OxyServer extends OxyServices {
   /** Session state, plus validation through a reviewed supervised action. */
   override get session(): ServerSessionApi {
     if (!this._serverSession)
-      this._serverSession = new ServerSessionApi(this.context, this.sessionValidationTtlMs);
+      this._serverSession = new ServerSessionApi(this.context, this.sessionValidationTtlMs, () =>
+        this.revocationFeedEpoch(),
+      );
     return this._serverSession;
+  }
+
+  /** Close the revocation feed along with the HTTP client. */
+  override dispose(): void {
+    this.disposed = true;
+    this.serviceEventFeed?.stop();
+    this.serviceEventFeed = null;
+    super.dispose();
   }
 
   // ── Service token ────────────────────────────────────────────────────────
@@ -592,8 +610,9 @@ export class OxyServer extends OxyServices {
 
   /**
    * Drop cached session validations — all of them, one user's or one
-   * session's. `createOxyUserInvalidationHandler` calls it for the user named
-   * by each `oxy:user:invalidate` event.
+   * session's. Oxy's revocation feed does this by itself; a host may also call
+   * it, and `createOxyUserInvalidationHandler` does for the user named by each
+   * `oxy:user:invalidate` event.
    */
   invalidateSessionValidations(filter: { userId?: string; sessionId?: string } = {}): void {
     this.session.invalidateValidations(filter);
@@ -742,6 +761,32 @@ export class OxyServer extends OxyServices {
       );
       return null;
     }
+  }
+
+  /**
+   * The revocation feed's live period, or `null` while it is not live. Opens
+   * the feed on first use — only a process that can produce a service token
+   * has one; any other never caches a session validation.
+   */
+  private revocationFeedEpoch(): number | null {
+    if (!this.serviceEventFeed) {
+      if (this.disposed || !this.canMintServiceToken()) return null;
+      this.serviceEventFeed = new OxyServiceEventFeed({
+        baseURL: this.baseURL,
+        serviceToken: () => this.serviceToken(),
+        onRevocation: (event) => this.applySessionRevocation(event),
+        onDown: () => this.session.invalidateValidations(),
+      });
+      this.serviceEventFeed.start();
+    }
+    return this.serviceEventFeed.liveEpoch();
+  }
+
+  private applySessionRevocation(event: OxySessionRevocationEvent): void {
+    this.session.applyRevocation(event);
+    // Every session of the account ended (deleted, archived, signed out
+    // everywhere): its cached identity goes too, as on `oxy:user:invalidate`.
+    if (!event.sessionId) evictOxyIdentityCache(this.http, event.userId);
   }
 
   private canMintServiceToken(): boolean {

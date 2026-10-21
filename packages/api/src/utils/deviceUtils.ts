@@ -6,7 +6,7 @@ import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import { logger } from './logger';
 import { formatUserResponse } from './userTransform';
-import sessionCache from './sessionCache';
+import { revokeSessions } from '../services/sessionRevocation.service';
 import { accountNameColumns } from './publicUserProjection';
 
 export interface DeviceFingerprint {
@@ -488,27 +488,18 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
  */
 export const logoutAllDeviceSessions = async (deviceId: string, excludeSessionId?: string) => {
   try {
-    const match = and(
-      eq(sessions.deviceId, deviceId),
-      eq(sessions.isActive, true),
-      ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
-    );
-
-    // One statement, not read-then-update: `returning` gives back exactly the
-    // rows this update deactivated, so the cache invalidation below can never
-    // act on a row a concurrent writer changed in between.
+    // One statement, not read-then-update: it returns exactly the rows it
+    // deactivated, so the announcement can never act on a row a concurrent
+    // writer changed in between. `revokeSessions` announces them to every cache.
     //
     // There is deliberately no `logged_out_at` column: nothing has ever read a
     // logout timestamp.
-    const deactivated = await getDb()
-      .update(sessions)
-      .set({ isActive: false })
-      .where(match)
-      .returning({ sessionId: sessions.sessionId });
-
-    for (const row of deactivated) {
-      sessionCache.invalidate(row.sessionId);
-    }
+    const deactivated = await revokeSessions(
+      and(
+        eq(sessions.deviceId, deviceId),
+        ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
+      ),
+    );
 
     logger.info(`[DeviceUtils] Logged out ${deactivated.length} sessions for device: ${deviceId}`);
     return deactivated.length;

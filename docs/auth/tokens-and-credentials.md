@@ -114,20 +114,58 @@ more than its session was granted is refused, not trimmed.
 `req.user` answers *who*, `req.oxyToken` answers *as whom, through what, with
 which scopes*. Only the blocking `authMiddleware` lane populates it.
 
-### App backends reuse the answer for 30 s
+### App backends reuse the answer for 30 s — only while Oxy can tell them of a revocation
 
 An app backend cannot check the signature (HS256 under a secret only oxy-api
 holds), so `@oxy.so/core/server`'s `middleware.auth()` asks
-`GET /session/validate-header/:id` about each bearer. Since core 6.1.0 a
+`GET /session/validate-header/:id` about each bearer. Since core 6.2.0 a
 successful answer is reused on that process per session and SHA-256 of the
 bearer, for `sessionValidationCacheTtlMs` (default 30 s) and never past the
-token's `exp`; refusals are never reused. A revoked session therefore keeps
-working on an app backend for at most 30 s, and at once where a signal arrives:
-the `oxy:user:invalidate` broadcast drops that user's entries
-(`createOxyUserInvalidationHandler({ oxy })`), as does a logout made through that
-`OxyServer`. `auth({ freshSession: true })` asks Oxy every time on one route;
-`sessionValidationCacheTtlMs: 0` turns the cache off. The supervised-action lane
-is never cached.
+token's `exp`; refusals are never reused.
+
+The rule that makes that safe: **the cache never keeps a revoked session
+alive.** Oxy announces every session it ends, and the cache is used only while
+the backend hears those announcements.
+
+- **One choke point.** Every write that ends a session (`sessions.is_active` →
+  false) is `deactivateSessionRows` in
+  `packages/api/src/services/sessionRevocation.service.ts`, announced after it
+  commits: per session (logout, device removal, an account switched away from,
+  a managed session whose operator lost `account:act_as`, an admin retirement,
+  agent-key revocation, supervision enrollment) or per account (sign-out
+  everywhere, credential changes that end sessions, deletion, archive).
+  `sessionRevocation.census.test.ts` fails the build on any other writer.
+- **Between API tasks** the announcement rides Valkey
+  (`oxy-api:session:revoked`); every task drops the session from its own
+  in-memory `sessionCache` tier and relays it to its service sockets.
+- **To backends** it rides the `/service-events` Socket.IO namespace
+  (`@oxy.so/contracts` `sessionRevocation.ts`). `OxyServer` connects by itself
+  the first time the cache would be used, with the service token it already
+  mints (`serviceAuth` or workload identity); there is nothing to wire. Oxy
+  admits only internal-tier service tokens whose owner may operate, and closes
+  each socket when its token expires (the SDK reconnects with a fresh one).
+- **Live or nothing.** A task sends a heartbeat every 5 s only while its own
+  Valkey round trip works (it publishes a probe and must hear it back); a lost
+  subscription disconnects its service sockets at once. `OxyServer` uses the
+  cache only while connected with a heartbeat under 12 s old. Never connected,
+  disconnected, late, or no service token at all (a test, a local checkout):
+  every request asks Oxy. Every interruption drops every entry.
+- **On an announcement** the session's entries (or every entry of the account,
+  and its cached identity) go at once, and nothing for it is stored for the TTL
+  after, so an answer from a task that heard a moment later cannot re-cache it.
+- **Delegated sessions are never cached.** Oxy re-checks a delegate's authority
+  lazily, so there is no moment at which to announce its loss.
+
+`auth({ freshSession: true })` asks Oxy every time on one route;
+`sessionValidationCacheTtlMs: 0` turns the cache off; the `oxy:user:invalidate`
+broadcast (`createOxyUserInvalidationHandler({ oxy })`) and a logout made through
+that `OxyServer` still drop entries too. The supervised-action lane is never
+cached.
+
+What remains: Valkey pub/sub is at-most-once. A revocation lost while the path
+still works end to end (a publish failing on one task's connection while every
+subscriber stays healthy) is bounded by the TTL, as before; every failure of
+the path itself stops the heartbeats and with them the cache.
 
 ### What a switch does NOT do
 

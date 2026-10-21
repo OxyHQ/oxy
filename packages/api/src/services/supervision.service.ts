@@ -1,4 +1,10 @@
 import { invalidateSupervision } from './supervisionPolicy.service';
+import {
+  announceSessionRevocations,
+  announceUserSessionsRevoked,
+  deactivateSessionRows,
+  type RevokedSession,
+} from './sessionRevocation.service';
 import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import {
   supervisionSchema,
@@ -27,7 +33,6 @@ import {
   supervisionPurchaseLines,
   supervisionAudit,
 } from '../db/schema';
-import sessionCache from '../utils/sessionCache';
 import userCache from '../utils/userCache';
 import { visibleOrganizationIdentityPredicate } from '../utils/profileQuery';
 
@@ -314,6 +319,8 @@ async function invalidateGuardianApprovals(tx: DatabaseOrTransaction, child: str
     );
 }
 export async function acceptInvitation(id: string, guardian: string) {
+  // Ended inside the transaction, announced once it committed.
+  const revoked: RevokedSession[] = [];
   const child = await getDb().transaction(async (tx) => {
     const [candidate] = await tx
       .select(supervisionInvitationsFields)
@@ -384,15 +391,15 @@ export async function acceptInvitation(id: string, guardian: string) {
         .update(users)
         .set({ privacyIsPrivateAccount: true })
         .where(eq(users.id, candidate.childAccountId));
-      await tx
-        .update(sessions)
-        .set({ isActive: false })
-        .where(
+      revoked.push(
+        ...(await deactivateSessionRows(
+          tx,
           or(
             eq(sessions.userId, candidate.childAccountId),
             eq(sessions.operatedByUserId, candidate.childAccountId),
           ),
-        );
+        )),
+      );
       await audit(tx, candidate.childAccountId, guardian, 'supervision_activated', {
         relatedAccountId: guardian,
       });
@@ -404,7 +411,8 @@ export async function acceptInvitation(id: string, guardian: string) {
     }
     return candidate.childAccountId;
   });
-  sessionCache.invalidateUserSessions(child);
+  announceSessionRevocations(revoked);
+  announceUserSessionsRevoked(child);
   userCache.invalidate(child);
   invalidateSupervision(child);
   return getSupervisionState(guardian);
