@@ -1,6 +1,5 @@
 import { getNormalizedUserHandle, type DeviceLinkedSession } from '@oxy.so/core';
-
-type Translate = (key: string, vars?: Record<string, string | number>) => string;
+import type { Translate } from '../hooks/useI18n';
 
 /**
  * The title of one row in "Sessions & devices".

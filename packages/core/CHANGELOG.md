@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## 6.4.0
+
+### Added
+
+- Locale strings `follow.*` in every locale: the follow buttons' words per
+  verb (`follow.verbs.{follow,subscribe,join,watch}.{idle,active}`), their
+  accessibility lines (`undo`, `undoNamed`, `checking`, `checkingNamed`),
+  `follow.pending`, `follow.disabled`, `follow.named` (a label beside a
+  handle) and the "Follow all" button's `follow.all.*`.
+- The follow menu's words: `follow.verbs.<verb>.everywhere` ("Leave
+  everywhere"), `follow.menu.*` (timed choice and its toast, show / don't show
+  in an app, "this app", the options button's name and hint),
+  `follow.durations.*` (the default timed-follow durations) and
+  `follow.errors.update`.
+
 ## 6.3.0
 
 Needs `@oxy.so/contracts` 5.3.0.

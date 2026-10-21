@@ -1,5 +1,37 @@
 # Changelog
 
+## [12.6.0] - 2026-10-21
+
+Needs `@oxy.so/core` 6.4.0.
+
+### Added
+
+- `FollowButton` (single-user mode) takes `verb` (`follow` | `subscribe` |
+  `join` | `watch`) and `labels`, as `FollowTargetButton` does: a fediverse
+  community reads "Join"/"Joined". Its accessible name, hint and checking line
+  follow the verb ("Joined @fediverse", "Leaves @fediverse").
+- `FollowButtonProps`, `SingleFollowButtonProps` and `MultiFollowButtonProps`
+  are exported from `@oxy.so/services/ui/client` too.
+
+### Changed
+
+- Both follow buttons read their words from core's `follow.*` strings, in the
+  app's language, instead of English literals; the "Follow all" button's
+  default labels and hints too. `FollowVerb` and `FollowLabels` keep their
+  public names and entry points.
+- `FollowTargetButton`'s menu, options button, timed-follow toast and default
+  durations are translated too, and its "everywhere" line follows the verb
+  ("Leave everywhere"). The default durations are read at render, so a
+  `durations` prop still replaces them. Both buttons' error-toast fallback is
+  translated.
+- `buildFollowMenuItems` takes optional `verb` and `t` (`useI18n().t`); without
+  `t` the menu is English, as before.
+- A `FollowDuration.label` is used as written, inside the sentence ("Follow
+  for a week"); it is no longer lowercased, which broke languages that
+  capitalize nouns. Pass it in sentence case.
+- The "Follow all" hint for one account reads "Follows 1 account" rather than
+  "Follows all 1 account".
+
 ## [12.5.0] - 2026-10-21
 
 Needs `@oxy.so/core` 6.3.0.

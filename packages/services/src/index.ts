@@ -344,11 +344,8 @@ export {
   FOLLOW_ACTION_LEAVES_ACTIVE,
 } from './ui/components/followRules';
 export type { FollowDuration, FollowMenuItem } from './ui/components/followRules';
-export type {
-  FollowTargetButtonProps,
-  FollowVerb,
-  FollowLabels,
-} from './ui/components/FollowTargetButton';
+export type { FollowTargetButtonProps } from './ui/components/FollowTargetButton';
+export type { FollowVerb, FollowLabels } from './ui/components/followLabels';
 export { useFollowTarget } from './ui/hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';
 export {

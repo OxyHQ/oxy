@@ -8,9 +8,15 @@
  * (OxyHQ/oxy#1375 item 22). The name now says the state, and who it is for
  * when the caller knows the handle.
  *
+ * The words follow the button's verb ("Joined @fediverse", hinted "Leaves
+ * @fediverse") and its language: every string is `@oxy.so/core`'s `follow.*`.
+ *
  * Pure, and kept apart from the components, so every state is pinned by a
  * table test rather than by a render that can only see one state at a time.
  */
+
+import type { Translate } from '../hooks/useI18n';
+import type { FollowLabels, FollowVerb } from './followLabels';
 
 export interface FollowButtonAccessibility {
   accessibilityLabel: string;
@@ -33,36 +39,40 @@ export function formatHandle(username: string | undefined): string | undefined {
  *   because a press does nothing until the write settles.
  * - Following: "Following @nate", hinted "Unfollows @nate", because pressing
  *   it unfollows, which the visible "Following" does not say.
+ *
+ * The name is the visible label (the caller's, when it passed `labels`) beside
+ * the handle; the checking line and the hint are the verb's.
  */
-export function describeFollowButton(input: {
-  isKnown: boolean;
-  isFollowing: boolean;
-  isPending: boolean;
-  username?: string;
-}): FollowButtonAccessibility {
+export function describeFollowButton(
+  input: {
+    isKnown: boolean;
+    isFollowing: boolean;
+    isPending: boolean;
+    username?: string;
+    verb: FollowVerb;
+    labels: Pick<FollowLabels, 'idle' | 'active'>;
+  },
+  t: Translate,
+): FollowButtonAccessibility {
   const handle = formatHandle(input.username);
+  const words = `follow.verbs.${input.verb}`;
 
   if (!input.isKnown) {
     return {
       accessibilityLabel: handle
-        ? `Checking whether you follow ${handle}`
-        : 'Checking follow status',
+        ? t(`${words}.checkingNamed`, { name: handle })
+        : t(`${words}.checking`),
     };
   }
 
-  const accessibilityLabel = input.isFollowing
-    ? handle
-      ? `Following ${handle}`
-      : 'Following'
-    : handle
-      ? `Follow ${handle}`
-      : 'Follow';
+  const label = input.isFollowing ? input.labels.active : input.labels.idle;
+  const accessibilityLabel = handle ? t('follow.named', { label, name: handle }) : label;
 
   if (input.isPending || !input.isFollowing) return { accessibilityLabel };
 
   return {
     accessibilityLabel,
-    accessibilityHint: handle ? `Unfollows ${handle}` : 'Unfollows this account',
+    accessibilityHint: handle ? t(`${words}.undoNamed`, { name: handle }) : t(`${words}.undo`),
   };
 }
 
@@ -70,18 +80,21 @@ export function describeFollowButton(input: {
  * The "Follow all" button. The labels are the caller's, since a starter pack
  * and a feed's member list word it differently; the hint carries the count.
  */
-export function describeFollowAllButton(input: {
-  allFollowing: boolean;
-  isPending: boolean;
-  count: number;
-  followAllLabel: string;
-  followedAllLabel: string;
-}): FollowButtonAccessibility {
+export function describeFollowAllButton(
+  input: {
+    allFollowing: boolean;
+    isPending: boolean;
+    count: number;
+    followAllLabel: string;
+    followedAllLabel: string;
+  },
+  t: Translate,
+): FollowButtonAccessibility {
   const accessibilityLabel = input.allFollowing ? input.followedAllLabel : input.followAllLabel;
   if (input.isPending) return { accessibilityLabel };
-  const accounts = input.count === 1 ? '1 account' : `${input.count} accounts`;
+  const hint = input.allFollowing ? 'follow.all.undoHint' : 'follow.all.hint';
   return {
     accessibilityLabel,
-    accessibilityHint: input.allFollowing ? `Unfollows all ${accounts}` : `Follows all ${accounts}`,
+    accessibilityHint: t(input.count === 1 ? `${hint}One` : hint, { count: input.count }),
   };
 }

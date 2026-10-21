@@ -5,15 +5,25 @@
  * application drawing its own affordance (a chip grid, a compact row) imports
  * them from here — through `@oxy.so/services/ui/client` — without paying for the
  * button's dropdown menu.
+ *
+ * The menu's words are `@oxy.so/core`'s `follow.*` strings, read through the
+ * caller's `t`; without one they are English.
  */
 
 import type { FollowApplicationMode } from '@oxy.so/contracts';
+import { translate } from '@oxy.so/core';
+import type { Translate } from '../hooks/useI18n';
+import type { FollowVerb } from './followLabels';
 
 /** A timed-follow choice offered in the menu. */
 export interface FollowDuration {
+  /** The duration as it reads inside a sentence: "24 hours", "a week". */
   label: string;
   seconds: number;
 }
+
+/** The fallback language for a caller that passes no translator. */
+const english: Translate = (key, vars) => translate(undefined, key, vars);
 
 /**
  * Whether an action leaves the target ACTIVE in this application.
@@ -51,15 +61,6 @@ export interface FollowMenuItem {
 }
 
 /**
- * Which choices exist, given the state.
- *
- * Pure and exported because this is the product decision, not a rendering
- * detail: a timed follow is only offered before following, turning it off here
- * is only offered while following, and NEITHER is offered before the server has
- * answered — every one of them addresses a relationship that does not exist
- * yet, so offering them mid-write would mean sending a guessed id.
- */
-/**
  * What the main button should do for the current state.
  *
  * Exported because the product rule is not obvious from the label alone: a
@@ -75,15 +76,30 @@ export function resolveFollowPrimaryAction(input: {
   return 'unfollow';
 }
 
+/**
+ * Which choices exist, given the state.
+ *
+ * Pure and exported because this is the product decision, not a rendering
+ * detail: a timed follow is only offered before following, turning it off here
+ * is only offered while following, and NEITHER is offered before the server has
+ * answered — every one of them addresses a relationship that does not exist
+ * yet, so offering them mid-write would mean sending a guessed id.
+ */
 export function buildFollowMenuItems(input: {
   following: boolean;
   applicationMode: FollowApplicationMode;
   hasRelationship: boolean;
   isPending: boolean;
   durations: FollowDuration[] | false;
+  /** The button's idle label, which a timed choice starts with: "Follow for 24 hours". */
   idleVerb: string;
   applicationName: string;
+  /** Words the "everywhere" line with this verb: "Leave everywhere". Default `follow`. */
+  verb?: FollowVerb;
+  /** `useI18n().t`, for the menu in the app's language. Default English. */
+  t?: Translate;
 }): FollowMenuItem[] {
+  const t = input.t ?? english;
   const items: FollowMenuItem[] = [];
 
   if (!input.following) {
@@ -91,7 +107,7 @@ export function buildFollowMenuItems(input: {
     for (const d of input.durations) {
       items.push({
         key: `for-${d.seconds}`,
-        label: `${input.idleVerb} for ${d.label.toLowerCase()}`,
+        label: t('follow.menu.forDuration', { label: input.idleVerb, duration: d.label }),
         action: { type: 'follow-timed', seconds: d.seconds, durationLabel: d.label },
       });
     }
@@ -104,12 +120,12 @@ export function buildFollowMenuItems(input: {
     input.applicationMode === 'disabled'
       ? {
           key: 'enable-here',
-          label: `Show in ${input.applicationName}`,
+          label: t('follow.menu.showIn', { app: input.applicationName }),
           action: { type: 'enable-here' },
         }
       : {
           key: 'disable-here',
-          label: `Don’t show in ${input.applicationName}`,
+          label: t('follow.menu.hideIn', { app: input.applicationName }),
           action: { type: 'disable-here' },
         },
   );
@@ -117,7 +133,7 @@ export function buildFollowMenuItems(input: {
     // Named for what it does. "Unfollow" beside "don't show here" would read as
     // the same action twice, and the user would pick the wrong one.
     key: 'unfollow-everywhere',
-    label: 'Unfollow everywhere',
+    label: t(`follow.verbs.${input.verb ?? 'follow'}.everywhere`),
     action: { type: 'unfollow' },
   });
 

@@ -8,10 +8,9 @@ import { useFollow, useFollowForButton } from '../hooks/useFollow';
 import { useFollowStore } from '../stores/followStore';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useShallow } from 'zustand/react/shallow';
+import { useI18n } from '../hooks/useI18n';
 import { describeFollowAllButton, describeFollowButton } from './followButtonAccessibility';
-
-const DEFAULT_FOLLOW_ALL_LABEL = 'Follow all';
-const DEFAULT_FOLLOWED_ALL_LABEL = 'Following';
+import { type FollowLabels, type FollowVerb, useFollowLabels } from './followLabels';
 
 /** Props shared by both single- and multi-user follow modes. */
 interface FollowButtonBaseProps {
@@ -35,6 +34,16 @@ export interface SingleFollowButtonProps extends FollowButtonBaseProps {
    * still follows the state.
    */
   username?: string;
+  /**
+   * The word for following this account: a fediverse community reads
+   * "Join"/"Joined". Translated, like every default label here.
+   */
+  verb?: FollowVerb;
+  /**
+   * Overrides for a verb the vocabulary does not carry. This button shows
+   * `idle` and `active`; a user follow has no pending or switched-off state.
+   */
+  labels?: Partial<FollowLabels>;
   userIds?: never;
 }
 
@@ -42,7 +51,9 @@ export interface SingleFollowButtonProps extends FollowButtonBaseProps {
 export interface MultiFollowButtonProps extends FollowButtonBaseProps {
   userIds: string[];
   initiallyAllFollowing?: boolean;
+  /** Default: "Follow all", translated. */
   followAllLabel?: string;
+  /** Default: "Following", translated. */
   followedAllLabel?: string;
   onBulkFollow?: (result: BulkFollowResult) => void;
   onBulkUnfollow?: (result: BulkUnfollowResult) => void;
@@ -63,6 +74,8 @@ const FollowButtonInner = memo(function FollowButtonInner({
   oxyServices,
   initiallyFollowing,
   username,
+  verb = 'follow',
+  labels,
   size = 'md',
   onFollowChange,
   style,
@@ -71,6 +84,8 @@ const FollowButtonInner = memo(function FollowButtonInner({
   showLoadingState = true,
   preventParentActions = true,
 }: SingleFollowButtonProps & { oxyServices: OxyServices }) {
+  const { t } = useI18n();
+  const text = useFollowLabels(verb, labels);
   const { isFollowing, isKnown, isLoading, toggleFollow, resolveStatus } = useFollowForButton(
     userId,
     oxyServices,
@@ -91,10 +106,19 @@ const FollowButtonInner = memo(function FollowButtonInner({
         if (accepted) onFollowChange?.(!isFollowing);
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || 'Failed to update follow status');
+        toast.error(error.message || t('follow.errors.update'));
       }
     },
-    [disabled, isLoading, isKnown, toggleFollow, onFollowChange, isFollowing, preventParentActions],
+    [
+      disabled,
+      isLoading,
+      isKnown,
+      toggleFollow,
+      onFollowChange,
+      isFollowing,
+      preventParentActions,
+      t,
+    ],
   );
 
   // Enqueue a batched status fetch ONLY when the status is genuinely unknown
@@ -110,12 +134,10 @@ const FollowButtonInner = memo(function FollowButtonInner({
   const isBusy = isLoading || !isKnown;
   const showFollowing = isKnown && isFollowing;
   const showSpinner = showLoadingState && isBusy;
-  const { accessibilityLabel, accessibilityHint } = describeFollowButton({
-    isKnown,
-    isFollowing: showFollowing,
-    isPending: isLoading,
-    username,
-  });
+  const { accessibilityLabel, accessibilityHint } = describeFollowButton(
+    { isKnown, isFollowing: showFollowing, isPending: isLoading, username, verb, labels: text },
+    t,
+  );
 
   return (
     <BloomFollowButton
@@ -128,7 +150,8 @@ const FollowButtonInner = memo(function FollowButtonInner({
       disabled={disabled || isBusy}
       style={style}
       textStyle={textStyle}
-      label={isKnown || showSpinner ? 'Follow' : ''}
+      label={isKnown || showSpinner ? text.idle : ''}
+      followingLabel={text.active}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
     />
@@ -139,8 +162,8 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   userIds,
   initiallyAllFollowing = false,
   size = 'md',
-  followAllLabel = DEFAULT_FOLLOW_ALL_LABEL,
-  followedAllLabel = DEFAULT_FOLLOWED_ALL_LABEL,
+  followAllLabel: followAllLabelProp,
+  followedAllLabel: followedAllLabelProp,
   onFollowChange,
   onBulkFollow,
   onBulkUnfollow,
@@ -150,6 +173,9 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   showLoadingState = true,
   preventParentActions = true,
 }: MultiFollowButtonProps) {
+  const { t } = useI18n();
+  const followAllLabel = followAllLabelProp ?? t('follow.all.idle');
+  const followedAllLabel = followedAllLabelProp ?? t('follow.verbs.follow.active');
   const follow = useFollow(userIds);
   const followAllUsers = 'followAllUsers' in follow ? follow.followAllUsers : undefined;
   const unfollowAllUsers = 'unfollowAllUsers' in follow ? follow.unfollowAllUsers : undefined;
@@ -209,7 +235,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
           onBulkUnfollow?.(result);
         } catch (err: unknown) {
           const error = err instanceof Error ? err : new Error(String(err));
-          toast.error(error.message || 'Failed to update follow status');
+          toast.error(error.message || t('follow.errors.update'));
         } finally {
           setIsSubmitting(false);
         }
@@ -236,7 +262,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
         onBulkFollow?.(result);
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || 'Failed to update follow status');
+        toast.error(error.message || t('follow.errors.update'));
       } finally {
         setIsSubmitting(false);
       }
@@ -251,17 +277,21 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
       onBulkFollow,
       onBulkUnfollow,
       preventParentActions,
+      t,
     ],
   );
 
   const showSpinner = showLoadingState && isLoading;
-  const { accessibilityLabel, accessibilityHint } = describeFollowAllButton({
-    allFollowing,
-    isPending: Boolean(isLoading),
-    count: userIds.length,
-    followAllLabel,
-    followedAllLabel,
-  });
+  const { accessibilityLabel, accessibilityHint } = describeFollowAllButton(
+    {
+      allFollowing,
+      isPending: Boolean(isLoading),
+      count: userIds.length,
+      followAllLabel,
+      followedAllLabel,
+    },
+    t,
+  );
 
   return (
     <BloomFollowButton

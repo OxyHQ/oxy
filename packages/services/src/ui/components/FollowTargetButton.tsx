@@ -22,6 +22,8 @@
  * small vocabulary of defaults and a full override, rather than a lookup keyed
  * on kind — a kind→verb table in this package would need a release every time
  * an application invents a kind, which is exactly the coupling #809 removes.
+ * The vocabulary and its translated words live in `followLabels`, shared with
+ * `FollowButton`.
  *
  * ## Relationship to the legacy `FollowButton`
  *
@@ -58,55 +60,28 @@ import {
   type FollowDuration,
   type FollowMenuItem,
 } from './followRules';
-
-/**
- * The small vocabulary of verbs the ecosystem actually uses. An application
- * whose verb is not here passes `labels` instead — the escape hatch exists so
- * this union never has to grow to accommodate one product's wording.
- */
-export type FollowVerb = 'follow' | 'subscribe' | 'join' | 'watch';
-
-export interface FollowLabels {
-  /** Not following yet. */
-  idle: string;
-  /** Following, and this application acts on it. */
-  active: string;
-  /** Asked, waiting for the other side to accept. */
-  pending: string;
-  /** Following globally, but switched off in this application. */
-  disabled: string;
-}
-
-const VERB_LABELS: Record<FollowVerb, FollowLabels> = {
-  follow: { idle: 'Follow', active: 'Following', pending: 'Requested', disabled: 'Off here' },
-  subscribe: {
-    idle: 'Subscribe',
-    active: 'Subscribed',
-    pending: 'Requested',
-    disabled: 'Off here',
-  },
-  join: { idle: 'Join', active: 'Joined', pending: 'Requested', disabled: 'Off here' },
-  watch: { idle: 'Watch', active: 'Watching', pending: 'Requested', disabled: 'Off here' },
-};
+import { type FollowLabels, type FollowVerb, useFollowLabels } from './followLabels';
+import { useI18n } from '../hooks/useI18n';
 
 const HOUR = 60 * 60;
 
 /**
  * Defaults chosen for the cases a timed follow is actually for: a live event
  * tonight, a story running this week. Not a general-purpose duration picker —
- * an application that needs one passes its own.
+ * an application that needs one passes its own. Labels are catalog keys, read
+ * at render in the app's language.
  */
-const DEFAULT_DURATIONS: FollowDuration[] = [
-  { label: '24 hours', seconds: 24 * HOUR },
-  { label: '72 hours', seconds: 72 * HOUR },
-  { label: 'A week', seconds: 7 * 24 * HOUR },
-];
+const DEFAULT_DURATIONS = [
+  { key: 'follow.durations.day', seconds: 24 * HOUR },
+  { key: 'follow.durations.threeDays', seconds: 72 * HOUR },
+  { key: 'follow.durations.week', seconds: 7 * 24 * HOUR },
+] as const;
 
 export interface FollowTargetButtonProps {
   /** The registered target's id. Registration is separate — see the SDK. */
   targetId: string;
   verb?: FollowVerb;
-  /** Full override, for a verb the vocabulary above does not carry. */
+  /** Full override, for a verb the vocabulary does not carry. */
   labels?: Partial<FollowLabels>;
   size?: 'sm' | 'md' | 'lg';
   style?: StyleProp<ViewStyle>;
@@ -118,7 +93,8 @@ export interface FollowTargetButtonProps {
   showOptions?: boolean;
   /**
    * Offer timed follows. Pass `false` where a temporary follow makes no sense —
-   * a store you buy from, an account you know.
+   * a store you buy from, an account you know. Default: 24 hours, 72 hours and
+   * a week, translated.
    */
   durations?: FollowDuration[] | false;
   /**
@@ -156,7 +132,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   style,
   disabled = false,
   showOptions = true,
-  durations = DEFAULT_DURATIONS,
+  durations,
   applicationName,
   initialStatus,
   onChange,
@@ -164,13 +140,18 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   const { status, isFollowing, isUnknown, isPending, follow, unfollow, disableHere, enableHere } =
     useFollowTarget(targetId, { initialStatus });
 
-  const reportMutationFailure = useCallback(() => {
-    const message =
-      useFollowTargetStore.getState().errors[targetId] ?? 'Could not update follow status';
-    toast.error(message);
-  }, [targetId]);
+  const { t } = useI18n();
+  const text = useFollowLabels(verb, labels);
 
-  const text = useMemo(() => ({ ...VERB_LABELS[verb], ...labels }), [verb, labels]);
+  const timedChoices = useMemo<FollowDuration[] | false>(
+    () => durations ?? DEFAULT_DURATIONS.map(({ key, seconds }) => ({ label: t(key), seconds })),
+    [durations, t],
+  );
+
+  const reportMutationFailure = useCallback(() => {
+    const message = useFollowTargetStore.getState().errors[targetId] ?? t('follow.errors.update');
+    toast.error(message);
+  }, [targetId, t]);
 
   const label = useMemo(() => {
     if (status.globalState === 'requested') return text.pending;
@@ -224,9 +205,9 @@ export const FollowTargetButton = memo(function FollowTargetButton({
       // The confirmation is the point: a follow that ends on its own is a
       // promise, and a user who does not see it made will not believe it.
       // Which is also why it must not appear when the promise was not made.
-      toast.success(`Following for ${durationLabel.toLowerCase()}`);
+      toast.success(t('follow.menu.forDuration', { label: text.active, duration: durationLabel }));
     },
-    [follow, onChange, reportMutationFailure],
+    [follow, onChange, reportMutationFailure, t, text.active],
   );
 
   const menuItems = useMemo(
@@ -236,18 +217,22 @@ export const FollowTargetButton = memo(function FollowTargetButton({
         applicationMode: status.applicationMode,
         hasRelationship: Boolean(status.relationshipId),
         isPending,
-        durations,
+        durations: timedChoices,
         idleVerb: text.idle,
-        applicationName: applicationName ?? 'this app',
+        applicationName: applicationName ?? t('follow.menu.thisApp'),
+        verb,
+        t,
       }),
     [
       isFollowing,
       status.applicationMode,
       status.relationshipId,
       isPending,
-      durations,
+      timedChoices,
       text.idle,
       applicationName,
+      verb,
+      t,
     ],
   );
 
@@ -304,6 +289,8 @@ export const FollowTargetButton = memo(function FollowTargetButton({
     return <View style={style}>{primary}</View>;
   }
 
+  const optionsLabel = t('follow.menu.options', { label });
+
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4 }, style]}>
       {primary}
@@ -321,11 +308,11 @@ export const FollowTargetButton = memo(function FollowTargetButton({
             size={size === 'lg' ? 'lg' : 'sm'}
             icon={<ChevronDown width={16} />}
             disabled={disabled || isUnknown}
-            accessibilityLabel={`${label} options`}
-            accessibilityHint="Opens follow options"
+            accessibilityLabel={optionsLabel}
+            accessibilityHint={t('follow.menu.optionsHint')}
           />
         </DropdownMenuTrigger>
-        <DropdownMenuContent label={`${label} options`}>
+        <DropdownMenuContent label={optionsLabel}>
           {menuItems.map((item) => (
             <DropdownMenuItem key={item.key} onPress={() => runItem(item)}>
               {item.label}

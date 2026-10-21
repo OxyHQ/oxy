@@ -9,6 +9,9 @@ import { getLocalesVersion, subscribeLocales, translate } from '@oxy.so/core';
  */
 const FALLBACK_LOCALE = 'en-US';
 
+/** `useI18n().t`: a key and its `{{placeholders}}` in, the current language's text out. */
+export type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
 /**
  * Display copy for SDK surfaces.
  *
@@ -32,9 +35,8 @@ export function useI18n() {
     getLocalesVersion,
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: `localesVersion` is the re-translate signal — a new `t` makes consumers re-render once a dictionary lands.
-  const t = useMemo(() => {
-    return (key: string, vars?: Record<string, string | number>) =>
-      translate(currentLanguage, key, vars);
+  const t = useMemo<Translate>(() => {
+    return (key, vars) => translate(currentLanguage, key, vars);
   }, [currentLanguage, localesVersion]);
   return { t, locale: currentLanguage };
 }

@@ -28,7 +28,7 @@ import {
 
 const DURATIONS = [
   { label: '24 hours', seconds: 86400 },
-  { label: 'A week', seconds: 604800 },
+  { label: 'a week', seconds: 604800 },
 ];
 
 const base = {
@@ -95,6 +95,12 @@ describe('buildFollowMenuItems', () => {
 
     it('names the application, so the line is a sentence the user can act on', () => {
       expect(buildFollowMenuItems(following)[0].label).toBe('Don’t show in Mention');
+    });
+
+    it('words "everywhere" with the button’s verb', () => {
+      expect(buildFollowMenuItems({ ...following, verb: 'join' })[1].label).toBe(
+        'Leave everywhere',
+      );
     });
 
     it('offers turning it back on once it is off here', () => {

@@ -9,6 +9,7 @@
  */
 import React from 'react';
 import { render } from '@testing-library/react';
+import { translate } from '@oxy.so/core';
 import {
   describeFollowAllButton,
   describeFollowButton,
@@ -52,6 +53,7 @@ jest.mock('../../hooks/useFollow', () => ({
 
 jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({ oxyServices: {}, canUsePrivateApi: true, user: { id: 'viewer' } }),
+  useOptionalOxy: () => null,
 }));
 
 let mockTarget = {
@@ -73,8 +75,16 @@ jest.mock('../../hooks/useFollowTarget', () => ({
 import { FollowButton } from '../FollowButton';
 import { FollowTargetButton } from '../FollowTargetButton';
 
+const t = (key: string, vars?: Record<string, string | number>) => translate('en-US', key, vars);
+
 describe('describeFollowButton', () => {
-  const known = { isKnown: true, isPending: false, username: 'nate' };
+  const known = {
+    isKnown: true,
+    isPending: false,
+    username: 'nate',
+    verb: 'follow' as const,
+    labels: { idle: 'Follow', active: 'Following' },
+  };
 
   it.each([
     [{ ...known, isFollowing: true }, 'Following @nate', 'Unfollows @nate'],
@@ -94,7 +104,7 @@ describe('describeFollowButton', () => {
       undefined,
     ],
   ])('%o reads "%s"', (input, label, hint) => {
-    expect(describeFollowButton(input)).toEqual(
+    expect(describeFollowButton(input, t)).toEqual(
       hint ? { accessibilityLabel: label, accessibilityHint: hint } : { accessibilityLabel: label },
     );
   });
@@ -112,22 +122,22 @@ describe('describeFollowAllButton', () => {
 
   it('names the state and counts the accounts in the hint', () => {
     expect(
-      describeFollowAllButton({ ...labels, allFollowing: false, isPending: false, count: 3 }),
+      describeFollowAllButton({ ...labels, allFollowing: false, isPending: false, count: 3 }, t),
     ).toEqual({
       accessibilityLabel: 'Follow all',
       accessibilityHint: 'Follows all 3 accounts',
     });
     expect(
-      describeFollowAllButton({ ...labels, allFollowing: true, isPending: false, count: 1 }),
+      describeFollowAllButton({ ...labels, allFollowing: true, isPending: false, count: 1 }, t),
     ).toEqual({
       accessibilityLabel: 'Following',
-      accessibilityHint: 'Unfollows all 1 account',
+      accessibilityHint: 'Unfollows 1 account',
     });
   });
 
   it('drops the hint while the bulk write is in flight', () => {
     expect(
-      describeFollowAllButton({ ...labels, allFollowing: true, isPending: true, count: 3 }),
+      describeFollowAllButton({ ...labels, allFollowing: true, isPending: true, count: 3 }, t),
     ).toEqual({
       accessibilityLabel: 'Following',
     });
@@ -175,6 +185,22 @@ describe('FollowButton hands Bloom a name that follows the state', () => {
     expect(lastBloomProps()).toMatchObject({
       loading: true,
       accessibilityLabel: 'Checking whether you follow @nate',
+    });
+  });
+
+  it('reads its verb: "Join" and "Joined", named and hinted to match', () => {
+    mockFollowState = { isFollowing: false, isKnown: true, isLoading: false };
+    render(<FollowButton userId="c-id" username="fediverse" verb="join" />);
+    expect(lastBloomProps()).toMatchObject({
+      label: 'Join',
+      followingLabel: 'Joined',
+      accessibilityLabel: 'Join @fediverse',
+    });
+    mockFollowState = { isFollowing: true, isKnown: true, isLoading: false };
+    render(<FollowButton userId="c-id" username="fediverse" verb="join" />);
+    expect(lastBloomProps()).toMatchObject({
+      accessibilityLabel: 'Joined @fediverse',
+      accessibilityHint: 'Leaves @fediverse',
     });
   });
 
