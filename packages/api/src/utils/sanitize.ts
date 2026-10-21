@@ -153,7 +153,7 @@ export function sanitizeObject<T extends Record<string, unknown>>(
  * The skipped fields are NOT unnormalized — they are structured values (a name
  * sub-document, arrays of link/location objects) that this shallow string walker
  * cannot reach into. `user.service`'s `normalizeProfileField` is their write-path
- * chokepoint: it runs `cleanDisplayName` over `name`, and the canonical inline
+ * chokepoint: it runs `cleanAccountName` (by the account's kind) over `name`, and the canonical inline
  * normalizer over `linksMetadata` / `locations` / `links`
  * (see `utils/profileTextNormalization.ts`).
  */

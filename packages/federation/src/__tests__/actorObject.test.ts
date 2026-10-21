@@ -7,6 +7,7 @@ import {
   isApActorType,
   LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
   localActorTypeForAccountKind,
+  accountKindForActor,
   type ActorMediaResolver,
 } from '../index';
 
@@ -198,6 +199,7 @@ describe('actor type by Oxy account kind', () => {
     expect(localActorTypeForAccountKind('project')).toBe('Organization');
     expect(localActorTypeForAccountKind('bot')).toBe('Service');
     expect(localActorTypeForAccountKind('channel')).toBe('Organization');
+    expect(localActorTypeForAccountKind('community')).toBe('Group');
   });
 
   it('never announces a human-curated channel as automated', () => {
@@ -207,10 +209,11 @@ describe('actor type by Oxy account kind', () => {
     // A channel is curated by people; only `bot` may claim automation.
     expect(localActorTypeForAccountKind('channel')).not.toBe('Service');
     expect(localActorTypeForAccountKind('bot')).toBe('Service');
-    // `Group` is never emitted for anything: Lemmy would reclassify the actor as
-    // a community that silently never receives content, and PeerTube rejects a
-    // `Group` lacking `attributedTo` outright.
-    expect(Object.values(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND)).not.toContain('Group');
+    // `Group` is announced for a community alone: Lemmy reads it as a forwarding
+    // community, and PeerTube rejects a `Group` lacking `attributedTo` outright.
+    expect(ACCOUNT_KINDS.filter((kind) => localActorTypeForAccountKind(kind) === 'Group')).toEqual([
+      'community',
+    ]);
   });
 
   it('covers every account kind contracts defines, with more than one answer', () => {
@@ -219,11 +222,28 @@ describe('actor type by Oxy account kind', () => {
     // Vacuity floor: a mapping that returned one constant would pass every
     // single-kind assertion above and fail this.
     const answers = ACCOUNT_KINDS.map((kind) => localActorTypeForAccountKind(kind));
-    expect(new Set(answers).size).toBe(3);
+    expect(new Set(answers).size).toBe(4);
     // And specifically: the two kinds either side of the channel decision differ.
     expect(localActorTypeForAccountKind('channel')).not.toBe(
       localActorTypeForAccountKind('personal'),
     );
+  });
+
+  it('reads every announced type back as a kind announced the same way', () => {
+    for (const kind of ACCOUNT_KINDS) {
+      const type = localActorTypeForAccountKind(kind);
+      expect(localActorTypeForAccountKind(accountKindForActor({ type }))).toBe(type);
+    }
+  });
+
+  it('reads the actor types and flags Oxy never announces', () => {
+    expect(accountKindForActor({ type: 'Application' })).toBe('bot');
+    expect(accountKindForActor({ type: 'Group', postingRestrictedToMods: true })).toBe('channel');
+    expect(accountKindForActor({ type: 'Group', postingRestrictedToMods: false })).toBe(
+      'community',
+    );
+    expect(accountKindForActor({ type: 'Tombstone' })).toBe('personal');
+    expect(accountKindForActor({})).toBe('personal');
   });
 
   it('falls back to Person for an absent, null, or unrecognized kind', () => {

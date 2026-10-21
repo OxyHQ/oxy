@@ -123,6 +123,7 @@ describe('getLeaderboard ranks eligible accounts and hides the rest', () => {
       id: first,
       username: `lb${first}`,
       nameFirst: 'Board',
+      nameDisplay: null,
       nameLast: 'Member',
       avatar: `avatar-${first}`,
       publicKey: `pk-${first}`,

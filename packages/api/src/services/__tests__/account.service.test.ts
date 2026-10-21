@@ -277,12 +277,13 @@ describe('updateAccount', () => {
       nameLast: 'Corp',
     });
 
+    // An organization is named by the title policy: digits pass, markup does not.
     await expect(
-      accountService.updateAccount(account.id, { name: { first: 'Agent007' } }),
-    ).rejects.toThrow(/name separators/i);
+      accountService.updateAccount(account.id, { name: { first: '<b>Acme</b>' } }),
+    ).rejects.toThrow(/plain text/i);
 
     // "before persisting" checked against the ROW, not against a call that did
-    // not happen: a rejection thrown after the UPDATE would leave 'Agent007' here.
+    // not happen: a rejection thrown after the UPDATE would leave the name here.
     const stored = await reload(account.id);
     expect(stored.nameFirst).toBe('Acme');
     expect(stored.nameLast).toBe('Corp');
@@ -730,9 +731,9 @@ describe('createChildAccount', () => {
       accountService.createChildAccount(root.id, root.id, {
         kind: 'project',
         username,
-        name: { first: 'Agent007' },
+        name: { first: '<b>Agent007</b>' },
       }),
-    ).rejects.toThrow(/name separators/i);
+    ).rejects.toThrow(/plain text/i);
 
     // Nothing was created: the username the call claimed is still free.
     const [row] = await getDb()

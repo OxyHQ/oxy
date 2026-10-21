@@ -9,7 +9,14 @@ import {
   DISPLAY_NAME_LETTERS_RANGES,
   DISPLAY_NAME_NAME_SEPARATORS_RANGES,
 } from './displayNamePolicyRanges.generated';
-import { checkContract, usernameCheck } from '@oxy.so/contracts/client';
+import {
+  ACCOUNT_TITLE_MAX_LENGTH,
+  accountNamePolicyForKind,
+  accountTitleCheck,
+  checkContract,
+  usernameCheck,
+} from '@oxy.so/contracts/client';
+import type { AccountKind } from '@oxy.so/contracts';
 
 /**
  * Maximum stored length of a display name, in code units after cleaning.
@@ -20,6 +27,9 @@ export const MAX_DISPLAY_NAME_LENGTH = 80;
 /** Shared 400 / inline-validation copy for native display-name policy rejections. */
 export const DISPLAY_NAME_INVALID_MESSAGE =
   'Name may only contain letters, spaces, apostrophes, and name separators (·, ־, ་, ・).';
+
+/** Shared 400 / inline-validation copy for title-policy rejections. */
+export const ACCOUNT_TITLE_INVALID_MESSAGE = `Name must be plain text without < or >, up to ${ACCOUNT_TITLE_MAX_LENGTH} characters.`;
 
 /**
  * Email validation regex
@@ -239,6 +249,49 @@ export function isValidDisplayName(raw: string): boolean {
     !ORPHANED_MARK_PROBE.test(normalized) &&
     !UNFLANKED_SEPARATOR_PROBE.test(normalized)
   );
+}
+
+/**
+ * Whether `raw` is a valid name for an account of `kind` — the ONE kind-aware
+ * name check, for every account, native or federated, on the API and in
+ * clients. The policy table is `ACCOUNT_NAME_POLICY_BY_KIND` in
+ * `@oxy.so/contracts`: a person is held to {@link isValidDisplayName}, every
+ * other kind to the plain-text title policy, so "Studio 54" names a channel
+ * and never a person.
+ *
+ * Both policies cap the trimmed length ({@link accountNameMaxLength}). Empty or
+ * whitespace-only is valid under both, as it is for {@link isValidDisplayName}:
+ * it clears the name, and call sites that require one enforce that separately.
+ */
+export function isValidAccountName(raw: string, kind: AccountKind | null | undefined): boolean {
+  if (raw.trim().length > accountNameMaxLength(kind)) return false;
+  if (accountNamePolicyForKind(kind) === 'person') return isValidDisplayName(raw);
+  return raw.trim() === '' || checkContract(accountTitleCheck, raw) !== null;
+}
+
+/** The cap on a trimmed name of `kind`: a person's display name, or a title. */
+export function accountNameMaxLength(kind: AccountKind | null | undefined): number {
+  return accountNamePolicyForKind(kind) === 'person'
+    ? MAX_DISPLAY_NAME_LENGTH
+    : ACCOUNT_TITLE_MAX_LENGTH;
+}
+
+/**
+ * The locale-key leaf for a name {@link isValidAccountName} refused —
+ * `invalidChars` (person) or `invalidTitle` — under a screen's own
+ * `displayName` key, so a client words the refusal by the same table.
+ */
+export function accountNameInvalidKey(
+  kind: AccountKind | null | undefined,
+): 'invalidChars' | 'invalidTitle' {
+  return accountNamePolicyForKind(kind) === 'person' ? 'invalidChars' : 'invalidTitle';
+}
+
+/** The copy for a name {@link isValidAccountName} refused. */
+export function accountNameInvalidMessage(kind: AccountKind | null | undefined): string {
+  return accountNamePolicyForKind(kind) === 'person'
+    ? DISPLAY_NAME_INVALID_MESSAGE
+    : ACCOUNT_TITLE_INVALID_MESSAGE;
 }
 
 /**

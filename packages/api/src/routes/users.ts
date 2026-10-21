@@ -57,7 +57,6 @@ import {
   usersByIdsBodySchema,
 } from '../schemas/users.schemas';
 import { sanitizePlainText } from '../utils/sanitize';
-import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { buildExportBundle } from '../services/identityExport.service';
@@ -1611,10 +1610,9 @@ router.put(
     // stripping here plus the client's text-rendering auto-escape, not entity
     // escaping. (See utils/sanitize.ts sanitizePlainText.)
     if (typeof displayName === 'string') {
-      // Strip disallowed characters (emoji/symbols/shortcodes). cleanDisplayName's
-      // output can never contain an XSS vector and is already clean, so it owns
-      // the name field here.
-      fields.nameFirst = cleanDisplayName(displayName);
+      // Cleaned by the row's kind in `upsertAutomatedAccount`; the cleaned name
+      // can never contain an XSS vector.
+      fields.displayName = displayName;
     }
     if (typeof bio === 'string') {
       fields.bio = sanitizePlainText(bio);

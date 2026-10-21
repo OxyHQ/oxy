@@ -137,6 +137,8 @@ interface RecommendationRow {
    */
   nameFirst?: string | null;
   nameLast?: string | null;
+  /** A non-personal account's title lives here alone, never in `nameFirst`. */
+  nameDisplay?: string | null;
   avatar?: string | null;
   /** The account's accent colour, public on every profile serializer. */
   color?: string | null;
@@ -169,6 +171,7 @@ const recommendationColumns = {
   publicKey: users.publicKey,
   nameFirst: users.nameFirst,
   nameLast: users.nameLast,
+  nameDisplay: users.nameDisplay,
   avatar: users.avatar,
   color: users.color,
   description: users.description,

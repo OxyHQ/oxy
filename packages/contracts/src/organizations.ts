@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { accountTitleSchema } from './accountName';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import {
@@ -29,19 +30,8 @@ export const organizationAliasSchema = z
     language: z.string().min(2).max(35).optional(),
   })
   .strict();
-export const organizationNameSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(ORGANIZATION_NAME_MAX_LENGTH)
-  .refine(
-    (value) =>
-      !/[<>]/.test(value) &&
-      Array.from(value).every(
-        (character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
-      ),
-    'Organization name must be plain text',
-  );
+/** An organization is named by the title policy every non-personal account uses. */
+export const organizationNameSchema = accountTitleSchema;
 export const createOrganizationSchema = z
   .object({
     name: organizationNameSchema,

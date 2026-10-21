@@ -1,5 +1,10 @@
-import { isValidDisplayName } from '@oxy.so/core';
-import { MAX_DISPLAY_NAME_LENGTH, cleanDisplayName } from '../displayNameSanitize';
+import { isValidAccountName, isValidDisplayName } from '@oxy.so/core';
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  cleanAccountName,
+  cleanDisplayName,
+  untrustedNameColumns,
+} from '../displayNameSanitize';
 
 // Every non-ASCII fixture is spelled out with explicit \u escapes so its exact
 // code points (and thus NFC/combining behaviour) are unambiguous regardless of
@@ -431,6 +436,31 @@ describe('displayNameSanitize', () => {
       ['山田　太郎', 'ideographic space'],
     ])('returns true for space separators (%s)', (name) => {
       expect(isValidDisplayName(name)).toBe(true);
+    });
+  });
+
+  describe('cleanAccountName', () => {
+    const raw = 'Acampada26s :bongoCat: <b>\u0007';
+
+    it('keeps a title its digits and strips what the title policy disallows', () => {
+      expect(cleanAccountName(raw, 'bot')).toBe('Acampada26s b');
+      expect(cleanAccountName(raw, 'personal')).toBe(cleanDisplayName(raw));
+      for (const kind of ['personal', 'bot'] as const) {
+        expect(isValidAccountName(cleanAccountName(raw, kind), kind)).toBe(true);
+      }
+    });
+
+    it('stores a title in nameDisplay alone and a person in nameFirst too', () => {
+      expect(untrustedNameColumns('Radio 3', 'channel')).toEqual({
+        nameFirst: null,
+        nameLast: null,
+        nameDisplay: 'Radio 3',
+      });
+      expect(untrustedNameColumns('Ada', 'personal')).toEqual({
+        nameFirst: 'Ada',
+        nameLast: null,
+        nameDisplay: 'Ada',
+      });
     });
   });
 });

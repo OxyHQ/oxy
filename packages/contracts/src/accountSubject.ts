@@ -49,8 +49,9 @@ export const ACCOUNT_SUBJECT_CONTRACT_VERSION = 1 as const;
  *  - `person` — a human; a personal account is its own actor.
  *  - `agent`  — an AI agent; a bot is its own actor (ADR 0018 `ActorRef`
  *    `{type:'agent'}`), and audit records the bot, never the human who owns it.
- *  - `operated` — never its own actor. An organization, project or channel only
- *    acts through a member, and that member is the actor.
+ *  - `operated` — never its own actor. An organization, project, channel or
+ *    community only acts through a member (a community's moderators), and that
+ *    member is the actor.
  */
 export const ACCOUNT_ACTOR_NATURES = ['person', 'agent', 'operated'] as const;
 
@@ -68,6 +69,7 @@ const ACTOR_NATURE_BY_KIND: Readonly<Record<AccountKind, AccountActorNature>> = 
   organization: 'operated',
   project: 'operated',
   channel: 'operated',
+  community: 'operated',
 };
 
 /** `null` for a value that is not an account kind. Never a guess. */

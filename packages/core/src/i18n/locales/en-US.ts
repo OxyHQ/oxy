@@ -618,6 +618,7 @@ const dict = {
         lastName: 'Last Name',
         lastNamePlaceholder: 'Enter last name (optional)',
         invalidChars: 'Use letters, spaces, apostrophes, and name separators only',
+        invalidTitle: 'Use plain text without < or > (up to 300 characters)',
       },
       username: {
         checking: 'Checking availability…',
@@ -1819,6 +1820,10 @@ const dict = {
         label: 'Bot',
         description: 'A programmatic account with service credentials',
       },
+      community: {
+        label: 'Community',
+        description: 'A forum its members post into, shared with everyone who follows it',
+      },
     },
     accountCategory: {
       news: 'News',
@@ -1874,6 +1879,7 @@ const dict = {
       displayName: {
         label: 'Display name',
         invalidChars: 'Use letters, spaces, apostrophes, and name separators only',
+        invalidTitle: 'Use plain text without < or > (up to 300 characters)',
       },
       bio: {
         label: 'Bio (optional)',
@@ -1957,6 +1963,7 @@ const dict = {
       displayName: {
         label: 'Display name',
         invalidChars: 'Use letters, spaces, apostrophes, and name separators only',
+        invalidTitle: 'Use plain text without < or > (up to 300 characters)',
       },
       bio: {
         label: 'Bio (optional)',

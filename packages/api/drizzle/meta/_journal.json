@@ -1352,6 +1352,20 @@
       "when": 1792505399020,
       "tag": "0193_file_rendition_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1792547045868,
+      "tag": "0194_account_kind_community",
+      "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1792547051037,
+      "tag": "0195_validate_account_kind_community",
+      "breakpoints": true
     }
   ]
 }

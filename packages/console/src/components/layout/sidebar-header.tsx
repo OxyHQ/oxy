@@ -57,6 +57,7 @@ const kindSubtitles: Record<AccountKind, string> = {
   project: 'Project workspace',
   bot: 'Bot workspace',
   channel: 'Channel',
+  community: 'Community',
 };
 
 /** First-letter initials for the avatar fallback. */

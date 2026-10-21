@@ -119,6 +119,8 @@ export {
   createLocalActorBuilder,
   normalizeAlsoKnownAs,
   localActorTypeForAccountKind,
+  accountKindForActor,
+  type ActorKindSignals,
   isApActorType,
   AP_ACTOR_TYPES,
   LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,

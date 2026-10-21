@@ -1,5 +1,16 @@
 # Changelog
 
+## [12.5.0] - 2026-10-21
+
+Needs `@oxy.so/core` 6.3.0.
+
+### Changed
+
+- Create account, account settings and the profile name editor validate a name
+  with `isValidAccountName` for the account's kind: a project, bot or channel
+  title takes digits and punctuation like an organization's, and a person's
+  name keeps the person policy.
+
 ## [12.4.0] - 2026-10-19
 
 Needs `@oxy.so/core` 6.1.0.

@@ -41,6 +41,16 @@ export type {
 } from './accountGraph';
 
 export {
+  ACCOUNT_NAME_POLICY_BY_KIND,
+  ACCOUNT_TITLE_DISALLOWED_SOURCE,
+  ACCOUNT_TITLE_MAX_LENGTH,
+  accountNamePolicyForKind,
+  accountTitleSchema,
+  isPlainTextTitle,
+} from './accountName';
+export type { AccountNamePolicy } from './accountName';
+
+export {
   AVATAR_EYE_SPACING,
   AVATAR_PICKABLE_COLORS,
   AVATAR_PICKABLE_SHAPES,

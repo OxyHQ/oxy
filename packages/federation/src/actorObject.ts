@@ -49,29 +49,30 @@ export function isApActorType(value: unknown): value is ApActorType {
 /**
  * The AS2 actor types this engine will announce for a LOCAL user actor.
  *
- * Narrower than AS2's five actor types, and narrow ON PURPOSE — the union names
- * what the builder can emit, so the two absences are documented decisions rather
- * than oversights. Both were checked against real receiving implementations
- * (mastodon `a3649295`, lemmy `4ce92433`, misskey `b95e4841`, peertube
- * `fe0da961`), not against the spec:
+ * Narrower than AS2's five actor types, and narrow ON PURPOSE. Both decisions
+ * were checked against real receiving implementations (mastodon `a3649295`,
+ * lemmy `4ce92433`, misskey `b95e4841`, peertube `fe0da961`), not against the
+ * spec:
  *
  *  - **`Application`** is the INSTANCE actor's type (see the actor router's
  *    `/ap/users/instance` branch), reserved by convention for the software
  *    itself. No account is the software.
- *  - **`Group`** is refused because in the deployed fediverse it is not read as
- *    "a collective of actors" but as a FORWARDING actor, and the two failure
- *    modes are concrete. Lemmy reclassifies a remote `Group` as a COMMUNITY:
- *    it is followable and the Follow is Accepted, so it looks like it worked,
- *    and then it never shows a single post — we emit no `Announce`, and our
- *    Notes do not resolve to a community. PeerTube is worse and louder: it
- *    REJECTS a `Group` actor outright unless it carries `attributedTo` naming a
- *    `Person`. An Oxy account authors its own posts and forwards nothing, so
- *    `Group` would advertise a protocol this engine does not implement.
+ *  - **`Group`** is announced ONLY for a `community`, because in the deployed
+ *    fediverse it is not read as "a collective of actors" but as a FORWARDING
+ *    actor. Lemmy reclassifies a remote `Group` as a community: followable, the
+ *    Follow is Accepted, and then it never shows a post unless the actor
+ *    `Announce`s its members' posts. PeerTube rejects a `Group` outright unless
+ *    it carries `attributedTo` naming a `Person`. An account that authors its
+ *    own posts (a project, a channel) must therefore never claim it; a community
+ *    is the one kind whose nature IS forwarding.
  */
-export type LocalActorType = Extract<ApActorType, 'Person' | 'Organization' | 'Service'>;
+export type LocalActorType = Extract<ApActorType, 'Person' | 'Organization' | 'Service' | 'Group'>;
 
 /**
- * Oxy account kind → the AS2 actor type the fediverse is told about it.
+ * Oxy account kind → the AS2 actor type the fediverse is told about it — the
+ * ONE table both directions read: what Oxy announces for its own accounts here,
+ * and, through {@link accountKindForActor}, what it records a remote actor as.
+ * Changing how a kind federates is an edit to this table and nowhere else.
  *
  * `satisfies Record<AccountKind, LocalActorType>` is the load-bearing part: a
  * kind added to `@oxy.so/contracts` fails THIS build rather than silently
@@ -103,6 +104,8 @@ export type LocalActorType = Extract<ApActorType, 'Person' | 'Organization' | 'S
  *    accepted by all four implementations' whitelists and compared in none of
  *    them — neither `bot?` nor `group?` in Mastodon, `bot_account = false` in
  *    Lemmy, `isBot` false in Misskey, an ordinary account in PeerTube.
+ *  - **`community` → `Group`.** A forum its members post into and that
+ *    re-broadcasts them: exactly what Lemmy, Mbin and Friendica mean by `Group`.
  *
  * What this does NOT do: it does not stop a remote instance offering a reply box
  * under a channel's post. NO actor type gates that in any of the four — Mastodon
@@ -117,6 +120,7 @@ export const LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND = {
   project: 'Organization',
   bot: 'Service',
   channel: 'Organization',
+  community: 'Group',
 } as const satisfies Record<AccountKind, LocalActorType>;
 
 /**
@@ -133,6 +137,58 @@ export const LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND = {
  */
 export function localActorTypeForAccountKind(kind: unknown): LocalActorType {
   return isAccountKind(kind) ? LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND[kind] : 'Person';
+}
+
+/**
+ * The inverse of {@link LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND}, derived from it. Three
+ * kinds share `Organization`, so a type reads back as the FIRST kind the table
+ * lists for it (`Organization` → `organization`); nothing on the wire tells a
+ * remote project from a remote organization.
+ */
+const ACCOUNT_KIND_BY_LOCAL_ACTOR_TYPE: ReadonlyMap<string, AccountKind> = (() => {
+  const inverse = new Map<string, AccountKind>();
+  for (const [kind, type] of Object.entries(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND)) {
+    if (!inverse.has(type)) inverse.set(type, kind as AccountKind);
+  }
+  return inverse;
+})();
+
+/**
+ * AS2 actor types Oxy never announces but receives, and the announced type each
+ * is read as. `Application` is a non-human software actor — what `Service`
+ * already says, and half of Mastodon's own `bot?`.
+ */
+const INBOUND_ACTOR_TYPE_ALIASES: ReadonlyMap<string, LocalActorType> = new Map([
+  ['Application', 'Service'],
+]);
+
+/**
+ * The kind a `Group` that only its moderators may post into is recorded as.
+ * Such a group forwards nobody: it PUBLISHES (a PeerTube video channel, a
+ * WordPress multi-author blog), which is what an Oxy channel is. The one
+ * inbound signal the table above has no column for.
+ */
+const MODERATED_GROUP_KIND: AccountKind = 'channel';
+
+/** The fields of a remote actor document that decide its kind. */
+export interface ActorKindSignals {
+  type?: unknown;
+  /** Lemmy's and PeerTube's flag: only moderators may post into this `Group`. */
+  postingRestrictedToMods?: unknown;
+}
+
+/**
+ * The Oxy account kind a REMOTE actor is recorded as, read from the same table
+ * the local announcement uses ({@link LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND}). A type
+ * the table does not know (absent, misspelt, an extension type) is `personal`,
+ * the same default {@link localActorTypeForAccountKind} announces.
+ */
+export function accountKindForActor(actor: ActorKindSignals): AccountKind {
+  if (typeof actor.type !== 'string') return 'personal';
+  const type = INBOUND_ACTOR_TYPE_ALIASES.get(actor.type) ?? actor.type;
+  if (type === LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community && actor.postingRestrictedToMods === true)
+    return MODERATED_GROUP_KIND;
+  return ACCOUNT_KIND_BY_LOCAL_ACTOR_TYPE.get(type) ?? 'personal';
 }
 
 /** Map common image extensions to a MIME type for an actor image `mediaType`. */

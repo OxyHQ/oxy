@@ -318,6 +318,7 @@ const dict = {
         lastName: 'Apellido',
         lastNamePlaceholder: 'Introduce tu apellido (opcional)',
         invalidChars: 'Usa solo letras, espacios, apóstrofos y separadores de nombre',
+        invalidTitle: 'Usa texto plano sin < ni > (hasta 300 caracteres)',
       },
       username: {
         checking: 'Comprobando disponibilidad…',
@@ -1827,6 +1828,10 @@ const dict = {
         label: 'Bot',
         description: 'Una cuenta programática con credenciales de servicio',
       },
+      community: {
+        label: 'Comunidad',
+        description: 'Un foro en el que publican sus miembros, compartido con quien lo sigue',
+      },
     },
     accountCategory: {
       news: 'Noticias',
@@ -1883,6 +1888,7 @@ const dict = {
       displayName: {
         label: 'Nombre visible',
         invalidChars: 'Usa solo letras, espacios, apóstrofos y separadores de nombre',
+        invalidTitle: 'Usa texto plano sin < ni > (hasta 300 caracteres)',
       },
       bio: {
         label: 'Biografía (opcional)',
@@ -1966,6 +1972,7 @@ const dict = {
       displayName: {
         label: 'Nombre visible',
         invalidChars: 'Usa solo letras, espacios, apóstrofos y separadores de nombre',
+        invalidTitle: 'Usa texto plano sin < ni > (hasta 300 caracteres)',
       },
       bio: {
         label: 'Biografía (opcional)',

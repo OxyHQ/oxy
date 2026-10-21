@@ -20,6 +20,7 @@ import type {
   OrganizationList,
   UpdateOrganization,
 } from '../organizations';
+import { ACCOUNT_TITLE_MAX_LENGTH, accountTitleCheck } from './accountName';
 import {
   array,
   boolean,
@@ -63,7 +64,8 @@ export const ORGANIZATION_ALIAS_KINDS = [
 
 export const ORGANIZATION_CLAIM_DECISIONS = ['pending', 'approved', 'rejected'] as const;
 
-export const ORGANIZATION_NAME_MAX_LENGTH = 300;
+/** An organization's name is a title; the cap is the title policy's. */
+export const ORGANIZATION_NAME_MAX_LENGTH = ACCOUNT_TITLE_MAX_LENGTH;
 
 export const ORGANIZATION_ERROR_CODES = [
   'bad_request',
@@ -94,16 +96,8 @@ const organizationAlias = strictObject({
   language: optional(string(minLength(2), maxLength(35))),
 });
 
-/** The twin of `organizationNameSchema`. */
-export const organizationNameCheck: Check<string> = refine(
-  string(trim, minLength(1), maxLength(ORGANIZATION_NAME_MAX_LENGTH)),
-  (value) =>
-    !/[<>]/.test(value) &&
-    Array.from(value).every(
-      (character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
-    ),
-  'Organization name must be plain text',
-);
+/** The twin of `organizationNameSchema`: the title policy (`./accountName.ts`). */
+export const organizationNameCheck: Check<string> = accountTitleCheck;
 
 const organizationFields = {
   name: organizationNameCheck,

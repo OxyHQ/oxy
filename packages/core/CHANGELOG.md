@@ -1,5 +1,22 @@
 # Changelog — `@oxy.so/core`
 
+## 6.3.0
+
+Needs `@oxy.so/contracts` 5.3.0.
+
+### Added
+
+- `isValidAccountName(value, kind)`: the one kind-aware name check, for the
+  API and clients. A `personal` account is held to `isValidDisplayName` (no
+  digits) and `MAX_DISPLAY_NAME_LENGTH`; every other kind to the plain-text
+  title policy ("Studio 54", "Blink-182") and its 300-character cap.
+- `accountNameMaxLength(kind)`, `accountNameInvalidMessage(kind)`,
+  `accountNameInvalidKey(kind)` (the locale-key leaf) and
+  `ACCOUNT_TITLE_INVALID_MESSAGE`.
+- Locale strings `accounts.kinds.community` and `invalidTitle` under
+  `accounts.create.displayName`, `accounts.settings.displayName` and
+  `editProfile.items.displayName` (en-US, es-ES).
+
 ## 6.2.1
 
 ### Fixed

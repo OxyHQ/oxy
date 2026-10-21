@@ -22,7 +22,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
 import { toast } from '@oxy.so/bloom/toast';
-import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
+import { accountNameInvalidKey, accountNameInvalidMessage, isValidAccountName } from '@oxy.so/core';
 import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
 
 /**
@@ -217,6 +217,12 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     fieldType === 'username',
   );
 
+  // The name policy is the account's kind's: an organization a person switched
+  // into is named by the title policy, not held to a person's.
+  const kind = user?.kind;
+  const invalidNameMessage =
+    t(`editProfile.items.displayName.${accountNameInvalidKey(kind)}`) ||
+    accountNameInvalidMessage(kind);
   // Get field configuration based on fieldType
   const fieldConfig = useMemo((): FieldConfig => {
     switch (fieldType) {
@@ -233,9 +239,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               placeholder:
                 t('editProfile.items.displayName.firstNamePlaceholder') || 'Enter first name',
               validation: (value) =>
-                isValidDisplayName(value)
-                  ? undefined
-                  : t('editProfile.items.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE,
+                isValidAccountName(value, kind) ? undefined : invalidNameMessage,
             },
             {
               key: 'lastName',
@@ -244,9 +248,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                 t('editProfile.items.displayName.lastNamePlaceholder') ||
                 'Enter last name (optional)',
               validation: (value) =>
-                isValidDisplayName(value)
-                  ? undefined
-                  : t('editProfile.items.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE,
+                isValidAccountName(value, kind) ? undefined : invalidNameMessage,
             },
           ],
         };
@@ -360,7 +362,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
           fields: [],
         };
     }
-  }, [fieldType, t]);
+  }, [fieldType, t, kind, invalidNameMessage]);
 
   // Field change handler
   const handleFieldChange = useCallback(

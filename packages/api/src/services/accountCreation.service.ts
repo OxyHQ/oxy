@@ -35,6 +35,7 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users, type AccountKind } from '../db/schema/users';
 import { BadRequestError, ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
+import { untrustedNameColumns } from '../utils/displayNameSanitize';
 import { normalizeUsername } from '../utils/username';
 import type { AccountRow } from './account.service';
 
@@ -220,11 +221,14 @@ export async function insertNeutralOrganizations(
 /** The account types a service connector may find-or-create by handle. */
 export type AutomatedAccountType = 'agent' | 'automated';
 
-/** What a connector may write on an agent or automated profile; never an auth field. */
-export type AutomatedAccountFields = Pick<
-  NewAccount,
-  'automationOwnerId' | 'nameFirst' | 'bio' | 'avatar'
->;
+/**
+ * What a connector may write on an agent or automated profile; never an auth
+ * field. `displayName` is the connector's UNCLEANED name: it is cleaned and
+ * shaped by the row's kind here, where the row is read.
+ */
+export type AutomatedAccountFields = Pick<NewAccount, 'automationOwnerId' | 'bio' | 'avatar'> & {
+  displayName?: string;
+};
 
 /**
  * Find-or-create an agent or automated profile by handle (`PUT /users/resolve`).
@@ -252,7 +256,7 @@ export async function upsertAutomatedAccount(
   const db = getDb();
   const holder = async () => {
     const [existing] = await db
-      .select({ id: users.id, type: users.type, avatar: users.avatar })
+      .select({ id: users.id, type: users.type, kind: users.kind, avatar: users.avatar })
       .from(users)
       .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
       .limit(1);
@@ -266,10 +270,15 @@ export async function upsertAutomatedAccount(
     return existing;
   };
 
+  // A connector never names the kind, so a new row takes the column default.
+  const columns = ({ displayName, ...rest }: AutomatedAccountFields, kind: AccountKind) => ({
+    ...rest,
+    ...(displayName === undefined ? {} : untrustedNameColumns(displayName, kind)),
+  });
   let existing = await holder();
   if (!existing) {
     try {
-      const created = await insertAccount(db, { ...fields, username, type });
+      const created = await insertAccount(db, { ...columns(fields, 'personal'), username, type });
       return { id: created.id, created: true, previousAvatar: null };
     } catch (error) {
       if (!(error instanceof UsernameTakenError)) throw error;
@@ -279,7 +288,7 @@ export async function upsertAutomatedAccount(
   }
   await db
     .update(users)
-    .set({ ...fields, username })
+    .set({ ...columns(fields, existing.kind), username })
     .where(eq(users.id, existing.id));
   return { id: existing.id, created: false, previousAvatar: existing.avatar };
 }

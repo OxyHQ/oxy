@@ -1,4 +1,3 @@
-import { organizationNameSchema } from '@oxy.so/contracts';
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 /**
  * User Service
@@ -88,7 +87,7 @@ import {
   isUserColorPreset,
 } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
-import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxy.so/core';
+import { accountNameInvalidMessage, isValidAccountName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
 import {
   dateOfBirthSchema,
@@ -363,24 +362,16 @@ function normalizeProfileColor(value: unknown): unknown {
  * Fields with no text of their own (avatar id, birthday, preference objects,
  * …) pass through untouched.
  */
-function normalizeProfileField(key: string, value: unknown, kind?: string): unknown {
+function normalizeProfileField(
+  key: string,
+  value: unknown,
+  kind: (typeof ACCOUNT_KINDS)[number] | undefined,
+): unknown {
   switch (key) {
     case 'color':
       return normalizeProfileColor(value);
-    case 'name': {
-      const normalized = normalizeProfileName(value);
-      if (
-        kind === 'organization' &&
-        isRecord(value) &&
-        isRecord(normalized) &&
-        typeof value.displayName === 'string'
-      ) {
-        // The title was validated with organizationNameSchema before normalization.
-        // Human-name cleanup would otherwise erase company punctuation and digits.
-        return { ...normalized, displayName: value.displayName.trim() };
-      }
-      return normalized;
-    }
+    case 'name':
+      return normalizeProfileName(value, kind);
     case 'username':
       return typeof value === 'string' ? normalizeUsername(value) : value;
     case 'linksMetadata':
@@ -948,22 +939,17 @@ export class UserService {
       'themePreference',
     ] as const;
 
-    // Reject invalid native display names (letters/spaces/apostrophe/separators).
-    // Federated writes strip silently via cleanDisplayName; native edits get a
-    // 400 so the user corrects the name at the source. Runs BEFORE sanitization
-    // so the validation sees the user's raw input.
+    // Reject a native name the policy for the account's kind refuses. Federated
+    // writes strip silently via `cleanAccountName`; native edits get a 400 so
+    // the user corrects the name at the source. Runs BEFORE sanitization so the
+    // validation sees the user's raw input.
     if (updates.name && typeof updates.name === 'object') {
-      for (const part of ['first', 'last', 'displayName'] as const) {
-        const value = updates.name[part];
-        if (typeof value !== 'string') continue;
-        const valid =
-          existing.kind === 'organization' && part === 'displayName'
-            ? value === '' || organizationNameSchema.safeParse(value).success
-            : isValidDisplayName(value);
-        if (typeof value === 'string' && !valid) {
-          throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
-        }
-      }
+      const name = updates.name;
+      const valid = (['first', 'last', 'displayName'] as const).every((part) => {
+        const value = name[part];
+        return typeof value !== 'string' || isValidAccountName(value, existing.kind);
+      });
+      if (!valid) throw new BadRequestError(accountNameInvalidMessage(existing.kind));
     }
 
     // Sanitize text fields to prevent XSS

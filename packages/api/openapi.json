@@ -62718,7 +62718,8 @@
                             "organization",
                             "project",
                             "bot",
-                            "channel"
+                            "channel",
+                            "community"
                           ]
                         },
                         "accountCategories": {

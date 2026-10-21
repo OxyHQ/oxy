@@ -160,6 +160,8 @@ export interface ReputationLeaderboardRow {
     username: string | null;
     nameFirst: string | null;
     nameLast: string | null;
+    /** A non-personal account's title lives here alone, never in `nameFirst`. */
+    nameDisplay: string | null;
     avatar: string | null;
     publicKey: string | null;
   };
@@ -1122,6 +1124,7 @@ class ReputationService {
         username: users.username,
         nameFirst: users.nameFirst,
         nameLast: users.nameLast,
+        nameDisplay: users.nameDisplay,
         avatar: users.avatar,
         publicKey: users.publicKey,
       })
@@ -1147,6 +1150,7 @@ class ReputationService {
           username: row.username,
           nameFirst: row.nameFirst,
           nameLast: row.nameLast,
+          nameDisplay: row.nameDisplay,
           avatar: row.avatar,
           publicKey: row.publicKey,
         },
