@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 const mockSafeFetch = jest.fn();
 jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: class extends Error {},
 }));

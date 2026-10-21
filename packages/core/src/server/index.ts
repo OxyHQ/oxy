@@ -134,6 +134,7 @@ export {
   ALLOWED_PROTOCOLS,
   BLOCKED_HOSTNAMES,
   DEFAULT_USER_AGENT,
+  DNS_LOOKUP_TIMEOUT_MS,
   MAX_REDIRECTS,
   MAX_URL_LENGTH,
   UPSTREAM_HEADERS_TIMEOUT_MS,
@@ -145,6 +146,16 @@ export type {
   SsrfCheckOk,
   SsrfCheckResult,
 } from './safeFetch';
+// Its body half: a byte cap and a whole-body deadline for every read (Node-only).
+export { readResponseBody, readResponseJson } from './readResponseBody';
+export type {
+  ReadResponseBodyOptions,
+  ReadResponseBodyResult,
+  ReadResponseJsonResult,
+} from './readResponseBody';
+// Waiting no longer than a deadline for work that can only be abandoned (Node-only).
+export { withDeadline } from './deadline';
+export type { DeadlineOptions, DeadlineResult } from './deadline';
 
 // Receiving Oxy's file events (ADR 0043 D9): signature + replay window.
 export {

@@ -22,10 +22,16 @@
  * kind, and their rows are `personal` already):
  *   - Dry run (DEFAULT): fetches the actor with the read-only signing key and
  *     reports the kind and name columns it WOULD write; writes nothing.
- *   - Apply: rows whose stored kind or name differ are re-registered through
- *     `resolveExternalActorIdentity` — the one persistence path every refresh
- *     uses, ownership and proof checks included. Unchanged rows are not touched.
+ *   - Apply: rows whose stored kind or name differ register the fetched
+ *     profile through `registerFetchedActorProfile` — the persistence half of
+ *     `resolveExternalActorIdentity`, the one path every refresh uses,
+ *     ownership and proof checks included. Unchanged rows are not touched.
  *     Idempotent: a second pass reports no changes.
+ *   - Each actor fetch (read-only) gets {@link ROW_FETCH_DEADLINE_MS}: one that
+ *     outlives it is refused as `fetch_timeout` and the batch moves on. The
+ *     write is never raced against a timer, since it cannot be cancelled.
+ *   - One `progress` line per batch (scanned, changed, refused, last id), so a
+ *     stall is attributable to the batch after the last one printed.
  *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/src/scripts/reclassify-federated-accounts.ts            # dry run
@@ -41,6 +47,7 @@
  */
 
 import { and, asc, eq, gt, like, ne } from 'drizzle-orm';
+import { withDeadline } from '@oxy.so/core/server';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { closeRedis } from '../config/redis';
 import { users } from '../db/schema/users';
@@ -48,6 +55,15 @@ import { federationService } from '../services/federation.service';
 import { externalProfileKind } from '../services/federation/externalIdentityPolicy';
 import { untrustedNameColumns } from '../utils/displayNameSanitize';
 import { mapWithConcurrency } from '../utils/mapWithConcurrency';
+
+/**
+ * Longest one actor fetch may take. Each of its steps has its own deadline (a
+ * hop's DNS, headers and body share 10 s; up to four signed hops and as many
+ * unsigned after a 5xx; the t.co and WebFinger look-ups), so this cuts only a
+ * fetch held by something unforeseen, and keeps that one row from holding its
+ * whole batch: `mapWithConcurrency` waits for every row it started.
+ */
+export const ROW_FETCH_DEADLINE_MS = 120_000;
 
 export interface ReclassifyFederatedAccountsResult {
   apply: boolean;
@@ -67,6 +83,8 @@ export interface ReclassifyFederatedAccountsOptions {
   batchSize?: number;
   concurrency?: number;
   after?: string;
+  /** Defaults to {@link ROW_FETCH_DEADLINE_MS}. */
+  rowFetchDeadlineMs?: number;
   log?: (line: string) => void;
 }
 
@@ -77,6 +95,7 @@ export async function reclassifyFederatedAccounts(
   const batchSize = opts.batchSize ?? 200;
   const concurrency = Math.min(Math.max(opts.concurrency ?? 4, 1), 16);
   const log = opts.log ?? (() => undefined);
+  const rowFetchDeadlineMs = opts.rowFetchDeadlineMs ?? ROW_FETCH_DEADLINE_MS;
   const result: ReclassifyFederatedAccountsResult = {
     apply,
     scanned: 0,
@@ -113,9 +132,18 @@ export async function reclassifyFederatedAccounts(
       const actorUri = row.actorUri ?? '';
       result.scanned += 1;
       try {
-        const fetched = await federationService.fetchActorProfileResult(actorUri, undefined, {
-          readonlySigningKey: true,
-        });
+        const attempt = await withDeadline(
+          federationService.fetchActorProfileResult(actorUri, undefined, {
+            readonlySigningKey: true,
+          }),
+          { timeoutMs: rowFetchDeadlineMs },
+        );
+        if (attempt.kind !== 'ok') {
+          result.refused += 1;
+          log(JSON.stringify({ userId: row.id, action: 'refused', reason: 'fetch_timeout' }));
+          return;
+        }
+        const fetched = attempt.value;
         if (!fetched.ok) {
           result.refused += 1;
           log(JSON.stringify({ userId: row.id, action: 'refused', ...fetched.failure }));
@@ -132,7 +160,7 @@ export async function reclassifyFederatedAccounts(
         result.changed += 1;
         const transition = `${row.kind}->${kind}`;
         result.byKind[transition] = (result.byKind[transition] ?? 0) + 1;
-        if (apply && !(await federationService.resolveExternalActorIdentity(actorUri))) {
+        if (apply && !(await federationService.registerFetchedActorProfile(fetched.profile))) {
           result.refused += 1;
           log(JSON.stringify({ userId: row.id, action: 'refused', reason: 'not_registered' }));
           return;
@@ -151,6 +179,8 @@ export async function reclassifyFederatedAccounts(
       }
     });
     result.after = rows[rows.length - 1].id;
+    const { scanned, changed, refused, after } = result;
+    log(JSON.stringify({ progress: { scanned, changed, refused, after } }));
   }
   return result;
 }

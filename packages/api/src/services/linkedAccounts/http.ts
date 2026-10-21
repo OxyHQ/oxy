@@ -14,7 +14,7 @@
  * `safeFetch` (correctly) refuses loopback.
  */
 
-import { assertSafePublicUrl, safeFetch } from '@oxy.so/core/server';
+import { assertSafePublicUrl, readResponseBody, safeFetch } from '@oxy.so/core/server';
 
 /** Largest response body the flow will buffer. Identity documents are small. */
 const LINKED_ACCOUNT_MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -47,24 +47,6 @@ function headersToRecord(headers: Headers): Record<string, string> {
     record[key] = value;
   });
   return record;
-}
-
-async function readBounded(stream: AsyncIterable<unknown> & { destroy(): void }): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  try {
-    for await (const chunk of stream) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
-      total += buffer.byteLength;
-      if (total > LINKED_ACCOUNT_MAX_RESPONSE_BYTES) {
-        throw new Error('response body exceeds the linked-accounts limit');
-      }
-      chunks.push(buffer);
-    }
-  } finally {
-    stream.destroy();
-  }
-  return Buffer.concat(chunks);
 }
 
 /**
@@ -103,7 +85,16 @@ const safeWhatwgFetch: typeof fetch = async (input, init) => {
       headersTimeoutMs: HEADERS_TIMEOUT_MS,
       signal: controller.signal,
     });
-    payload = await readBounded(result.response);
+    const read = await readResponseBody(result.response, {
+      maxBytes: LINKED_ACCOUNT_MAX_RESPONSE_BYTES,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
+    if (read.kind === 'too_large') {
+      throw new Error('response body exceeds the linked-accounts limit');
+    }
+    if (read.kind === 'timeout') throw new Error('linked-account request timed out');
+    if (read.kind === 'error') throw read.error;
+    payload = read.body;
   } finally {
     clearTimeout(timeout);
     request.signal.removeEventListener('abort', abort);

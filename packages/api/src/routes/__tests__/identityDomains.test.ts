@@ -65,6 +65,7 @@ jest.mock('dns', () => ({
 }));
 
 jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
 }));
 

@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Fixed (`reclassify-federated-accounts` cannot be held by one row)
+
+`mapWithConcurrency` waits for every row it started, so one actor fetch that
+never settled held its batch, and the run, forever (it stalled three times in
+production with no log, no summary and no query). Each actor fetch, which is
+read-only, now gets a 120 s deadline (`ROW_FETCH_DEADLINE_MS`): past it the row
+is refused as `fetch_timeout` and the batch moves on. `--apply` registers the
+profile it already fetched (`federationService.registerFetchedActorProfile`,
+the persistence half of `resolveExternalActorIdentity`) instead of fetching the
+actor a second time with no deadline, so the write is never raced against a
+timer. A `progress` line per batch (scanned, changed, refused, last id) makes a
+stall attributable.
+
+### Fixed (stripping tags from remote text is linear)
+
+`sanitizePlainText` tested every `<` against the rest of the text when no `>`
+followed it: quadratic, so a 2 MiB remote actor document of unclosed `<` would
+hold the event loop for minutes, where no deadline can fire. Same output, now
+linear.
+
+### Fixed (every upstream body read has a deadline)
+
+Bodies fetched with `safeFetch` were read by nine hand-rolled readers that
+capped the bytes but not the time; `safeFetch`'s deadline ends at the response
+headers, so a server that sent its headers and stalled could hold a read open
+(the domain-proof `/.well-known/oxy-domain` check passed no other deadline at
+all). Every read now goes through `@oxy.so/core/server`'s `readResponseBody` /
+`readResponseJson` with an explicit whole-body `timeoutMs`: federation JSON
+(WebFinger, actors, Bluesky profiles) 10 s, federated avatars and repair
+downloads 15 s, the email image proxy, Instagram Graph, the Meta profile proof
+and the files-webhook challenge 10 s, the domain proof 5 s, play-session key
+authorization 3 s, linked accounts 15 s. A federated avatar whose body stalls
+or breaks off is now a transient transport failure (retried), no longer a
+permanent `too_large`. The unused `utils/boundedBody.ts` is gone.
+
 ### Changed (a multipart upload is at most 90 MiB, refused as JSON 413 `USE_PRESIGNED_UPLOAD`)
 
 `POST /assets/upload` and `POST /assets/:id/upload-direct` buffered a file of

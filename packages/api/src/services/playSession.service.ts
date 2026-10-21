@@ -33,7 +33,7 @@
 
 import crypto from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
-import { safeFetch } from '@oxy.so/core/server';
+import { readResponseJson, safeFetch } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema';
 import {
@@ -64,8 +64,13 @@ export const PLAY_SESSION_MAX_TTL_SECONDS = 12 * 60 * 60;
 export const SESSION_CACHE_TTL_MS = 30_000;
 const SESSION_CACHE_MAX_ENTRIES = 20_000;
 
-/** The application's key-authorization endpoint must answer within this. */
+/**
+ * The application's key-authorization endpoint must send its headers within
+ * this, and then its body within it again.
+ */
 export const KEY_AUTHORIZATION_TIMEOUT_MS = 3_000;
+/** Largest key-authorization answer read; a larger one is no answer. */
+const KEY_AUTHORIZATION_MAX_BODY_BYTES = 16 * 1024;
 /** How long an `allow` from the application's endpoint is reused for the same session. */
 export const KEY_AUTHORIZATION_CACHE_MS = 60_000;
 export const KEY_AUTHORIZATION_EVENT_TYPE = 'stream.key_authorization';
@@ -418,21 +423,13 @@ async function postKeyAuthorization(request: {
     headersTimeoutMs: KEY_AUTHORIZATION_TIMEOUT_MS,
     signal: AbortSignal.timeout(KEY_AUTHORIZATION_TIMEOUT_MS),
   });
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of result.response as AsyncIterable<Buffer>) {
-    size += chunk.length;
-    if (size > 16 * 1024) break;
-    chunks.push(Buffer.from(chunk));
-  }
-  result.response.destroy();
-  let body: unknown = null;
-  try {
-    body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  } catch {
-    body = null;
-  }
-  return { status: result.status, body };
+  const answer = await readResponseJson(result.response, {
+    maxBytes: KEY_AUTHORIZATION_MAX_BODY_BYTES,
+    timeoutMs: KEY_AUTHORIZATION_TIMEOUT_MS,
+  });
+  if (answer.kind === 'timeout') throw new Error('key authorization body timed out');
+  if (answer.kind === 'error') throw answer.error;
+  return { status: result.status, body: answer.kind === 'ok' ? answer.value : null };
 }
 
 let keyAuthorizationTransport: KeyAuthorizationTransport = postKeyAuthorization;

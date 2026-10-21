@@ -94,7 +94,12 @@ export function decodeHtmlEntities(text: string): string {
 export function sanitizePlainText(input: string): string {
   if (!input) return input;
   const decoded = decodeHtmlEntities(input);
-  const stripped = decoded.replace(/<[^>]*>/g, '');
+  // Only text up to the last `>` can hold a tag. Testing each later `<` against
+  // the rest of the text is quadratic (80 KB of unclosed `<` took 0.3 s, so a
+  // 2 MiB remote actor document would hold the event loop for minutes, where
+  // no timer can fire). Same output, linear.
+  const end = decoded.lastIndexOf('>') + 1;
+  const stripped = decoded.slice(0, end).replace(/<[^>]*>/g, '') + decoded.slice(end);
   return normalizeMultilineText(stripped);
 }
 

@@ -42,6 +42,7 @@ jest.mock('../assetService', () => ({
 jest.mock('../s3Service', () => ({ __esModule: true, createS3Service: jest.fn(() => ({})) }));
 jest.mock('@oxy.so/core/server', () => ({
   __esModule: true,
+  ...jest.requireActual('@oxy.so/core/server'),
   safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
   SsrfRejection: class extends Error {},
 }));

@@ -1,5 +1,33 @@
 # Changelog — `@oxy.so/core`
 
+## 6.8.0
+
+### Added
+
+- `readResponseBody(response, { maxBytes, timeoutMs })` and
+  `readResponseJson` in `@oxy.so/core/server`: the body half of `safeFetch`.
+  `safeFetch`'s `headersTimeoutMs` ends at the response headers, so a server
+  that sent its headers and then stalled held a plain `'data'`/`'end'` reader
+  forever. These cap the bytes and give the whole body one deadline, destroy
+  the stream past either, settle exactly once with their timer cleared and
+  listeners removed, and never reject: the answer is `ok`, `too_large`,
+  `timeout` or `error` (plus `invalid_json`). Both limits are required.
+- `withDeadline(work, { timeoutMs, signal? })` in `@oxy.so/core/server`: wait
+  for work that can only be abandoned (a DNS lookup, a read-only fetch) no
+  longer than a deadline; answers `ok`, `timeout` or `aborted`, rethrows the
+  work's rejection, and clears its timer and abort listener on every path.
+
+### Fixed
+
+- `safeFetch`'s DNS lookup had no deadline: `getaddrinfo` is reached by no
+  socket timeout and no `AbortSignal`, so an unanswered lookup held the request
+  past every deadline its caller set. `assertSafePublicUrl` now waits at most
+  `lookupTimeoutMs` (default `DNS_LOOKUP_TIMEOUT_MS`, 8 s, exported) and no
+  longer than an optional `signal`; `safeFetch` passes its `headersTimeoutMs`
+  and `signal`. A lookup that ran out is `{ ok: false, incomplete: true }`, and
+  `safeFetch` throws `UpstreamError` for it, not `SsrfRejection`: unknown is
+  not refused.
+
 ## 6.7.0
 
 ### Changed
