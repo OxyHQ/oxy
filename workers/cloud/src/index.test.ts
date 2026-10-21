@@ -279,6 +279,32 @@ describe('the by-id resolver', () => {
   });
 });
 
+describe('lengths', () => {
+  it("declares every body's length, so a Sippy stream keeps Content-Length and the cache can range it", async () => {
+    const declared: number[] = [];
+    const original = (globalThis as { FixedLengthStream?: unknown }).FixedLengthStream;
+    (globalThis as { FixedLengthStream?: unknown }).FixedLengthStream = class {
+      readable: ReadableStream;
+      writable: WritableStream;
+      constructor(length: number) {
+        declared.push(length);
+        const pipe = new TransformStream();
+        this.readable = pipe.readable;
+        this.writable = pipe.writable;
+      }
+    };
+    try {
+      const { get } = harness({
+        'public/content/v.mp4': { body: '0123456789', contentType: 'video/mp4' },
+      });
+      expect(await (await get('/content/v.mp4')).text()).toBe('0123456789');
+      expect(declared).toEqual([10]);
+    } finally {
+      (globalThis as { FixedLengthStream?: unknown }).FixedLengthStream = original;
+    }
+  });
+});
+
 describe('methods', () => {
   it('answers a CORS preflight', async () => {
     const { get } = harness({});
