@@ -199,7 +199,7 @@ describe('GET /notifications — wire format', () => {
       actorId: {
         _id: ACTOR_ID,
         username: expect.stringMatching(/^ada/),
-        name: { first: 'Ada', last: 'Lovelace' },
+        name: { first: 'Ada', last: 'Lovelace', displayName: 'Ada Lovelace', full: 'Ada Lovelace' },
         avatar: 'file-avatar-1',
       },
       type: 'like',
