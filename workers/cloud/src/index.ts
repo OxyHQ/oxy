@@ -86,6 +86,20 @@ function notFound(): Response {
   });
 }
 
+/**
+ * `body`, declared `length` bytes long. An object R2 has not copied yet is
+ * streamed through from S3 (Sippy) with no length the runtime knows, and a
+ * Response over such a stream drops its Content-Length — and the Cache API then
+ * cannot answer a Range from the cached copy (it needs Content-Length), nor can
+ * a player know how long the video is. The object's size is always known.
+ */
+function sized(body: ReadableStream, length: number): ReadableStream {
+  if (typeof FixedLengthStream === 'undefined') return body;
+  const { readable, writable } = new FixedLengthStream(length);
+  void body.pipeTo(writable).catch(() => undefined);
+  return readable;
+}
+
 function hasBody(object: R2Object | R2ObjectBody | null): object is R2ObjectBody {
   return object !== null && 'body' in object && object.body !== undefined;
 }
@@ -131,7 +145,10 @@ async function fillCache(
   }
   const headers = objectHeaders(object, route);
   headers.set('content-length', String(object.size));
-  await deps.cache.put(cacheKey, new Response(object.body, { status: 200, headers }));
+  await deps.cache.put(
+    cacheKey,
+    new Response(sized(object.body, object.size), { status: 200, headers }),
+  );
   return true;
 }
 
@@ -193,11 +210,15 @@ export async function serveObject(
     const range = rangeOf(object);
     if (!range) {
       headers.set('content-length', String(object.size));
-      return finalize(new Response(object.body, { status: 200, headers }), route);
+      return finalize(
+        new Response(sized(object.body, object.size), { status: 200, headers }),
+        route,
+      );
     }
+    const length = range.end - range.start + 1;
     headers.set('content-range', `bytes ${range.start}-${range.end}/${object.size}`);
-    headers.set('content-length', String(range.end - range.start + 1));
-    return finalize(new Response(object.body, { status: 206, headers }), route);
+    headers.set('content-length', String(length));
+    return finalize(new Response(sized(object.body, length), { status: 206, headers }), route);
   }
 
   const object = await bucket.get(route.key, { onlyIf: request.headers });
@@ -205,7 +226,7 @@ export async function serveObject(
   const headers = objectHeaders(object, route);
   if (!hasBody(object)) return finalize(new Response(null, { status: 304, headers }), route);
   headers.set('content-length', String(object.size));
-  const response = new Response(object.body, { status: 200, headers });
+  const response = new Response(sized(object.body, object.size), { status: 200, headers });
   if (object.size <= EDGE_CACHE_MAX_BYTES) {
     deps.waitUntil(deps.cache.put(cacheKey, response.clone()).catch(() => undefined));
   }
