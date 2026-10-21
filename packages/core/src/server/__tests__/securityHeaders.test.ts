@@ -39,6 +39,8 @@ function cspOf(block: string): string {
   return line.trim().slice('Content-Security-Policy:'.length).trim();
 }
 
+const OXY_FILES_UPLOAD_ORIGIN = 'https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com';
+
 describe('@oxy.so/core/server buildOxyCspDirectives', () => {
   it('carries the Cloudflare Insights beacon on BOTH halves of the baseline', () => {
     // The bug this helper exists for: the script host alone leaves the beacon
@@ -53,6 +55,9 @@ describe('@oxy.so/core/server buildOxyCspDirectives', () => {
     expect(directives['connect-src']).toEqual(
       expect.arrayContaining(['https://api.oxy.so', 'wss://api.oxy.so', 'https://cloud.oxy.so']),
     );
+    // A large upload's parts go from the browser straight to the Oxy Files
+    // bucket (ADR 0047); without its host every one is refused before it starts.
+    expect(directives['connect-src']).toContain(OXY_FILES_UPLOAD_ORIGIN);
     expect(directives['img-src']).toContain('https://cloud.oxy.so');
     expect(directives['media-src']).toContain('https://cloud.oxy.so');
   });
@@ -340,6 +345,7 @@ describe('@oxy.so/core/server createOxySecurityHeaders', () => {
       'https://api.oxy.so',
       'wss://api.oxy.so',
       'https://cloud.oxy.so',
+      OXY_FILES_UPLOAD_ORIGIN,
     ]);
     expect(policy).toContain('upgrade-insecure-requests');
   });
@@ -358,6 +364,7 @@ describe('@oxy.so/core/server createOxySecurityHeaders', () => {
       'https://api.oxy.so',
       'wss://api.oxy.so',
       'https://cloud.oxy.so',
+      OXY_FILES_UPLOAD_ORIGIN,
       'https://api.mention.earth',
       'wss://api.mention.earth',
     ]);
