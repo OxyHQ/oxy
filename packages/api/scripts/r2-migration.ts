@@ -9,6 +9,7 @@
  *   bun scripts/r2-migration.ts verify-sha256 --r2 <bucket> --out <dir> --sample <n> [--files-db]
  *   bun scripts/r2-migration.ts remove-extra --r2 <bucket> --out <dir> --before <ISO time> [--apply]
  *   bun scripts/r2-migration.ts copy-missing --s3 <bucket> --r2 <bucket> --out <dir> [--apply]
+ *   bun scripts/r2-migration.ts replay-deletions --s3 <bucket> --r2 <bucket> --out <dir> --since <ISO> --until <ISO> [--apply]
  *
  * S3 is read through the default chain (AWS_PROFILE=oxy); R2 with
  * R2_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY (the migration token,
@@ -547,12 +548,154 @@ async function copyMissing(): Promise<void> {
   console.log(JSON.stringify({ apply, ...counts }));
 }
 
+/**
+ * Replay into R2 what was deleted from S3 alone during `--since`..`--until`:
+ * the window in which oxy-api still deleted only in S3 while Super Slurper and
+ * Sippy were already copying (ADR 0047). From the database, not a listing, so it
+ * can run before the bulk copy finishes:
+ *   - every `storage_object_deletions` row completed `deleted` in the window
+ *     (both spellings, `<key>` and `public/<key>`; a prefix is listed in R2);
+ *   - every file that left public-and-active in the window: its `public/` copy
+ *     and its renditions' `public/` copies.
+ * An R2 object is deleted only when S3 no longer has it and no live file row or
+ * rendition names it now; a deleted `public/` object's cloud.oxy.so URL is
+ * purged (CLOUDFLARE_ZONE_ID, CLOUDFLARE_CACHE_PURGE_TOKEN).
+ */
+async function replayDeletions(): Promise<void> {
+  const s3Bucket = required('s3');
+  const r2Bucket = required('r2');
+  const out = required('out');
+  const since = new Date(required('since'));
+  const until = new Date(required('until'));
+  if (Number.isNaN(since.getTime()) || Number.isNaN(until.getTime())) {
+    throw new Error('--since and --until must be ISO times');
+  }
+  const apply = has('apply');
+  mkdirSync(out, { recursive: true });
+  const s3 = s3Client();
+  const r2 = r2Client();
+  const postgres = (await import('postgres')).default;
+  const sql = postgres(process.env.DATABASE_URL ?? '', { max: 4 });
+  const report = createWriteStream(`${out}/replay-deletions${apply ? '' : '.preview'}.ndjson`);
+  const counts = { candidates: 0, inS3: 0, inUse: 0, absent: 0, deleted: 0, purged: 0 };
+  try {
+    const ledger = await sql<{ kind: string; target: string }[]>`
+      select kind, target from storage_object_deletions
+      where outcome = 'deleted' and completed_at >= ${since} and completed_at < ${until}`;
+    const left = await sql<{ id: string; storage_key: string }[]>`
+      select id, storage_key from files
+      where updated_at >= ${since} and not (status = 'active' and visibility = 'public')`;
+    const leftVariants = left.length
+      ? await sql<
+          { key: string }[]
+        >`select key from file_variants where file_id = any(${left.map((f) => f.id)})`
+      : [];
+    const pub = (key: string) => (key.startsWith('public/') ? key : `public/${key}`);
+    const keys = new Set<string>();
+    const prefixes = new Set<string>();
+    for (const row of ledger) {
+      const base = row.target.replace(/^public\//, '');
+      if (row.kind === 'prefix') {
+        prefixes.add(base);
+        prefixes.add(pub(base));
+      } else {
+        keys.add(base);
+        keys.add(pub(base));
+      }
+    }
+    for (const file of left) keys.add(pub(file.storage_key));
+    for (const variant of leftVariants) keys.add(pub(variant.key));
+    for (const prefix of prefixes) {
+      for (const item of (await list(r2, r2Bucket, prefix, false)).objects) keys.add(item.key);
+    }
+
+    const exists = async (client: S3Client, bucket: string, key: string) => {
+      try {
+        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return true;
+      } catch (error) {
+        if (
+          (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404
+        )
+          return false;
+        throw error;
+      }
+    };
+    // Listed, not HEADed: R2 answers a HEAD of an object only in S3 from S3 (Sippy).
+    const inR2 = async (key: string) => {
+      const page = await r2.send(
+        new ListObjectsV2Command({ Bucket: r2Bucket, Prefix: key, MaxKeys: 1 }),
+      );
+      return page.Contents?.[0]?.Key === key;
+    };
+    const toPurge: string[] = [];
+    await pool([...keys], 16, async (key) => {
+      counts.candidates += 1;
+      if (!(await inR2(key))) {
+        counts.absent += 1;
+        return;
+      }
+      if (await exists(s3, s3Bucket, key)) {
+        counts.inS3 += 1;
+        return;
+      }
+      const base = key.replace(/^public\//, '');
+      const [used] = await sql<{ n: number }[]>`
+        select (
+          (select count(*) from files f where f.status <> 'deleted'
+             and (f.storage_key = ${key} or f.storage_key = ${base}))
+          + (select count(*) from file_variants v join files f on f.id = v.file_id
+             where f.status <> 'deleted' and (v.key = ${key} or v.key = ${base}))
+        )::int as n`;
+      if ((used?.n ?? 0) > 0) {
+        counts.inUse += 1;
+        report.write(`${JSON.stringify({ key, kept: 'in use' })}\n`);
+        return;
+      }
+      if (apply) await r2.send(new DeleteObjectCommand({ Bucket: r2Bucket, Key: key }));
+      counts.deleted += 1;
+      if (key.startsWith('public/')) toPurge.push(`https://cloud.oxy.so/${base}`);
+      report.write(`${JSON.stringify({ key, deleted: apply })}\n`);
+    });
+    const zone = process.env.CLOUDFLARE_ZONE_ID;
+    const token = process.env.CLOUDFLARE_CACHE_PURGE_TOKEN;
+    if (apply && toPurge.length > 0 && zone && token) {
+      for (let i = 0; i < toPurge.length; i += 100) {
+        const response = await fetch(
+          `https://api.cloudflare.com/client/v4/zones/${zone}/purge_cache`,
+          {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ files: toPurge.slice(i, i + 100) }),
+          },
+        );
+        if (!response.ok) throw new Error(`purge answered ${response.status}`);
+        counts.purged += Math.min(100, toPurge.length - i);
+      }
+    }
+    console.log(
+      JSON.stringify({
+        apply,
+        since: since.toISOString(),
+        until: until.toISOString(),
+        ledgerRows: ledger.length,
+        filesLeftPublic: left.length,
+        ...counts,
+      }),
+    );
+  } finally {
+    await new Promise<void>((resolve) => report.end(() => resolve()));
+    await sql.end();
+  }
+}
+
 const commands: Record<string, () => Promise<void>> = {
   compare,
   'repair-metadata': repairMetadata,
   'verify-sha256': verifySha256,
   'remove-extra': removeExtra,
   'copy-missing': copyMissing,
+  'replay-deletions': replayDeletions,
 };
 
 const run = command ? commands[command] : undefined;
