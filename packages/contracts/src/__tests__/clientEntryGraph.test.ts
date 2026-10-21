@@ -97,8 +97,8 @@ describe('@oxy.so/contracts/client entry graph', () => {
   it('only reaches the pure capability helpers, product catalogue and colour table outside src/client/', () => {
     expect(files.filter((file) => !file.startsWith('client/'))).toEqual([
       'capabilityBindings.ts',
-      'products/one.ts',
       'profileColors.generated.ts',
+      'products/one.ts',
     ]);
   });
 
