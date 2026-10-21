@@ -70,6 +70,7 @@ import {
   migrationDatabase,
   openOwnedConnection,
 } from '../driver';
+import { resolveQueryLimits } from '../client';
 import { type RequiredExtension, ensureExtensions } from './extensions';
 import {
   DEFAULT_LOCK_ATTEMPTS,
@@ -229,15 +230,21 @@ ${timeouts.problems.map((problem) => `  - ${problem}`).join('\n')}`,
   // The defaults ride in the startup packet so they hold for every statement
   // on this connection — the ledger reads, and a transparent reconnect —
   // before the per-migration `SET`s below narrow or widen them.
-  const connection = openOwnedConnection(
-    options.databaseUrl,
-    driver,
-    (message) => options.logger.debug(`Postgres notice: ${message}`),
-    {
-      lock_timeout: `${limits.lockTimeoutMs}ms`,
-      statement_timeout: `${limits.statementTimeoutMs}ms`,
-    },
-  );
+  //
+  // The query deadline follows the LONGEST statement timeout any migration may
+  // set on this connection (a `-- oxy:statement-timeout=` marker raises its
+  // own), so a marked migration's long statement is never cut off client-side.
+  const connection = openOwnedConnection(options.databaseUrl, driver, {
+    onnotice: (message) => options.logger.debug(`Postgres notice: ${message}`),
+    runtimeParameters: { lock_timeout: `${limits.lockTimeoutMs}ms` },
+    statementTimeoutMs: limits.statementTimeoutMs,
+    queryDeadlineMs: resolveQueryLimits({
+      statementTimeoutMs: longestStatementTimeoutMs(
+        limits.statementTimeoutMs,
+        timeouts.statementTimeoutsMs.values(),
+      ),
+    }).queryDeadlineMs,
+  });
   const { client } = connection;
 
   try {
@@ -390,6 +397,16 @@ async function ensureLedgerTable(db: MigrationDatabase): Promise<void> {
       created_at bigint
     )
   `);
+}
+
+/** The longest of these statement timeouts; 0 (no limit) if any of them is 0. */
+function longestStatementTimeoutMs(defaultMs: number, markedMs: Iterable<number>): number {
+  let longest = defaultMs;
+  for (const ms of markedMs) {
+    if (ms === 0 || longest === 0) return 0;
+    longest = Math.max(longest, ms);
+  }
+  return longest;
 }
 
 /**

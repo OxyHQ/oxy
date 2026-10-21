@@ -1,7 +1,13 @@
 import type { SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import type postgres from 'postgres';
 import { DATABASE_CASING } from './casing';
+import {
+  type QueryLimits,
+  openPostgresClient,
+  resolveQueryLimits,
+  withStatementTimeout,
+} from './client';
 import {
   type BunSqlClient,
   type BunSqlClientOptions,
@@ -82,7 +88,8 @@ export type OxyDatabase<TSchema extends Record<string, unknown>> = PostgresJsDat
   $client: postgres.Sql;
 };
 
-export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> {
+export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>>
+  extends QueryLimits {
   /**
    * Connection string for the database this handle talks to.
    *
@@ -95,7 +102,14 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
   readonly schema: TSchema;
   /** The default driver. Omitting `driver` means exactly this. */
   readonly driver?: 'postgres-js';
-  /** postgres.js pool options. The caller owns pool sizing and timeouts. */
+  /**
+   * postgres.js pool options. The caller owns pool sizing and idle/lifetime
+   * timeouts; each option set here wins over this package's defaults
+   * (`connect_timeout`, `keep_alive`, `connection.statement_timeout`). Set the
+   * statement timeout with `statementTimeoutMs` rather than
+   * `connection.statement_timeout`: only the former moves the query deadline
+   * with it.
+   */
   readonly client?: postgres.Options<Record<string, never>>;
 }
 
@@ -104,7 +118,8 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
  * only. Nothing here names a postgres.js type, and the handle it returns is
  * typed without one either.
  */
-export interface CreateBunSqlDatabaseOptions<TSchema extends Record<string, unknown>> {
+export interface CreateBunSqlDatabaseOptions<TSchema extends Record<string, unknown>>
+  extends Pick<QueryLimits, 'statementTimeoutMs'> {
   /** As {@link CreateDatabaseOptions.databaseUrl}. */
   readonly databaseUrl: string;
   readonly schema: TSchema;
@@ -137,17 +152,14 @@ export interface CreateBunSqlDatabaseOptions<TSchema extends Record<string, unkn
  * unprepared, because a prepared one double-encodes every `jsonb()` write (see
  * `BunSqlClientOptions.prepare`).
  *
- * ## No consumer calls this yet, and that is not an oversight
+ * ## Limits
  *
- * It is here for a consumer that has not landed. The application already on
- * this package builds its handle inline, in a `connectPostgres()` that also
- * owns a boot round-trip, pool sizing from its own configuration, and shutdown
- * ordering — it shares the load-bearing part (`DATABASE_CASING`, imported from
- * here) and adopting this would be a refactor of that function rather than a
- * fix to anything. Do not delete this as dead code, and do not read its
- * unused-ness as evidence the guarantee above is unwanted; the guarantee is
- * exactly what a NEW consumer, wiring up drizzle for the first time, is most
- * likely to get wrong.
+ * The postgres.js pool is opened by `openPostgresClient` (`client.ts`), so it
+ * starts every connection with `statement_timeout` (`statementTimeoutMs`,
+ * default 5 minutes) and a client-side query deadline that destroys a
+ * connection the server has gone silent on (`queryDeadlineMs`, derived from
+ * the statement timeout). A `bun-sql` handle gets the statement timeout only:
+ * `Bun.SQL` has no socket hook to hang the deadline on.
  */
 export function createDatabase<TSchema extends Record<string, unknown>>(
   options: CreateDatabaseOptions<TSchema>,
@@ -161,7 +173,14 @@ export function createDatabase<TSchema extends Record<string, unknown>>(
   | { db: OxyDatabase<TSchema>; client: postgres.Sql }
   | { db: OxyBunSqlDatabase<TSchema>; client: BunSqlClient } {
   if (options.driver === 'bun-sql') {
-    const client = openBunSqlClient(options.databaseUrl, options.client);
+    const { statementTimeoutMs } = resolveQueryLimits({
+      statementTimeoutMs: options.statementTimeoutMs,
+    });
+    const connection = withStatementTimeout(statementTimeoutMs, options.client?.connection);
+    const client = openBunSqlClient(options.databaseUrl, {
+      ...options.client,
+      ...(connection ? { connection: connection as BunSqlClientOptions['connection'] } : {}),
+    });
     // `drizzle-orm/bun-sql` is loaded at runtime (see `driver.ts`), so its
     // return is untyped here; it IS a `BunSQLDatabase<TSchema>` with `$client`
     // attached, which `database.typetest.ts` holds equal to the declared type.
@@ -171,7 +190,7 @@ export function createDatabase<TSchema extends Record<string, unknown>>(
     }) as OxyBunSqlDatabase<TSchema>;
     return { db, client };
   }
-  const client = postgres(options.databaseUrl, options.client);
+  const client = openPostgresClient(options.databaseUrl, options);
   return {
     db: drizzle(client, { schema: options.schema, casing: DATABASE_CASING }),
     client,

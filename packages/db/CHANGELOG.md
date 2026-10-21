@@ -1,5 +1,43 @@
 # Changelog: `@oxy.so/db`
 
+## 1.4.0
+
+### Every postgres.js client gets a statement timeout and a query deadline
+
+A connection whose server vanished without a FIN or RST (a dropped NAT entry, a
+failover) used to make its next query hang until the kernel abandoned the
+socket, about 15 minutes; keepalive cannot help while a request is
+unacknowledged, and postgres.js has no query timeout. Every postgres.js client
+this package opens (`createDatabase`, the migrator, `@oxy.so/db/testing`) now
+goes through the new `openPostgresClient`, which adds, each overridable:
+
+- `statement_timeout` = `statementTimeoutMs`, default **300 000 ms** (5 min),
+  sent at connect. `0` sends none.
+- a client-side **query deadline**, `queryDeadlineMs`: a connection the server
+  sends nothing on for that long after a request is destroyed, its queries
+  reject with `QueryDeadlineError` (`code: 'QUERY_DEADLINE_EXCEEDED'`,
+  `isQueryDeadlineError`), and the pool opens a fresh one. Default: the larger
+  of `statementTimeoutMs` and 300 000, plus 30 000 (330 s by default). Off when
+  `statementTimeoutMs` is `0`, unless set explicitly.
+- TCP keepalive after 30 s idle (`keep_alive`; postgres.js: 60) and
+  `connect_timeout` 10 s (postgres.js: 30).
+
+**Long work raises `statementTimeoutMs`, and the deadline follows.** A one-shot,
+backfill or index build whose statements run past 5 minutes passes
+`statementTimeoutMs` (e.g. `3_600_000`, or `0` for none). A transaction that
+raises its own `SET LOCAL statement_timeout` above 300 s must raise the pool's
+`statementTimeoutMs` (or `queryDeadlineMs`) too. Set the statement timeout with
+`statementTimeoutMs`, not `client.connection.statement_timeout`: only the former
+moves the deadline.
+
+The migrator is unchanged in effect: `statement_timeout` 120 s, raised per file
+by `-- oxy:statement-timeout=`, and its deadline is derived from the longest
+marker in the journal. `openOwnedConnection` now takes an options object
+(`onnotice`, `runtimeParameters`, `statementTimeoutMs`, `queryDeadlineMs`).
+
+`driver: 'bun-sql'` gets the statement timeout only: `Bun.SQL` has no socket
+hook for the deadline.
+
 ## 1.3.0
 
 ### Fix: 1.2.0 silently skipped a migration whose journal `when` goes backwards
