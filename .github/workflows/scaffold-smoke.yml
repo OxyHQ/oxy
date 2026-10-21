@@ -325,7 +325,13 @@ jobs:
               || { echo "::error::$permission is not requested"; exit 1; }
           done
           grep -q 'android:authorities="so.oxy.commons.identity"' "$manifest"
-          grep -q 'android.compileSdkVersion=36' android/gradle.properties
+          # The preset's build properties applied (resource shrinking), and it
+          # leaves the compile/target SDK to the Expo template: a pin below
+          # SDK 58's compileSdk 37 fails every release build.
+          grep -q 'android.enableShrinkResourcesInReleaseBuilds=true' android/gradle.properties
+          if grep -Eq '^android\.(compileSdkVersion|targetSdkVersion|buildToolsVersion)=' android/gradle.properties; then
+            echo "::error::the scaffolded app pins an Android SDK level"; exit 1
+          fi
 
       - name: Prebuild ios + assert keychain group
         working-directory: ${{ runner.temp }}/smoke-app/packages/frontend
