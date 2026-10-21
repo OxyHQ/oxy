@@ -36,6 +36,13 @@
  * session stays resumable for its window. The authoritative handling is
  * `services/inferenceRealtime.service.ts`.
  *
+ * ## Keepalive
+ *
+ * The edge pings every customer every {@link REALTIME_HEARTBEAT_INTERVAL_MS}
+ * (a WebSocket control frame every client answers on its own), so an idle
+ * session outlives the proxies' idle timeouts; a missed pong terminates the
+ * socket, and the session detaches as for any lost customer.
+ *
  * ## Why the upgrade is accepted before authentication
  *
  * `server.ts` attaches Socket.IO to the same HTTP server, and engine.io ends
@@ -80,10 +87,23 @@ import { logger } from '../utils/logger';
  */
 export const MAX_REALTIME_CUSTOMER_FRAME_BYTES = 2 * 1024 * 1024;
 
+/**
+ * How often the edge pings a customer, in ms. A session may sit idle for its
+ * `idleTimeoutMs` (two minutes by default), longer than the proxies in front of
+ * the API keep a silent connection: the load balancer's 60 s idle timeout and
+ * the CDN proxy's 100 s. A ping every 25 s is traffic both see, well inside the
+ * shorter one. A customer that has not answered the previous ping with a pong
+ * by the next one is gone, and its socket is terminated, which detaches the
+ * session as any lost customer does (resumable for its window).
+ */
+export const REALTIME_HEARTBEAT_INTERVAL_MS = 25_000;
+
 export interface RealtimeEdgeOptions {
   /** The one-shot client: admission's exact-id attestation runs through it. */
   readonly kaanaClient?: KaanaClient;
   readonly kaanaRealtimeClient?: KaanaRealtimeClient;
+  /** Default {@link REALTIME_HEARTBEAT_INTERVAL_MS}; a test shortens it. */
+  readonly heartbeatIntervalMs?: number;
 }
 
 /**
@@ -119,6 +139,7 @@ export function attachRealtimeEdge(
     const receivedAt = performance.now();
     requestIds.set(req, requestId);
     wss.handleUpgrade(req, socket, head, (ws) => {
+      keepAlive(ws, options.heartbeatIntervalMs ?? REALTIME_HEARTBEAT_INTERVAL_MS);
       void serveConnection(ws, req, url, requestId, receivedAt, options).catch((error: unknown) => {
         logger.error(
           'inference.realtime.connection_failed',
@@ -130,6 +151,29 @@ export function attachRealtimeEdge(
     });
   });
   return wss;
+}
+
+/**
+ * Ping `ws` every `intervalMs` from the upgrade on, and terminate it when the
+ * previous ping went unanswered. Covers every phase of the connection —
+ * authentication, the first frame, the session — and stops with the socket.
+ */
+function keepAlive(ws: WebSocket, intervalMs: number): void {
+  let answered = true;
+  ws.on('pong', () => {
+    answered = true;
+  });
+  const timer = setInterval(() => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    if (!answered) {
+      ws.terminate();
+      return;
+    }
+    answered = false;
+    ws.ping();
+  }, intervalMs);
+  timer.unref();
+  ws.on('close', () => clearInterval(timer));
 }
 
 interface CustomerFrame {
