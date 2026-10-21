@@ -615,7 +615,8 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Alia',
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',
-    webOrigins: ['https://alia.onl'],
+    // canvas.alia.onl is Alia's canvas web app, signed in with this same client.
+    webOrigins: ['https://alia.onl', 'https://canvas.alia.onl'],
     // Alia remains `internal` because rollout/canary gates distinguish the agent
     // runtime from customer-facing official products. Catalogue availability no
     // longer carries an Alia-specific identity: both `first_party` and `internal`
@@ -623,7 +624,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // `computeSeedApplicationPlan` derives `isInternal` from this field, so the
     // flag follows without a second declaration.
     type: 'internal',
-    redirectUris: ['https://alia.onl'],
+    redirectUris: ['https://alia.onl', 'https://canvas.alia.onl'],
     // See ALIA_APPLICATION_SCOPES for the grant and, more importantly, for the
     // argument against each scope NOT granted.
     scopes: [...ALIA_APPLICATION_SCOPES],
@@ -640,9 +641,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Syra',
     description: 'Official Oxy app.',
     websiteUrl: 'https://syra.fm',
-    webOrigins: ['https://syra.fm'],
+    // studio.syra.fm is Syra Studio (packages/studio), which signs in with this
+    // same client so one Oxy session covers both surfaces.
+    webOrigins: ['https://syra.fm', 'https://studio.syra.fm'],
     type: 'first_party',
-    redirectUris: ['https://syra.fm'],
+    redirectUris: ['https://syra.fm', 'https://studio.syra.fm'],
     // ADR 0043 rollout stage 4: Syra's catalogue artwork moves out of its own
     // bucket into files the SYRA APPLICATION owns, and what a person uploads
     // (a playlist cover) is that person's (`files:user-media:write`). Stage 4c:
@@ -772,9 +775,14 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Moovo',
     description: 'Official Oxy courier/transport app — send packages, food, and moves.',
     websiteUrl: 'https://moovo.now',
-    webOrigins: ['https://moovo.now'],
+    webOrigins: ['https://moovo.now', 'https://tracker.moovo.now'],
     type: 'first_party',
-    redirectUris: ['https://moovo.now', 'https://go.moovo.now', 'https://hub.moovo.now'],
+    redirectUris: [
+      'https://moovo.now',
+      'https://go.moovo.now',
+      'https://hub.moovo.now',
+      'https://tracker.moovo.now',
+    ],
     // ADR 0043: category art is the MOOVO APPLICATION's own file
     // (`files:app:write`; no hotlinked supplier URLs), and every record that
     // shows a file — Moovo's own or a person's — references it (D4).
