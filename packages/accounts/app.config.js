@@ -92,6 +92,11 @@ module.exports = {
             enableProguardInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
             useLegacyPackaging: true,
+            // No GIF/WebP decoders for react-native's Image (Expo SDK 58+): the one
+            // react-native Image here draws a bundled PNG; Bloom and @oxy.so/services
+            // draw every other image with expo-image, which decodes on its own.
+            gifEnabled: false,
+            webpEnabled: false,
           },
         },
       ],
@@ -99,7 +104,11 @@ module.exports = {
       // react-native-audio-api on iOS and Android; dictation records with expo-audio
       // and is transcribed by Alia, so nothing is recognised on the device. The plugin
       // writes the iOS purpose string and declares RECORD_AUDIO.
-      'expo-audio',
+      //
+      // SDK 58's expo-audio plugin defaults `enableBackgroundPlayback` to true (iOS
+      // UIBackgroundModes `audio`, an Android media-playback foreground service).
+      // Nothing here plays audio in the background, so it stays off.
+      ['expo-audio', { enableBackgroundPlayback: false }],
       [
         'react-native-audio-api',
         {
