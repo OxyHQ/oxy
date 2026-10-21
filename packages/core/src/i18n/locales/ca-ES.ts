@@ -548,6 +548,7 @@ const dict = {
       follow: {
         idle: 'Segueix',
         active: 'Seguint',
+        everywhere: 'Deixa de seguir a tot arreu',
         undo: 'Deixa de seguir aquest compte',
         undoNamed: 'Deixa de seguir {{name}}',
         checking: 'Comprovant si segueixes aquest compte',
@@ -556,6 +557,7 @@ const dict = {
       subscribe: {
         idle: "Subscriu-t'hi",
         active: 'Subscrit',
+        everywhere: 'Cancel·la la subscripció a tot arreu',
         undo: 'Cancel·la la subscripció',
         undoNamed: 'Cancel·la la subscripció a {{name}}',
         checking: 'Comprovant la subscripció',
@@ -564,6 +566,7 @@ const dict = {
       join: {
         idle: "Uneix-t'hi",
         active: 'Membre',
+        everywhere: 'Surt a tot arreu',
         undo: 'Deixa de ser membre',
         undoNamed: 'Deixa de ser membre de {{name}}',
         checking: "Comprovant si n'ets membre",
@@ -572,6 +575,7 @@ const dict = {
       watch: {
         idle: 'Vigila',
         active: 'Vigilant',
+        everywhere: 'Deixa de vigilar a tot arreu',
         undo: 'Deixa de vigilar',
         undoNamed: 'Deixa de vigilar {{name}}',
         checking: 'Comprovant si ho vigiles',
@@ -584,6 +588,22 @@ const dict = {
       hintOne: 'Segueix {{count}} compte',
       undoHint: 'Deixa de seguir els {{count}} comptes',
       undoHintOne: 'Deixa de seguir {{count}} compte',
+    },
+    menu: {
+      forDuration: '{{label}} durant {{duration}}',
+      showIn: 'Mostra a {{app}}',
+      hideIn: 'No ho mostris a {{app}}',
+      thisApp: 'aquesta app',
+      options: '{{label}}: opcions',
+      optionsHint: 'Obre més opcions',
+    },
+    durations: {
+      day: '24 hores',
+      threeDays: '72 hores',
+      week: 'una setmana',
+    },
+    errors: {
+      update: 'No s’ha pogut actualitzar l’estat',
     },
   },
 };

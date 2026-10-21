@@ -2457,6 +2457,7 @@ const dict = {
       follow: {
         idle: 'Seguir',
         active: 'Siguiendo',
+        everywhere: 'Dejar de seguir en todas partes',
         undo: 'Deja de seguir esta cuenta',
         undoNamed: 'Deja de seguir a {{name}}',
         checking: 'Comprobando si sigues esta cuenta',
@@ -2465,6 +2466,7 @@ const dict = {
       subscribe: {
         idle: 'Suscribirse',
         active: 'Suscrito',
+        everywhere: 'Cancelar la suscripción en todas partes',
         undo: 'Cancela la suscripción',
         undoNamed: 'Cancela la suscripción a {{name}}',
         checking: 'Comprobando la suscripción',
@@ -2473,6 +2475,7 @@ const dict = {
       join: {
         idle: 'Unirse',
         active: 'Unido',
+        everywhere: 'Salir en todas partes',
         undo: 'Deja de ser miembro',
         undoNamed: 'Deja de ser miembro de {{name}}',
         checking: 'Comprobando si eres miembro',
@@ -2481,6 +2484,7 @@ const dict = {
       watch: {
         idle: 'Vigilar',
         active: 'Vigilando',
+        everywhere: 'Dejar de vigilar en todas partes',
         undo: 'Deja de vigilar',
         undoNamed: 'Deja de vigilar {{name}}',
         checking: 'Comprobando si lo vigilas',
@@ -2493,6 +2497,22 @@ const dict = {
       hintOne: 'Sigue a {{count}} cuenta',
       undoHint: 'Deja de seguir las {{count}} cuentas',
       undoHintOne: 'Deja de seguir {{count}} cuenta',
+    },
+    menu: {
+      forDuration: '{{label}} durante {{duration}}',
+      showIn: 'Mostrar en {{app}}',
+      hideIn: 'No mostrar en {{app}}',
+      thisApp: 'esta app',
+      options: '{{label}}: opciones',
+      optionsHint: 'Abre más opciones',
+    },
+    durations: {
+      day: '24 horas',
+      threeDays: '72 horas',
+      week: 'una semana',
+    },
+    errors: {
+      update: 'No se pudo actualizar el estado',
     },
   },
 };

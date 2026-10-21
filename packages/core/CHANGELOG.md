@@ -9,6 +9,11 @@
   accessibility lines (`undo`, `undoNamed`, `checking`, `checkingNamed`),
   `follow.pending`, `follow.disabled`, `follow.named` (a label beside a
   handle) and the "Follow all" button's `follow.all.*`.
+- The follow menu's words: `follow.verbs.<verb>.everywhere` ("Leave
+  everywhere"), `follow.menu.*` (timed choice and its toast, show / don't show
+  in an app, "this app", the options button's name and hint),
+  `follow.durations.*` (the default timed-follow durations) and
+  `follow.errors.update`.
 
 ## 6.3.0
 

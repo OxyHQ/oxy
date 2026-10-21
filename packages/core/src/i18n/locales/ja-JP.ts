@@ -545,6 +545,7 @@ const dict = {
       follow: {
         idle: 'フォロー',
         active: 'フォロー中',
+        everywhere: 'すべての場所でフォロー解除',
         undo: 'このアカウントのフォローを解除します',
         undoNamed: '{{name}}のフォローを解除します',
         checking: 'フォロー状況を確認中',
@@ -553,6 +554,7 @@ const dict = {
       subscribe: {
         idle: '登録',
         active: '登録済み',
+        everywhere: 'すべての場所で登録解除',
         undo: '登録を解除します',
         undoNamed: '{{name}}の登録を解除します',
         checking: '登録状況を確認中',
@@ -561,6 +563,7 @@ const dict = {
       join: {
         idle: '参加',
         active: '参加中',
+        everywhere: 'すべての場所から退出',
         undo: '退出します',
         undoNamed: '{{name}}から退出します',
         checking: '参加状況を確認中',
@@ -569,6 +572,7 @@ const dict = {
       watch: {
         idle: 'ウォッチ',
         active: 'ウォッチ中',
+        everywhere: 'すべての場所でウォッチ解除',
         undo: 'ウォッチを解除します',
         undoNamed: '{{name}}のウォッチを解除します',
         checking: 'ウォッチ状況を確認中',
@@ -581,6 +585,22 @@ const dict = {
       hintOne: '{{count}}件のアカウントをフォローします',
       undoHint: '{{count}}件のアカウントのフォローをすべて解除します',
       undoHintOne: '{{count}}件のアカウントのフォローを解除します',
+    },
+    menu: {
+      forDuration: '{{duration}}{{label}}',
+      showIn: '{{app}}に表示',
+      hideIn: '{{app}}に表示しない',
+      thisApp: 'このアプリ',
+      options: '{{label}}のオプション',
+      optionsHint: 'その他のオプションを開きます',
+    },
+    durations: {
+      day: '24時間',
+      threeDays: '72時間',
+      week: '1週間',
+    },
+    errors: {
+      update: 'ステータスを更新できませんでした',
     },
   },
 };

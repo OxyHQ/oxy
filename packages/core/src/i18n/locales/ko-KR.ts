@@ -541,6 +541,7 @@ const dict = {
       follow: {
         idle: '팔로우',
         active: '팔로잉',
+        everywhere: '모든 곳에서 팔로우 취소',
         undo: '이 계정의 팔로우를 취소합니다',
         undoNamed: '{{name}} 팔로우를 취소합니다',
         checking: '팔로우 상태 확인 중',
@@ -549,6 +550,7 @@ const dict = {
       subscribe: {
         idle: '구독',
         active: '구독 중',
+        everywhere: '모든 곳에서 구독 취소',
         undo: '구독을 취소합니다',
         undoNamed: '{{name}} 구독을 취소합니다',
         checking: '구독 상태 확인 중',
@@ -557,6 +559,7 @@ const dict = {
       join: {
         idle: '가입',
         active: '가입됨',
+        everywhere: '모든 곳에서 탈퇴',
         undo: '탈퇴합니다',
         undoNamed: '{{name}}에서 탈퇴합니다',
         checking: '가입 상태 확인 중',
@@ -565,6 +568,7 @@ const dict = {
       watch: {
         idle: '지켜보기',
         active: '지켜보는 중',
+        everywhere: '모든 곳에서 지켜보기 중단',
         undo: '지켜보기를 중단합니다',
         undoNamed: '{{name}} 지켜보기를 중단합니다',
         checking: '지켜보기 상태 확인 중',
@@ -577,6 +581,22 @@ const dict = {
       hintOne: '계정 {{count}}개를 팔로우합니다',
       undoHint: '계정 {{count}}개의 팔로우를 모두 취소합니다',
       undoHintOne: '계정 {{count}}개의 팔로우를 취소합니다',
+    },
+    menu: {
+      forDuration: '{{duration}} 동안 {{label}}',
+      showIn: '{{app}}에 표시',
+      hideIn: '{{app}}에 표시 안 함',
+      thisApp: '이 앱',
+      options: '{{label}} 옵션',
+      optionsHint: '추가 옵션을 엽니다',
+    },
+    durations: {
+      day: '24시간',
+      threeDays: '72시간',
+      week: '1주일',
+    },
+    errors: {
+      update: '상태를 업데이트하지 못했습니다',
     },
   },
 };

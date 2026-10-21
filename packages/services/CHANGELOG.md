@@ -19,6 +19,16 @@ Needs `@oxy.so/core` 6.4.0.
   app's language, instead of English literals; the "Follow all" button's
   default labels and hints too. `FollowVerb` and `FollowLabels` keep their
   public names and entry points.
+- `FollowTargetButton`'s menu, options button, timed-follow toast and default
+  durations are translated too, and its "everywhere" line follows the verb
+  ("Leave everywhere"). The default durations are read at render, so a
+  `durations` prop still replaces them. Both buttons' error-toast fallback is
+  translated.
+- `buildFollowMenuItems` takes optional `verb` and `t` (`useI18n().t`); without
+  `t` the menu is English, as before.
+- A `FollowDuration.label` is used as written, inside the sentence ("Follow
+  for a week"); it is no longer lowercased, which broke languages that
+  capitalize nouns. Pass it in sentence case.
 - The "Follow all" hint for one account reads "Follows 1 account" rather than
   "Follows all 1 account".
 

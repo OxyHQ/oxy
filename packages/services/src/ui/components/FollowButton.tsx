@@ -106,10 +106,19 @@ const FollowButtonInner = memo(function FollowButtonInner({
         if (accepted) onFollowChange?.(!isFollowing);
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || 'Failed to update follow status');
+        toast.error(error.message || t('follow.errors.update'));
       }
     },
-    [disabled, isLoading, isKnown, toggleFollow, onFollowChange, isFollowing, preventParentActions],
+    [
+      disabled,
+      isLoading,
+      isKnown,
+      toggleFollow,
+      onFollowChange,
+      isFollowing,
+      preventParentActions,
+      t,
+    ],
   );
 
   // Enqueue a batched status fetch ONLY when the status is genuinely unknown
@@ -226,7 +235,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
           onBulkUnfollow?.(result);
         } catch (err: unknown) {
           const error = err instanceof Error ? err : new Error(String(err));
-          toast.error(error.message || 'Failed to update follow status');
+          toast.error(error.message || t('follow.errors.update'));
         } finally {
           setIsSubmitting(false);
         }
@@ -253,7 +262,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
         onBulkFollow?.(result);
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
-        toast.error(error.message || 'Failed to update follow status');
+        toast.error(error.message || t('follow.errors.update'));
       } finally {
         setIsSubmitting(false);
       }
@@ -268,6 +277,7 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
       onBulkFollow,
       onBulkUnfollow,
       preventParentActions,
+      t,
     ],
   );
 

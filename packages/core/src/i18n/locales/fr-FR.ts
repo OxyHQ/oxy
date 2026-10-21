@@ -560,6 +560,7 @@ const dict = {
       follow: {
         idle: 'Suivre',
         active: 'Abonné',
+        everywhere: 'Ne plus suivre nulle part',
         undo: 'Cesse de suivre ce compte',
         undoNamed: 'Cesse de suivre {{name}}',
         checking: 'Vérification du suivi',
@@ -568,6 +569,7 @@ const dict = {
       subscribe: {
         idle: "S'abonner",
         active: 'Abonné',
+        everywhere: 'Se désabonner partout',
         undo: 'Résilie l’abonnement',
         undoNamed: 'Résilie l’abonnement à {{name}}',
         checking: 'Vérification de l’abonnement',
@@ -576,6 +578,7 @@ const dict = {
       join: {
         idle: 'Rejoindre',
         active: 'Membre',
+        everywhere: 'Quitter partout',
         undo: 'Quitte le groupe',
         undoNamed: 'Quitte {{name}}',
         checking: 'Vérification de l’adhésion',
@@ -584,6 +587,7 @@ const dict = {
       watch: {
         idle: 'Surveiller',
         active: 'Surveillé',
+        everywhere: 'Ne plus surveiller nulle part',
         undo: 'Arrête de surveiller',
         undoNamed: 'Arrête de surveiller {{name}}',
         checking: 'Vérification de la surveillance',
@@ -596,6 +600,22 @@ const dict = {
       hintOne: 'Suit {{count}} compte',
       undoHint: 'Cesse de suivre les {{count}} comptes',
       undoHintOne: 'Cesse de suivre {{count}} compte',
+    },
+    menu: {
+      forDuration: '{{label}} pendant {{duration}}',
+      showIn: 'Afficher dans {{app}}',
+      hideIn: 'Ne pas afficher dans {{app}}',
+      thisApp: 'cette app',
+      options: '{{label}} : options',
+      optionsHint: 'Ouvre d’autres options',
+    },
+    durations: {
+      day: '24 heures',
+      threeDays: '72 heures',
+      week: 'une semaine',
+    },
+    errors: {
+      update: 'Impossible de mettre à jour le statut',
     },
   },
 };

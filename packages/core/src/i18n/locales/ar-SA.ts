@@ -538,6 +538,7 @@ const dict = {
       follow: {
         idle: 'متابعة',
         active: 'تتم المتابعة',
+        everywhere: 'إلغاء المتابعة في كل مكان',
         undo: 'يلغي متابعة هذا الحساب',
         undoNamed: 'يلغي متابعة {{name}}',
         checking: 'جارٍ التحقق من حالة المتابعة',
@@ -546,6 +547,7 @@ const dict = {
       subscribe: {
         idle: 'اشتراك',
         active: 'مشترك',
+        everywhere: 'إلغاء الاشتراك في كل مكان',
         undo: 'يلغي الاشتراك',
         undoNamed: 'يلغي الاشتراك في {{name}}',
         checking: 'جارٍ التحقق من الاشتراك',
@@ -554,6 +556,7 @@ const dict = {
       join: {
         idle: 'انضمام',
         active: 'منضم',
+        everywhere: 'المغادرة من كل مكان',
         undo: 'يغادر',
         undoNamed: 'يغادر {{name}}',
         checking: 'جارٍ التحقق من العضوية',
@@ -562,6 +565,7 @@ const dict = {
       watch: {
         idle: 'مراقبة',
         active: 'تتم المراقبة',
+        everywhere: 'إيقاف المراقبة في كل مكان',
         undo: 'يوقف المراقبة',
         undoNamed: 'يوقف مراقبة {{name}}',
         checking: 'جارٍ التحقق من حالة المراقبة',
@@ -574,6 +578,22 @@ const dict = {
       hintOne: 'يتابع الحساب ({{count}})',
       undoHint: 'يلغي متابعة جميع الحسابات ({{count}})',
       undoHintOne: 'يلغي متابعة الحساب ({{count}})',
+    },
+    menu: {
+      forDuration: '{{label}} لمدة {{duration}}',
+      showIn: 'إظهار في {{app}}',
+      hideIn: 'عدم الإظهار في {{app}}',
+      thisApp: 'هذا التطبيق',
+      options: 'خيارات {{label}}',
+      optionsHint: 'يفتح خيارات إضافية',
+    },
+    durations: {
+      day: '24 ساعة',
+      threeDays: '72 ساعة',
+      week: 'أسبوع',
+    },
+    errors: {
+      update: 'تعذّر تحديث الحالة',
     },
   },
 };

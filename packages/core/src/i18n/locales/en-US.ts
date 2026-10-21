@@ -2448,6 +2448,7 @@ const dict = {
       follow: {
         idle: 'Follow',
         active: 'Following',
+        everywhere: 'Unfollow everywhere',
         undo: 'Unfollows this account',
         undoNamed: 'Unfollows {{name}}',
         checking: 'Checking follow status',
@@ -2456,6 +2457,7 @@ const dict = {
       subscribe: {
         idle: 'Subscribe',
         active: 'Subscribed',
+        everywhere: 'Unsubscribe everywhere',
         undo: 'Unsubscribes',
         undoNamed: 'Unsubscribes from {{name}}',
         checking: 'Checking subscription status',
@@ -2464,6 +2466,7 @@ const dict = {
       join: {
         idle: 'Join',
         active: 'Joined',
+        everywhere: 'Leave everywhere',
         undo: 'Leaves',
         undoNamed: 'Leaves {{name}}',
         checking: 'Checking membership',
@@ -2472,6 +2475,7 @@ const dict = {
       watch: {
         idle: 'Watch',
         active: 'Watching',
+        everywhere: 'Stop watching everywhere',
         undo: 'Stops watching',
         undoNamed: 'Stops watching {{name}}',
         checking: 'Checking watch status',
@@ -2484,6 +2488,22 @@ const dict = {
       hintOne: 'Follows {{count}} account',
       undoHint: 'Unfollows all {{count}} accounts',
       undoHintOne: 'Unfollows {{count}} account',
+    },
+    menu: {
+      forDuration: '{{label}} for {{duration}}',
+      showIn: 'Show in {{app}}',
+      hideIn: 'Don’t show in {{app}}',
+      thisApp: 'this app',
+      options: '{{label}} options',
+      optionsHint: 'Opens more options',
+    },
+    durations: {
+      day: '24 hours',
+      threeDays: '72 hours',
+      week: 'a week',
+    },
+    errors: {
+      update: 'Could not update follow status',
     },
   },
 };

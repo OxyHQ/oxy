@@ -527,6 +527,7 @@ const dict = {
       follow: {
         idle: '关注',
         active: '已关注',
+        everywhere: '在所有地方取消关注',
         undo: '取消关注此账号',
         undoNamed: '取消关注 {{name}}',
         checking: '正在检查关注状态',
@@ -535,6 +536,7 @@ const dict = {
       subscribe: {
         idle: '订阅',
         active: '已订阅',
+        everywhere: '在所有地方取消订阅',
         undo: '取消订阅',
         undoNamed: '取消订阅 {{name}}',
         checking: '正在检查订阅状态',
@@ -543,6 +545,7 @@ const dict = {
       join: {
         idle: '加入',
         active: '已加入',
+        everywhere: '在所有地方退出',
         undo: '退出',
         undoNamed: '退出 {{name}}',
         checking: '正在检查成员身份',
@@ -551,6 +554,7 @@ const dict = {
       watch: {
         idle: '追踪',
         active: '追踪中',
+        everywhere: '在所有地方停止追踪',
         undo: '停止追踪',
         undoNamed: '停止追踪 {{name}}',
         checking: '正在检查追踪状态',
@@ -563,6 +567,22 @@ const dict = {
       hintOne: '关注 {{count}} 个账号',
       undoHint: '取消关注全部 {{count}} 个账号',
       undoHintOne: '取消关注 {{count}} 个账号',
+    },
+    menu: {
+      forDuration: '{{label}} {{duration}}',
+      showIn: '在{{app}}中显示',
+      hideIn: '不在{{app}}中显示',
+      thisApp: '此应用',
+      options: '{{label}}选项',
+      optionsHint: '打开更多选项',
+    },
+    durations: {
+      day: '24 小时',
+      threeDays: '72 小时',
+      week: '一周',
+    },
+    errors: {
+      update: '无法更新状态',
     },
   },
 };

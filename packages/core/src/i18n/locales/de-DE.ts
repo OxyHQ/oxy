@@ -558,6 +558,7 @@ const dict = {
       follow: {
         idle: 'Folgen',
         active: 'Folge ich',
+        everywhere: 'Überall entfolgen',
         undo: 'Entfolgt diesem Konto',
         undoNamed: 'Entfolgt {{name}}',
         checking: 'Folgestatus wird geprüft',
@@ -566,6 +567,7 @@ const dict = {
       subscribe: {
         idle: 'Abonnieren',
         active: 'Abonniert',
+        everywhere: 'Überall abbestellen',
         undo: 'Beendet das Abo',
         undoNamed: 'Beendet das Abo von {{name}}',
         checking: 'Abo-Status wird geprüft',
@@ -574,6 +576,7 @@ const dict = {
       join: {
         idle: 'Beitreten',
         active: 'Beigetreten',
+        everywhere: 'Überall austreten',
         undo: 'Tritt aus',
         undoNamed: 'Tritt aus {{name}} aus',
         checking: 'Mitgliedschaft wird geprüft',
@@ -582,6 +585,7 @@ const dict = {
       watch: {
         idle: 'Beobachten',
         active: 'Beobachtet',
+        everywhere: 'Überall nicht mehr beobachten',
         undo: 'Beendet das Beobachten',
         undoNamed: 'Beendet das Beobachten von {{name}}',
         checking: 'Beobachtungsstatus wird geprüft',
@@ -594,6 +598,22 @@ const dict = {
       hintOne: 'Folgt {{count}} Konto',
       undoHint: 'Entfolgt allen {{count}} Konten',
       undoHintOne: 'Entfolgt {{count}} Konto',
+    },
+    menu: {
+      forDuration: '{{label}} für {{duration}}',
+      showIn: 'In {{app}} anzeigen',
+      hideIn: 'In {{app}} nicht anzeigen',
+      thisApp: 'dieser App',
+      options: '{{label}}: Optionen',
+      optionsHint: 'Öffnet weitere Optionen',
+    },
+    durations: {
+      day: '24 Stunden',
+      threeDays: '72 Stunden',
+      week: 'eine Woche',
+    },
+    errors: {
+      update: 'Der Status konnte nicht aktualisiert werden',
     },
   },
 };
