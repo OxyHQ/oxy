@@ -192,3 +192,20 @@ export const FEDERATION_BRIDGE_POLICY: readonly FederationBridgeEntry[] = [
 ];
 
 export const federationBridges = createBridgeRelabeller(FEDERATION_BRIDGE_POLICY);
+
+/**
+ * The domain a user is shown under. A bridge host is transport, never identity
+ * (`bird.makeup` is how ActivityPub reaches X, not where the account lives), so
+ * an account the relabeller could not canonicalise — no `Official` field, no
+ * DID — still reads `@handle@x.com`. Any other host is its own identity.
+ * Bluesky is left out: its bridge handles already carry the network's domain,
+ * so naming it again would double the suffix.
+ */
+export function identityDomainOfHost(host: string | null | undefined): string | undefined {
+  if (!host) return undefined;
+  const lowered = host.toLowerCase();
+  const entry = FEDERATION_BRIDGE_POLICY.find(
+    (candidate) => candidate.host === lowered && candidate.network.id !== FEDERATION_NETWORKS.bluesky.id,
+  );
+  return entry?.network.domain;
+}
