@@ -330,7 +330,8 @@ const HASHED_PHONE_EXPRESSION = sql.raw(
  */
 export const PEOPLE_SEARCH_TRGM_EXPRESSION = sql.raw(
   "(coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || " +
-    "coalesce(name_last, '') || ' ' || coalesce(description, ''))",
+    "coalesce(name_last, '') || ' ' || coalesce(name_display, '') || ' ' || " +
+    "coalesce(description, ''))",
 );
 
 export const users = pgTable(
@@ -720,21 +721,22 @@ export const users = pgTable(
     // its GIN index by having a query that reads it by element. Adding it now
     // would be an index maintained for a query nobody wrote.
     // ---- people search ----------------------------------------------------
-    // The ONLY index that can serve `peopleSearchMatch`. Its predicate is four
-    // OR-ed leading-wildcard `ILIKE '%term%'` tests, which is a SUBSTRING
+    // The ONLY index that can serve `peopleSearchMatch`. Its predicate is five
+    // OR-ed leading-wildcard `ILIKE '%term%'` tests (`name_display` holds a
+    // non-personal account's title, the only name it has), which is a SUBSTRING
     // question — no b-tree and no `tsvector` can answer it, so every people
     // search read this whole table sequentially.
     //
-    // An EXPRESSION index over the concatenation, not four separate indexes and
+    // An EXPRESSION index over the concatenation, not five separate indexes and
     // not a stored `search_text` column:
     //
     //   * One concatenated expression is a strict SUPERSET filter, because a
-    //     substring of any part is a substring of the whole. So the four exact
+    //     substring of any part is a substring of the whole. So the five exact
     //     `ILIKE`s stay in the WHERE as the recheck and the semantics are
     //     unchanged, including the LIKE-escaping of the term. The only false
     //     positives are matches spanning a separator, which the recheck drops.
     //     One bitmap scan and one index to maintain per write, instead of a
-    //     `BitmapOr` over four and four lots of write amplification.
+    //     `BitmapOr` over five and five lots of write amplification.
     //   * An expression index rather than a generated column avoids adding a
     //     column to `users` (which would force a `protectedColumns.ts`
     //     decision) and stores nothing twice. Expression indexes are already
@@ -743,7 +745,7 @@ export const users = pgTable(
     // `PEOPLE_SEARCH_TRGM_EXPRESSION` is shared with `utils/profileQuery.ts` so
     // the index and the predicate cannot drift; `peopleSearchIndexes.test.ts`
     // asserts the catalogue's `indexdef` still contains it, which is what stops
-    // a fifth searched column silently restoring the sequential scan.
+    // a sixth searched column silently restoring the sequential scan.
     index('users_people_search_trgm_idx').using(
       'gin',
       sql`${PEOPLE_SEARCH_TRGM_EXPRESSION} gin_trgm_ops`,
@@ -757,6 +759,7 @@ export const users = pgTable(
     index('users_lower_username_prefix_idx').on(sql`lower(btrim(${t.username})) text_pattern_ops`),
     index('users_lower_name_first_prefix_idx').on(sql`lower(${t.nameFirst}) text_pattern_ops`),
     index('users_lower_name_last_prefix_idx').on(sql`lower(${t.nameLast}) text_pattern_ops`),
+    index('users_lower_name_display_prefix_idx').on(sql`lower(${t.nameDisplay}) text_pattern_ops`),
 
     index('users_reputation_rank_weight_idx').on(t.reputationRankWeight),
     index('users_reputation_tier_idx').on(t.reputationTier),

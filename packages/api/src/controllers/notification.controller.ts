@@ -59,6 +59,8 @@ import { PAGINATION } from '../utils/constants';
 import { createOxyNotificationRequestSchema } from '@oxy.so/contracts';
 import { applications } from '../db/schema/applications';
 import { pushSystemNotification } from '../services/systemNotificationPush.service';
+import { accountNameParts, formatUserNameResponse, type NameResponse } from '../utils/displayName';
+import { accountNameColumns } from '../utils/publicUserProjection';
 
 // =============================================================================
 // WIRE SERIALIZERS
@@ -67,16 +69,14 @@ import { pushSystemNotification } from '../services/systemNotificationPush.servi
 type NotificationRow = typeof notifications.$inferSelect;
 
 /**
- * The actor as `populate('actorId', 'username name avatar _id')` rendered it.
- *
- * `name` is the RAW stored sub-document, not a composed DTO: a `.lean()`
- * populate ran no virtuals, so `name.full` and `name.displayName` were never on
- * this path and are not added by the port.
+ * The actor of a notification. `name` is the canonical structured name every
+ * user DTO carries (`formatUserNameResponse`), so a non-personal actor's title
+ * is `name.displayName` rather than lost to a `first`/`last` pair it never had.
  */
 interface NotificationActorResponse {
   _id: string;
   username?: string;
-  name?: { first: string; last: string };
+  name?: NameResponse;
   avatar?: string;
 }
 
@@ -109,6 +109,7 @@ interface ActorColumns {
   username: string | null;
   nameFirst: string | null;
   nameLast: string | null;
+  nameDisplay: string | null;
   avatar: string | null;
 }
 
@@ -127,9 +128,9 @@ function toActorResponse(actor: ActorColumns): NotificationActorResponse {
   if (username !== undefined) {
     response.username = username;
   }
-  // A name on the wire always carries two strings — never a missing half.
-  if (actor.nameFirst !== null || actor.nameLast !== null) {
-    response.name = { first: actor.nameFirst ?? '', last: actor.nameLast ?? '' };
+  const name = formatUserNameResponse({ name: accountNameParts(actor) });
+  if (Object.keys(name).length > 0) {
+    response.name = name;
   }
   const avatar = optional(actor.avatar);
   if (avatar !== undefined) {
@@ -287,8 +288,7 @@ export const getNotifications = async (req: AuthRequest, res: Response): Promise
           actor: {
             id: users.id,
             username: users.username,
-            nameFirst: users.nameFirst,
-            nameLast: users.nameLast,
+            ...accountNameColumns,
             avatar: users.avatar,
           },
         })

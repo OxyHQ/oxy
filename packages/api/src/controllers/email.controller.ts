@@ -22,7 +22,8 @@ import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { FileRecord } from '../types/file.types';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { resolveEmailFromName } from '../utils/displayName';
+import { accountNameParts, resolveEmailFromName } from '../utils/displayName';
+import { accountNameColumns } from '../utils/publicUserProjection';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import type { z } from 'zod';
 import type {
@@ -539,7 +540,7 @@ export async function senderIdentityFor(
   userId: string,
 ): Promise<{ address: string; name: string }> {
   const [user] = await getDb()
-    .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
+    .select({ username: users.username, ...accountNameColumns })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -549,7 +550,7 @@ export async function senderIdentityFor(
   return {
     address: resolveEmailAddress(user.username),
     name: resolveEmailFromName({
-      name: { first: user.first, last: user.last },
+      name: accountNameParts(user),
       username: user.username,
     }),
   };

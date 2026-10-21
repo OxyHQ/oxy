@@ -1366,6 +1366,20 @@
       "when": 1792547051037,
       "tag": "0195_validate_account_kind_community",
       "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1792547668534,
+      "tag": "0196_people_search_name_display",
+      "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1792547692201,
+      "tag": "0197_people_search_name_display_swap",
+      "breakpoints": true
     }
   ]
 }

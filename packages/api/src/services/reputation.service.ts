@@ -90,6 +90,7 @@ import {
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { accountNameColumns } from '../utils/publicUserProjection';
 
 /**
  * An open transaction on the reputation tables.
@@ -1122,9 +1123,7 @@ class ReputationService {
         trustTier: reputationBalances.trustTier,
         userId: users.id,
         username: users.username,
-        nameFirst: users.nameFirst,
-        nameLast: users.nameLast,
-        nameDisplay: users.nameDisplay,
+        ...accountNameColumns,
         avatar: users.avatar,
         publicKey: users.publicKey,
       })

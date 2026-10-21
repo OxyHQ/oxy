@@ -37,6 +37,7 @@ import {
   registrationPowMessage,
 } from '@oxy.so/protocol';
 import type { SessionCreateOptions } from '../types/session.types';
+import { accountNameColumns } from '../utils/publicUserProjection';
 
 /**
  * Session options an UNAUTHENTICATED sign-in body may set.
@@ -865,8 +866,7 @@ export class SessionController {
           username: users.username,
           email: users.email,
           avatar: users.avatar,
-          nameFirst: users.nameFirst,
-          nameLast: users.nameLast,
+          ...accountNameColumns,
           publicKey: users.publicKey,
         })
         .from(sessions)
@@ -885,7 +885,7 @@ export class SessionController {
 
       for (const row of rows) {
         // `formatUserResponse` reads the flat Drizzle row directly (`id` +
-        // `nameFirst`/`nameLast`); it is the ONE serializer that owns
+        // the `accountNameColumns`); it is the ONE serializer that owns
         // `name.displayName`, so nothing is recomposed here.
         const userData = formatUserResponse(row);
         if (!userData?.id) continue;
@@ -989,8 +989,7 @@ export class SessionController {
         .select({
           id: users.id,
           username: users.username,
-          nameFirst: users.nameFirst,
-          nameLast: users.nameLast,
+          ...accountNameColumns,
           avatar: users.avatar,
           color: users.color,
           bio: users.bio,

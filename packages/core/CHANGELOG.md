@@ -4,6 +4,14 @@
 
 Needs `@oxy.so/contracts` 5.3.0.
 
+### Changed
+
+- `NotificationActor.name` is the canonical `UserNameResponse`
+  (`displayName`, `first`, `last`, `full`, each optional) instead of a required
+  `{ first, last }` pair: an organization, channel or community actor is named
+  by its title in `name.displayName`. Code that read `name.first` as a string
+  must handle `undefined` and should render `name.displayName`.
+
 ### Added
 
 - `isValidAccountName(value, kind)`: the one kind-aware name check, for the

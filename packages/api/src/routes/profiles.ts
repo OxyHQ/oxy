@@ -36,6 +36,7 @@ import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
 import { userIdentityFields, deriveIsAgent, deriveIsFederated } from '../utils/userTransform';
 import {
+  accountNameColumns,
   publicUserColumns,
   publicUserFollowCounts,
   publicUserReputationTotal,
@@ -169,9 +170,7 @@ const recommendationColumns = {
   _id: users.id,
   username: users.username,
   publicKey: users.publicKey,
-  nameFirst: users.nameFirst,
-  nameLast: users.nameLast,
-  nameDisplay: users.nameDisplay,
+  ...accountNameColumns,
   avatar: users.avatar,
   color: users.color,
   description: users.description,
@@ -1288,10 +1287,10 @@ async function buildRecommendationsScored(
     .select({
       ...recommendationColumns,
       reputationRankWeight: users.reputationRankWeight,
-      // completeness = (has avatar + has structured name + has bio/description) / 3
+      // completeness = (has avatar + has a name + has bio/description) / 3
       completenessScore: sql<number>`(
         (case when ${filled(sql`${users.avatar}`)} then 1 else 0 end)
-        + (case when ${filled(sql`${users.nameFirst}`)} or ${filled(sql`${users.nameLast}`)} then 1 else 0 end)
+        + (case when ${filled(sql`${users.nameFirst}`)} or ${filled(sql`${users.nameLast}`)} or ${filled(sql`${users.nameDisplay}`)} then 1 else 0 end)
         + (case when ${filled(sql`${users.bio}`)} or ${filled(sql`${users.description}`)} then 1 else 0 end)
       )::double precision / 3`,
       verifiedScore: sql<number>`(case when ${users.verified} then 1 else 0 end)::double precision`,

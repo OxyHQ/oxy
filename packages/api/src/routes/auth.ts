@@ -120,7 +120,12 @@ import { isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel, generateDeviceId } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
-import { composeDisplayName, formatUserNameResponse } from '../utils/displayName';
+import {
+  accountNameParts,
+  composeDisplayName,
+  formatUserNameResponse,
+} from '../utils/displayName';
+import { accountNameColumns } from '../utils/publicUserProjection';
 import { normalizeUsername } from '../utils/username';
 
 const router = express.Router();
@@ -1705,15 +1710,14 @@ router.get(
         .select({
           id: users.id,
           username: users.username,
-          nameFirst: users.nameFirst,
-          nameLast: users.nameLast,
+          ...accountNameColumns,
         })
         .from(users)
         .where(eq(users.id, subjectAccountId))
         .limit(1);
       if (subject) {
         const name = formatUserNameResponse({
-          name: { first: subject.nameFirst, last: subject.nameLast },
+          name: accountNameParts(subject),
           username: subject.username,
         });
         subjectAccount = {
@@ -2414,8 +2418,7 @@ async function resolveDeveloperName(
   const [owner] = await getDb()
     .select({
       username: users.username,
-      nameFirst: users.nameFirst,
-      nameLast: users.nameLast,
+      ...accountNameColumns,
     })
     .from(users)
     .where(eq(users.id, app.createdByUserId))
@@ -2425,7 +2428,7 @@ async function resolveDeveloperName(
   }
   const display =
     composeDisplayName({
-      name: { first: owner.nameFirst, last: owner.nameLast },
+      name: accountNameParts(owner),
       username: owner.username,
     }) ?? (owner.username ?? '').trim();
   return display || undefined;

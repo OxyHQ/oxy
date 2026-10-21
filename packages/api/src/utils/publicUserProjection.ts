@@ -131,6 +131,19 @@ const linksMetadataAggregate: SQL<LinkMetadataDto[]> = sql`coalesce((
 ), '[]'::json)`;
 
 /**
+ * The `users` columns an account's name is stored in. EVERY reader of a public
+ * name selects all three and maps them with `accountNameParts`
+ * (`utils/displayName.ts`): a non-personal account's title lives in
+ * `name_display` alone, so a select of `name_first`/`name_last` renders it as
+ * its handle.
+ */
+export const accountNameColumns = {
+  nameFirst: users.nameFirst,
+  nameLast: users.nameLast,
+  nameDisplay: users.nameDisplay,
+} as const;
+
+/**
  * Every column a client may see on SOMEONE ELSE's profile.
  *
  * `account_status` and `privacy_is_private_account` are GATE columns: route
@@ -146,9 +159,7 @@ const linksMetadataAggregate: SQL<LinkMetadataDto[]> = sql`coalesce((
 export const publicUserColumns = {
   id: users.id,
   username: users.username,
-  nameFirst: users.nameFirst,
-  nameLast: users.nameLast,
-  nameDisplay: users.nameDisplay,
+  ...accountNameColumns,
   kind: users.kind,
   accountCategories: users.accountCategories,
   character: users.character,
