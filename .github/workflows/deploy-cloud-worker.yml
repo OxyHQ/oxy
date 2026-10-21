@@ -1,0 +1,64 @@
+# cloud.oxy.so — Oxy Files' public CDN, a Cloudflare Worker over the R2 buckets
+# (docs/adr/0047-oxy-files-on-cloudflare-r2.md).
+#
+# On `push` to main like the repository's other deploys: main moves only through
+# the merge queue, which has already run CI (the Worker's suite included, in
+# `Guards`) on the exact commit that lands. `bunx wrangler@4` directly, never
+# cloudflare/wrangler-action (~/Oxy/docs/infra-and-deploys.md).
+name: Deploy cloud.oxy.so Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/cloud/**'
+      - '.github/workflows/deploy-cloud-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-cloud-worker
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: workers/cloud
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile --minimum-release-age=0
+      - run: bun test
+      - run: bunx tsc --noEmit -p .
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bunx wrangler@4 deploy
+      # The host this config routes, read from it, so the smoke follows the
+      # route rather than a second copy of it.
+      - name: Smoke the deployed Worker
+        run: |
+          host="$(sed -nE 's/.*pattern = "([^"]+)".*/\1/p' wrangler.toml | head -1)"
+          test -n "$host"
+          # A path that cannot be a public object must be a 404 from the
+          # resolver, never a 5xx (and never bytes).
+          for attempt in 1 2 3 4 5 6; do
+            status="$(curl -s -o /dev/null -w '%{http_code}' "https://$host/content/oxy-cloud-worker-smoke-missing.bin")"
+            resolver="$(curl -s -o /dev/null -w '%{http_code}' "https://$host/00000000-0000-0000-0000-000000000000")"
+            preflight="$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS "https://$host/content/x.png")"
+            echo "object=$status resolver=$resolver preflight=$preflight"
+            if [ "$status" = 404 ] && [ "$resolver" = 404 ] && [ "$preflight" = 204 ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::https://$host is not answering like cloud.oxy.so"
+          exit 1

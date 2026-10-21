@@ -1077,6 +1077,17 @@ jobs:
       - name: 'Biome: format and lint'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx biome ci .
+      # cloud.oxy.so is a Cloudflare Worker over Oxy Files' R2 bucket (ADR 0047):
+      # its routing is the privacy boundary (an object path is read only under
+      # `public/`), so its suite and typecheck run on every change, here in the
+      # job that is never scoped. Its own lockfile: it is not a workspace.
+      - name: 'cloud.oxy.so Worker: tests and typecheck'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: workers/cloud
+        run: |
+          bun install --frozen-lockfile --minimum-release-age=0
+          bun test
+          bunx tsc --noEmit -p .
       - name: 'Expo ESLint: env-var and DOM-export rules'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run --filter accounts --filter commons --filter test-app lint:expo

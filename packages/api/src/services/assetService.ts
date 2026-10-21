@@ -846,13 +846,14 @@ export class AssetService {
         kind: 'presigned',
         recoverAfter: new Date(Date.now() + 60_000),
       });
+    const checksumSHA256 = Buffer.from(file.sha256, 'hex').toString('base64');
     const uploadUrl = await this.s3Service.getPresignedUploadUrl(file.storageKey, {
       contentType,
       expiresIn: configured ? 60 : 3600,
       // The declared SHA-256 is enforced on EVERY presigned PUT, not only an
       // admitted one: the row, its dedupe and the takedown blocklist (ADR 0043
       // D10) all trust it, so bytes that do not hash to it must not land.
-      checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
+      checksumSHA256,
       ...(configured
         ? {
             contentLength: file.size,
@@ -860,7 +861,16 @@ export class AssetService {
           }
         : {}),
     });
-    return { uploadUrl, ...(configured ? { requiredHeaders: { 'If-None-Match': '*' } } : {}) };
+    // The checksum is a SIGNED header (ADR 0047: R2 ignores it in the query
+    // string), so the uploader must send it; the SDK sends every header named
+    // here and nothing else.
+    return {
+      uploadUrl,
+      requiredHeaders: {
+        'x-amz-checksum-sha256': checksumSHA256,
+        ...(configured ? { 'If-None-Match': '*' } : {}),
+      },
+    };
   }
 
   private async initUploadForExistingOwnRow(
