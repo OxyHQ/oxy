@@ -1,5 +1,18 @@
 # Changelog
 
+## [12.9.0] - 2026-10-22
+
+Needs `@oxy.so/contracts` 5.6.0.
+
+### Added
+
+- `useAccountColorSave` and `entitledAccountColors` from `@oxy.so/services/ui/client`:
+  the account-colour picker's data and write. `colors` is what this account may
+  wear (free presets, the one named after its handle, `mono` with its benefit —
+  from the contract's gate table), `saveColor` writes `color` and
+  `themePreference.colorPreset` in one `updateMe`, and the Bloom theme follows.
+  An app renders the select; it keeps no colour state of its own.
+
 ## [12.8.0] - 2026-10-21
 
 Needs `@oxy.so/core` 6.11.0.

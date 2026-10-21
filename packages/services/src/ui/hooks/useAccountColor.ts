@@ -16,10 +16,12 @@
  * default instead of a colour the viewer is not entitled to.
  */
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import type { User } from '@oxy.so/core';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { USER_PROFILE_COLORS, USER_PROFILE_COLOR_PRESETS } from '@oxy.so/contracts/client';
 import { useAuth } from './useAuth';
+import { useUpdateProfile } from './mutations/useAccountMutations';
 
 function isAppColorName(value: unknown): value is AppColorName {
   return (
@@ -49,4 +51,72 @@ export function useAccountColor({
     if (!isAuthenticated || !accountColor || !allowed || accountColor === colorPreset) return;
     setColorPreset(accountColor);
   }, [isAuthenticated, accountColor, allowed, colorPreset, setColorPreset]);
+}
+
+type EntitlementSubject = Pick<User, 'username' | 'personalization'> | null | undefined;
+
+/**
+ * The presets this account may choose, from the contract's own gate table: a
+ * free preset, the one named after the account's handle (`oxy`, `faircoin`), and
+ * `mono` while the account holds the benefit that grants it. The API enforces
+ * the same rule when it stores the value; this only keeps a picker from offering
+ * what it would refuse.
+ */
+export function entitledAccountColors(
+  user: EntitlementSubject,
+  now: number = Date.now(),
+): readonly AppColorName[] {
+  const handle = user?.username?.trim().toLowerCase();
+  const grant = user?.personalization?.mentionMono;
+  const expires = grant?.expiresAt === null ? Infinity : Date.parse(grant?.expiresAt ?? '');
+  const hasMono = grant?.allowed === true && expires > now;
+  const supported = new Set<string>(USER_PROFILE_COLOR_PRESETS);
+  return USER_PROFILE_COLORS.filter(({ name, gate }) => {
+    if (!supported.has(name) || !isAppColorName(name)) return false;
+    if (gate === null) return true;
+    if (gate === 'handle') return name === handle;
+    return name === 'mono' && hasMono;
+  }).map(({ name }) => name as AppColorName);
+}
+
+/**
+ * Choose the account's colour: one `updateMe` writes `color` and the portable
+ * `themePreference.colorPreset` together (the mode already on the account is
+ * kept), the Bloom theme follows at once, and the session user is updated
+ * optimistically so `useAccountColor` agrees with it. `colors` is what the
+ * picker should list.
+ */
+export function useAccountColorSave(): {
+  colors: readonly AppColorName[];
+  value: AppColorName;
+  saveColor: (name: AppColorName) => Promise<void>;
+  saving: boolean;
+} {
+  const { user } = useAuth();
+  const { mode, colorPreset, setColorPreset } = useBloomTheme();
+  const { mutateAsync, isPending } = useUpdateProfile();
+  const colors = useMemo(() => entitledAccountColors(user), [user]);
+  const saveColor = useCallback(
+    async (name: AppColorName) => {
+      if (!colors.includes(name)) throw new Error('Color is not available for this account');
+      const previous = colorPreset;
+      setColorPreset(name);
+      try {
+        await mutateAsync({
+          color: name,
+          themePreference: {
+            mode:
+              user?.themePreference?.mode ??
+              (mode === 'light' || mode === 'dark' ? mode : 'system'),
+            colorPreset: name,
+          },
+        });
+      } catch (error) {
+        setColorPreset(previous);
+        throw error;
+      }
+    },
+    [colors, colorPreset, setColorPreset, mutateAsync, user, mode],
+  );
+  return { colors, value: colorPreset, saveColor, saving: isPending };
 }

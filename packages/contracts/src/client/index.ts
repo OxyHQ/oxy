@@ -277,4 +277,9 @@ export {
   appAttestKeyResponseCheck,
 } from './appAssertions';
 
+export {
+  USER_PROFILE_COLORS,
+  USER_PROFILE_COLOR_PRESETS,
+  FREE_USER_PROFILE_COLOR_PRESETS,
+} from '../profileColors.generated';
 export * from '../products/one';

@@ -1,5 +1,12 @@
 # Changelog — `@oxy.so/core`
 
+## 6.11.1
+
+### Changed
+
+- Pins `@oxy.so/contracts` 5.6.0 (the client entry now carries the profile-colour
+  gate table `@oxy.so/services` 12.9.0 reads). No API change.
+
 ## 6.11.0
 
 ### Added
