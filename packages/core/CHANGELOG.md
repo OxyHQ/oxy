@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## 6.9.1
+
+### Fixed
+
+- 6.9.0 crashed every backend running on Bun the first time its session-revocation
+  feed connected: `TypeError: undefined is not an object (evaluating
+  'this.ws._socket.unref')`. The feed passed Socket.IO's `autoUnref`, which
+  engine.io-client implements by calling the `ws` package's private
+  `ws._socket.unref()`; under Bun, `ws` is Bun's WebSocket and has no `_socket`.
+  `autoUnref` is now used only where it works (Node); under Bun the feed is an
+  ordinary connection, opened only by a serving process's auth middleware and
+  closed by `OxyServer.dispose()`. `AUTO_UNREF_SUPPORTED` says which applies.
+  A Bun test (`bun run test:bun`) opens the real feed against a real Socket.IO
+  server in CI; it fails on 6.9.0 with the production error. Do not run 6.9.0.
+
 ## 6.9.0
 
 Security fix. Needs `@oxy.so/contracts` 5.4.0, the release carrying

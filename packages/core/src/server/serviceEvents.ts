@@ -19,7 +19,14 @@
  * being used — a half-open connection is caught by the clock, not by waiting
  * for TCP.
  *
- * The connection is unref'd: it never keeps a process alive. It reconnects by
+ * The connection is unref'd on Node only: Socket.IO's `autoUnref` is implemented
+ * by engine.io-client reaching into the `ws` package's private `ws._socket`,
+ * which Bun's WebSocket (what `ws` resolves to under Bun) does not have — core
+ * 6.9.0 passed it unconditionally and every Bun backend crashed with
+ * `TypeError … this.ws._socket.unref` the first time the feed opened. Under Bun
+ * the socket is an ordinary live connection: the feed is opened only by the
+ * auth middleware of a serving process, which stays up anyway, and
+ * `OxyServer.dispose()` closes it. It reconnects by
  * itself (transport loss: Socket.IO's own backoff; a refusal or a server-side
  * disconnect, e.g. when the service token expires: ours), minting a fresh
  * service token on every attempt.
@@ -64,6 +71,13 @@ export interface OxyServiceEventFeedOptions {
   now?: () => number;
 }
 
+/**
+ * Whether Socket.IO's `autoUnref` can work here: it calls `ws._socket.unref()`,
+ * which exists on Node's `ws` and not on Bun's WebSocket. See the module comment.
+ */
+export const AUTO_UNREF_SUPPORTED: boolean =
+  typeof process === 'undefined' || typeof process.versions?.bun !== 'string';
+
 export class OxyServiceEventFeed {
   private socket: Socket | null = null;
   private live = false;
@@ -86,7 +100,7 @@ export class OxyServiceEventFeed {
       `${new URL(this.options.baseURL).origin}${OXY_SERVICE_EVENTS_NAMESPACE}`,
       {
         transports: ['websocket'],
-        autoUnref: true,
+        autoUnref: AUTO_UNREF_SUPPORTED,
         // A NEW Manager: never multiplexed with a user socket to the same origin.
         forceNew: true,
         auth: (callback: (data: object) => void) => {

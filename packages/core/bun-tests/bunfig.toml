@@ -1,0 +1,5 @@
+# The Bun-runtime tests of @oxy.so/core: behaviour that only exists under Bun
+# (every Oxy backend runs on it), which Jest on Node cannot see. They are plain
+# `bun:test` files, NOT the Jest suite, so the package-level preload that refuses
+# `bun test` (../bunfig.toml) does not apply here. Run: `bun run test:bun`.
+[test]
