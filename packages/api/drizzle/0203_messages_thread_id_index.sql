@@ -1,7 +1,7 @@
 -- oxy:deploy-phase=pre
 --
 -- messages_user_id_thread_id_idx: one conversation's members by its stored
--- key (0193). Every thread assignment the arriving image makes reads it — the
+-- key (0202). Every thread assignment the arriving image makes reads it — the
 -- size of each thread a new message joins, and the members a delete or a key
 -- change has to re-split — and so will the reads that move off the
 -- `WITH RECURSIVE` walk once the backfill has run.
@@ -14,7 +14,7 @@
 -- change, and a plain CREATE INDEX holds SHARE on it for the whole build:
 -- reads continue, every write BLOCKS. Build it OUT OF BAND first, from a
 -- one-shot task, outside any transaction (runbook:
--- docs/engineering/per-owner-asset-rows.md, "Rollout order"), after 0193 has
+-- docs/engineering/per-owner-asset-rows.md, "Rollout order"), after 0202 has
 -- added the column —
 --
 --   CREATE INDEX CONCURRENTLY IF NOT EXISTS messages_user_id_thread_id_idx ON messages USING btree (user_id, thread_id);

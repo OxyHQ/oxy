@@ -2,7 +2,7 @@
 /**
  * One-shot backfill: give every stored message its `thread_id`.
  *
- * Why it exists: `messages.thread_id` (migration 0193) is assigned on every
+ * Why it exists: `messages.thread_id` (migration 0202) is assigned on every
  * write by `services/emailThreading.ts`, but the rows stored before that image
  * shipped are NULL. The reads keep falling back to the `WITH RECURSIVE` walk
  * for them until this has run and reported zero NULLs — only then can the
