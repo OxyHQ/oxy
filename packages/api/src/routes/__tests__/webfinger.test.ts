@@ -15,11 +15,13 @@ import { createWebfingerHandler } from '../webfinger';
 interface FakeUser {
   username: string;
   federatable: boolean;
+  gone?: boolean;
 }
 
 const USERS: FakeUser[] = [
   { username: 'nate', federatable: true },
   { username: 'hidden', federatable: false },
+  { username: 'archived', federatable: false, gone: true },
 ];
 
 const findUserByUsername = jest.fn(async (username: string) =>
@@ -35,6 +37,7 @@ app.get(
     isOwnFederationDomain: (domain) => domain === 'oxy.so' || domain === 'api.oxy.so',
     findUserByUsername,
     isFederatableUser: (user) => user.federatable,
+    isGoneUser: (user) => user.gone === true,
     logger,
   }),
 );
@@ -93,6 +96,8 @@ describe('GET /.well-known/webfinger', () => {
   it('404s a user who is not federatable, and one who does not exist', async () => {
     expect((await get('/.well-known/webfinger?resource=acct:hidden@oxy.so')).status).toBe(404);
     expect((await get('/.well-known/webfinger?resource=acct:nobody@oxy.so')).status).toBe(404);
+    // An archived channel or community is gone for good, which Mastodon reads as deleted.
+    expect((await get('/.well-known/webfinger?resource=acct:archived@oxy.so')).status).toBe(410);
   });
 
   it('404s a domain Oxy does not serve, even for the instance actor', async () => {

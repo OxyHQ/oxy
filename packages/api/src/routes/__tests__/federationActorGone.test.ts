@@ -59,7 +59,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { USER_TYPES, users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -327,5 +327,49 @@ describe('POST /federation/actor-gone — archival', () => {
       .where(eq(users.id, actor))
       .limit(1);
     expect(row).toEqual({ id: actor, type: 'federated', accountStatus: 'archived' });
+  });
+});
+
+describe('GET /federation/actor-gone/:username — a local handle gone for good', () => {
+  function get(path: string): Promise<JsonResponse> {
+    const address = server.address() as AddressInfo;
+    return new Promise((resolve, reject) => {
+      http
+        .get({ host: '127.0.0.1', port: address.port, path }, (res) => {
+          let raw = '';
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: JSON.parse(raw) }));
+        })
+        .on('error', reject);
+    });
+  }
+
+  it('is gone for an archived community, and not for an archived personal account', async () => {
+    const suffix = randomBytes(4).toString('hex');
+    await getDb()
+      .insert(users)
+      .values([
+        { username: `Community${suffix}`, kind: 'community', accountStatus: 'archived' },
+        { username: `person${suffix}`, kind: 'personal', accountStatus: 'archived' },
+      ]);
+
+    // Matched without case, the way the actor routes normalize a handle.
+    const community = await get(`/federation/actor-gone/community${suffix}`);
+    expect(community.status).toBe(200);
+    expect(community.body).toEqual({ data: { username: `community${suffix}`, gone: true } });
+
+    // A person's deletion is answered from the app's own erasure ledger, not here.
+    expect((await get(`/federation/actor-gone/person${suffix}`)).body).toEqual({
+      data: { username: `person${suffix}`, gone: false },
+    });
+    expect((await get(`/federation/actor-gone/nobody${suffix}`)).body).toEqual({
+      data: { username: `nobody${suffix}`, gone: false },
+    });
+
+    await getDb()
+      .delete(users)
+      .where(inArray(users.username, [`Community${suffix}`, `person${suffix}`]));
   });
 });

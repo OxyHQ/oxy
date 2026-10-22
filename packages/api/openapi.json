@@ -28851,6 +28851,107 @@
         "operationId": "postFederationActorGone"
       }
     },
+    "/federation/actor-gone/{username}": {
+      "get": {
+        "tags": [
+          "Federation"
+        ],
+        "summary": "Whether a LOCAL handle names an actor that is gone for good, which the relying",
+        "description": "app's actor, inbox, collections and WebFinger then answer `410 Gone` instead\nof 404. Asked by Mention only for a handle that resolved to no live account\n(`@oxy.so/federation`'s `isActorGone`).\n\n`gone` is true while an archived channel, community or other non-personal\naccount holds the handle (`isPermanentlyGoneActor`). The account row is the\nwhole record: an archive is never undone and the handle cannot be registered\nagain, so the answer holds for as long as the row exists. A personal account\nis never reported here; its deletion is answered from the app's own erasure\nledger, for that ledger's retention only.\n\nRead-only. An unknown handle is `gone: false`, never a 404, so a caller can\ncache either answer the same way.",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the handle's actor is gone for good.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string"
+                    },
+                    "gone": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "gone"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getFederationActorGoneUsername"
+      }
+    },
     "/federation/domain-purge": {
       "post": {
         "tags": [
