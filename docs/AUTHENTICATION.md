@@ -47,7 +47,7 @@ export default function RootLayout() {
 
 ## Web (Vite + React Native Web)
 
-The same `OxyProvider` runs on web. Bundle the React Native graph with **rolldown-vite** + `vite-plugin-react-native-web` — the working reference is `packages/console` ([`packages/console/vite.config.ts`](../packages/console/vite.config.ts)):
+The same `OxyProvider` runs on web. Bundle the React Native graph with **rolldown-vite** + `vite-plugin-react-native-web` — the working reference is `packages/test-app-vite` ([`packages/test-app-vite/vite.config.ts`](../packages/test-app-vite/vite.config.ts)):
 
 ```jsonc
 // package.json — alias vite to rolldown-vite
@@ -56,7 +56,7 @@ The same `OxyProvider` runs on web. Bundle the React Native graph with **rolldow
 ```
 
 ```ts
-// vite.config.ts — see packages/console/vite.config.ts for the full pattern
+// vite.config.ts — see packages/test-app-vite/vite.config.ts for the full pattern
 // (native-only module shims, Flow stripping, RN platform extensions)
 import { defineConfig } from 'vite';
 import viteReact from '@vitejs/plugin-react';
