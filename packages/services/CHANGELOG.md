@@ -1,5 +1,19 @@
 # Changelog
 
+## [12.10.1] - 2026-10-22
+
+### Fixed
+
+- "Switch account" in Manage your Oxy account did nothing when the account
+  dialog was already open underneath: it now brings the account switcher back to
+  the front. The row is hidden for identity-bound sessions, where the switcher
+  can never open.
+- Closing a morphed account dialog whose host surface is already gone no longer
+  leaves the dialog marked open.
+- Signing out reports a failed sign-out instead of "Signed out" (Manage), and a
+  rejected sign-out in the account menu shows the error instead of an unhandled
+  rejection.
+
 ## [12.10.0] - 2026-10-22
 
 Needs `@oxy.so/core` 6.12.0.

@@ -41,6 +41,7 @@ import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { useQueryClient } from '@tanstack/react-query';
+import type { LogoutResult } from '../context/oxyContextTypes';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
 import { useI18n } from '../hooks/useI18n';
@@ -257,7 +258,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
    */
   const handleSignOut = useCallback(async () => {
     if (!controller) return;
-    const outcome = await controller.runDeviceMutation(() => logout());
+    let outcome: { ran: true; value: LogoutResult } | { ran: false };
+    try {
+      outcome = await controller.runDeviceMutation(() => logout());
+    } catch {
+      // `runDeviceMutation` rethrows; the caller is `void handleSignOut()`.
+      toast.error(t('common.errors.signOutFailed'));
+      return;
+    }
     if (!outcome.ran) return;
     if (outcome.value.status === 'failed') {
       toast.error(t('common.errors.signOutFailed'));
