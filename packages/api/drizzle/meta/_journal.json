@@ -1429,6 +1429,27 @@
       "when": 1792660292832,
       "tag": "0204_messages_user_id_references_index",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1792664704229,
+      "tag": "0205_mailbox_counter_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 206,
+      "version": "7",
+      "when": 1792664707905,
+      "tag": "0206_mailbox_counter_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 207,
+      "version": "7",
+      "when": 1792664711889,
+      "tag": "0207_mailbox_counter_defaults",
+      "breakpoints": true
     }
   ]
 }
