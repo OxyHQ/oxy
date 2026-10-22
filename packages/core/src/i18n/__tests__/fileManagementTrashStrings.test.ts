@@ -14,6 +14,11 @@ import jaJP from '../locales/ja-JP';
 import koKR from '../locales/ko-KR';
 import ptPT from '../locales/pt-PT';
 import zhCN from '../locales/zh-CN';
+import bnBD from '../locales/bn-BD';
+import hiIN from '../locales/hi-IN';
+import idID from '../locales/id-ID';
+import ruRU from '../locales/ru-RU';
+import trTR from '../locales/tr-TR';
 
 const LOCALES: Record<string, unknown> = {
   'ar-SA': arSA,
@@ -26,6 +31,11 @@ const LOCALES: Record<string, unknown> = {
   'ko-KR': koKR,
   'pt-PT': ptPT,
   'zh-CN': zhCN,
+  'bn-BD': bnBD,
+  'hi-IN': hiIN,
+  'id-ID': idID,
+  'ru-RU': ruRU,
+  'tr-TR': trTR,
 };
 
 /** Every string key the Trash view and the move-to-trash / delete flows read. */

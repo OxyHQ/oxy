@@ -1,5 +1,14 @@
 # Changelog
 
+## [12.12.0] - 2026-10-22
+
+### Changed
+
+- Creating an account picks its categories with the same editor as the
+  account's settings (`AccountCategoriesSection`): the chosen categories in
+  order, the first one primary with "Make primary", and the vocabulary to add
+  from. The create screen's own position-badge list is gone.
+
 ## [12.11.0] - 2026-10-22
 
 Needs `@oxy.so/core` 6.13.0.

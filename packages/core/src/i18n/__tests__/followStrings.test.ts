@@ -14,6 +14,11 @@ import jaJP from '../locales/ja-JP';
 import koKR from '../locales/ko-KR';
 import ptPT from '../locales/pt-PT';
 import zhCN from '../locales/zh-CN';
+import bnBD from '../locales/bn-BD';
+import hiIN from '../locales/hi-IN';
+import idID from '../locales/id-ID';
+import ruRU from '../locales/ru-RU';
+import trTR from '../locales/tr-TR';
 import type { LocaleDict } from '..';
 
 const LOCALES: Record<string, LocaleDict> = {
@@ -27,6 +32,11 @@ const LOCALES: Record<string, LocaleDict> = {
   'ko-KR': koKR,
   'pt-PT': ptPT,
   'zh-CN': zhCN,
+  'bn-BD': bnBD,
+  'hi-IN': hiIN,
+  'id-ID': idID,
+  'ru-RU': ruRU,
+  'tr-TR': trTR,
 };
 
 /** Every leaf under English's `follow`, as `[dotted key, English text]`. */

@@ -15,6 +15,11 @@ const SHIPPED_LOCALES = [
   'ko-KR',
   'zh-CN',
   'ar-SA',
+  'bn-BD',
+  'hi-IN',
+  'id-ID',
+  'ru-RU',
+  'tr-TR',
 ] as const;
 const REGION_VARIANT = 'es-MX';
 const UNSHIPPED_LOCALE = 'nl-NL';
