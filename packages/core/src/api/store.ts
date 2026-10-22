@@ -244,15 +244,9 @@ export class StoreReviewsApi {
 
   /** The caller's own review of an app, or `null` if they have not written one. */
   async mine(slug: string): Promise<StoreOwnReview | null> {
-    const res = await this.ctx.request<{ data: StoreOwnReview | null }>(
-      'GET',
-      reviewPath(slug),
-      undefined,
-      {
-        cache: false,
-      },
-    );
-    return res.data ?? null;
+    return this.ctx.request<StoreOwnReview | null>('GET', reviewPath(slug), undefined, {
+      cache: false,
+    });
   }
 
   /**
@@ -263,10 +257,7 @@ export class StoreReviewsApi {
    * hidden when its author edits it.
    */
   async write(slug: string, input: WriteStoreReviewInput): Promise<StoreOwnReview> {
-    const res = await this.ctx.request<{ data: StoreOwnReview }>('PUT', reviewPath(slug), input, {
-      cache: false,
-    });
-    return res.data;
+    return this.ctx.request<StoreOwnReview>('PUT', reviewPath(slug), input, { cache: false });
   }
 
   /** Withdraw the caller's own review. A real delete — the words were theirs. */
@@ -418,16 +409,10 @@ export class StoreApi {
 
   /** The shelves, in the order the store curates them. */
   async categories(): Promise<StoreCategory[]> {
-    const res = await this.ctx.request<{ data: StoreCategory[] }>(
-      'GET',
-      '/store/categories',
-      undefined,
-      {
-        cache: true,
-        cacheTTL: MEDIUM_TTL,
-      },
-    );
-    return res.data ?? [];
+    return this.ctx.request<StoreCategory[]>('GET', '/store/categories', undefined, {
+      cache: true,
+      cacheTTL: MEDIUM_TTL,
+    });
   }
 
   /**
@@ -459,16 +444,10 @@ export class StoreApi {
    * @param slug - The listing's public slug, not an application id.
    */
   async app(slug: string): Promise<StoreListingDetail> {
-    const res = await this.ctx.request<{ data: StoreListingDetail }>(
-      'GET',
-      `/store/apps/${enc(slug)}`,
-      undefined,
-      {
-        cache: true,
-        cacheTTL: SHORT_TTL,
-      },
-    );
-    return res.data;
+    return this.ctx.request<StoreListingDetail>('GET', `/store/apps/${enc(slug)}`, undefined, {
+      cache: true,
+      cacheTTL: SHORT_TTL,
+    });
   }
 }
 

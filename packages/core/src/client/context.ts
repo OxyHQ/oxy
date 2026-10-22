@@ -6,7 +6,7 @@
  * the plumbing they share — the transport, the service-token lane, cross-cache
  * invalidation — never becomes public surface on `OxyServices` itself.
  */
-import type { HttpService, RequestOptions } from '../HttpService';
+import type { HttpService, RequestOptions, ResponsePayload } from '../HttpService';
 import type { OxyServices } from '../OxyServices';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -25,7 +25,7 @@ export interface ServiceLane {
     url: string,
     data?: unknown,
     options?: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] },
-  ): Promise<T>;
+  ): Promise<ResponsePayload<T>>;
 }
 
 export interface OxyContext {
@@ -33,7 +33,12 @@ export interface OxyContext {
   readonly oxy: OxyServices;
   readonly http: HttpService;
   /** `oxy.request`: user bearer, rejects with `OxyApiError`. */
-  request<T>(method: HttpMethod, url: string, data?: unknown, options?: RequestOptions): Promise<T>;
+  request<T>(
+    method: HttpMethod,
+    url: string,
+    data?: unknown,
+    options?: RequestOptions,
+  ): Promise<ResponsePayload<T>>;
   /** The service-token lane, or `null` outside a server. */
   service: ServiceLane | null;
 }

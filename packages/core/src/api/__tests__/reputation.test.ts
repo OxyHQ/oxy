@@ -53,9 +53,12 @@ describe('oxy.reputation', () => {
     });
   });
 
-  it('unwraps the leaderboard page and omits empty params', async () => {
+  it('reads the leaderboard page and omits empty params', async () => {
     const { oxy, request } = stubbedClient();
-    request.mockResolvedValue({ data: [{ userId: 'u1' }] });
+    request.mockResolvedValue({
+      data: [{ userId: 'u1' }],
+      pagination: { total: 1, limit: 25, offset: 0, hasMore: false },
+    });
     await expect(oxy.reputation.leaderboard()).resolves.toEqual([{ userId: 'u1' }]);
     expect(request).toHaveBeenLastCalledWith('GET', '/reputation/leaderboard', undefined, {
       cache: true,
@@ -68,8 +71,6 @@ describe('oxy.reputation', () => {
       { limit: 5, offset: 0 },
       expect.anything(),
     );
-    request.mockResolvedValue({});
-    await expect(oxy.reputation.leaderboard()).resolves.toEqual([]);
   });
 
   it('unwraps the rules with a long cache', async () => {
@@ -86,7 +87,10 @@ describe('oxy.reputation', () => {
 
   it('reads the ledger, defaulting to the signed-in user', async () => {
     const { oxy, request } = stubbedClient('me');
-    request.mockResolvedValue({ data: [{ id: 't1' }] });
+    request.mockResolvedValue({
+      data: [{ id: 't1' }],
+      pagination: { total: 1, limit: 25, offset: 0, hasMore: false },
+    });
     await expect(oxy.reputation.transactions()).resolves.toEqual([{ id: 't1' }]);
     expect(request).toHaveBeenLastCalledWith('GET', '/reputation/me/transactions', undefined, {
       cache: true,

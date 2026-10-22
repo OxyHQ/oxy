@@ -55,7 +55,7 @@ function reusableServiceToken(token: string): boolean {
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { OxyServices, type OxyConfig } from '../OxyServices';
 import type { HttpMethod, ServiceLane } from '../client/context';
-import type { RequestOptions } from '../HttpService';
+import type { RequestOptions, ResponsePayload } from '../HttpService';
 import { logger } from '../logger';
 import { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
 import {
@@ -569,7 +569,7 @@ export class OxyServer extends OxyServices {
     url: string,
     data?: unknown,
     options: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] } = {},
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     const { actAs, headers, serviceTokenScopes, ...rest } = options;
     const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };

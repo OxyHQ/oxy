@@ -3,7 +3,7 @@ import {
   createSessionClientHost,
   type SessionStateOrigin,
 } from '@oxy.so/core/session';
-import type { OxyServices } from '@oxy.so/core';
+import type { OxyServices, ResponsePayload } from '@oxy.so/core';
 import { createTokenTransport } from './tokenTransport';
 
 /**
@@ -62,7 +62,7 @@ export function createSessionClient(
       url: string,
       data?: unknown,
       requestOptions?: { cache?: boolean },
-    ): Promise<T> => {
+    ): Promise<ResponsePayload<T>> => {
       if (!isDeviceSessionAllowed())
         throw new Error('An isolated OAuth session cannot access the shared device');
       return baseHost.makeRequest<T>(method, url, data, requestOptions);

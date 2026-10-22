@@ -3,17 +3,14 @@
  *
  * `oxy.request` is stubbed, so what these cover is the seam between this client
  * and the API: the method, the URL, whether a value is URL-encoded, whether a
- * read is cached, and — the part worth the most here — which envelope a
- * response is unwrapped from.
+ * read is cached, and how a page is read.
  *
- * The API has two of those and they are not interchangeable. A single object
- * comes back under `data`; a page comes back under `data` with its counts under
- * `pagination`. Reading `meta` instead, which is the plausible mistake, yields
- * `total: 0` on every page with no error anywhere and no type complaint — so it
- * is asserted against a fixture that has a non-zero total rather than trusted.
- *
- * The publisher's listing routes answer with the object itself, no envelope at
- * all, which is a third shape and is asserted separately for the same reason.
+ * The stub answers what the TRANSPORT delivers, not what the route sends: the
+ * transport has already reduced a `{ data }` envelope to its payload, so a
+ * single object arrives bare. A page travels whole — `data` with its counts
+ * under `pagination`. Reading `meta` instead, which is the plausible mistake,
+ * yields `total: 0` on every page with no error anywhere — so it is asserted
+ * against a fixture that has a non-zero total rather than trusted.
  */
 
 import { OxyServices } from '../../OxyServices';
@@ -110,8 +107,8 @@ describe('oxy.store', () => {
   });
 
   describe('the storefront', () => {
-    it('unwraps the shelves from `data` and caches the read', async () => {
-      requestSpy.mockResolvedValue({ data: [categoryFixture] });
+    it('answers the shelves and caches the read', async () => {
+      requestSpy.mockResolvedValue([categoryFixture]);
 
       expect(await oxy.store.categories()).toEqual([categoryFixture]);
       expect(requestSpy).toHaveBeenCalledWith(
@@ -154,7 +151,7 @@ describe('oxy.store', () => {
     });
 
     it('URL-encodes a slug in the path', async () => {
-      requestSpy.mockResolvedValue({ data: detailFixture });
+      requestSpy.mockResolvedValue(detailFixture);
 
       expect(await oxy.store.app('a b/c')).toEqual(detailFixture);
       expect(requestSpy.mock.calls[0][1]).toBe('/store/apps/a%20b%2Fc');
@@ -185,12 +182,12 @@ describe('oxy.store', () => {
 
   describe('reviewing', () => {
     it('answers null when the caller has not written one', async () => {
-      requestSpy.mockResolvedValue({ data: null });
+      requestSpy.mockResolvedValue(null);
       expect(await oxy.store.reviews.mine('mention')).toBeNull();
     });
 
     it('PUTs the review — one per person, so it sets rather than adds', async () => {
-      requestSpy.mockResolvedValue({ data: ownReviewFixture });
+      requestSpy.mockResolvedValue(ownReviewFixture);
 
       expect(await oxy.store.reviews.write('mention', { rating: 5, body: 'Good' })).toEqual(
         ownReviewFixture,

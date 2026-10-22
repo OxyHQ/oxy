@@ -9,6 +9,7 @@ import {
   SESSION_ACCOUNTS_CHANGED_EVENT,
   sessionAccountsChangedEventCheck,
 } from '@oxy.so/contracts/client';
+import type { ResponsePayload } from '../HttpService';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
 import { decodeTokenClaims } from '../utils/tokenClaims';
@@ -48,7 +49,7 @@ export interface SessionClientHost {
     url: string,
     data?: unknown,
     options?: { cache?: boolean },
-  ): Promise<T>;
+  ): Promise<ResponsePayload<T>>;
   getBaseURL(): string;
   getAccessToken(): string | null;
   /** Zero-cookie device credential for socket handshake when no bearer is planted yet. */
@@ -180,7 +181,7 @@ export class SessionClient {
     url: string,
     data?: unknown,
     requestOptions?: { cache?: boolean },
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     const generation = this.lifecycleGeneration;
     const response = await this.host.makeRequest<T>(method, url, data, requestOptions);
     if (generation !== this.lifecycleGeneration)
