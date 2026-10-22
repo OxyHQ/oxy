@@ -1,49 +1,39 @@
 import { AppShell } from '@oxy.so/bloom/app-shell';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import type { SidebarNavItem, SidebarProps } from '@oxy.so/bloom/sidebar';
 import { ProfileButton, useOxy } from '@oxy.so/services/ui/client';
-import { usePathname, useRouter } from 'expo-router';
+import { type Href, usePathname, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useState } from 'react';
+import { Linking } from 'react-native';
 
 import { AccountSwitcher } from '@/components/settings/AccountSwitcher';
-import { CommandMenu } from './CommandMenu';
 import { useTranslation } from '@/lib/i18n';
-import { CONSOLE_NAV, buildSidebarItems, sectionOf } from '@/lib/navigation';
+import { buildSidebarItems, sectionOf } from '@/lib/navigation';
+import { CommandMenu } from './CommandMenu';
 import { ConsoleBottomBar } from './ConsoleBottomBar';
-import {
-  CONSOLE_DETAIL_PANEL,
-  CONSOLE_LIST_PANEL,
-  CONSOLE_PANELS,
-  CONSOLE_WORKSPACE,
-} from './workspace';
 
-interface ConsoleShellProps {
-  children: ReactNode;
-  /** Optional list pane rendered beside the routed detail (desktop split). */
-  list?: ReactNode;
-}
-
-export function ConsoleShell({ children, list }: ConsoleShellProps) {
+/**
+ * The console frame, composed like Homiio's: `AppShell variant="feed" panels` owns the
+ * gutter, sidebar, drawer and bottom bar; the route group below wraps each page in an
+ * `AppShellPanel`, and each page's `Screen` owns its `PageHeader`.
+ */
+export function ConsoleShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const { openAccountDialog } = useOxy();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [listWidth, setListWidth] = useState<number>(CONSOLE_LIST_PANEL.width);
 
   const onNavigate = useCallback(
     (item: SidebarNavItem) => {
-      const entry = CONSOLE_NAV.find((candidate) => candidate.key === item.key);
-      if (entry) router.navigate(entry.href);
+      if (item.href) router.push(item.href as Href);
       setDrawerOpen(false);
     },
     [router],
   );
 
   const sidebar: SidebarProps = {
-    items: buildSidebarItems(t),
+    items: buildSidebarItems(t, (url) => void Linking.openURL(url)),
     selected: sectionOf(pathname),
     onNavigate,
     collapsed,
@@ -51,7 +41,7 @@ export function ConsoleShell({ children, list }: ConsoleShellProps) {
     logo: {
       wordmark: t('app.name'),
       onPress: () => {
-        router.navigate('/dashboard');
+        router.push('/dashboard');
         setDrawerOpen(false);
       },
     },
@@ -67,56 +57,29 @@ export function ConsoleShell({ children, list }: ConsoleShellProps) {
     ),
   };
 
-  const errorBoundary = { resetKey: pathname };
-
-  const shellProps = {
-    ...CONSOLE_WORKSPACE,
-    testID: 'console-workspace',
-    drawerOpen,
-    onDrawerOpenChange: setDrawerOpen,
-    sidebar,
-    bottomBar: <ConsoleBottomBar />,
-    drawerOpenLabel: t('shell.openMenu'),
-    drawerCloseLabel: t('common.close'),
-  };
-
-  // A sole `panelLayout` panel is sized by Bloom's default panel width (360px), so
-  // without a list pane the page sits in a plain framed ContentPanel that fills the shell.
-  if (!list) {
-    return (
-      <>
-        <CommandMenu />
-        <AppShell {...shellProps} scroll="external">
-          <ContentPanel framedFrom={BREAKPOINTS.md} errorBoundary={errorBoundary}>
-            {children}
-          </ContentPanel>
-        </AppShell>
-      </>
-    );
-  }
-
   return (
     <>
       <CommandMenu />
       <AppShell
-        {...shellProps}
-        panelLayout={{
-          ...CONSOLE_PANELS,
-          activePanel: 'detail',
-          widths: { list: listWidth },
-          onWidthsChange: (widths) => setListWidth(widths.list ?? listWidth),
-          panels: [
-            {
-              ...CONSOLE_LIST_PANEL,
-              resizable: true,
-              resizeLabel: t('shell.resizePanes'),
-              errorBoundary,
-              content: list,
-            },
-            { ...CONSOLE_DETAIL_PANEL, errorBoundary, content: children },
-          ],
-        }}
-      />
+        variant="feed"
+        panels
+        scroll="page"
+        sidebar={sidebar}
+        drawer="reveal"
+        drawerOpen={drawerOpen}
+        onDrawerOpenChange={setDrawerOpen}
+        drawerOpenLabel={t('shell.openMenu')}
+        drawerCloseLabel={t('common.close')}
+        header={null}
+        contentWidth={1800}
+        navigationAlign="content"
+        navigationGap={8}
+        gutter={8}
+        bottomBar={<ConsoleBottomBar />}
+        testID="console-workspace"
+      >
+        {children}
+      </AppShell>
     </>
   );
 }

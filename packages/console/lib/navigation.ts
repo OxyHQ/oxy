@@ -9,6 +9,8 @@ import { RiPlayCircleLine } from '@oxy.so/bloom/icons/RiPlayCircleLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 
 import type { Href } from 'expo-router';
+
+import config from '@/lib/config';
 import type { TranslateFn } from '@/lib/i18n';
 
 /** A sidebar entry: `key` is the first path segment it owns, `href` where it goes. */
@@ -17,6 +19,8 @@ export interface ConsoleNavEntry {
   href: Href;
   labelKey: string;
   icon: SidebarNavItem['icon'];
+  /** An off-site destination (opens in a new tab); `href` is then unused. */
+  external?: string;
 }
 
 /**
@@ -30,16 +34,31 @@ export const CONSOLE_NAV: ReadonlyArray<ConsoleNavEntry> = [
   { key: 'usage', href: '/usage', labelKey: 'nav.usage', icon: RiBarChartLine },
   { key: 'billing', href: '/billing', labelKey: 'nav.billing', icon: RiBankCardLine },
   { key: 'models', href: '/models', labelKey: 'nav.models', icon: RiCpuLine },
-  { key: 'documentation', href: '/documentation', labelKey: 'nav.documentation', icon: RiBookOpenLine },
+  {
+    key: 'documentation',
+    href: '/dashboard',
+    labelKey: 'nav.documentation',
+    icon: RiBookOpenLine,
+    external: config.docsUrl,
+  },
   { key: 'settings', href: '/settings/account', labelKey: 'nav.settings', icon: RiSettings3Line },
 ];
 
-export function buildSidebarItems(t: TranslateFn): Array<SidebarNavItem> {
-  return CONSOLE_NAV.map((entry) => ({
-    key: entry.key,
-    label: t(entry.labelKey),
-    icon: entry.icon,
-  }));
+export function buildSidebarItems(
+  t: TranslateFn,
+  openExternal: (url: string) => void,
+): Array<SidebarNavItem> {
+  return CONSOLE_NAV.map((entry) => {
+    const external = entry.external;
+    return {
+      key: entry.key,
+      label: t(entry.labelKey),
+      icon: entry.icon,
+      // `href` makes a real anchor on web and routes through `onNavigate`; an
+      // off-site row is an action instead.
+      ...(external ? { onPress: () => openExternal(external) } : { href: String(entry.href) }),
+    };
+  });
 }
 
 /** First path segment of the current pathname, e.g. `/apps/abc` → `apps`. */

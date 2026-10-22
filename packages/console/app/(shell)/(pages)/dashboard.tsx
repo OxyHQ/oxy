@@ -10,6 +10,7 @@ import { Pressable, Text, View } from 'react-native';
 import { PageFrame } from '@/components/account-pages/PageFrame';
 import { useApplications } from '@/hooks/use-applications';
 import { useCredits } from '@/hooks/use-billing';
+import config from '@/lib/config';
 import { useTranslation } from '@/lib/i18n';
 
 interface OnboardingStep {
@@ -50,7 +51,7 @@ export default function DashboardPage() {
       id: 'request',
       title: t('dashboardPage.steps.request'),
       completed: false,
-      href: '/documentation',
+      href: config.docsUrl as Href,
       action: t('dashboardPage.steps.requestAction'),
     },
   ];
@@ -108,8 +109,7 @@ export default function DashboardPage() {
 
       {allCompleted ? (
         <View className="flex-row flex-wrap items-center justify-center gap-6 pb-8">
-          <QuickLink label={t('nav.documentation')} href="/documentation" />
-          <QuickLink label={t('nav.examples')} href="/examples" />
+          <QuickLink label={t('nav.documentation')} href={config.docsUrl as Href} />
           <QuickLink label={t('nav.models')} href="/models" />
         </View>
       ) : null}

@@ -1,3 +1,4 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
@@ -38,6 +39,7 @@ export default function ApplicationsScreen() {
   return (
     <View className="flex-1 bg-background">
       <PageHeader
+        leading={<AppShellMenuButton />}
         presentation="bar"
         safeArea={false}
         sticky={false}

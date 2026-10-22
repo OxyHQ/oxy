@@ -1,3 +1,4 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import type { ReactNode } from 'react';
@@ -25,6 +26,7 @@ export function PageScreen({ title, subtitle, actions, headerExtra, children }: 
             title={title}
             subtitle={subtitle}
             actions={actions}
+            leading={<AppShellMenuButton />}
             presentation="bar"
             titleAlign="start"
             border={headerExtra ? 'none' : 'always'}

@@ -10,6 +10,8 @@ import { Notice } from '@/components/content/Notice';
 import { OptionSelect } from '@/components/content/OptionSelect';
 import { RichText } from '@/components/content/RichText';
 import { Section } from '@/components/content/Section';
+import type { Href } from 'expo-router';
+import config from '@/lib/config';
 import { TextLink } from '@/components/content/TextLink';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 import { PlaygroundOutput } from '@/components/playground/PlaygroundOutput';
@@ -320,9 +322,7 @@ export default function PlaygroundScreen() {
         </>
       )}
 
-      <TextLink href="/documentation/chat-completions">
-        {t('playgroundPage.readReference')}
-      </TextLink>
+      <TextLink href={config.docsUrl as Href}>{t('playgroundPage.readReference')}</TextLink>
     </ContentScreen>
   );
 }

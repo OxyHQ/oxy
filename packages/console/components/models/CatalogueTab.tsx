@@ -1,11 +1,13 @@
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiCpuLine } from '@oxy.so/bloom/icons/RiCpuLine';
 import { useMemo, useState } from 'react';
+import type { Href } from 'expo-router';
 import { View } from 'react-native';
 
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 import { LoadingRows } from '@/components/content/LoadingRows';
 import { TextLink } from '@/components/content/TextLink';
+import config from '@/lib/config';
 import { useModelCatalogue } from '@/hooks/use-models';
 import { useTranslation } from '@/lib/i18n';
 import {
@@ -47,7 +49,7 @@ export function CatalogueTab() {
           {/* The question an empty catalogue raises is "so can I call anything?", and
               the answer already exists as one component. Reused so the two cannot drift. */}
           <InferenceAvailabilityNotice />
-          <TextLink href="/documentation/models">{t('modelsPage.empty.docsLink')}</TextLink>
+          <TextLink href={config.docsUrl as Href}>{t('modelsPage.empty.docsLink')}</TextLink>
         </View>
       </View>
     );

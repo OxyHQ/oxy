@@ -1,6 +1,5 @@
 import type { CommandItem } from '@oxy.so/bloom/command';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiCodeSLine } from '@oxy.so/bloom/icons/RiCodeSLine';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type { Href } from 'expo-router';
@@ -16,7 +15,6 @@ const EXTRA_DESTINATIONS: ReadonlyArray<{
   icon: CommandItem['icon'];
 }> = [
   { id: 'playground', href: '/playground', labelKey: 'nav.playground', icon: RiPlayLine },
-  { id: 'examples', href: '/examples', labelKey: 'nav.examples', icon: RiCodeSLine },
   { id: 'clarity', href: '/clarity', labelKey: 'commandMenu.clarity', icon: RiSearchLine },
 ];
 

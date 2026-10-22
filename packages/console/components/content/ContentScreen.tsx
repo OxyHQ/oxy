@@ -1,3 +1,4 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { type Href, useRouter } from 'expo-router';
@@ -47,6 +48,7 @@ export function ContentScreen({
         <PageHeader
           title={title}
           subtitle={subtitle}
+          leading={<AppShellMenuButton />}
           presentation="bar"
           sticky={false}
           safeArea={false}
