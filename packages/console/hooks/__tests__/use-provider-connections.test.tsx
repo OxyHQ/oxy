@@ -3,11 +3,10 @@
 import type { PropsWithChildren } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const makeRequest = vi.fn();
+const makeRequest = jest.fn();
 
-vi.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   useAuth: () => ({
     oxyServices: { request: makeRequest },
     isAuthenticated: true,

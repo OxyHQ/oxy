@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { modelCatalogueEntrySchema } from '@oxy.so/contracts';
 import {
   EMPTY_CATALOGUE_FILTERS,

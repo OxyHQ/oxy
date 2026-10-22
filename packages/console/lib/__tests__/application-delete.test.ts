@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { isDeleteConfirmed } from '../application-delete';
 
 describe('isDeleteConfirmed', () => {

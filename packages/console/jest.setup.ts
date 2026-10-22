@@ -27,5 +27,3 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
 });
-
-export {};

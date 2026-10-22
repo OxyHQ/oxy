@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { providerConnectionSchema, providerConnectionScopeSchema } from '@oxy.so/contracts';
 import type { ProviderConnection } from '@oxy.so/contracts';
 import {

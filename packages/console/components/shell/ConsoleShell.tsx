@@ -4,6 +4,8 @@ import { ProfileButton, useOxy } from '@oxy.so/services/ui/client';
 import { usePathname, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useState } from 'react';
 
+import { AccountSwitcher } from '@/components/settings/AccountSwitcher';
+import { CommandMenu } from './CommandMenu';
 import { useTranslation } from '@/lib/i18n';
 import { CONSOLE_NAV, buildSidebarItems, sectionOf } from '@/lib/navigation';
 import { ConsoleBottomBar } from './ConsoleBottomBar';
@@ -51,6 +53,7 @@ export function ConsoleShell({ children, list }: ConsoleShellProps) {
         setDrawerOpen(false);
       },
     },
+    header: ({ collapsed: compact }) => <AccountSwitcher compact={compact} />,
     showSearch: false,
     showThemeToggle: false,
     footer: ({ collapsed: compact }) => (
@@ -65,35 +68,38 @@ export function ConsoleShell({ children, list }: ConsoleShellProps) {
   const errorBoundary = { resetKey: pathname };
 
   return (
-    <AppShell
-      {...CONSOLE_WORKSPACE}
-      testID="console-workspace"
-      drawerOpen={drawerOpen}
-      onDrawerOpenChange={setDrawerOpen}
-      sidebar={sidebar}
-      bottomBar={<ConsoleBottomBar />}
-      drawerOpenLabel={t('shell.openMenu')}
-      drawerCloseLabel={t('common.close')}
-      panelLayout={{
-        ...CONSOLE_PANELS,
-        activePanel: 'detail',
-        widths: { list: listWidth },
-        onWidthsChange: (widths) => setListWidth(widths.list ?? listWidth),
-        panels: [
-          ...(list
-            ? [
-                {
-                  ...CONSOLE_LIST_PANEL,
-                  resizable: true,
-                  resizeLabel: t('shell.resizePanes'),
-                  errorBoundary,
-                  content: list,
-                },
-              ]
-            : []),
-          { ...CONSOLE_DETAIL_PANEL, errorBoundary, content: children },
-        ],
-      }}
-    />
+    <>
+      <CommandMenu />
+      <AppShell
+        {...CONSOLE_WORKSPACE}
+        testID="console-workspace"
+        drawerOpen={drawerOpen}
+        onDrawerOpenChange={setDrawerOpen}
+        sidebar={sidebar}
+        bottomBar={<ConsoleBottomBar />}
+        drawerOpenLabel={t('shell.openMenu')}
+        drawerCloseLabel={t('common.close')}
+        panelLayout={{
+          ...CONSOLE_PANELS,
+          activePanel: 'detail',
+          widths: { list: listWidth },
+          onWidthsChange: (widths) => setListWidth(widths.list ?? listWidth),
+          panels: [
+            ...(list
+              ? [
+                  {
+                    ...CONSOLE_LIST_PANEL,
+                    resizable: true,
+                    resizeLabel: t('shell.resizePanes'),
+                    errorBoundary,
+                    content: list,
+                  },
+                ]
+              : []),
+            { ...CONSOLE_DETAIL_PANEL, errorBoundary, content: children },
+          ],
+        }}
+      />
+    </>
   );
 }

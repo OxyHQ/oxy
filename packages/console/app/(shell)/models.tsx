@@ -1,9 +1,39 @@
-import { Text, View } from 'react-native';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { useState } from 'react';
+import { View } from 'react-native';
 
-export default function Screen() {
+import { ContentScreen } from '@/components/content/ContentScreen';
+import { CatalogueTab } from '@/components/models/CatalogueTab';
+import { RoutingProfilesTab } from '@/components/models/RoutingProfilesTab';
+import { useTranslation } from '@/lib/i18n';
+
+type ModelsTab = 'models' | 'profiles';
+
+/**
+ * The Models page, rendered from the real catalogue.
+ *
+ * Two tabs, because a routing profile is not a model and putting them in one list
+ * is the conflation ADR 0008 exists to remove. A model is a named line from a
+ * publisher, resolvable as `<publisher>/<model>`; a profile is a POLICY object
+ * with its own identifier space that selects among deployments.
+ */
+export default function ModelsScreen() {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<ModelsTab>('models');
+
   return (
-    <View className="flex-1 p-6">
-      <Text className="text-xl font-semibold text-foreground">models</Text>
-    </View>
+    <ContentScreen title={t('modelsPage.title')} subtitle={t('modelsPage.subtitle')} maxWidth="xl">
+      <View className="gap-6">
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as ModelsTab)}
+          label={t('modelsPage.title')}
+        >
+          <TabsTrigger value="models" label={t('modelsPage.tabs.models')} />
+          <TabsTrigger value="profiles" label={t('modelsPage.tabs.profiles')} />
+        </Tabs>
+        {tab === 'models' ? <CatalogueTab /> : <RoutingProfilesTab />}
+      </View>
+    </ContentScreen>
   );
 }

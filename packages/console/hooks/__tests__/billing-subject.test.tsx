@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -10,14 +9,14 @@ import {
   useCancelNamedSubscription,
 } from '../use-billing';
 import type { PropsWithChildren } from 'react';
-const mock = vi.hoisted(() => ({
+const mock = {
   subject: 'A',
-  product: vi.fn(),
-  grants: vi.fn(),
-  request: vi.fn(),
-  cancel: vi.fn(),
-}));
-vi.mock('@oxy.so/services', () => ({
+  product: jest.fn(),
+  grants: jest.fn(),
+  request: jest.fn(),
+  cancel: jest.fn(),
+};
+jest.mock('@oxy.so/services', () => ({
   useAuth: () => ({
     user: { id: mock.subject },
     isAuthenticated: true,
@@ -43,7 +42,7 @@ function setup() {
 }
 beforeEach(() => {
   mock.subject = 'A';
-  vi.clearAllMocks();
+  jest.clearAllMocks();
 });
 it('a late A response never appears in the B product/grant/balance/history view', async () => {
   let releaseProduct!: (value: unknown) => void;
@@ -108,7 +107,7 @@ it('a late A response never appears in the B product/grant/balance/history view'
 });
 it('rejects an A selection after switching to B and invalidates only the captured subject after a pending cancellation', async () => {
   const { wrapper, client } = setup();
-  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const invalidate = jest.spyOn(client, 'invalidateQueries');
   const hook = renderHook(() => useCancelNamedSubscription(), { wrapper });
   mock.subject = 'B';
   hook.rerender();

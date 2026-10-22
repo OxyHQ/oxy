@@ -12,7 +12,11 @@ module.exports = {
       output: 'single',
       favicon: './public/favicon.ico',
     },
-    plugins: [['expo-router', { asyncRoutes: { web: 'production' } }], 'expo-font', 'expo-web-browser'],
+    plugins: [
+      ['expo-router', { asyncRoutes: { web: 'production' } }],
+      'expo-font',
+      'expo-web-browser',
+    ],
     experiments: {
       typedRoutes: true,
       reactCompiler: true,

@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import type { ContentClaimState, ContentClaimTargetView } from '@oxy.so/contracts';
 import {
   CLAIM_STATE_LABELS,

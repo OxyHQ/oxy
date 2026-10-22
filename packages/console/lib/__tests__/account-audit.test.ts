@@ -1,6 +1,6 @@
+import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
 import type { AccountAuditEntry } from '@/hooks/use-account-audit';
 import type { AccountAuditSubject } from '@/lib/account-audit';
 import {
@@ -280,7 +280,7 @@ describe("the two permissions are the route's own", () => {
   /** Every `requireAccountPermission` between one route registration and the next. */
   function gateOf(source: string, path: string): Array<string> {
     const start = source.indexOf(`'${path}',`);
-    expect(start, `route ${path} is not registered in accounts.ts`).toBeGreaterThan(-1);
+    if (start < 0) throw new Error(`route ${path} is not registered in accounts.ts`);
     const next = source.indexOf('router.', start);
     const registration = source.slice(start, next === -1 ? undefined : next);
     return [...registration.matchAll(/requireAccountPermission\('([^']+)'\)/g)].map(

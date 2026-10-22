@@ -1,5 +1,4 @@
 import { QueryClient } from '@tanstack/react-query';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MutationFunctionContext } from '@tanstack/react-query';
 import { playgroundReceiptOptions, playgroundRunOptions } from '@/hooks/use-playground';
 import config from '@/lib/config';
@@ -25,7 +24,7 @@ import config from '@/lib/config';
 const API_KEY = `oxy_sk_0123456789abcdef_${'a'.repeat(64)}`;
 
 /** The last `fetch` call, as `[url, init]`. */
-function lastFetchCall(mock: ReturnType<typeof vi.fn>): [string, RequestInit] {
+function lastFetchCall(mock: jest.Mock): [string, RequestInit] {
   const call = mock.mock.calls.at(-1);
   if (call === undefined) {
     throw new Error('fetch was never called');
@@ -33,13 +32,13 @@ function lastFetchCall(mock: ReturnType<typeof vi.fn>): [string, RequestInit] {
   return [String(call[0]), (call[1] ?? {}) as RequestInit];
 }
 
-function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
-  const fetchMock = vi.fn().mockResolvedValue({
+function stubFetch(status: number, body: unknown): jest.Mock {
+  const fetchMock = jest.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: () => Promise.resolve(body),
   });
-  vi.stubGlobal('fetch', fetchMock);
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
   return fetchMock;
 }
 
@@ -86,8 +85,10 @@ function fetchReceipt(variables: { apiKey: string; requestId: string }) {
   return mutationFn(variables, mutationContext(playgroundReceiptOptions.mutationKey));
 }
 
+const originalFetch = globalThis.fetch;
+
 afterEach(() => {
-  vi.unstubAllGlobals();
+  globalThis.fetch = originalFetch;
 });
 
 describe('the playground run', () => {

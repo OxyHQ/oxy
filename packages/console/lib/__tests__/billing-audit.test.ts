@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import type { BillingAuditEntry } from '@/hooks/use-account-audit';
 import {
   billingAuditActorLabel,
