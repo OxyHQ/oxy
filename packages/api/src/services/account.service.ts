@@ -82,6 +82,7 @@ import {
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { liveAgentSessionOwns } from './agentKeyAuthority.service';
+import { invalidateAccountGraphCaches, writeAccountFollows } from './followCommand.service';
 import {
   canonicalUsername,
   insertAccount,
@@ -452,6 +453,43 @@ async function replaceAncestors(
   }
 }
 
+/**
+ * A community's operators are among its members, so becoming one — creating the
+ * community, accepting a moderator invitation — joins it, in the caller's
+ * transaction.
+ *
+ * Joining a community IS following it: its member count is its follower count,
+ * the joined list (and so the composer's choice of where to post) reads the
+ * viewer's follows, and the `Group` actor Announces to its followers. Without
+ * the follow, the person who created a community moderates it while not being
+ * one of its members — a state no forum has.
+ *
+ * Written through the follow command ({@link writeAccountFollows}), so the
+ * relationship, its `follow.created` event and the `user_follows` projection
+ * are the same rows an ordinary join writes. Idempotent: someone who already
+ * follows it gains nothing. Leaving moderation does NOT unfollow — a former
+ * moderator is still a member until they leave.
+ *
+ * A `channel` is deliberately not joined: its members write AS it, and its
+ * follower list is public while its writers are the identities `signPosts`
+ * exists to keep undisclosed, so following it would publish who they are.
+ *
+ * @returns Whether a follow was created; the caller then invalidates the graph
+ *   caches AFTER its commit ({@link invalidateAccountGraphCaches}).
+ */
+export async function joinCommunityAsOperator(
+  tx: Parameters<typeof writeAccountFollows>[0],
+  account: { id: string; kind: AccountKind | null },
+  memberUserId: string,
+): Promise<boolean> {
+  if (account.kind !== 'community') return false;
+  const created = await writeAccountFollows(tx, {
+    followerId: memberUserId,
+    followedIds: [account.id],
+  });
+  return created.length > 0;
+}
+
 /** Whether the stored handle of `userId` is in {@link COMMUNITY_PREVIEW_HANDLES}. */
 async function isCommunityPreviewAccount(userId: string): Promise<boolean> {
   const [row] = await getDb()
@@ -480,7 +518,9 @@ export class AccountService {
    * already decided (the internal seed scripts).
    *
    * One transaction: an account whose owner membership failed to write is an
-   * account nobody can administer.
+   * account nobody can administer, and a community whose creator's join failed
+   * is one they moderate without being a member of
+   * ({@link joinCommunityAsOperator}).
    */
   async createChildAccount(
     parentAccountId: string,
@@ -525,7 +565,7 @@ export class AccountService {
       await assertColorNotReserved(color, { accountId: null, username });
     }
 
-    const { account, membership } = await getDb().transaction(async (tx) => {
+    const { account, membership, joined } = await getDb().transaction(async (tx) => {
       const loaded = await loadAccount(tx, parentAccountId, 'share');
       const parent = loaded && loaded.account.accountStatus !== 'archived' ? loaded : null;
 
@@ -612,8 +652,12 @@ export class AccountService {
         })
         .returning();
 
-      return { account: created, membership: member };
+      // A community's creator is its first member, not only its moderator.
+      const joined = await joinCommunityAsOperator(tx, created, creatorUserId);
+
+      return { account: created, membership: member, joined };
     });
+    if (joined) await invalidateAccountGraphCaches(creatorUserId, [account.id]);
 
     logger.info('Account created', {
       accountId: account.id,
@@ -1475,7 +1519,8 @@ export class AccountService {
    *
    * ONE statement: the compound unique on `(account_id, member_user_id)` is what
    * decides between inserting and reactivating, so there is no read-then-branch
-   * to race with a concurrent invitation.
+   * to race with a concurrent invitation. A community's new member joins it in
+   * the same transaction ({@link joinCommunityAsOperator}).
    */
   async addMember(
     accountId: string,
@@ -1504,22 +1549,12 @@ export class AccountService {
     // permissions the invite is nominally handing out being a strict subset of
     // what the row actually confers, with nothing in the request to hint at it.
     // A re-invitation is a fresh grant.
-    const [member] = await db
-      .insert(accountMembers)
-      .values({
-        accountId,
-        memberUserId: targetUserId,
-        role,
-        permissionGrants: [],
-        permissionRevokes: [],
-        inherit,
-        status: 'active',
-        invitedByUserId: callerUserId,
-        joinedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [accountMembers.accountId, accountMembers.memberUserId],
-        set: {
+    const { member, joined } = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(accountMembers)
+        .values({
+          accountId,
+          memberUserId: targetUserId,
           role,
           permissionGrants: [],
           permissionRevokes: [],
@@ -1527,9 +1562,29 @@ export class AccountService {
           status: 'active',
           invitedByUserId: callerUserId,
           joinedAt: new Date(),
-        },
-      })
-      .returning();
+        })
+        .onConflictDoUpdate({
+          target: [accountMembers.accountId, accountMembers.memberUserId],
+          set: {
+            role,
+            permissionGrants: [],
+            permissionRevokes: [],
+            inherit,
+            status: 'active',
+            invitedByUserId: callerUserId,
+            joinedAt: new Date(),
+          },
+        })
+        .returning();
+      const [account] = await tx
+        .select({ id: users.id, kind: users.kind })
+        .from(users)
+        .where(eq(users.id, accountId))
+        .limit(1);
+      const joined = account ? await joinCommunityAsOperator(tx, account, targetUserId) : false;
+      return { member: inserted, joined };
+    });
+    if (joined) await invalidateAccountGraphCaches(targetUserId, [accountId]);
 
     logger.info('Account member added', {
       accountId,
