@@ -22,11 +22,12 @@
  *   bun run packages/api/src/scripts/backfill-community-member-follows.ts --dry-run
  *   bun run packages/api/src/scripts/backfill-community-member-follows.ts --apply
  *
- * Env: DATABASE_URL (required).
+ * Env: DATABASE_URL (required); REDIS_URL (optional — the graph caches it drops).
  */
 
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
+import { closeRedis } from '../config/redis';
 import { accountMembers } from '../db/schema/accountMembers';
 import { userFollows } from '../db/schema/userFollows';
 import { users } from '../db/schema/users';
@@ -142,7 +143,12 @@ async function main(): Promise<void> {
       missing: reports.reduce((sum, report) => sum + report.missing.length, 0),
     });
   } finally {
-    await closePostgres();
+    try {
+      await closePostgres();
+    } finally {
+      // The graph-cache invalidation opens Redis; its socket keeps the task alive.
+      await closeRedis();
+    }
   }
 }
 
