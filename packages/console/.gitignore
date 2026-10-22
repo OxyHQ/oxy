@@ -17,3 +17,5 @@ todos.json
 
 expo-env.d.ts
 # @end expo-cli
+# Root .gitignore ignores `lib/` (build output of the SDK packages); here it is source.
+!/lib/
