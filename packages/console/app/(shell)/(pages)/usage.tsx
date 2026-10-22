@@ -1,21 +1,16 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
+import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
-import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { type Href, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { PageFrame } from '@/components/account-pages/PageFrame';
-import { MonoCell, NumberCell } from '@/components/account-pages/cells';
-import {
-  Denied,
-  Figure,
-  FigureRow,
-  Muted,
-  Note,
-  Section,
-} from '@/components/account-pages/Section';
-import { SkeletonFigures, SkeletonRows } from '@/components/account-pages/Skeletons';
 import { useReportLabels } from '@/components/billing/labels';
 import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { ReportControls } from '@/components/billing/report-controls';
@@ -55,7 +50,6 @@ export default function UsagePage() {
   const { t } = useTranslation();
   const labels = useReportLabels();
   const router = useRouter();
-  const theme = useTheme();
   const { currentAccount, canReadBilling } = useAccount();
   const accountId = currentAccount?.accountId;
   const canRead = currentAccount !== null && canReadBilling(currentAccount);
@@ -89,7 +83,9 @@ export default function UsagePage() {
           id: dimension,
           header: labels.dimension(dimension),
           minWidth: 140,
-          cell: ({ row }) => <MonoCell>{usageDimensionValue(row, dimension)}</MonoCell>,
+          cell: ({ row }) => (
+            <Text className="font-mono text-xs">{usageDimensionValue(row, dimension)}</Text>
+          ),
         }),
       ),
       {
@@ -97,14 +93,14 @@ export default function UsagePage() {
         header: t('usagePage.requests'),
         align: 'end',
         width: 120,
-        cell: ({ row }) => <NumberCell>{formatCount(row.requestCount)}</NumberCell>,
+        cell: ({ row }) => <Text className="tabular-nums">{formatCount(row.requestCount)}</Text>,
       },
       {
         id: 'errors',
         header: t('usagePage.errors'),
         align: 'end',
         width: 100,
-        cell: ({ row }) => <NumberCell muted>{formatCount(row.errorCount)}</NumberCell>,
+        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.errorCount)}</Muted>,
       },
       {
         id: 'tokens',
@@ -112,34 +108,44 @@ export default function UsagePage() {
         align: 'end',
         width: 170,
         cell: ({ row }) => (
-          <NumberCell muted>
+          <Muted className="tabular-nums">
             {formatCount(row.units.input_tokens)} / {formatCount(row.units.output_tokens)}
-          </NumberCell>
+          </Muted>
         ),
       },
     ],
     [groupBy, labels, t],
   );
 
+  const subtitle =
+    currentAccount === null
+      ? t('usagePage.subtitleNone')
+      : t('usagePage.subtitle', { name: accountLabel(currentAccount) });
+  const groupedBy = t('reportKit.by', {
+    dimensions: groupBy.map(labels.dimension).join(', ').toLowerCase(),
+  });
+
   return (
-    <PageFrame
-      title={t('usagePage.title')}
-      subtitle={
-        currentAccount === null
-          ? t('usagePage.subtitleNone')
-          : t('usagePage.subtitle', { name: accountLabel(currentAccount) })
+    <Screen
+      header={
+        <PageHeader
+          title={t('usagePage.title')}
+          subtitle={subtitle}
+          leading={<AppShellMenuButton />}
+          presentation="bar"
+          titleAlign="start"
+          safeArea={false}
+        />
       }
     >
-      {!canRead ? (
-        <Denied>{t('usagePage.denied')}</Denied>
-      ) : (
-        <>
-          <Section>
+      <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
+        {!canRead ? (
+          <EmptyState icon={RiLockLine} title={t('usagePage.denied')} />
+        ) : (
+          <>
             <ProvenanceBanner provenance={TELEMETRY} />
             <ProvenanceCrossReference provenance={TELEMETRY} />
-          </Section>
 
-          <Section>
             <ReportControls
               rangeDays={rangeDays}
               onRangeDaysChange={setRangeDays}
@@ -153,85 +159,79 @@ export default function UsagePage() {
               onCheckedChange={setIncludeDescendants}
               label={t('reportKit.includeDescendants')}
             />
-          </Section>
 
-          <Section title={t('usagePage.consumed', { from: range.from, to: range.to })}>
             {usageQuery.isLoading ? (
-              <SkeletonFigures width={112} />
+              <Skeleton.Box width="100%" height={176} />
             ) : (
-              <FigureRow>
-                <Figure label={t('usagePage.requests')} value={formatCount(totals.requestCount)} />
-                <Figure label={t('usagePage.errors')} value={formatCount(totals.errorCount)} />
-                <Figure
-                  label={t('usagePage.inputTokens')}
+              <GroupedSection
+                title={t('usagePage.consumed', { from: range.from, to: range.to })}
+                footer={report?.truncated === true ? t('usagePage.totalsTruncated') : undefined}
+              >
+                <GroupedSectionItem
+                  title={t('usagePage.requests')}
+                  value={formatCount(totals.requestCount)}
+                />
+                <GroupedSectionItem
+                  title={t('usagePage.errors')}
+                  value={formatCount(totals.errorCount)}
+                />
+                <GroupedSectionItem
+                  title={t('usagePage.inputTokens')}
                   value={formatCount(totals.inputTokens)}
                 />
-                <Figure
-                  label={t('usagePage.outputTokens')}
+                <GroupedSectionItem
+                  title={t('usagePage.outputTokens')}
                   value={formatCount(totals.outputTokens)}
                 />
-                <Figure
-                  label={t('usagePage.reasoningTokens')}
+                <GroupedSectionItem
+                  title={t('usagePage.reasoningTokens')}
                   value={formatCount(totals.reasoningTokens)}
                 />
-              </FigureRow>
+              </GroupedSection>
             )}
-            {report?.truncated === true && <Note>{t('usagePage.totalsTruncated')}</Note>}
-          </Section>
 
-          <Section
-            title={t('reportKit.by', {
-              dimensions: groupBy.map(labels.dimension).join(', ').toLowerCase(),
-            })}
-          >
-            {usageQuery.isLoading ? (
-              <SkeletonRows />
-            ) : (
-              <DataTable
-                rows={report?.rows ?? []}
-                columns={columns}
-                getRowId={(row, index) =>
-                  `${groupBy.map((dimension) => usageDimensionValue(row, dimension)).join('|')}-${index}`
-                }
-                accessibilityLabel={t('usagePage.tableLabel')}
-                minWidth={520}
-                emptyState={<Muted>{t('usagePage.empty')}</Muted>}
-              />
-            )}
-            {report?.truncated === true && <Note>{t('usagePage.rowsTruncated')}</Note>}
-          </Section>
+            <Card>
+              <CardHeader>
+                <CardTitle>{groupedBy}</CardTitle>
+              </CardHeader>
+              <CardBody>
+                {usageQuery.isLoading ? (
+                  <Skeleton.Box width="100%" height={132} />
+                ) : (
+                  <DataTable
+                    rows={report?.rows ?? []}
+                    columns={columns}
+                    getRowId={(row, index) =>
+                      `${groupBy.map((dimension) => usageDimensionValue(row, dimension)).join('|')}-${index}`
+                    }
+                    accessibilityLabel={t('usagePage.tableLabel')}
+                    minWidth={520}
+                    emptyState={<EmptyState variant="compact" title={t('usagePage.empty')} />}
+                  />
+                )}
+                {report?.truncated === true && <Muted>{t('usagePage.rowsTruncated')}</Muted>}
+              </CardBody>
+            </Card>
 
-          <Section title={t('usagePage.perApplication')} last>
             {applications.length === 0 ? (
               <Muted>{t('usagePage.noApplications')}</Muted>
             ) : (
-              <View className="overflow-hidden rounded-lg border border-border">
-                {applications.map((application, index) => (
-                  <Pressable
+              <GroupedSection title={t('usagePage.perApplication')}>
+                {applications.map((application) => (
+                  <GroupedSectionItem
                     key={application._id}
+                    title={application.name}
+                    description={t('usagePage.applicationHint')}
                     accessibilityRole="link"
                     onPress={() => router.push(`/apps/${application._id}/inference` as Href)}
-                    className={`flex-row items-center justify-between gap-4 px-4 py-4 ${
-                      index === 0 ? '' : 'border-t border-border'
-                    }`}
-                  >
-                    <View className="min-w-0 flex-1 gap-0.5">
-                      <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
-                        {application.name}
-                      </Text>
-                      <Text className="text-sm text-muted-foreground">
-                        {t('usagePage.applicationHint')}
-                      </Text>
-                    </View>
-                    <RiArrowRightSLine size="sm" fill={theme.colors.textSecondary} />
-                  </Pressable>
+                  />
                 ))}
-              </View>
+              </GroupedSection>
             )}
-          </Section>
-        </>
-      )}
-    </PageFrame>
+          </>
+        )}
+      </ScreenScrollView>
+    </Screen>
   );
 }
 

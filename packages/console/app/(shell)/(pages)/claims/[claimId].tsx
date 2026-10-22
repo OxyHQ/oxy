@@ -1,6 +1,10 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
+import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Loading } from '@oxy.so/bloom/loading';
-import { useLocalSearchParams } from 'expo-router';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { ClaimDetail } from '@/components/claims/claim-detail';
@@ -9,8 +13,6 @@ import {
   ClaimStateBadge,
   ClaimsRefusal,
 } from '@/components/claims/claim-badges';
-import { ContentScreen } from '@/components/content/ContentScreen';
-import { TextLink } from '@/components/content/TextLink';
 import { useContentClaim, useContentClaimsAccess } from '@/hooks/use-content-claims';
 import { isPermissionRefused } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
@@ -18,6 +20,7 @@ import { useTranslation } from '@/lib/i18n';
 /** One content claim, behind the same `content:claims` gate as the queue. */
 export default function ContentClaimScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { claimId } = useLocalSearchParams<{ claimId: string }>();
   const access = useContentClaimsAccess();
   const canReview = access.data?.canReview === true;
@@ -41,7 +44,11 @@ export default function ContentClaimScreen() {
       <EmptyState
         variant="compact"
         description={t('claimsPage.detail.loadFailed')}
-        footer={<TextLink href={backHref}>{t('claimsPage.detail.back')}</TextLink>}
+        footer={
+          <Button appearance="plain" tone="accent" size="sm" href={backHref}>
+            {t('claimsPage.detail.back')}
+          </Button>
+        }
       />
     );
   } else {
@@ -79,8 +86,23 @@ export default function ContentClaimScreen() {
   }
 
   return (
-    <ContentScreen title={title} backHref={backHref} maxWidth="xl">
-      {body}
-    </ContentScreen>
+    <Screen
+      className="flex-1 bg-background"
+      header={
+        <PageHeader
+          title={title}
+          leading={<AppShellMenuButton />}
+          presentation="bar"
+          sticky={false}
+          safeArea={false}
+          onBack={() => router.navigate(backHref)}
+          backLabel={t('common.back')}
+        />
+      }
+    >
+      <ScreenScrollView contentContainerClassName="p-6">
+        <View className="w-full max-w-6xl gap-6">{body}</View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

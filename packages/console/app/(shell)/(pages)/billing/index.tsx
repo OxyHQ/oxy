@@ -1,22 +1,20 @@
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Field } from '@oxy.so/bloom/field';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { exactDecimalSchema } from '@oxy.so/contracts';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
-import { PageBody } from '@/components/account-pages/PageFrame';
-import {
-  DefinitionRow,
-  Denied,
-  Muted,
-  Row,
-  RowList,
-  Section,
-} from '@/components/account-pages/Section';
-import { SkeletonRows } from '@/components/account-pages/Skeletons';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import { View } from 'react-native';
 import { AccountBalanceCard } from '@/components/billing/account-balance-card';
+import { statusBadge } from '@/components/billing/labels';
 import { ProvenanceBanner } from '@/components/billing/provenance-banner';
 import { accountLabel, useAccount } from '@/hooks/use-account';
 import {
@@ -143,19 +141,30 @@ export default function BillingOverviewPage() {
 
   const autoRecharge = state?.profile.autoRecharge;
 
+  const profile = state?.profile;
+  const autoRechargeRule =
+    profile !== undefined &&
+    autoRecharge?.enabled &&
+    autoRecharge.threshold !== undefined &&
+    autoRecharge.amount !== undefined
+      ? t('billingPage.overview.autoRechargeRule', {
+          amount: formatMoney(autoRecharge.amount, profile.currency),
+          threshold: formatMoney(autoRecharge.threshold, profile.currency),
+        })
+      : t('billingPage.overview.off');
+
   return (
-    <PageBody>
+    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
       {!canRead ? (
-        <Denied>{t('billingPage.overview.denied')}</Denied>
+        <EmptyState icon={RiLockLine} title={t('billingPage.overview.denied')} />
       ) : (
         <>
-          <Section>
-            <ProvenanceBanner
-              provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
-            />
-          </Section>
+          <ProvenanceBanner
+            provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
+          />
 
-          <Section title={t('billingPage.overview.balance')}>
+          <View className="gap-3">
+            <Text variant="headline-semibold">{t('billingPage.overview.balance')}</Text>
             <AccountBalanceCard balance={balanceQuery.data} isLoading={balanceQuery.isLoading} />
             {balanceQuery.data?.provisioned === false && canManage && (
               <View className="items-start">
@@ -171,179 +180,148 @@ export default function BillingOverviewPage() {
                 </Button>
               </View>
             )}
-          </Section>
+          </View>
 
-          <Section title={t('billingPage.overview.profile')}>
-            {stateQuery.isLoading ? (
-              <SkeletonRows count={1} height={72} />
-            ) : state === null ? (
-              <Muted>{t('billingPage.overview.noProfile')}</Muted>
-            ) : (
-              <View className="max-w-2xl gap-3">
-                <DefinitionRow label={t('billingPage.overview.paidBy')}>
-                  {payer === undefined
-                    ? t('billingPage.overview.thisAccount')
-                    : accountLabel(payer)}
-                </DefinitionRow>
-                <DefinitionRow label={t('billingPage.overview.mode')}>
-                  {t(
-                    state.profile.billingMode === 'prepaid'
-                      ? 'billingPage.mode.prepaid'
-                      : 'billingPage.mode.invoiced',
-                  )}
-                </DefinitionRow>
-                <DefinitionRow label={t('billingPage.overview.currency')}>
-                  {state.profile.currency}
-                </DefinitionRow>
-                <DefinitionRow label={t('billingPage.overview.status')}>
-                  <StatusBadge
-                    label={state.profile.status}
-                    variant={state.profile.status === 'active' ? 'default' : 'secondary'}
-                  />
-                </DefinitionRow>
-                <DefinitionRow label={t('billingPage.overview.autoRecharge')}>
-                  {autoRecharge?.enabled &&
-                  autoRecharge.threshold !== undefined &&
-                  autoRecharge.amount !== undefined
-                    ? t('billingPage.overview.autoRechargeRule', {
-                        amount: formatMoney(autoRecharge.amount, state.profile.currency),
-                        threshold: formatMoney(autoRecharge.threshold, state.profile.currency),
-                      })
-                    : t('billingPage.overview.off')}
-                </DefinitionRow>
-                {state.profile.billingMode === 'invoiced' && (
-                  <DefinitionRow label={t('billingPage.overview.creditLimit')}>
-                    {formatMoney(state.profile.creditLimit, state.profile.currency)}
-                  </DefinitionRow>
+          {stateQuery.isLoading ? (
+            <Skeleton.Box width="100%" height={176} />
+          ) : state === null || profile === undefined ? (
+            <GroupedSection title={t('billingPage.overview.profile')}>
+              <GroupedSectionItem title={t('billingPage.overview.noProfile')} />
+            </GroupedSection>
+          ) : (
+            <GroupedSection
+              title={t('billingPage.overview.profile')}
+              footer={canManage ? t('billingPage.overview.modeSetByOxy') : undefined}
+            >
+              <GroupedSectionItem
+                title={t('billingPage.overview.paidBy')}
+                value={
+                  payer === undefined ? t('billingPage.overview.thisAccount') : accountLabel(payer)
+                }
+              />
+              <GroupedSectionItem
+                title={t('billingPage.overview.mode')}
+                value={t(
+                  profile.billingMode === 'prepaid'
+                    ? 'billingPage.mode.prepaid'
+                    : 'billingPage.mode.invoiced',
                 )}
-              </View>
-            )}
+              />
+              <GroupedSectionItem
+                title={t('billingPage.overview.currency')}
+                value={profile.currency}
+              />
+              <GroupedSectionItem
+                title={t('billingPage.overview.status')}
+                rightElement={
+                  <Badge
+                    content={profile.status}
+                    {...statusBadge(profile.status === 'active' ? 'default' : 'secondary')}
+                  />
+                }
+              />
+              <GroupedSectionItem
+                title={t('billingPage.overview.autoRecharge')}
+                value={autoRechargeRule}
+                rightElement={
+                  canManage && profile.autoRecharge.enabled ? (
+                    <Button
+                      appearance="outline"
+                      size="sm"
+                      onPress={handleDisableAutoRecharge}
+                      disabled={updateAutoRecharge.isPending}
+                    >
+                      {t('billingPage.overview.turnOffAutoRecharge')}
+                    </Button>
+                  ) : undefined
+                }
+              />
+              {profile.billingMode === 'invoiced' && (
+                <GroupedSectionItem
+                  title={t('billingPage.overview.creditLimit')}
+                  value={formatMoney(profile.creditLimit, profile.currency)}
+                />
+              )}
+            </GroupedSection>
+          )}
 
-            {canManage && state?.profile.autoRecharge.enabled && (
-              <View className="items-start">
-                <Button
-                  appearance="outline"
-                  size="sm"
-                  onPress={handleDisableAutoRecharge}
-                  disabled={updateAutoRecharge.isPending}
-                >
-                  {t('billingPage.overview.turnOffAutoRecharge')}
-                </Button>
-              </View>
+          <GroupedSection
+            title={t('billingPage.overview.paymentTitle')}
+            footer={t('billingPage.overview.paymentBody')}
+          >
+            {canManage && (
+              <GroupedSectionItem
+                title={t('billingPage.overview.addFunds')}
+                onPress={() => setShowTopUp(true)}
+              />
             )}
             {canManage && (
-              <Text className="max-w-2xl text-xs text-muted-foreground">
-                {t('billingPage.overview.modeSetByOxy')}
-              </Text>
+              <GroupedSectionItem
+                title={
+                  portal.isPending
+                    ? t('billingPage.overview.opening')
+                    : t('billingPage.overview.openPortal')
+                }
+                disabled={portal.isPending}
+                onPress={handlePortal}
+              />
             )}
-          </Section>
+          </GroupedSection>
 
-          <Section
-            title={t('billingPage.overview.paymentTitle')}
-            description={t('billingPage.overview.paymentBody')}
-            action={
-              canManage ? (
-                <View className="flex-row gap-2">
-                  <Button appearance="outline" size="sm" onPress={() => setShowTopUp(true)}>
-                    {t('billingPage.overview.addFunds')}
-                  </Button>
-                  <Button
-                    appearance="outline"
-                    size="sm"
-                    onPress={handlePortal}
-                    disabled={portal.isPending}
-                  >
-                    {portal.isPending
-                      ? t('billingPage.overview.opening')
-                      : t('billingPage.overview.openPortal')}
-                  </Button>
-                </View>
-              ) : undefined
-            }
-          >
-            <Text className="text-sm font-medium text-foreground">
-              {t('billingPage.overview.invoices')}
-            </Text>
-            {invoicesQuery.isLoading ? (
-              <SkeletonRows count={1} height={48} />
-            ) : invoices.length === 0 ? (
-              <Muted>{t('billingPage.overview.noInvoices')}</Muted>
-            ) : (
-              <RowList>
-                {invoices.map((invoice, index) => (
-                  <Row key={invoice.id} first={index === 0}>
-                    <View className="min-w-0 gap-0.5">
-                      <Text className="text-sm font-medium text-foreground">
-                        {new Date(invoice.periodStart).toLocaleDateString()} –{' '}
-                        {new Date(invoice.periodEnd).toLocaleDateString()}
-                      </Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {t('billingPage.overview.charges', { count: invoice.receiptCount })}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-3">
-                      <Text
-                        className="text-sm text-foreground"
-                        style={{ fontVariant: ['tabular-nums'] }}
-                      >
-                        {formatMoney(invoice.totalAmount, invoice.currency)}
-                      </Text>
-                      <StatusBadge
-                        label={invoice.status}
-                        variant={invoice.status === 'paid' ? 'default' : 'secondary'}
-                      />
-                    </View>
-                  </Row>
-                ))}
-              </RowList>
-            )}
-          </Section>
+          {invoicesQuery.isLoading ? (
+            <Skeleton.Box width="100%" height={96} />
+          ) : invoices.length === 0 ? (
+            <Muted>{t('billingPage.overview.noInvoices')}</Muted>
+          ) : (
+            <GroupedSection title={t('billingPage.overview.invoices')}>
+              {invoices.map((invoice) => (
+                <GroupedSectionItem
+                  key={invoice.id}
+                  title={`${new Date(invoice.periodStart).toLocaleDateString()} – ${new Date(invoice.periodEnd).toLocaleDateString()}`}
+                  description={t('billingPage.overview.charges', { count: invoice.receiptCount })}
+                  value={formatMoney(invoice.totalAmount, invoice.currency)}
+                  rightElement={
+                    <Badge
+                      content={invoice.status}
+                      {...statusBadge(invoice.status === 'paid' ? 'default' : 'secondary')}
+                    />
+                  }
+                />
+              ))}
+            </GroupedSection>
+          )}
 
-          <Section title={t('billingPage.overview.recentAuto')} last>
-            {attemptsQuery.isLoading ? (
-              <SkeletonRows count={1} height={48} />
-            ) : attempts.length === 0 ? (
-              <Muted>{t('billingPage.overview.noAuto')}</Muted>
-            ) : (
-              <RowList>
-                {attempts.map((attempt, index) => (
-                  <Row key={attempt.id} first={index === 0}>
-                    <View className="min-w-0 gap-0.5">
-                      <Text
-                        className="text-sm font-medium text-foreground"
-                        style={{ fontVariant: ['tabular-nums'] }}
-                      >
-                        {formatMoney(attempt.requestedAmount, attempt.currency)}
-                      </Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {t('billingPage.overview.triggeredAt', {
-                          balance: formatMoney(attempt.balanceAtTrigger, attempt.currency),
-                          when: new Date(attempt.createdAt).toLocaleString(),
-                        })}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-3">
-                      {attempt.failureCode !== undefined && (
-                        <Text className="font-mono text-xs text-muted-foreground">
-                          {attempt.failureCode}
-                        </Text>
+          {attemptsQuery.isLoading ? (
+            <Skeleton.Box width="100%" height={96} />
+          ) : attempts.length === 0 ? (
+            <Muted>{t('billingPage.overview.noAuto')}</Muted>
+          ) : (
+            <GroupedSection title={t('billingPage.overview.recentAuto')}>
+              {attempts.map((attempt) => (
+                <GroupedSectionItem
+                  key={attempt.id}
+                  title={formatMoney(attempt.requestedAmount, attempt.currency)}
+                  description={t('billingPage.overview.triggeredAt', {
+                    balance: formatMoney(attempt.balanceAtTrigger, attempt.currency),
+                    when: new Date(attempt.createdAt).toLocaleString(),
+                  })}
+                  value={attempt.failureCode}
+                  rightElement={
+                    <Badge
+                      content={attempt.status}
+                      {...statusBadge(
+                        attempt.status === 'succeeded'
+                          ? 'default'
+                          : attempt.status === 'failed'
+                            ? 'destructive'
+                            : 'secondary',
                       )}
-                      <StatusBadge
-                        label={attempt.status}
-                        variant={
-                          attempt.status === 'succeeded'
-                            ? 'default'
-                            : attempt.status === 'failed'
-                              ? 'destructive'
-                              : 'secondary'
-                        }
-                      />
-                    </View>
-                  </Row>
-                ))}
-              </RowList>
-            )}
-          </Section>
+                    />
+                  }
+                />
+              ))}
+            </GroupedSection>
+          )}
         </>
       )}
 
@@ -366,7 +344,7 @@ export default function BillingOverviewPage() {
           },
         ]}
       >
-        <View className="gap-2 py-2">
+        <Field label={t('billingPage.overview.amount')} error={topUpError}>
           <TextFieldInput
             label={t('billingPage.overview.amount')}
             value={topUpAmount}
@@ -374,9 +352,8 @@ export default function BillingOverviewPage() {
             placeholder="50.00"
             onChangeText={setTopUpAmount}
           />
-          {topUpError !== null && <Text className="text-sm text-destructive">{topUpError}</Text>}
-        </View>
+        </Field>
       </Dialog>
-    </PageBody>
+    </ScreenScrollView>
   );
 }

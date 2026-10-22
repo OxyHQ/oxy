@@ -1,9 +1,13 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { Button } from '@oxy.so/bloom/button';
+import { Chip } from '@oxy.so/bloom/chip';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { ContentClaimListResponse } from '@oxy.so/contracts';
-import { type ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import {
@@ -11,8 +15,6 @@ import {
   ClaimStateBadge,
   ClaimsRefusal,
 } from '@/components/claims/claim-badges';
-import { ContentScreen } from '@/components/content/ContentScreen';
-import { TextLink } from '@/components/content/TextLink';
 import { useContentClaims, useContentClaimsAccess } from '@/hooks/use-content-claims';
 import { isPermissionRefused } from '@/lib/api-error';
 import {
@@ -33,31 +35,6 @@ const INITIAL_FILTERS: ContentClaimFilters = {
   ...EMPTY_CLAIM_FILTERS,
   states: ['received', 'reviewing', 'actioned', 'counter_noticed'],
 };
-
-function FilterRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <View className="flex-row flex-wrap items-center gap-1.5">
-      <Text className="w-20 text-xs font-medium text-muted-foreground">{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function FilterChip({
-  active,
-  onPress,
-  children,
-}: {
-  active: boolean;
-  onPress: () => void;
-  children: string;
-}) {
-  return (
-    <Button size="xs" appearance={active ? 'subtle' : 'plain'} pressed={active} onPress={onPress}>
-      {children}
-    </Button>
-  );
-}
 
 /**
  * The content-claim queue (ADR 0043 D10): what people reported through oxy.so's
@@ -84,12 +61,9 @@ export default function ContentClaimsQueueScreen() {
         header: t('claimsPage.columns.reference'),
         basis: 160,
         cell: ({ row }) => (
-          <TextLink
-            href={`/claims/${row.id}`}
-            className="font-mono text-sm text-foreground underline"
-          >
+          <Button appearance="plain" size="sm" href={`/claims/${row.id}`}>
             {row.reference}
-          </TextLink>
+          </Button>
         ),
       },
       {
@@ -137,99 +111,130 @@ export default function ContentClaimsQueueScreen() {
   );
 
   return (
-    <ContentScreen title={t('claimsPage.title')} subtitle={t('claimsPage.subtitle')} maxWidth="xl">
-      {access.isLoading ? (
-        <Skeleton.Box width="100%" height={64} />
-      ) : !canReview || (query.isError && isPermissionRefused(query.error)) ? (
-        <ClaimsRefusal />
-      ) : (
-        <View className="gap-4">
-          <View className="gap-2">
-            <FilterRow label={t('claimsPage.filters.state')}>
-              {CONTENT_CLAIM_STATES.map((state) => (
-                <FilterChip
-                  key={state}
-                  active={filters.states.includes(state)}
-                  onPress={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      states: toggleFilterValue(current.states, state),
-                    }))
-                  }
-                >
-                  {t(`claimsPage.states.${state}`)}
-                </FilterChip>
-              ))}
-            </FilterRow>
-            <FilterRow label={t('claimsPage.filters.kind')}>
-              {CONTENT_CLAIM_KINDS.map((kind) => (
-                <FilterChip
-                  key={kind}
-                  active={filters.kinds.includes(kind)}
-                  onPress={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      kinds: toggleFilterValue(current.kinds, kind),
-                    }))
-                  }
-                >
-                  {t(`claimsPage.kinds.${kind}`)}
-                </FilterChip>
-              ))}
-            </FilterRow>
-            <FilterRow label={t('claimsPage.filters.deadline')}>
-              {DEADLINE_FILTERS.map((option) => (
-                <FilterChip
-                  key={option}
-                  active={filters.deadline === option}
-                  onPress={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      deadline: current.deadline === option ? null : option,
-                    }))
-                  }
-                >
-                  {t(`claimsPage.deadlines.${option}`)}
-                </FilterChip>
-              ))}
-            </FilterRow>
-          </View>
-
-          {query.isLoading ? (
-            <View className="gap-2">
-              {[1, 2, 3].map((row) => (
-                <Skeleton.Box key={row} width="100%" height={44} />
-              ))}
-            </View>
-          ) : query.isError ? (
-            <EmptyState variant="compact" description={t('claimsPage.loadFailed')} />
+    <Screen
+      className="flex-1 bg-background"
+      header={
+        <PageHeader
+          title={t('claimsPage.title')}
+          subtitle={t('claimsPage.subtitle')}
+          leading={<AppShellMenuButton />}
+          presentation="bar"
+          sticky={false}
+          safeArea={false}
+        />
+      }
+    >
+      <ScreenScrollView contentContainerClassName="p-6">
+        <View className="w-full max-w-6xl gap-6">
+          {access.isLoading ? (
+            <Skeleton.Box width="100%" height={64} />
+          ) : !canReview || (query.isError && isPermissionRefused(query.error)) ? (
+            <ClaimsRefusal />
           ) : (
-            <DataTable
-              rows={claims}
-              columns={columns}
-              getRowId={(row) => row.id}
-              accessibilityLabel={t('claimsPage.title')}
-              pageSize={50}
-              minWidth={820}
-              emptyState={<EmptyState variant="compact" description={t('claimsPage.empty')} />}
-            />
-          )}
+            <View className="gap-4">
+              <View className="gap-2">
+                <View className="flex-row flex-wrap items-center gap-1.5">
+                  <Text className="w-20 text-xs font-medium text-muted-foreground">
+                    {t('claimsPage.filters.state')}
+                  </Text>
+                  {CONTENT_CLAIM_STATES.map((state) => (
+                    <Chip
+                      size="md"
+                      role="checkbox"
+                      key={state}
+                      selected={filters.states.includes(state)}
+                      onPress={() =>
+                        setFilters((current) => ({
+                          ...current,
+                          states: toggleFilterValue(current.states, state),
+                        }))
+                      }
+                    >
+                      {t(`claimsPage.states.${state}`)}
+                    </Chip>
+                  ))}
+                </View>
+                <View className="flex-row flex-wrap items-center gap-1.5">
+                  <Text className="w-20 text-xs font-medium text-muted-foreground">
+                    {t('claimsPage.filters.kind')}
+                  </Text>
+                  {CONTENT_CLAIM_KINDS.map((kind) => (
+                    <Chip
+                      size="md"
+                      role="checkbox"
+                      key={kind}
+                      selected={filters.kinds.includes(kind)}
+                      onPress={() =>
+                        setFilters((current) => ({
+                          ...current,
+                          kinds: toggleFilterValue(current.kinds, kind),
+                        }))
+                      }
+                    >
+                      {t(`claimsPage.kinds.${kind}`)}
+                    </Chip>
+                  ))}
+                </View>
+                <View className="flex-row flex-wrap items-center gap-1.5">
+                  <Text className="w-20 text-xs font-medium text-muted-foreground">
+                    {t('claimsPage.filters.deadline')}
+                  </Text>
+                  {DEADLINE_FILTERS.map((option) => (
+                    <Chip
+                      size="md"
+                      role="checkbox"
+                      key={option}
+                      selected={filters.deadline === option}
+                      onPress={() =>
+                        setFilters((current) => ({
+                          ...current,
+                          deadline: current.deadline === option ? null : option,
+                        }))
+                      }
+                    >
+                      {t(`claimsPage.deadlines.${option}`)}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
 
-          {query.hasNextPage && (
-            <View className="items-start">
-              <Button
-                appearance="outline"
-                size="sm"
-                onPress={() => void query.fetchNextPage()}
-                disabled={query.isFetchingNextPage}
-                loading={query.isFetchingNextPage}
-              >
-                {query.isFetchingNextPage ? t('common.loading') : t('claimsPage.loadMore')}
-              </Button>
+              {query.isLoading ? (
+                <View className="gap-2">
+                  {[1, 2, 3].map((row) => (
+                    <Skeleton.Box key={row} width="100%" height={44} />
+                  ))}
+                </View>
+              ) : query.isError ? (
+                <EmptyState variant="compact" description={t('claimsPage.loadFailed')} />
+              ) : (
+                <DataTable
+                  rows={claims}
+                  columns={columns}
+                  getRowId={(row) => row.id}
+                  accessibilityLabel={t('claimsPage.title')}
+                  pageSize={50}
+                  minWidth={820}
+                  emptyState={<EmptyState variant="compact" description={t('claimsPage.empty')} />}
+                />
+              )}
+
+              {query.hasNextPage && (
+                <View className="items-start">
+                  <Button
+                    appearance="outline"
+                    size="sm"
+                    onPress={() => void query.fetchNextPage()}
+                    disabled={query.isFetchingNextPage}
+                    loading={query.isFetchingNextPage}
+                  >
+                    {query.isFetchingNextPage ? t('common.loading') : t('claimsPage.loadMore')}
+                  </Button>
+                </View>
+              )}
             </View>
           )}
         </View>
-      )}
-    </ContentScreen>
+      </ScreenScrollView>
+    </Screen>
   );
 }

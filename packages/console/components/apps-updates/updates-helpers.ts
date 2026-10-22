@@ -1,5 +1,4 @@
 import type { Update } from '@/hooks/use-updates';
-import type { PillTone } from '@/components/apps-inference/ui';
 
 // Channel names are URL-safe slugs (mirrors the `channelNameSchema` contract) —
 // validate client-side so promote gives immediate feedback before the round-trip.
@@ -39,14 +38,15 @@ export function formatAge(iso: string, locale?: string, now: number = Date.now()
   return rtf.format(-seconds, 'second');
 }
 
-export function statusTone(status: Update['status']): PillTone {
+/** The Bloom badge colour an update's status takes. */
+export function statusColor(status: Update['status']): 'success' | 'error' | 'default' {
   if (status === 'published') {
-    return 'default';
+    return 'success';
   }
   if (status === 'rolled_back') {
-    return 'destructive';
+    return 'error';
   }
-  return 'secondary';
+  return 'default';
 }
 
 export function platformLabel(platform: Update['platform']): string {

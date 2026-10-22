@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
+import { SettingsLink } from '@/components/settings/SettingsLink';
 
 export default function SettingsIndex() {
-  return <Redirect href="/settings/account" />;
+  return <SettingsLink />;
 }

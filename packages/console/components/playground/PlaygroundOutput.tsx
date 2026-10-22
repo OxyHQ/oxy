@@ -1,4 +1,5 @@
 import { Badge } from '@oxy.so/bloom/badge';
+import { CodeBlock } from '@oxy.so/bloom/code';
 import type { InferenceMessage } from '@oxy.so/contracts';
 import { Text, View } from 'react-native';
 
@@ -33,12 +34,14 @@ export function PlaygroundOutput({ message }: { message: InferenceMessage }) {
         ),
       )}
       {message.toolCalls?.map((call) => (
-        <View key={call.id} className="gap-1 rounded border border-border p-2">
-          <Text className="font-mono text-xs text-foreground">{call.name}</Text>
-          <Text selectable className="font-mono text-xs text-muted-foreground">
-            {call.arguments}
-          </Text>
-        </View>
+        <CodeBlock
+          key={call.id}
+          code={call.arguments}
+          filename={call.name}
+          language="json"
+          lineNumbers={false}
+          wrap
+        />
       ))}
     </View>
   );

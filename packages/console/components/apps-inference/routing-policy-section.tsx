@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiArrowUpDownLine } from '@oxy.so/bloom/icons/RiArrowUpDownLine';
 import { RiRouteLine } from '@oxy.so/bloom/icons/RiRouteLine';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
-import type { RouteSwitchEvent } from '@/hooks/use-routing-policy';
 import type { RoutingPolicyControls, StoredRoutingPolicy } from '@/lib/routing-policy';
 import { useModelCatalogue, useRoutingProfiles } from '@/hooks/use-models';
 import {
@@ -28,16 +31,8 @@ import {
   routingPolicyHighlights,
 } from '@/lib/routing-policy';
 import { RoutingPolicyForm } from './routing-policy-form';
-import {
-  formatDateTime,
-  MutedText,
-  NoPermission,
-  Notice,
-  Panel,
-  PanelRow,
-  Pill,
-  SectionHeader,
-} from './ui';
+
+const formatDateTime = (iso: string): string => new Date(iso).toLocaleString();
 
 /**
  * The routing policy in force for one application, and the controls to change it.
@@ -75,7 +70,7 @@ export function RoutingPolicySection({
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   if (!canRead) {
-    return <NoPermission>{t('appsInference.routing.noPermission')}</NoPermission>;
+    return <EmptyState variant="compact" title={t('appsInference.routing.noPermission')} />;
   }
 
   if (isLoading) {
@@ -84,9 +79,10 @@ export function RoutingPolicySection({
 
   if (isError) {
     return (
-      <Notice type="error" title={t('appsInference.routing.loadFailedTitle')}>
-        {getErrorMessage(error, t('appsInference.routing.loadFailedFallback'))}
-      </Notice>
+      <Admonition type="error">
+        <Text className="font-semibold">{t('appsInference.routing.loadFailedTitle')}</Text>
+        {`\n${getErrorMessage(error, t('appsInference.routing.loadFailedFallback'))}`}
+      </Admonition>
     );
   }
 
@@ -168,18 +164,20 @@ export function RoutingPolicySection({
 
   return (
     <View className="gap-8">
-      <SectionHeader
-        title={t('appsInference.routing.title')}
-        description={t('appsInference.routing.description')}
-        action={
-          canWrite ? (
-            isOwnPolicy ? (
+      <Card appearance="outline" radius="radius-16">
+        <CardHeader>
+          <CardTitle>{t('appsInference.routing.title')}</CardTitle>
+          <CardDescription>{t('appsInference.routing.description')}</CardDescription>
+        </CardHeader>
+        {canWrite && (
+          <CardFooter>
+            {isOwnPolicy ? (
               <>
-                <Button appearance="outline" size="sm" onPress={() => setMode('edit')}>
-                  {t('common.edit')}
-                </Button>
                 <Button appearance="plain" size="sm" onPress={() => setConfirmArchive(true)}>
                   {t('appsInference.routing.archive')}
+                </Button>
+                <Button appearance="outline" size="sm" onPress={() => setMode('edit')}>
+                  {t('common.edit')}
                 </Button>
               </>
             ) : (
@@ -188,10 +186,10 @@ export function RoutingPolicySection({
                   ? t('appsInference.routing.override')
                   : t('appsInference.routing.createPolicy')}
               </Button>
-            )
-          ) : undefined
-        }
-      />
+            )}
+          </CardFooter>
+        )}
+      </Card>
 
       {stored === null || stored === undefined ? (
         <EmptyState
@@ -203,44 +201,43 @@ export function RoutingPolicySection({
       ) : (
         <>
           {!isOwnPolicy && (
-            <Notice title={t('appsInference.routing.inherited.title')}>
-              {t('appsInference.routing.inherited.body')}
-            </Notice>
+            <Admonition type="info">
+              <Text className="font-semibold">{t('appsInference.routing.inherited.title')}</Text>
+              {`\n${t('appsInference.routing.inherited.body')}`}
+            </Admonition>
           )}
 
-          <Panel>
-            <View className="flex-row flex-wrap items-center gap-2 px-4 py-3">
-              <Pill
-                label={stored.status}
-                tone={stored.status === 'active' ? 'default' : 'secondary'}
-              />
-              <Pill
-                label={t('appsInference.routing.version', { version: stored.policy.policyVersion })}
-                tone="outline"
-              />
-              <Pill
-                label={
-                  isOwnPolicy
-                    ? t('appsInference.routing.scopeApplication')
-                    : t('appsInference.routing.scopeAccount')
-                }
-                tone="ghost"
-              />
-              <MutedText small>
-                {t('appsInference.routing.updated', {
-                  date: formatDateTime(stored.policy.updatedAt),
-                })}
-              </MutedText>
-            </View>
+          <GroupedSection
+            title={`${t('appsInference.routing.version', { version: stored.policy.policyVersion })} · ${
+              isOwnPolicy
+                ? t('appsInference.routing.scopeApplication')
+                : t('appsInference.routing.scopeAccount')
+            }`}
+            footer={t('appsInference.routing.updated', {
+              date: formatDateTime(stored.policy.updatedAt),
+            })}
+            separator="line"
+          >
+            <GroupedSectionItem
+              title={t('appsInference.routing.statusLabel')}
+              rightElement={
+                <Badge
+                  content={stored.status}
+                  variant="subtle"
+                  color={stored.status === 'active' ? 'success' : 'default'}
+                  size="label-small"
+                />
+              }
+            />
             {routingPolicyHighlights(stored.policy, routingProfiles).map((highlight) => (
-              <PanelRow key={highlight.label}>
-                <View className="flex-row flex-wrap items-baseline justify-between gap-2">
-                  <Text className="text-sm text-muted-foreground">{highlight.label}</Text>
-                  <Text className="text-sm text-foreground">{highlight.value}</Text>
-                </View>
-              </PanelRow>
+              <GroupedSectionItem
+                key={highlight.label}
+                title={highlight.label}
+                value={highlight.value}
+                titleNumberOfLines={0}
+              />
             ))}
-          </Panel>
+          </GroupedSection>
 
           <PolicyVersionHistory policyId={stored.routingPolicyId} />
         </>
@@ -295,32 +292,22 @@ function PolicyVersionHistory({ policyId }: { policyId: string }) {
 
   return (
     <View className="gap-3">
-      <SectionHeader
+      <GroupedSection
         title={t('appsInference.routing.history.title')}
-        description={t('appsInference.routing.history.description')}
-      />
-      <Panel>
-        {shown.map((version, index) => (
-          <PanelRow key={version.versionId} first={index === 0}>
-            <View className="flex-row flex-wrap items-center justify-between gap-2">
-              <View className="flex-row items-center gap-2">
-                <Pill
-                  label={t('appsInference.routing.version', {
-                    version: version.policy.policyVersion,
-                  })}
-                  tone="outline"
-                />
-                <MutedText>
-                  {t('appsInference.routing.history.optimiseFor', {
-                    value: version.policy.optimiseFor,
-                  })}
-                </MutedText>
-              </View>
-              <MutedText small>{formatDateTime(version.policy.updatedAt)}</MutedText>
-            </View>
-          </PanelRow>
+        footer={t('appsInference.routing.history.description')}
+        separator="line"
+      >
+        {shown.map((version) => (
+          <GroupedSectionItem
+            key={version.versionId}
+            title={t('appsInference.routing.version', { version: version.policy.policyVersion })}
+            description={t('appsInference.routing.history.optimiseFor', {
+              value: version.policy.optimiseFor,
+            })}
+            value={formatDateTime(version.policy.updatedAt)}
+          />
         ))}
-      </Panel>
+      </GroupedSection>
       {versions.length > 5 && (
         <View className="flex-row">
           <Button appearance="plain" size="sm" onPress={() => setExpanded((current) => !current)}>
@@ -355,54 +342,41 @@ function RouteSwitchHistory({
     return null;
   }
 
-  return (
-    <View className="gap-3">
-      <SectionHeader
-        title={t('appsInference.routing.switches.title')}
-        description={t('appsInference.routing.switches.description')}
-      />
-      {isLoading ? (
-        <Skeleton.Box width="100%" height={80} borderRadius={14} />
-      ) : events.length === 0 ? (
-        <EmptyState
-          icon={RiArrowUpDownLine}
-          variant="compact"
-          title={t('appsInference.routing.switches.empty')}
-        />
-      ) : (
-        <Panel>
-          {events.map((event, index) => (
-            <RouteSwitchRow key={event.eventId} event={event} first={index === 0} />
-          ))}
-        </Panel>
-      )}
-    </View>
-  );
-}
-
-function RouteSwitchRow({ event, first }: { event: RouteSwitchEvent; first: boolean }) {
-  const { t } = useTranslation();
-  return (
-    <PanelRow first={first}>
-      <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <View className="min-w-0">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Pill
-              label={
+  return isLoading ? (
+    <Skeleton.Box width="100%" height={80} borderRadius={14} />
+  ) : events.length === 0 ? (
+    <EmptyState
+      icon={RiArrowUpDownLine}
+      variant="compact"
+      title={t('appsInference.routing.switches.title')}
+      description={t('appsInference.routing.switches.empty')}
+    />
+  ) : (
+    <GroupedSection
+      title={t('appsInference.routing.switches.title')}
+      footer={t('appsInference.routing.switches.description')}
+      separator="line"
+    >
+      {events.map((event) => (
+        <GroupedSectionItem
+          key={event.eventId}
+          title={event.reason.replaceAll('_', ' ')}
+          description={`${event.fromModelReference} → ${event.toModelReference} · ${event.toProvider} · ${formatDateTime(event.occurredAt)}`}
+          titleNumberOfLines={0}
+          rightElement={
+            <Badge
+              content={
                 event.scope === 'model'
                   ? t('appsInference.routing.switches.differentModel')
                   : t('appsInference.routing.switches.sameModel')
               }
-              tone={event.scope === 'model' ? 'default' : 'outline'}
+              variant={event.scope === 'model' ? 'subtle' : 'outlined'}
+              color={event.scope === 'model' ? 'primary' : 'default'}
+              size="label-small"
             />
-            <Text className="text-sm text-foreground">{event.reason.replaceAll('_', ' ')}</Text>
-          </View>
-          <Text className="mt-1 font-mono text-xs text-muted-foreground">
-            {`${event.fromModelReference} → ${event.toModelReference} · ${event.toProvider}`}
-          </Text>
-        </View>
-        <MutedText small>{formatDateTime(event.occurredAt)}</MutedText>
-      </View>
-    </PanelRow>
+          }
+        />
+      ))}
+    </GroupedSection>
   );
 }

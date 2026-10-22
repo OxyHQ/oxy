@@ -1,25 +1,41 @@
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { Code } from '@oxy.so/bloom/code';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { Field } from '@oxy.so/bloom/field';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
+import { Item } from '@oxy.so/bloom/item';
+import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useDeleteApplication, useUpdateApplication } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
+import { copyText } from '@/lib/clipboard';
 import { isDeleteConfirmed } from '@/lib/application-delete';
 import { availablePaymentsScopes, hasAliaMachineScopes } from '@/lib/application-scopes';
 import { useTranslation } from '@/lib/i18n';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
-import { TextAreaField, TextInputField, SwitchRow } from './form-fields';
 import { arraysEqual, nextApplicationScopes } from './general-draft';
 import { LogoUploadField } from './logo-upload-field';
-import { CopyValue, SectionBlock } from './primitives';
 
 interface GeneralSectionProps {
   application: Application;
@@ -137,218 +153,238 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
     application.status === 'active' ? t('applications.status.active') : application.status;
 
   return (
-    <View className="gap-8">
-      <SectionBlock
-        title={t('applications.general.title')}
-        description={t('applications.general.subtitle')}
-      >
-        <TextInputField
-          label={t('applications.fields.name')}
-          value={name}
-          onChangeText={setName}
-          placeholder={t('applications.fields.namePlaceholder')}
-          maxLength={100}
-          disabled={!canEdit}
-          autoCapitalize="sentences"
-        />
-        <TextAreaField
-          label={t('applications.fields.description')}
-          value={description}
-          onChangeText={setDescription}
-          placeholder={t('applications.fields.descriptionPlaceholder')}
-          maxLength={500}
-          disabled={!canEdit}
-        />
-        <TextInputField
-          label={t('applications.fields.websiteUrl')}
-          value={websiteUrl}
-          onChangeText={setWebsiteUrl}
-          placeholder="https://example.com"
-          keyboardType="url"
-          disabled={!canEdit}
-        />
-        <TextInputField
-          label={t('applications.general.privacyPolicyUrl')}
-          value={privacyPolicyUrl}
-          onChangeText={setPrivacyPolicyUrl}
-          placeholder="https://example.com/privacy"
-          keyboardType="url"
-          disabled={!canEdit}
-        />
-        <TextInputField
-          label={t('applications.general.termsUrl')}
-          value={termsUrl}
-          onChangeText={setTermsUrl}
-          placeholder="https://example.com/terms"
-          keyboardType="url"
-          disabled={!canEdit}
-        />
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-foreground">
-            {t('applications.general.logo')}
-          </Text>
-          <LogoUploadField
-            oxyServices={oxyServices}
-            value={icon}
-            name={application.name}
-            onChange={setIcon}
-            onError={(message) => toast.error(message)}
-            disabled={!canEdit}
-          />
-        </View>
-      </SectionBlock>
-
-      <SectionBlock
-        title={t('applications.general.redirectTitle')}
-        description={t('applications.general.redirectBody')}
-      >
-        {redirectUris.length === 0 ? (
-          <Text className="text-sm text-muted-foreground">
-            {t('applications.general.redirectEmpty')}
-          </Text>
-        ) : (
-          <View className="gap-2">
-            {redirectUris.map((uri) => (
-              <View
-                key={uri}
-                className="flex-row items-center justify-between gap-2 rounded-lg border border-border py-1 pl-3 pr-1"
-              >
-                <Text
-                  selectable
-                  numberOfLines={1}
-                  className="min-w-0 flex-1 font-mono text-sm text-foreground"
-                >
-                  {uri}
-                </Text>
-                {canEdit ? (
-                  <Button
-                    iconOnly
-                    size="sm"
-                    appearance="plain"
-                    tone="danger"
-                    leadingIcon={RiDeleteBinLine}
-                    accessibilityLabel={t('applications.general.redirectRemove')}
-                    onPress={() => setRedirectUris(redirectUris.filter((item) => item !== uri))}
-                  />
-                ) : null}
-              </View>
-            ))}
-          </View>
-        )}
-        {canEdit ? (
-          <View className="flex-row items-end gap-2">
-            <View className="min-w-0 flex-1">
-              <TextInputField
-                label={t('applications.general.redirectNew')}
-                value={newRedirectUri}
-                onChangeText={setNewRedirectUri}
-                placeholder="https://example.com/callback"
-                keyboardType="url"
-                onSubmitEditing={handleAddRedirectUri}
+    <View className="gap-6">
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.general.title')}</CardTitle>
+          <CardDescription>{t('applications.general.subtitle')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <View className="gap-4">
+            <Field label={t('applications.fields.name')}>
+              <TextFieldInput
+                label={t('applications.fields.name')}
+                value={name}
+                onChangeText={setName}
+                placeholder={t('applications.fields.namePlaceholder')}
+                maxLength={100}
+                disabled={!canEdit}
+                autoCapitalize="sentences"
               />
-            </View>
-            <Button
-              appearance="outline"
-              leadingIcon={RiAddLine}
-              disabled={!newRedirectUri.trim()}
-              onPress={handleAddRedirectUri}
-            >
-              {t('applications.general.redirectAdd')}
-            </Button>
-          </View>
-        ) : null}
-      </SectionBlock>
-
-      <SectionBlock
-        title={t('applications.general.paymentsTitle')}
-        description={t('applications.general.paymentsBody')}
-      >
-        <View className="gap-3 rounded-lg border border-border p-3">
-          <SwitchRow
-            title="payments:read"
-            description={t('applications.scopes.paymentsRead')}
-            checked={paymentsRead}
-            onCheckedChange={setPaymentsRead}
-            disabled={!canEdit}
-          />
-          <SwitchRow
-            title="payments:write"
-            description={t('applications.scopes.paymentsWrite')}
-            checked={paymentsWrite}
-            onCheckedChange={setPaymentsWrite}
-            disabled={!canEdit}
-          />
-        </View>
-      </SectionBlock>
-
-      <SectionBlock
-        title={t('applications.general.aliaTitle')}
-        description={t('applications.general.aliaBody')}
-      >
-        <View className="rounded-lg border border-border p-3">
-          <SwitchRow
-            title="alia:chat + inference:invoke"
-            description={t('applications.general.aliaToggleHint')}
-            accessibilityLabel={t('applications.general.aliaToggle')}
-            checked={aliaMachineAccess ?? hasAliaMachineScopes(application.scopes)}
-            onCheckedChange={setAliaMachineAccess}
-            disabled={!canEdit}
-          />
-        </View>
-      </SectionBlock>
-
-      <SectionBlock
-        title={t('applications.general.idTitle')}
-        description={t('applications.general.idBody')}
-      >
-        <View className="flex-row items-center gap-3">
-          <View className="min-w-0 flex-1">
-            <CopyValue
-              value={application._id}
-              label={t('applications.general.idCopy')}
-              copiedMessage={t('applications.general.idCopied')}
-              large
+            </Field>
+            <Textarea
+              label={t('applications.fields.description')}
+              value={description}
+              onChangeText={setDescription}
+              placeholder={t('applications.fields.descriptionPlaceholder')}
+              maxLength={500}
+              rows={3}
+              disabled={!canEdit}
             />
+            <Field label={t('applications.fields.websiteUrl')}>
+              <TextFieldInput
+                label={t('applications.fields.websiteUrl')}
+                value={websiteUrl}
+                onChangeText={setWebsiteUrl}
+                placeholder="https://example.com"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={!canEdit}
+              />
+            </Field>
+            <Field label={t('applications.general.privacyPolicyUrl')}>
+              <TextFieldInput
+                label={t('applications.general.privacyPolicyUrl')}
+                value={privacyPolicyUrl}
+                onChangeText={setPrivacyPolicyUrl}
+                placeholder="https://example.com/privacy"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={!canEdit}
+              />
+            </Field>
+            <Field label={t('applications.general.termsUrl')}>
+              <TextFieldInput
+                label={t('applications.general.termsUrl')}
+                value={termsUrl}
+                onChangeText={setTermsUrl}
+                placeholder="https://example.com/terms"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={!canEdit}
+              />
+            </Field>
+            <Field label={t('applications.general.logo')}>
+              <LogoUploadField
+                oxyServices={oxyServices}
+                value={icon}
+                name={application.name}
+                onChange={setIcon}
+                onError={(message) => toast.error(message)}
+                disabled={!canEdit}
+              />
+            </Field>
           </View>
-          <Badge
-            content={statusLabel}
-            size="label-small"
-            variant={application.status === 'active' ? 'solid' : 'subtle'}
-            color={application.status === 'active' ? 'success' : 'default'}
-          />
-        </View>
-      </SectionBlock>
+        </CardBody>
+        {canEdit ? (
+          <CardFooter>
+            <Button
+              loading={updateApplication.isPending}
+              disabled={!isDirty || !name.trim()}
+              onPress={() => void handleSave()}
+            >
+              {t('applications.general.save')}
+            </Button>
+          </CardFooter>
+        ) : null}
+      </Card>
 
-      {canEdit ? (
-        <View className="flex-row gap-3 border-t border-border pt-6">
-          <Button
-            loading={updateApplication.isPending}
-            disabled={!isDirty || !name.trim()}
-            onPress={() => void handleSave()}
-          >
-            {t('applications.general.save')}
-          </Button>
-        </View>
-      ) : null}
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.general.redirectTitle')}</CardTitle>
+          <CardDescription>{t('applications.general.redirectBody')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <View className="gap-3">
+            {redirectUris.length === 0 ? (
+              <Text className="text-sm text-muted-foreground">
+                {t('applications.general.redirectEmpty')}
+              </Text>
+            ) : (
+              redirectUris.map((uri) => (
+                <Item
+                  key={uri}
+                  density="compact"
+                  title={<Code selectable>{uri}</Code>}
+                  trailing={
+                    canEdit ? (
+                      <Button
+                        iconOnly
+                        size="sm"
+                        appearance="plain"
+                        tone="danger"
+                        leadingIcon={RiDeleteBinLine}
+                        accessibilityLabel={t('applications.general.redirectRemove')}
+                        onPress={() => setRedirectUris(redirectUris.filter((item) => item !== uri))}
+                      />
+                    ) : undefined
+                  }
+                />
+              ))
+            )}
+            {canEdit ? (
+              <View className="flex-row items-end gap-2">
+                <View className="min-w-0 flex-1">
+                  <Field label={t('applications.general.redirectNew')}>
+                    <TextFieldInput
+                      label={t('applications.general.redirectNew')}
+                      value={newRedirectUri}
+                      onChangeText={setNewRedirectUri}
+                      placeholder="https://example.com/callback"
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      onSubmitEditing={handleAddRedirectUri}
+                    />
+                  </Field>
+                </View>
+                <Button
+                  appearance="outline"
+                  leadingIcon={RiAddLine}
+                  disabled={!newRedirectUri.trim()}
+                  onPress={handleAddRedirectUri}
+                >
+                  {t('applications.general.redirectAdd')}
+                </Button>
+              </View>
+            ) : null}
+          </View>
+        </CardBody>
+      </Card>
+
+      <GroupedSection
+        title={t('applications.general.paymentsTitle')}
+        footer={t('applications.general.paymentsBody')}
+      >
+        <GroupedSectionItem
+          title="payments:read"
+          description={t('applications.scopes.paymentsRead')}
+          rightElement={
+            <Switch
+              checked={paymentsRead}
+              onCheckedChange={setPaymentsRead}
+              disabled={!canEdit}
+              accessibilityLabel="payments:read"
+            />
+          }
+        />
+        <GroupedSectionItem
+          title="payments:write"
+          description={t('applications.scopes.paymentsWrite')}
+          rightElement={
+            <Switch
+              checked={paymentsWrite}
+              onCheckedChange={setPaymentsWrite}
+              disabled={!canEdit}
+              accessibilityLabel="payments:write"
+            />
+          }
+        />
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('applications.general.aliaTitle')}
+        footer={t('applications.general.aliaBody')}
+      >
+        <GroupedSectionItem
+          title="alia:chat + inference:invoke"
+          description={t('applications.general.aliaToggleHint')}
+          rightElement={
+            <Switch
+              checked={aliaMachineAccess ?? hasAliaMachineScopes(application.scopes)}
+              onCheckedChange={setAliaMachineAccess}
+              disabled={!canEdit}
+              accessibilityLabel={t('applications.general.aliaToggle')}
+            />
+          }
+        />
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('applications.general.idTitle')}
+        footer={t('applications.general.idBody')}
+      >
+        <GroupedSectionItem
+          title={application._id}
+          accessibilityLabel={t('applications.general.idCopy')}
+          icon={<RiFileCopyLine />}
+          onPress={() => void copyText(application._id, t('applications.general.idCopied'))}
+          rightElement={
+            <Badge
+              content={statusLabel}
+              size="label-small"
+              variant={application.status === 'active' ? 'solid' : 'subtle'}
+              color={application.status === 'active' ? 'success' : 'default'}
+            />
+          }
+        />
+      </GroupedSection>
 
       {canDelete ? (
-        <SectionBlock
-          danger
-          bordered
+        <GroupedSection
           title={t('applications.general.dangerTitle')}
-          description={t('applications.general.dangerBody')}
+          footer={t('applications.general.dangerBody')}
         >
-          <View className="flex-row">
-            <Button
-              appearance="outline"
-              tone="danger"
-              leadingIcon={RiDeleteBinLine}
-              onPress={() => setShowDeleteDialog(true)}
-            >
-              {t('applications.general.deleteCta')}
-            </Button>
-          </View>
-        </SectionBlock>
+          <GroupedSectionItem
+            destructive
+            icon={<RiDeleteBinLine />}
+            title={t('applications.general.deleteCta')}
+            onPress={() => setShowDeleteDialog(true)}
+          />
+        </GroupedSection>
       ) : null}
 
       <Dialog
@@ -370,13 +406,17 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
         ]}
         testID="delete-application-dialog"
       >
-        <TextInputField
-          label={t('applications.general.deleteConfirmLabel', { name: application.name })}
-          value={deleteConfirmName}
-          onChangeText={setDeleteConfirmName}
-          spellCheck={false}
-          autoComplete="off"
-        />
+        <Field label={t('applications.general.deleteConfirmLabel', { name: application.name })}>
+          <TextFieldInput
+            label={t('applications.general.deleteConfirmLabel', { name: application.name })}
+            value={deleteConfirmName}
+            onChangeText={setDeleteConfirmName}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </Field>
       </Dialog>
     </View>
   );

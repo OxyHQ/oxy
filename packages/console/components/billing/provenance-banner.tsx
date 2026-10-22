@@ -1,11 +1,15 @@
-import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
-import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Text, View } from 'react-native';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import {
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useTranslation } from '@/lib/i18n';
 import type { ReportProvenance } from '@/lib/reporting';
-import { useReportLabels } from './labels';
+import { statusBadge, useReportLabels } from './labels';
 
 /**
  * Where a figure came from, stated on the figure's own screen.
@@ -18,31 +22,19 @@ import { useReportLabels } from './labels';
  */
 export function ProvenanceBanner({ provenance }: { provenance: ReportProvenance }) {
   const labels = useReportLabels();
-  const theme = useTheme();
   const isLedger = provenance.source === 'financial_ledger';
-  const Icon = isLedger ? RiShieldCheckLine : RiAlertLine;
 
   return (
-    <View
-      className={`flex-row items-start gap-3 rounded-lg border p-4 ${
-        isLedger ? 'border-border bg-muted' : 'border-dashed border-warning bg-warning-subtle'
-      }`}
-    >
-      <View className="mt-0.5">
-        <Icon size="md" fill={isLedger ? theme.colors.text : theme.colors.warning} />
-      </View>
-      <View className="min-w-0 flex-1 gap-1">
-        <View className="flex-row flex-wrap items-center gap-2">
-          <Text className="text-sm font-medium text-foreground">
-            {labels.provenanceHeadline(provenance)}
-          </Text>
+    <AdmonitionRoot type={isLedger ? 'info' : 'warning'}>
+      <AdmonitionRow>
+        <AdmonitionIcon />
+        <AdmonitionContent>
+          <AdmonitionText>{labels.provenanceHeadline(provenance)}</AdmonitionText>
+          <AdmonitionText>{labels.provenanceExplanation(provenance)}</AdmonitionText>
           <ProvenanceBadge provenance={provenance} />
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {labels.provenanceExplanation(provenance)}
-        </Text>
-      </View>
-    </View>
+        </AdmonitionContent>
+      </AdmonitionRow>
+    </AdmonitionRoot>
   );
 }
 
@@ -51,9 +43,9 @@ export function ProvenanceBadge({ provenance }: { provenance: ReportProvenance }
   const { t } = useTranslation();
   const isLedger = provenance.source === 'financial_ledger';
   return (
-    <StatusBadge
-      variant={isLedger ? 'default' : 'secondary'}
-      label={t(isLedger ? 'reportKit.provenance.authoritative' : 'reportKit.provenance.eventual')}
+    <Badge
+      content={t(isLedger ? 'reportKit.provenance.authoritative' : 'reportKit.provenance.eventual')}
+      {...statusBadge(isLedger ? 'default' : 'secondary')}
     />
   );
 }
@@ -62,12 +54,12 @@ export function ProvenanceBadge({ provenance }: { provenance: ReportProvenance }
 export function ProvenanceCrossReference({ provenance }: { provenance: ReportProvenance }) {
   const { t } = useTranslation();
   return (
-    <Text className="text-xs text-muted-foreground">
+    <Muted>
       {t(
         provenance.source === 'financial_ledger'
           ? 'reportKit.provenance.crossLedger'
           : 'reportKit.provenance.crossTelemetry',
       )}
-    </Text>
+    </Muted>
   );
 }

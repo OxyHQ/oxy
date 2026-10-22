@@ -1,6 +1,6 @@
-import { Badge } from '@oxy.so/bloom/badge';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Item } from '@oxy.so/bloom/item';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Text, View } from 'react-native';
 
 import { useCredentialAudit } from '@/hooks/use-applications';
 import {
@@ -28,73 +28,41 @@ export function CredentialTrail({ appId, credentialId }: { appId: string; creden
   const { data: events = [], isLoading, isError } = useCredentialAudit(appId, credentialId);
 
   if (isLoading) {
-    return (
-      <View className="border-t border-border px-4 py-3">
-        <Skeleton.Box width="100%" height={60} borderRadius={10} />
-      </View>
-    );
+    return <Skeleton.Box width="100%" height={60} borderRadius={10} />;
   }
 
   if (isError) {
-    return (
-      <Text className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-        {t('applications.credentials.trailFailed')}
-      </Text>
-    );
+    return <Admonition type="error">{t('applications.credentials.trailFailed')}</Admonition>;
   }
 
   if (events.length === 0) {
-    return (
-      <Text className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
-        {t('applications.credentials.trailEmpty')}
-      </Text>
-    );
+    return <Admonition type="info">{t('applications.credentials.trailEmpty')}</Admonition>;
   }
 
   return (
-    <View className="border-t border-border">
-      {events.map((event, index) => (
-        <View
+    <>
+      {events.map((event) => (
+        <Item
           key={`${event.eventType}-${event.reason ?? 'none'}-${event.createdAt}`}
-          className={
-            index > 0
-              ? 'flex-row flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2'
-              : 'flex-row flex-wrap items-center justify-between gap-2 px-4 py-2'
-          }
-        >
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Badge
-              content={humaniseAuditToken(event.eventType)}
-              size="label-small"
-              variant={credentialAuditVariant(event) === 'destructive' ? 'subtle' : 'outlined'}
-              color={credentialAuditVariant(event) === 'destructive' ? 'error' : 'default'}
-            />
-            {event.reason !== null ? (
-              <Badge
-                content={humaniseAuditToken(event.reason)}
-                size="label-small"
-                variant="subtle"
-                color="default"
-              />
-            ) : null}
-            <Text className="text-xs text-muted-foreground">
-              {event.environment ?? t('applications.credentials.noEnvironment')} ·{' '}
-              {credentialAuditAttribution(event)}
-            </Text>
-            {/* A rotation grace deadline, when the event set one. */}
-            {event.effectiveUntil !== null ? (
-              <Text className="text-xs text-muted-foreground">
-                {t('applications.credentials.until', {
+          density="compact"
+          title={humaniseAuditToken(event.eventType)}
+          subtitle={[
+            event.reason !== null ? humaniseAuditToken(event.reason) : null,
+            event.environment ?? t('applications.credentials.noEnvironment'),
+            credentialAuditAttribution(event),
+            // A rotation grace deadline, when the event set one.
+            event.effectiveUntil !== null
+              ? t('applications.credentials.until', {
                   when: new Date(event.effectiveUntil).toLocaleString(),
-                })}
-              </Text>
-            ) : null}
-          </View>
-          <Text className="text-xs text-muted-foreground">
-            {new Date(event.createdAt).toLocaleString()}
-          </Text>
-        </View>
+                })
+              : null,
+            new Date(event.createdAt).toLocaleString(),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+          destructive={credentialAuditVariant(event) === 'destructive'}
+        />
       ))}
-    </View>
+    </>
   );
 }

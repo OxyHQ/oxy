@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import {
   DataTable,
@@ -9,6 +11,7 @@ import {
 } from '@oxy.so/bloom/data-table';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Field } from '@oxy.so/bloom/field';
 import { RiArrowGoBackLine } from '@oxy.so/bloom/icons/RiArrowGoBackLine';
 import { RiArrowRightUpLine } from '@oxy.so/bloom/icons/RiArrowRightUpLine';
 import { RiEqualizer3Line } from '@oxy.so/bloom/icons/RiEqualizer3Line';
@@ -17,16 +20,8 @@ import { RiStackLine } from '@oxy.so/bloom/icons/RiStackLine';
 import { RiArrowUpDownLine } from '@oxy.so/bloom/icons/RiArrowUpDownLine';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Slider } from '@oxy.so/bloom/slider';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import {
-  MutedText,
-  NoPermission,
-  Panel,
-  PanelRow,
-  Pill,
-  SectionHeader,
-  TextInputField,
-} from '@/components/apps-inference/ui';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { Channel, Update } from '@/hooks/use-updates';
 import {
@@ -46,7 +41,7 @@ import {
   platformLabel,
   shortCommit,
   shortId,
-  statusTone,
+  statusColor,
 } from './updates-helpers';
 
 /** Release channels and the head of each runtime x platform, with promote and rollback. */
@@ -64,14 +59,17 @@ export function UpdatesSection({
   const { data: channels = [], isLoading, isError, refetch } = useUpdateChannels(appId, canManage);
 
   if (!canManage) {
-    return <NoPermission>{t('appsUpdates.noPermission')}</NoPermission>;
+    return <EmptyState variant="compact" title={t('appsUpdates.noPermission')} />;
   }
 
   const channelNames = channels.map((channel) => channel.name);
 
   return (
     <View className="gap-6">
-      <SectionHeader title={t('appsUpdates.title')} description={t('appsUpdates.description')} />
+      <View>
+        <CardTitle>{t('appsUpdates.title')}</CardTitle>
+        <CardDescription>{t('appsUpdates.description')}</CardDescription>
+      </View>
 
       {isLoading ? (
         <View className="gap-3">
@@ -147,7 +145,7 @@ function ChannelCard({
         cell: ({ row }) => (
           <View className="flex-row items-center gap-2">
             <Text className="font-mono text-sm text-foreground">{row.runtimeVersion}</Text>
-            <Pill label={platformLabel(row.platform)} tone="outline" />
+            <Badge content={platformLabel(row.platform)} variant="outlined" size="label-small" />
           </View>
         ),
       },
@@ -200,7 +198,12 @@ function ChannelCard({
         header: t('appsUpdates.columns.status'),
         width: 120,
         cell: ({ row }) => (
-          <Pill label={row.status.replace('_', ' ')} tone={statusTone(row.status)} />
+          <Badge
+            content={row.status.replace('_', ' ')}
+            variant="subtle"
+            color={statusColor(row.status)}
+            size="label-small"
+          />
         ),
       },
       {
@@ -252,23 +255,31 @@ function ChannelCard({
   );
 
   return (
-    <Panel>
-      <View className="flex-row items-center gap-2 border-b border-border px-4 py-3">
-        <RiStackLine width={16} height={16} />
-        <Text className="text-sm font-medium text-foreground">{channel.name}</Text>
-        <Pill label={t('appsUpdates.heads', { count: heads.length })} tone="secondary" />
-      </View>
+    <Card appearance="outline" radius="radius-16">
+      <CardHeader>
+        <View className="flex-row items-center gap-2">
+          <RiStackLine width={16} height={16} />
+          <CardTitle>{channel.name}</CardTitle>
+          <Badge
+            content={t('appsUpdates.heads', { count: heads.length })}
+            variant="subtle"
+            size="label-small"
+          />
+        </View>
+      </CardHeader>
 
       {isLoading ? (
-        <View className="gap-2 p-4">
-          {[1, 2].map((i) => (
-            <Skeleton.Box key={i} width="100%" height={40} />
-          ))}
-        </View>
+        <CardBody>
+          <View className="gap-2">
+            {[1, 2].map((i) => (
+              <Skeleton.Box key={i} width="100%" height={40} />
+            ))}
+          </View>
+        </CardBody>
       ) : heads.length === 0 ? (
-        <PanelRow first>
-          <MutedText>{t('appsUpdates.noPublished')}</MutedText>
-        </PanelRow>
+        <CardBody>
+          <CardDescription>{t('appsUpdates.noPublished')}</CardDescription>
+        </CardBody>
       ) : (
         <DataTable
           rows={heads}
@@ -406,34 +417,7 @@ function ChannelCard({
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       />
-    </Panel>
-  );
-}
-
-function RolloutSlider({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <View className="gap-2">
-      <View className="flex-row items-center justify-between">
-        <Text className="text-sm font-medium text-foreground">{label}</Text>
-        <Text className="text-sm font-medium text-foreground">{`${value}%`}</Text>
-      </View>
-      <Slider
-        value={value}
-        onValueChange={(next) => onChange(Math.round(next))}
-        min={0}
-        max={100}
-        step={1}
-        accessibilityLabel={label}
-      />
-    </View>
+    </Card>
   );
 }
 
@@ -497,12 +481,16 @@ function PromoteDialog({
     >
       <View className="gap-4">
         <View className="gap-2">
-          <TextInputField
-            label={t('appsUpdates.promote.target')}
-            value={toChannel}
-            onChange={setToChannel}
-            placeholder="production"
-          />
+          <Field label={t('appsUpdates.promote.target')}>
+            <TextFieldInput
+              label={t('appsUpdates.promote.target')}
+              value={toChannel}
+              onValueChange={setToChannel}
+              placeholder="production"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </Field>
           {suggestions.length > 0 && (
             <View className="flex-row flex-wrap gap-1.5">
               {suggestions.map((name) => (
@@ -513,11 +501,16 @@ function PromoteDialog({
             </View>
           )}
         </View>
-        <RolloutSlider
-          label={t('appsUpdates.promote.rollout')}
-          value={rollout}
-          onChange={setRollout}
-        />
+        <Field label={t('appsUpdates.promote.rollout')} description={`${rollout}%`}>
+          <Slider
+            value={rollout}
+            onValueChange={(next) => setRollout(Math.round(next))}
+            min={0}
+            max={100}
+            step={1}
+            accessibilityLabel={t('appsUpdates.promote.rollout')}
+          />
+        </Field>
       </View>
     </Dialog>
   );
@@ -560,11 +553,16 @@ function RolloutDialog({
         { label: t('common.cancel'), color: 'cancel' },
       ]}
     >
-      <RolloutSlider
-        label={t('appsUpdates.promote.rollout')}
-        value={rollout}
-        onChange={setRollout}
-      />
+      <Field label={t('appsUpdates.promote.rollout')} description={`${rollout}%`}>
+        <Slider
+          value={rollout}
+          onValueChange={(next) => setRollout(Math.round(next))}
+          min={0}
+          max={100}
+          step={1}
+          accessibilityLabel={t('appsUpdates.promote.rollout')}
+        />
+      </Field>
     </Dialog>
   );
 }

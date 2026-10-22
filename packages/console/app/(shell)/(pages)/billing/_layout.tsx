@@ -1,3 +1,4 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiCoinsLine } from '@oxy.so/bloom/icons/RiCoinsLine';
@@ -5,11 +6,12 @@ import { RiFocus3Line } from '@oxy.so/bloom/icons/RiFocus3Line';
 import { RiHistoryLine } from '@oxy.so/bloom/icons/RiHistoryLine';
 import { RiMoneyDollarCircleLine } from '@oxy.so/bloom/icons/RiMoneyDollarCircleLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen } from '@oxy.so/bloom/screen';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Slot, usePathname, useRouter } from 'expo-router';
 import { View } from 'react-native';
-import { PageScreen } from '@/components/account-pages/PageFrame';
 import { accountLabel, useAccount } from '@/hooks/use-account';
 import { useAccountBillingState } from '@/hooks/use-account-billing';
 import { useTranslation } from '@/lib/i18n';
@@ -98,33 +100,43 @@ export default function BillingLayout() {
         : t('billingPage.subtitle.account', { name: subjectName });
 
   return (
-    <PageScreen
-      title={t('billingPage.title')}
-      subtitle={subtitle}
-      headerExtra={
-        <View className="border-b border-border px-6">
-          <Tabs
-            value={active}
-            onValueChange={(next) => {
-              const section = SECTIONS.find((candidate) => candidate.key === next);
-              if (section) router.navigate(section.href);
-            }}
-            variant="underline"
-            label={t('billingPage.tabs.label')}
-          >
-            {SECTIONS.map((section) => (
-              <TabsTrigger
-                key={section.key}
-                value={section.key}
-                label={t(section.labelKey)}
-                leadingIcon={section.icon}
-              />
-            ))}
-          </Tabs>
+    <Screen
+      header={
+        <View className="bg-background">
+          <PageHeader
+            title={t('billingPage.title')}
+            subtitle={subtitle}
+            leading={<AppShellMenuButton />}
+            presentation="bar"
+            titleAlign="start"
+            border="none"
+            sticky={false}
+            safeArea={false}
+          />
+          <View className="border-b border-border px-6">
+            <Tabs
+              value={active}
+              onValueChange={(next) => {
+                const section = SECTIONS.find((candidate) => candidate.key === next);
+                if (section) router.navigate(section.href);
+              }}
+              variant="underline"
+              label={t('billingPage.tabs.label')}
+            >
+              {SECTIONS.map((section) => (
+                <TabsTrigger
+                  key={section.key}
+                  value={section.key}
+                  label={t(section.labelKey)}
+                  leadingIcon={section.icon}
+                />
+              ))}
+            </Tabs>
+          </View>
         </View>
       }
     >
       <Slot />
-    </PageScreen>
+    </Screen>
   );
 }

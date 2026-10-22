@@ -1,11 +1,17 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Chip } from '@oxy.so/bloom/chip';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+  SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { useReportLabels } from '@/components/billing/labels';
-import { ReportControls } from '@/components/billing/report-controls';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import {
   useApplicationSpendReport,
@@ -14,6 +20,7 @@ import {
 import { useTranslation } from '@/lib/i18n';
 import { compareExactDecimals, formatCount, formatMoney } from '@/lib/money';
 import type {
+  ReportProvenance,
   ReportRangeDays,
   SpendDimension,
   SpendRow,
@@ -21,19 +28,32 @@ import type {
   UsageRow,
 } from '@/lib/reporting';
 import {
+  REPORT_RANGE_DAYS,
   SPEND_DIMENSIONS,
   USAGE_DIMENSIONS,
   lastCalendarDays,
   spendDimensionValue,
   usageDimensionValue,
 } from '@/lib/reporting';
-import { MutedText, NoPermission, SectionHeader } from './ui';
 
 /** The two questions, and the two different tables that answer them. */
 type Lane = 'usage' | 'spend';
 
 const TELEMETRY = { source: 'usage_telemetry_rollups', consistency: 'eventual' } as const;
 const LEDGER = { source: 'financial_ledger', consistency: 'authoritative' } as const;
+
+/** Where a figure came from, stated on the figure's own screen. */
+function provenanceAdmonition(
+  labels: ReturnType<typeof useReportLabels>,
+  provenance: ReportProvenance,
+) {
+  return (
+    <Admonition type={provenance.source === 'financial_ledger' ? 'info' : 'warning'}>
+      <Text className="font-semibold">{labels.provenanceHeadline(provenance)}</Text>
+      {`\n${labels.provenanceExplanation(provenance)}`}
+    </Admonition>
+  );
+}
 
 /**
  * One application's usage and spend.
@@ -176,7 +196,7 @@ export function ApplicationUsageSpendSection({
   );
 
   if (!canReadUsage && !canReadSpend) {
-    return <NoPermission>{t('appsInference.reporting.noPermission')}</NoPermission>;
+    return <EmptyState variant="compact" title={t('appsInference.reporting.noPermission')} />;
   }
 
   const skeletons = (
@@ -187,54 +207,117 @@ export function ApplicationUsageSpendSection({
     </View>
   );
 
+  /**
+   * At least one dimension always stays selected: the API's `groupBy` has a
+   * minimum of one, so an empty selection would be a 400 the customer cannot read.
+   * The caller's canonical order is kept rather than click order, so the columns
+   * do not rearrange themselves as dimensions are added.
+   */
+  const dimensionChips = <TDimension extends UsageDimension | SpendDimension>(
+    dimensions: ReadonlyArray<TDimension>,
+    selected: ReadonlyArray<TDimension>,
+    onSelectedChange: (next: ReadonlyArray<TDimension>) => void,
+  ) => (
+    <View className="flex-row flex-wrap items-center gap-1.5">
+      {dimensions.map((dimension) => {
+        const isSelected = selected.includes(dimension);
+        const isLastSelected = isSelected && selected.length === 1;
+        return (
+          <Chip
+            key={dimension}
+            role="checkbox"
+            checked={isSelected}
+            disabled={isLastSelected}
+            onPress={() =>
+              onSelectedChange(
+                isSelected
+                  ? selected.filter((entry) => entry !== dimension)
+                  : dimensions.filter((entry) => entry === dimension || selected.includes(entry)),
+              )
+            }
+            accessibilityLabel={
+              isLastSelected
+                ? `${labels.dimension(dimension)}. ${t('reportKit.groupByMinimum')}`
+                : labels.dimension(dimension)
+            }
+          >
+            {labels.dimension(dimension)}
+          </Chip>
+        );
+      })}
+    </View>
+  );
+
+  const controls = (chips: React.ReactNode) => (
+    <View className="gap-3">
+      <View className="flex-row flex-wrap items-center gap-3">
+        <Text className="text-sm text-muted-foreground">{t('reportKit.period')}</Text>
+        <SegmentedControl
+          type="radio"
+          size="sm"
+          label={t('reportKit.period')}
+          value={String(rangeDays)}
+          onValueChange={(next: string) => setRangeDays(Number(next) as ReportRangeDays)}
+        >
+          {REPORT_RANGE_DAYS.map((days) => (
+            <SegmentedControlItem key={days} value={String(days)}>
+              <SegmentedControlItemText>
+                {t('reportKit.days', { count: days })}
+              </SegmentedControlItemText>
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+      </View>
+      <View className="flex-row flex-wrap items-center gap-3">
+        <Text className="text-sm text-muted-foreground">{t('reportKit.groupBy')}</Text>
+        {chips}
+      </View>
+    </View>
+  );
+
   return (
     <View className="gap-6">
-      <SectionHeader
-        title={t('appsInference.reporting.title')}
-        description={t('appsInference.reporting.description')}
-        action={
-          <>
-            {canReadUsage && (
-              <Button
-                appearance={lane === 'usage' ? 'solid' : 'plain'}
-                size="sm"
-                onPress={() => setLane('usage')}
-              >
-                {t('appsInference.reporting.lanes.usage')}
-              </Button>
-            )}
-            {canReadSpend && (
-              <Button
-                appearance={lane === 'spend' ? 'solid' : 'plain'}
-                size="sm"
-                onPress={() => setLane('spend')}
-              >
-                {t('appsInference.reporting.lanes.spend')}
-              </Button>
-            )}
-          </>
-        }
-      />
+      <View className="gap-3">
+        <View>
+          <CardTitle>{t('appsInference.reporting.title')}</CardTitle>
+          <CardDescription>{t('appsInference.reporting.description')}</CardDescription>
+        </View>
+        {canReadUsage && canReadSpend && (
+          <View className="flex-row">
+            <SegmentedControl
+              type="radio"
+              size="sm"
+              label={t('appsInference.reporting.title')}
+              value={lane}
+              onValueChange={(next: string) => setLane(next as Lane)}
+            >
+              <SegmentedControlItem value="usage">
+                <SegmentedControlItemText>
+                  {t('appsInference.reporting.lanes.usage')}
+                </SegmentedControlItemText>
+              </SegmentedControlItem>
+              <SegmentedControlItem value="spend">
+                <SegmentedControlItemText>
+                  {t('appsInference.reporting.lanes.spend')}
+                </SegmentedControlItemText>
+              </SegmentedControlItem>
+            </SegmentedControl>
+          </View>
+        )}
+      </View>
 
       {lane === 'usage' && canReadUsage && (
         <>
-          <ProvenanceBanner provenance={TELEMETRY} />
-          {canReadSpend && <ProvenanceCrossReference provenance={TELEMETRY} />}
-          <ReportControls
-            rangeDays={rangeDays}
-            onRangeDaysChange={setRangeDays}
-            dimensions={USAGE_DIMENSIONS}
-            selected={usageGroupBy}
-            onSelectedChange={setUsageGroupBy}
-            dimensionLabel={labels.dimension}
-          />
+          {provenanceAdmonition(labels, TELEMETRY)}
+          {canReadSpend && (
+            <Text className="text-xs text-muted-foreground">
+              {t('reportKit.provenance.crossTelemetry')}
+            </Text>
+          )}
+          {controls(dimensionChips(USAGE_DIMENSIONS, usageGroupBy, setUsageGroupBy))}
 
           {usageQuery.isLoading ? (
             skeletons
-          ) : usageRows.length === 0 ? (
-            <MutedText>
-              {t('appsInference.reporting.noUsage', { from: range.from, to: range.to })}
-            </MutedText>
           ) : (
             <DataTable
               rows={usageRows}
@@ -243,6 +326,11 @@ export function ApplicationUsageSpendSection({
                 `${usageGroupBy.map((dimension) => usageDimensionValue(row, dimension)).join('|')}-${index}`
               }
               accessibilityLabel={t('appsInference.reporting.usageTable')}
+              emptyState={
+                <Text className="text-sm text-muted-foreground">
+                  {t('appsInference.reporting.noUsage', { from: range.from, to: range.to })}
+                </Text>
+              }
               size="sm"
             />
           )}
@@ -251,52 +339,54 @@ export function ApplicationUsageSpendSection({
 
       {lane === 'spend' && canReadSpend && (
         <>
-          <ProvenanceBanner provenance={LEDGER} />
-          {canReadUsage && <ProvenanceCrossReference provenance={LEDGER} />}
-          <ReportControls
-            rangeDays={rangeDays}
-            onRangeDaysChange={setRangeDays}
-            dimensions={SPEND_DIMENSIONS}
-            selected={spendGroupBy}
-            onSelectedChange={setSpendGroupBy}
-            dimensionLabel={labels.dimension}
-          />
+          {provenanceAdmonition(labels, LEDGER)}
+          {canReadUsage && (
+            <Text className="text-xs text-muted-foreground">
+              {t('reportKit.provenance.crossLedger')}
+            </Text>
+          )}
+          {controls(dimensionChips(SPEND_DIMENSIONS, spendGroupBy, setSpendGroupBy))}
 
           {spendQuery.isLoading ? (
             skeletons
           ) : (
             <>
-              <View className="flex-row flex-wrap gap-12">
+              <View className="flex-row flex-wrap gap-3">
                 {(spendQuery.data?.totals ?? []).map((total) => (
-                  <View key={total.currency}>
-                    <Text className="text-2xl font-semibold text-foreground">
-                      {formatMoney(total.netAmount, total.currency)}
-                    </Text>
-                    <Text className="mt-0.5 text-sm text-muted-foreground">
-                      {t('appsInference.reporting.netOver', {
-                        count: formatCount(total.receiptCount),
-                      })}
-                    </Text>
-                  </View>
+                  <Card
+                    key={total.currency}
+                    appearance="outline"
+                    radius="radius-16"
+                    className="min-w-48 flex-1"
+                  >
+                    <CardHeader>
+                      <CardTitle>{formatMoney(total.netAmount, total.currency)}</CardTitle>
+                    </CardHeader>
+                    <CardBody>
+                      <CardDescription>
+                        {t('appsInference.reporting.netOver', {
+                          count: formatCount(total.receiptCount),
+                        })}
+                      </CardDescription>
+                    </CardBody>
+                  </Card>
                 ))}
-                {(spendQuery.data?.totals ?? []).length === 0 && (
-                  <MutedText>
-                    {t('appsInference.reporting.noSpend', { from: range.from, to: range.to })}
-                  </MutedText>
-                )}
               </View>
 
-              {spendRows.length > 0 && (
-                <DataTable
-                  rows={spendRows}
-                  columns={spendColumns}
-                  getRowId={(row, index) =>
-                    `${spendGroupBy.map((dimension) => spendDimensionValue(row, dimension)).join('|')}-${index}`
-                  }
-                  accessibilityLabel={t('appsInference.reporting.spendTable')}
-                  size="sm"
-                />
-              )}
+              <DataTable
+                rows={spendRows}
+                columns={spendColumns}
+                getRowId={(row, index) =>
+                  `${spendGroupBy.map((dimension) => spendDimensionValue(row, dimension)).join('|')}-${index}`
+                }
+                accessibilityLabel={t('appsInference.reporting.spendTable')}
+                emptyState={
+                  <Text className="text-sm text-muted-foreground">
+                    {t('appsInference.reporting.noSpend', { from: range.from, to: range.to })}
+                  </Text>
+                }
+                size="sm"
+              />
             </>
           )}
         </>

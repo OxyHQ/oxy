@@ -170,6 +170,8 @@ const en: LocaleDict = {
     title: 'Applications',
     subtitle: 'Applications you own or collaborate on',
     backToList: 'Back to applications',
+    selectTitle: 'Select an application',
+    selectBody: 'Choose an application from the list to manage its settings, credentials and usage.',
     loadFailed: 'This application could not be loaded.',
     createdOn: 'Created {{date}}',
     copyId: 'Copy application ID',
@@ -517,6 +519,7 @@ const en: LocaleDict = {
       },
     },
     routing: {
+      statusLabel: 'Status',
       noPermission: 'You do not have permission to view this application’s routing policy.',
       loadFailedTitle: 'Routing policy could not be loaded',
       loadFailedFallback: 'The routing policy control plane did not answer.',
@@ -689,6 +692,12 @@ const en: LocaleDict = {
       },
     },
     byok: {
+      columns: {
+        provider: 'Provider',
+        state: 'State',
+        details: 'Details',
+        actions: 'Actions',
+      },
       noPermission: 'You do not have permission to view this application’s provider connections.',
       title: 'Provider connections',
       description:
@@ -781,6 +790,7 @@ const en: LocaleDict = {
         failed: 'Failed to revoke the connection',
       },
       card: {
+        actions: 'Connection actions',
         recoveryNeeded: 'recovery needed',
         lastBootstrap: 'Last bootstrap: {{state}} · deployment {{deployment}}{{failure}}',
         hidden: 'Credential hidden · stored securely in Kaana',
@@ -822,6 +832,13 @@ const en: LocaleDict = {
     },
     budgets: {
       noPermission: 'You do not have permission to view this application’s budgets.',
+      columns: {
+        limit: 'Budget',
+        status: 'Status',
+        enforcement: 'At the ceiling',
+        spent: 'Spend',
+        actions: 'Actions',
+      },
       title: 'Limits and budgets',
       description:
         'Ceilings evaluated before a request runs. A hard stop refuses it; a soft stop lets it through and records the crossing.',
@@ -1009,6 +1026,7 @@ const en: LocaleDict = {
   modelsPage: {
     title: 'Models',
     subtitle: 'The models Oxy can serve, and the routing profiles that choose between them',
+    columns: { profile: 'Profile', optimises: 'Optimises for', model: 'Model', publisher: 'Publisher', modalities: 'Modalities', details: 'Details' },
     tabs: { models: 'Models', profiles: 'Routing profiles' },
     loadFailed: {
       title: 'Could not load {{what}}',
@@ -1844,6 +1862,16 @@ const en: LocaleDict = {
 
   settingsPage: {
     title: 'Account settings',
+    manageOxyAccount: 'Manage Oxy account',
+    appearance: {
+      title: 'Appearance',
+      theme: 'Theme',
+      light: 'Light',
+      system: 'System',
+      dark: 'Dark',
+      systemHint: "System follows your device's appearance setting.",
+      accentColor: 'Accent color',
+    },
     tabs: { label: 'Settings sections', account: 'Account', audit: 'Audit log' },
     roles: {
       owner: 'Owner',

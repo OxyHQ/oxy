@@ -1,29 +1,24 @@
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Item } from '@oxy.so/bloom/item';
+import { InlineMarkdown } from '@oxy.so/bloom/markdown';
 import type { ModelCatalogueEntry } from '@oxy.so/contracts';
 import { Text, View } from 'react-native';
 
-import { Fact } from '@/components/content/Fact';
-import { RichText } from '@/components/content/RichText';
 import { useTranslation } from '@/lib/i18n';
 import { formatMoney } from '@/lib/money';
 import { BadgeRow } from './BadgeRow';
 import { CapabilityFlag } from './CapabilityFlag';
 
-interface CatalogueEntryRowProps {
-  entry: ModelCatalogueEntry;
-  isLast: boolean;
-}
-
 /**
- * One catalogue entry.
+ * Everything the catalogue serves about one model.
  *
  * Everything rendered here is a field the API serves. There is no wholesale cost,
  * no internal route id and no provider secret in `ModelCatalogueEntry` to render:
  * the customer-safe projection is built from an allow-list of columns server-side,
  * so this component has nothing unsafe available to it.
  */
-export function CatalogueEntryRow({ entry, isLast }: CatalogueEntryRowProps) {
+export function CatalogueEntryDetail({ entry }: { entry: ModelCatalogueEntry }) {
   const { t } = useTranslation();
   const { capabilities, dataPolicy, deprecation, license, provenance, pricing } = entry;
   const tokens = (count: number) => t('modelsPage.entry.tokens', { count: count.toLocaleString() });
@@ -41,66 +36,53 @@ export function CatalogueEntryRow({ entry, isLast }: CatalogueEntryRowProps) {
     ),
   ];
 
+  const facts: Array<{ label: string; value: string }> = [
+    { label: t('modelsPage.entry.context'), value: tokens(capabilities.maxContextTokens) },
+    { label: t('modelsPage.entry.maxOutput'), value: tokens(capabilities.maxOutputTokens) },
+    { label: t('modelsPage.entry.input'), value: capabilities.inputModalities.join(', ') },
+    { label: t('modelsPage.entry.output'), value: capabilities.outputModalities.join(', ') },
+    // The UNION of every serving route's regions: the same field the region
+    // filter matches on, so a customer can see what they narrowed by.
+    ...(entry.regions.length > 0
+      ? [{ label: t('modelsPage.entry.regions'), value: entry.regions.join(', ') }]
+      : []),
+    { label: t('modelsPage.entry.licence'), value: license.displayName },
+    { label: t('modelsPage.entry.release'), value: provenance.releaseKind.replace(/_/g, ' ') },
+    ...(entry.knowledgeCutoff !== undefined
+      ? [{ label: t('modelsPage.entry.knowledgeCutoff'), value: entry.knowledgeCutoff }]
+      : []),
+    {
+      label: t('modelsPage.entry.currentRevision'),
+      value:
+        entry.availableRevisions.length > 1
+          ? `${entry.modelId}@${entry.currentRevision} · ${t('modelsPage.entry.revisionsPinnable', {
+              count: entry.availableRevisions.length,
+            })}`
+          : `${entry.modelId}@${entry.currentRevision}`,
+    },
+  ];
+
   return (
-    <View className={`gap-4 py-6 ${isLast ? '' : 'border-b border-border'}`}>
-      <View className="flex-row flex-wrap items-start justify-between gap-3">
-        <View className="gap-0.5">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-sm font-medium text-foreground">{entry.displayName}</Text>
-            {deprecation.status !== 'active' && (
-              <Badge size="label-small" variant="subtle" content={deprecation.status} />
-            )}
-          </View>
-          <Text selectable className="font-mono text-xs text-muted-foreground">
-            {entry.modelId}
-          </Text>
-          <Text className="mt-1 text-xs text-muted-foreground">
-            {t('modelsPage.entry.publishedBy', { name: entry.publisher.displayName })}
-          </Text>
-        </View>
-        <View className="gap-0.5 sm:items-end">
-          <Text className="text-xs text-muted-foreground">
-            {t('modelsPage.entry.currentRevision')}
-          </Text>
-          <Text selectable className="font-mono text-xs text-foreground">
-            {`${entry.modelId}@${entry.currentRevision}`}
-          </Text>
-          {entry.availableRevisions.length > 1 && (
-            <Text className="text-xs text-muted-foreground">
-              {t('modelsPage.entry.revisionsPinnable', { count: entry.availableRevisions.length })}
-            </Text>
-          )}
-        </View>
+    <View className="gap-4">
+      <View className="flex-row flex-wrap items-center gap-2">
+        <Text selectable className="font-mono text-xs text-muted-foreground">
+          {entry.modelId}
+        </Text>
+        {deprecation.status !== 'active' && (
+          <Badge size="label-small" variant="subtle" content={deprecation.status} />
+        )}
       </View>
 
       {entry.description !== undefined && (
         <Text className="text-sm text-muted-foreground">{entry.description}</Text>
       )}
 
-      <View className="flex-row flex-wrap gap-x-8 gap-y-3">
-        <Fact label={t('modelsPage.entry.context')} value={tokens(capabilities.maxContextTokens)} />
-        <Fact
-          label={t('modelsPage.entry.maxOutput')}
-          value={tokens(capabilities.maxOutputTokens)}
-        />
-        <Fact label={t('modelsPage.entry.input')} value={capabilities.inputModalities.join(', ')} />
-        <Fact
-          label={t('modelsPage.entry.output')}
-          value={capabilities.outputModalities.join(', ')}
-        />
-        {/* The UNION of every serving route's regions: the same field the region
-            filter matches on, so a customer can see what they narrowed by. */}
-        {entry.regions.length > 0 && (
-          <Fact label={t('modelsPage.entry.regions')} value={entry.regions.join(', ')} />
-        )}
-        <Fact label={t('modelsPage.entry.licence')} value={license.displayName} />
-        <Fact
-          label={t('modelsPage.entry.release')}
-          value={provenance.releaseKind.replace(/_/g, ' ')}
-        />
-        {entry.knowledgeCutoff !== undefined && (
-          <Fact label={t('modelsPage.entry.knowledgeCutoff')} value={entry.knowledgeCutoff} />
-        )}
+      <View className="flex-row flex-wrap">
+        {facts.map((fact) => (
+          <View key={fact.label} className="min-w-48 flex-1 basis-48">
+            <Item density="compact" title={fact.label} subtitle={fact.value} />
+          </View>
+        ))}
       </View>
 
       <View className="flex-row flex-wrap items-center gap-x-4 gap-y-2">
@@ -146,16 +128,18 @@ export function CatalogueEntryRow({ entry, isLast }: CatalogueEntryRowProps) {
       </View>
 
       {/* The published price for the PRIMARY route, the same route whose data policy
-          and terms this row reports. `formatMoney` groups the digits as text; the
+          and terms this view reports. `formatMoney` groups the digits as text; the
           amount never passes through a `Number`, so `0.000003000000` renders as
           `0.000003` rather than a `0.00` that reads like nothing is charged. The
           price VERSION id is shown because a later invoice can be re-priced against
           it; a customer disputing a charge quotes it. */}
       {pricing !== undefined && (
         <View className="gap-2">
-          <RichText className="text-xs text-muted-foreground">
-            {t('modelsPage.entry.priceVersion', { version: pricing.priceVersionId })}
-          </RichText>
+          <Text className="text-xs text-muted-foreground">
+            <InlineMarkdown
+              source={t('modelsPage.entry.priceVersion', { version: pricing.priceVersionId })}
+            />
+          </Text>
           <BadgeRow
             items={pricing.unitPrices.map((unitPrice) =>
               t('modelsPage.entry.unitPrice', {
@@ -169,14 +153,20 @@ export function CatalogueEntryRow({ entry, isLast }: CatalogueEntryRowProps) {
       )}
 
       {deprecation.status !== 'active' && deprecation.replacementModelReference !== undefined && (
-        <RichText className="text-xs text-muted-foreground">
-          {deprecation.sunsetAt !== undefined
-            ? t('modelsPage.entry.replacedBySunsets', {
-                model: deprecation.replacementModelReference,
-                date: new Date(deprecation.sunsetAt).toLocaleDateString(),
-              })
-            : t('modelsPage.entry.replacedBy', { model: deprecation.replacementModelReference })}
-        </RichText>
+        <Text className="text-xs text-muted-foreground">
+          <InlineMarkdown
+            source={
+              deprecation.sunsetAt !== undefined
+                ? t('modelsPage.entry.replacedBySunsets', {
+                    model: deprecation.replacementModelReference,
+                    date: new Date(deprecation.sunsetAt).toLocaleDateString(),
+                  })
+                : t('modelsPage.entry.replacedBy', {
+                    model: deprecation.replacementModelReference,
+                  })
+            }
+          />
+        </Text>
       )}
 
       {entry.modelCardUrl !== undefined && (

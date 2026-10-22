@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import {
@@ -12,7 +23,6 @@ import {
 import { getErrorMessage } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
 import { limitsFromForm, type LimitsForm, limitsToForm } from '@/lib/inference-limits';
-import { SectionHeader, TextInputField } from './ui';
 
 const FIELD_KEYS: ReadonlyArray<keyof ApplicationInferenceLimits> = [
   'maxConcurrentRealtimeSessions',
@@ -59,32 +69,38 @@ export function InferenceLimitsSection({
   };
 
   return (
-    <View className="gap-4">
-      <SectionHeader
-        title={t('appsInference.limits.title')}
-        description={t('appsInference.limits.description')}
-      />
-      {form === null ? (
-        <Skeleton.Box width="100%" height={160} />
-      ) : (
-        <View className="gap-4">
-          {FIELD_KEYS.map((key) => (
-            <TextInputField
-              key={key}
-              label={t(`appsInference.limits.fields.${key}.label`)}
-              help={t(`appsInference.limits.fields.${key}.help`)}
-              placeholder={t('appsInference.limits.noLimit')}
-              inputMode="numeric"
-              value={form[key]}
-              disabled={!canWrite}
-              onChange={(value) => setForm({ ...form, [key]: value })}
-            />
-          ))}
-        </View>
-      )}
-      {hasError && <Text className="text-sm text-destructive">{parsed.error}</Text>}
+    <Card appearance="outline" radius="radius-16">
+      <CardHeader>
+        <CardTitle>{t('appsInference.limits.title')}</CardTitle>
+        <CardDescription>{t('appsInference.limits.description')}</CardDescription>
+      </CardHeader>
+      <CardBody>
+        {form === null ? (
+          <Skeleton.Box width="100%" height={160} />
+        ) : (
+          <View className="gap-4">
+            {FIELD_KEYS.map((key) => (
+              <Field
+                key={key}
+                label={t(`appsInference.limits.fields.${key}.label`)}
+                description={t(`appsInference.limits.fields.${key}.help`)}
+                disabled={!canWrite}
+              >
+                <TextFieldInput
+                  label={t(`appsInference.limits.fields.${key}.label`)}
+                  placeholder={t('appsInference.limits.noLimit')}
+                  inputMode="numeric"
+                  value={form[key]}
+                  onValueChange={(value) => setForm({ ...form, [key]: value })}
+                />
+              </Field>
+            ))}
+            {hasError && <Admonition type="error">{parsed.error}</Admonition>}
+          </View>
+        )}
+      </CardBody>
       {canWrite && (
-        <View className="flex-row">
+        <CardFooter>
           <Button
             size="sm"
             onPress={handleSave}
@@ -93,8 +109,8 @@ export function InferenceLimitsSection({
           >
             {t('appsInference.limits.save')}
           </Button>
-        </View>
+        </CardFooter>
       )}
-    </View>
+    </Card>
   );
 }

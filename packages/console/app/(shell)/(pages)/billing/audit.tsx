@@ -1,14 +1,15 @@
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody, CardDescription, CardHeader } from '@oxy.so/bloom/card';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
-import { PageBody } from '@/components/account-pages/PageFrame';
-import { MonoCell, NumberCell, TextCell } from '@/components/account-pages/cells';
-import { Muted, Section } from '@/components/account-pages/Section';
-import { SkeletonRows } from '@/components/account-pages/Skeletons';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import { View } from 'react-native';
 import { AuditRefusal } from '@/components/audit/audit-refusal';
-import { useReportLabels } from '@/components/billing/labels';
+import { statusBadge, useReportLabels } from '@/components/billing/labels';
 import { ProvenanceBanner } from '@/components/billing/provenance-banner';
 import { useAccount } from '@/hooks/use-account';
 import { type BillingAuditEntry, useAccountBillingAudit } from '@/hooks/use-account-audit';
@@ -62,7 +63,7 @@ export default function BillingAuditPage() {
         id: 'when',
         header: t('billingPage.audit.when'),
         minWidth: 170,
-        cell: ({ row }) => <TextCell muted>{new Date(row.createdAt).toLocaleString()}</TextCell>,
+        cell: ({ row }) => <Muted>{new Date(row.createdAt).toLocaleString()}</Muted>,
       },
       {
         id: 'change',
@@ -72,8 +73,8 @@ export default function BillingAuditPage() {
           <View className="items-start gap-1">
             {/* The API's own token, which is the word a support conversation
                 quotes, with the meaning beside it. */}
-            <StatusBadge variant="outline" label={humaniseAuditToken(row.kind)} />
-            <Text className="text-xs text-muted-foreground">{labels.billingKind(row.kind)}</Text>
+            <Badge content={humaniseAuditToken(row.kind)} {...statusBadge('outline')} />
+            <Muted className="text-xs">{labels.billingKind(row.kind)}</Muted>
           </View>
         ),
       },
@@ -86,18 +87,18 @@ export default function BillingAuditPage() {
           return (
             <View className="gap-0.5">
               {references.length === 0 ? (
-                <Text className="text-xs text-muted-foreground">—</Text>
+                <Muted className="text-xs">—</Muted>
               ) : (
                 references.map((reference) => (
-                  <Text key={reference.id} className="font-mono text-xs text-foreground">
-                    <Text className="text-muted-foreground">
-                      {labels.billingReference(reference.label)}{' '}
-                    </Text>
+                  <Text key={reference.id} className="font-mono text-xs">
+                    <Muted className="text-xs">{labels.billingReference(reference.label)} </Muted>
                     {reference.id}
                   </Text>
                 ))
               )}
-              <MonoCell muted>{t('billingPage.audit.entry', { id: row.id })}</MonoCell>
+              <Muted className="font-mono text-xs">
+                {t('billingPage.audit.entry', { id: row.id })}
+              </Muted>
             </View>
           );
         },
@@ -106,7 +107,7 @@ export default function BillingAuditPage() {
         id: 'author',
         header: t('billingPage.audit.author'),
         width: 160,
-        cell: ({ row }) => <TextCell muted>{labels.billingActor(row.actorKind)}</TextCell>,
+        cell: ({ row }) => <Muted>{labels.billingActor(row.actorKind)}</Muted>,
       },
       {
         id: 'amount',
@@ -117,14 +118,19 @@ export default function BillingAuditPage() {
           const direction = billingAuditDirection(row);
           return (
             // Money tone: the direction the ledger recorded, never the entry's kind.
-            <NumberCell
-              muted={direction.tone === 'neutral'}
-              tone={direction.tone === 'negative' ? 'negative' : 'default'}
+            <Text
+              className={`tabular-nums ${
+                direction.tone === 'negative'
+                  ? 'text-destructive'
+                  : direction.tone === 'neutral'
+                    ? 'text-muted-foreground'
+                    : ''
+              }`}
               // The words, for a screen reader: the sign alone is not one.
               accessibilityLabel={`${billingAuditAmount(row)} ${labels.billingDirection(row.direction)}`}
             >
               {billingAuditAmount(row)}
-            </NumberCell>
+            </Text>
           );
         },
       },
@@ -134,51 +140,54 @@ export default function BillingAuditPage() {
 
   if (refused) {
     return (
-      <PageBody>
+      <ScreenScrollView contentContainerClassName="px-4 py-6">
         <AuditRefusal missing={['billing:read']} what={t('billingPage.audit.what')} />
-      </PageBody>
+      </ScreenScrollView>
     );
   }
 
   return (
-    <PageBody>
-      <Section description={t('billingPage.audit.body')} last>
-        <ProvenanceBanner
-          provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
-        />
+    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
+      <ProvenanceBanner provenance={{ source: 'financial_ledger', consistency: 'authoritative' }} />
 
-        {query.isLoading ? (
-          <SkeletonRows />
-        ) : query.isError ? (
-          <Muted>{t('billingPage.audit.loadFailed')}</Muted>
-        ) : entries.length === 0 ? (
-          <Muted>{t('billingPage.audit.empty')}</Muted>
-        ) : (
-          <>
-            <DataTable
-              rows={entries}
-              columns={columns}
-              getRowId={(row) => row.id}
-              accessibilityLabel={t('billingPage.audit.tableLabel')}
-              minWidth={880}
-            />
-            {query.hasNextPage && (
-              <View className="items-start">
-                <Button
-                  appearance="plain"
-                  size="sm"
-                  onPress={() => void query.fetchNextPage()}
-                  disabled={query.isFetchingNextPage}
-                >
-                  {query.isFetchingNextPage
-                    ? t('common.loading')
-                    : t('billingPage.audit.loadOlder')}
-                </Button>
-              </View>
-            )}
-          </>
-        )}
-      </Section>
-    </PageBody>
+      <Card>
+        <CardHeader>
+          <CardDescription>{t('billingPage.audit.body')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          {query.isLoading ? (
+            <Skeleton.Box width="100%" height={176} />
+          ) : query.isError ? (
+            <Muted>{t('billingPage.audit.loadFailed')}</Muted>
+          ) : entries.length === 0 ? (
+            <EmptyState variant="compact" title={t('billingPage.audit.empty')} />
+          ) : (
+            <View className="gap-3">
+              <DataTable
+                rows={entries}
+                columns={columns}
+                getRowId={(row) => row.id}
+                accessibilityLabel={t('billingPage.audit.tableLabel')}
+                minWidth={880}
+              />
+              {query.hasNextPage && (
+                <View className="items-start">
+                  <Button
+                    appearance="plain"
+                    size="sm"
+                    onPress={() => void query.fetchNextPage()}
+                    disabled={query.isFetchingNextPage}
+                  >
+                    {query.isFetchingNextPage
+                      ? t('common.loading')
+                      : t('billingPage.audit.loadOlder')}
+                  </Button>
+                </View>
+              )}
+            </View>
+          )}
+        </CardBody>
+      </Card>
+    </ScreenScrollView>
   );
 }

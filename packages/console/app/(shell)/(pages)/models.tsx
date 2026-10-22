@@ -1,8 +1,10 @@
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { ContentScreen } from '@/components/content/ContentScreen';
 import { CatalogueTab } from '@/components/models/CatalogueTab';
 import { RoutingProfilesTab } from '@/components/models/RoutingProfilesTab';
 import { useTranslation } from '@/lib/i18n';
@@ -22,18 +24,32 @@ export default function ModelsScreen() {
   const [tab, setTab] = useState<ModelsTab>('models');
 
   return (
-    <ContentScreen title={t('modelsPage.title')} subtitle={t('modelsPage.subtitle')} maxWidth="xl">
-      <View className="gap-6">
-        <Tabs
-          value={tab}
-          onValueChange={(value) => setTab(value as ModelsTab)}
-          label={t('modelsPage.title')}
-        >
-          <TabsTrigger value="models" label={t('modelsPage.tabs.models')} />
-          <TabsTrigger value="profiles" label={t('modelsPage.tabs.profiles')} />
-        </Tabs>
-        {tab === 'models' ? <CatalogueTab /> : <RoutingProfilesTab />}
-      </View>
-    </ContentScreen>
+    <Screen
+      className="flex-1 bg-background"
+      header={
+        <PageHeader
+          title={t('modelsPage.title')}
+          subtitle={t('modelsPage.subtitle')}
+          leading={<AppShellMenuButton />}
+          presentation="bar"
+          sticky={false}
+          safeArea={false}
+        />
+      }
+    >
+      <ScreenScrollView contentContainerClassName="p-6">
+        <View className="w-full max-w-6xl gap-6">
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as ModelsTab)}
+            label={t('modelsPage.title')}
+          >
+            <TabsTrigger value="models" label={t('modelsPage.tabs.models')} />
+            <TabsTrigger value="profiles" label={t('modelsPage.tabs.profiles')} />
+          </Tabs>
+          {tab === 'models' ? <CatalogueTab /> : <RoutingProfilesTab />}
+        </View>
+      </ScreenScrollView>
+    </Screen>
   );
 }

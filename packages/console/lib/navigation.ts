@@ -41,8 +41,29 @@ export const CONSOLE_NAV: ReadonlyArray<ConsoleNavEntry> = [
     icon: RiBookOpenLine,
     external: config.docsUrl,
   },
-  { key: 'settings', href: '/settings/account', labelKey: 'nav.settings', icon: RiSettings3Line },
 ];
+
+/** Settings is an action, not a route: it opens Bloom's settings modal. */
+export const SETTINGS_NAV = {
+  key: 'settings',
+  labelKey: 'nav.settings',
+  icon: RiSettings3Line,
+} as const;
+
+/** Rows pinned to the bottom of the sidebar. */
+export function buildSecondaryItems(
+  t: TranslateFn,
+  openSettings: () => void,
+): Array<SidebarNavItem> {
+  return [
+    {
+      key: SETTINGS_NAV.key,
+      label: t(SETTINGS_NAV.labelKey),
+      icon: SETTINGS_NAV.icon,
+      onPress: openSettings,
+    },
+  ];
+}
 
 export function buildSidebarItems(
   t: TranslateFn,

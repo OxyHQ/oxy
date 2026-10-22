@@ -169,6 +169,8 @@ const es: LocaleDict = {
     title: 'Aplicaciones',
     subtitle: 'Aplicaciones que posees o en las que colaboras',
     backToList: 'Volver a aplicaciones',
+    selectTitle: 'Selecciona una aplicación',
+    selectBody: 'Elige una aplicación de la lista para gestionar su configuración, credenciales y uso.',
     loadFailed: 'No se pudo cargar esta aplicación.',
     createdOn: 'Creada el {{date}}',
     copyId: 'Copiar ID de la aplicación',
@@ -523,6 +525,7 @@ const es: LocaleDict = {
       },
     },
     routing: {
+      statusLabel: 'Estado',
       noPermission: 'No tienes permiso para ver la política de enrutamiento de esta aplicación.',
       loadFailedTitle: 'No se pudo cargar la política de enrutamiento',
       loadFailedFallback: 'El plano de control de la política de enrutamiento no respondió.',
@@ -695,6 +698,12 @@ const es: LocaleDict = {
       },
     },
     byok: {
+      columns: {
+        provider: 'Proveedor',
+        state: 'Estado',
+        details: 'Detalles',
+        actions: 'Acciones',
+      },
       noPermission: 'No tienes permiso para ver las conexiones de proveedor de esta aplicación.',
       title: 'Conexiones de proveedor',
       description:
@@ -789,6 +798,7 @@ const es: LocaleDict = {
         failed: 'No se pudo revocar la conexión',
       },
       card: {
+        actions: 'Acciones de la conexión',
         recoveryNeeded: 'requiere recuperación',
         lastBootstrap: 'Último arranque: {{state}} · despliegue {{deployment}}{{failure}}',
         hidden: 'Credencial oculta · almacenada de forma segura en Kaana',
@@ -830,6 +840,13 @@ const es: LocaleDict = {
     },
     budgets: {
       noPermission: 'No tienes permiso para ver los presupuestos de esta aplicación.',
+      columns: {
+        limit: 'Presupuesto',
+        status: 'Estado',
+        enforcement: 'Al llegar al tope',
+        spent: 'Gasto',
+        actions: 'Acciones',
+      },
       title: 'Límites y presupuestos',
       description:
         'Techos evaluados antes de ejecutar una solicitud. Un corte duro la rechaza; un corte blando la deja pasar y registra el cruce.',
@@ -1017,6 +1034,7 @@ const es: LocaleDict = {
   modelsPage: {
     title: 'Modelos',
     subtitle: 'Los modelos que Oxy puede servir y los perfiles de enrutamiento que eligen entre ellos',
+    columns: { profile: 'Perfil', optimises: 'Optimiza para', model: 'Modelo', publisher: 'Editor', modalities: 'Modalidades', details: 'Detalles' },
     tabs: { models: 'Modelos', profiles: 'Perfiles de enrutamiento' },
     loadFailed: {
       title: 'No se pudo cargar {{what}}',
@@ -1859,6 +1877,16 @@ const es: LocaleDict = {
 
   settingsPage: {
     title: 'Ajustes de la cuenta',
+    manageOxyAccount: 'Administrar cuenta de Oxy',
+    appearance: {
+      title: 'Apariencia',
+      theme: 'Tema',
+      light: 'Claro',
+      system: 'Sistema',
+      dark: 'Oscuro',
+      systemHint: 'Sistema sigue la configuración de apariencia de tu dispositivo.',
+      accentColor: 'Color de acento',
+    },
     tabs: { label: 'Secciones de ajustes', account: 'Cuenta', audit: 'Registro de auditoría' },
     roles: {
       owner: 'Propietario',

@@ -1,11 +1,12 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Chip } from '@oxy.so/bloom/chip';
+import { DataTableFilter } from '@oxy.so/bloom/data-table';
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { Field } from '@oxy.so/bloom/field';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { currencyCodeSchema, exactDecimalSchema } from '@oxy.so/contracts';
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import { Field } from '@/components/account-pages/Section';
-import { OptionSelect } from '@/components/account-pages/OptionSelect';
+import { View } from 'react-native';
 import { useApplicationCredentials, useApplications } from '@/hooks/use-applications';
 import type { CreateBudgetInput } from '@/hooks/use-inference-reporting';
 import { useTranslation } from '@/lib/i18n';
@@ -172,11 +173,11 @@ export function BudgetFormDialog({
       <View className="gap-5 py-2">
         {fixedApplicationId === undefined && (
           <Field label={t('billingPage.budgets.form.appliesTo')}>
-            <OptionSelect
+            <DataTableFilter
               label={t('billingPage.budgets.form.appliesTo')}
               value={scope}
               options={scopeOptions}
-              onChange={setScope}
+              onValueChange={(value) => setScope(value as BudgetScope)}
             />
           </Field>
         )}
@@ -184,19 +185,21 @@ export function BudgetFormDialog({
         {fixedApplicationId === undefined && scope !== 'account' && (
           <Field
             label={t('billingPage.budgets.form.application')}
-            hint={
+            description={
               applications.length === 0 ? t('billingPage.budgets.form.noApplications') : undefined
             }
           >
-            <OptionSelect
+            <DataTableFilter
               label={t('billingPage.budgets.form.application')}
               value={applicationId}
-              placeholder={t('billingPage.budgets.form.chooseApplication')}
-              options={applications.map((application) => ({
-                value: application._id,
-                label: application.name,
-              }))}
-              onChange={(value) => {
+              options={[
+                { value: '', label: t('billingPage.budgets.form.chooseApplication') },
+                ...applications.map((application) => ({
+                  value: application._id,
+                  label: application.name,
+                })),
+              ]}
+              onValueChange={(value) => {
                 setApplicationId(value);
                 setCredentialId('');
               }}
@@ -207,21 +210,23 @@ export function BudgetFormDialog({
         {scope === 'credential' && applicationId.length > 0 && (
           <Field
             label={t('billingPage.budgets.form.credential')}
-            hint={
+            description={
               credentials.length === 0 && !credentialsQuery.isLoading
                 ? t('billingPage.budgets.form.noCredentials')
                 : undefined
             }
           >
-            <OptionSelect
+            <DataTableFilter
               label={t('billingPage.budgets.form.credential')}
               value={credentialId}
-              placeholder={t('billingPage.budgets.form.chooseCredential')}
-              options={credentials.map((credential) => ({
-                value: credential._id,
-                label: `${credential.name} · ${credential.environment}`,
-              }))}
-              onChange={setCredentialId}
+              options={[
+                { value: '', label: t('billingPage.budgets.form.chooseCredential') },
+                ...credentials.map((credential) => ({
+                  value: credential._id,
+                  label: `${credential.name} · ${credential.environment}`,
+                })),
+              ]}
+              onValueChange={setCredentialId}
             />
           </Field>
         )}
@@ -229,14 +234,14 @@ export function BudgetFormDialog({
         <View className="flex-row gap-4">
           <View className="flex-1">
             <Field label={t('billingPage.budgets.form.period')}>
-              <OptionSelect
+              <DataTableFilter
                 label={t('billingPage.budgets.form.period')}
                 value={period}
                 options={BUDGET_PERIODS.map((entry) => ({
                   value: entry,
                   label: labels.period(entry),
                 }))}
-                onChange={setPeriod}
+                onValueChange={(value) => setPeriod(value as BudgetPeriod)}
               />
             </Field>
           </View>
@@ -255,30 +260,30 @@ export function BudgetFormDialog({
 
         {currencies.length > 0 && (
           <Field label={t('billingPage.budgets.form.currency')}>
-            <OptionSelect
+            <DataTableFilter
               label={t('billingPage.budgets.form.currency')}
               value={currency}
               options={currencies.map((code) => ({ value: code, label: code }))}
-              onChange={setCurrency}
+              onValueChange={setCurrency}
             />
           </Field>
         )}
 
         <Field label={t('billingPage.budgets.form.atCeiling')}>
-          <OptionSelect
+          <DataTableFilter
             label={t('billingPage.budgets.form.atCeiling')}
             value={enforcement}
             options={BUDGET_ENFORCEMENTS.map((entry) => ({
               value: entry,
               label: labels.enforcement(entry),
             }))}
-            onChange={setEnforcement}
+            onValueChange={(value) => setEnforcement(value as BudgetEnforcement)}
           />
         </Field>
 
         <Field
           label={t('billingPage.budgets.form.alertAt')}
-          hint={t('billingPage.budgets.form.alertHint')}
+          description={t('billingPage.budgets.form.alertHint')}
         >
           <View className="flex-row flex-wrap gap-1.5">
             {BUDGET_ALERT_THRESHOLDS_BPS.map((bps) => (
@@ -294,7 +299,7 @@ export function BudgetFormDialog({
           </View>
         </Field>
 
-        {error !== null && <Text className="text-sm text-destructive">{error}</Text>}
+        {error !== null && <Admonition type="error">{error}</Admonition>}
       </View>
     </Dialog>
   );

@@ -1,9 +1,10 @@
 import { Command } from '@oxy.so/bloom/command';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import { create } from 'zustand';
 
+import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { useTranslation } from '@/lib/i18n';
 import { buildCommandItems } from './command-menu-items';
 
@@ -30,6 +31,7 @@ export function openCommandMenu(): void {
 export function CommandMenu() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { open: openSettings } = useConsoleSettings();
   const open = useCommandMenuState((state) => state.open);
   const setOpen = useCommandMenuState((state) => state.setOpen);
 
@@ -45,7 +47,16 @@ export function CommandMenu() {
     return () => globalThis.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const items = useMemo(() => buildCommandItems(t, (href) => router.navigate(href)), [t, router]);
+  const items = useMemo(
+    () =>
+      buildCommandItems(
+        t,
+        (href) => router.navigate(href),
+        (url) => void Linking.openURL(url),
+        () => openSettings(),
+      ),
+    [t, router, openSettings],
+  );
 
   return (
     <Command

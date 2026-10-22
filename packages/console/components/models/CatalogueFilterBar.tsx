@@ -1,9 +1,20 @@
+import { Field } from '@oxy.so/bloom/field';
+import { Item } from '@oxy.so/bloom/item';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import type { InferenceModality, InferenceOutputModality } from '@oxy.so/contracts';
 import { Text, View } from 'react-native';
 
-import { OptionSelect } from '@/components/content/OptionSelect';
 import { useTranslation } from '@/lib/i18n';
 import {
   type CatalogueFacets,
@@ -22,6 +33,52 @@ interface CatalogueFilterBarProps {
   shown: number;
 }
 
+interface FacetOption {
+  value: string;
+  label: string;
+}
+
+/** One facet: a labelled dropdown over the values the loaded catalogue actually has. */
+function FacetSelect({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  options: ReadonlyArray<FacetOption>;
+  onChange: (value: string) => void;
+  className: string;
+}) {
+  return (
+    <View className={className}>
+      <Field label={label}>
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger label={label}>
+            <SelectValue>
+              {() => options.find((option) => option.value === value)?.label}
+            </SelectValue>
+            <SelectIcon />
+          </SelectTrigger>
+          <SelectContent
+            label={label}
+            items={options}
+            valueExtractor={(option) => option.value}
+            renderItem={(option) => (
+              <SelectItem value={option.value} label={option.label}>
+                <SelectItemIndicator />
+                <SelectItemText>{option.label}</SelectItemText>
+              </SelectItem>
+            )}
+          />
+        </Select>
+      </Field>
+    </View>
+  );
+}
+
 function ToggleRow({
   label,
   checked,
@@ -32,9 +89,14 @@ function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <View className="flex-row items-center gap-2">
-      <Switch checked={checked} onCheckedChange={onChange} accessibilityLabel={label} />
-      <Text className="text-sm text-foreground">{label}</Text>
+    <View className="min-w-64">
+      <Item
+        density="compact"
+        title={label}
+        trailing={
+          <Switch checked={checked} onCheckedChange={onChange} accessibilityLabel={label} />
+        }
+      />
     </View>
   );
 }
@@ -75,7 +137,7 @@ export function CatalogueFilterBar({
         </View>
 
         {facets.inputModalities.length > 1 && (
-          <OptionSelect
+          <FacetSelect
             className="w-44"
             label={t('modelsPage.filters.inputModality')}
             value={filters.inputModality ?? ANY}
@@ -90,7 +152,7 @@ export function CatalogueFilterBar({
         )}
 
         {facets.outputModalities.length > 1 && (
-          <OptionSelect
+          <FacetSelect
             className="w-44"
             label={t('modelsPage.filters.outputModality')}
             value={filters.outputModality ?? ANY}
@@ -105,7 +167,7 @@ export function CatalogueFilterBar({
         )}
 
         {facets.regions.length > 1 && (
-          <OptionSelect
+          <FacetSelect
             className="w-44"
             label={t('modelsPage.filters.region')}
             value={filters.region ?? ANY}
@@ -115,7 +177,7 @@ export function CatalogueFilterBar({
         )}
 
         {facets.providers.length > 1 && (
-          <OptionSelect
+          <FacetSelect
             className="w-52"
             label={t('modelsPage.filters.provider')}
             value={filters.provider ?? ANY}

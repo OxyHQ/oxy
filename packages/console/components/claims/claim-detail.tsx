@@ -1,5 +1,6 @@
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
 import { Dialog } from '@oxy.so/bloom/dialog';
@@ -15,7 +16,6 @@ import { Link, type Href } from 'expo-router';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
-import { Section } from '@/components/content/Section';
 import {
   useAddClaimNote,
   useAttachClaimTargets,
@@ -575,106 +575,128 @@ export function ClaimDetail({ claim }: { claim: ContentClaimDetailView }) {
         onBlocked={() => setSelected([])}
       />
 
-      <Section title={t('claimsPage.sections.claimant')}>
-        {claimant === null ? (
-          <Text className="text-sm text-muted-foreground">
-            {claim.claimantExpiresAt
-              ? t('claimsPage.claimant.erasedOn', {
-                  date: new Date(claim.claimantExpiresAt).toLocaleDateString(),
-                })
-              : t('claimsPage.claimant.erased')}
-          </Text>
-        ) : (
-          <View className="gap-2">
-            <DetailRow label={t('claimsPage.claimant.name')}>{claimant.name}</DetailRow>
-            <DetailRow label={t('claimsPage.claimant.email')}>{claimant.email}</DetailRow>
-            {claimant.organization ? (
-              <DetailRow label={t('claimsPage.claimant.organization')}>
-                {claimant.organization}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('claimsPage.sections.claimant')}</CardTitle>
+        </CardHeader>
+        <CardBody>
+          {claimant === null ? (
+            <Text className="text-sm text-muted-foreground">
+              {claim.claimantExpiresAt
+                ? t('claimsPage.claimant.erasedOn', {
+                    date: new Date(claim.claimantExpiresAt).toLocaleDateString(),
+                  })
+                : t('claimsPage.claimant.erased')}
+            </Text>
+          ) : (
+            <View className="gap-2">
+              <DetailRow label={t('claimsPage.claimant.name')}>{claimant.name}</DetailRow>
+              <DetailRow label={t('claimsPage.claimant.email')}>{claimant.email}</DetailRow>
+              {claimant.organization ? (
+                <DetailRow label={t('claimsPage.claimant.organization')}>
+                  {claimant.organization}
+                </DetailRow>
+              ) : null}
+              <DetailRow label={t('claimsPage.claimant.signature')}>{claimant.signature}</DetailRow>
+              {claimant.originalWorkUrl ? (
+                <DetailRow label={t('claimsPage.claimant.originalWork')}>
+                  <ExternalLink href={claimant.originalWorkUrl}>
+                    {claimant.originalWorkUrl}
+                  </ExternalLink>
+                </DetailRow>
+              ) : null}
+              <DetailRow label={t('claimsPage.claimant.statement')}>
+                {claimant.description}
               </DetailRow>
-            ) : null}
-            <DetailRow label={t('claimsPage.claimant.signature')}>{claimant.signature}</DetailRow>
-            {claimant.originalWorkUrl ? (
-              <DetailRow label={t('claimsPage.claimant.originalWork')}>
-                <ExternalLink href={claimant.originalWorkUrl}>
-                  {claimant.originalWorkUrl}
-                </ExternalLink>
-              </DetailRow>
-            ) : null}
-            <DetailRow label={t('claimsPage.claimant.statement')}>{claimant.description}</DetailRow>
-            {claim.claimantExpiresAt ? (
-              <DetailRow label={t('claimsPage.claimant.erasedLabel')}>
-                {new Date(claim.claimantExpiresAt).toLocaleDateString()}
-              </DetailRow>
-            ) : null}
-          </View>
-        )}
-      </Section>
-
-      {claim.counterNotices.length > 0 && (
-        <Section title={t('claimsPage.sections.counterNotices')}>
-          <View className="gap-4">
-            {claim.counterNotices.map((notice) => (
-              <CounterNoticeCard key={notice.id} notice={notice} />
-            ))}
-          </View>
-        </Section>
-      )}
-
-      <Section title={t('claimsPage.sections.targets')}>
-        <TargetsTable
-          claim={claim}
-          selectable={offerBlock}
-          selected={selected}
-          onToggle={(targetId) =>
-            setSelected((current) =>
-              current.includes(targetId)
-                ? current.filter((id) => id !== targetId)
-                : [...current, targetId],
-            )
-          }
-        />
-        {canAttach(claim.state) && <AttachFilesForm claimId={claim.id} />}
-      </Section>
-
-      <Section title={t('claimsPage.sections.audit')}>
-        <View className="gap-3">
-          {claim.events.map((event) => (
-            <View key={event.id} className="gap-1">
-              <View className="flex-row flex-wrap items-center gap-2">
-                <Badge
-                  size="label-small"
-                  variant="outlined"
-                  content={t(`claimsPage.events.${event.action}`)}
-                />
-                {event.toState && event.fromState !== event.toState && (
-                  <Text className="text-xs text-muted-foreground">
-                    {event.fromState
-                      ? t('claimsPage.audit.transition', {
-                          from: t(`claimsPage.states.${event.fromState}`),
-                          to: t(`claimsPage.states.${event.toState}`),
-                        })
-                      : t(`claimsPage.states.${event.toState}`)}
-                  </Text>
-                )}
-                <Text className="text-xs text-muted-foreground">
-                  {t('claimsPage.audit.when', {
-                    date: new Date(event.createdAt).toLocaleString(),
-                    actor: event.actorUserId
-                      ? t('claimsPage.audit.byUser', { user: event.actorUserId })
-                      : t('claimsPage.audit.anonymous'),
-                  })}
-                </Text>
-              </View>
-              {event.note ? (
-                <Text selectable className="text-sm text-foreground">
-                  {event.note}
-                </Text>
+              {claim.claimantExpiresAt ? (
+                <DetailRow label={t('claimsPage.claimant.erasedLabel')}>
+                  {new Date(claim.claimantExpiresAt).toLocaleDateString()}
+                </DetailRow>
               ) : null}
             </View>
-          ))}
-        </View>
-      </Section>
+          )}
+        </CardBody>
+      </Card>
+
+      {claim.counterNotices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('claimsPage.sections.counterNotices')}</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <View className="gap-4">
+              {claim.counterNotices.map((notice) => (
+                <CounterNoticeCard key={notice.id} notice={notice} />
+              ))}
+            </View>
+          </CardBody>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('claimsPage.sections.targets')}</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <TargetsTable
+            claim={claim}
+            selectable={offerBlock}
+            selected={selected}
+            onToggle={(targetId) =>
+              setSelected((current) =>
+                current.includes(targetId)
+                  ? current.filter((id) => id !== targetId)
+                  : [...current, targetId],
+              )
+            }
+          />
+          {canAttach(claim.state) && <AttachFilesForm claimId={claim.id} />}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('claimsPage.sections.audit')}</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <View className="gap-3">
+            {claim.events.map((event) => (
+              <View key={event.id} className="gap-1">
+                <View className="flex-row flex-wrap items-center gap-2">
+                  <Badge
+                    size="label-small"
+                    variant="outlined"
+                    content={t(`claimsPage.events.${event.action}`)}
+                  />
+                  {event.toState && event.fromState !== event.toState && (
+                    <Text className="text-xs text-muted-foreground">
+                      {event.fromState
+                        ? t('claimsPage.audit.transition', {
+                            from: t(`claimsPage.states.${event.fromState}`),
+                            to: t(`claimsPage.states.${event.toState}`),
+                          })
+                        : t(`claimsPage.states.${event.toState}`)}
+                    </Text>
+                  )}
+                  <Text className="text-xs text-muted-foreground">
+                    {t('claimsPage.audit.when', {
+                      date: new Date(event.createdAt).toLocaleString(),
+                      actor: event.actorUserId
+                        ? t('claimsPage.audit.byUser', { user: event.actorUserId })
+                        : t('claimsPage.audit.anonymous'),
+                    })}
+                  </Text>
+                </View>
+                {event.note ? (
+                  <Text selectable className="text-sm text-foreground">
+                    {event.note}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        </CardBody>
+      </Card>
     </View>
   );
 }

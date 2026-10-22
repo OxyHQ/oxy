@@ -1,4 +1,5 @@
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import {
   DropdownMenu,
@@ -16,13 +17,14 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { type Href, useRouter } from 'expo-router';
 import { Fragment, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import { View } from 'react-native';
+import { statusBadge } from '@/components/billing/labels';
 import { type AccountNode, accountLabel, useAccount } from '@/hooks/use-account';
 import { useTranslation } from '@/lib/i18n';
+import { useConsoleSettings } from './ConsoleSettings';
 import { accountInitials, resolveStoredImageUrl, useAccountLabels } from './account-labels';
 import { buildWorkspaceTree } from './workspace-tree';
 
@@ -38,7 +40,7 @@ import { buildWorkspaceTree } from './workspace-tree';
 export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation();
   const labels = useAccountLabels();
-  const router = useRouter();
+  const { open: openSettings } = useConsoleSettings();
   const theme = useTheme();
   const { oxyServices } = useAuth();
   const { accounts, currentAccount, setCurrentAccount, createAccount, isLoading } = useAccount();
@@ -122,7 +124,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
         }
         trailing={
           <View className="flex-row items-center gap-2">
-            {roleLabel ? <StatusBadge variant="outline" label={roleLabel} /> : null}
+            {roleLabel ? <Badge content={roleLabel} {...statusBadge('outline')} /> : null}
             {isCurrent ? <RiCheckLine size="sm" fill={theme.colors.primary} /> : null}
           </View>
         }
@@ -156,12 +158,12 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
             {compact ? null : (
               <>
                 <View className="min-w-0 flex-1">
-                  <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>
+                  <Text variant="body-2-semibold" numberOfLines={1}>
                     {currentLabel}
                   </Text>
-                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                  <Muted className="text-xs" numberOfLines={1}>
                     {labels.kind(currentAccount.kind)}
-                  </Text>
+                  </Muted>
                 </View>
                 <RiArrowDownSLine size="sm" fill={theme.colors.textSecondary} />
               </>
@@ -183,7 +185,7 @@ export function AccountSwitcher({ compact = false }: { compact?: boolean }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             leading={<RiSettings3Line size="sm" fill={theme.colors.textSecondary} />}
-            onPress={() => router.navigate('/settings/account' as Href)}
+            onPress={() => openSettings('account')}
           >
             {t('settingsPage.switcher.settings')}
           </DropdownMenuItem>

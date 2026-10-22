@@ -1,8 +1,8 @@
-import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
-import { Text, View } from 'react-native';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Code } from '@oxy.so/bloom/code';
+import { Text } from '@oxy.so/bloom/typography';
 
 import { useTranslation } from '@/lib/i18n';
-import { Code, MutedIcon } from './primitives';
 
 /**
  * A refusal, said as a refusal.
@@ -23,26 +23,20 @@ export function AuditRefusal({
 }) {
   const { t } = useTranslation();
   return (
-    <View className="max-w-2xl flex-row items-start gap-3 rounded-lg border border-border bg-muted px-5 py-4">
-      <View className="mt-0.5">
-        <MutedIcon icon={RiShieldLine} size={18} />
-      </View>
-      <View className="min-w-0 flex-1 gap-2">
-        <Text className="text-sm font-semibold text-foreground">
-          {t('applications.refusal.title', { what })}
+    <Admonition type="error">
+      <Text variant="body-2-semibold">{t('applications.refusal.title', { what })}</Text>
+      {'\n'}
+      {missing.length === 1
+        ? t('applications.refusal.needsOne')
+        : t('applications.refusal.needsMany')}{' '}
+      {missing.map((permission, index) => (
+        <Text key={permission}>
+          {index > 0 ? ', ' : ''}
+          <Code>{permission}</Code>
         </Text>
-        <View className="flex-row flex-wrap items-center gap-1">
-          <Text className="text-sm text-muted-foreground">
-            {missing.length === 1
-              ? t('applications.refusal.needsOne')
-              : t('applications.refusal.needsMany')}
-          </Text>
-          {missing.map((permission) => (
-            <Code key={permission}>{permission}</Code>
-          ))}
-        </View>
-        <Text className="text-sm text-muted-foreground">{t('applications.refusal.body')}</Text>
-      </View>
-    </View>
+      ))}
+      {'\n'}
+      {t('applications.refusal.body')}
+    </Admonition>
   );
 }

@@ -1,3 +1,4 @@
+import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiBarChartLine } from '@oxy.so/bloom/icons/RiBarChartLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -18,8 +19,8 @@ import { useTranslation } from '@/lib/i18n';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
 
 /**
- * Shared header for an application's detail pages: back, identity, and the
- * section tabs (the route IS the selection).
+ * The `Screen` header of an application's detail pages: back (when the panel is
+ * alone), identity, and the section tabs (the route IS the selection).
  *
  * Each section is offered only to callers holding the permission the API
  * enforces behind it, so nobody sees a tab that would only 403: `credentials:read`,
@@ -37,6 +38,9 @@ export function AppDetailHeader({
   const { t } = useTranslation();
   const router = useRouter();
   const { oxyServices } = useAuth();
+  // The back button only exists while the detail panel is drawn alone (below `lg`);
+  // beside the list the list itself is the way back.
+  const { alone } = useAppShellPanel();
   const base = `/apps/${application._id}`;
 
   const items: Array<RouterTabItem> = [
@@ -71,13 +75,11 @@ export function AppDetailHeader({
   return (
     <View>
       <PageHeader
-        presentation="bar"
         safeArea={false}
-        sticky={false}
         border="none"
         title={application.name}
         subtitle={application.description || undefined}
-        onBack={() => router.navigate('/apps')}
+        onBack={alone ? () => router.navigate('/apps') : undefined}
         backLabel={t('applications.backToList')}
         leading={
           <Avatar

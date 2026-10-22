@@ -1,8 +1,19 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Link } from 'expo-router';
+import { Text } from '@oxy.so/bloom/typography';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useUpdateApplication } from '@/hooks/use-applications';
@@ -14,11 +25,10 @@ import {
   type WebhookEndpointDraft,
   webhookPatch,
 } from '@/lib/app-webhooks';
+import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { useTranslation } from '@/lib/i18n';
 import { AuditRefusal } from './audit-refusal';
 import { FilesWebhookSection } from './files-webhook-section';
-import { TextInputField } from './form-fields';
-import { Notice, NoticeText, SectionBlock } from './primitives';
 
 /**
  * This application's webhook endpoints, its signing secret and its audit events
@@ -55,6 +65,7 @@ export function WebhooksAuditSection({
   access: CallerAccess;
 }) {
   const { t } = useTranslation();
+  const { open: openSettings } = useConsoleSettings();
   // `webhooks:update` rather than `app:update`: the API derives it from
   // `apps:update` by containment, so asking for the specific right means this
   // form follows the server if that stops being true.
@@ -85,44 +96,64 @@ export function WebhooksAuditSection({
   };
 
   return (
-    <View className="gap-8">
-      <SectionBlock
-        title={t('applications.webhooks.title')}
-        description={t('applications.webhooks.subtitle')}
-      >
-        <Notice type="warning" title={t('applications.webhooks.notDeliveredTitle')}>
-          <NoticeText>{t('applications.webhooks.notDeliveredBody')}</NoticeText>
-        </Notice>
+    <View className="gap-6">
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.webhooks.title')}</CardTitle>
+          <CardDescription>{t('applications.webhooks.subtitle')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <View className="gap-4">
+            <Admonition type="warning">
+              <Text variant="body-2-semibold">{t('applications.webhooks.notDeliveredTitle')}</Text>
+              {'\n'}
+              {t('applications.webhooks.notDeliveredBody')}
+            </Admonition>
 
-        <TextInputField
-          label={t('applications.webhooks.production')}
-          value={draft.webhookUrl}
-          onChangeText={(webhookUrl) => setDraft({ ...draft, webhookUrl })}
-          placeholder="https://example.com/webhooks/oxy"
-          keyboardType="url"
-          disabled={!canEdit}
-          hint={t('applications.webhooks.productionHint')}
-        />
-        <TextInputField
-          label={t('applications.webhooks.development')}
-          value={draft.devWebhookUrl}
-          onChangeText={(devWebhookUrl) => setDraft({ ...draft, devWebhookUrl })}
-          placeholder="https://localhost:3000/webhooks/oxy"
-          keyboardType="url"
-          disabled={!canEdit}
-          hint={t('applications.webhooks.developmentHint')}
-        />
+            <Field
+              label={t('applications.webhooks.production')}
+              description={t('applications.webhooks.productionHint')}
+            >
+              <TextFieldInput
+                label={t('applications.webhooks.production')}
+                value={draft.webhookUrl}
+                onChangeText={(webhookUrl) => setDraft({ ...draft, webhookUrl })}
+                placeholder="https://example.com/webhooks/oxy"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={!canEdit}
+              />
+            </Field>
+            <Field
+              label={t('applications.webhooks.development')}
+              description={t('applications.webhooks.developmentHint')}
+            >
+              <TextFieldInput
+                label={t('applications.webhooks.development')}
+                value={draft.devWebhookUrl}
+                onChangeText={(devWebhookUrl) => setDraft({ ...draft, devWebhookUrl })}
+                placeholder="https://localhost:3000/webhooks/oxy"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                disabled={!canEdit}
+              />
+            </Field>
 
-        {/* Shown from the patch about to be sent, so the warning cannot claim a
-            rotation the request does not cause. Clearing the production URL counts. */}
-        {willRotateSecret ? (
-          <Notice type="warning" title={t('applications.webhooks.rotateTitle')}>
-            <NoticeText>{t('applications.webhooks.rotateBody')}</NoticeText>
-          </Notice>
-        ) : null}
-
+            {/* Shown from the patch about to be sent, so the warning cannot claim a
+                rotation the request does not cause. Clearing the production URL counts. */}
+            {willRotateSecret ? (
+              <Admonition type="warning">
+                <Text variant="body-2-semibold">{t('applications.webhooks.rotateTitle')}</Text>
+                {'\n'}
+                {t('applications.webhooks.rotateBody')}
+              </Admonition>
+            ) : null}
+          </View>
+        </CardBody>
         {canEdit ? (
-          <View className="flex-row gap-3 border-t border-border pt-6">
+          <CardFooter>
             <Button
               loading={updateApplication.isPending}
               disabled={!isDirty}
@@ -130,57 +161,67 @@ export function WebhooksAuditSection({
             >
               {t('applications.webhooks.save')}
             </Button>
-          </View>
+          </CardFooter>
         ) : null}
-      </SectionBlock>
+      </Card>
 
       <FilesWebhookSection application={application} canEdit={canEdit} />
 
-      <SectionBlock
-        bordered
-        title={t('applications.webhooks.secretTitle')}
-        description={t('applications.webhooks.secretSubtitle')}
-      >
-        <View className="gap-2 rounded-lg border border-border px-4 py-3">
-          <Text className="text-sm text-foreground">
-            {application.webhookUrl
-              ? t('applications.webhooks.secretExists')
-              : t('applications.webhooks.secretNone')}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.webhooks.secretTitle')}</CardTitle>
+          <CardDescription>{t('applications.webhooks.secretSubtitle')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <Admonition type="info">
+            <Text variant="body-2-semibold">
+              {application.webhookUrl
+                ? t('applications.webhooks.secretExists')
+                : t('applications.webhooks.secretNone')}
+            </Text>
+            {'\n'}
             {application.webhookUrl
               ? t('applications.webhooks.secretExistsBody')
               : t('applications.webhooks.secretNoneBody')}
-          </Text>
-        </View>
-      </SectionBlock>
+          </Admonition>
+        </CardBody>
+      </Card>
 
       {/* A refusal rather than an empty list when the caller may not read the
           trail: a trail shown as "nothing has happened" to somebody who is simply
           not allowed to see it is the one failure an audit surface must not have. */}
-      <SectionBlock
-        bordered
-        title={t('applications.webhooks.auditTitle')}
-        description={t('applications.webhooks.auditSubtitle')}
-      >
-        {canReadAudit ? (
-          <Notice type="info" title={t('applications.webhooks.auditPerCredentialTitle')}>
-            <NoticeText>{t('applications.webhooks.auditPerCredentialBody')}</NoticeText>
-            <NoticeText>
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.webhooks.auditTitle')}</CardTitle>
+          <CardDescription>{t('applications.webhooks.auditSubtitle')}</CardDescription>
+        </CardHeader>
+        <CardBody>
+          {canReadAudit ? (
+            <Admonition type="info">
+              <Text variant="body-2-semibold">
+                {t('applications.webhooks.auditPerCredentialTitle')}
+              </Text>
+              {'\n'}
+              {t('applications.webhooks.auditPerCredentialBody')}
+              {'\n'}
               {t('applications.webhooks.auditNoAggregate')}{' '}
-              <Link href="/settings/audit" className="text-foreground underline">
+              <Text
+                role="link"
+                className="text-foreground underline"
+                onPress={() => openSettings('audit')}
+              >
                 {t('applications.webhooks.auditAccountLink')}
-              </Link>
+              </Text>
               .
-            </NoticeText>
-          </Notice>
-        ) : (
-          <AuditRefusal
-            missing={['credentials:read']}
-            what={t('applications.webhooks.auditWhat')}
-          />
-        )}
-      </SectionBlock>
+            </Admonition>
+          ) : (
+            <AuditRefusal
+              missing={['credentials:read']}
+              what={t('applications.webhooks.auditWhat')}
+            />
+          )}
+        </CardBody>
+      </Card>
     </View>
   );
 }

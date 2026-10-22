@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Link } from 'expo-router';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { CardDescription, CardTitle } from '@oxy.so/bloom/card';
+import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
-import { BudgetFormDialog } from '@/components/billing/budget-form-dialog';
 import { useReportLabels } from '@/components/billing/labels';
-import { ProvenanceBanner } from '@/components/billing/provenance-banner';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useApplicationCredentials } from '@/hooks/use-applications';
 import type { CreateBudgetInput } from '@/hooks/use-inference-reporting';
@@ -21,7 +24,13 @@ import { useTranslation } from '@/lib/i18n';
 import { formatBasisPoints, formatMoney } from '@/lib/money';
 import type { Budget } from '@/lib/reporting';
 import { budgetUtilizationVariant } from '@/lib/reporting';
-import { MutedText, NoPermission, Panel, Pill, SectionHeader } from './ui';
+import { BudgetCreateDialog } from './budget-create-dialog';
+
+/** The tone a budget's utilisation badge takes: a hard-stopped one is an error. */
+function budgetColor(budget: Budget): 'default' | 'info' | 'error' {
+  const variant = budgetUtilizationVariant(budget);
+  return variant === 'destructive' ? 'error' : variant === 'secondary' ? 'default' : 'info';
+}
 
 const LEDGER = { source: 'financial_ledger', consistency: 'authoritative' } as const;
 
@@ -110,149 +119,183 @@ export function ApplicationBudgetsSection({
     }
   };
 
+  const labels = useReportLabels();
+
+  const baseColumns = useMemo<Array<DataTableColumn<Budget>>>(
+    () => [
+      {
+        id: 'limit',
+        header: t('appsInference.budgets.columns.limit'),
+        minWidth: 180,
+        cell: ({ row }) => (
+          <Text className="text-sm font-medium text-foreground">
+            {`${labels.period(row.period)} · ${formatMoney(row.limitAmount, row.currency)}`}
+          </Text>
+        ),
+      },
+      {
+        id: 'status',
+        header: t('appsInference.budgets.columns.status'),
+        minWidth: 170,
+        cell: ({ row }) => (
+          <View className="flex-row flex-wrap items-center gap-1.5">
+            <Badge
+              content={
+                row.status === 'disabled'
+                  ? t('appsInference.budgets.row.disabled')
+                  : t('appsInference.budgets.row.used', {
+                      percent: formatBasisPoints(row.utilizationBps),
+                    })
+              }
+              variant="subtle"
+              color={budgetColor(row)}
+              size="label-small"
+            />
+            {row.scope === 'credential' && (
+              <Badge
+                content={t('appsInference.budgets.row.credential')}
+                variant="outlined"
+                size="label-small"
+              />
+            )}
+          </View>
+        ),
+      },
+      {
+        id: 'enforcement',
+        header: t('appsInference.budgets.columns.enforcement'),
+        minWidth: 150,
+        cell: ({ row }) => (
+          <Text className="text-xs text-muted-foreground">
+            {labels.enforcement(row.enforcement)}
+          </Text>
+        ),
+      },
+      {
+        id: 'spent',
+        header: t('appsInference.budgets.columns.spent'),
+        minWidth: 220,
+        cell: ({ row }) => (
+          <Text className="text-xs text-muted-foreground">
+            {t('appsInference.budgets.row.spent', {
+              spent: formatMoney(row.currentSpend, row.currency),
+              remaining: formatMoney(row.remaining, row.currency),
+            })}
+          </Text>
+        ),
+      },
+    ],
+    [t, labels],
+  );
+
+  const inheritedColumns = baseColumns;
+  const columns = useMemo<Array<DataTableColumn<Budget>>>(
+    () =>
+      canManage
+        ? [
+            ...baseColumns,
+            {
+              id: 'actions',
+              header: '',
+              headerAccessibilityLabel: t('appsInference.budgets.columns.actions'),
+              align: 'end',
+              width: 120,
+              cell: ({ row }) => (
+                <Button
+                  appearance="outline"
+                  size="sm"
+                  onPress={() => handleToggle(row)}
+                  disabled={updateBudget.isPending}
+                >
+                  {row.status === 'active'
+                    ? t('appsInference.budgets.row.disable')
+                    : t('appsInference.budgets.row.rearm')}
+                </Button>
+              ),
+            },
+          ]
+        : baseColumns,
+    // `handleToggle` closes over the stable mutation and the application id.
+    [baseColumns, canManage, t, updateBudget.isPending],
+  );
+
   if (!canRead) {
-    return <NoPermission>{t('appsInference.budgets.noPermission')}</NoPermission>;
+    return <EmptyState variant="compact" title={t('appsInference.budgets.noPermission')} />;
   }
 
   return (
     <View className="gap-6">
-      <SectionHeader
-        title={t('appsInference.budgets.title')}
-        description={t('appsInference.budgets.description')}
-        action={
-          canManage ? (
-            <Button size="sm" onPress={() => setShowForm(true)}>
-              {t('appsInference.budgets.new')}
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <ProvenanceBanner provenance={LEDGER} />
-
-      <View className="gap-3">
-        <Text className="text-sm font-medium text-foreground">
-          {t('appsInference.budgets.own.title')}
-        </Text>
-        {budgetsQuery.isLoading ? (
-          <Skeleton.Box width="100%" height={96} />
-        ) : own.length === 0 ? (
-          <MutedText>{t('appsInference.budgets.own.empty')}</MutedText>
-        ) : (
-          own.map((budget) => (
-            <BudgetRow
-              key={budget.spendingLimitId}
-              budget={budget}
-              canManage={canManage}
-              isPending={updateBudget.isPending}
-              onToggle={handleToggle}
-            />
-          ))
-        )}
+      <View>
+        <CardTitle>{t('appsInference.budgets.title')}</CardTitle>
+        <CardDescription>{t('appsInference.budgets.description')}</CardDescription>
       </View>
 
-      <View className="gap-3">
-        <Text className="text-sm font-medium text-foreground">
-          {t('appsInference.budgets.inherited.title')}
-        </Text>
-        {budgetsQuery.isLoading ? (
-          <Skeleton.Box width="100%" height={96} />
-        ) : inherited.length === 0 ? (
-          <MutedText>{t('appsInference.budgets.inherited.empty')}</MutedText>
-        ) : (
-          <>
-            {inherited.map((budget) => (
-              <BudgetRow
-                key={budget.spendingLimitId}
-                budget={budget}
-                canManage={false}
-                isPending={false}
-                onToggle={handleToggle}
-              />
-            ))}
-            <Text className="text-xs text-muted-foreground">
-              {t('appsInference.budgets.inherited.note')}{' '}
-              <Link href="/billing/budgets" className="text-foreground underline">
-                {t('appsInference.budgets.inherited.link')}
-              </Link>
-            </Text>
-          </>
-        )}
-      </View>
+      <Admonition type="info">
+        <Text className="font-semibold">{labels.provenanceHeadline(LEDGER)}</Text>
+        {`\n${labels.provenanceExplanation(LEDGER)}`}
+      </Admonition>
 
-      <BudgetFormDialog
+      {budgetsQuery.isLoading ? (
+        <Skeleton.Box width="100%" height={160} />
+      ) : (
+        <>
+          <DataTable
+            rows={own}
+            columns={columns}
+            getRowId={(budget) => budget.spendingLimitId}
+            accessibilityLabel={t('appsInference.budgets.own.title')}
+            title={t('appsInference.budgets.own.title')}
+            toolbar={
+              canManage ? (
+                <Button size="sm" onPress={() => setShowForm(true)}>
+                  {t('appsInference.budgets.new')}
+                </Button>
+              ) : undefined
+            }
+            emptyState={
+              <Text className="text-sm text-muted-foreground">
+                {t('appsInference.budgets.own.empty')}
+              </Text>
+            }
+            minWidth={720}
+            size="sm"
+          />
+
+          <DataTable
+            rows={inherited}
+            columns={inheritedColumns}
+            getRowId={(budget) => budget.spendingLimitId}
+            accessibilityLabel={t('appsInference.budgets.inherited.title')}
+            title={t('appsInference.budgets.inherited.title')}
+            summary={
+              inherited.length > 0 ? (
+                <Text className="text-xs text-muted-foreground">
+                  {t('appsInference.budgets.inherited.note')}{' '}
+                  <Link href="/billing/budgets" className="text-foreground underline">
+                    {t('appsInference.budgets.inherited.link')}
+                  </Link>
+                </Text>
+              ) : undefined
+            }
+            emptyState={
+              <Text className="text-sm text-muted-foreground">
+                {t('appsInference.budgets.inherited.empty')}
+              </Text>
+            }
+            minWidth={720}
+            size="sm"
+          />
+        </>
+      )}
+
+      <BudgetCreateDialog
         open={showForm}
         onOpenChange={setShowForm}
-        accountId={application.ownerAccountId}
+        applicationId={application._id}
         currencies={currencies}
-        fixedApplicationId={application._id}
         isPending={createBudget.isPending}
         onSubmit={handleCreate}
       />
     </View>
-  );
-}
-
-function BudgetRow({
-  budget,
-  canManage,
-  isPending,
-  onToggle,
-}: {
-  budget: Budget;
-  canManage: boolean;
-  isPending: boolean;
-  onToggle: (budget: Budget) => void;
-}) {
-  const { t } = useTranslation();
-  const labels = useReportLabels();
-  return (
-    <Panel className="p-4">
-      <View className="flex-row flex-wrap items-start justify-between gap-4">
-        <View className="min-w-0 flex-1">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="text-sm font-medium text-foreground">
-              {`${labels.period(budget.period)} · ${formatMoney(budget.limitAmount, budget.currency)}`}
-            </Text>
-            <Pill
-              label={
-                budget.status === 'disabled'
-                  ? t('appsInference.budgets.row.disabled')
-                  : t('appsInference.budgets.row.used', {
-                      percent: formatBasisPoints(budget.utilizationBps),
-                    })
-              }
-              tone={budgetUtilizationVariant(budget)}
-            />
-            {budget.scope === 'credential' && (
-              <Pill label={t('appsInference.budgets.row.credential')} tone="outline" />
-            )}
-          </View>
-          <View className="mt-1">
-            <MutedText small>{labels.enforcement(budget.enforcement)}</MutedText>
-          </View>
-          <View className="mt-1">
-            <MutedText small>
-              {t('appsInference.budgets.row.spent', {
-                spent: formatMoney(budget.currentSpend, budget.currency),
-                remaining: formatMoney(budget.remaining, budget.currency),
-              })}
-            </MutedText>
-          </View>
-        </View>
-        {canManage && (
-          <Button
-            appearance="outline"
-            size="sm"
-            onPress={() => onToggle(budget)}
-            disabled={isPending}
-          >
-            {budget.status === 'active'
-              ? t('appsInference.budgets.row.disable')
-              : t('appsInference.budgets.row.rearm')}
-          </Button>
-        )}
-      </View>
-    </Panel>
   );
 }

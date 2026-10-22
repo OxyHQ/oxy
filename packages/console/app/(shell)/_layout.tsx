@@ -1,11 +1,14 @@
 import { Slot } from 'expo-router';
 
+import { ConsoleSettingsProvider } from '@/components/settings/ConsoleSettings';
 import { ConsoleShell } from '@/components/shell/ConsoleShell';
 
 export default function ShellLayout() {
   return (
-    <ConsoleShell>
-      <Slot />
-    </ConsoleShell>
+    <ConsoleSettingsProvider>
+      <ConsoleShell>
+        <Slot />
+      </ConsoleShell>
+    </ConsoleSettingsProvider>
   );
 }

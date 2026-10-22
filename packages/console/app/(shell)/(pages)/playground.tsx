@@ -1,18 +1,29 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
+import { Item } from '@oxy.so/bloom/item';
+import { Markdown } from '@oxy.so/bloom/markdown';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import { TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { ContentScreen } from '@/components/content/ContentScreen';
-import { Notice } from '@/components/content/Notice';
-import { OptionSelect } from '@/components/content/OptionSelect';
-import { RichText } from '@/components/content/RichText';
-import { Section } from '@/components/content/Section';
-import type { Href } from 'expo-router';
-import config from '@/lib/config';
-import { TextLink } from '@/components/content/TextLink';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 import { PlaygroundOutput } from '@/components/playground/PlaygroundOutput';
 import { PlaygroundRunReceipt } from '@/components/playground/playground-receipt';
@@ -24,8 +35,49 @@ import {
 } from '@/hooks/use-applications';
 import { useModelCatalogue } from '@/hooks/use-models';
 import { usePlaygroundReceipt, usePlaygroundRun } from '@/hooks/use-playground';
+import config from '@/lib/config';
 import { useTranslation } from '@/lib/i18n';
 import { usePlaygroundKey } from '@/lib/playground-key';
+
+interface ParamOption {
+  value: string;
+  label: string;
+}
+
+/** One request parameter chosen from a list the screen has already loaded. */
+function ParamSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ReadonlyArray<ParamOption>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field label={label}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger label={label}>
+          <SelectValue>{() => options.find((option) => option.value === value)?.label}</SelectValue>
+          <SelectIcon />
+        </SelectTrigger>
+        <SelectContent
+          label={label}
+          items={options}
+          valueExtractor={(option) => option.value}
+          renderItem={(option) => (
+            <SelectItem value={option.value} label={option.label}>
+              <SelectItemIndicator />
+              <SelectItemText>{option.label}</SelectItemText>
+            </SelectItem>
+          )}
+        />
+      </Select>
+    </Field>
+  );
+}
 
 /**
  * The playground: one real request to the public inference edge.
@@ -54,6 +106,7 @@ import { usePlaygroundKey } from '@/lib/playground-key';
  */
 export default function PlaygroundScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { currentAccount } = useAccount();
   const { data: applications = [], isLoading: isLoadingApps } = useApplications();
   const { data: catalogue = [] } = useModelCatalogue();
@@ -110,6 +163,8 @@ export default function PlaygroundScreen() {
   const result = run.data;
   const completed = result?.status === 'completed' ? result.run : undefined;
 
+  const openLink = (url: string) => router.navigate(url as never);
+
   const handleRun = () => {
     if (selectedModel === undefined) return;
     // A new run invalidates the previous receipt: it belonged to another request id.
@@ -118,211 +173,252 @@ export default function PlaygroundScreen() {
   };
 
   return (
-    <ContentScreen title={t('playgroundPage.title')} subtitle={t('playgroundPage.subtitle')}>
-      {/* Kept ahead of every control: a run costs a real request against a real
-          credential and today it cannot succeed; saying so after the click wastes it. */}
-      <InferenceAvailabilityNotice />
+    <Screen
+      className="flex-1 bg-background"
+      header={
+        <PageHeader
+          title={t('playgroundPage.title')}
+          subtitle={t('playgroundPage.subtitle')}
+          leading={<AppShellMenuButton />}
+          presentation="bar"
+          sticky={false}
+          safeArea={false}
+        />
+      }
+    >
+      <ScreenScrollView contentContainerClassName="p-6">
+        <View className="w-full max-w-4xl gap-6">
+          {/* Kept ahead of every control: a run costs a real request against a real
+              credential and today it cannot succeed; saying so after the click wastes it. */}
+          <InferenceAvailabilityNotice />
 
-      <Section
-        title={t('playgroundPage.request.title')}
-        description={t('playgroundPage.request.description')}
-        className="gap-4"
-      >
-        {/* Read-only on purpose: account selection is global to this Console and every
-            account-derived permission follows it; a second picker could disagree. */}
-        <View className="gap-1.5">
-          <Text className="text-xs text-muted-foreground">
-            {t('playgroundPage.request.account')}
-          </Text>
-          <Text className="text-sm text-foreground">
-            {currentAccount === null
-              ? t('playgroundPage.request.noAccount')
-              : accountLabel(currentAccount)}
-          </Text>
-        </View>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('playgroundPage.request.title')}</CardTitle>
+              <CardDescription>{t('playgroundPage.request.description')}</CardDescription>
+            </CardHeader>
+            <CardBody>
+              <View className="gap-4">
+                {/* Read-only on purpose: account selection is global to this Console and
+                    every account-derived permission follows it; a second picker could
+                    disagree. */}
+                <Item
+                  density="compact"
+                  title={t('playgroundPage.request.account')}
+                  subtitle={
+                    currentAccount === null
+                      ? t('playgroundPage.request.noAccount')
+                      : accountLabel(currentAccount)
+                  }
+                />
 
-        <View className="gap-1.5">
-          {isLoadingApps ? (
-            <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
-          ) : applications.length === 0 ? (
-            <RichText>{t('playgroundPage.request.noApplications')}</RichText>
-          ) : (
-            <OptionSelect
-              label={t('playgroundPage.request.application')}
-              value={application?._id ?? ''}
-              options={applications.map((candidate) => ({
-                value: candidate._id,
-                label: candidate.name,
-              }))}
-              onChange={(value) => {
-                setApplicationId(value);
-                // Cleared rather than remapped: the new application's credentials have
-                // not loaded yet, so there is no id here that could be correct.
-                setCredentialId(null);
-              }}
-            />
-          )}
-        </View>
+                {isLoadingApps ? (
+                  <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
+                ) : applications.length === 0 ? (
+                  <Markdown size="sm" onLinkPress={openLink}>
+                    {t('playgroundPage.request.noApplications')}
+                  </Markdown>
+                ) : (
+                  <ParamSelect
+                    label={t('playgroundPage.request.application')}
+                    value={application?._id ?? ''}
+                    options={applications.map((candidate) => ({
+                      value: candidate._id,
+                      label: candidate.name,
+                    }))}
+                    onChange={(value) => {
+                      setApplicationId(value);
+                      // Cleared rather than remapped: the new application's credentials have
+                      // not loaded yet, so there is no id here that could be correct.
+                      setCredentialId(null);
+                    }}
+                  />
+                )}
 
-        <View className="gap-1.5">
-          {!canReadCredentials ? (
-            <RichText>{t('playgroundPage.request.noCredentialAccess')}</RichText>
-          ) : machineCredentials.length === 0 ? (
-            <RichText>
-              {application === undefined
-                ? t('playgroundPage.request.noKeyShort')
-                : t('playgroundPage.request.noKey', { id: application._id })}
-            </RichText>
-          ) : (
-            <>
-              <OptionSelect
-                label={t('playgroundPage.request.credential')}
-                value={credential?._id ?? ''}
-                options={machineCredentials.map((candidate) => ({
-                  value: candidate._id,
-                  label: `${candidate.name} · ${candidate.environment}`,
-                }))}
-                onChange={setCredentialId}
-              />
-              {credential !== undefined && (
-                <View className="flex-row flex-wrap items-center gap-2 pt-1">
-                  <Badge size="label-small" variant="subtle" content={credential.environment} />
-                  {credential.tokenPrefix !== undefined && (
-                    <Text className="font-mono text-xs text-muted-foreground">
-                      {credential.tokenPrefix}
-                    </Text>
+                {!canReadCredentials ? (
+                  <Markdown size="sm" onLinkPress={openLink}>
+                    {t('playgroundPage.request.noCredentialAccess')}
+                  </Markdown>
+                ) : machineCredentials.length === 0 ? (
+                  <Markdown size="sm" onLinkPress={openLink}>
+                    {application === undefined
+                      ? t('playgroundPage.request.noKeyShort')
+                      : t('playgroundPage.request.noKey', { id: application._id })}
+                  </Markdown>
+                ) : (
+                  <View className="gap-2">
+                    <ParamSelect
+                      label={t('playgroundPage.request.credential')}
+                      value={credential?._id ?? ''}
+                      options={machineCredentials.map((candidate) => ({
+                        value: candidate._id,
+                        label: `${candidate.name} · ${candidate.environment}`,
+                      }))}
+                      onChange={setCredentialId}
+                    />
+                    {credential !== undefined && (
+                      <View className="flex-row flex-wrap items-center gap-2">
+                        <Badge
+                          size="label-small"
+                          variant="subtle"
+                          content={credential.environment}
+                        />
+                        {credential.tokenPrefix !== undefined && (
+                          <Text className="font-mono text-xs text-muted-foreground">
+                            {credential.tokenPrefix}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* The secret itself. Masked and `autoComplete="off"`: this is a bearer token,
+                    and a password manager offering to save it would put it where it must not
+                    go. */}
+                <View className="flex-row items-end gap-2">
+                  <View className="flex-1">
+                    <TextFieldInput
+                      label={t('playgroundPage.request.apiKey')}
+                      value={apiKey}
+                      onChangeText={setApiKey}
+                      placeholder="oxy_sk_…"
+                      secureTextEntry
+                      revealable
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  {apiKey !== '' && (
+                    <Button appearance="outline" onPress={() => setApiKey('')}>
+                      {t('playgroundPage.request.forget')}
+                    </Button>
                   )}
                 </View>
-              )}
+                <TextFieldHint>{t('playgroundPage.request.apiKeyHint')}</TextFieldHint>
+                {keyMatchesCredential === false && (
+                  <Admonition type="warning">{t('playgroundPage.request.keyMismatch')}</Admonition>
+                )}
+
+                {catalogue.length === 0 ? (
+                  <Markdown size="sm" onLinkPress={openLink}>
+                    {t('playgroundPage.request.emptyCatalogue')}
+                  </Markdown>
+                ) : (
+                  <ParamSelect
+                    label={t('playgroundPage.request.model')}
+                    value={selectedModel ?? ''}
+                    options={catalogue.map((entry) => ({
+                      value: entry.modelId,
+                      label: `${entry.displayName} · ${entry.modelId}`,
+                    }))}
+                    onChange={setModel}
+                  />
+                )}
+
+                <Textarea
+                  label={t('playgroundPage.request.input')}
+                  value={input}
+                  onChangeText={setInput}
+                  rows={5}
+                  placeholder={t('playgroundPage.request.inputPlaceholder')}
+                />
+
+                <View className="items-start">
+                  <Button onPress={handleRun} disabled={!canRun} loading={run.isPending}>
+                    {run.isPending
+                      ? t('playgroundPage.request.running')
+                      : t('playgroundPage.request.run')}
+                  </Button>
+                </View>
+              </View>
+            </CardBody>
+          </Card>
+
+          {/* A transport failure (no network, DNS, a blocked request): there is no server
+              answer and therefore no request id to report, which is why it is separate
+              from a refusal. */}
+          {run.isError && (
+            <Admonition type="error">
+              {`${t('playgroundPage.error.title')} ${
+                run.error instanceof Error ? run.error.message : t('playgroundPage.error.generic')
+              }`}
+            </Admonition>
+          )}
+
+          {/* A refusal from the edge is a real answer and is rendered as one: the closed
+              error code, whether an identical retry could ever succeed, and the request id,
+              without which the user has nothing to quote when reporting it. */}
+          {result?.status === 'refused' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('playgroundPage.refused.title')}</CardTitle>
+                <CardDescription>{result.error.message}</CardDescription>
+              </CardHeader>
+              <CardBody>
+                <View className="gap-2">
+                  <View className="flex-row flex-wrap items-center gap-2">
+                    <Badge size="label-small" variant="outlined" content={result.error.code} />
+                    <Badge
+                      size="label-small"
+                      variant="subtle"
+                      content={
+                        result.error.retryable
+                          ? t('playgroundPage.refused.retryable')
+                          : t('playgroundPage.refused.notRetryable')
+                      }
+                    />
+                  </View>
+                  <Text selectable className="font-mono text-xs text-muted-foreground">
+                    {t('playgroundPage.refused.requestId', { id: result.error.requestId })}
+                  </Text>
+                </View>
+              </CardBody>
+            </Card>
+          )}
+
+          {completed !== undefined && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('playgroundPage.output.title')}</CardTitle>
+                </CardHeader>
+                <CardBody>
+                  <View className="gap-3">
+                    {completed.output.map((message, index) => (
+                      <PlaygroundOutput key={index} message={message} />
+                    ))}
+                  </View>
+                </CardBody>
+              </Card>
+
+              <PlaygroundRunReceipt
+                run={completed}
+                receipt={receipt.data}
+                isFetchingReceipt={receipt.isPending}
+                onFetchReceipt={() =>
+                  receipt.mutate({ apiKey: apiKey.trim(), requestId: completed.requestId })
+                }
+                receiptError={receipt.error instanceof Error ? receipt.error.message : undefined}
+              />
             </>
           )}
-        </View>
 
-        {/* The secret itself. Masked and `autoComplete="off"`: this is a bearer token,
-            and a password manager offering to save it would put it where it must not go. */}
-        <View className="gap-1.5">
-          <View className="flex-row items-end gap-2">
-            <View className="flex-1">
-              <TextFieldInput
-                label={t('playgroundPage.request.apiKey')}
-                value={apiKey}
-                onChangeText={setApiKey}
-                placeholder="oxy_sk_…"
-                secureTextEntry
-                revealable
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            {apiKey !== '' && (
-              <Button appearance="outline" onPress={() => setApiKey('')}>
-                {t('playgroundPage.request.forget')}
-              </Button>
-            )}
+          <View className="items-start">
+            <Button
+              appearance="plain"
+              tone="accent"
+              size="sm"
+              href={config.docsUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('playgroundPage.readReference')}
+            </Button>
           </View>
-          <Text className="text-xs text-muted-foreground">
-            {t('playgroundPage.request.apiKeyHint')}
-          </Text>
-          {keyMatchesCredential === false && (
-            <Text className="text-xs text-warning">{t('playgroundPage.request.keyMismatch')}</Text>
-          )}
         </View>
-
-        <View className="gap-1.5">
-          {catalogue.length === 0 ? (
-            <RichText>{t('playgroundPage.request.emptyCatalogue')}</RichText>
-          ) : (
-            <OptionSelect
-              label={t('playgroundPage.request.model')}
-              value={selectedModel ?? ''}
-              options={catalogue.map((entry) => ({
-                value: entry.modelId,
-                label: `${entry.displayName} · ${entry.modelId}`,
-              }))}
-              onChange={setModel}
-            />
-          )}
-        </View>
-
-        <Textarea
-          label={t('playgroundPage.request.input')}
-          value={input}
-          onChangeText={setInput}
-          rows={5}
-          placeholder={t('playgroundPage.request.inputPlaceholder')}
-        />
-
-        <View className="items-start">
-          <Button onPress={handleRun} disabled={!canRun} loading={run.isPending}>
-            {run.isPending ? t('playgroundPage.request.running') : t('playgroundPage.request.run')}
-          </Button>
-        </View>
-      </Section>
-
-      {/* A transport failure (no network, DNS, a blocked request): there is no server
-          answer and therefore no request id to report, which is why it is separate
-          from a refusal. */}
-      {run.isError && (
-        <Notice
-          tone="danger"
-          title={t('playgroundPage.error.title')}
-          paragraphs={[
-            run.error instanceof Error ? run.error.message : t('playgroundPage.error.generic'),
-          ]}
-        />
-      )}
-
-      {/* A refusal from the edge is a real answer and is rendered as one: the closed
-          error code, whether an identical retry could ever succeed, and the request id,
-          without which the user has nothing to quote when reporting it. */}
-      {result?.status === 'refused' && (
-        <View className="gap-2 rounded-lg border border-border p-4">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="text-sm font-semibold text-foreground">
-              {t('playgroundPage.refused.title')}
-            </Text>
-            <Badge size="label-small" variant="outlined" content={result.error.code} />
-            <Badge
-              size="label-small"
-              variant="subtle"
-              content={
-                result.error.retryable
-                  ? t('playgroundPage.refused.retryable')
-                  : t('playgroundPage.refused.notRetryable')
-              }
-            />
-          </View>
-          <Text className="text-sm text-muted-foreground">{result.error.message}</Text>
-          <Text selectable className="font-mono text-xs text-muted-foreground">
-            {t('playgroundPage.refused.requestId', { id: result.error.requestId })}
-          </Text>
-        </View>
-      )}
-
-      {completed !== undefined && (
-        <>
-          <Section title={t('playgroundPage.output.title')}>
-            <View className="gap-3 rounded-lg border border-border p-4">
-              {completed.output.map((message, index) => (
-                <PlaygroundOutput key={index} message={message} />
-              ))}
-            </View>
-          </Section>
-
-          <PlaygroundRunReceipt
-            run={completed}
-            receipt={receipt.data}
-            isFetchingReceipt={receipt.isPending}
-            onFetchReceipt={() =>
-              receipt.mutate({ apiKey: apiKey.trim(), requestId: completed.requestId })
-            }
-            receiptError={receipt.error instanceof Error ? receipt.error.message : undefined}
-          />
-        </>
-      )}
-
-      <TextLink href={config.docsUrl as Href}>{t('playgroundPage.readReference')}</TextLink>
-    </ContentScreen>
+      </ScreenScrollView>
+    </Screen>
   );
 }

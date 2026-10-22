@@ -98,11 +98,59 @@ jest.mock('@oxy.so/bloom/icons/RiCloseLine', () => ({ RiCloseLine: () => null })
   virtual: true,
 });
 
-jest.mock('../ui', () => ({
-  MutedText: ({ children }: Children) => <p>{children}</p>,
-  SelectField: ({ label }: { label: string }) => <div data-field={label} />,
-  TextInputField: ({ label }: { label: string }) => <div data-field={label} />,
-}));
+jest.mock(
+  '@oxy.so/bloom/admonition',
+  () => ({
+    Admonition: ({ children }: Children) => <div>{children}</div>,
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  '@oxy.so/bloom/field',
+  () => ({
+    Field: ({ children, error }: Children & { error?: string | null }) => (
+      <div>
+        {children}
+        {error ? <span role="alert">{error}</span> : null}
+      </div>
+    ),
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  '@oxy.so/bloom/grouped-section',
+  () => ({
+    GroupedSection: ({ children }: Children) => <section>{children}</section>,
+    GroupedSectionItem: ({ rightElement }: { rightElement?: ReactNode }) => (
+      <div>{rightElement}</div>
+    ),
+  }),
+  { virtual: true },
+);
+
+jest.mock(
+  '@oxy.so/bloom/select',
+  () => {
+    const Passthrough = ({ children }: Children) => <div>{children}</div>;
+    return {
+      Select: Passthrough,
+      SelectContent: () => null,
+      SelectIcon: () => null,
+      SelectItem: Passthrough,
+      SelectItemIndicator: () => null,
+      SelectItemText: Passthrough,
+      SelectTrigger: Passthrough,
+      SelectValue: () => null,
+    };
+  },
+  { virtual: true },
+);
+
+jest.mock('@oxy.so/bloom/text-field', () => ({ TextFieldInput: () => <input /> }), {
+  virtual: true,
+});
 
 function lookup(key: string): string {
   const value = key

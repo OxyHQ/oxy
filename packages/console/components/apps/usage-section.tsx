@@ -1,46 +1,30 @@
-import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Code } from '@oxy.so/bloom/code';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiBarChartLine } from '@oxy.so/bloom/icons/RiBarChartLine';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableColumn,
+  TableHeader,
+  TableRow,
+} from '@oxy.so/bloom/table';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useApplicationUsage } from '@/hooks/use-applications';
 import { useTranslation } from '@/lib/i18n';
-import { SectionBlock } from './primitives';
 
 const PERIODS = ['24h', '7d', '30d', '90d'] as const;
 
 interface UsageSectionProps {
   application: Application;
   access: CallerAccess;
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <View>
-      <Text className="text-2xl font-semibold text-foreground">{value}</Text>
-      <Text className="mt-0.5 text-sm text-muted-foreground">{label}</Text>
-    </View>
-  );
-}
-
-function UsageRow({
-  label,
-  mono = false,
-  figures,
-}: {
-  label: string;
-  mono?: boolean;
-  figures: string;
-}) {
-  return (
-    <View className="flex-row flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b border-border py-2">
-      <Text className={mono ? 'font-mono text-sm text-foreground' : 'text-sm text-foreground'}>
-        {label}
-      </Text>
-      <Text className="text-sm text-muted-foreground">{figures}</Text>
-    </View>
-  );
 }
 
 export function UsageSection({ application, access }: UsageSectionProps) {
@@ -51,22 +35,24 @@ export function UsageSection({ application, access }: UsageSectionProps) {
 
   if (!canRead) {
     return (
-      <View className="py-12">
-        <Text className="text-center text-sm text-muted-foreground">
-          {t('applications.usage.noPermission')}
-        </Text>
-      </View>
+      <EmptyState
+        variant="compact"
+        icon={RiBarChartLine}
+        title={t('applications.usage.noPermission')}
+      />
     );
   }
 
   const summary = usage?.summary;
 
   return (
-    <View className="gap-8">
-      <SectionBlock
-        title={t('applications.usage.title')}
-        description={t('applications.usage.subtitle')}
-        action={
+    <View className="gap-6">
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.usage.title')}</CardTitle>
+          <CardDescription>{t('applications.usage.subtitle')}</CardDescription>
+        </CardHeader>
+        <CardBody>
           <Tabs
             variant="filled"
             value={period}
@@ -77,85 +63,87 @@ export function UsageSection({ application, access }: UsageSectionProps) {
               <TabsTrigger key={value} value={value} label={value} />
             ))}
           </Tabs>
-        }
-      />
+        </CardBody>
+      </Card>
 
-      <SectionBlock title={t('applications.usage.overview')}>
-        {isLoading ? (
-          <View className="flex-row gap-12">
-            {[1, 2, 3].map((key) => (
-              <Skeleton.Box key={key} width={96} height={48} />
-            ))}
-          </View>
-        ) : (
-          <View className="flex-row flex-wrap gap-x-12 gap-y-4">
-            <Stat
-              value={(summary?.totalRequests ?? 0).toLocaleString()}
-              label={t('applications.usage.totalRequests')}
-            />
-            <Stat
-              value={(summary?.totalTokens ?? 0).toLocaleString()}
-              label={t('applications.usage.totalTokens')}
-            />
-            <Stat
-              value={(summary?.totalCredits ?? 0).toLocaleString()}
-              label={t('applications.usage.credits')}
-            />
-            <Stat
-              value={`${Math.round(summary?.avgResponseTime ?? 0)}ms`}
-              label={t('applications.usage.avgResponse')}
-            />
-          </View>
-        )}
-      </SectionBlock>
+      {isLoading ? (
+        <Skeleton.Box width="100%" height={96} />
+      ) : (
+        <GroupedSection title={t('applications.usage.overview')}>
+          <GroupedSectionItem
+            title={t('applications.usage.totalRequests')}
+            value={(summary?.totalRequests ?? 0).toLocaleString()}
+          />
+          <GroupedSectionItem
+            title={t('applications.usage.totalTokens')}
+            value={(summary?.totalTokens ?? 0).toLocaleString()}
+          />
+          <GroupedSectionItem
+            title={t('applications.usage.credits')}
+            value={(summary?.totalCredits ?? 0).toLocaleString()}
+          />
+          <GroupedSectionItem
+            title={t('applications.usage.avgResponse')}
+            value={`${Math.round(summary?.avgResponseTime ?? 0)}ms`}
+          />
+        </GroupedSection>
+      )}
 
-      <SectionBlock title={t('applications.usage.byDay')}>
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.usage.byDay')}</CardTitle>
+        </CardHeader>
         {isLoading ? (
           <Skeleton.Box width="100%" height={96} />
-        ) : usage?.byDay && usage.byDay.length > 0 ? (
-          <View>
-            {usage.byDay.map((day) => (
-              <UsageRow
-                key={day._id}
-                label={day._id}
-                figures={t('applications.usage.dayFigures', {
-                  requests: day.requests.toLocaleString(),
-                  tokens: day.tokens.toLocaleString(),
-                  credits: day.credits.toLocaleString(),
-                })}
-              />
-            ))}
-          </View>
         ) : (
-          <Text className="py-8 text-center text-sm text-muted-foreground">
-            {t('applications.usage.noData')}
-          </Text>
+          <Table accessibilityLabel={t('applications.usage.byDay')}>
+            <TableHeader>
+              <TableColumn>{t('applications.usage.byDay')}</TableColumn>
+              <TableColumn align="end">{t('applications.usage.totalRequests')}</TableColumn>
+              <TableColumn align="end">{t('applications.usage.totalTokens')}</TableColumn>
+              <TableColumn align="end">{t('applications.usage.credits')}</TableColumn>
+            </TableHeader>
+            <TableBody emptyState={t('applications.usage.noData')}>
+              {(usage?.byDay ?? []).map((day) => (
+                <TableRow key={day._id}>
+                  <TableCell>{day._id}</TableCell>
+                  <TableCell>{day.requests.toLocaleString()}</TableCell>
+                  <TableCell>{day.tokens.toLocaleString()}</TableCell>
+                  <TableCell>{day.credits.toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-      </SectionBlock>
+      </Card>
 
-      <SectionBlock title={t('applications.usage.byEndpoint')}>
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.usage.byEndpoint')}</CardTitle>
+        </CardHeader>
         {isLoading ? (
           <Skeleton.Box width="100%" height={96} />
-        ) : usage?.byEndpoint && usage.byEndpoint.length > 0 ? (
-          <View>
-            {usage.byEndpoint.map((endpoint) => (
-              <UsageRow
-                key={endpoint._id}
-                mono
-                label={endpoint._id}
-                figures={t('applications.usage.endpointFigures', {
-                  requests: endpoint.requests.toLocaleString(),
-                  tokens: endpoint.tokens.toLocaleString(),
-                })}
-              />
-            ))}
-          </View>
         ) : (
-          <Text className="py-8 text-center text-sm text-muted-foreground">
-            {t('applications.usage.noEndpointData')}
-          </Text>
+          <Table accessibilityLabel={t('applications.usage.byEndpoint')}>
+            <TableHeader>
+              <TableColumn flex={2}>{t('applications.usage.byEndpoint')}</TableColumn>
+              <TableColumn align="end">{t('applications.usage.totalRequests')}</TableColumn>
+              <TableColumn align="end">{t('applications.usage.totalTokens')}</TableColumn>
+            </TableHeader>
+            <TableBody emptyState={t('applications.usage.noEndpointData')}>
+              {(usage?.byEndpoint ?? []).map((endpoint) => (
+                <TableRow key={endpoint._id}>
+                  <TableCell flex={2}>
+                    <Code>{endpoint._id}</Code>
+                  </TableCell>
+                  <TableCell>{endpoint.requests.toLocaleString()}</TableCell>
+                  <TableCell>{endpoint.tokens.toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-      </SectionBlock>
+      </Card>
     </View>
   );
 }

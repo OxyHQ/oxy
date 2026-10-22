@@ -1,12 +1,41 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import type { InferenceEnvironment } from '@oxy.so/contracts';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { CardDescription, CardTitle } from '@oxy.so/bloom/card';
+import {
+  DataTable,
+  DataTableRowActions,
+  type DataTableColumn,
+  type DataTableRowActionItem,
+} from '@oxy.so/bloom/data-table';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Field } from '@oxy.so/bloom/field';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiCloudLine } from '@oxy.so/bloom/icons/RiCloudLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
+import { RiHistoryLine } from '@oxy.so/bloom/icons/RiHistoryLine';
+import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
+import { RiLifebuoyLine } from '@oxy.so/bloom/icons/RiLifebuoyLine';
+import { RiPlayCircleLine } from '@oxy.so/bloom/icons/RiPlayCircleLine';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { ProviderConnectionView } from '@/lib/provider-connection';
@@ -32,19 +61,9 @@ import {
   providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
 } from '@/lib/provider-connection';
-import {
-  formatDate,
-  formatDateTime,
-  MutedText,
-  NoPermission,
-  Notice,
-  Panel,
-  PanelRow,
-  Pill,
-  SectionHeader,
-  SelectField,
-  TextInputField,
-} from './ui';
+
+const formatDate = (iso: string): string => new Date(iso).toLocaleDateString();
+const formatDateTime = (iso: string): string => new Date(iso).toLocaleString();
 
 /**
  * BYOK — the customer's own upstream provider credentials, as they apply to one
@@ -298,80 +317,187 @@ export function ProviderConnectionsSection({
   };
 
   if (!canReadOwnerAccount) {
-    return <NoPermission>{t('appsInference.byok.noPermission')}</NoPermission>;
+    return <EmptyState variant="compact" title={t('appsInference.byok.noPermission')} />;
   }
 
   const deployments = validationDeployments.data ?? [];
 
+  const columns: Array<DataTableColumn<ProviderConnectionView>> = [
+    {
+      id: 'provider',
+      header: t('appsInference.byok.columns.provider'),
+      minWidth: 200,
+      cell: ({ row }) => (
+        <View className="gap-0.5">
+          <Text className="text-sm font-medium text-foreground">{row.provider}</Text>
+          <Text className="text-xs text-muted-foreground">
+            {providerConnectionScopeLabel(row.scope)}
+          </Text>
+        </View>
+      ),
+    },
+    {
+      id: 'state',
+      header: t('appsInference.byok.columns.state'),
+      minWidth: 260,
+      cell: ({ row }) => (
+        <View className="flex-row flex-wrap items-center gap-1.5">
+          <Badge
+            content={row.status}
+            variant="subtle"
+            color={statusColor(connectionStatusVariant(row.status))}
+            size="label-small"
+          />
+          <Badge content={row.environment} variant="outlined" size="label-small" />
+          <Badge content={row.validation.state} variant="subtle" size="label-small" />
+          {row.custodyState === 'reconcile' && (
+            <Badge
+              content={t('appsInference.byok.card.recoveryNeeded')}
+              variant="subtle"
+              color="error"
+              size="label-small"
+            />
+          )}
+        </View>
+      ),
+    },
+    {
+      id: 'details',
+      header: t('appsInference.byok.columns.details'),
+      minWidth: 300,
+      cell: ({ row }) => <ConnectionDetails connection={row} applicationId={application._id} />,
+    },
+    {
+      id: 'actions',
+      header: '',
+      headerAccessibilityLabel: t('appsInference.byok.columns.actions'),
+      align: 'end',
+      width: 96,
+      cell: ({ row }) => {
+        const manageable = canManage(row);
+        const isRevoked = row.status === 'revoked';
+        const menu: Array<DataTableRowActionItem> = [];
+        if (manageable && row.custodyState === 'reconcile' && storeUnavailable === null) {
+          menu.push({
+            icon: RiLifebuoyLine,
+            label: t('appsInference.byok.card.recover'),
+            onPress: () => {
+              setRecoverySecret('');
+              setRecovering(row);
+            },
+          });
+        }
+        if (manageable && !isRevoked) {
+          menu.push({
+            icon: RiShieldCheckLine,
+            label:
+              row.validation.state === 'valid'
+                ? t('appsInference.byok.card.revalidate')
+                : t('appsInference.byok.card.validate'),
+            onPress: () => {
+              setValidationDeploymentId('');
+              setValidating(row);
+            },
+          });
+          // Rotation writes a credential, so it is unavailable for the same
+          // reason connecting one is. Disable and revoke are not.
+          if (storeUnavailable === null) {
+            menu.push({
+              icon: RiKey2Line,
+              label: t('appsInference.byok.card.rotate'),
+              onPress: () => {
+                setRotationSecret('');
+                setRotating(row);
+              },
+            });
+          }
+          menu.push(
+            row.status === 'disabled'
+              ? {
+                  icon: RiPlayCircleLine,
+                  label: t('appsInference.byok.card.enable'),
+                  onPress: () => handleSetEnabled(row, true),
+                }
+              : {
+                  icon: RiForbidLine,
+                  label: t('appsInference.byok.card.disable'),
+                  onPress: () => handleSetEnabled(row, false),
+                },
+            {
+              icon: RiDeleteBinLine,
+              label: t('appsInference.byok.card.revoke'),
+              onPress: () => setRevoking(row),
+            },
+          );
+        }
+        return (
+          <DataTableRowActions
+            name={row.provider}
+            menuLabel={t('appsInference.byok.card.actions')}
+            actions={[
+              {
+                icon: RiHistoryLine,
+                label: t('appsInference.byok.card.trail'),
+                onPress: () => setTrailFor(row.connectionId),
+              },
+            ]}
+            menu={menu}
+          />
+        );
+      },
+    },
+  ];
+
   return (
     <View className="gap-6">
-      <SectionHeader
-        title={t('appsInference.byok.title')}
-        description={t('appsInference.byok.description')}
-        action={
-          canUpdateApplication && storeUnavailable === null ? (
-            <Button size="sm" onPress={() => setShowConnect(true)}>
-              {t('appsInference.byok.connect.open')}
-            </Button>
-          ) : undefined
-        }
-      />
+      <View>
+        <CardTitle>{t('appsInference.byok.title')}</CardTitle>
+        <CardDescription>{t('appsInference.byok.description')}</CardDescription>
+      </View>
 
       {storeUnavailable !== null && (
-        <Notice title={t('appsInference.byok.unavailable.title')}>
-          {`${storeUnavailable}\n\n${t('appsInference.byok.unavailable.body')}`}
-        </Notice>
+        <Admonition type="info">
+          <Text className="font-semibold">{t('appsInference.byok.unavailable.title')}</Text>
+          {`\n${storeUnavailable}\n\n${t('appsInference.byok.unavailable.body')}`}
+        </Admonition>
       )}
 
-      <Notice title={t('appsInference.byok.terms.title')}>
-        {t('appsInference.byok.terms.body')}
-      </Notice>
+      <Admonition type="info">
+        <Text className="font-semibold">{t('appsInference.byok.terms.title')}</Text>
+        {`\n${t('appsInference.byok.terms.body')}`}
+      </Admonition>
 
       {isError ? (
-        <Notice type="error" title={t('appsInference.byok.loadFailedTitle')}>
-          {getErrorMessage(error, t('appsInference.byok.loadFailedFallback'))}
-        </Notice>
+        <Admonition type="error">
+          <Text className="font-semibold">{t('appsInference.byok.loadFailedTitle')}</Text>
+          {`\n${getErrorMessage(error, t('appsInference.byok.loadFailedFallback'))}`}
+        </Admonition>
       ) : isLoading ? (
         <Skeleton.Box width="100%" height={120} borderRadius={14} />
-      ) : applicable.length === 0 ? (
-        <EmptyState
-          icon={RiCloudLine}
-          variant="compact"
-          title={t('appsInference.byok.empty.title')}
-          description={t('appsInference.byok.empty.body')}
-        />
       ) : (
-        <View className="gap-3">
-          {applicable.map((connection) => (
-            <ConnectionCard
-              key={connection.connectionId}
-              connection={connection}
-              applicationId={application._id}
-              canManage={canManage(connection)}
-              storeUnavailable={storeUnavailable !== null}
-              isTrailOpen={trailFor === connection.connectionId}
-              onToggleTrail={() =>
-                setTrailFor((current) =>
-                  current === connection.connectionId ? null : connection.connectionId,
-                )
-              }
-              onRotate={() => {
-                setRotationSecret('');
-                setRotating(connection);
-              }}
-              onRecover={() => {
-                setRecoverySecret('');
-                setRecovering(connection);
-              }}
-              onValidate={() => {
-                setValidationDeploymentId('');
-                setValidating(connection);
-              }}
-              onSetEnabled={(enabled) => handleSetEnabled(connection, enabled)}
-              onRevoke={() => setRevoking(connection)}
+        <DataTable
+          rows={applicable}
+          columns={columns}
+          getRowId={(connection) => connection.connectionId}
+          accessibilityLabel={t('appsInference.byok.title')}
+          toolbar={
+            canUpdateApplication && storeUnavailable === null ? (
+              <Button size="sm" onPress={() => setShowConnect(true)}>
+                {t('appsInference.byok.connect.open')}
+              </Button>
+            ) : undefined
+          }
+          emptyState={
+            <EmptyState
+              icon={RiCloudLine}
+              variant="compact"
+              title={t('appsInference.byok.empty.title')}
+              description={t('appsInference.byok.empty.body')}
             />
-          ))}
-        </View>
+          }
+          minWidth={960}
+          size="sm"
+        />
       )}
 
       {/* Connect */}
@@ -394,41 +520,64 @@ export function ProviderConnectionsSection({
         ]}
       >
         <View className="gap-4">
-          <TextInputField
+          <Field
             label={t('appsInference.byok.connect.provider')}
-            value={provider}
-            onChange={(value) => setProvider(value.toLowerCase())}
-            placeholder="provider-slug"
-            help={t('appsInference.byok.connect.providerHelp')}
-          />
-          <SelectField
-            label={t('appsInference.byok.connect.environment')}
-            value={environment}
-            onChange={setEnvironment}
-            items={ENVIRONMENTS.map((value) => ({
-              value,
-              label: t(`appsInference.byok.environments.${value}`),
-            }))}
-          />
-          <View className="flex-row items-start justify-between gap-4">
-            <View className="min-w-0 flex-1">
-              <Text className="text-sm font-medium text-foreground">
-                {t('appsInference.byok.connect.acceptTerms')}
-              </Text>
-              <MutedText small>{t('appsInference.byok.connect.acceptTermsHelp')}</MutedText>
-            </View>
-            <Switch
-              checked={acknowledgeTerms}
-              onCheckedChange={setAcknowledgeTerms}
-              accessibilityLabel={t('appsInference.byok.connect.acceptTerms')}
+            description={t('appsInference.byok.connect.providerHelp')}
+          >
+            <TextFieldInput
+              label={t('appsInference.byok.connect.provider')}
+              value={provider}
+              onValueChange={(value) => setProvider(value.toLowerCase())}
+              placeholder="provider-slug"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
-          </View>
-          <TextInputField
-            label={t('appsInference.byok.connect.credential')}
-            value={secret}
-            onChange={setSecret}
-            secret
-          />
+          </Field>
+          <Field label={t('appsInference.byok.connect.environment')}>
+            <Select
+              value={environment}
+              onValueChange={(next) => setEnvironment(next as InferenceEnvironment)}
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {() => t(`appsInference.byok.environments.${environment}`)}
+                </SelectValue>
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('appsInference.byok.connect.environment')}
+                items={ENVIRONMENTS.map((value) => ({
+                  value,
+                  label: t(`appsInference.byok.environments.${value}`),
+                }))}
+                renderItem={(item) => (
+                  <SelectItem value={item.value} label={item.label}>
+                    <SelectItemIndicator />
+                    <SelectItemText>{item.label}</SelectItemText>
+                  </SelectItem>
+                )}
+              />
+            </Select>
+          </Field>
+          <Field
+            label={t('appsInference.byok.connect.acceptTerms')}
+            description={t('appsInference.byok.connect.acceptTermsHelp')}
+          >
+            <Switch checked={acknowledgeTerms} onCheckedChange={setAcknowledgeTerms} />
+          </Field>
+          <Field label={t('appsInference.byok.connect.credential')}>
+            <TextFieldInput
+              label={t('appsInference.byok.connect.credential')}
+              value={secret}
+              onValueChange={setSecret}
+              secureTextEntry
+              revealable
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
         </View>
       </Dialog>
 
@@ -452,23 +601,39 @@ export function ProviderConnectionsSection({
         ]}
       >
         <View className="gap-2">
-          <SelectField
+          <Field
             label={t('appsInference.byok.validate.deployment')}
-            value={validationDeploymentId}
-            onChange={setValidationDeploymentId}
-            placeholder={t('appsInference.byok.validate.selectDeployment')}
-            items={deployments.map((deployment) => ({
-              value: deployment.deploymentId,
-              label: deployment.deploymentId,
-            }))}
-          />
-          {validationDeployments.isLoading && (
-            <MutedText small>{t('appsInference.byok.validate.loadingDeployments')}</MutedText>
-          )}
-          {!validationDeployments.isLoading && deployments.length === 0 && (
-            <MutedText small>{t('appsInference.byok.validate.noDeployments')}</MutedText>
-          )}
-          <MutedText small>{t('appsInference.byok.validate.outcomes')}</MutedText>
+            description={
+              validationDeployments.isLoading
+                ? t('appsInference.byok.validate.loadingDeployments')
+                : deployments.length === 0
+                  ? t('appsInference.byok.validate.noDeployments')
+                  : undefined
+            }
+          >
+            <Select value={validationDeploymentId} onValueChange={setValidationDeploymentId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('appsInference.byok.validate.selectDeployment')} />
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('appsInference.byok.validate.deployment')}
+                items={deployments.map((deployment) => ({
+                  value: deployment.deploymentId,
+                  label: deployment.deploymentId,
+                }))}
+                renderItem={(item) => (
+                  <SelectItem value={item.value} label={item.label}>
+                    <SelectItemIndicator />
+                    <SelectItemText>{item.label}</SelectItemText>
+                  </SelectItem>
+                )}
+              />
+            </Select>
+          </Field>
+          <Text className="text-xs text-muted-foreground">
+            {t('appsInference.byok.validate.outcomes')}
+          </Text>
         </View>
       </Dialog>
 
@@ -491,12 +656,19 @@ export function ProviderConnectionsSection({
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       >
-        <TextInputField
-          label={t('appsInference.byok.rotate.newCredential')}
-          value={rotationSecret}
-          onChange={setRotationSecret}
-          secret
-        />
+        <Field label={t('appsInference.byok.rotate.newCredential')}>
+          <TextFieldInput
+            label={t('appsInference.byok.rotate.newCredential')}
+            value={rotationSecret}
+            onValueChange={setRotationSecret}
+            secureTextEntry
+            revealable
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
       </Dialog>
 
       {/* Recover an outcome-uncertain create, rotate or revoke. */}
@@ -517,12 +689,19 @@ export function ProviderConnectionsSection({
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       >
-        <TextInputField
-          label={t('appsInference.byok.recover.credential')}
-          value={recoverySecret}
-          onChange={setRecoverySecret}
-          secret
-        />
+        <Field label={t('appsInference.byok.recover.credential')}>
+          <TextFieldInput
+            label={t('appsInference.byok.recover.credential')}
+            value={recoverySecret}
+            onValueChange={setRecoverySecret}
+            secureTextEntry
+            revealable
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </Field>
       </Dialog>
 
       {/* Revoke */}
@@ -544,127 +723,65 @@ export function ProviderConnectionsSection({
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       />
+
+      {/* A connection's append-only trail. */}
+      <Dialog
+        open={trailFor !== null}
+        onClose={() => setTrailFor(null)}
+        title={t('appsInference.byok.card.trail')}
+        scrollable
+        actions={[{ label: t('common.close'), color: 'cancel' }]}
+      >
+        {trailFor !== null && <ConnectionTrail connectionId={trailFor} />}
+      </Dialog>
     </View>
   );
 }
 
-function ConnectionCard({
+/** The Bloom badge colour for the status vocabulary the lib helpers return. */
+function statusColor(
+  variant: 'default' | 'secondary' | 'destructive',
+): 'success' | 'default' | 'error' {
+  return variant === 'default' ? 'success' : variant === 'destructive' ? 'error' : 'default';
+}
+
+/** What is known about a connection beyond its state: bootstrap, custody and dates. */
+function ConnectionDetails({
   connection,
   applicationId,
-  canManage,
-  storeUnavailable,
-  isTrailOpen,
-  onToggleTrail,
-  onRotate,
-  onRecover,
-  onValidate,
-  onSetEnabled,
-  onRevoke,
 }: {
   connection: ProviderConnectionView;
   applicationId: string;
-  canManage: boolean;
-  storeUnavailable: boolean;
-  isTrailOpen: boolean;
-  onToggleTrail: () => void;
-  onRotate: () => void;
-  onRecover: () => void;
-  onValidate: () => void;
-  onSetEnabled: (enabled: boolean) => void;
-  onRevoke: () => void;
 }) {
   const { t } = useTranslation();
-  const isRevoked = connection.status === 'revoked';
   const { data: validationOperation } = useProviderCredentialValidation(
     connection.connectionId,
     applicationId,
   );
-
   return (
-    <Panel>
-      <View className="flex-row flex-wrap items-start justify-between gap-3 px-4 py-3">
-        <View className="min-w-0 flex-1 gap-1.5">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Text className="text-sm font-medium text-foreground">{connection.provider}</Text>
-            <Pill label={connection.status} tone={connectionStatusVariant(connection.status)} />
-            <Pill label={connection.environment} tone="outline" />
-            <Pill label={connection.validation.state} tone="ghost" />
-            {connection.custodyState === 'reconcile' && (
-              <Pill label={t('appsInference.byok.card.recoveryNeeded')} tone="destructive" />
-            )}
-          </View>
-          <MutedText small>{providerConnectionScopeLabel(connection.scope)}</MutedText>
-          {validationOperation && (
-            <MutedText small>
-              {t('appsInference.byok.card.lastBootstrap', {
-                state: validationOperation.state,
-                deployment: validationOperation.deploymentId,
-                failure: validationOperation.failureCode
-                  ? ` · ${validationOperation.failureCode}`
-                  : '',
-              })}
-            </MutedText>
-          )}
-          <Text className="font-mono text-xs text-muted-foreground">
-            {t('appsInference.byok.card.hidden')}
-          </Text>
-          <MutedText small>
-            {t('appsInference.byok.card.connected', { date: formatDate(connection.createdAt) })}
-            {connection.rotatedAt
-              ? t('appsInference.byok.card.rotated', { date: formatDate(connection.rotatedAt) })
-              : ''}
-            {connection.validation.failureCode
-              ? t('appsInference.byok.card.checkFailed', {
-                  code: connection.validation.failureCode,
-                })
-              : ''}
-          </MutedText>
-        </View>
-
-        <View className="shrink-0 flex-row flex-wrap items-center gap-1">
-          <Button appearance="plain" size="sm" onPress={onToggleTrail}>
-            {isTrailOpen
-              ? t('appsInference.byok.card.hideTrail')
-              : t('appsInference.byok.card.trail')}
-          </Button>
-          {canManage && connection.custodyState === 'reconcile' && !storeUnavailable && (
-            <Button appearance="outline" size="sm" onPress={onRecover}>
-              {t('appsInference.byok.card.recover')}
-            </Button>
-          )}
-          {canManage && !isRevoked && (
-            <>
-              <Button appearance="outline" size="sm" onPress={onValidate}>
-                {connection.validation.state === 'valid'
-                  ? t('appsInference.byok.card.revalidate')
-                  : t('appsInference.byok.card.validate')}
-              </Button>
-              {/* Rotation writes a credential, so it is unavailable for the same
-                  reason connecting one is. Disable and revoke are not. */}
-              {!storeUnavailable && (
-                <Button appearance="plain" size="sm" onPress={onRotate}>
-                  {t('appsInference.byok.card.rotate')}
-                </Button>
-              )}
-              <Button
-                appearance="plain"
-                size="sm"
-                onPress={() => onSetEnabled(connection.status === 'disabled')}
-              >
-                {connection.status === 'disabled'
-                  ? t('appsInference.byok.card.enable')
-                  : t('appsInference.byok.card.disable')}
-              </Button>
-              <Button appearance="plain" tone="danger" size="sm" onPress={onRevoke}>
-                {t('appsInference.byok.card.revoke')}
-              </Button>
-            </>
-          )}
-        </View>
-      </View>
-
-      {isTrailOpen && <ConnectionTrail connectionId={connection.connectionId} />}
-    </Panel>
+    <View className="gap-0.5">
+      {validationOperation && (
+        <Text className="text-xs text-muted-foreground">
+          {t('appsInference.byok.card.lastBootstrap', {
+            state: validationOperation.state,
+            deployment: validationOperation.deploymentId,
+            failure: validationOperation.failureCode ? ` · ${validationOperation.failureCode}` : '',
+          })}
+        </Text>
+      )}
+      <Text className="font-mono text-xs text-muted-foreground">
+        {t('appsInference.byok.card.hidden')}
+      </Text>
+      <Text className="text-xs text-muted-foreground">
+        {t('appsInference.byok.card.connected', { date: formatDate(connection.createdAt) })}
+        {connection.rotatedAt
+          ? t('appsInference.byok.card.rotated', { date: formatDate(connection.rotatedAt) })
+          : ''}
+        {connection.validation.failureCode
+          ? t('appsInference.byok.card.checkFailed', { code: connection.validation.failureCode })
+          : ''}
+      </Text>
+    </View>
   );
 }
 
@@ -680,36 +797,23 @@ function ConnectionTrail({ connectionId }: { connectionId: string }) {
   const { data: events = [], isLoading } = useProviderConnectionAudit(connectionId);
 
   if (isLoading) {
-    return (
-      <PanelRow>
-        <Skeleton.Box width="100%" height={60} borderRadius={10} />
-      </PanelRow>
-    );
+    return <Skeleton.Box width="100%" height={60} borderRadius={10} />;
   }
 
   if (events.length === 0) {
-    return (
-      <PanelRow>
-        <MutedText>{t('appsInference.byok.trail.empty')}</MutedText>
-      </PanelRow>
-    );
+    return <EmptyState variant="compact" title={t('appsInference.byok.trail.empty')} />;
   }
 
   return (
-    <View>
+    <GroupedSection separator="line">
       {events.map((event) => (
-        <PanelRow key={`${event.eventType}-${event.createdAt}`} className="py-2">
-          <View className="flex-row flex-wrap items-center justify-between gap-2">
-            <View className="flex-row items-center gap-2">
-              <Pill label={event.eventType} tone="outline" />
-              <MutedText small>
-                {`${event.environment} · ${providerConnectionAuditAttribution(event)}`}
-              </MutedText>
-            </View>
-            <MutedText small>{formatDateTime(event.createdAt)}</MutedText>
-          </View>
-        </PanelRow>
+        <GroupedSectionItem
+          key={`${event.eventType}-${event.createdAt}`}
+          title={event.eventType}
+          titleNumberOfLines={0}
+          description={`${event.environment} · ${providerConnectionAuditAttribution(event)} · ${formatDateTime(event.createdAt)}`}
+        />
       ))}
-    </View>
+    </GroupedSection>
   );
 }

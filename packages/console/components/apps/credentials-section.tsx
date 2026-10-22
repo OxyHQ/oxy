@@ -1,16 +1,42 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { CodeBlock } from '@oxy.so/bloom/code';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Field } from '@oxy.so/bloom/field';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
 import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
+import { Item } from '@oxy.so/bloom/item';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type {
   Application,
@@ -26,6 +52,7 @@ import {
   useRotateCredential,
 } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
+import { copyText } from '@/lib/clipboard';
 import {
   availablePaymentsScopes,
   isUntrustedThirdPartyApp,
@@ -34,8 +61,6 @@ import {
 import { useTranslation } from '@/lib/i18n';
 import { usePlaygroundKey } from '@/lib/playground-key';
 import { CredentialTrail } from './credential-trail';
-import { ChoiceSelect, SwitchRow, TextInputField } from './form-fields';
-import { CopyValue, Notice, NoticeText, RowGroup, SectionBlock } from './primitives';
 
 const CREDENTIAL_TYPES: ReadonlyArray<ApplicationCredentialType> = [
   'public',
@@ -206,85 +231,87 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
 
   if (!canRead) {
     return (
-      <View className="py-12">
-        <Text className="text-center text-sm text-muted-foreground">
-          {t('applications.credentials.noPermission')}
-        </Text>
-      </View>
+      <EmptyState
+        variant="compact"
+        icon={RiKey2Line}
+        title={t('applications.credentials.noPermission')}
+      />
     );
   }
 
+  const copyable = (code: string, label: string, message: string) => (
+    <CodeBlock
+      code={code}
+      filename={label}
+      lineNumbers={false}
+      wrap
+      onCopy={() => copyText(code, message)}
+    />
+  );
+
   return (
-    <View className="gap-4">
-      <SectionBlock
-        title={t('applications.credentials.title')}
-        description={t('applications.credentials.subtitle')}
-        action={
-          canCreate ? (
-            <Button
-              leadingIcon={RiAddLine}
-              onPress={() => {
-                resetCreateForm();
-                setShowCreateDialog(true);
-              }}
-            >
-              {t('applications.credentials.create')}
-            </Button>
-          ) : undefined
-        }
-      />
+    <View className="gap-6">
+      <Card appearance="outline">
+        <CardHeader>
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1 gap-1">
+              <CardTitle>{t('applications.credentials.title')}</CardTitle>
+              <CardDescription>{t('applications.credentials.subtitle')}</CardDescription>
+            </View>
+            {canCreate ? (
+              <Button
+                leadingIcon={RiAddLine}
+                onPress={() => {
+                  resetCreateForm();
+                  setShowCreateDialog(true);
+                }}
+              >
+                {t('applications.credentials.create')}
+              </Button>
+            ) : null}
+          </View>
+        </CardHeader>
+      </Card>
 
       {/* Revealed secret — shown once */}
       {revealed ? (
-        <Notice
-          type="warning"
-          title={t('applications.credentials.saveSecret', { name: revealed.credentialName })}
-        >
-          <NoticeText>{t('applications.credentials.shownOnce')}</NoticeText>
-          <View className="gap-1">
-            <Text className="text-xs text-muted-foreground">
-              {t('applications.credentials.clientId')}
-            </Text>
-            <CopyValue
-              value={revealed.publicKey}
-              label={t('applications.credentials.copyClientId')}
-              copiedMessage={t('applications.credentials.clientIdCopied')}
-            />
-          </View>
-          {/* Rendered ONLY when the credential actually has one. A `public`
-              client's `secret` is null and a machine credential's is too —
-              without this guard the box would show an empty value and the copy
-              would put the string "null" on the clipboard. */}
-          {revealed.secret ? (
-            <View className="gap-1">
-              <Text className="text-xs text-muted-foreground">
-                {t('applications.credentials.secret')}
-              </Text>
-              <CopyValue
-                value={revealed.secret}
-                label={t('applications.credentials.copySecret')}
-                copiedMessage={t('applications.credentials.secretCopied')}
-              />
+        <Card appearance="outline">
+          <CardHeader>
+            <CardTitle>
+              {t('applications.credentials.saveSecret', { name: revealed.credentialName })}
+            </CardTitle>
+          </CardHeader>
+          <CardBody>
+            <View className="gap-3">
+              <Admonition type="warning">{t('applications.credentials.shownOnce')}</Admonition>
+              {copyable(
+                revealed.publicKey,
+                t('applications.credentials.clientId'),
+                t('applications.credentials.clientIdCopied'),
+              )}
+              {/* Rendered ONLY when the credential actually has one. A `public`
+                  client's `secret` is null and a machine credential's is too —
+                  without this guard the box would show an empty value and the copy
+                  would put the string "null" on the clipboard. */}
+              {revealed.secret
+                ? copyable(
+                    revealed.secret,
+                    t('applications.credentials.secret'),
+                    t('applications.credentials.secretCopied'),
+                  )
+                : null}
+              {/* The machine credential's single bearer string: its own box and label,
+                  so it can never be mistaken for the OAuth secret above. */}
+              {revealed.token
+                ? copyable(
+                    revealed.token,
+                    t('applications.credentials.apiKeyLabel'),
+                    t('applications.credentials.apiKeyCopied'),
+                  )
+                : null}
             </View>
-          ) : null}
-          {/* The machine credential's single bearer string: its own box and label,
-              so it can never be mistaken for the OAuth secret above. */}
-          {revealed.token ? (
-            <View className="gap-1">
-              <Text className="text-xs text-muted-foreground">
-                {t('applications.credentials.apiKeyLabel')}
-              </Text>
-              <CopyValue
-                value={revealed.token}
-                label={t('applications.credentials.copyApiKey')}
-                copiedMessage={t('applications.credentials.apiKeyCopied')}
-              />
-            </View>
-          ) : null}
-          <View className="flex-row flex-wrap gap-2">
-            <Button appearance="outline" size="sm" onPress={() => setRevealed(null)}>
-              {t('applications.credentials.saved')}
-            </Button>
+          </CardBody>
+          <CardFooter>
             {/* Offered only for a machine credential's `token`: the `secret` above
                 belongs to an OAuth client and is not an `oxy_sk_…` bearer, so it
                 cannot authenticate the inference edge. The key is handed over in
@@ -292,7 +319,6 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
             {revealed.token ? (
               <Button
                 appearance="outline"
-                size="sm"
                 onPress={() => {
                   setPlaygroundKey(revealed.token ?? '');
                   router.push('/playground' as Href);
@@ -301,8 +327,11 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                 {t('applications.credentials.tryPlayground')}
               </Button>
             ) : null}
-          </View>
-        </Notice>
+            <Button appearance="outline" onPress={() => setRevealed(null)}>
+              {t('applications.credentials.saved')}
+            </Button>
+          </CardFooter>
+        </Card>
       ) : null}
 
       {isLoading ? (
@@ -318,15 +347,17 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           title={t('applications.credentials.empty')}
         />
       ) : (
-        <RowGroup>
-          {credentials.map((credential, index) => (
-            <View key={credential._id} className={index > 0 ? 'border-t border-border' : undefined}>
-              <View className="flex-row items-center justify-between gap-4 px-4 py-3">
-                <View className="min-w-0 flex-1 gap-1">
-                  <View className="flex-row flex-wrap items-center gap-2">
-                    <Text numberOfLines={1} className="text-sm font-medium text-foreground">
-                      {credential.name}
-                    </Text>
+        <Card appearance="outline">
+          {credentials.map((credential) => (
+            <View key={credential._id}>
+              {/* For an API key the identifier a developer recognises is its
+                  `oxy_sk_` prefix, not the OAuth client id it also carries.
+                  Both are public; neither is the key. */}
+              <Item
+                title={credential.name}
+                subtitle={credential.tokenPrefix ?? credential.publicKey}
+                trailing={
+                  <View className="flex-row flex-wrap items-center justify-end gap-1">
                     <Badge
                       content={credential.status}
                       size="label-small"
@@ -351,67 +382,69 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                       variant="subtle"
                       color="default"
                     />
+                    <Button
+                      iconOnly
+                      size="sm"
+                      appearance="plain"
+                      leadingIcon={RiFileCopyLine}
+                      accessibilityLabel={
+                        credential.tokenPrefix
+                          ? t('applications.credentials.copyApiKeyId')
+                          : t('applications.credentials.copyClientId')
+                      }
+                      onPress={() =>
+                        void copyText(
+                          credential.tokenPrefix ?? credential.publicKey,
+                          credential.tokenPrefix
+                            ? t('applications.credentials.apiKeyIdCopied')
+                            : t('applications.credentials.clientIdCopied'),
+                        )
+                      }
+                    />
+                    {canRotate && credential.status !== 'revoked' ? (
+                      <Button
+                        iconOnly
+                        size="sm"
+                        appearance="plain"
+                        leadingIcon={RiRefreshLine}
+                        accessibilityLabel={t('applications.credentials.rotate')}
+                        onPress={() => setCredentialToRotate(credential)}
+                      />
+                    ) : null}
+                    {canRevoke && credential.status !== 'revoked' ? (
+                      <Button
+                        iconOnly
+                        size="sm"
+                        appearance="plain"
+                        tone="danger"
+                        leadingIcon={RiDeleteBinLine}
+                        accessibilityLabel={t('applications.credentials.revoke')}
+                        onPress={() => setCredentialToRevoke(credential)}
+                      />
+                    ) : null}
+                    {/* Gated on the same `credentials:read` the endpoint enforces. A
+                        revoked credential keeps its trail: the revocation is the part
+                        worth reading. */}
+                    <Button
+                      size="sm"
+                      appearance="plain"
+                      onPress={() =>
+                        setTrailFor(trailFor === credential._id ? null : credential._id)
+                      }
+                    >
+                      {trailFor === credential._id
+                        ? t('applications.credentials.hideTrail')
+                        : t('applications.credentials.trail')}
+                    </Button>
                   </View>
-                  {/* For an API key the identifier a developer recognises is its
-                      `oxy_sk_` prefix, not the OAuth client id it also carries.
-                      Both are public; neither is the key. */}
-                  <CopyValue
-                    value={credential.tokenPrefix ?? credential.publicKey}
-                    label={
-                      credential.tokenPrefix
-                        ? t('applications.credentials.copyApiKeyId')
-                        : t('applications.credentials.copyClientId')
-                    }
-                    copiedMessage={
-                      credential.tokenPrefix
-                        ? t('applications.credentials.apiKeyIdCopied')
-                        : t('applications.credentials.clientIdCopied')
-                    }
-                  />
-                </View>
-
-                <View className="flex-row items-center gap-1">
-                  {canRotate && credential.status !== 'revoked' ? (
-                    <Button
-                      iconOnly
-                      size="sm"
-                      appearance="plain"
-                      leadingIcon={RiRefreshLine}
-                      accessibilityLabel={t('applications.credentials.rotate')}
-                      onPress={() => setCredentialToRotate(credential)}
-                    />
-                  ) : null}
-                  {canRevoke && credential.status !== 'revoked' ? (
-                    <Button
-                      iconOnly
-                      size="sm"
-                      appearance="plain"
-                      tone="danger"
-                      leadingIcon={RiDeleteBinLine}
-                      accessibilityLabel={t('applications.credentials.revoke')}
-                      onPress={() => setCredentialToRevoke(credential)}
-                    />
-                  ) : null}
-                  {/* Gated on the same `credentials:read` the endpoint enforces. A
-                      revoked credential keeps its trail: the revocation is the part
-                      worth reading. */}
-                  <Button
-                    size="sm"
-                    appearance="plain"
-                    onPress={() => setTrailFor(trailFor === credential._id ? null : credential._id)}
-                  >
-                    {trailFor === credential._id
-                      ? t('applications.credentials.hideTrail')
-                      : t('applications.credentials.trail')}
-                  </Button>
-                </View>
-              </View>
+                }
+              />
               {trailFor === credential._id ? (
                 <CredentialTrail appId={appId} credentialId={credential._id} />
               ) : null}
             </View>
           ))}
-        </RowGroup>
+        </Card>
       )}
 
       <Dialog
@@ -433,92 +466,122 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
         testID="create-credential-dialog"
       >
         <View className="gap-4">
-          <TextInputField
-            label={t('applications.credentials.name')}
-            value={name}
-            onChangeText={setName}
-            placeholder={t('applications.credentials.namePlaceholder')}
-            autoCapitalize="sentences"
-          />
-          <ChoiceSelect
-            label={t('applications.credentials.type')}
-            value={type}
-            onChange={handleTypeChange}
-            items={CREDENTIAL_TYPES.map((value) => ({
-              value,
-              label: t(`applications.credentials.types.${value}`),
-            }))}
-          />
+          <Field label={t('applications.credentials.name')}>
+            <TextFieldInput
+              label={t('applications.credentials.name')}
+              value={name}
+              onChangeText={setName}
+              placeholder={t('applications.credentials.namePlaceholder')}
+              autoCapitalize="sentences"
+            />
+          </Field>
+          <Field label={t('applications.credentials.type')}>
+            <Select
+              value={type}
+              onValueChange={(next) => handleTypeChange(next as ApplicationCredentialType)}
+            >
+              <SelectTrigger label={t('applications.credentials.type')}>
+                <SelectValue />
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('applications.credentials.type')}
+                items={CREDENTIAL_TYPES.map((value) => ({
+                  value,
+                  label: t(`applications.credentials.types.${value}`),
+                }))}
+                renderItem={(item) => (
+                  <SelectItem value={item.value} label={item.label}>
+                    <SelectItemIndicator />
+                    <SelectItemText>{item.label}</SelectItemText>
+                  </SelectItem>
+                )}
+              />
+            </Select>
+          </Field>
           {type === 'service' ? (
-            <View className="gap-2">
-              <Text className="text-sm font-medium text-foreground">
-                {t('applications.credentials.scopes')}
-              </Text>
-              {grantablePaymentsScopes.length > 0 ? (
-                <View className="gap-3 rounded-lg border border-border p-3">
-                  {PAYMENTS_SCOPES.filter((scope) => grantablePaymentsScopes.includes(scope)).map(
-                    (scope) => (
-                      <SwitchRow
-                        key={scope}
-                        title={scope}
-                        description={
-                          scope === 'payments:read'
-                            ? t('applications.scopes.paymentsRead')
-                            : t('applications.scopes.paymentsWrite')
-                        }
-                        checked={selectedScopes.includes(scope)}
-                        onCheckedChange={(checked) => toggleScope(scope, checked)}
-                      />
-                    ),
-                  )}
-                </View>
-              ) : (
-                <Text className="text-sm text-muted-foreground">
-                  {t('applications.credentials.enablePayments')}
-                </Text>
-              )}
-              {requiresPaymentsScopes ? (
-                <Text className="text-xs text-muted-foreground">
-                  {t('applications.credentials.thirdPartyPayments')}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-          {isMachineType ? (
-            <View className="gap-2">
-              <Text className="text-sm font-medium text-foreground">
-                {t('applications.credentials.scopes')}
-              </Text>
-              {application.scopes.length > 0 ? (
-                <View className="gap-3 rounded-lg border border-border p-3">
-                  {application.scopes.map((scope) => (
-                    <SwitchRow
+            grantablePaymentsScopes.length > 0 ? (
+              <GroupedSection
+                title={t('applications.credentials.scopes')}
+                footer={
+                  requiresPaymentsScopes
+                    ? t('applications.credentials.thirdPartyPayments')
+                    : undefined
+                }
+              >
+                {PAYMENTS_SCOPES.filter((scope) => grantablePaymentsScopes.includes(scope)).map(
+                  (scope) => (
+                    <GroupedSectionItem
                       key={scope}
                       title={scope}
-                      checked={selectedScopes.includes(scope)}
-                      onCheckedChange={(checked) => toggleScope(scope, checked)}
+                      description={
+                        scope === 'payments:read'
+                          ? t('applications.scopes.paymentsRead')
+                          : t('applications.scopes.paymentsWrite')
+                      }
+                      rightElement={
+                        <Switch
+                          checked={selectedScopes.includes(scope)}
+                          onCheckedChange={(checked) => toggleScope(scope, checked)}
+                          accessibilityLabel={scope}
+                        />
+                      }
                     />
-                  ))}
-                </View>
-              ) : (
-                <Text className="text-sm text-muted-foreground">
-                  {t('applications.credentials.grantScopeFirst')}
-                </Text>
-              )}
-              <Text className="text-xs text-muted-foreground">
-                {t('applications.credentials.apiKeyHint')}
-              </Text>
-            </View>
+                  ),
+                )}
+              </GroupedSection>
+            ) : (
+              <Admonition type="info">{t('applications.credentials.enablePayments')}</Admonition>
+            )
           ) : null}
-          <ChoiceSelect
-            label={t('applications.credentials.environment')}
-            value={environment}
-            onChange={setEnvironment}
-            items={ENVIRONMENTS.map((value) => ({
-              value,
-              label: t(`applications.credentials.environments.${value}`),
-            }))}
-          />
+          {isMachineType ? (
+            application.scopes.length > 0 ? (
+              <GroupedSection
+                title={t('applications.credentials.scopes')}
+                footer={t('applications.credentials.apiKeyHint')}
+              >
+                {application.scopes.map((scope) => (
+                  <GroupedSectionItem
+                    key={scope}
+                    title={scope}
+                    rightElement={
+                      <Switch
+                        checked={selectedScopes.includes(scope)}
+                        onCheckedChange={(checked) => toggleScope(scope, checked)}
+                        accessibilityLabel={scope}
+                      />
+                    }
+                  />
+                ))}
+              </GroupedSection>
+            ) : (
+              <Admonition type="info">{t('applications.credentials.grantScopeFirst')}</Admonition>
+            )
+          ) : null}
+          <Field label={t('applications.credentials.environment')}>
+            <Select
+              value={environment}
+              onValueChange={(next) => setEnvironment(next as ApplicationEnvironment)}
+            >
+              <SelectTrigger label={t('applications.credentials.environment')}>
+                <SelectValue />
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('applications.credentials.environment')}
+                items={ENVIRONMENTS.map((value) => ({
+                  value,
+                  label: t(`applications.credentials.environments.${value}`),
+                }))}
+                renderItem={(item) => (
+                  <SelectItem value={item.value} label={item.label}>
+                    <SelectItemIndicator />
+                    <SelectItemText>{item.label}</SelectItemText>
+                  </SelectItem>
+                )}
+              />
+            </Select>
+          </Field>
         </View>
       </Dialog>
 

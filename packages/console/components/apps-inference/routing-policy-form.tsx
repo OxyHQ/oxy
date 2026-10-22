@@ -1,14 +1,27 @@
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { USAGE_UNITS, currencyCodeSchema, exactDecimalSchema } from '@oxy.so/contracts';
 import type { ModelCatalogueEntry, RoutingProfile, UnitPrice, UsageUnit } from '@oxy.so/contracts';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { Chip } from '@oxy.so/bloom/chip';
+import { Field } from '@oxy.so/bloom/field';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
 import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import type { RoutingPolicyControls, RoutingProfileOption } from '@/lib/routing-policy';
 import { useTranslation } from '@/lib/i18n';
 import { catalogueFacets } from '@/lib/model-catalogue-filters';
@@ -24,7 +37,6 @@ import {
   routingProfileOptions,
   toggleAllowedRoutingProfile,
 } from '@/lib/routing-policy';
-import { MutedText, SelectField, TextInputField } from './ui';
 
 /**
  * The routing policy editor.
@@ -304,318 +316,445 @@ export function RoutingPolicyForm({
     );
   };
 
+  const optionLabel = (items: ReadonlyArray<{ value: string; label: string }>, value: string) =>
+    items.find((item) => item.value === value)?.label ?? value;
+
+  /** One option row of a Bloom Select. */
+  const renderOption = (item: { value: string; label: string; disabled?: boolean }) => (
+    <SelectItem value={item.value} label={item.label} disabled={item.disabled}>
+      <SelectItemIndicator />
+      <SelectItemText>{item.label}</SelectItemText>
+    </SelectItem>
+  );
+
+  const toggle = (
+    title: string,
+    description: string,
+    checked: boolean,
+    onCheckedChange: (checked: boolean) => void,
+    disabled?: boolean,
+  ) => (
+    <GroupedSectionItem
+      title={title}
+      titleNumberOfLines={0}
+      description={description}
+      disabled={disabled}
+      rightElement={
+        <Switch
+          checked={checked}
+          disabled={disabled}
+          accessibilityLabel={title}
+          onCheckedChange={onCheckedChange}
+        />
+      }
+    />
+  );
+
   return (
     <View className="gap-8">
       {errors.length > 0 && (
-        <View role="alert" className="gap-1 rounded-lg border border-destructive bg-muted p-3">
-          <Text className="text-sm font-medium text-destructive">
-            {t('appsInference.form.errors.title')}
-          </Text>
-          {errors.map((problem) => (
-            <Text key={problem} className="text-xs text-destructive">
-              {`• ${problem}`}
-            </Text>
-          ))}
-        </View>
+        <Admonition type="error">
+          <Text className="font-semibold">{t('appsInference.form.errors.title')}</Text>
+          {errors.map((problem) => `\n• ${problem}`).join('')}
+        </Admonition>
       )}
 
-      <FormSection
+      <GroupedSection
         title={t('appsInference.form.power.title')}
-        description={t('appsInference.form.power.description')}
+        footer={t('appsInference.form.power.description')}
+        separator="none"
       >
-        {powerLevelOptions.length === 0 && otherProfileOptions.length === 0 ? (
-          <EmptyControl>{t('appsInference.form.power.empty')}</EmptyControl>
-        ) : (
-          <>
-            <MutedText small>
-              {controls.allowedRoutingProfileIds.length === 0
-                ? t('appsInference.form.power.unrestricted')
-                : t('appsInference.form.power.restricted')}
-            </MutedText>
-            <ProfileCheckboxGroup
-              label={t('appsInference.form.power.allowedLevels')}
-              options={powerLevelOptions}
-              selected={controls.allowedRoutingProfileIds}
-              onToggle={toggleAllowedProfile}
-              unlistedNote={t('appsInference.form.power.unlisted')}
-            />
-            {otherProfileOptions.length > 0 && (
+        <View className="gap-4 p-4">
+          {powerLevelOptions.length === 0 && otherProfileOptions.length === 0 ? (
+            <Admonition type="info">{t('appsInference.form.power.empty')}</Admonition>
+          ) : (
+            <>
+              <Text className="text-xs text-muted-foreground">
+                {controls.allowedRoutingProfileIds.length === 0
+                  ? t('appsInference.form.power.unrestricted')
+                  : t('appsInference.form.power.restricted')}
+              </Text>
               <ProfileCheckboxGroup
-                label={t('appsInference.form.power.otherProfiles')}
-                options={otherProfileOptions}
+                label={t('appsInference.form.power.allowedLevels')}
+                options={powerLevelOptions}
                 selected={controls.allowedRoutingProfileIds}
                 onToggle={toggleAllowedProfile}
                 unlistedNote={t('appsInference.form.power.unlisted')}
               />
-            )}
-            {controls.allowedRoutingProfileIds.length > 0 && (
-              <View className="flex-row">
-                <Button
-                  appearance="plain"
-                  size="sm"
-                  onPress={() => patch({ allowedRoutingProfileIds: [] })}
-                >
-                  {t('appsInference.form.power.clear')}
-                </Button>
-              </View>
-            )}
-          </>
-        )}
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.default.title')}
-        description={t('appsInference.form.default.description')}
-      >
-        {modelReferences.length === 0 && profileOptions.length === 0 ? (
-          <EmptyControl>{t('appsInference.form.default.empty')}</EmptyControl>
-        ) : (
-          <View className="gap-2">
-            <SelectField
-              label={t('appsInference.form.default.label')}
-              value={defaultTargetValue}
-              items={defaultTargetItems}
-              onChange={setDefaultTarget}
-              invalid={defaultOutsideAllowed}
-            />
-            {defaultOutsideAllowed && (
-              <Text role="alert" className="text-xs text-destructive">
-                {t('appsInference.form.default.outsideAllowed')}
-              </Text>
-            )}
-          </View>
-        )}
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.providers.title')}
-        description={t('appsInference.form.providers.description')}
-      >
-        <TokenGroup
-          label={t('appsInference.form.allowed')}
-          options={providerOptions}
-          selected={controls.providerAllowlist}
-          onToggle={(value) => toggleIn('providerAllowlist', value)}
-          empty={t('appsInference.form.providers.empty')}
-        />
-        <TokenGroup
-          label={t('appsInference.form.denied')}
-          options={providerOptions}
-          selected={controls.providerDenylist}
-          onToggle={(value) => toggleIn('providerDenylist', value)}
-          empty={t('appsInference.form.providers.empty')}
-        />
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.regions.title')}
-        description={t('appsInference.form.regions.description')}
-      >
-        <TokenGroup
-          label={t('appsInference.form.allowed')}
-          options={regionOptions}
-          selected={controls.allowedRegions}
-          onToggle={(value) => toggleIn('allowedRegions', value)}
-          empty={t('appsInference.form.regions.empty')}
-        />
-        <TokenGroup
-          label={t('appsInference.form.denied')}
-          options={regionOptions}
-          selected={controls.deniedRegions}
-          onToggle={(value) => toggleIn('deniedRegions', value)}
-          empty={t('appsInference.form.regions.empty')}
-        />
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.data.title')}
-        description={t('appsInference.form.data.description')}
-      >
-        <ToggleRow
-          label={t('appsInference.form.data.zeroRetention.label')}
-          description={t('appsInference.form.data.zeroRetention.description')}
-          checked={controls.requireZeroDataRetention}
-          onCheckedChange={(checked) => patch({ requireZeroDataRetention: checked })}
-        />
-        <ToggleRow
-          label={t('appsInference.form.data.noTraining.label')}
-          description={t('appsInference.form.data.noTraining.description')}
-          checked={controls.prohibitTrainingOnCustomerData}
-          onCheckedChange={(checked) => patch({ prohibitTrainingOnCustomerData: checked })}
-        />
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.selection.title')}
-        description={t('appsInference.form.selection.description')}
-      >
-        <SelectField
-          label={t('appsInference.form.selection.optimiseFor')}
-          value={controls.optimiseFor}
-          items={OPTIMISE_FOR_OPTIONS}
-          onChange={(value) => patch({ optimiseFor: value })}
-        />
-        <SelectField
-          label={t('appsInference.form.selection.capacity')}
-          value={controls.dedicatedCapacity}
-          items={DEDICATED_CAPACITY_OPTIONS}
-          onChange={(value) => patch({ dedicatedCapacity: value })}
-        />
-        <SelectField
-          label={t('appsInference.form.selection.byok')}
-          value={controls.byokPreference}
-          items={BYOK_PREFERENCE_OPTIONS}
-          onChange={(value) => patch({ byokPreference: value })}
-        />
-        <ToggleRow
-          label={t('appsInference.form.selection.hostedOnly.label')}
-          description={t('appsInference.form.selection.hostedOnly.description')}
-          checked={controls.oxyHostedOnly}
-          onCheckedChange={(checked) => patch({ oxyHostedOnly: checked })}
-        />
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.licensing.title')}
-        description={t('appsInference.form.licensing.description')}
-      >
-        <ToggleRow
-          label={t('appsInference.form.licensing.commercial.label')}
-          description={t('appsInference.form.licensing.commercial.description')}
-          checked={controls.requireCommercialUseRights}
-          onCheckedChange={(checked) => patch({ requireCommercialUseRights: checked })}
-        />
-        <TokenGroup
-          label={t('appsInference.form.licensing.allowed')}
-          options={licences.map((licence) => ({
-            value: licence.licenseId,
-            label: licence.displayName,
-          }))}
-          selected={controls.allowedLicenseIds}
-          onToggle={(value) => toggleIn('allowedLicenseIds', value)}
-          empty={t('appsInference.form.licensing.empty')}
-        />
-      </FormSection>
-
-      <FormSection
-        title={t('appsInference.form.price.title')}
-        description={t('appsInference.form.price.description')}
-      >
-        <View className="max-w-40">
-          <TextInputField
-            label={t('appsInference.form.price.currency')}
-            value={currency}
-            onChange={(value) => setCurrency(value.toUpperCase())}
-            placeholder="USD"
-            maxLength={3}
-          />
-        </View>
-
-        <View className="max-w-60">
-          <TextInputField
-            label={t('appsInference.form.price.perRequest')}
-            value={perRequest}
-            onChange={setPerRequest}
-            placeholder={t('appsInference.form.price.noCeiling')}
-            inputMode="decimal"
-          />
-        </View>
-
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-foreground">
-            {t('appsInference.form.price.perUnit')}
-          </Text>
-          {perUnit.length === 0 ? (
-            <MutedText>{t('appsInference.form.price.noPerUnit')}</MutedText>
-          ) : (
-            <View className="gap-3">
-              {perUnit.map((draft, index) => (
-                <View key={draft.unit} className="flex-row flex-wrap items-end gap-2">
-                  <View className="w-44 gap-1">
-                    <MutedText small>{t('appsInference.form.price.unit')}</MutedText>
-                    <Text className="text-sm text-foreground">{USAGE_UNIT_LABELS[draft.unit]}</Text>
-                  </View>
-                  <View className="w-40">
-                    <TextInputField
-                      label={t('appsInference.form.price.amount')}
-                      value={draft.amount}
-                      inputMode="decimal"
-                      onChange={(value) => updateDraft(index, { amount: value })}
-                    />
-                  </View>
-                  <View className="w-28">
-                    <TextInputField
-                      label={t('appsInference.form.price.per')}
-                      value={draft.per}
-                      inputMode="numeric"
-                      onChange={(value) => updateDraft(index, { per: value })}
-                    />
-                  </View>
+              {otherProfileOptions.length > 0 && (
+                <ProfileCheckboxGroup
+                  label={t('appsInference.form.power.otherProfiles')}
+                  options={otherProfileOptions}
+                  selected={controls.allowedRoutingProfileIds}
+                  onToggle={toggleAllowedProfile}
+                  unlistedNote={t('appsInference.form.power.unlisted')}
+                />
+              )}
+              {controls.allowedRoutingProfileIds.length > 0 && (
+                <View className="flex-row">
                   <Button
                     appearance="plain"
                     size="sm"
-                    iconOnly
-                    icon={RiCloseLine}
-                    accessibilityLabel={t('appsInference.form.price.remove', {
-                      unit: USAGE_UNIT_LABELS[draft.unit],
-                    })}
-                    onPress={() =>
-                      setPerUnit((current) => current.filter((_, position) => position !== index))
-                    }
-                  />
+                    onPress={() => patch({ allowedRoutingProfileIds: [] })}
+                  >
+                    {t('appsInference.form.power.clear')}
+                  </Button>
                 </View>
-              ))}
-            </View>
-          )}
-
-          {unusedUnits.length > 0 && (
-            <View className="max-w-64">
-              <SelectField
-                label={t('appsInference.form.price.addPerUnit')}
-                value=""
-                placeholder={t('appsInference.form.price.addPerUnit')}
-                items={unusedUnits.map((unit) => ({ value: unit, label: USAGE_UNIT_LABELS[unit] }))}
-                onChange={(unit) =>
-                  setPerUnit((current) => [...current, { unit, amount: '', per: '1000000' }])
-                }
-              />
-            </View>
+              )}
+            </>
           )}
         </View>
-      </FormSection>
+      </GroupedSection>
 
-      <FormSection
-        title={t('appsInference.form.fallback.title')}
-        description={t('appsInference.form.fallback.description')}
+      <GroupedSection
+        title={t('appsInference.form.default.title')}
+        footer={t('appsInference.form.default.description')}
+        separator="none"
       >
-        <ToggleRow
-          label={t('appsInference.form.fallback.disabled.label')}
-          description={t('appsInference.form.fallback.disabled.description')}
-          checked={controls.fallback.disabled}
-          onCheckedChange={setFallbackDisabled}
-        />
-        <ToggleRow
-          label={t('appsInference.form.fallback.sameModel.label')}
-          description={t('appsInference.form.fallback.sameModel.description')}
-          checked={controls.fallback.sameModelDeployment ?? !controls.fallback.disabled}
-          disabled={controls.fallback.disabled}
-          onCheckedChange={(checked) =>
+        <View className="p-4">
+          {modelReferences.length === 0 && profileOptions.length === 0 ? (
+            <Admonition type="info">{t('appsInference.form.default.empty')}</Admonition>
+          ) : (
+            <Field
+              label={t('appsInference.form.default.label')}
+              error={defaultOutsideAllowed ? t('appsInference.form.default.outsideAllowed') : null}
+            >
+              <Select value={defaultTargetValue} onValueChange={setDefaultTarget}>
+                <SelectTrigger>
+                  <SelectValue>
+                    {() => optionLabel(defaultTargetItems, defaultTargetValue)}
+                  </SelectValue>
+                  <SelectIcon />
+                </SelectTrigger>
+                <SelectContent
+                  label={t('appsInference.form.default.label')}
+                  items={defaultTargetItems}
+                  renderItem={renderOption}
+                />
+              </Select>
+            </Field>
+          )}
+        </View>
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.providers.title')}
+        footer={t('appsInference.form.providers.description')}
+        separator="none"
+      >
+        <View className="gap-4 p-4">
+          <TokenGroup
+            label={t('appsInference.form.allowed')}
+            options={providerOptions}
+            selected={controls.providerAllowlist}
+            onToggle={(value) => toggleIn('providerAllowlist', value)}
+            empty={t('appsInference.form.providers.empty')}
+          />
+          <TokenGroup
+            label={t('appsInference.form.denied')}
+            options={providerOptions}
+            selected={controls.providerDenylist}
+            onToggle={(value) => toggleIn('providerDenylist', value)}
+            empty={t('appsInference.form.providers.empty')}
+          />
+        </View>
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.regions.title')}
+        footer={t('appsInference.form.regions.description')}
+        separator="none"
+      >
+        <View className="gap-4 p-4">
+          <TokenGroup
+            label={t('appsInference.form.allowed')}
+            options={regionOptions}
+            selected={controls.allowedRegions}
+            onToggle={(value) => toggleIn('allowedRegions', value)}
+            empty={t('appsInference.form.regions.empty')}
+          />
+          <TokenGroup
+            label={t('appsInference.form.denied')}
+            options={regionOptions}
+            selected={controls.deniedRegions}
+            onToggle={(value) => toggleIn('deniedRegions', value)}
+            empty={t('appsInference.form.regions.empty')}
+          />
+        </View>
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.data.title')}
+        footer={t('appsInference.form.data.description')}
+      >
+        {toggle(
+          t('appsInference.form.data.zeroRetention.label'),
+          t('appsInference.form.data.zeroRetention.description'),
+          controls.requireZeroDataRetention,
+          (checked) => patch({ requireZeroDataRetention: checked }),
+        )}
+        {toggle(
+          t('appsInference.form.data.noTraining.label'),
+          t('appsInference.form.data.noTraining.description'),
+          controls.prohibitTrainingOnCustomerData,
+          (checked) => patch({ prohibitTrainingOnCustomerData: checked }),
+        )}
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.selection.title')}
+        footer={t('appsInference.form.selection.description')}
+      >
+        <View className="gap-4 p-4">
+          <Field label={t('appsInference.form.selection.optimiseFor')}>
+            <Select
+              value={controls.optimiseFor}
+              onValueChange={(next) =>
+                patch({ optimiseFor: next as RoutingPolicyControls['optimiseFor'] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {() => optionLabel(OPTIMISE_FOR_OPTIONS, controls.optimiseFor)}
+                </SelectValue>
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('appsInference.form.selection.optimiseFor')}
+                items={OPTIMISE_FOR_OPTIONS}
+                renderItem={renderOption}
+              />
+            </Select>
+          </Field>
+          <Field label={t('appsInference.form.selection.capacity')}>
+            <Select
+              value={controls.dedicatedCapacity}
+              onValueChange={(next) =>
+                patch({ dedicatedCapacity: next as RoutingPolicyControls['dedicatedCapacity'] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {() => optionLabel(DEDICATED_CAPACITY_OPTIONS, controls.dedicatedCapacity)}
+                </SelectValue>
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('appsInference.form.selection.capacity')}
+                items={DEDICATED_CAPACITY_OPTIONS}
+                renderItem={renderOption}
+              />
+            </Select>
+          </Field>
+          <Field label={t('appsInference.form.selection.byok')}>
+            <Select
+              value={controls.byokPreference}
+              onValueChange={(next) =>
+                patch({ byokPreference: next as RoutingPolicyControls['byokPreference'] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue>
+                  {() => optionLabel(BYOK_PREFERENCE_OPTIONS, controls.byokPreference)}
+                </SelectValue>
+                <SelectIcon />
+              </SelectTrigger>
+              <SelectContent
+                label={t('appsInference.form.selection.byok')}
+                items={BYOK_PREFERENCE_OPTIONS}
+                renderItem={renderOption}
+              />
+            </Select>
+          </Field>
+        </View>
+        {toggle(
+          t('appsInference.form.selection.hostedOnly.label'),
+          t('appsInference.form.selection.hostedOnly.description'),
+          controls.oxyHostedOnly,
+          (checked) => patch({ oxyHostedOnly: checked }),
+        )}
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.licensing.title')}
+        footer={t('appsInference.form.licensing.description')}
+      >
+        {toggle(
+          t('appsInference.form.licensing.commercial.label'),
+          t('appsInference.form.licensing.commercial.description'),
+          controls.requireCommercialUseRights,
+          (checked) => patch({ requireCommercialUseRights: checked }),
+        )}
+        <View className="p-4">
+          <TokenGroup
+            label={t('appsInference.form.licensing.allowed')}
+            options={licences.map((licence) => ({
+              value: licence.licenseId,
+              label: licence.displayName,
+            }))}
+            selected={controls.allowedLicenseIds}
+            onToggle={(value) => toggleIn('allowedLicenseIds', value)}
+            empty={t('appsInference.form.licensing.empty')}
+          />
+        </View>
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.price.title')}
+        footer={t('appsInference.form.price.description')}
+        separator="none"
+      >
+        <View className="gap-4 p-4">
+          <View className="max-w-40">
+            <Field label={t('appsInference.form.price.currency')}>
+              <TextFieldInput
+                label={t('appsInference.form.price.currency')}
+                value={currency}
+                onValueChange={(value) => setCurrency(value.toUpperCase())}
+                placeholder="USD"
+                maxLength={3}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </Field>
+          </View>
+
+          <View className="max-w-60">
+            <Field label={t('appsInference.form.price.perRequest')}>
+              <TextFieldInput
+                label={t('appsInference.form.price.perRequest')}
+                value={perRequest}
+                onValueChange={setPerRequest}
+                placeholder={t('appsInference.form.price.noCeiling')}
+                inputMode="decimal"
+              />
+            </Field>
+          </View>
+
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-foreground">
+              {t('appsInference.form.price.perUnit')}
+            </Text>
+            {perUnit.length === 0 ? (
+              <Text className="text-sm text-muted-foreground">
+                {t('appsInference.form.price.noPerUnit')}
+              </Text>
+            ) : (
+              <View className="gap-3">
+                {perUnit.map((draft, index) => (
+                  <View key={draft.unit} className="flex-row flex-wrap items-end gap-2">
+                    <View className="w-44">
+                      <Field label={t('appsInference.form.price.unit')}>
+                        <Text className="py-2 text-sm text-foreground">
+                          {USAGE_UNIT_LABELS[draft.unit]}
+                        </Text>
+                      </Field>
+                    </View>
+                    <View className="w-40">
+                      <Field label={t('appsInference.form.price.amount')}>
+                        <TextFieldInput
+                          label={t('appsInference.form.price.amount')}
+                          value={draft.amount}
+                          inputMode="decimal"
+                          onValueChange={(value) => updateDraft(index, { amount: value })}
+                        />
+                      </Field>
+                    </View>
+                    <View className="w-28">
+                      <Field label={t('appsInference.form.price.per')}>
+                        <TextFieldInput
+                          label={t('appsInference.form.price.per')}
+                          value={draft.per}
+                          inputMode="numeric"
+                          onValueChange={(value) => updateDraft(index, { per: value })}
+                        />
+                      </Field>
+                    </View>
+                    <Button
+                      appearance="plain"
+                      size="sm"
+                      iconOnly
+                      icon={RiCloseLine}
+                      accessibilityLabel={t('appsInference.form.price.remove', {
+                        unit: USAGE_UNIT_LABELS[draft.unit],
+                      })}
+                      onPress={() =>
+                        setPerUnit((current) => current.filter((_, position) => position !== index))
+                      }
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {unusedUnits.length > 0 && (
+              <View className="max-w-64">
+                <Field label={t('appsInference.form.price.addPerUnit')}>
+                  <Select
+                    value=""
+                    onValueChange={(unit) =>
+                      setPerUnit((current) => [
+                        ...current,
+                        { unit: unit as UsageUnit, amount: '', per: '1000000' },
+                      ])
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('appsInference.form.price.addPerUnit')} />
+                      <SelectIcon />
+                    </SelectTrigger>
+                    <SelectContent
+                      label={t('appsInference.form.price.addPerUnit')}
+                      items={unusedUnits.map((unit) => ({
+                        value: unit,
+                        label: USAGE_UNIT_LABELS[unit],
+                      }))}
+                      renderItem={renderOption}
+                    />
+                  </Select>
+                </Field>
+              </View>
+            )}
+          </View>
+        </View>
+      </GroupedSection>
+
+      <GroupedSection
+        title={t('appsInference.form.fallback.title')}
+        footer={t('appsInference.form.fallback.description')}
+      >
+        {toggle(
+          t('appsInference.form.fallback.disabled.label'),
+          t('appsInference.form.fallback.disabled.description'),
+          controls.fallback.disabled,
+          setFallbackDisabled,
+        )}
+        {toggle(
+          t('appsInference.form.fallback.sameModel.label'),
+          t('appsInference.form.fallback.sameModel.description'),
+          controls.fallback.sameModelDeployment ?? !controls.fallback.disabled,
+          (checked) =>
             setControls((current) => ({
               ...current,
               fallback: { ...current.fallback, sameModelDeployment: checked },
-            }))
-          }
-        />
-        {!controls.fallback.disabled && (
-          <TokenGroup
-            label={t('appsInference.form.fallback.crossModel')}
-            options={modelReferences.map((reference) => ({ value: reference, label: reference }))}
-            selected={controls.fallback.authorizedCrossModel}
-            onToggle={toggleCrossModel}
-            empty={t('appsInference.form.fallback.crossModelEmpty')}
-          />
+            })),
+          controls.fallback.disabled,
         )}
-      </FormSection>
+        {!controls.fallback.disabled && (
+          <View className="p-4">
+            <TokenGroup
+              label={t('appsInference.form.fallback.crossModel')}
+              options={modelReferences.map((reference) => ({
+                value: reference,
+                label: reference,
+              }))}
+              selected={controls.fallback.authorizedCrossModel}
+              onToggle={toggleCrossModel}
+              empty={t('appsInference.form.fallback.crossModelEmpty')}
+            />
+          </View>
+        )}
+      </GroupedSection>
 
       <View className="flex-row items-center gap-2">
         <Button onPress={handleSubmit} disabled={isPending} loading={isPending}>
@@ -625,63 +764,6 @@ export function RoutingPolicyForm({
           {t('common.cancel')}
         </Button>
       </View>
-    </View>
-  );
-}
-
-function FormSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <View className="gap-4">
-      <View>
-        <Text className="text-sm font-semibold text-foreground">{title}</Text>
-        <Text className="text-sm text-muted-foreground">{description}</Text>
-      </View>
-      {children}
-    </View>
-  );
-}
-
-function EmptyControl({ children }: { children: ReactNode }) {
-  return (
-    <View className="rounded-lg border border-border bg-muted p-3">
-      <Text className="text-sm text-muted-foreground">{children}</Text>
-    </View>
-  );
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <View className="flex-row items-start justify-between gap-4">
-      <View className="min-w-0 flex-1">
-        <Text className="text-sm font-medium text-foreground">{label}</Text>
-        <Text className="text-xs text-muted-foreground">{description}</Text>
-      </View>
-      <Switch
-        checked={checked}
-        disabled={disabled}
-        accessibilityLabel={label}
-        onCheckedChange={onCheckedChange}
-      />
     </View>
   );
 }
@@ -707,10 +789,9 @@ function TokenGroup({
   empty: string;
 }) {
   return (
-    <View className="gap-2">
-      <Text className="text-sm font-medium text-foreground">{label}</Text>
+    <Field label={label} multiple>
       {options.length === 0 ? (
-        <MutedText>{empty}</MutedText>
+        <Text className="text-sm text-muted-foreground">{empty}</Text>
       ) : (
         <View className="flex-row flex-wrap gap-1.5">
           {options.map((option) => {
@@ -730,7 +811,7 @@ function TokenGroup({
           })}
         </View>
       )}
-    </View>
+    </Field>
   );
 }
 
@@ -753,8 +834,7 @@ function ProfileCheckboxGroup({
   unlistedNote: string;
 }) {
   return (
-    <View className="gap-2">
-      <Text className="text-sm font-medium text-foreground">{label}</Text>
+    <Field label={label} multiple>
       <View className="gap-2">
         {options.map((option) => (
           <Checkbox
@@ -767,6 +847,6 @@ function ProfileCheckboxGroup({
           />
         ))}
       </View>
-    </View>
+    </Field>
   );
 }

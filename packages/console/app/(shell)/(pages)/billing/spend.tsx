@@ -1,18 +1,13 @@
+import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { PageBody } from '@/components/account-pages/PageFrame';
-import { MonoCell, NumberCell } from '@/components/account-pages/cells';
-import {
-  Denied,
-  Figure,
-  FigureRow,
-  Muted,
-  Note,
-  Section,
-} from '@/components/account-pages/Section';
-import { SkeletonFigures, SkeletonRows } from '@/components/account-pages/Skeletons';
 import { useReportLabels } from '@/components/billing/labels';
 import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { ReportControls } from '@/components/billing/report-controls';
@@ -76,7 +71,9 @@ export default function BillingSpendPage() {
           id: dimension,
           header: labels.dimension(dimension),
           minWidth: 140,
-          cell: ({ row }) => <MonoCell>{spendDimensionValue(row, dimension)}</MonoCell>,
+          cell: ({ row }) => (
+            <Text className="font-mono text-xs">{spendDimensionValue(row, dimension)}</Text>
+          ),
         }),
       ),
       {
@@ -84,7 +81,7 @@ export default function BillingSpendPage() {
         header: t('billingPage.spend.receipts'),
         align: 'end',
         width: 110,
-        cell: ({ row }) => <NumberCell muted>{formatCount(row.receiptCount)}</NumberCell>,
+        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.receiptCount)}</Muted>,
       },
       {
         id: 'refunded',
@@ -92,7 +89,7 @@ export default function BillingSpendPage() {
         align: 'end',
         width: 140,
         cell: ({ row }) => (
-          <NumberCell muted>{formatMoney(row.refundedAmount, row.currency)}</NumberCell>
+          <Muted className="tabular-nums">{formatMoney(row.refundedAmount, row.currency)}</Muted>
         ),
       },
       {
@@ -100,98 +97,101 @@ export default function BillingSpendPage() {
         header: t('billingPage.spend.net'),
         align: 'end',
         width: 150,
-        cell: ({ row }) => <NumberCell>{formatMoney(row.netAmount, row.currency)}</NumberCell>,
+        cell: ({ row }) => (
+          <Text className="tabular-nums">{formatMoney(row.netAmount, row.currency)}</Text>
+        ),
       },
     ],
     [groupBy, labels, t],
   );
 
+  const groupedBy = t('reportKit.by', {
+    dimensions: groupBy.map(labels.dimension).join(', ').toLowerCase(),
+  });
+
   return (
-    <PageBody>
+    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
       {!canRead ? (
-        <Denied>{t('billingPage.spend.denied')}</Denied>
+        <EmptyState icon={RiLockLine} title={t('billingPage.spend.denied')} />
       ) : (
         <>
-          <Section>
-            <ProvenanceBanner provenance={LEDGER} />
-            <ProvenanceCrossReference provenance={LEDGER} />
-          </Section>
+          <ProvenanceBanner provenance={LEDGER} />
+          <ProvenanceCrossReference provenance={LEDGER} />
 
-          <Section>
-            <ReportControls
-              rangeDays={rangeDays}
-              onRangeDaysChange={setRangeDays}
-              dimensions={SPEND_DIMENSIONS}
-              selected={groupBy}
-              onSelectedChange={setGroupBy}
-              dimensionLabel={labels.dimension}
-            />
-            <Checkbox
-              checked={includeDescendants}
-              onCheckedChange={setIncludeDescendants}
-              label={t('reportKit.includeDescendants')}
-            />
-          </Section>
+          <ReportControls
+            rangeDays={rangeDays}
+            onRangeDaysChange={setRangeDays}
+            dimensions={SPEND_DIMENSIONS}
+            selected={groupBy}
+            onSelectedChange={setGroupBy}
+            dimensionLabel={labels.dimension}
+          />
+          <Checkbox
+            checked={includeDescendants}
+            onCheckedChange={setIncludeDescendants}
+            label={t('reportKit.includeDescendants')}
+          />
 
-          <Section title={t('billingPage.spend.billed', { from: range.from, to: range.to })}>
-            {spendQuery.isLoading ? (
-              <SkeletonFigures count={3} />
-            ) : report === undefined || report.totals.length === 0 ? (
-              <Muted>{t('billingPage.spend.nothing')}</Muted>
-            ) : (
-              <View className="gap-6">
-                {report.totals.map((total) => (
-                  <FigureRow key={total.currency}>
-                    <Figure
-                      label={t('billingPage.spend.netCharged')}
-                      hint={t('billingPage.spend.netChargedHint')}
-                      value={formatMoney(total.netAmount, total.currency)}
-                    />
-                    <Figure
-                      label={t('billingPage.spend.beforeReversals')}
-                      hint={t('billingPage.spend.beforeReversalsHint')}
-                      value={formatMoney(total.billedAmount, total.currency)}
-                    />
-                    <Figure
-                      label={t('billingPage.spend.refundedTotal')}
-                      hint={t('billingPage.spend.refundedHint')}
-                      value={formatMoney(total.refundedAmount, total.currency)}
-                    />
-                    <Figure
-                      label={t('billingPage.spend.receiptsTotal')}
-                      hint={t('billingPage.spend.receiptsHint')}
-                      value={formatCount(total.receiptCount)}
-                    />
-                  </FigureRow>
-                ))}
-              </View>
-            )}
-          </Section>
+          {spendQuery.isLoading ? (
+            <Skeleton.Box width="100%" height={176} />
+          ) : report === undefined || report.totals.length === 0 ? (
+            <Muted>{t('billingPage.spend.nothing')}</Muted>
+          ) : (
+            report.totals.map((total) => (
+              <GroupedSection
+                key={total.currency}
+                title={`${t('billingPage.spend.billed', { from: range.from, to: range.to })} · ${total.currency}`}
+              >
+                <GroupedSectionItem
+                  title={t('billingPage.spend.netCharged')}
+                  description={t('billingPage.spend.netChargedHint')}
+                  value={formatMoney(total.netAmount, total.currency)}
+                />
+                <GroupedSectionItem
+                  title={t('billingPage.spend.beforeReversals')}
+                  description={t('billingPage.spend.beforeReversalsHint')}
+                  value={formatMoney(total.billedAmount, total.currency)}
+                />
+                <GroupedSectionItem
+                  title={t('billingPage.spend.refundedTotal')}
+                  description={t('billingPage.spend.refundedHint')}
+                  value={formatMoney(total.refundedAmount, total.currency)}
+                />
+                <GroupedSectionItem
+                  title={t('billingPage.spend.receiptsTotal')}
+                  description={t('billingPage.spend.receiptsHint')}
+                  value={formatCount(total.receiptCount)}
+                />
+              </GroupedSection>
+            ))
+          )}
 
-          <Section
-            title={t('reportKit.by', {
-              dimensions: groupBy.map(labels.dimension).join(', ').toLowerCase(),
-            })}
-            last
-          >
-            {spendQuery.isLoading ? (
-              <SkeletonRows />
-            ) : (
-              <DataTable
-                rows={rows}
-                columns={columns}
-                getRowId={(row, index) =>
-                  `${groupBy.map((dimension) => spendDimensionValue(row, dimension)).join('|')}-${row.currency}-${index}`
-                }
-                accessibilityLabel={t('billingPage.spend.tableLabel')}
-                minWidth={560}
-                emptyState={<Muted>{t('billingPage.spend.noCharges')}</Muted>}
-              />
-            )}
-            {report?.truncated === true && <Note>{t('billingPage.spend.truncated')}</Note>}
-          </Section>
+          <Card>
+            <CardHeader>
+              <CardTitle>{groupedBy}</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {spendQuery.isLoading ? (
+                <Skeleton.Box width="100%" height={132} />
+              ) : (
+                <DataTable
+                  rows={rows}
+                  columns={columns}
+                  getRowId={(row, index) =>
+                    `${groupBy.map((dimension) => spendDimensionValue(row, dimension)).join('|')}-${row.currency}-${index}`
+                  }
+                  accessibilityLabel={t('billingPage.spend.tableLabel')}
+                  minWidth={560}
+                  emptyState={
+                    <EmptyState variant="compact" title={t('billingPage.spend.noCharges')} />
+                  }
+                />
+              )}
+              {report?.truncated === true && <Muted>{t('billingPage.spend.truncated')}</Muted>}
+            </CardBody>
+          </Card>
         </>
       )}
-    </PageBody>
+    </ScreenScrollView>
   );
 }

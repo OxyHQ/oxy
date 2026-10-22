@@ -1,8 +1,33 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { Code } from '@oxy.so/bloom/code';
+import { Field } from '@oxy.so/bloom/field';
+import { Item } from '@oxy.so/bloom/item';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
 import { isApplicationPermissionKey } from '@oxy.so/contracts';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import {
@@ -15,9 +40,6 @@ import {
 } from '@/hooks/use-application-roles';
 import { getErrorMessage } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
-import { ChoiceSelect, TextInputField } from './form-fields';
-import { Code, Notice, NoticeText, RowGroup, SectionBlock } from './primitives';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 
 /**
  * Application roles: the permissions THIS application declares about its own
@@ -55,17 +77,17 @@ export function RolesSection({
 
   if (permissions.isError || grants.isError) {
     return (
-      <Notice type="error" title={t('applications.roles.loadFailed')}>
-        <NoticeText>
-          {getErrorMessage(permissions.error ?? grants.error, t('applications.roles.tryAgain'))}
-        </NoticeText>
-      </Notice>
+      <Admonition type="error">
+        <Text variant="body-2-semibold">{t('applications.roles.loadFailed')}</Text>
+        {'\n'}
+        {getErrorMessage(permissions.error ?? grants.error, t('applications.roles.tryAgain'))}
+      </Admonition>
     );
   }
 
   const declared = permissions.data?.items ?? [];
   return (
-    <View className="gap-8">
+    <View className="gap-6">
       <VocabularyEditor
         key={declared.map((item) => `${item.key}:${item.description}`).join('|')}
         appId={appId}
@@ -119,69 +141,84 @@ function VocabularyEditor({
   };
 
   return (
-    <SectionBlock
-      title={t('applications.roles.permissionsTitle')}
-      description={t('applications.roles.permissionsBody')}
-    >
-      {draft.length === 0 ? (
-        <Text className="text-sm text-muted-foreground">{t('applications.roles.none')}</Text>
-      ) : null}
+    <Card appearance="outline">
+      <CardHeader>
+        <CardTitle>{t('applications.roles.permissionsTitle')}</CardTitle>
+        <CardDescription>{t('applications.roles.permissionsBody')}</CardDescription>
+      </CardHeader>
+      <CardBody>
+        <View className="gap-4">
+          {draft.length === 0 ? (
+            <Text className="text-sm text-muted-foreground">{t('applications.roles.none')}</Text>
+          ) : null}
 
-      {draft.map((row, index) => (
-        // The rows have no stable identity until saved (the key is being typed).
-        <View key={`row-${index}`} className="flex-row items-end gap-2">
-          <View className="w-56 shrink-0">
-            <TextInputField
-              label={t('applications.roles.key')}
-              value={row.key}
-              placeholder="payments.operate"
-              disabled={!canManage}
-              invalid={row.key.length > 0 && !isApplicationPermissionKey(row.key)}
-              onChangeText={(value) =>
-                setDraft(
-                  draft.map((item, i) => (i === index ? { ...item, key: value.trim() } : item)),
-                )
-              }
-            />
-          </View>
-          <View className="min-w-0 flex-1">
-            <TextInputField
-              label={t('applications.roles.description')}
-              value={row.description}
-              placeholder={t('applications.roles.descriptionPlaceholder')}
-              disabled={!canManage}
-              autoCapitalize="sentences"
-              onChangeText={(value) =>
-                setDraft(
-                  draft.map((item, i) => (i === index ? { ...item, description: value } : item)),
-                )
-              }
-            />
-          </View>
-          {canManage ? (
-            <Button
-              appearance="plain"
-              onPress={() => setDraft(draft.filter((_, i) => i !== index))}
-            >
-              {t('applications.roles.remove')}
-            </Button>
+          {draft.map((row, index) => (
+            // The rows have no stable identity until saved (the key is being typed).
+            <View key={`row-${index}`} className="flex-row items-end gap-2">
+              <View className="w-56 shrink-0">
+                <Field label={t('applications.roles.key')}>
+                  <TextFieldInput
+                    label={t('applications.roles.key')}
+                    value={row.key}
+                    placeholder="payments.operate"
+                    disabled={!canManage}
+                    invalid={row.key.length > 0 && !isApplicationPermissionKey(row.key)}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onChangeText={(value) =>
+                      setDraft(
+                        draft.map((item, i) =>
+                          i === index ? { ...item, key: value.trim() } : item,
+                        ),
+                      )
+                    }
+                  />
+                </Field>
+              </View>
+              <View className="min-w-0 flex-1">
+                <Field label={t('applications.roles.description')}>
+                  <TextFieldInput
+                    label={t('applications.roles.description')}
+                    value={row.description}
+                    placeholder={t('applications.roles.descriptionPlaceholder')}
+                    disabled={!canManage}
+                    autoCapitalize="sentences"
+                    onChangeText={(value) =>
+                      setDraft(
+                        draft.map((item, i) =>
+                          i === index ? { ...item, description: value } : item,
+                        ),
+                      )
+                    }
+                  />
+                </Field>
+              </View>
+              {canManage ? (
+                <Button
+                  appearance="plain"
+                  onPress={() => setDraft(draft.filter((_, i) => i !== index))}
+                >
+                  {t('applications.roles.remove')}
+                </Button>
+              ) : null}
+            </View>
+          ))}
+
+          {removed.length > 0 ? (
+            <Admonition type="warning">
+              <Text variant="body-2-semibold">
+                {t('applications.roles.retiresTitle', {
+                  keys: removed.map((row) => row.key).join(', '),
+                })}
+              </Text>
+              {'\n'}
+              {t('applications.roles.retiresBody')}
+            </Admonition>
           ) : null}
         </View>
-      ))}
-
-      {removed.length > 0 ? (
-        <Notice
-          type="warning"
-          title={t('applications.roles.retiresTitle', {
-            keys: removed.map((row) => row.key).join(', '),
-          })}
-        >
-          <NoticeText>{t('applications.roles.retiresBody')}</NoticeText>
-        </Notice>
-      ) : null}
-
+      </CardBody>
       {canManage ? (
-        <View className="flex-row gap-3 border-t border-border pt-4">
+        <CardFooter>
           <Button
             appearance="outline"
             onPress={() => setDraft([...draft, { key: '', description: '' }])}
@@ -195,9 +232,9 @@ function VocabularyEditor({
           >
             {t('applications.roles.save')}
           </Button>
-        </View>
+        </CardFooter>
       ) : null}
-    </SectionBlock>
+    </Card>
   );
 }
 
@@ -252,80 +289,93 @@ function GrantsPanel({
   };
 
   return (
-    <SectionBlock
-      bordered
-      title={t('applications.roles.peopleTitle')}
-      description={t('applications.roles.peopleBody')}
-    >
-      {grants.length === 0 ? (
-        <Text className="text-sm text-muted-foreground">{t('applications.roles.nobody')}</Text>
-      ) : (
-        <RowGroup>
-          {grants.map((item, index) => (
-            <View
+    <View className="gap-6">
+      <Card appearance="outline">
+        <CardHeader>
+          <CardTitle>{t('applications.roles.peopleTitle')}</CardTitle>
+          <CardDescription>{t('applications.roles.peopleBody')}</CardDescription>
+        </CardHeader>
+        {grants.length === 0 ? (
+          <CardBody>
+            <Text className="text-sm text-muted-foreground">{t('applications.roles.nobody')}</Text>
+          </CardBody>
+        ) : (
+          grants.map((item) => (
+            <Item
               key={item.id}
-              className={
-                index > 0
-                  ? 'flex-row items-center justify-between gap-3 border-t border-border px-4 py-3'
-                  : 'flex-row items-center justify-between gap-3 px-4 py-3'
+              title={
+                <>
+                  {item.username ? `@${item.username}` : item.userId} <Code>{item.permission}</Code>
+                </>
               }
-            >
-              <View className="min-w-0 flex-1 gap-0.5">
-                <View className="flex-row flex-wrap items-center gap-2">
-                  <Text className="text-sm text-foreground">
-                    {item.username ? `@${item.username}` : item.userId}
-                  </Text>
-                  <Code>{item.permission}</Code>
-                </View>
-                <Text className="text-xs text-muted-foreground">
-                  {t('applications.roles.since', {
-                    date: new Date(item.grantedAt).toLocaleDateString(),
-                  })}
-                  {item.grantReason ? ` · ${item.grantReason}` : ''}
-                </Text>
-              </View>
-              {canManage ? (
-                <Button
-                  appearance="outline"
-                  size="sm"
-                  disabled={revoke.isPending}
-                  onPress={() => void revokeGrant(item.id)}
-                >
-                  {t('applications.roles.revoke')}
-                </Button>
-              ) : null}
-            </View>
-          ))}
-        </RowGroup>
-      )}
+              subtitle={`${t('applications.roles.since', {
+                date: new Date(item.grantedAt).toLocaleDateString(),
+              })}${item.grantReason ? ` · ${item.grantReason}` : ''}`}
+              trailing={
+                canManage ? (
+                  <Button
+                    appearance="outline"
+                    size="sm"
+                    disabled={revoke.isPending}
+                    onPress={() => void revokeGrant(item.id)}
+                  >
+                    {t('applications.roles.revoke')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ))
+        )}
+      </Card>
 
       {canManage && keys.length > 0 ? (
-        <View className="gap-3 rounded-lg border border-border px-4 py-4">
-          <Text className="text-sm font-medium text-foreground">
-            {t('applications.roles.grantTitle')}
-          </Text>
-          <Text className="text-xs text-muted-foreground">{t('applications.roles.grantHint')}</Text>
-          <TextInputField
-            label={t('applications.roles.username')}
-            value={username}
-            placeholder="@username"
-            onChangeText={setUsername}
-          />
-          <ChoiceSelect
-            label={t('applications.roles.permission')}
-            value={permission}
-            onChange={setPermission}
-            items={keys.map((key) => ({ value: key, label: key }))}
-            placeholder={t('applications.roles.permissionPlaceholder')}
-          />
-          <TextInputField
-            label={t('applications.roles.reason')}
-            value={reason}
-            placeholder={t('applications.roles.reasonPlaceholder')}
-            autoCapitalize="sentences"
-            onChangeText={setReason}
-          />
-          <View className="flex-row">
+        <Card appearance="outline">
+          <CardHeader>
+            <CardTitle>{t('applications.roles.grantTitle')}</CardTitle>
+            <CardDescription>{t('applications.roles.grantHint')}</CardDescription>
+          </CardHeader>
+          <CardBody>
+            <View className="gap-4">
+              <Field label={t('applications.roles.username')}>
+                <TextFieldInput
+                  label={t('applications.roles.username')}
+                  value={username}
+                  placeholder="@username"
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </Field>
+              <Field label={t('applications.roles.permission')}>
+                <Select value={permission} onValueChange={setPermission}>
+                  <SelectTrigger label={t('applications.roles.permission')}>
+                    <SelectValue placeholder={t('applications.roles.permissionPlaceholder')} />
+                    <SelectIcon />
+                  </SelectTrigger>
+                  <SelectContent
+                    label={t('applications.roles.permission')}
+                    items={keys.map((key) => ({ value: key, label: key }))}
+                    renderItem={(item) => (
+                      <SelectItem value={item.value} label={item.label}>
+                        <SelectItemIndicator />
+                        <SelectItemText>{item.label}</SelectItemText>
+                      </SelectItem>
+                    )}
+                  />
+                </Select>
+              </Field>
+              <Field label={t('applications.roles.reason')}>
+                <TextFieldInput
+                  label={t('applications.roles.reason')}
+                  value={reason}
+                  placeholder={t('applications.roles.reasonPlaceholder')}
+                  autoCapitalize="sentences"
+                  onChangeText={setReason}
+                />
+              </Field>
+            </View>
+          </CardBody>
+          <CardFooter>
             <Button
               loading={grant.isPending}
               disabled={!username.trim() || !permission}
@@ -333,9 +383,9 @@ function GrantsPanel({
             >
               {t('applications.roles.grant')}
             </Button>
-          </View>
-        </View>
+          </CardFooter>
+        </Card>
       ) : null}
-    </SectionBlock>
+    </View>
   );
 }

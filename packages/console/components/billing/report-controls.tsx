@@ -1,10 +1,11 @@
+import { Chip } from '@oxy.so/bloom/chip';
+import { Field } from '@oxy.so/bloom/field';
 import {
   SegmentedControl,
   SegmentedControlItem,
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
-import { Text, View } from 'react-native';
-import { Chip } from '@oxy.so/bloom/chip';
+import { View } from 'react-native';
 import { useTranslation } from '@/lib/i18n';
 import { REPORT_RANGE_DAYS, type ReportRangeDays } from '@/lib/reporting';
 
@@ -48,13 +49,11 @@ export function ReportControls<TDimension extends string>({
 
   return (
     <View className="gap-4">
-      <View className="flex-row flex-wrap items-center gap-3">
-        <Text className="text-sm text-muted-foreground">{t('reportKit.period')}</Text>
+      <Field label={t('reportKit.period')}>
         <RangePicker value={rangeDays} onChange={onRangeDaysChange} />
-      </View>
+      </Field>
 
-      <View className="flex-row flex-wrap items-center gap-3">
-        <Text className="text-sm text-muted-foreground">{t('reportKit.groupBy')}</Text>
+      <Field label={t('reportKit.groupBy')}>
         <View className="flex-row flex-wrap gap-1.5">
           {dimensions.map((dimension) => {
             const isSelected = selected.includes(dimension);
@@ -77,7 +76,7 @@ export function ReportControls<TDimension extends string>({
             );
           })}
         </View>
-      </View>
+      </Field>
     </View>
   );
 }

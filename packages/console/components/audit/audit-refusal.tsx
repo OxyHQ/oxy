@@ -1,6 +1,10 @@
-import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { Text, View } from 'react-native';
+import {
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -21,28 +25,21 @@ export function AuditRefusal({
   readonly what: string;
 }) {
   const { t } = useTranslation();
-  const theme = useTheme();
   return (
-    <View className="mx-6 my-8 max-w-2xl rounded-lg border border-border bg-muted px-5 py-4">
-      <View className="flex-row items-start gap-3">
-        <View className="mt-0.5">
-          <Icon color={theme.colors.textSecondary} />
-        </View>
-        <View className="min-w-0 flex-1 gap-2">
-          <Text className="text-sm font-semibold text-foreground">
+    <AdmonitionRoot type="warning">
+      <AdmonitionRow>
+        <AdmonitionIcon />
+        <AdmonitionContent>
+          <AdmonitionText style={{ fontWeight: '600' }}>
             {t('reportKit.refusal.title', { what })}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
+          </AdmonitionText>
+          <AdmonitionText>
             {t(missing.length === 1 ? 'reportKit.refusal.needsOne' : 'reportKit.refusal.needsMany')}{' '}
-            <Text className="font-mono text-xs text-foreground">{missing.join(', ')}</Text>.
-          </Text>
-          <Text className="text-sm text-muted-foreground">{t('reportKit.refusal.body')}</Text>
-        </View>
-      </View>
-    </View>
+            {missing.join(', ')}.
+          </AdmonitionText>
+          <AdmonitionText>{t('reportKit.refusal.body')}</AdmonitionText>
+        </AdmonitionContent>
+      </AdmonitionRow>
+    </AdmonitionRoot>
   );
-}
-
-function Icon({ color }: { color: string }) {
-  return <RiShieldLine size="md" fill={color} />;
 }

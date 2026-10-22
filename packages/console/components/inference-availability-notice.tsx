@@ -1,4 +1,13 @@
-import { Notice } from '@/components/content/Notice';
+import {
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
+import { InlineMarkdown, Markdown } from '@oxy.so/bloom/markdown';
+import { View } from 'react-native';
+
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -14,10 +23,19 @@ import { useTranslation } from '@/lib/i18n';
 export function InferenceAvailabilityNotice({ className }: { className?: string }) {
   const { t } = useTranslation();
   return (
-    <Notice
-      className={className}
-      title={t('notices.inference.title')}
-      paragraphs={[t('notices.inference.paragraphOne'), t('notices.inference.paragraphTwo')]}
-    />
+    <View className={className}>
+      <AdmonitionRoot type="info">
+        <AdmonitionRow>
+          <AdmonitionIcon />
+          <AdmonitionContent>
+            <AdmonitionText>
+              <InlineMarkdown source={t('notices.inference.title')} />
+            </AdmonitionText>
+            <Markdown size="sm">{t('notices.inference.paragraphOne')}</Markdown>
+            <Markdown size="sm">{t('notices.inference.paragraphTwo')}</Markdown>
+          </AdmonitionContent>
+        </AdmonitionRow>
+      </AdmonitionRoot>
+    </View>
   );
 }

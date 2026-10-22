@@ -1,11 +1,15 @@
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import { PageBody } from '@/components/account-pages/PageFrame';
-import { MonoCell, NumberCell, TextCell } from '@/components/account-pages/cells';
-import { Denied, Muted, Note, Section } from '@/components/account-pages/Section';
-import { SkeletonRows } from '@/components/account-pages/Skeletons';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import { View } from 'react-native';
+import { statusBadge } from '@/components/billing/labels';
 import { ProvenanceBanner } from '@/components/billing/provenance-banner';
 import { RangePicker } from '@/components/billing/report-controls';
 import { useAccount } from '@/hooks/use-account';
@@ -55,34 +59,34 @@ export default function BillingChargesPage() {
         id: 'request',
         header: t('billingPage.charges.request'),
         minWidth: 160,
-        cell: ({ row }) => <MonoCell>{row.requestId}</MonoCell>,
+        cell: ({ row }) => <Text className="font-mono text-xs">{row.requestId}</Text>,
       },
       {
         id: 'application',
         header: t('billingPage.charges.application'),
         minWidth: 160,
-        cell: ({ row }) => <MonoCell muted>{row.applicationId}</MonoCell>,
+        cell: ({ row }) => <Muted className="font-mono text-xs">{row.applicationId}</Muted>,
       },
       {
         id: 'environment',
         header: t('billingPage.charges.environment'),
         width: 130,
-        cell: ({ row }) => <TextCell muted>{row.environment}</TextCell>,
+        cell: ({ row }) => <Muted>{row.environment}</Muted>,
       },
       {
         id: 'expires',
         header: t('billingPage.charges.expires'),
         width: 130,
-        cell: ({ row }) => (
-          <TextCell muted>{new Date(row.expiresAt).toLocaleTimeString()}</TextCell>
-        ),
+        cell: ({ row }) => <Muted>{new Date(row.expiresAt).toLocaleTimeString()}</Muted>,
       },
       {
         id: 'held',
         header: t('billingPage.charges.held'),
         align: 'end',
         width: 140,
-        cell: ({ row }) => <NumberCell>{formatMoney(row.reservedAmount, row.currency)}</NumberCell>,
+        cell: ({ row }) => (
+          <Text className="tabular-nums">{formatMoney(row.reservedAmount, row.currency)}</Text>
+        ),
       },
     ],
     [t],
@@ -94,19 +98,19 @@ export default function BillingChargesPage() {
         id: 'settled',
         header: t('billingPage.charges.settled'),
         minWidth: 170,
-        cell: ({ row }) => <TextCell muted>{new Date(row.settledAt).toLocaleString()}</TextCell>,
+        cell: ({ row }) => <Muted>{new Date(row.settledAt).toLocaleString()}</Muted>,
       },
       {
         id: 'model',
         header: t('billingPage.charges.servedModel'),
         minWidth: 180,
-        cell: ({ row }) => <MonoCell>{row.resolvedModelReference}</MonoCell>,
+        cell: ({ row }) => <Text className="font-mono text-xs">{row.resolvedModelReference}</Text>,
       },
       {
         id: 'provider',
         header: t('billingPage.charges.provider'),
         width: 130,
-        cell: ({ row }) => <TextCell muted>{row.servingProvider}</TextCell>,
+        cell: ({ row }) => <Muted>{row.servingProvider}</Muted>,
       },
       {
         id: 'outcome',
@@ -114,12 +118,12 @@ export default function BillingChargesPage() {
         minWidth: 170,
         cell: ({ row }) => (
           <View className="flex-row flex-wrap items-center gap-1.5">
-            <StatusBadge
-              label={row.outcome}
-              variant={row.outcome === 'completed' ? 'default' : 'secondary'}
+            <Badge
+              content={row.outcome}
+              {...statusBadge(row.outcome === 'completed' ? 'default' : 'secondary')}
             />
             {row.platformFeeOnly && (
-              <StatusBadge label={t('billingPage.charges.feeOnly')} variant="outline" />
+              <Badge content={t('billingPage.charges.feeOnly')} {...statusBadge('outline')} />
             )}
           </View>
         ),
@@ -130,9 +134,9 @@ export default function BillingChargesPage() {
         align: 'end',
         width: 150,
         cell: ({ row }) => (
-          <NumberCell muted>
+          <Muted className="tabular-nums">
             {formatCount(row.units.input_tokens)} / {formatCount(row.units.output_tokens)}
-          </NumberCell>
+          </Muted>
         ),
       },
       {
@@ -140,83 +144,88 @@ export default function BillingChargesPage() {
         header: t('billingPage.charges.net'),
         align: 'end',
         width: 140,
-        cell: ({ row }) => <NumberCell>{formatMoney(row.netAmount, row.currency)}</NumberCell>,
+        cell: ({ row }) => (
+          <Text className="tabular-nums">{formatMoney(row.netAmount, row.currency)}</Text>
+        ),
       },
     ],
     [t],
   );
 
   return (
-    <PageBody>
+    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
       {!canRead ? (
-        <Denied>{t('billingPage.charges.denied')}</Denied>
+        <EmptyState icon={RiLockLine} title={t('billingPage.charges.denied')} />
       ) : (
         <>
-          <Section>
-            <ProvenanceBanner provenance={LEDGER} />
-          </Section>
+          <ProvenanceBanner provenance={LEDGER} />
 
-          <Section
-            title={t('billingPage.charges.heldTitle')}
-            description={t('billingPage.charges.heldBody')}
-          >
-            {reservationsQuery.isLoading ? (
-              <SkeletonRows count={1} height={64} />
-            ) : held === undefined || held.rows.length === 0 ? (
-              <Muted>{t('billingPage.charges.nothingHeld')}</Muted>
-            ) : (
-              <>
-                <View className="flex-row flex-wrap gap-x-12 gap-y-4">
-                  {held.totals.map((total) => (
-                    <View key={total.currency} className="gap-0.5">
-                      <Text
-                        className="text-2xl font-semibold text-foreground"
-                        style={{ fontVariant: ['tabular-nums'] }}
-                      >
-                        {formatMoney(total.heldAmount, total.currency)}
-                      </Text>
-                      <Text className="text-sm text-muted-foreground">
-                        {t('billingPage.charges.heldAcross', { count: total.reservationCount })}
-                      </Text>
-                    </View>
-                  ))}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('billingPage.charges.heldTitle')}</CardTitle>
+              <CardDescription>{t('billingPage.charges.heldBody')}</CardDescription>
+            </CardHeader>
+            <CardBody>
+              {reservationsQuery.isLoading ? (
+                <Skeleton.Box width="100%" height={64} />
+              ) : held === undefined || held.rows.length === 0 ? (
+                <Muted>{t('billingPage.charges.nothingHeld')}</Muted>
+              ) : (
+                <View className="gap-4">
+                  <GroupedSection>
+                    {held.totals.map((total) => (
+                      <GroupedSectionItem
+                        key={total.currency}
+                        title={formatMoney(total.heldAmount, total.currency)}
+                        description={t('billingPage.charges.heldAcross', {
+                          count: total.reservationCount,
+                        })}
+                      />
+                    ))}
+                  </GroupedSection>
+                  <DataTable
+                    rows={held.rows}
+                    columns={heldColumns}
+                    getRowId={(row) => row.reservationId}
+                    accessibilityLabel={t('billingPage.charges.heldTable')}
+                    minWidth={680}
+                  />
                 </View>
-                <DataTable
-                  rows={held.rows}
-                  columns={heldColumns}
-                  getRowId={(row) => row.reservationId}
-                  accessibilityLabel={t('billingPage.charges.heldTable')}
-                  minWidth={680}
-                />
-              </>
-            )}
-          </Section>
+              )}
+            </CardBody>
+          </Card>
 
-          <Section
-            title={t('billingPage.charges.chargedTitle')}
-            description={t('billingPage.charges.chargedBody')}
-            action={<RangePicker value={rangeDays} onChange={setRangeDays} />}
-            last
-          >
-            {chargesQuery.isLoading ? (
-              <SkeletonRows />
-            ) : charges === undefined || charges.rows.length === 0 ? (
-              <Muted>
-                {t('billingPage.charges.nothingCharged', { from: range.from, to: range.to })}
-              </Muted>
-            ) : (
-              <DataTable
-                rows={charges.rows}
-                columns={chargeColumns}
-                getRowId={(row) => row.receiptId}
-                accessibilityLabel={t('billingPage.charges.chargedTable')}
-                minWidth={820}
-              />
-            )}
-            {charges?.truncated === true && <Note>{t('billingPage.charges.truncated')}</Note>}
-          </Section>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('billingPage.charges.chargedTitle')}</CardTitle>
+              <CardDescription>{t('billingPage.charges.chargedBody')}</CardDescription>
+            </CardHeader>
+            <CardBody>
+              <View className="gap-4">
+                <View className="items-start">
+                  <RangePicker value={rangeDays} onChange={setRangeDays} />
+                </View>
+                {chargesQuery.isLoading ? (
+                  <Skeleton.Box width="100%" height={132} />
+                ) : charges === undefined || charges.rows.length === 0 ? (
+                  <Muted>
+                    {t('billingPage.charges.nothingCharged', { from: range.from, to: range.to })}
+                  </Muted>
+                ) : (
+                  <DataTable
+                    rows={charges.rows}
+                    columns={chargeColumns}
+                    getRowId={(row) => row.receiptId}
+                    accessibilityLabel={t('billingPage.charges.chargedTable')}
+                    minWidth={820}
+                  />
+                )}
+                {charges?.truncated === true && <Muted>{t('billingPage.charges.truncated')}</Muted>}
+              </View>
+            </CardBody>
+          </Card>
         </>
       )}
-    </PageBody>
+    </ScreenScrollView>
   );
 }

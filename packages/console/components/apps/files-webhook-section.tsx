@@ -1,4 +1,17 @@
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { CodeBlock } from '@oxy.so/bloom/code';
+import { Field } from '@oxy.so/bloom/field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Text } from '@oxy.so/bloom/typography';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,9 +20,8 @@ import { View } from 'react-native';
 
 import type { Application } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
+import { copyText } from '@/lib/clipboard';
 import { useTranslation } from '@/lib/i18n';
-import { TextInputField } from './form-fields';
-import { CopyValue, Notice, NoticeText, SectionBlock } from './primitives';
 
 /**
  * Where Oxy tells this application about the files it uses (ADR 0043 D9):
@@ -73,34 +85,54 @@ export function FilesWebhookSection({
     : t('applications.filesWebhook.notSet');
 
   return (
-    <SectionBlock
-      bordered
-      title={t('applications.filesWebhook.title')}
-      description={t('applications.filesWebhook.body')}
-    >
-      <TextInputField
-        label={t('applications.filesWebhook.endpoint')}
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://example.com/webhooks/oxy/files"
-        keyboardType="url"
-        disabled={!canEdit || pending}
-        hint={`${status} ${t('applications.filesWebhook.challengeHint')}`}
-      />
+    <Card appearance="outline">
+      <CardHeader>
+        <CardTitle>{t('applications.filesWebhook.title')}</CardTitle>
+        <CardDescription>{t('applications.filesWebhook.body')}</CardDescription>
+      </CardHeader>
+      <CardBody>
+        <View className="gap-4">
+          <Field
+            label={t('applications.filesWebhook.endpoint')}
+            description={`${status} ${t('applications.filesWebhook.challengeHint')}`}
+          >
+            <TextFieldInput
+              label={t('applications.filesWebhook.endpoint')}
+              value={url}
+              onChangeText={setUrl}
+              placeholder="https://example.com/webhooks/oxy/files"
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              disabled={!canEdit || pending}
+            />
+          </Field>
 
-      {secret ? (
-        <Notice type="warning" title={t('applications.filesWebhook.secretTitle')}>
-          <NoticeText>{t('applications.filesWebhook.secretBody')}</NoticeText>
-          <CopyValue
-            value={secret}
-            label={t('applications.filesWebhook.secretCopy')}
-            copiedMessage={t('applications.filesWebhook.secretCopied')}
-          />
-        </Notice>
-      ) : null}
-
+          {secret ? (
+            <View className="gap-3">
+              <Admonition type="warning">
+                <Text variant="body-2-semibold">{t('applications.filesWebhook.secretTitle')}</Text>
+                {'\n'}
+                {t('applications.filesWebhook.secretBody')}
+              </Admonition>
+              <CodeBlock
+                code={secret}
+                filename={t('applications.filesWebhook.secretTitle')}
+                lineNumbers={false}
+                wrap
+                onCopy={() => copyText(secret, t('applications.filesWebhook.secretCopied'))}
+              />
+            </View>
+          ) : null}
+        </View>
+      </CardBody>
       {canEdit ? (
-        <View className="flex-row flex-wrap gap-3">
+        <CardFooter>
+          {application.filesWebhookUrl ? (
+            <Button appearance="outline" disabled={pending} onPress={() => void handleRemove()}>
+              {t('applications.filesWebhook.stop')}
+            </Button>
+          ) : null}
           <Button
             loading={pending}
             disabled={!url.trim().startsWith('https://')}
@@ -108,13 +140,8 @@ export function FilesWebhookSection({
           >
             {t('applications.filesWebhook.verify')}
           </Button>
-          {application.filesWebhookUrl ? (
-            <Button appearance="outline" disabled={pending} onPress={() => void handleRemove()}>
-              {t('applications.filesWebhook.stop')}
-            </Button>
-          ) : null}
-        </View>
+        </CardFooter>
       ) : null}
-    </SectionBlock>
+    </Card>
   );
 }

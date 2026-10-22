@@ -1,4 +1,7 @@
 import { Text, View } from 'react-native';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useAccount } from '@/hooks/use-account';
@@ -9,7 +12,6 @@ import { useTranslation } from '@/lib/i18n';
 import { connectionAppliesToApplication } from '@/lib/provider-connection';
 import { effectivePolicyOrigin } from '@/lib/routing-policy';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
-import { Notice, Panel, Pill, SectionHeader } from './ui';
 
 /**
  * What is actually true about inference for this application, right now.
@@ -56,10 +58,10 @@ export function InferenceOverviewSection({
 
   return (
     <View className="gap-6">
-      <SectionHeader
-        title={t('appsInference.overview.title')}
-        description={t('appsInference.overview.description')}
-      />
+      <View>
+        <CardTitle>{t('appsInference.overview.title')}</CardTitle>
+        <CardDescription>{t('appsInference.overview.description')}</CardDescription>
+      </View>
 
       <InferenceAvailabilityNotice />
 
@@ -107,22 +109,27 @@ export function InferenceOverviewSection({
         />
       </View>
 
-      <Notice title={t('appsInference.overview.notReported.title')}>
-        {t('appsInference.overview.notReported.body')}
-      </Notice>
+      <Admonition type="info">
+        <Text className="font-semibold">{t('appsInference.overview.notReported.title')}</Text>
+        {`\n${t('appsInference.overview.notReported.body')}`}
+      </Admonition>
 
       {catalogue.length === 0 && (
-        <Panel className="px-4 py-3">
-          <View className="flex-row items-center gap-2">
-            <Pill label={t('appsInference.overview.catalogueEmpty.badge')} tone="outline" />
-            <Text className="text-sm text-foreground">
-              {t('appsInference.overview.catalogueEmpty.title')}
-            </Text>
-          </View>
-          <Text className="mt-1 text-sm text-muted-foreground">
-            {t('appsInference.overview.catalogueEmpty.body')}
-          </Text>
-        </Panel>
+        <Card appearance="outline" radius="radius-16">
+          <CardHeader>
+            <View className="flex-row items-center gap-2">
+              <Badge
+                content={t('appsInference.overview.catalogueEmpty.badge')}
+                variant="outlined"
+                size="label-small"
+              />
+              <CardTitle>{t('appsInference.overview.catalogueEmpty.title')}</CardTitle>
+            </View>
+          </CardHeader>
+          <CardBody>
+            <CardDescription>{t('appsInference.overview.catalogueEmpty.body')}</CardDescription>
+          </CardBody>
+        </Card>
       )}
     </View>
   );
@@ -140,16 +147,16 @@ function SummaryCard({
   isLoading: boolean;
 }) {
   return (
-    <Panel className="min-w-48 flex-1 px-4 py-3">
-      <Text className="text-xs text-muted-foreground">{label}</Text>
-      {isLoading ? (
-        <View className="mt-1">
-          <Skeleton.Box width={80} height={28} />
-        </View>
-      ) : (
-        <Text className="mt-0.5 text-xl font-semibold text-foreground">{value}</Text>
-      )}
-      <Text className="mt-1 text-xs text-muted-foreground">{detail}</Text>
-    </Panel>
+    <Card appearance="outline" radius="radius-16" className="min-w-48 flex-1">
+      <CardHeader>
+        <CardDescription>{label}</CardDescription>
+      </CardHeader>
+      <CardBody>
+        {isLoading ? <Skeleton.Box width={80} height={28} /> : <CardTitle>{value}</CardTitle>}
+      </CardBody>
+      <CardBody>
+        <CardDescription>{detail}</CardDescription>
+      </CardBody>
+    </Card>
   );
 }

@@ -1,4 +1,7 @@
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { Field } from '@oxy.so/bloom/field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -7,7 +10,6 @@ import { View } from 'react-native';
 import { useCreateApplication } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
-import { TextAreaField, TextInputField } from './form-fields';
 
 /** Creates an application and lands on its detail page. */
 export function CreateApplicationDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -64,28 +66,35 @@ export function CreateApplicationDialog({ open, onClose }: { open: boolean; onCl
       testID="create-application-dialog"
     >
       <View className="gap-4">
-        <TextInputField
-          label={t('applications.fields.name')}
-          value={name}
-          onChangeText={setName}
-          placeholder={t('applications.fields.namePlaceholder')}
-          maxLength={100}
-          autoCapitalize="sentences"
-        />
-        <TextAreaField
+        <Field label={t('applications.fields.name')}>
+          <TextFieldInput
+            label={t('applications.fields.name')}
+            value={name}
+            onChangeText={setName}
+            placeholder={t('applications.fields.namePlaceholder')}
+            maxLength={100}
+            autoCapitalize="sentences"
+          />
+        </Field>
+        <Textarea
           label={t('applications.fields.description')}
           value={description}
           onChangeText={setDescription}
           placeholder={t('applications.fields.descriptionPlaceholder')}
           maxLength={500}
+          rows={3}
         />
-        <TextInputField
-          label={t('applications.fields.websiteUrl')}
-          value={websiteUrl}
-          onChangeText={setWebsiteUrl}
-          placeholder="https://example.com"
-          keyboardType="url"
-        />
+        <Field label={t('applications.fields.websiteUrl')}>
+          <TextFieldInput
+            label={t('applications.fields.websiteUrl')}
+            value={websiteUrl}
+            onChangeText={setWebsiteUrl}
+            placeholder="https://example.com"
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </Field>
       </View>
     </Dialog>
   );

@@ -1,24 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
-import { ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import {
+  Card,
+  CardBody,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiImageAddLine } from '@oxy.so/bloom/icons/RiImageAddLine';
+import { Item } from '@oxy.so/bloom/item';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import {
-  MutedText,
-  Panel,
-  Pill,
-  SectionHeader,
-  SelectField,
-  TextInputField,
-} from '@/components/apps-inference/ui';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { PublisherListing, StoreScreenshot } from '@/hooks/use-store-listing';
 import {
@@ -115,11 +129,7 @@ export function StoreSection({
   }, [isLoading, listing, application.name]);
 
   if (isLoading) {
-    return (
-      <View className="items-center py-12">
-        <ActivityIndicator />
-      </View>
-    );
+    return <Skeleton.Box width="100%" height={320} borderRadius={14} />;
   }
 
   const handleSave = async () => {
@@ -165,88 +175,119 @@ export function StoreSection({
   const canSubmit = status === 'draft' || status === 'rejected';
   const canUnpublish = status === 'published' || status === 'pending_review';
 
-  return (
-    <View className="gap-8">
-      <View className="gap-4">
-        <View className="flex-row items-start justify-between gap-4">
-          <View className="min-w-0 flex-1">
-            <Text className="text-lg font-semibold text-foreground">{t('appsStore.title')}</Text>
-            <View className="mt-1">
-              <MutedText>
-                {status ? t(`appsStore.status.${status}.help`) : t('appsStore.notListed')}
-              </MutedText>
-            </View>
-          </View>
-          {status && STATUSES.includes(status) && (
-            <Pill label={t(`appsStore.status.${status}.label`)} tone="secondary" />
-          )}
-        </View>
+  const categoryItems = (categories ?? []).map((category) => ({
+    value: category.slug,
+    label: category.label,
+  }));
 
-        <View className="gap-4">
-          <TextInputField
-            label={t('appsStore.fields.slug')}
-            value={slug}
-            onChange={setSlug}
-            placeholder="mention"
-            disabled={!canEdit}
-            help={t('appsStore.fields.slugHelp')}
-          />
-          <TextInputField
-            label={t('appsStore.fields.tagline')}
-            value={tagline}
-            onChange={setTagline}
-            placeholder={t('appsStore.fields.taglinePlaceholder')}
-            maxLength={160}
-            disabled={!canEdit}
-          />
-          <Textarea
-            label={t('appsStore.fields.description')}
-            value={description}
-            onChangeText={setDescription}
-            placeholder={t('appsStore.fields.descriptionPlaceholder')}
-            rows={8}
-            disabled={!canEdit}
-          />
-          <SelectField
-            label={t('appsStore.fields.category')}
-            value={categorySlug}
-            onChange={setCategorySlug}
-            placeholder={t('appsStore.fields.uncategorised')}
-            disabled={!canEdit}
-            items={(categories ?? []).map((category) => ({
-              value: category.slug,
-              label: category.label,
-            }))}
-          />
-          <TextInputField
-            label={t('appsStore.fields.supportUrl')}
-            value={supportUrl}
-            onChange={setSupportUrl}
-            placeholder="https://example.com/help"
-            inputMode="url"
-            disabled={!canEdit}
-          />
-          <TextInputField
-            label={t('appsStore.fields.supportEmail')}
-            value={supportEmail}
-            onChange={setSupportEmail}
-            placeholder="help@example.com"
-            inputMode="email"
-            disabled={!canEdit}
-          />
-          <MutedText small>{t('appsStore.fields.inheritedNote')}</MutedText>
-        </View>
+  return (
+    <View className="gap-6">
+      <Card appearance="outline" radius="radius-16">
+        <CardHeader>
+          <View className="flex-row items-start justify-between gap-4">
+            <View className="min-w-0 flex-1">
+              <CardTitle>{t('appsStore.title')}</CardTitle>
+              <CardDescription>
+                {status ? t(`appsStore.status.${status}.help`) : t('appsStore.notListed')}
+              </CardDescription>
+            </View>
+            {status && STATUSES.includes(status) && (
+              <Badge
+                content={t(`appsStore.status.${status}.label`)}
+                variant="subtle"
+                size="label-small"
+              />
+            )}
+          </View>
+        </CardHeader>
+
+        <CardBody>
+          <View className="gap-4">
+            <Field
+              label={t('appsStore.fields.slug')}
+              description={t('appsStore.fields.slugHelp')}
+              disabled={!canEdit}
+            >
+              <TextFieldInput
+                label={t('appsStore.fields.slug')}
+                value={slug}
+                onValueChange={setSlug}
+                placeholder="mention"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </Field>
+            <Field label={t('appsStore.fields.tagline')} disabled={!canEdit}>
+              <TextFieldInput
+                label={t('appsStore.fields.tagline')}
+                value={tagline}
+                onValueChange={setTagline}
+                placeholder={t('appsStore.fields.taglinePlaceholder')}
+                maxLength={160}
+              />
+            </Field>
+            <Textarea
+              label={t('appsStore.fields.description')}
+              value={description}
+              onChangeText={setDescription}
+              placeholder={t('appsStore.fields.descriptionPlaceholder')}
+              rows={8}
+              disabled={!canEdit}
+            />
+            <Field label={t('appsStore.fields.category')} disabled={!canEdit}>
+              <Select value={categorySlug} onValueChange={setCategorySlug} disabled={!canEdit}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('appsStore.fields.uncategorised')}>
+                    {() =>
+                      categoryItems.find((item) => item.value === categorySlug)?.label ??
+                      t('appsStore.fields.uncategorised')
+                    }
+                  </SelectValue>
+                  <SelectIcon />
+                </SelectTrigger>
+                <SelectContent
+                  label={t('appsStore.fields.category')}
+                  items={categoryItems}
+                  renderItem={(item) => (
+                    <SelectItem value={item.value} label={item.label}>
+                      <SelectItemIndicator />
+                      <SelectItemText>{item.label}</SelectItemText>
+                    </SelectItem>
+                  )}
+                />
+              </Select>
+            </Field>
+            <Field label={t('appsStore.fields.supportUrl')} disabled={!canEdit}>
+              <TextFieldInput
+                label={t('appsStore.fields.supportUrl')}
+                value={supportUrl}
+                onValueChange={setSupportUrl}
+                placeholder="https://example.com/help"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </Field>
+            <Field
+              label={t('appsStore.fields.supportEmail')}
+              description={t('appsStore.fields.inheritedNote')}
+              disabled={!canEdit}
+            >
+              <TextFieldInput
+                label={t('appsStore.fields.supportEmail')}
+                value={supportEmail}
+                onValueChange={setSupportEmail}
+                placeholder="help@example.com"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </Field>
+          </View>
+        </CardBody>
 
         {canEdit && (
-          <View className="flex-row flex-wrap items-center gap-2">
-            <Button onPress={handleSave} loading={writeListing.isPending}>
-              {listing ? t('common.save') : t('appsStore.create')}
-            </Button>
-            {canSubmit && (
-              <Button appearance="outline" onPress={handleSubmit} loading={submitListing.isPending}>
-                {t('appsStore.submit')}
-              </Button>
-            )}
+          <CardFooter>
             {canUnpublish && (
               <Button
                 appearance="outline"
@@ -256,9 +297,17 @@ export function StoreSection({
                 {status === 'published' ? t('appsStore.takeDown') : t('appsStore.withdraw')}
               </Button>
             )}
-          </View>
+            {canSubmit && (
+              <Button appearance="outline" onPress={handleSubmit} loading={submitListing.isPending}>
+                {t('appsStore.submit')}
+              </Button>
+            )}
+            <Button onPress={handleSave} loading={writeListing.isPending}>
+              {listing ? t('common.save') : t('appsStore.create')}
+            </Button>
+          </CardFooter>
         )}
-      </View>
+      </Card>
 
       {listing && <ScreenshotsSection appId={application._id} canEdit={canEdit} />}
     </View>
@@ -332,70 +381,73 @@ function ScreenshotsSection({ appId, canEdit }: { appId: string; canEdit: boolea
   const shots = screenshots ?? [];
 
   return (
-    <View className="gap-4 border-t border-border pt-8">
-      <SectionHeader
-        title={t('appsStore.screenshots.title')}
-        description={t('appsStore.screenshots.description')}
-      />
+    <Card appearance="outline" radius="radius-16">
+      <CardHeader>
+        <CardTitle>{t('appsStore.screenshots.title')}</CardTitle>
+        <CardDescription>{t('appsStore.screenshots.description')}</CardDescription>
+      </CardHeader>
 
-      {isLoading ? (
-        <ActivityIndicator />
-      ) : shots.length === 0 ? (
-        <MutedText>{t('appsStore.screenshots.empty')}</MutedText>
-      ) : (
-        <View className="gap-2">
-          {shots.map((screenshot, index) => (
-            <Panel key={screenshot.id} className="flex-row items-center gap-3 p-2">
-              <Image
-                source={{ uri: resolveStoredImageUrl(oxyServices, screenshot.fileId) }}
-                accessibilityLabel={screenshot.caption ?? ''}
-                contentFit="cover"
-                className="h-16 w-24 rounded bg-muted"
+      <CardBody>
+        {isLoading ? (
+          <Skeleton.Box width="100%" height={80} borderRadius={10} />
+        ) : shots.length === 0 ? (
+          <Text className="text-sm text-muted-foreground">{t('appsStore.screenshots.empty')}</Text>
+        ) : (
+          <View className="gap-2">
+            {shots.map((screenshot, index) => (
+              <Item
+                key={screenshot.id}
+                title={screenshot.caption || t('appsStore.screenshots.noCaption')}
+                subtitle={screenshot.platform}
+                leading={
+                  <Image
+                    source={{ uri: resolveStoredImageUrl(oxyServices, screenshot.fileId) }}
+                    accessibilityLabel={screenshot.caption ?? ''}
+                    contentFit="cover"
+                    className="h-16 w-24 rounded bg-muted"
+                  />
+                }
+                trailing={
+                  canEdit ? (
+                    <View className="flex-row items-center gap-1">
+                      <Button
+                        appearance="plain"
+                        size="sm"
+                        iconOnly
+                        icon={RiArrowUpLine}
+                        accessibilityLabel={t('appsStore.screenshots.moveUp')}
+                        disabled={index === 0 || reorderScreenshots.isPending}
+                        onPress={() => handleMove(index, -1)}
+                      />
+                      <Button
+                        appearance="plain"
+                        size="sm"
+                        iconOnly
+                        icon={RiArrowDownLine}
+                        accessibilityLabel={t('appsStore.screenshots.moveDown')}
+                        disabled={index === shots.length - 1 || reorderScreenshots.isPending}
+                        onPress={() => handleMove(index, 1)}
+                      />
+                      <Button
+                        appearance="plain"
+                        size="sm"
+                        iconOnly
+                        icon={RiDeleteBinLine}
+                        accessibilityLabel={t('appsStore.screenshots.remove')}
+                        disabled={deleteScreenshot.isPending}
+                        onPress={() => handleDelete(screenshot)}
+                      />
+                    </View>
+                  ) : undefined
+                }
               />
-              <View className="min-w-0 flex-1">
-                <Text className="text-sm text-foreground" numberOfLines={1}>
-                  {screenshot.caption || t('appsStore.screenshots.noCaption')}
-                </Text>
-                <MutedText small>{screenshot.platform}</MutedText>
-              </View>
-              {canEdit && (
-                <View className="flex-row items-center gap-1">
-                  <Button
-                    appearance="plain"
-                    size="sm"
-                    iconOnly
-                    icon={RiArrowUpLine}
-                    accessibilityLabel={t('appsStore.screenshots.moveUp')}
-                    disabled={index === 0 || reorderScreenshots.isPending}
-                    onPress={() => handleMove(index, -1)}
-                  />
-                  <Button
-                    appearance="plain"
-                    size="sm"
-                    iconOnly
-                    icon={RiArrowDownLine}
-                    accessibilityLabel={t('appsStore.screenshots.moveDown')}
-                    disabled={index === shots.length - 1 || reorderScreenshots.isPending}
-                    onPress={() => handleMove(index, 1)}
-                  />
-                  <Button
-                    appearance="plain"
-                    size="sm"
-                    iconOnly
-                    icon={RiDeleteBinLine}
-                    accessibilityLabel={t('appsStore.screenshots.remove')}
-                    disabled={deleteScreenshot.isPending}
-                    onPress={() => handleDelete(screenshot)}
-                  />
-                </View>
-              )}
-            </Panel>
-          ))}
-        </View>
-      )}
+            ))}
+          </View>
+        )}
+      </CardBody>
 
       {canEdit && (
-        <View className="flex-row">
+        <CardFooter>
           <Button
             appearance="outline"
             icon={RiImageAddLine}
@@ -405,8 +457,8 @@ function ScreenshotsSection({ appId, canEdit }: { appId: string; canEdit: boolea
           >
             {isUploading ? t('appsStore.screenshots.uploading') : t('appsStore.screenshots.add')}
           </Button>
-        </View>
+        </CardFooter>
       )}
-    </View>
+    </Card>
   );
 }

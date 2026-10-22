@@ -6,8 +6,9 @@ import { type ReactNode, useCallback, useState } from 'react';
 import { Linking } from 'react-native';
 
 import { AccountSwitcher } from '@/components/settings/AccountSwitcher';
+import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { useTranslation } from '@/lib/i18n';
-import { buildSidebarItems, sectionOf } from '@/lib/navigation';
+import { buildSecondaryItems, buildSidebarItems, sectionOf } from '@/lib/navigation';
 import { CommandMenu } from './CommandMenu';
 import { ConsoleBottomBar } from './ConsoleBottomBar';
 
@@ -21,6 +22,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { openAccountDialog } = useOxy();
+  const { open: openSettings } = useConsoleSettings();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -34,6 +36,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 
   const sidebar: SidebarProps = {
     items: buildSidebarItems(t, (url) => void Linking.openURL(url)),
+    secondaryItems: buildSecondaryItems(t, () => {
+      openSettings();
+      setDrawerOpen(false);
+    }),
     selected: sectionOf(pathname),
     onNavigate,
     collapsed,

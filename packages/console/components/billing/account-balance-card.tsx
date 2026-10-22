@@ -1,11 +1,16 @@
-import { Text, View } from 'react-native';
-import { Figure, FigureRow, Muted, Panel } from '@/components/account-pages/Section';
-import { SkeletonFigures } from '@/components/account-pages/Skeletons';
-import { StatusBadge } from '@/components/account-pages/StatusBadge';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Muted } from '@oxy.so/bloom/typography';
+import { View } from 'react-native';
 import { useTranslation } from '@/lib/i18n';
 import { formatMoney } from '@/lib/money';
 import type { LedgerBalanceBucket, LedgerBalanceResponse } from '@/lib/reporting';
 import { ProvenanceBadge } from './provenance-banner';
+import { statusBadge } from './labels';
 
 /**
  * What the account holds, with the buckets kept apart.
@@ -29,7 +34,7 @@ export function AccountBalanceCard({
   const { t } = useTranslation();
 
   if (isLoading) {
-    return <SkeletonFigures />;
+    return <Skeleton.Box width="100%" height={176} />;
   }
 
   if (balance === undefined) {
@@ -38,17 +43,17 @@ export function AccountBalanceCard({
 
   if (!balance.provisioned) {
     return (
-      <Panel dashed>
-        <Text className="text-sm font-medium text-foreground">
-          {t('billingPage.balance.noProfileTitle')}
-        </Text>
-        <Muted>{t('billingPage.balance.noProfileBody')}</Muted>
-      </Panel>
+      <EmptyState
+        variant="compact"
+        icon={RiBankCardLine}
+        title={t('billingPage.balance.noProfileTitle')}
+        description={t('billingPage.balance.noProfileBody')}
+      />
     );
   }
 
   if (balance.balances.length === 0) {
-    return <Muted>{t('billingPage.balance.empty')}</Muted>;
+    return <Admonition type="info">{t('billingPage.balance.empty')}</Admonition>;
   }
 
   return (
@@ -78,60 +83,58 @@ function CurrencyBalance({
   const money = (amount: string) => formatMoney(amount, bucket.currency);
 
   return (
-    <View className="gap-4">
-      <View className="flex-row flex-wrap items-center gap-2">
-        <Text className="text-sm font-semibold text-foreground">{bucket.currency}</Text>
-        {billingMode !== undefined && (
-          <StatusBadge
-            label={t(
-              billingMode === 'prepaid' ? 'billingPage.mode.prepaid' : 'billingPage.mode.invoiced',
+    <GroupedSection title={bucket.currency}>
+      <GroupedSectionItem
+        title={t('billingPage.balance.purchased')}
+        description={t('billingPage.balance.purchasedHint')}
+        value={money(bucket.purchased)}
+      />
+      <GroupedSectionItem
+        title={t('billingPage.balance.promotional')}
+        description={t('billingPage.balance.promotionalHint')}
+        value={money(bucket.promotional)}
+      />
+      <GroupedSectionItem
+        title={t('billingPage.balance.reserved')}
+        description={t('billingPage.balance.reservedHint')}
+        value={money(bucket.reserved)}
+      />
+      <GroupedSectionItem
+        title={t('billingPage.balance.available')}
+        description={t('billingPage.balance.availableHint')}
+        value={money(bucket.availableToSpend)}
+        rightElement={
+          <View className="flex-row items-center gap-2">
+            {billingMode !== undefined && (
+              <Badge
+                content={t(
+                  billingMode === 'prepaid'
+                    ? 'billingPage.mode.prepaid'
+                    : 'billingPage.mode.invoiced',
+                )}
+                {...statusBadge('default')}
+              />
             )}
-          />
-        )}
-        <ProvenanceBadge
-          provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
-        />
-      </View>
-
-      <FigureRow>
-        <Figure
-          label={t('billingPage.balance.purchased')}
-          hint={t('billingPage.balance.purchasedHint')}
-          value={money(bucket.purchased)}
-        />
-        <Figure
-          label={t('billingPage.balance.promotional')}
-          hint={t('billingPage.balance.promotionalHint')}
-          value={money(bucket.promotional)}
-        />
-        <Figure
-          label={t('billingPage.balance.reserved')}
-          hint={t('billingPage.balance.reservedHint')}
-          value={money(bucket.reserved)}
-        />
-        <Figure
-          label={t('billingPage.balance.available')}
-          hint={t('billingPage.balance.availableHint')}
-          value={money(bucket.availableToSpend)}
-        />
-      </FigureRow>
-
-      {billingMode === 'invoiced' && (
-        <FigureRow>
-          <Figure
-            label={t('billingPage.balance.invoicedOutstanding')}
-            hint={t('billingPage.balance.invoicedOutstandingHint')}
-            value={money(bucket.invoicedOutstanding)}
-          />
-          {creditLimit !== undefined && (
-            <Figure
-              label={t('billingPage.balance.creditLimit')}
-              hint={t('billingPage.balance.creditLimitHint')}
-              value={money(creditLimit)}
+            <ProvenanceBadge
+              provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
             />
-          )}
-        </FigureRow>
+          </View>
+        }
+      />
+      {billingMode === 'invoiced' && (
+        <GroupedSectionItem
+          title={t('billingPage.balance.invoicedOutstanding')}
+          description={t('billingPage.balance.invoicedOutstandingHint')}
+          value={money(bucket.invoicedOutstanding)}
+        />
       )}
-    </View>
+      {billingMode === 'invoiced' && creditLimit !== undefined && (
+        <GroupedSectionItem
+          title={t('billingPage.balance.creditLimit')}
+          description={t('billingPage.balance.creditLimitHint')}
+          value={money(creditLimit)}
+        />
+      )}
+    </GroupedSection>
   );
 }
