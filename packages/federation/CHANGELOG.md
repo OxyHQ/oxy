@@ -1,6 +1,26 @@
 # Changelog: `@oxy.so/federation`
 
 
+## 2.8.0
+
+A deleted local actor tells the fediverse once, then answers `410 Gone`.
+
+### Added
+
+- `DeliveryService.federateActorDelete(actorOxyUserId, username)`: the actor's
+  `Delete` of itself (`<actor>#delete`, to `as:Public`, the shape Mastodon
+  sends), one per follower (shared) inbox, signed with its own key. No consent
+  or profile read, since the account is already gone at Oxy. Throws when it
+  cannot queue, so the caller retries.
+- `createActorRouter({ isActorGone })` and `createWebfingerRouter({ isActorGone })`:
+  a username that resolves to nobody and is a deleted actor answers `410 Gone`
+  instead of 404: the actor GET with a `Tombstone`, its inbox, its
+  followers/following/moderators collections, and WebFinger. That is what
+  Mastodon (WebFinger), Lemmy, PieFed and Mbin (refetch) read as permanent.
+  Omitted, every miss is a 404 as before.
+- `buildActorDeleteActivity(actorUri)` and `goneTombstone(id)`, exported from
+  `@oxy.so/federation/node` for the app's own content routes.
+
 ## 2.7.0
 
 ### Added

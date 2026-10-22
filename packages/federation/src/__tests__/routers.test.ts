@@ -210,6 +210,16 @@ describe('webfinger router', () => {
     expect(res.body.links[0].href).toBe(urls.actor('alice'));
   });
 
+  it('answers 410 for a deleted actor, and still 404 for an unknown one', async () => {
+    const app = makeWebfingerApp({ isActorGone: async (username) => username === 'gone' });
+    const gone = await request(app).get('/.well-known/webfinger?resource=acct:gone@mention.earth');
+    expect(gone.status).toBe(410);
+    const unknown = await request(app).get(
+      '/.well-known/webfinger?resource=acct:ghost@mention.earth',
+    );
+    expect(unknown.status).toBe(404);
+  });
+
   it('404s a sharing-disabled user indistinguishably', async () => {
     const app = makeWebfingerApp({
       consent: {
@@ -586,6 +596,35 @@ describe('actor router — inbox POST', () => {
       .set(headers)
       .send(body);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('actor router — a deleted actor', () => {
+  it('answers 410 with a Tombstone on the actor, its inbox and collections; an unknown user stays 404', async () => {
+    const app = makeActorApp({
+      actorConfig: { isActorGone: async (username) => username === 'gone' },
+    });
+    const actor = await request(app)
+      .get('/ap/users/gone')
+      .set('Accept', 'application/activity+json');
+    expect(actor.status).toBe(410);
+    expect(actor.body).toMatchObject({ id: urls.actor('gone'), type: 'Tombstone' });
+
+    const inbox = await request(app)
+      .post('/ap/users/gone/inbox')
+      .set('Content-Type', 'application/activity+json')
+      .send({ type: 'Follow' });
+    expect(inbox.status).toBe(410);
+
+    const followers = await request(app)
+      .get('/ap/users/gone/followers')
+      .set('Accept', 'application/activity+json');
+    expect(followers.status).toBe(410);
+
+    const unknown = await request(app)
+      .get('/ap/users/ghost')
+      .set('Accept', 'application/activity+json');
+    expect(unknown.status).toBe(404);
   });
 });
 
