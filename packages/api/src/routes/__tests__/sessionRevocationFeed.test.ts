@@ -188,6 +188,24 @@ function listen(token: string | undefined): {
   return heard;
 }
 
+/**
+ * True once the socket is connected, false if the server refuses it first (or it
+ * never connects). A refusal ends the wait at once instead of burning the deadline.
+ */
+async function connectsInTime(heard: ReturnType<typeof listen>): Promise<boolean> {
+  let refused = false;
+  void heard.refusal.then(() => {
+    refused = true;
+  });
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (heard.socket.connected) return true;
+    if (refused) return false;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
 /** An Oxy backend: the real `OxyServer`, its service token minted here, its feed live. */
 async function backend() {
   const oxy = new OxyServer({ baseURL, serviceAuth: { apiKey: 'oxy_dk_feed', apiSecret: 's' } });
@@ -269,7 +287,19 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
   });
 
   it('closes a service socket when its token expires', async () => {
-    const heard = listen(serviceToken({ expiresIn: 1 }));
+    // The token must still be live when the server checks it at the handshake.
+    // The test used `expiresIn: 1`, and `serviceToken` floors `iat` to the second,
+    // so that token had anywhere from 0 to 1 s of real life: shorter than one GC
+    // pause on a loaded CI runner. The server then refused it, the socket never
+    // connected, and the test failed with "Timed out waiting for the connection"
+    // without ever reaching what it is about. Take a fresh two-second token for each
+    // attempt until one connects, and assert the part under test: once that token's
+    // life is over, the server closes the socket.
+    let heard = listen(serviceToken({ expiresIn: 2 }));
+    for (let attempt = 1; attempt < 4 && !(await connectsInTime(heard)); attempt += 1) {
+      heard.socket.close();
+      heard = listen(serviceToken({ expiresIn: 2 }));
+    }
     await eventually(() => heard.socket.connected, 'the connection');
     await eventually(() => !heard.socket.connected, 'the expiry disconnect');
   });

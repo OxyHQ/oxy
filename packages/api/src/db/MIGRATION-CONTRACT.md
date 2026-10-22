@@ -168,6 +168,29 @@ baseline and hot tables):
   a whole large table in a deploy.
 - A reviewed exception says why in its own file: `-- oxy:lock-review=<reason>`.
 
+## Renumbering a migration after another one lands first
+
+Two open PRs that each add the next migration collide on the number when the first
+merges. Renumber the second from a tree that is **already rebased and rebuilt**,
+or its snapshots describe the wrong schema and CI fails at `API Build`:
+
+1. Rebase onto `origin/main` first. Resolve the journal by taking main's
+   `meta/_journal.json`; delete your `NNNN_*.sql` and `meta/NNNN_snapshot.json`.
+2. Rebuild `@oxy.so/db`, `@oxy.so/contracts` and `@oxy.so/core` **after** the rebase
+   (`bun run build` in each). `drizzle-kit` reads the schema through their `dist/`:
+   a `dist/` built before the rebase carries the old enums, and the snapshot
+   silently loses what main added since (it happened: `users_kind_check` lost
+   `'community'`, so CI wanted a `DROP/ADD CONSTRAINT` migration nobody wrote).
+3. `bun run db:generate -- --name <name>` (or `--custom` for hand-written SQL) with a
+   dummy `DATABASE_URL`; it never connects. Then put your reviewed SQL, with its
+   `-- oxy:deploy-phase=` marker, over the generated file. Keep the snapshot.
+4. A migration that changes schema in steps (columns, then a default) needs one
+   snapshot per step: generate each with the schema as it was at that step.
+5. Replace the old number in comments and in any test that reads the file by name.
+6. Prove it the way CI does, from a clean install:
+   `bun install --frozen-lockfile && bunx turbo run build --filter=@oxy.so/api && bun scripts/check-drizzle-snapshot-sync.mjs`.
+   `node scripts/check-drizzle-snapshot-sync.mjs` on a warm tree can pass when CI fails.
+
 ## Verification — evidence, not assertion
 
 Run each package's OWN `bun run test`; `bun run build` must be run from
