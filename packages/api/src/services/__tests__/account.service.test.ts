@@ -100,6 +100,15 @@ async function seedAccount(options: SeedOptions = {}): Promise<AccountRow> {
   return account as AccountRow;
 }
 
+// One account whose handle is in COMMUNITY_PREVIEW_HANDLES (stored in another
+// case, so the gate's case-insensitivity is exercised too). Handles are unique,
+// so it is seeded once per file.
+let previewAccount: Promise<AccountRow> | undefined;
+function previewCreator(): Promise<AccountRow> {
+  previewAccount ??= seedAccount({ username: 'Nate' });
+  return previewAccount;
+}
+
 async function seedMember(
   accountId: string,
   memberUserId: string,
@@ -300,7 +309,7 @@ describe('updateAccount', () => {
 
 describe('getCommunityModerators', () => {
   test("lists a community's active members, and 404s any other kind", async () => {
-    const creator = await seedAccount();
+    const creator = await previewCreator();
     const invited = await seedAccount();
     const removed = await seedAccount();
     const { account: community } = await accountService.createChildAccount(creator.id, creator.id, {
@@ -328,6 +337,18 @@ describe('getCommunityModerators', () => {
 // ===========================================================================
 
 describe('createChildAccount', () => {
+  // The temporary community preview gate: refused like an unknown kind unless the
+  // creating account's stored handle (any case) is in COMMUNITY_PREVIEW_HANDLES.
+  test('refuses a community from a non-preview account as an invalid kind', async () => {
+    const root = await seedAccount();
+    await expect(
+      accountService.createChildAccount(root.id, root.id, {
+        kind: 'community',
+        username: uniqueUsername('forum'),
+      }),
+    ).rejects.toThrow(/child account kind must be one of/i);
+  });
+
   test('builds ancestors/root, mints the account, records creator as owner', async () => {
     const root = await seedAccount();
 
@@ -352,7 +373,7 @@ describe('createChildAccount', () => {
    * child account is not a person, so creating one must not mint either.
    */
   test('a new child account of every kind is not verified', async () => {
-    const root = await seedAccount();
+    const root = await previewCreator();
     for (const kind of CHILD_ACCOUNT_KINDS) {
       const { account } = await accountService.createChildAccount(root.id, root.id, {
         kind,
@@ -670,7 +691,7 @@ describe('createChildAccount', () => {
   });
 
   test('accepts categories on every non-personal kind', async () => {
-    const root = await seedAccount();
+    const root = await previewCreator();
     for (const kind of CHILD_ACCOUNT_KINDS) {
       const { account } = await accountService.createChildAccount(root.id, root.id, {
         kind,
