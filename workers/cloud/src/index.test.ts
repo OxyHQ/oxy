@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { type Deps, type Env, handle, resolverCacheTag } from './index';
-import { DOWNLOAD_POLICY, IMMUTABLE_CACHE_CONTROL, SVG_POLICY, routeFor } from './policy';
+import {
+  DOWNLOAD_POLICY,
+  IMMUTABLE_CACHE_CONTROL,
+  SVG_POLICY,
+  canonicalRenditionPath,
+  routeFor,
+} from './policy';
 
 type Stored = { body: string; contentType?: string; cacheControl?: string; disposition?: string };
 
@@ -316,5 +322,83 @@ describe('methods', () => {
   it('refuses writes', async () => {
     const { get } = harness({});
     expect((await get('/content/a.png', { method: 'PUT', body: 'x' })).status).toBe(405);
+  });
+});
+
+describe('renditions asked through a pre-rewrite HLS master', () => {
+  const dir = `2026/07/1f/${'1f'.repeat(32)}`;
+  const doubled = (name: string) => `/variants/${dir}/public/variants/${dir}/${name}`;
+  const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000\nhls_360p.m3u8\n';
+  const rendition = '#EXTM3U\n#EXTINF:9.6,\nsegment_360p_000.ts\n#EXT-X-ENDLIST\n';
+  const objects = {
+    [`public/variants/${dir}/hls_master.m3u8`]: {
+      body: master,
+      contentType: 'application/vnd.apple.mpegurl',
+      cacheControl: 'public, max-age=3600',
+    },
+    [`public/variants/${dir}/hls_360p.m3u8`]: {
+      body: rendition,
+      contentType: 'application/vnd.apple.mpegurl',
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+    [`public/variants/${dir}/segment_360p_000.ts`]: { body: 'TS', contentType: 'video/mp2t' },
+  };
+
+  it('is how a relative storage-key URI resolved against the master URL', () => {
+    // The old master's URI line was the rendition's storage key.
+    const resolved = new URL(
+      `public/variants/${dir}/hls_360p.m3u8`,
+      `https://cloud.oxy.so/variants/${dir}/hls_master.m3u8`,
+    );
+    expect(resolved.pathname).toBe(doubled('hls_360p.m3u8'));
+    // Its segments resolve under the doubled directory too.
+    expect(new URL('segment_360p_000.ts', resolved).pathname).toBe(doubled('segment_360p_000.ts'));
+  });
+
+  it('serves the doubled rendition and its segments from the canonical objects', async () => {
+    const { get, reads, entries } = harness(objects);
+
+    const playlist = await get(doubled('hls_360p.m3u8'));
+    expect(playlist.status).toBe(200);
+    expect(await playlist.text()).toBe(rendition);
+    expect(playlist.headers.get('link')).toBe(
+      `<https://cloud.oxy.so/variants/${dir}/hls_360p.m3u8>; rel="canonical"`,
+    );
+    expect(playlist.headers.get('access-control-allow-origin')).toBe('*');
+
+    const segment = await get(doubled('segment_360p_000.ts'));
+    expect(segment.status).toBe(200);
+    expect(await segment.text()).toBe('TS');
+
+    expect(reads).toEqual([
+      `get public/variants/${dir}/hls_360p.m3u8`,
+      `get public/variants/${dir}/segment_360p_000.ts`,
+    ]);
+    // One cached copy, under the canonical path.
+    expect([...entries.keys()]).toEqual([
+      `https://cloud.oxy.so/variants/${dir}/hls_360p.m3u8`,
+      `https://cloud.oxy.so/variants/${dir}/segment_360p_000.ts`,
+    ]);
+  });
+
+  it('leaves the canonical paths and every other shape alone', async () => {
+    expect(canonicalRenditionPath(`/variants/${dir}/hls_360p.m3u8`)).toBeNull();
+    // The two directories must be the same one.
+    expect(
+      canonicalRenditionPath(`/variants/${dir}/public/variants/2026/07/1f/other/hls_360p.m3u8`),
+    ).toBeNull();
+    // One name, never a path below the directory.
+    expect(canonicalRenditionPath(`${doubled('x')}/y.ts`)).toBeNull();
+    expect(canonicalRenditionPath(doubled(''))).toBeNull();
+    // Only under /variants/, and only once.
+    expect(canonicalRenditionPath(`/content/${dir}/public/variants/${dir}/a.ts`)).toBeNull();
+    expect(
+      canonicalRenditionPath(`/variants/a/public/variants/a/public/variants/a/x.ts`),
+    ).toBeNull();
+
+    const { get } = harness(objects);
+    expect((await get(`/variants/${dir}/hls_360p.m3u8`)).headers.get('link')).toBeNull();
+    // A doubled path to an object that does not exist is still a 404.
+    expect((await get(doubled('hls_9999p.m3u8'))).status).toBe(404);
   });
 });

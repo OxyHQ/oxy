@@ -55,6 +55,40 @@ function decodedPath(pathname: string): string | null {
   }
 }
 
+const VARIANTS_PREFIX = '/variants/';
+const DOUBLED_SEPARATOR = '/public/variants/';
+
+/**
+ * The canonical path of a rendition requested through a pre-rewrite HLS
+ * master, or null for any other path.
+ *
+ * Until OxyHQ/oxy#1203 a master listed each rendition by its STORAGE KEY,
+ * `public/variants/<dir>/hls_360p.m3u8`, as a RELATIVE URI. A player resolves
+ * it against the master's own URL (RFC 8216 §4.3.4.2, RFC 3986 §5.2), which is
+ * `/variants/<dir>/hls_master.m3u8`, so it asked for
+ * `/variants/<dir>/public/variants/<dir>/hls_360p.m3u8` — and every segment
+ * that rendition lists resolves under the same doubled directory. The stored
+ * masters were rewritten to basenames (`hls_360p.m3u8`), but a copy fetched
+ * before that (a player's cache, a crawler's frontier) still produces the
+ * doubled path.
+ *
+ * Only EXACTLY that shape is mapped, to `/variants/<dir>/<name>`: the
+ * directory after `/public/variants/` must be the one before it, and the name
+ * a single segment. Any other path containing `public/` is left alone, so the
+ * mapping can never reach outside the rendition's own directory.
+ */
+export function canonicalRenditionPath(pathname: string): string | null {
+  if (!pathname.startsWith(VARIANTS_PREFIX)) return null;
+  const at = pathname.indexOf(DOUBLED_SEPARATOR);
+  if (at < 0 || pathname.indexOf(DOUBLED_SEPARATOR, at + 1) >= 0) return null;
+  const directory = pathname.slice(VARIANTS_PREFIX.length, at);
+  const rest = pathname.slice(at + DOUBLED_SEPARATOR.length);
+  if (directory.length === 0 || !rest.startsWith(`${directory}/`)) return null;
+  const name = rest.slice(directory.length + 1);
+  if (name.length === 0 || name.includes('/')) return null;
+  return `${VARIANTS_PREFIX}${directory}/${name}`;
+}
+
 export function routeFor(pathname: string): Route {
   const path = decodedPath(pathname);
   if (path === null) return { kind: 'resolver' };

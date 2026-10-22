@@ -21,6 +21,7 @@ import {
   DEFAULT_EDGE_CACHE_CONTROL,
   applyCors,
   applyDownloadDisposition,
+  canonicalRenditionPath,
   preflightHeaders,
   routeFor,
 } from './policy';
@@ -306,8 +307,19 @@ export async function handle(request: Request, env: Env, deps: Deps): Promise<Re
     return new Response(null, { status: 405, headers: { allow: 'GET, HEAD, OPTIONS' } });
   }
   const url = new URL(request.url);
+  // A rendition asked through a pre-rewrite master is served (and cached) as
+  // the canonical path it names (`policy.canonicalRenditionPath`). Served in
+  // place, not redirected: whichever URL a player keeps as the rendition's
+  // base, the segments it lists resolve either to their canonical path or to
+  // the same doubled shape, which maps here too.
+  const canonical = canonicalRenditionPath(url.pathname);
+  if (canonical) url.pathname = canonical;
   const route = routeFor(url.pathname);
-  if (route.kind === 'object') return serveObject(request, url, env, route, deps);
+  if (route.kind === 'object') {
+    const response = await serveObject(request, url, env, route, deps);
+    if (canonical) response.headers.set('link', `<${url.origin}${canonical}>; rel="canonical"`);
+    return response;
+  }
   return serveResolver(request, url, env, deps);
 }
 
