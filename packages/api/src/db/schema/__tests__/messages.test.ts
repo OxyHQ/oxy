@@ -568,12 +568,13 @@ describe('mailboxes and the deletes that hang off them', () => {
     ).resolves.toBeDefined();
   });
 
-  it('stores the three counters as nullable columns — NULL means not counted yet', async () => {
+  it('stores the three counters, and they equal the aggregate they replace', async () => {
     // `total_messages`, `unseen_messages` and `size` were denormalized caches
     // maintained by eighteen `$inc` sites, and they drifted. They are columns
-    // again, but nothing in the application writes them (see
-    // `schema/mailboxes.ts`). NULL is the "not counted yet" state the backfill
-    // resolves, so the columns must stay nullable.
+    // again, but nothing in the application writes them: the triggers in
+    // `schema/mailboxCounters.ts` do (every write path is covered in
+    // `mailboxCounters.test.ts`). NULL is the "not counted yet" state the
+    // backfill resolves, so the columns must stay nullable.
     const columns = await getDb().execute<{
       column_name: string;
       data_type: string;
@@ -584,12 +585,36 @@ describe('mailboxes and the deletes that hang off them', () => {
         and column_name in ('total_messages', 'unseen_messages', 'size_bytes', 'size')
       order by column_name
     `);
-
     expect(columns.map((row) => ({ ...row }))).toEqual([
       { column_name: 'size_bytes', data_type: 'bigint', is_nullable: 'YES' },
       { column_name: 'total_messages', data_type: 'integer', is_nullable: 'YES' },
       { column_name: 'unseen_messages', data_type: 'integer', is_nullable: 'YES' },
     ]);
+
+    const userId = await owner();
+    const mailboxId = await mailbox(userId);
+    await insertMessage({ userId, mailboxId, seen: true, size: 100 });
+    await insertMessage({ userId, mailboxId, seen: false, size: 250 });
+
+    const [aggregate] = await getDb()
+      .select({
+        total: sql<number>`count(*)::int`,
+        unseen: sql<number>`count(*) filter (where not ${messages.seen})::int`,
+        bytes: sql<number>`coalesce(sum(${messages.size}), 0)::int`,
+      })
+      .from(messages)
+      .where(eq(messages.mailboxId, mailboxId));
+    const [counted] = await getDb()
+      .select({
+        total: mailboxes.totalMessages,
+        unseen: mailboxes.unseenMessages,
+        bytes: mailboxes.sizeBytes,
+      })
+      .from(mailboxes)
+      .where(eq(mailboxes.id, mailboxId));
+
+    expect(aggregate).toEqual({ total: 2, unseen: 1, bytes: 350 });
+    expect(counted).toEqual(aggregate);
   });
 
   it('deletes a mailbox`s messages with it — what deleteMailbox does by hand', async () => {

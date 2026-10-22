@@ -7,7 +7,7 @@
  *
  * `total_messages`, `unseen_messages` and `size_bytes` are columns again, and
  * no application code writes them. The statement-level triggers on `messages`
- * (`mailboxCounters.ts`, migration `0193`) fold every INSERT, UPDATE, DELETE
+ * (`mailboxCounters.ts`, migration `0206`) fold every INSERT, UPDATE, DELETE
  * and TRUNCATE into per-mailbox deltas inside the writing transaction, so a
  * write path cannot forget them. That is what the Mongo `$inc` counters lacked:
  * eighteen hand-written sites, outside a transaction, and they drifted.
@@ -42,8 +42,8 @@
  * every inbound delivery and every send, and `listMailboxes` is the client's
  * polling read.
  *
- * The cost moved to the writes: the trigger adds 0.12 ms to a one-row insert,
- * 0.2–0.3 ms to a 100-row flag change or move, and 0.04 ms to an update that
+ * The cost moved to the writes: the trigger adds 0.16 ms to a one-row insert,
+ * 0.3 ms to a 100-row flag change or move, and 0.04 ms to an update that
  * changes no counter (labels, cards, thread ids), which takes no lock.
  *
  * ### NULL means "not yet counted"
@@ -52,7 +52,7 @@
  * existed then reads NULL until `src/scripts/backfill-mailbox-counters.ts`
  * counts it. The trigger applies `col = col + delta`, so NULL stays NULL and a
  * half-counted mailbox is never mistaken for a counted one. Mailboxes created
- * after `0194` start at the column default, 0, which is exact: a new folder is
+ * after `0207` start at the column default, 0, which is exact: a new folder is
  * empty, and the trigger was already installed by then. A reader falls back
  * to the aggregate while any of a user's counters is NULL.
  */
@@ -81,16 +81,20 @@ export const mailboxes = pgTable(
     specialUse: text(),
     /** Days a message survives in this mailbox, or NULL for "keep forever". */
     retentionDays: integer(),
-    /** Messages in this folder. Trigger-maintained; NULL until counted. */
-    totalMessages: integer(),
+    /**
+     * Messages in this folder. Trigger-maintained; NULL until counted. The
+     * default is for folders created after the trigger existed (0207): a new
+     * folder is empty, so 0 is exact. Deliberately still nullable.
+     */
+    totalMessages: integer().default(0),
     /** Messages in this folder with `seen = false`. Trigger-maintained; NULL until counted. */
-    unseenMessages: integer(),
+    unseenMessages: integer().default(0),
     /**
      * Sum of `messages.size` in this folder. `bigint`, like `messages.size`.
      * Trigger-maintained; NULL until counted. Not `size`: the wire field is,
      * but a column named `size` on a folder reads as the folder's own size.
      */
-    sizeBytes: bigint({ mode: 'number' }),
+    sizeBytes: bigint({ mode: 'number' }).default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

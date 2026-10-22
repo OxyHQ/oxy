@@ -83,7 +83,7 @@ restrict enforcement on media, with no error and no log.
   read on a 200 000-message account, against 15 ms and 12 ms for the best
   index-only alternative (table in `schema/mailboxes.ts`). The Mongo counters drifted
   because eighteen write sites `$inc`ed them by hand; here no application code
-  writes them. Statement-level AFTER triggers on `messages` (`0193`,
+  writes them. Statement-level AFTER triggers on `messages` (`0206`,
   `schema/mailboxCounters.ts`) fold each statement into per-mailbox deltas inside
   the writing transaction. NULL means "not counted yet"; a reader falls back to the
   aggregate until `src/scripts/backfill-mailbox-counters.ts` has counted it. A new

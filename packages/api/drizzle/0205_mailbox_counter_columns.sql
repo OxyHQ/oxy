@@ -7,7 +7,7 @@
 -- existing mailbox reads NULL until `src/scripts/backfill-mailbox-counters.ts`
 -- counts it, and a reader falls back to the aggregate until then. A default
 -- here would stamp 0 on every existing folder and be wrong for all of them.
--- The default for NEW folders comes in 0194, after 0193 installs the trigger,
+-- The default for NEW folders comes in 0207, after 0206 installs the trigger,
 -- so no folder can start at 0 while writes go uncounted.
 --
 -- WHY `pre`: additive, and the image still serving names its columns
