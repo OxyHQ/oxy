@@ -16,6 +16,8 @@ everyone, including paying commercial licensees, and cannot be waived.
  THIRD PARTY COMPONENTS
 ----------------------------------------------------------------------------
 
-This package contains no third party source. Its dependencies are resolved
-and installed by the package manager and remain governed by their own
-licenses.
+metro/static-hydration/renderer.js adapts the static renderer from
+@expo/router-server 58.0.14–58.0.16, Copyright © 2026 650 Industries, under
+the MIT license included at metro/static-hydration/EXPO-LICENSE.
+Other dependencies are resolved and installed by the package manager and
+remain governed by their own licenses.
