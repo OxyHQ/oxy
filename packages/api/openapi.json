@@ -29406,7 +29406,7 @@
           "Federation"
         ],
         "summary": "Returns the PUBLIC half of the domain-scoped user key so a relying app (e.g.",
-        "description": "Mention) can publish a spec-compliant `publicKey` block whose `id`/`owner`\nlive on its own domain. NEVER returns privateKeyPem.\n\nThe requested `domain` MUST be one of the requesting credential's registered\nfederation hosts (derived from the Application's redirectUris), otherwise 403.",
+        "description": "Mention) can publish a spec-compliant `publicKey` block whose `id`/`owner`\nlive on its own domain. NEVER returns privateKeyPem.\n\nThe requested `domain` MUST be one of the requesting credential's registered\nfederation hosts (derived from the Application's redirectUris), otherwise 403.\n404 when no account holds `username` and no key was ever minted for it.",
         "parameters": [
           {
             "name": "username",
