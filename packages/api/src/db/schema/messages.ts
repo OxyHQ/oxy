@@ -216,6 +216,22 @@ export const messages = pgTable(
      */
     relayMessageId: text(),
     /**
+     * The conversation this message belongs to: an INTERNAL grouping key, never
+     * on the wire (the wire `threadId` is still the smallest member row id).
+     *
+     * Two messages share a thread exactly when they are connected through the
+     * Message-ID adjacency the thread walk follows (`threadKeys` in
+     * `email.service.ts`), so every row of one connected component carries the
+     * same value and no other row does. `services/emailThreading.ts` is the
+     * only writer and keeps that true on insert, delete and key change, under a
+     * per-user advisory lock.
+     *
+     * NULL means "not assigned yet": rows stored before the column existed,
+     * until `src/scripts/backfill-message-threads.ts` has run. Reads fall back to
+     * the walk for them.
+     */
+    threadId: text(),
+    /**
      * For received mail that is the sender's OWN outbound message coming back
      * (they addressed themselves, or were on the recipient list): the Sent row
      * it is a copy of, matched by the `X-Oxy-Sent-Id` header we stamp on send.
@@ -297,6 +313,23 @@ export const messages = pgTable(
       .on(t.userId, t.relayMessageId)
       .where(sql`${t.relayMessageId} is not null`),
     index('messages_references_idx').using('gin', t.references),
+    // (4c) The `References` arm of the thread adjacency, scoped to the owner.
+    // `emailThreading.ts` probes one key at a time (`references @> array[key]`
+    // AND `user_id = …`); with only (4) the planner ANDs it with a bitmap of
+    // every row the user owns — 200k entries per probe on a large mailbox.
+    // `btree_gin` makes it one GIN scan. Supersedes (4); a later `post`
+    // migration drops (4) once `pg_stat_user_indexes` shows it idle.
+    // `fastupdate = off`: a thread write probes this index once per key, and
+    // GIN's pending list (fastupdate's default) is scanned linearly by every
+    // probe until vacuum merges it — measured 2.4 ms per probe instead of
+    // 0.02 ms while a backfill was writing. Each insert pays for its own few
+    // entries instead.
+    index('messages_user_id_references_idx')
+      .using('gin', t.userId, t.references)
+      .with({ fastupdate: false }),
+    // (4b) A conversation's members by its stored key: the thread read, a list
+    // page's thread counts, and every merge or split `emailThreading.ts` makes.
+    index('messages_user_id_thread_id_idx').on(t.userId, t.threadId),
     // (5) Unread. Only `seen = false` is ever queried
     // (`email.service.ts:466`, `emailInbound.ts:148`). A partial index over the
     // unread rows alone is smaller, serves the same reads, AND makes the unseen

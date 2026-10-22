@@ -836,6 +836,15 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'never a row here.',
   },
   {
+    table: messages,
+    column: messages.threadId,
+    reason:
+      'A conversation key minted by `services/emailThreading.ts` (a uuid v7): ' +
+      'every row of one Message-ID-connected component carries the same value. ' +
+      'It names a group of `messages` rows, not a row of any table, so there is ' +
+      'nothing for a foreign key to point at.',
+  },
+  {
     table: emailOutbox,
     column: emailOutbox.messageId,
     reason:

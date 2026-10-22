@@ -1,0 +1,22 @@
+-- oxy:deploy-phase=pre
+--
+-- messages.thread_id: a stored conversation key, so a thread read and a list
+-- page's thread counts stop re-deriving every conversation with a
+-- `WITH RECURSIVE` walk over Message-ID adjacency on every request.
+--
+-- Nullable, no default: NULL means "not assigned yet". The image arriving
+-- assigns it on every insert and key change (services/emailThreading.ts); the
+-- rows already stored are assigned by src/scripts/backfill-message-threads.ts,
+-- a one-shot task, never by a migration. Reads keep using the walk until a
+-- later release switches them, after that backfill has run.
+--
+-- PRE: the image still serving neither reads nor writes the column, and a new
+-- nullable column without a default is invisible to it.
+--
+-- ## LOCKS
+--
+-- ADD COLUMN takes ACCESS EXCLUSIVE on `messages` for an instant: nullable and
+-- no default, so it is a catalogue change with no rewrite and no scan. It is
+-- the only statement in this file, as the contract requires of DDL on a hot
+-- table; the index on it is the next migration, built out of band first.
+ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "thread_id" text;
