@@ -17,18 +17,23 @@
  * an already-successful user resolution.
  */
 
-import { getErrorMessage, getErrorStatus } from '@oxy.so/core';
+import { getErrorMessage, getErrorStatus, type ResponsePayload } from '@oxy.so/core';
 import type { NormalizedExternalActor } from '../index';
 
 /** The HTTP methods the service-scoped oxy-api transport is invoked with. */
 export type ServiceRequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-/** The service-scoped request transport oxy-api calls go through (`{ data }`-unwrapped). */
+/**
+ * The service-scoped request transport oxy-api calls go through: core's
+ * `serviceRequest`, whose `T` is the `{ data }`-unwrapped payload. Typed as core
+ * types it, so an app passes `serviceRequest` straight through and a `T` naming
+ * the envelope fails to compile here as it does there.
+ */
 export type ServiceRequest = <T>(
   method: ServiceRequestMethod,
   path: string,
   body?: unknown,
-) => Promise<T>;
+) => Promise<ResponsePayload<T>>;
 
 /** Minimal logging sink the identity bridge writes to. */
 export interface IdentityBridgeLogger {
