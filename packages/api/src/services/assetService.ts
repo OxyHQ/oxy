@@ -28,7 +28,7 @@ import {
 } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
 import { FEDERATION_MEDIA_CACHE_PURPOSE, isAllowedCacheMime } from '../constants/federationCache';
-import { VariantService } from './variantService';
+import { ImageNotRenderableError, VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
 import { FILE_LIVE_STATUS_SQL_LIST, files as filesTable } from '../db/schema/files';
 import { storageByteReservations } from '../db/schema/storageByteReservations';
@@ -2574,6 +2574,25 @@ export class AssetService {
    *
    * No client URL produced here is ever an `amazonaws.com` URL.
    */
+  /**
+   * The key a request for `variant` is answered from: the rendition's, or the
+   * original's when the image cannot be rendered at all (`ImageNotRenderableError`)
+   * — exactly as an image is served when it has no renditions. Every other
+   * failure is the caller's.
+   */
+  async variantKeyOrOriginal(file: FileRecord, variant: string): Promise<string> {
+    try {
+      return (await this.ensureVariant(file.id, variant, file)).key;
+    } catch (error) {
+      if (!(error instanceof ImageNotRenderableError)) throw error;
+      logger.info('Rendition asked of an image that cannot be rendered; serving the original', {
+        fileId: file.id,
+        variant,
+      });
+      return file.storageKey;
+    }
+  }
+
   async getPublicCdnUrl(file: FileRecord, variant?: string): Promise<string | null> {
     // A trashed/deleted asset must never be reachable via the public CDN, even
     // if its visibility is still `public`. Gate on active status first so a
@@ -2584,8 +2603,7 @@ export class AssetService {
 
     let storageKey = file.storageKey;
     if (variant) {
-      const ensured = await this.ensureVariant(file.id, variant, file);
-      storageKey = ensured.key;
+      storageKey = await this.variantKeyOrOriginal(file, variant);
     }
 
     // The variant/original key already encodes visibility (public objects are

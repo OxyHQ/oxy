@@ -81,6 +81,10 @@ jest.mock('../../services/assetServiceSingleton', () => ({
     getFile: (...args: unknown[]) => mockGetFile(...args),
     canUserAccessFile: (...args: unknown[]) => mockCanUserAccessFile(...args),
     ensureVariant: (...args: unknown[]) => mockEnsureVariant(...args),
+    // The real method is `ensureVariant`'s key, or the original's for an
+    // image that cannot be rendered; the route sees it through the same mock.
+    variantKeyOrOriginal: async (file: { id: string }, variant: string) =>
+      ((await mockEnsureVariant(file.id, variant, file)) as { key: string }).key,
     getPublicCdnUrl: (...args: unknown[]) => mockGetPublicCdnUrl(...args),
     repairMissingFederationFileContent: (...args: unknown[]) =>
       mockRepairMissingFederationFileContent(...args),

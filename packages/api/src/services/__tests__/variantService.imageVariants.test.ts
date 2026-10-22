@@ -27,7 +27,7 @@ import { randomBytes } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { fileVariants, files, users } from '../../db/schema';
-import { VariantService } from '../variantService';
+import { ImageNotRenderableError, VariantService } from '../variantService';
 import type { S3Service } from '../s3Service';
 import type { FileRecord } from '../../types/file.types';
 
@@ -68,14 +68,14 @@ function makeFakeS3(originalBuffer: Buffer): FakeS3 {
  * storage and renditions across the whole table, and Jest runs suites in
  * parallel against one database.
  */
-async function makeFile(): Promise<FileRecord> {
+async function makeFile(mime = 'image/png'): Promise<FileRecord> {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const [row] = await getDb()
     .insert(files)
     .values({
       sha256: randomBytes(32).toString('hex'),
       size: 1024,
-      mime: 'image/png',
+      mime,
       ext: 'png',
       visibility: 'public',
       storageKey: 'public/uploads/2026/07/aa/original.png',
@@ -420,6 +420,96 @@ describe('VariantService image generation retry', () => {
     expect(fakeS3.uploads).toHaveLength(uploadsAfterFirst);
     expect(file.variants.map((variant) => variant.id).sort()).toEqual(
       first.map((row) => row.id).sort(),
+    );
+  });
+});
+
+/**
+ * libvips has no ICO loader, so an icon (every favicon an application stores)
+ * failed every rendition and every queue attempt with "Input buffer contains
+ * unsupported image format". The pipeline renders the icon's largest frame;
+ * bytes nothing can render complete as "served as stored", never as a failure
+ * to retry.
+ */
+describe('VariantService — icons and images that cannot be rendered', () => {
+  /** A one-frame 32-bit ICO, `size` square, opaque blue. */
+  function blueIcon(size: number): Buffer {
+    const header = Buffer.alloc(6 + 16);
+    header.writeUInt16LE(1, 2);
+    header.writeUInt16LE(1, 4);
+    const bmp = Buffer.alloc(40 + size * size * 4 + Math.ceil(size / 32) * 4 * size);
+    bmp.writeUInt32LE(40, 0);
+    bmp.writeInt32LE(size, 4);
+    bmp.writeInt32LE(size * 2, 8);
+    bmp.writeUInt16LE(1, 12);
+    bmp.writeUInt16LE(32, 14);
+    for (let pixel = 0; pixel < size * size; pixel += 1) {
+      bmp[40 + pixel * 4] = 255; // B
+      bmp[40 + pixel * 4 + 3] = 255; // A
+    }
+    header.writeUInt8(size & 0xff, 6);
+    header.writeUInt8(size & 0xff, 7);
+    header.writeUInt16LE(32, 12);
+    header.writeUInt32LE(bmp.length, 14);
+    header.writeUInt32LE(22, 18);
+    return Buffer.concat([header, bmp]);
+  }
+
+  it('renders an ICO from its largest frame', async () => {
+    const fakeS3 = makeFakeS3(blueIcon(64));
+    await expect(sharp(blueIcon(64)).metadata()).rejects.toThrow(/unsupported image format/);
+
+    const variant = await new VariantService(fakeS3 as unknown as S3Service).ensureImageVariant(
+      await makeFile('image/x-icon'),
+      'w96',
+    );
+
+    // Never enlarged: the icon is 64 pixels wide.
+    expect([variant.width, variant.height]).toEqual([64, 64]);
+    const uploaded = fakeS3.uploads.find((u) => u.key.endsWith('/w96.webp'));
+    const { data, info } = await sharp(uploaded?.buffer)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(info.width).toBe(64);
+    // Blue, within the lossy WebP encode.
+    const [r, g, b] = data;
+    expect(r).toBeLessThan(10);
+    expect(g).toBeLessThan(10);
+    expect(b).toBeGreaterThan(245);
+  });
+
+  it('builds the whole rendition set of an ICO on the queued path, with its dimensions', async () => {
+    const fakeS3 = makeFakeS3(blueIcon(48));
+    const file = await makeFile('image/vnd.microsoft.icon');
+
+    await new VariantService(fakeS3 as unknown as S3Service).generateVariants(file.id);
+
+    const stored = await getDb()
+      .select()
+      .from(fileVariants)
+      .where(eq(fileVariants.fileId, file.id));
+    expect(stored.length).toBeGreaterThan(0);
+    const [row] = await getDb().select().from(files).where(eq(files.id, file.id));
+    expect(row.metadata).toMatchObject({ image: { width: 48, height: 48 } });
+  });
+
+  it('completes, with no renditions and no retry, for bytes nothing can render', async () => {
+    const fakeS3 = makeFakeS3(Buffer.from('definitely not an image'));
+    const file = await makeFile('image/x-icon');
+    const service = new VariantService(fakeS3 as unknown as S3Service);
+
+    // The queued job resolves: a throw here is what made BullMQ retry it.
+    await expect(service.generateVariants(file.id)).resolves.toBeUndefined();
+    const stored = await getDb()
+      .select()
+      .from(fileVariants)
+      .where(eq(fileVariants.fileId, file.id));
+    expect(stored).toHaveLength(0);
+    expect(fakeS3.uploads).toHaveLength(0);
+
+    // A rendition asked on read is classified, so the caller serves the original.
+    await expect(service.ensureImageVariant(file, 'w96')).rejects.toBeInstanceOf(
+      ImageNotRenderableError,
     );
   });
 });
