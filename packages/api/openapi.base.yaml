@@ -49,6 +49,10 @@ tags:
     description: >
       Privacy-first contact discovery via SHA-256 hashed identifiers. The
       server never sees raw email or phone. Routes under /contacts/*.
+  - name: Console
+    description: >
+      Oxy Console first-run onboarding: terms acceptance and use cases, per
+      person. Routes under /console/onboarding/*.
   - name: Files
     description: >
       User-owned file storage — upload, link to entities, sign download URLs,

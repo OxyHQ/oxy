@@ -136,7 +136,6 @@ it('rejects an A selection after switching to B and invalidates only the capture
   expect(invalidate.mock.calls.map(([input]) => input?.queryKey)).toEqual([
     ['product-subscriptions', 'B'],
     ['credit-subscriptions', 'B'],
-    ['subscription', 'B'],
   ]);
   client.clear();
 });

@@ -61,6 +61,7 @@ export * from './bookmarks';
 export * from './bundles';
 export * from './civicNonces';
 export * from './conductStrikes';
+export * from './consoleOnboarding';
 export * from './contacts';
 export * from './contentClaims';
 export * from './deviceAccountContexts';

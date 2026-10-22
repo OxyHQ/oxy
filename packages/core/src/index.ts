@@ -237,6 +237,13 @@ export type { DevicesApi, UserDevice, SecurityInfo } from './api/devices';
 export type { TopicsApi, TopicListOptions } from './api/topics';
 export { OxyAppDataIdentifierError } from './api/appData';
 export type { AppDataApi } from './api/appData';
+export type { ConsoleApi, ConsoleOnboardingApi } from './api/console';
+export type {
+  ConsoleOnboardingState,
+  AcceptConsoleTermsInput,
+  SaveConsoleUseCasesInput,
+  ConsoleUseCaseId,
+} from '@oxy.so/contracts';
 export type { ContactsApi, ContactDiscoveryMatch, ContactDiscoveryResponse } from './api/contacts';
 export type { ContentClaimsApi } from './api/contentClaims';
 

@@ -148,16 +148,26 @@ export function CredentialsTable({
         id: 'status',
         header: t('applications.credentials.status'),
         accessor: (row) => row.status,
-        width: 110,
+        width: 170,
         cell: ({ row }) => (
-          <Badge
-            content={row.status}
-            size="label-small"
-            variant={row.status === 'active' ? 'solid' : 'subtle'}
-            color={
-              row.status === 'active' ? 'success' : row.status === 'revoked' ? 'error' : 'default'
-            }
-          />
+          <View className="min-w-0 items-start gap-0.5">
+            <Badge
+              content={t(`applications.credentials.statuses.${row.status}`)}
+              size="label-small"
+              variant={row.status === 'active' ? 'solid' : 'subtle'}
+              color={
+                row.status === 'active' ? 'success' : row.status === 'revoked' ? 'error' : 'default'
+              }
+            />
+            {/* A rotated credential keeps working until its grace window ends. */}
+            {row.status === 'deprecated' && row.expiresAt ? (
+              <Muted className="text-xs" numberOfLines={1}>
+                {t('applications.credentials.expiresOn', {
+                  date: new Date(row.expiresAt).toLocaleDateString(),
+                })}
+              </Muted>
+            ) : null}
+          </View>
         ),
       },
       {

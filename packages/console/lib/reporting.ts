@@ -530,36 +530,6 @@ export function toLedgerBalanceBucket(bucket: LedgerBalanceBucket): LedgerBalanc
 /*  Presentation                                                              */
 /* -------------------------------------------------------------------------- */
 
-const USAGE_DIMENSION_LABELS: Record<UsageDimension, string> = {
-  day: 'Day',
-  account: 'Account',
-  application: 'Application',
-  credential: 'Credential',
-  environment: 'Environment',
-  requestedModel: 'Requested model',
-  provider: 'Provider',
-  outcome: 'Outcome',
-};
-
-const SPEND_DIMENSION_LABELS: Record<SpendDimension, string> = {
-  day: 'Day',
-  account: 'Account',
-  application: 'Application',
-  credential: 'Credential',
-  environment: 'Environment',
-  resolvedModel: 'Served model',
-  provider: 'Provider',
-  outcome: 'Outcome',
-};
-
-export function usageDimensionLabel(dimension: UsageDimension): string {
-  return USAGE_DIMENSION_LABELS[dimension];
-}
-
-export function spendDimensionLabel(dimension: SpendDimension): string {
-  return SPEND_DIMENSION_LABELS[dimension];
-}
-
 /** The cell a grouped row shows for one dimension, or `—` when it was not grouped. */
 export function usageDimensionValue(row: UsageRow, dimension: UsageDimension): string {
   switch (dimension) {
@@ -600,41 +570,6 @@ export function spendDimensionValue(row: SpendRow, dimension: SpendDimension): s
       return row.servingProvider ?? '—';
     case 'outcome':
       return row.outcome ?? '—';
-  }
-}
-
-const BUDGET_PERIOD_LABELS: Record<BudgetPeriod, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  total: 'Lifetime',
-};
-
-export function budgetPeriodLabel(period: BudgetPeriod): string {
-  return BUDGET_PERIOD_LABELS[period];
-}
-
-/**
- * What a budget does at its ceiling, in the customer's terms.
- *
- * The difference is the whole reason both exist: `hard_stop` refuses the
- * request, `soft_stop` lets it through and reports the crossing.
- */
-export function budgetEnforcementLabel(enforcement: BudgetEnforcement): string {
-  return enforcement === 'hard_stop'
-    ? 'Hard stop — requests are refused at the ceiling'
-    : 'Soft stop — requests continue, and the crossing is recorded';
-}
-
-/** What a budget applies to, named by its target rather than by its discriminant. */
-export function budgetScopeDescription(budget: Budget): string {
-  switch (budget.scope) {
-    case 'account':
-      return `Account ${budget.scopeAccountId ?? budget.accountId}`;
-    case 'application':
-      return `Application ${budget.scopeApplicationId ?? ''}`.trim();
-    case 'credential':
-      return `Credential ${budget.scopeApplicationCredentialId ?? ''}`.trim();
   }
 }
 

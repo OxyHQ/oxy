@@ -74,7 +74,8 @@ interface UseTranslationResult {
  *   1. Console-app dict for the active locale.
  *   2. Core's `translate(locale, key, vars)` covering all 11 locales for
  *      shared `signin.*` / `signup.*` strings.
- *   3. The raw key string, so missing translations surface visibly without
+ *   3. The English console dict, so locales without their own read English.
+ *   4. The raw key string, so missing translations surface visibly without
  *      breaking the UI.
  */
 export function useTranslation(): UseTranslationResult {
@@ -97,6 +98,10 @@ export function useTranslation(): UseTranslationResult {
 
       const fromCore = coreTranslate(locale, resolvedKey, vars);
       if (fromCore !== resolvedKey) return fromCore;
+
+      // A locale without a console dictionary (fr, de, ja...) reads English, not raw keys.
+      const english = lookup(enConsole, pluralizeKey(key, vars, enConsole));
+      if (english != null) return interpolate(english, vars);
 
       return key;
     },

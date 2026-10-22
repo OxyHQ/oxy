@@ -227,6 +227,19 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     [currentAccount?.accountId, switchToAccount],
   );
 
+  // The active workspace IS the session identity, and most cached reads (credentials,
+  // updates, store, roles, claims access, Clarity...) are keyed by an id that does not
+  // say who is asking. A switch resets them so the new identity never reads the previous
+  // one's rows; the account list itself is the one key that survives.
+  const previousUserId = React.useRef(user?.id);
+  React.useEffect(() => {
+    const previous = previousUserId.current;
+    previousUserId.current = user?.id;
+    if (previous && user?.id && previous !== user.id) {
+      void queryClient.resetQueries({ predicate: (query) => query.queryKey[0] !== 'accounts' });
+    }
+  }, [queryClient, user?.id]);
+
   // Keep console account context aligned when the device session changes via
   // ProfileButton / OxyAccountDialog (outside the header org switcher).
   React.useEffect(() => {

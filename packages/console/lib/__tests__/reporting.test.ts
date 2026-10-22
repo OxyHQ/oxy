@@ -11,7 +11,6 @@ import type {
 import {
   SPEND_DIMENSIONS,
   USAGE_DIMENSIONS,
-  budgetScopeDescription,
   budgetUtilizationVariant,
   lastCalendarDays,
   provenanceExplanation,
@@ -292,20 +291,6 @@ describe('budget presentation', () => {
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
   };
-
-  it('names the scope by its own target', () => {
-    expect(budgetScopeDescription(base)).toContain('acct_1');
-    expect(
-      budgetScopeDescription({ ...base, scope: 'application', scopeApplicationId: 'app_9' }),
-    ).toContain('app_9');
-    expect(
-      budgetScopeDescription({
-        ...base,
-        scope: 'credential',
-        scopeApplicationCredentialId: 'cred_9',
-      }),
-    ).toContain('cred_9');
-  });
 
   it('tones a full budget differently from a disabled one', () => {
     expect(budgetUtilizationVariant(base)).toBe('default');

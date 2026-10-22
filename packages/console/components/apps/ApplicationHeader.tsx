@@ -10,18 +10,19 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiStore2Line } from '@oxy.so/bloom/icons/RiStore2Line';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { type RouterTabItem, RouterTabs } from '@oxy.so/bloom/tabs/expo-router';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { type Href, useRouter } from 'expo-router';
-import { View } from 'react-native';
+import type { ComponentProps } from 'react';
+import { type Href, usePathname, useRouter } from 'expo-router';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useTranslation } from '@/lib/i18n';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
 
 /**
- * The detail `Screen` header: identity, then the section tabs (the route IS the
- * selection). Back shows only while the detail panel is drawn alone (below `lg`);
+ * The detail `Screen` header: identity, then the section tabs in the header's
+ * `accessory` (so header and tabs pin together; the route IS the selection, derived from
+ * the pathname, not Bloom's `RouterTabs`, which prefetches every section). Back shows only while the detail panel is drawn alone (below `lg`);
  * beside the list, the list is the way back.
  *
  * Each tab is offered only to callers holding the permission the API enforces
@@ -38,6 +39,7 @@ export function ApplicationHeader({
 }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const { oxyServices } = useAuth();
   const { alone } = useAppShellPanel();
   const base = `/apps/${application._id}`;
@@ -46,7 +48,7 @@ export function ApplicationHeader({
   const tabs: ReadonlyArray<{
     value: string;
     allowed: boolean;
-    icon: RouterTabItem['leadingIcon'];
+    icon: ComponentProps<typeof TabsTrigger>['leadingIcon'];
   }> = [
     { value: 'credentials', allowed: access.can('credentials:read'), icon: RiKey2Line },
     { value: 'roles', allowed: access.can('roles:read'), icon: RiGroupLine },
@@ -56,7 +58,12 @@ export function ApplicationHeader({
     { value: 'store', allowed: access.can('app:read'), icon: RiStore2Line },
     { value: 'updates', allowed: access.can('updates:manage'), icon: RiRocket2Line },
   ];
-  const items: Array<RouterTabItem> = [
+  const items: ReadonlyArray<{
+    value: string;
+    label: string;
+    href: Href;
+    leadingIcon: ComponentProps<typeof TabsTrigger>['leadingIcon'];
+  }> = [
     {
       value: 'general',
       label: t('applications.tabs.general'),
@@ -73,35 +80,51 @@ export function ApplicationHeader({
       })),
   ];
 
+  const section = pathname.slice(base.length + 1).split('/')[0];
+  const selected = items.some((item) => item.value === section) ? section : 'general';
+
   return (
-    <View>
-      <PageHeader
-        safeArea={false}
-        presentation="bar"
-        border="none"
-        title={application.name}
-        subtitle={application.description || undefined}
-        onBack={alone ? () => router.navigate('/apps') : undefined}
-        backLabel={t('applications.backToList')}
-        leading={
-          <Avatar
-            size="md"
-            name={application.name}
-            source={resolveStoredImageUrl(oxyServices, application.icon) ?? null}
-          />
-        }
-        actions={
-          <Badge
-            content={active ? t('applications.status.active') : t('applications.status.inactive')}
-            size="label-small"
-            variant={active ? 'solid' : 'subtle'}
-            color={active ? 'success' : 'default'}
-          />
-        }
-      />
-      <View className="px-4">
-        <RouterTabs items={items} label={t('applications.tabs.label')} />
-      </View>
-    </View>
+    <PageHeader
+      safeArea={false}
+      title={application.name}
+      subtitle={application.description || undefined}
+      onBack={alone ? () => router.navigate('/apps') : undefined}
+      backLabel={t('applications.backToList')}
+      leading={
+        <Avatar
+          size="md"
+          name={application.name}
+          source={resolveStoredImageUrl(oxyServices, application.icon) ?? null}
+        />
+      }
+      actions={
+        <Badge
+          content={active ? t('applications.status.active') : t('applications.status.inactive')}
+          size="label-small"
+          variant={active ? 'solid' : 'subtle'}
+          color={active ? 'success' : 'default'}
+        />
+      }
+      accessory={
+        <Tabs
+          value={selected}
+          onValueChange={(value) => {
+            const item = items.find((candidate) => candidate.value === value);
+            if (item) router.navigate(item.href);
+          }}
+          variant="underline"
+          label={t('applications.tabs.label')}
+        >
+          {items.map((item) => (
+            <TabsTrigger
+              key={item.value}
+              value={item.value}
+              label={item.label}
+              leadingIcon={item.leadingIcon}
+            />
+          ))}
+        </Tabs>
+      }
+    />
   );
 }

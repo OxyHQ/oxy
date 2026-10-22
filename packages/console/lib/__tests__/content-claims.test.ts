@@ -1,6 +1,5 @@
 import type { ContentClaimState, ContentClaimTargetView } from '@oxy.so/contracts';
 import {
-  CLAIM_STATE_LABELS,
   CONTENT_CLAIM_STATES,
   EMPTY_CLAIM_FILTERS,
   canAttach,
@@ -49,8 +48,7 @@ describe('content claim actions', () => {
     expect(offered(state)).toEqual([...OFFERED[state]].sort());
   });
 
-  it('labels every state, and calls only the four non-final states open', () => {
-    for (const state of CONTENT_CLAIM_STATES) expect(CLAIM_STATE_LABELS[state]).toBeTruthy();
+  it('calls only the four non-final states open', () => {
     expect(CONTENT_CLAIM_STATES.filter(isOpenClaimState)).toEqual([
       'received',
       'reviewing',

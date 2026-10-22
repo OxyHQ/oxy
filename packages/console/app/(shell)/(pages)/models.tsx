@@ -30,18 +30,20 @@ export default function ModelsScreen() {
           subtitle={t('modelsPage.subtitle')}
           leading={<AppShellMenuButton />}
           safeArea={false}
+          accessory={
+            <Tabs
+              variant="underline"
+              value={tab}
+              onValueChange={(value) => setTab(value as ModelsTab)}
+              label={t('modelsPage.title')}
+            >
+              <TabsTrigger value="models" label={t('modelsPage.tabs.models')} />
+              <TabsTrigger value="profiles" label={t('modelsPage.tabs.profiles')} />
+            </Tabs>
+          }
         />
       }
     >
-      <Tabs
-        variant="underline"
-        value={tab}
-        onValueChange={(value) => setTab(value as ModelsTab)}
-        label={t('modelsPage.title')}
-      >
-        <TabsTrigger value="models" label={t('modelsPage.tabs.models')} />
-        <TabsTrigger value="profiles" label={t('modelsPage.tabs.profiles')} />
-      </Tabs>
       <ScreenScrollView contentContainerClassName="gap-6 p-4 md:p-6">
         <View className="w-full">
           {tab === 'models' ? <ModelCatalogue /> : <RoutingProfiles />}

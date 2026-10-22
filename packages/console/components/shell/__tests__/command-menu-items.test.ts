@@ -3,7 +3,7 @@ jest.mock('@oxy.so/bloom/icons/RiBuilding2Line', () => ({ RiBuilding2Line: () =>
 jest.mock('@oxy.so/bloom/icons/RiSearchLine', () => ({ RiSearchLine: () => null }));
 jest.mock('@/lib/navigation', () => ({
   CONSOLE_NAV: [
-    { href: '/dashboard', labelKey: 'nav.dashboard', icon: () => null },
+    { href: '/', labelKey: 'nav.dashboard', icon: () => null },
     { href: '/apps', labelKey: 'nav.apps', icon: () => null },
     { href: '/docs', labelKey: 'nav.documentation', icon: () => null, external: 'https://docs' },
   ],
@@ -28,7 +28,7 @@ describe('buildCommandItems', () => {
     expect(ids).toEqual([
       'create-app',
       'create-workspace',
-      'nav:/dashboard',
+      'nav:/',
       'nav:/apps',
       'nav:/docs',
       'nav:settings',

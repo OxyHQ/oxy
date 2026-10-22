@@ -34,25 +34,29 @@ export default function ClarityLayout() {
           leading={<AppShellMenuButton />}
           actions={<Badge size="label-medium" variant="subtle" content={t('clarityPage.beta')} />}
           safeArea={false}
+          accessory={
+            <Tabs
+              variant="underline"
+              value={active}
+              label={t('clarityPage.sectionsLabel')}
+              onValueChange={(id) =>
+                router.navigate(
+                  CLARITY_SECTIONS.find((section) => section.id === id)?.href ?? '/clarity',
+                )
+              }
+            >
+              {CLARITY_SECTIONS.map((section) => (
+                <TabsTrigger
+                  key={section.id}
+                  value={section.id}
+                  label={t(`clarityPage.sections.${section.id}`)}
+                />
+              ))}
+            </Tabs>
+          }
         />
       }
     >
-      <Tabs
-        variant="underline"
-        value={active}
-        label={t('clarityPage.sectionsLabel')}
-        onValueChange={(id) =>
-          router.navigate(CLARITY_SECTIONS.find((section) => section.id === id)?.href ?? '/clarity')
-        }
-      >
-        {CLARITY_SECTIONS.map((section) => (
-          <TabsTrigger
-            key={section.id}
-            value={section.id}
-            label={t(`clarityPage.sections.${section.id}`)}
-          />
-        ))}
-      </Tabs>
       <ScreenScrollView contentContainerClassName="p-4 md:p-6">
         <Slot />
       </ScreenScrollView>

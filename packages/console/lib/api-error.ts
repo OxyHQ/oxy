@@ -16,24 +16,6 @@ function isApiAugmentedError(error: unknown): error is ApiAugmentedError {
   return error instanceof Error;
 }
 
-/** Message shown when an invited username/email does not resolve to a user. */
-export const USER_NOT_FOUND_MESSAGE = 'No user found with that username or email.';
-
-/**
- * Robustly detect an HTTP 404 "User not found" from an invite/member call.
- * Matches the attached `status === 404` (primary signal) and falls back to the
- * API's "User not found" message in case status is unavailable.
- */
-export function isUserNotFoundError(error: unknown): boolean {
-  if (!isApiAugmentedError(error)) {
-    return false;
-  }
-  if (error.status === 404) {
-    return true;
-  }
-  return /user not found/i.test(error.message);
-}
-
 /**
  * Did the API REFUSE this read, as opposed to failing it?
  *
@@ -51,12 +33,25 @@ export function isPermissionRefused(error: unknown): boolean {
   return isApiAugmentedError(error) && error.status === 403;
 }
 
-/** Extract a human-readable message from an unknown error, with a fallback. */
+/**
+ * The message to toast for a failed action: the API's own sentence for a refusal it
+ * authored (4xx validation and conflicts), the caller's fixed `fallback` for anything
+ * else. A server fault (5xx or status 0) and the SDK's `[object Object]` carry no
+ * sentence meant for a person, so they are never printed. An error with no status
+ * is one the console itself raised (a validator), whose message is already copy.
+ */
 export function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
+  if (!(error instanceof Error) || !error.message) {
+    return fallback;
   }
-  return fallback;
+  const { status } = error as ApiAugmentedError;
+  if (status !== undefined && (status === 0 || status >= 500)) {
+    return fallback;
+  }
+  if (/\[object \w+\]/.test(error.message)) {
+    return fallback;
+  }
+  return error.message;
 }
 
 /** The answers the console speaks for, one fixed sentence each (see `ApiState`). */

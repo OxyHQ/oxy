@@ -438,7 +438,7 @@ export function AccountPage() {
         onClose={() => setArchiveOpen(false)}
         onArchived={() => {
           close();
-          router.navigate('/dashboard');
+          router.navigate('/');
         }}
       />
       <Dialog

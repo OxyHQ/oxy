@@ -24,7 +24,7 @@ export interface ConsoleNavEntry {
  * add a section here and a route folder, nothing else.
  */
 export const CONSOLE_NAV: ReadonlyArray<ConsoleNavEntry> = [
-  { href: '/dashboard', labelKey: 'nav.dashboard', icon: RiDashboardLine },
+  { href: '/', labelKey: 'nav.dashboard', icon: RiDashboardLine },
   { href: '/apps', labelKey: 'nav.apps', icon: RiKey2Line },
   { href: '/playground', labelKey: 'nav.playground', icon: RiPlayCircleLine },
   { href: '/usage', labelKey: 'nav.usage', icon: RiBarChartLine },
@@ -51,5 +51,5 @@ export const SETTINGS_NAV = {
 /** The `href` of the section a pathname belongs to, e.g. `/apps/abc` gives `/apps`. */
 export function sectionOf(pathname: string): string {
   const first = pathname.split('/').filter(Boolean)[0];
-  return `/${first ?? 'dashboard'}`;
+  return first ? `/${first}` : '/';
 }

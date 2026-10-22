@@ -67,11 +67,6 @@ export interface CheckoutSession {
   url: string;
 }
 
-export interface CancelSubscriptionResult {
-  message: string;
-  subscription: Subscription;
-}
-
 // ======================
 // Credits
 // ======================
@@ -130,31 +125,6 @@ export function useSubscriptionPlans() {
       return result.plans;
     },
     staleTime: 1000 * 60 * 60, // 1 hour
-    retry: 2,
-    enabled: !!subject && isReady && isAuthenticated,
-  });
-}
-
-// ======================
-// Current Subscription
-// ======================
-
-export function useSubscription() {
-  const { oxyServices, isAuthenticated, isReady, user } = useAuth();
-  const subject = user?.id;
-
-  return useQuery({
-    queryKey: ['subscription', subject],
-    queryFn: async (): Promise<Subscription | null> => {
-      const result = await oxyServices.request<{ subscription: Subscription | null }>(
-        'GET',
-        '/billing/subscription',
-        undefined,
-        { cache: false },
-      );
-      return result.subscription;
-    },
-    staleTime: 1000 * 60 * 2, // 2 minutes
     retry: 2,
     enabled: !!subject && isReady && isAuthenticated,
   });
@@ -229,28 +199,6 @@ export function useCreateSubscriptionCheckout() {
   });
 }
 
-export function useCancelSubscription() {
-  const { oxyServices } = useAuth();
-
-  return useMutation({
-    mutationFn: (): Promise<CancelSubscriptionResult> =>
-      oxyServices.request<CancelSubscriptionResult>('POST', '/billing/subscription/cancel'),
-  });
-}
-
-export function useCreatePortalSession() {
-  const { oxyServices } = useAuth();
-
-  return useMutation({
-    mutationFn: async (returnUrl: string): Promise<string> => {
-      const result = await oxyServices.request<{ url: string }>('POST', '/billing/portal', {
-        returnUrl,
-      });
-      return result.url;
-    },
-  });
-}
-
 /** Access provenance remains separate from the API-credit balance and exact-money ledger. */
 export function useProductSubscriptions() {
   const { oxyServices, isAuthenticated, isReady, user } = useAuth();
@@ -318,7 +266,6 @@ export function useCancelNamedSubscription() {
       await Promise.all([
         queries.invalidateQueries({ queryKey: ['product-subscriptions', variables.subject] }),
         queries.invalidateQueries({ queryKey: ['credit-subscriptions', variables.subject] }),
-        queries.invalidateQueries({ queryKey: ['subscription', variables.subject] }),
       ]);
     },
   });

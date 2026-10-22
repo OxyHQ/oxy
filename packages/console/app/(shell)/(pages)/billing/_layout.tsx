@@ -5,7 +5,6 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { type Href, Slot, usePathname, useRouter } from 'expo-router';
-import { View } from 'react-native';
 
 import { accountLabel } from '@/hooks/use-account';
 import { useBillingAccess } from '@/hooks/use-billing-access';
@@ -71,24 +70,24 @@ export default function BillingLayout() {
           }
           leading={<AppShellMenuButton />}
           safeArea={false}
+          accessory={
+            <Tabs
+              value={active}
+              onValueChange={(next) => {
+                const tab = TABS.find((candidate) => candidate.id === next);
+                if (tab) router.push(tab.href);
+              }}
+              variant="underline"
+              label={t('billingPage.tabs.label')}
+            >
+              {TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} label={t(`billingPage.tabs.${tab.id}`)} />
+              ))}
+            </Tabs>
+          }
         />
       }
     >
-      <View className="px-4">
-        <Tabs
-          value={active}
-          onValueChange={(next) => {
-            const tab = TABS.find((candidate) => candidate.id === next);
-            if (tab) router.push(tab.href);
-          }}
-          variant="underline"
-          label={t('billingPage.tabs.label')}
-        >
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} label={t(`billingPage.tabs.${tab.id}`)} />
-          ))}
-        </Tabs>
-      </View>
       <Slot />
     </Screen>
   );

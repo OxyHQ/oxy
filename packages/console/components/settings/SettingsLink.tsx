@@ -8,7 +8,7 @@ export function SettingsLink({ page }: { page?: ConsoleSettingsPage }) {
   const router = useRouter();
   useEffect(() => {
     open(page);
-    router.replace('/dashboard');
+    router.replace('/');
   }, [open, page, router]);
   return null;
 }

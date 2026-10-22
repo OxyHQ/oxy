@@ -1558,6 +1558,7 @@ export * from './accountAccess';
 export * from './notifications';
 export * from './email/messages';
 export * from './stickers';
+export * from './consoleOnboarding';
 
 export {
   productDefinitionSchema,

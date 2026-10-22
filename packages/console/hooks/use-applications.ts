@@ -242,10 +242,10 @@ export function useRotateCredential() {
       credentialId: string;
     }): Promise<CredentialWithSecret> => oxyServices.apps.credentials.rotate(appId, credentialId),
     onSuccess: ({ credential }, { appId, credentialId }) => {
-      queryClient.setQueryData<Array<ApplicationCredential>>(
-        queryKeys.credentials(credential.applicationId),
-        (old) => (old ? old.map((c) => (c._id === credential._id ? credential : c)) : [credential]),
-      );
+      // A rotation mints a NEW credential (`rotatedFromCredentialId`) and moves the old
+      // one to `deprecated` with a grace `expiresAt`, so patching by the returned id
+      // would drop the replacement and leave the old row looking active. Refetch.
+      queryClient.invalidateQueries({ queryKey: queryKeys.credentials(appId) });
       // A rotation writes the `rotated` row AND the replacement's `created` row,
       // so an open trail is stale the instant this lands. Invalidated for both
       // ids: the rotated credential and the one that replaced it.

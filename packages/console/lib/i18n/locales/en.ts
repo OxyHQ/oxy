@@ -11,23 +11,11 @@ const en: LocaleDict = {
     close: 'Close',
     cancel: 'Cancel',
     save: 'Save',
-    continue: 'Continue',
     back: 'Back',
-    next: 'Next',
     delete: 'Delete',
     edit: 'Edit',
     create: 'Create',
-    update: 'Update',
-    confirm: 'Confirm',
-    loading: 'Loading…',
-    error: 'Error',
-    success: 'Success',
-    copy: 'Copy',
-    copied: 'Copied',
-    search: 'Search',
     settings: 'Settings',
-    learnMore: 'Learn more',
-    signIn: 'Sign in with Oxy',
   },
 
   app: {
@@ -37,7 +25,6 @@ const en: LocaleDict = {
 
   language: {
     picker: {
-      label: 'Language',
       ariaLabel: 'Choose language',
     },
   },
@@ -51,7 +38,21 @@ const en: LocaleDict = {
 
   shell: {
     openMenu: 'Open menu',
-    resizePanes: 'Resize panes',
+  },
+
+  sidebar: {
+    search: 'Search',
+    applications: 'Applications',
+    newApplication: 'New application',
+    viewAll: 'View all applications',
+    noApplications: 'No applications yet',
+    loadFailed: 'Applications could not be loaded.',
+    copyId: 'Copy application ID',
+    idCopied: 'Application ID copied',
+    open: 'Open application',
+    documentation: 'Documentation',
+    accountMenu: 'Account menu',
+    signOut: 'Sign out',
   },
 
   state: {
@@ -94,7 +95,6 @@ const en: LocaleDict = {
     usage: 'Usage',
     billing: 'Billing',
     documentation: 'Documentation',
-    examples: 'Examples',
     settings: 'Settings',
   },
 
@@ -103,90 +103,13 @@ const en: LocaleDict = {
     subtitle: 'Your Oxy Console activity at a glance.',
   },
 
-  apps: {
-    title: 'Apps',
-    subtitle: 'Manage developer apps and credentials.',
-    empty: {
-      title: 'No apps yet',
-      subtitle: 'Create your first app to start integrating with Oxy.',
-      cta: 'Create app',
-    },
-    create: {
-      title: 'Create new app',
-      nameLabel: 'App name',
-      namePlaceholder: 'My awesome app',
-      submit: 'Create app',
-    },
-    keys: {
-      title: 'Credentials',
-      subtitle: 'Manage credentials for this app.',
-      create: 'Create credential',
-      reveal: 'Reveal once',
-      copyValue: 'Copy client ID',
-      copySecret: 'Copy secret',
-      revealHint:
-        'Secrets are shown once at creation. Copy yours now — Oxy will never display it again. The client ID is public and can be copied at any time.',
-    },
-    usage: {
-      title: 'Usage',
-      subtitle: 'Requests, tokens and quota for this app.',
-    },
-    settings: {
-      title: 'App settings',
-      delete: {
-        title: 'Delete app',
-        description:
-          'Deleting this app permanently revokes its keys and ends every active session. This cannot be undone.',
-        cta: 'Delete app',
-        confirmTitle: 'Delete this app?',
-        confirmBody: 'Type the app name to confirm.',
-      },
-    },
-  },
-
-
-
-  models: {
-    title: 'Models',
-    subtitle: 'Available AI models and their capabilities.',
-  },
-
-  playground: {
-    title: 'Playground',
-    subtitle: 'Test prompts against any model.',
-    send: 'Send',
-    clear: 'Clear conversation',
-  },
-
-  documentation: {
-    title: 'Documentation',
-    quickstart: 'Quickstart',
-    authentication: 'Authentication',
-    chatCompletions: 'Chat completions',
-    sdks: 'SDKs',
-    models: 'Models',
-  },
-
   settings: {
-    title: 'Account settings',
-    account: {
-      title: 'Account',
-      nameLabel: 'Account name',
-    },
     language: {
       title: 'Language',
       subtitle: 'Choose your preferred display language.',
     },
   },
 
-  examples: {
-    title: 'Examples',
-  },
-
-  account: {
-    signedInAs: 'Signed in as {{name}}',
-    signOut: 'Sign out',
-  },
   applications: {
     retry: 'Try again',
     search: 'Search applications',
@@ -284,8 +207,12 @@ const en: LocaleDict = {
       status: 'Status',
       lastUsed: 'Last used',
       neverUsed: 'Never',
+      statuses: { active: 'Active', deprecated: 'Rotated', revoked: 'Revoked' },
+      expiresOn: 'Stops working {{date}}',
       actions: 'Actions',
-      count: '{{count}} credentials',
+      count_one: '{{count}} credential',
+      count_other: '{{count}} credentials',
+      count_zero: '{{count}} credentials',
       loadFailed: 'Credentials could not be loaded.',
       trailTitle: 'Audit trail for {{name}}',
       trailBody: 'Created, rotated, revoked, and every refused validation, newest first.',
@@ -367,7 +294,8 @@ const en: LocaleDict = {
       sinceColumn: 'Since',
       keyInvalid: 'Use lowercase words separated by dots, for example payments.operate.',
       keyDuplicate: 'That permission is already declared.',
-      retiresCount: '{{count}} grant(s) will be revoked.',
+      retiresCount_one: '{{count}} grant will be revoked.',
+      retiresCount_other: '{{count}} grants will be revoked.',
       loadFailed: 'Roles could not be loaded',
       permissionsTitle: 'Permissions',
       permissionsBody:
@@ -383,7 +311,8 @@ const en: LocaleDict = {
       add: 'Add permission',
       save: 'Save permissions',
       saved: 'Permissions saved',
-      savedRevoked: 'Permissions saved; {{count}} grant(s) of retired keys revoked',
+      savedRevoked_one: 'Permissions saved; {{count}} grant of a retired key revoked',
+      savedRevoked_other: 'Permissions saved; {{count}} grants of retired keys revoked',
       saveFailed: 'Failed to save permissions',
       peopleTitle: 'People',
       peopleBody:
@@ -494,7 +423,8 @@ const en: LocaleDict = {
         tokens: 'Tokens in / out',
         tokensDetail: 'Input / output',
         spend: 'Net spend',
-        receipts: '{{count}} receipts',
+        receipts_one: '{{count}} receipt',
+        receipts_other: '{{count}} receipts',
         window: 'Last {{days}} days',
       },
       loadFailed: 'Usage could not be loaded. Try again in a moment.',
@@ -862,7 +792,8 @@ const en: LocaleDict = {
       },
       noUsage: 'No usage recorded between {{from}} and {{to}}.',
       noSpend: 'Nothing was charged for this application between {{from}} and {{to}}.',
-      netOver: 'net charged over {{count}} receipts',
+      netOver_one: 'net charged over {{count}} receipt',
+      netOver_other: 'net charged over {{count}} receipts',
       requests: 'Requests',
       errors: 'Errors',
       tokens: 'Tokens in / out',
@@ -1127,6 +1058,8 @@ const en: LocaleDict = {
       searchPlaceholder: 'Model or publisher',
       inputModality: 'Input modality',
       anyModality: 'Any modality',
+      outputModality: 'Output modality',
+      anyOutputModality: 'Any output',
       region: 'Region',
       anyRegion: 'Any region',
       provider: 'Provider',
@@ -1315,7 +1248,8 @@ const en: LocaleDict = {
     news: {
       title: 'Latest stories',
       refresh: 'Refresh',
-      meta: '{{count}} sources · {{date}}',
+      meta_one: '{{count}} source · {{date}}',
+      meta_other: '{{count}} sources · {{date}}',
       noSummary: 'No summary available.',
       none: 'No stories yet.',
     },
@@ -1630,8 +1564,6 @@ const en: LocaleDict = {
       credential: 'Credential {{id}}',
     },
     provenance: {
-      authoritative: 'Authoritative',
-      eventual: 'Eventually consistent',
       ledgerHeadline: 'Billed amounts, from the financial ledger',
       telemetryHeadline: 'Usage counts, from telemetry',
       ledgerExplanation:
@@ -2134,7 +2066,6 @@ const en: LocaleDict = {
   },
 
   settingsPage: {
-    title: 'Account settings',
     manageOxyAccount: 'Manage Oxy account',
     appearance: {
       title: 'Appearance',
@@ -2145,7 +2076,7 @@ const en: LocaleDict = {
       systemHint: "System follows your device's appearance setting.",
       accentColor: 'Accent color',
     },
-    tabs: { label: 'Settings sections', account: 'Account', audit: 'Audit log' },
+    tabs: { account: 'Account', audit: 'Audit log' },
     roles: {
       owner: 'Owner',
       admin: 'Admin',
@@ -2257,17 +2188,11 @@ const en: LocaleDict = {
       handle: 'Handle',
       created: 'Account "{{name}}" created',
       createFailed: 'Failed to create account',
-      nameRequired: 'Please enter an account name',
       switched: 'Switched to {{name}}',
       switchFailed: 'Failed to switch account',
     },
     audit: {
-      title: 'Audit log',
-      subtitle:
-        'Every credential and provider-connection change on {{name}}, newest first — including validations that were refused.',
-      subtitleNone: 'Credential and provider-connection changes, newest first.',
       what: "this account's audit log",
-      loadFailed: 'The audit log could not be loaded.',
       empty:
         'Nothing has changed on this account yet. Creating a credential or connecting a provider key writes the first entry.',
       loadOlder: 'Load older entries',
@@ -2290,6 +2215,54 @@ const en: LocaleDict = {
         application_credential: 'credential',
         provider_connection: 'provider connection',
       },
+    },
+  },
+  onboarding: {
+    continue: 'Continue',
+    skip: 'Skip',
+    stepCount: 'Step {{position}} of {{total}}',
+    saveFailed: 'Could not save your answer. Try again.',
+    steps: { terms: 'Terms', useCases: 'Use cases' },
+    welcome: {
+      title: 'Welcome to Oxy Console',
+      subtitle: 'Everything you need to build with Oxy.',
+      notice: 'AI models may make mistakes. {{dataUse}}',
+      dataUseLink: 'Learn more about data use and safety.',
+      adult:
+        'I am at least 18 years old and I use Oxy Console as a developer for professional or business purposes',
+      aup: 'I understand my account may be suspended or terminated if I violate the Acceptable Use Policy or the Terms',
+      marketing:
+        "I'd like to receive emails about product updates, offers, tips and research invitations",
+      agree:
+        'By clicking Continue you agree to the {{terms}}, the {{aup}} and the {{privacy}}.',
+      termsLink: 'Terms & Conditions',
+      aupLink: 'Acceptable Use Policy',
+      privacyLink: 'Privacy Policy',
+    },
+    useCases: {
+      title: 'What brings you to Oxy Console?',
+      subtitle: 'Pick as many as you like. We use it to tailor your first steps.',
+      descriptionLabel: 'Describe your use cases (optional)',
+      options: {
+        'build-with-api': 'Build with the Oxy API',
+        'ai-models': 'Use Alia and Kaana models',
+        'publish-apps': 'Publish apps and updates',
+        'billing-credits': 'Manage billing and credits',
+        'explore-platform': 'Explore the platform',
+      },
+    },
+    preview: {
+      modelSubtitle: 'Text and tools',
+      default: 'Default',
+      releaseSubtitle: 'Published release',
+      live: 'Live',
+      previous: 'Previous',
+      credits: 'Credits',
+      inference: 'Inference',
+      storage: 'Storage',
+      monthly: 'Monthly limit',
+      apps: 'Apps',
+      requests: 'Requests',
     },
   },
 };

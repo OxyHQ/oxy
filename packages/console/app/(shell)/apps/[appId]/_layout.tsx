@@ -33,7 +33,6 @@ export default function AppDetailLayout() {
         header={
           <PageHeader
             safeArea={false}
-            presentation="bar"
             onBack={alone ? () => router.navigate('/apps') : undefined}
             backLabel={t('applications.backToList')}
           />

@@ -10,23 +10,11 @@ const es: LocaleDict = {
     close: 'Cerrar',
     cancel: 'Cancelar',
     save: 'Guardar',
-    continue: 'Continuar',
     back: 'Atrás',
-    next: 'Siguiente',
     delete: 'Eliminar',
     edit: 'Editar',
     create: 'Crear',
-    update: 'Actualizar',
-    confirm: 'Confirmar',
-    loading: 'Cargando…',
-    error: 'Error',
-    success: 'Listo',
-    copy: 'Copiar',
-    copied: 'Copiado',
-    search: 'Buscar',
     settings: 'Ajustes',
-    learnMore: 'Más información',
-    signIn: 'Iniciar sesión con Oxy',
   },
 
   app: {
@@ -36,7 +24,6 @@ const es: LocaleDict = {
 
   language: {
     picker: {
-      label: 'Idioma',
       ariaLabel: 'Elegir idioma',
     },
   },
@@ -50,7 +37,21 @@ const es: LocaleDict = {
 
   shell: {
     openMenu: 'Abrir menú',
-    resizePanes: 'Redimensionar paneles',
+  },
+
+  sidebar: {
+    search: 'Buscar',
+    applications: 'Aplicaciones',
+    newApplication: 'Nueva aplicación',
+    viewAll: 'Ver todas las aplicaciones',
+    noApplications: 'Aún no hay aplicaciones',
+    loadFailed: 'No se pudieron cargar las aplicaciones.',
+    copyId: 'Copiar ID de la aplicación',
+    idCopied: 'ID de la aplicación copiado',
+    open: 'Abrir aplicación',
+    documentation: 'Documentación',
+    accountMenu: 'Menú de la cuenta',
+    signOut: 'Cerrar sesión',
   },
 
   state: {
@@ -93,7 +94,6 @@ const es: LocaleDict = {
     usage: 'Uso',
     billing: 'Facturación',
     documentation: 'Documentación',
-    examples: 'Ejemplos',
     settings: 'Ajustes',
   },
 
@@ -102,90 +102,13 @@ const es: LocaleDict = {
     subtitle: 'Tu actividad en Oxy Console de un vistazo.',
   },
 
-  apps: {
-    title: 'Apps',
-    subtitle: 'Gestiona apps de desarrollador y sus credenciales.',
-    empty: {
-      title: 'Aún no tienes apps',
-      subtitle: 'Crea tu primera app para empezar a integrar con Oxy.',
-      cta: 'Crear app',
-    },
-    create: {
-      title: 'Crear app nueva',
-      nameLabel: 'Nombre de la app',
-      namePlaceholder: 'Mi app increíble',
-      submit: 'Crear app',
-    },
-    keys: {
-      title: 'Credenciales',
-      subtitle: 'Gestiona las credenciales de esta app.',
-      create: 'Crear credencial',
-      reveal: 'Mostrar una vez',
-      copyValue: 'Copiar client ID',
-      copySecret: 'Copiar secreto',
-      revealHint:
-        'Los secretos se muestran solo una vez al crearlos. Copia el tuyo ahora — Oxy no volverá a mostrarlo. El client ID es público y puedes copiarlo cuando quieras.',
-    },
-    usage: {
-      title: 'Uso',
-      subtitle: 'Solicitudes, tokens y cuota de esta app.',
-    },
-    settings: {
-      title: 'Ajustes de la app',
-      delete: {
-        title: 'Eliminar app',
-        description:
-          'Eliminar esta app revoca sus claves de forma permanente y finaliza todas las sesiones activas. No se puede deshacer.',
-        cta: 'Eliminar app',
-        confirmTitle: '¿Eliminar esta app?',
-        confirmBody: 'Escribe el nombre de la app para confirmar.',
-      },
-    },
-  },
-
-
-
-  models: {
-    title: 'Modelos',
-    subtitle: 'Modelos de IA disponibles y sus capacidades.',
-  },
-
-  playground: {
-    title: 'Playground',
-    subtitle: 'Prueba prompts contra cualquier modelo.',
-    send: 'Enviar',
-    clear: 'Vaciar conversación',
-  },
-
-  documentation: {
-    title: 'Documentación',
-    quickstart: 'Inicio rápido',
-    authentication: 'Autenticación',
-    chatCompletions: 'Chat completions',
-    sdks: 'SDKs',
-    models: 'Modelos',
-  },
-
   settings: {
-    title: 'Ajustes de la cuenta',
-    account: {
-      title: 'Cuenta',
-      nameLabel: 'Nombre de la cuenta',
-    },
     language: {
       title: 'Idioma',
       subtitle: 'Elige el idioma de la interfaz.',
     },
   },
 
-  examples: {
-    title: 'Ejemplos',
-  },
-
-  account: {
-    signedInAs: 'Sesión iniciada como {{name}}',
-    signOut: 'Cerrar sesión',
-  },
   applications: {
     retry: 'Reintentar',
     search: 'Buscar aplicaciones',
@@ -283,8 +206,12 @@ const es: LocaleDict = {
       status: 'Estado',
       lastUsed: 'Último uso',
       neverUsed: 'Nunca',
+      statuses: { active: 'Activa', deprecated: 'Rotada', revoked: 'Revocada' },
+      expiresOn: 'Deja de funcionar el {{date}}',
       actions: 'Acciones',
-      count: '{{count}} credenciales',
+      count_one: '{{count}} credencial',
+      count_other: '{{count}} credenciales',
+      count_zero: '{{count}} credenciales',
       loadFailed: 'No se pudieron cargar las credenciales.',
       trailTitle: 'Registro de auditoría de {{name}}',
       trailBody:
@@ -372,7 +299,8 @@ const es: LocaleDict = {
       sinceColumn: 'Desde',
       keyInvalid: 'Usa palabras en minúsculas separadas por puntos, por ejemplo payments.operate.',
       keyDuplicate: 'Ese permiso ya está declarado.',
-      retiresCount: 'Se revocarán {{count}} concesión(es).',
+      retiresCount_one: 'Se revocará {{count}} concesión.',
+      retiresCount_other: 'Se revocarán {{count}} concesiones.',
       loadFailed: 'No se pudieron cargar los roles',
       permissionsTitle: 'Permisos',
       permissionsBody:
@@ -388,7 +316,8 @@ const es: LocaleDict = {
       add: 'Añadir permiso',
       save: 'Guardar permisos',
       saved: 'Permisos guardados',
-      savedRevoked: 'Permisos guardados; {{count}} concesión(es) de claves retiradas revocadas',
+      savedRevoked_one: 'Permisos guardados; {{count}} concesión de una clave retirada revocada',
+      savedRevoked_other: 'Permisos guardados; {{count}} concesiones de claves retiradas revocadas',
       saveFailed: 'No se pudieron guardar los permisos',
       peopleTitle: 'Personas',
       peopleBody:
@@ -500,7 +429,8 @@ const es: LocaleDict = {
         tokens: 'Tokens de entrada / salida',
         tokensDetail: 'Entrada / salida',
         spend: 'Gasto neto',
-        receipts: '{{count}} recibos',
+        receipts_one: '{{count}} recibo',
+        receipts_other: '{{count}} recibos',
         window: 'Últimos {{days}} días',
       },
       loadFailed: 'No se pudo cargar el uso. Inténtalo de nuevo en un momento.',
@@ -869,7 +799,8 @@ const es: LocaleDict = {
       },
       noUsage: 'No hay uso registrado entre {{from}} y {{to}}.',
       noSpend: 'No se cobró nada a esta aplicación entre {{from}} y {{to}}.',
-      netOver: 'cobrado neto en {{count}} recibos',
+      netOver_one: 'cobrado neto en {{count}} recibo',
+      netOver_other: 'cobrado neto en {{count}} recibos',
       requests: 'Solicitudes',
       errors: 'Errores',
       tokens: 'Tokens entrada / salida',
@@ -1136,6 +1067,8 @@ const es: LocaleDict = {
       searchPlaceholder: 'Modelo o publicador',
       inputModality: 'Modalidad de entrada',
       anyModality: 'Cualquier modalidad',
+      outputModality: 'Modalidad de salida',
+      anyOutputModality: 'Cualquier salida',
       region: 'Región',
       anyRegion: 'Cualquier región',
       provider: 'Proveedor',
@@ -1326,7 +1259,8 @@ const es: LocaleDict = {
     news: {
       title: 'Últimas noticias',
       refresh: 'Actualizar',
-      meta: '{{count}} fuentes · {{date}}',
+      meta_one: '{{count}} fuente · {{date}}',
+      meta_other: '{{count}} fuentes · {{date}}',
       noSummary: 'No hay resumen disponible.',
       none: 'Todavía no hay noticias.',
     },
@@ -1641,8 +1575,6 @@ const es: LocaleDict = {
       credential: 'Credencial {{id}}',
     },
     provenance: {
-      authoritative: 'Autoritativo',
-      eventual: 'Consistencia eventual',
       ledgerHeadline: 'Importes facturados, del libro contable',
       telemetryHeadline: 'Recuentos de uso, de la telemetría',
       ledgerExplanation:
@@ -2145,7 +2077,6 @@ const es: LocaleDict = {
   },
 
   settingsPage: {
-    title: 'Ajustes de la cuenta',
     manageOxyAccount: 'Administrar cuenta de Oxy',
     appearance: {
       title: 'Apariencia',
@@ -2156,7 +2087,7 @@ const es: LocaleDict = {
       systemHint: 'Sistema sigue la configuración de apariencia de tu dispositivo.',
       accentColor: 'Color de acento',
     },
-    tabs: { label: 'Secciones de ajustes', account: 'Cuenta', audit: 'Registro de auditoría' },
+    tabs: { account: 'Cuenta', audit: 'Registro de auditoría' },
     roles: {
       owner: 'Propietario',
       admin: 'Administrador',
@@ -2268,18 +2199,11 @@ const es: LocaleDict = {
       handle: 'Identificador',
       created: 'Cuenta "{{name}}" creada',
       createFailed: 'No se pudo crear la cuenta',
-      nameRequired: 'Introduce un nombre de cuenta',
       switched: 'Cambiaste a {{name}}',
       switchFailed: 'No se pudo cambiar de cuenta',
     },
     audit: {
-      title: 'Registro de auditoría',
-      subtitle:
-        'Cada cambio de credenciales y conexiones de proveedor en {{name}}, del más reciente al más antiguo, incluidas las validaciones rechazadas.',
-      subtitleNone:
-        'Cambios de credenciales y conexiones de proveedor, del más reciente al más antiguo.',
       what: 'el registro de auditoría de esta cuenta',
-      loadFailed: 'No se pudo cargar el registro de auditoría.',
       empty:
         'Todavía no ha cambiado nada en esta cuenta. Crear una credencial o conectar una clave de proveedor escribe la primera entrada.',
       loadOlder: 'Cargar entradas anteriores',
@@ -2302,6 +2226,54 @@ const es: LocaleDict = {
         application_credential: 'credencial',
         provider_connection: 'conexión de proveedor',
       },
+    },
+  },
+  onboarding: {
+    continue: 'Continuar',
+    skip: 'Omitir',
+    stepCount: 'Paso {{position}} de {{total}}',
+    saveFailed: 'No se pudo guardar tu respuesta. Inténtalo de nuevo.',
+    steps: { terms: 'Términos', useCases: 'Casos de uso' },
+    welcome: {
+      title: 'Te damos la bienvenida a Oxy Console',
+      subtitle: 'Todo lo que necesitas para crear con Oxy.',
+      notice: 'Los modelos de IA pueden cometer errores. {{dataUse}}',
+      dataUseLink: 'Más información sobre el uso de datos y la seguridad.',
+      adult:
+        'Tengo al menos 18 años y uso Oxy Console como desarrollador con fines profesionales o empresariales',
+      aup: 'Entiendo que mi cuenta puede suspenderse o cancelarse si incumplo la Política de uso aceptable o los Términos',
+      marketing:
+        'Quiero recibir correos con novedades del producto, ofertas, consejos e invitaciones a investigaciones',
+      agree:
+        'Al pulsar Continuar aceptas los {{terms}}, la {{aup}} y la {{privacy}}.',
+      termsLink: 'Términos y condiciones',
+      aupLink: 'Política de uso aceptable',
+      privacyLink: 'Política de privacidad',
+    },
+    useCases: {
+      title: '¿Qué te trae a Oxy Console?',
+      subtitle: 'Elige todos los que quieras. Los usamos para personalizar tus primeros pasos.',
+      descriptionLabel: 'Describe tus casos de uso (opcional)',
+      options: {
+        'build-with-api': 'Crear con la API de Oxy',
+        'ai-models': 'Usar los modelos Alia y Kaana',
+        'publish-apps': 'Publicar apps y actualizaciones',
+        'billing-credits': 'Gestionar facturación y créditos',
+        'explore-platform': 'Explorar la plataforma',
+      },
+    },
+    preview: {
+      modelSubtitle: 'Texto y herramientas',
+      default: 'Predeterminado',
+      releaseSubtitle: 'Versión publicada',
+      live: 'En vivo',
+      previous: 'Anterior',
+      credits: 'Créditos',
+      inference: 'Inferencia',
+      storage: 'Almacenamiento',
+      monthly: 'Límite mensual',
+      apps: 'Apps',
+      requests: 'Solicitudes',
     },
   },
 };

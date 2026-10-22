@@ -28,8 +28,11 @@ export function ApplicationsList() {
   const router = useRouter();
   const pathname = usePathname();
   const { oxyServices } = useAuth();
-  const { currentAccount, canCreateApplications } = useAccount();
-  const { data: applications = [], isLoading, isError, refetch } = useApplications();
+  const { currentAccount, canCreateApplications, isLoading: accountLoading } = useAccount();
+  const { data: applications = [], isLoading: appsLoading, isError, refetch } = useApplications();
+  // The applications query waits for the active account, so it is idle (not loading)
+  // until the account list lands: without this the empty state flashes first.
+  const isLoading = appsLoading || accountLoading;
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState('');
   const selectedId = /^\/apps\/([^/]+)/.exec(pathname)?.[1];
@@ -53,7 +56,6 @@ export function ApplicationsList() {
       header={
         <PageHeader
           safeArea={false}
-          presentation="bar"
           leading={<AppShellMenuButton />}
           title={t('applications.title')}
           subtitle={t('applications.subtitle')}

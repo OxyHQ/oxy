@@ -11,22 +11,6 @@ import type {
 } from '@/lib/reporting';
 import { useTranslation } from '@/lib/i18n';
 
-/** The badge vocabulary the console's lib helpers speak (`budgetUtilizationVariant`, ...). */
-export type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost';
-
-const STATUS_PAINT = {
-  default: { tone: 'neutral', appearance: 'solid' },
-  secondary: { tone: 'neutral', appearance: 'subtle' },
-  destructive: { tone: 'danger', appearance: 'subtle' },
-  outline: { tone: 'neutral', appearance: 'outline' },
-  ghost: { tone: 'neutral', appearance: 'plain' },
-} as const;
-
-/** Bloom `Badge` props for a lib status variant: `<Badge content={label} {...statusBadge(v)} />`. */
-export function statusBadge(variant: StatusVariant = 'secondary') {
-  return { ...STATUS_PAINT[variant], size: 'label-small' } as const;
-}
-
 /**
  * The strings `lib/reporting.ts`, `lib/billing-audit.ts` and `lib/account-audit.ts`
  * return in English, resolved through the dictionary instead. The libs stay

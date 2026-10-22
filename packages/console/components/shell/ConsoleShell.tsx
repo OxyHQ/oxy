@@ -5,6 +5,7 @@ import { useTranslation } from '@/lib/i18n';
 import { CommandMenu } from './CommandMenu';
 import { ConsoleBottomBar } from './ConsoleBottomBar';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
+import { NewApplicationDialog } from './NewApplicationDialog';
 import { useConsoleSidebar } from './useConsoleSidebar';
 
 /**
@@ -23,6 +24,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
     <>
       <CommandMenu />
       <CreateWorkspaceDialog />
+      <NewApplicationDialog />
       <AppShell
         variant="feed"
         panels

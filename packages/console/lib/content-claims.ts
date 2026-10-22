@@ -76,49 +76,6 @@ export function deadlineStatus(
   return 'ok';
 }
 
-export const CLAIM_STATE_LABELS: Record<ContentClaimState, string> = {
-  received: 'Received',
-  reviewing: 'In review',
-  actioned: 'Actioned',
-  rejected: 'Rejected',
-  counter_noticed: 'Counter-notice',
-  reinstated: 'Reinstated',
-  upheld: 'Upheld',
-};
-
-export const CLAIM_KIND_LABELS: Record<ContentClaimKind, string> = {
-  copyright: 'Copyright',
-  trademark: 'Trademark',
-  privacy: 'Privacy',
-  illegal_content: 'Illegal content',
-  other: 'Other',
-};
-
-export const CLAIMANT_RELATIONSHIP_LABELS: Record<ClaimantRelationship, string> = {
-  rights_holder: 'Rights holder',
-  authorized_agent: 'Authorized agent',
-  affected_person: 'Affected person',
-  other: 'Other',
-};
-
-export const CLAIM_EVENT_LABELS: Record<ContentClaimEventAction, string> = {
-  submitted: 'Submitted',
-  review_started: 'Review started',
-  targets_attached: 'Files attached',
-  targets_blocked: 'Blocked',
-  rejected: 'Rejected',
-  counter_notice_recorded: 'Counter-notice recorded',
-  counter_notice_submitted: 'Counter-notice from the owner',
-  reinstated: 'Reinstated',
-  upheld: 'Upheld',
-  note_added: 'Note',
-};
-
-export const TARGET_RESOLUTION_LABELS: Record<ContentClaimTargetResolution, string> = {
-  file: 'Oxy file',
-  unresolved: 'Page — attach its files',
-};
-
 /** The badge style a state reads in. */
 export function claimStateVariant(
   state: ContentClaimState,

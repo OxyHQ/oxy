@@ -231,6 +231,21 @@ export function ModelCatalogue() {
               ]}
             />
             <DataTableFilter
+              label={t('modelsPage.filters.outputModality')}
+              value={filters.outputModality ?? ANY}
+              onValueChange={(value) =>
+                setFilters((current) => ({
+                  ...current,
+                  outputModality:
+                    facets.outputModalities.find((modality) => modality === value) ?? null,
+                }))
+              }
+              options={[
+                anyOption(t('modelsPage.filters.anyOutputModality')),
+                ...facets.outputModalities.map((value) => ({ value, label: value })),
+              ]}
+            />
+            <DataTableFilter
               label={t('modelsPage.filters.capability')}
               value={activeCapability(filters)}
               onValueChange={(value) =>
