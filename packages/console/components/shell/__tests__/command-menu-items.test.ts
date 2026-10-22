@@ -21,7 +21,6 @@ describe('buildCommandItems', () => {
       'nav-dashboard',
       'nav-apps',
       'nav-playground',
-      'nav-examples',
       'nav-clarity',
     ]);
   });

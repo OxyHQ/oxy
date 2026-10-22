@@ -3,6 +3,7 @@ import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type { Href } from 'expo-router';
+import { Linking } from 'react-native';
 
 import type { TranslateFn } from '@/lib/i18n';
 import { CONSOLE_NAV } from '@/lib/navigation';
@@ -43,7 +44,8 @@ export function buildCommandItems(
       label: t(entry.labelKey),
       icon: entry.icon as CommandItem['icon'],
       group: t('commandMenu.groups.navigation'),
-      onSelect: () => navigate(entry.href),
+      onSelect: () =>
+        entry.external ? void Linking.openURL(entry.external) : navigate(entry.href),
     })),
     ...EXTRA_DESTINATIONS.map((entry) => ({
       id: `nav-${entry.id}`,
