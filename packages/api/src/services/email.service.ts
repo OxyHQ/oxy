@@ -2017,6 +2017,15 @@ class EmailService {
    * Attach `threadCount` / `threadParticipants` to every page message that has
    * any threading header.
    *
+   * ## The stored key, and the walk it replaces
+   *
+   * A message's thread is its connected component under Message-ID adjacency
+   * (`emailThreading.ts`), and `messages.thread_id` stores it: one indexed read
+   * of `(user_id, thread_id)` per thread on the page. A message with no stored
+   * thread yet (stored before the column, until the backfill has run) is
+   * walked instead, exactly as every message used to be; the two answer the
+   * same component, so the wire cannot tell which one did.
+   *
    * ## The walk is transitive
    *
    * Postgres walks the adjacency TRANSITIVELY (`WITH RECURSIVE`), so the numbers
@@ -2038,32 +2047,74 @@ class EmailService {
     if (seeds.length === 0) return;
 
     const seedIds = seeds.map((m) => m.id);
-    const rows = await getDb().execute<{
+    const db = getDb();
+    // A seed with a stored thread reads its members by that key, one aggregate
+    // per thread; a seed with none (stored before the column, until the
+    // backfill reaches it) comes back without a thread and is walked, exactly
+    // as every seed used to be. The walk is a separate statement on purpose:
+    // folded in, even empty, its recursive estimate trips JIT (630 ms a page).
+    const stored = await db.execute<{
       rootId: string;
-      threadId: string;
+      threadId: string | null;
       threadCount: number;
       participants: string[];
     }>(sql`
-      with recursive walk(root_id, id, ks) as (
-          select seed.id, seed.id, ${threadKeys('seed')}
+      with seed_thread as (
+          select seed.id, seed.thread_id
           from messages seed
           where seed.user_id = ${userId} and seed.id = any(${textArray(seedIds)})
-        union
-          select walk.root_id, linked.id, ${threadKeys('linked')}
-          from walk
-          join messages linked
-            on linked.user_id = ${userId}
-           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+      ),
+      stored as (
+          select member.thread_id,
+                 min(member.id) as "threadId",
+                 -- A copy of the user's own Sent message is the same message.
+                 (count(*) filter (where member.sent_copy_of is null))::int as "threadCount",
+                 array_agg(distinct member.from_address) as participants
+          from messages member
+          where member.user_id = ${userId}
+            and member.thread_id in (select thread_id from seed_thread)
+          group by member.thread_id
       )
-      select walk.root_id as "rootId",
-             min(walk.id) as "threadId",
-             -- A copy of the user's own Sent message is the same message.
-             (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
-             array_agg(distinct member.from_address) as participants
-      from walk
-      join messages member on member.id = walk.id
-      group by walk.root_id
+      select seed_thread.id as "rootId", stored."threadId", stored."threadCount", stored.participants
+      from seed_thread
+      left join stored on stored.thread_id = seed_thread.thread_id
     `);
+    const unassigned = stored.filter((row) => row.threadId === null).map((row) => row.rootId);
+    const walked =
+      unassigned.length === 0
+        ? []
+        : await db.execute<{
+            rootId: string;
+            threadId: string;
+            threadCount: number;
+            participants: string[];
+          }>(sql`
+            with recursive walk(root_id, id, ks) as (
+                select seed.id, seed.id, ${threadKeys('seed')}
+                from messages seed
+                where seed.user_id = ${userId} and seed.id = any(${textArray(unassigned)})
+              union
+                select walk.root_id, linked.id, ${threadKeys('linked')}
+                from walk
+                join messages linked
+                  on linked.user_id = ${userId}
+                 and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+            )
+            select walk.root_id as "rootId",
+                   min(walk.id) as "threadId",
+                   -- A copy of the user's own Sent message is the same message.
+                   (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
+                   array_agg(distinct member.from_address) as participants
+            from walk
+            join messages member on member.id = walk.id
+            group by walk.root_id
+          `);
+    const rows = [
+      ...stored.flatMap((row) =>
+        row.threadId === null ? [] : [{ ...row, threadId: row.threadId }],
+      ),
+      ...walked,
+    ];
 
     const byRoot = new Map(rows.map((row) => [row.rootId, row]));
     for (const message of page) {
@@ -3531,9 +3582,10 @@ class EmailService {
   /**
    * Every message in the anchor's thread, oldest first.
    *
-   * The same `WITH RECURSIVE` walk `attachThreadMetadata` counts with — one
-   * definition of "same thread", so a list that says `threadCount: 5` can never
-   * open onto a thread view showing three.
+   * The same thread `attachThreadMetadata` counts — the stored `thread_id`, or
+   * the `WITH RECURSIVE` walk for a row that has none yet — one definition of
+   * "same thread", so a list that says `threadCount: 5` can never open onto a
+   * thread view showing three.
    *
    * The anchor is always in its own component, so no separate dedup-and-append
    * step is needed — the walk returns it whether or not it has any counterpart.
@@ -3541,26 +3593,21 @@ class EmailService {
   async getThread(userId: string, messageId: string): Promise<MessageDto[]> {
     const db = getDb();
     const [anchor] = await db
-      .select({ id: messages.id })
+      .select({ id: messages.id, threadId: messages.threadId })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
     if (!anchor) throw new NotFoundError('Message not found');
 
-    const memberRows = await db.execute<{ id: string }>(sql`
-      with recursive walk(id, ks) as (
-          select seed.id, ${threadKeys('seed')}
-          from messages seed
-          where seed.user_id = ${userId} and seed.id = ${anchor.id}
-        union
-          select linked.id, ${threadKeys('linked')}
-          from walk
-          join messages linked
-            on linked.user_id = ${userId}
-           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
-      )
-      select id from walk
-    `);
+    // The members by the stored key; walked only for an anchor stored before
+    // threads were (thread_id NULL).
+    const memberRows =
+      anchor.threadId !== null
+        ? await db
+            .select({ id: messages.id })
+            .from(messages)
+            .where(and(eq(messages.userId, userId), eq(messages.threadId, anchor.threadId)))
+        : await this.walkThread(userId, anchor.id);
 
     const rows = await db
       .select(MESSAGE_COLUMNS_WITH_BODY)
@@ -3586,6 +3633,24 @@ class EmailService {
     await EmailService.enrichWithAvatars(thread);
 
     return thread;
+  }
+
+  /** The anchor's thread by the `WITH RECURSIVE` walk, for a row with no stored thread. */
+  private async walkThread(userId: string, anchorId: string): Promise<Array<{ id: string }>> {
+    return getDb().execute<{ id: string }>(sql`
+      with recursive walk(id, ks) as (
+          select seed.id, ${threadKeys('seed')}
+          from messages seed
+          where seed.user_id = ${userId} and seed.id = ${anchorId}
+        union
+          select linked.id, ${threadKeys('linked')}
+          from walk
+          join messages linked
+            on linked.user_id = ${userId}
+           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+      )
+      select id from walk
+    `);
   }
 
   // ─── Labels ──────────────────────────────────────────────────────────

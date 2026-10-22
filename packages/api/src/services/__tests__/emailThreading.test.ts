@@ -42,6 +42,7 @@ jest.mock('../../utils/logger', () => ({
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
@@ -509,4 +510,127 @@ describe('stored thread ids — the cases the random run must not miss by chance
     const reply = await replyDone;
     expect((await threadOf(user.id)).get(reply.id)).toBe(heldThread);
   }, 20_000);
+});
+
+describe('reads by the stored key — byte-identical to the walk they replace', () => {
+  /** A mailbox of every thread shape a read can meet, written through the real paths. */
+  async function conversations() {
+    const user = await mailUser();
+    const inbound = (
+      messageId: string,
+      from: string,
+      extra: { inReplyTo?: string; references?: string[]; headers?: Record<string, string> } = {},
+    ) =>
+      emailService.storeIncomingMessage({
+        recipientUsername: user.username,
+        from: { address: from },
+        to: [{ address: user.address }],
+        subject: 'conversation',
+        text: 'body',
+        messageId,
+        inReplyTo: extra.inReplyTo,
+        references: extra.references,
+        date: new Date(),
+        headers: extra.headers ?? {},
+        rawSize: 100,
+      });
+
+    // Three participants, a reply naming only its parent, one naming both.
+    const root = `<root-${unique()}@example.com>`;
+    const reply = `<reply-${unique()}@example.com>`;
+    await inbound(root, 'ada@example.com');
+    await inbound(reply, 'grace@example.com', { inReplyTo: root, references: [root] });
+    await inbound(`<third-${unique()}@example.com>`, 'alan@example.com', {
+      inReplyTo: reply,
+      references: [root, reply],
+    });
+    // A send, its self-copy coming back (counted once), and an answer to it.
+    const sentId = `<sent-${unique()}@oxy.so>`;
+    await emailService.storeSentMessage(user.id, {
+      messageId: sentId,
+      from: { address: user.address },
+      to: [{ address: user.address }, { address: 'peer@example.com' }],
+      subject: 'conversation',
+      text: 'body',
+      size: 10,
+    });
+    await inbound(sentId, user.address, { headers: { 'x-oxy-sent-id': sentId } });
+    await inbound(`<answer-${unique()}@example.com>`, 'peer@example.com', { inReplyTo: sentId });
+    // A reply whose parent is not here, and a draft answering the first thread.
+    await inbound(`<orphan-${unique()}@example.com>`, 'lone@example.com', {
+      inReplyTo: `<gone-${unique()}@example.com>`,
+    });
+    await emailService.saveDraft(user.id, { subject: 're', text: 'draft', inReplyTo: reply });
+    return user;
+  }
+
+  /** Every thread-bearing read the client makes, serialized as the wire would carry it. */
+  async function reads(userId: string): Promise<string> {
+    const folders = await getDb()
+      .select({ id: mailboxes.id })
+      .from(mailboxes)
+      .where(eq(mailboxes.userId, userId));
+    const lists = [];
+    for (const folder of [...folders.map((row) => row.id), null]) {
+      lists.push(await emailService.listMessages(userId, folder, { limit: 50 }));
+    }
+    const ids = (await storedThreads(userId)).map((row) => row.id).sort();
+    const threads = [];
+    const singles = [];
+    for (const id of ids) {
+      threads.push(await emailService.getThread(userId, id));
+      singles.push(await emailService.getMessage(userId, id));
+    }
+    return JSON.stringify({ lists, threads, singles });
+  }
+
+  it('answers every list, thread and message read exactly as the walk did', async () => {
+    const user = await conversations();
+    // Non-vacuous: the stored path really is the one answering here.
+    expect((await storedThreads(user.id)).every((row) => row.threadId !== null)).toBe(true);
+    const stored = await reads(user.id);
+    // The three-message thread plus the draft answering it, and the send with
+    // its answer (the self-copy is not counted).
+    expect(stored).toContain('"threadCount":4');
+    expect(stored).toContain('"threadCount":2');
+
+    // Raw SQL: drizzle's update() would also bump updated_at, which is on the wire.
+    await getDb().execute(sql`update messages set thread_id = null where user_id = ${user.id}`);
+    const walked = await reads(user.id);
+    expect(stored).toBe(walked);
+  });
+
+  it('serves a page that mixes assigned and unassigned threads the same way', async () => {
+    const user = await conversations();
+    const walkedLater = await reads(user.id);
+    const rows = await storedThreads(user.id);
+    const half = rows.filter((_, index) => index % 2 === 0).map((row) => row.threadId);
+    // Unassign whole threads (never part of one, which the writes never leave).
+    for (const threadId of new Set(half)) {
+      if (threadId === null) continue;
+      await getDb().execute(
+        sql`update messages set thread_id = null where thread_id = ${threadId}`,
+      );
+    }
+    expect(await reads(user.id)).toBe(walkedLater);
+  });
+
+  it('follows the stored key, not the walk, once a thread has one', async () => {
+    // Positive control: detach one row of the four-message thread under an id
+    // of its own. The walk would still count four; the stored key counts three.
+    const user = await conversations();
+    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
+    if (!inbox) throw new Error('no Inbox');
+    const before = await emailService.listMessages(user.id, inbox.id, { limit: 50 });
+    const counted = before.data.filter((message) => message.threadCount === 4);
+    expect(counted.length).toBeGreaterThan(1);
+
+    await getDb()
+      .update(messages)
+      .set({ threadId: `detached-${unique()}` })
+      .where(eq(messages.id, counted[0].id));
+    const after = await emailService.listMessages(user.id, inbox.id, { limit: 50 });
+    expect(after.data.find((message) => message.id === counted[1].id)?.threadCount).toBe(3);
+    expect((await emailService.getThread(user.id, counted[1].id)).length).toBe(3);
+  });
 });
