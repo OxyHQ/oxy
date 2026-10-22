@@ -168,5 +168,6 @@ describe('address classes', () => {
     expect(oxyTrustProxy('172.70.1.2', 1)).toBe(true);
     expect(oxyTrustProxy('10.0.0.1', 1)).toBe(false);
     expect(oxyTrustProxy('172.70.1.2', 2)).toBe(false);
+    expect(oxyTrustProxy(undefined, 0)).toBe(false);
   });
 });

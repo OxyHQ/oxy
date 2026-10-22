@@ -134,8 +134,16 @@ export function isPrivateProxyAddress(ip: string): boolean {
  * Express `trust proxy` function (proxy-addr semantics: `hop` 0 is the socket
  * peer, 1 the right-most X-Forwarded-For entry, and so on outward; the first
  * untrusted address is `req.ip`). See the module comment for the chain.
+ *
+ * proxy-addr reads hop 0 from `req.socket.remoteAddress`, which is `undefined`
+ * once the client has disconnected. An address-less hop is never trusted, so
+ * `req.ip` is then `undefined`, as {@link resolveClientIp} answers for a closed
+ * socket.
  */
-export function oxyTrustProxy(address: string, hop: number): boolean {
+export function oxyTrustProxy(address: string | undefined, hop: number): boolean {
+  if (address === undefined) {
+    return false;
+  }
   if (hop === 0) {
     return isPrivateProxyAddress(address);
   }

@@ -1,5 +1,16 @@
 # Changelog — `@oxy.so/core`
 
+## 6.15.1
+
+### Fixed
+
+- `oxyTrustProxy` no longer throws when the client has already disconnected.
+  proxy-addr hands it `req.socket.remoteAddress`, which is `undefined` on a
+  closed socket, and `req.ip` threw `TypeError: rawIp.trim` from every
+  middleware that read it (the rate limiters among them). An address-less hop
+  is now never trusted, so `req.ip` is `undefined`, as `resolveClientIp`
+  answers for a closed socket.
+
 ## 6.15.0
 
 ### Added
