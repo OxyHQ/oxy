@@ -4,15 +4,16 @@
 ## 2.10.0
 
 The identity bridge's transport is typed as core's `serviceRequest`, so an app
-passes it straight through and the compiler checks what it names.
+passes it straight through and the compiler checks what the bridge names.
 
 ### Changed
 
 - `ServiceRequest` resolves to `ResponsePayload<T>` (`@oxy.so/core` 6.14.0):
   `T` is the `{ data }`-unwrapped payload, and a `T` naming the envelope
-  resolves to `never`. An adapter declared as returning a bare `Promise<T>` no
-  longer satisfies it; pass `serviceRequest` through instead, e.g.
-  `(method, path, body) => oxy.serviceRequest(method, path, body)`.
+  resolves to `never`, so reading `.data` off it fails to compile. An app passes
+  `serviceRequest` through as is —
+  `(method, path, body) => oxy.serviceRequest(method, path, body)`; an adapter
+  returning a bare `Promise<T>` still satisfies it.
 - Requires `@oxy.so/core` ^6.14.0 (was any major from 1 to 6).
 
 ## 2.9.0
