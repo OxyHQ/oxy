@@ -1,5 +1,22 @@
 # Changelog — `@oxy.so/core`
 
+## 6.15.0
+
+### Added
+
+- Bengali (`bn-BD`), Hindi (`hi-IN`), Indonesian (`id-ID`), Russian (`ru-RU`)
+  and Turkish (`tr-TR`) dictionaries, carrying every namespace the other
+  shipped languages do (sign-in, account switcher, notifications, preferences,
+  file manager, follow, account settings) plus the account category names.
+  `bn`, `hi`, `id`, `ru` and `tr` (and their regional tags) resolve to them.
+- `accounts.accountCategory.*` in Catalan, French, German, Italian, Portuguese,
+  Japanese, Korean, Chinese and Arabic, which named categories in English. Every
+  shipped language now names every category, so an app can use
+  `accountCategoryLabel` instead of its own copy of the vocabulary.
+
+`accounts.create.accountCategory.{label,hint}` are no longer read by services
+12.12.0 and stay only for services ≤ 12.11.0.
+
 ## 6.14.0
 
 Every SDK read that typed the `{ data }` envelope and read `.data` again came

@@ -18,6 +18,11 @@ const SHIPPED_LOCALES = [
   'ko-KR',
   'zh-CN',
   'ar-SA',
+  'bn-BD',
+  'hi-IN',
+  'id-ID',
+  'ru-RU',
+  'tr-TR',
 ] as const;
 const REGION_VARIANT = 'es-MX';
 const UNSHIPPED_LOCALE = 'nl-NL';
@@ -47,13 +52,14 @@ describe('accountCategoryLabel', () => {
     },
   );
 
-  it('falls back to English for a language with no category translations', () => {
-    // German ships a dictionary but no category labels, so it exercises
-    // `translate`'s PER-KEY English fallback rather than its locale fallback.
-    expect(accountCategoryLabel('de-DE', 'cooperative')).toBe(
-      EN_ACCOUNT_CATEGORY_LABELS.cooperative,
-    );
-  });
+  it.each(SHIPPED_LOCALES.filter((locale) => locale !== 'en-US'))(
+    'names the categories in %s, not in English',
+    (locale) => {
+      expect(accountCategoryLabel(locale, 'cooperative')).not.toBe(
+        EN_ACCOUNT_CATEGORY_LABELS.cooperative,
+      );
+    },
+  );
 
   it('resolves a region variant through its base language', () => {
     expect(accountCategoryLabel('es-MX', 'news')).toBe(accountCategoryLabel('es-ES', 'news'));
