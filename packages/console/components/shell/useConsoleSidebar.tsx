@@ -119,7 +119,7 @@ export function useConsoleSidebar({ onAction }: { onAction?: () => void } = {}):
     if (!currentAccount) return undefined;
     const { yourAccounts, sharedAccounts, childrenOf } = buildWorkspaceTree(accounts);
 
-    const switchTo = async (node: AccountNode) => {
+    const activateWorkspace = async (node: AccountNode) => {
       if (node.accountId === currentAccount.accountId) return;
       try {
         await setCurrentAccount(node);
@@ -137,7 +137,7 @@ export function useConsoleSidebar({ onAction }: { onAction?: () => void } = {}):
           avatar: avatarOf(node),
           description: labels.accountRole(node) ?? labels.kind(node.kind),
           selected: node.accountId === currentAccount.accountId,
-          onPress: () => void switchTo(node),
+          onPress: () => void activateWorkspace(node),
         })),
       );
 
