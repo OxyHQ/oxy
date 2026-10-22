@@ -210,11 +210,7 @@
       // Console: import/no-commonjs and node/prefer-node-protocol were errors. The
       // Expo/Metro/Babel/Jest config files and the export script are CommonJS by
       // contract (same as packages/accounts), so only app source is held to it.
-      "includes": [
-        "packages/console/**",
-        "!packages/console/*.js",
-        "!packages/console/scripts/**"
-      ],
+      "includes": ["packages/console/**", "!packages/console/*.js", "!packages/console/scripts/**"],
       "linter": {
         "rules": {
           "style": { "noCommonJs": "error", "useNodejsImportProtocol": "error" }
