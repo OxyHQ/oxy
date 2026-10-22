@@ -351,7 +351,7 @@ export function UsageSpend() {
                   label: t('appsInference.reporting.netCharged'),
                   value: formatMoney(total.netAmount, total.currency),
                   delta: t('appsInference.reporting.netOver', {
-                    count: formatCount(total.receiptCount),
+                    count: total.receiptCount,
                   }),
                   deltaColor: 'neutral' as const,
                 }))}

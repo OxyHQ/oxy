@@ -52,31 +52,49 @@ export function UsageTable({
         flex: 1.5,
         accessor: (row) => labelOf(row.key),
         sortDescFirst: false,
-        cell: ({ row }) => <Text numberOfLines={1}>{labelOf(row.key)}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm text-foreground" numberOfLines={1}>
+            {labelOf(row.key)}
+          </Text>
+        ),
       },
       {
         id: 'requests',
         header: t('usagePage.table.requests'),
         accessor: (row) => row.requests,
-        cell: ({ row }) => <Text className="tabular-nums">{formatCount(row.requests)}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm tabular-nums text-foreground">{formatCount(row.requests)}</Text>
+        ),
       },
       {
         id: 'errors',
         header: t('usagePage.table.errors'),
         accessor: (row) => row.errors,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.errors)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.errors)}
+          </Muted>
+        ),
       },
       {
         id: 'input',
         header: t('usagePage.table.inputTokens'),
         accessor: (row) => row.inputTokens,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.inputTokens)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.inputTokens)}
+          </Muted>
+        ),
       },
       {
         id: 'output',
         header: t('usagePage.table.outputTokens'),
         accessor: (row) => row.outputTokens,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.outputTokens)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.outputTokens)}
+          </Muted>
+        ),
       },
       ...(linksToApplication
         ? [

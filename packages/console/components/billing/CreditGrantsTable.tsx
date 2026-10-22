@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import type { useCreditGrants } from '@/hooks/use-billing';
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatCount } from '@/lib/money';
 
@@ -18,6 +19,7 @@ type Grant = NonNullable<ReturnType<typeof useCreditGrants>['data']>[number];
  */
 export function CreditGrantsTable({ grants }: { grants: ReadonlyArray<Grant> }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
 
   const columns = useMemo<DataTableColumn<Grant>[]>(
     () => [
@@ -28,13 +30,15 @@ export function CreditGrantsTable({ grants }: { grants: ReadonlyArray<Grant> }) 
         accessor: (row) => row.origin,
         sortDescFirst: false,
         cell: ({ row }) => (
-          <View>
-            <Text numberOfLines={1}>{row.origin.replaceAll('_', ' ')}</Text>
-            <Muted className="text-xs" numberOfLines={1}>
+          <View className="w-full min-w-0">
+            <Text className="text-sm text-foreground" numberOfLines={1}>
+              {row.origin.replaceAll('_', ' ')}
+            </Text>
+            <Muted className="text-xs text-muted-foreground" numberOfLines={1}>
               {t('billingPage.plans.grantInvoice', {
                 invoice: row.invoiceId,
-                start: new Date(row.period.start).toLocaleDateString(),
-                end: new Date(row.period.end).toLocaleDateString(),
+                start: dates.date(row.period.start),
+                end: dates.date(row.period.end),
               })}
             </Muted>
           </View>
@@ -44,29 +48,43 @@ export function CreditGrantsTable({ grants }: { grants: ReadonlyArray<Grant> }) 
         id: 'granted',
         header: t('billingPage.plans.grants.granted'),
         accessor: (row) => row.granted,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.granted)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.granted)}
+          </Muted>
+        ),
       },
       {
         id: 'consumed',
         header: t('billingPage.plans.grants.consumed'),
         accessor: (row) => row.consumed,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.consumed)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.consumed)}
+          </Muted>
+        ),
       },
       {
         id: 'refunded',
         header: t('billingPage.plans.grants.refunded'),
         accessor: (row) => row.clawed,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.clawed)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.clawed)}
+          </Muted>
+        ),
       },
       {
         id: 'remaining',
         header: t('billingPage.plans.grants.remaining'),
         align: 'end',
         accessor: (row) => row.remaining,
-        cell: ({ row }) => <Text className="tabular-nums">{formatCount(row.remaining)}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm tabular-nums text-foreground">{formatCount(row.remaining)}</Text>
+        ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   return (

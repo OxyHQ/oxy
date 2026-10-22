@@ -7,7 +7,7 @@ import { StatCards, type StatCardsItem } from '@oxy.so/bloom/stat-cards';
 import { useMemo } from 'react';
 
 import { useTranslation } from '@/lib/i18n';
-import { formatCount, formatMoney } from '@/lib/money';
+import { formatCount, formatMoneyHeadline } from '@/lib/money';
 import type { SpendRow, SpendTotal } from '@/lib/reporting';
 import {
   type ChartWindow,
@@ -57,19 +57,19 @@ export function SpendStats({
       tile(
         RiMoneyDollarCircleLine,
         t('billingPage.spend.netCharged'),
-        formatMoney(total.netAmount, total.currency),
+        formatMoneyHeadline(total.netAmount, total.currency),
         (row) => plotNumber(row.netAmount),
       ),
       tile(
         RiFileList3Line,
         t('billingPage.spend.beforeReversals'),
-        formatMoney(total.billedAmount, total.currency),
+        formatMoneyHeadline(total.billedAmount, total.currency),
         (row) => plotNumber(row.billedAmount),
       ),
       tile(
         RiArrowGoBackLine,
         t('billingPage.spend.refundedTotal'),
-        formatMoney(total.refundedAmount, total.currency),
+        formatMoneyHeadline(total.refundedAmount, total.currency),
         (row) => plotNumber(row.refundedAmount),
       ),
       tile(

@@ -93,6 +93,8 @@ const es: LocaleDict = {
     playground: 'Playground',
     usage: 'Uso',
     billing: 'Facturación',
+    clarity: 'Clarity',
+    claims: 'Reclamaciones de contenido',
     documentation: 'Documentación',
     settings: 'Ajustes',
   },
@@ -119,11 +121,19 @@ const es: LocaleDict = {
     subtitle: 'Aplicaciones que posees o en las que colaboras',
     backToList: 'Volver a aplicaciones',
     selectTitle: 'Selecciona una aplicación',
+    detailEmptyTitle: 'Las aplicaciones que crees aparecerán aquí',
+    detailEmptyBody: 'Cada aplicación tiene sus propias credenciales, roles, webhooks y uso.',
     selectBody:
       'Elige una aplicación de la lista para gestionar su configuración, credenciales y uso.',
     loadFailed: 'No se pudo cargar esta aplicación.',
     createdOn: 'Creada el {{date}}',
-    status: { active: 'Activa', inactive: 'Inactiva' },
+    status: {
+      active: 'Activa',
+      pending_review: 'En revisión',
+      suspended: 'Suspendida',
+      deleted: 'Eliminada',
+      inactive: 'Inactiva',
+    },
     fields: {
       name: 'Nombre',
       namePlaceholder: 'Mi aplicación genial',
@@ -179,9 +189,9 @@ const es: LocaleDict = {
       redirectBody:
         'Lista de permitidos de coincidencia exacta para redirecciones OAuth. Añade cada URI que use tu aplicación.',
       redirectRemove: 'Quitar {{uri}}',
-      paymentsTitle: 'Permisos de Peable',
+      paymentsTitle: 'Permisos de pagos',
       paymentsBody:
-        'Concede los permisos de pagos antes de crear una credencial de servicio para integraciones de Peable.',
+        'Concede los permisos de pagos antes de crear una credencial de servicio para integraciones de pagos.',
       aliaTitle: 'Chat e inferencia de Alia',
       aliaBody:
         'Chat de Alia solo para la aplicación, facturado a esta aplicación. Selecciona ambas capacidades al crear una clave de API.',
@@ -207,7 +217,7 @@ const es: LocaleDict = {
       lastUsed: 'Último uso',
       neverUsed: 'Nunca',
       statuses: { active: 'Activa', deprecated: 'Rotada', revoked: 'Revocada' },
-      expiresOn: 'Deja de funcionar el {{date}}',
+      expiresOn: 'Hasta el {{date}}',
       actions: 'Acciones',
       count_one: '{{count}} credencial',
       count_other: '{{count}} credenciales',
@@ -545,6 +555,8 @@ const es: LocaleDict = {
           'Cuando una solicitud se atendió en un lugar distinto de su primera ruta. Un cambio entre modelos solo aparece si tu propia política autorizó ese destino por su nombre.',
         empty: 'No se ha registrado ningún cambio de ruta.',
         differentModel: 'Otro modelo',
+        showAll: 'Mostrar los {{count}} cambios',
+        showFewer: 'Mostrar menos cambios',
         sameModel: 'Mismo modelo, otro despliegue',
       },
     },
@@ -871,7 +883,6 @@ const es: LocaleDict = {
   },
 
   appsStore: {
-    loadFailed: 'No se pudo cargar la página de la tienda.',
     sections: {
       listing: 'Ficha',
       support: 'Soporte',
@@ -958,7 +969,6 @@ const es: LocaleDict = {
       'Canales de publicación y la cabecera actual de cada runtime × plataforma. Promueve una compilación o revierte al instante sin un binario nuevo.',
     noPermission: 'No tienes permiso para gestionar las actualizaciones de esta aplicación.',
     loadFailed: 'No se pudieron cargar los canales de actualización.',
-    retry: 'Reintentar',
     empty: {
       title: 'Todavía no hay actualizaciones publicadas',
       body: 'Los canales se crean la primera vez que publicas. Desde el directorio de tu app, ejecuta `oxy-ship publish --channel production` para enviar tu primera actualización por aire.',
@@ -970,9 +980,8 @@ const es: LocaleDict = {
     table: 'Cabeceras del canal {{channel}}',
     columns: {
       runtime: 'Runtime',
-      update: 'Actualización',
+      update: 'Actualización / commit',
       message: 'Mensaje',
-      commit: 'Commit',
       age: 'Antigüedad',
       rollout: 'Despliegue',
       status: 'Estado',
@@ -1306,6 +1315,21 @@ const es: LocaleDict = {
       quotasDescription: 'Límites asociados a la cuenta de Oxy activa.',
       measuredTitle: 'Uso medido',
       measuredDescription: 'El libro de uso de la cuenta en Clarity.',
+      quota: {
+        searchesPerMonth: 'Búsquedas al mes',
+        fetchesPerMonth: 'Descargas de páginas al mes',
+        sites: 'Sitios registrados',
+        activeCrawls: 'Rastreos simultáneos',
+        pagesPerCrawl: 'Páginas por rastreo',
+        requestsPerMinuteCredential: 'Solicitudes por minuto, por credencial',
+        requestsPerMinuteApplication: 'Solicitudes por minuto, por aplicación',
+      },
+      operations: {
+        search: 'Búsquedas',
+        fetch_started: 'Descargas de páginas',
+        page_indexed: 'Páginas indexadas',
+        browser_render: 'Renderizados en navegador',
+      },
       none: 'No se ha registrado ningún uso.',
       operation: 'Operación',
       period: 'Periodo',
@@ -1482,7 +1506,7 @@ const es: LocaleDict = {
       blockSelected: 'Bloquear {{count}} seleccionados',
       blockAll: 'Bloquear todos los objetivos de archivo',
       block: {
-        titleWithCount: 'Bloquear estos archivos ({{label}})',
+        titleWithCount: 'Bloquear {{count}} archivos seleccionados',
         title: 'Bloquear estos archivos',
         description:
           'Esto retira los bytes exactos de los archivos para TODOS los propietarios que los tienen, no solo el nombrado: cada copia deja de servirse, sale de la CDN y nadie podrá volver a subirla, importarla ni copiarla. Se avisa por correo a los propietarios y se informa a las aplicaciones que usan los archivos. Al reclamante se le comunica que el contenido fue retirado.',
@@ -1539,7 +1563,6 @@ const es: LocaleDict = {
     placeholder: 'Escribe un comando o busca…',
     empty: 'No se encontraron resultados.',
     createApp: 'Crear nueva app',
-    clarity: 'Clarity Search',
     groups: { actions: 'Acciones', navigation: 'Navegación' },
   },
 
@@ -1595,6 +1618,7 @@ const es: LocaleDict = {
   },
 
   dashboardPage: {
+    subtitleWorkspace: 'Actividad en {{name}} de un vistazo.',
     headline: 'Vamos a ponerte en marcha',
     welcome: 'Te damos la bienvenida a tu nueva cuenta. Sigue los pasos destacados para empezar en pocos minutos.',
     inviteTeam: 'Invitar a tu equipo',
@@ -1603,6 +1627,7 @@ const es: LocaleDict = {
       credits: 'Compra algunos créditos',
       creditsAction: 'Comprar',
       application: 'Crea tu primera aplicación',
+      applicationIn: 'Crea tu primera aplicación en {{workspace}}',
       applicationAction: 'Crear',
       request: 'Haz tu primera solicitud',
       requestAction: 'Ver documentación',
@@ -1837,9 +1862,9 @@ const es: LocaleDict = {
       heldAcross_one: 'en {{count}} solicitud',
       heldAcross_other: 'en {{count}} solicitudes',
       heldAcross_zero: 'en {{count}} solicitudes',
-      heldSummary_one: '{{count}} solicitud en curso. Autorizada por lo máximo que podría costar; no se ha cobrado nada.',
-      heldSummary_other: '{{count}} solicitudes en curso. Autorizadas por lo máximo que podría costar cada una; no se ha cobrado nada.',
-      heldSummary_zero: '{{count}} solicitudes en curso. Autorizadas por lo máximo que podría costar cada una; no se ha cobrado nada.',
+      heldSummary_one: '{{count}} solicitud en curso',
+      heldSummary_other: '{{count}} solicitudes en curso',
+      heldSummary_zero: '{{count}} solicitudes en curso',
       heldTruncated: 'Hay más retenciones de las que se listan.',
       heldTable: 'Reservas retenidas',
       request: 'Solicitud',
@@ -1917,7 +1942,7 @@ const es: LocaleDict = {
       rearmed: 'Presupuesto rearmado.',
       disabled: 'Presupuesto desactivado.',
       alertsTitle: 'Umbrales alcanzados',
-      alertsBody: 'Cada uno se registra una vez por presupuesto, periodo y umbral, así que una alerta no se repite en cada solicitud durante el resto del periodo.',
+      alertsBody: 'Una alerta por presupuesto, periodo y umbral.',
       noAlerts: 'No se ha alcanzado ningún umbral.',
       alerts: {
         label: 'Umbrales alcanzados',
@@ -2001,7 +2026,10 @@ const es: LocaleDict = {
       creditsCount: '{{credits}} créditos',
       purchase: 'Comprar',
       grantsTitle: 'Créditos concedidos',
-      grantsBody: 'De dónde vinieron los créditos y cuánto queda. El gasto usa las concesiones registradas por orden FIFO, después los créditos de pago históricos y por último los gratuitos. Los créditos mixtos históricos se conservan sin un origen inferido.',
+      grantsBody: 'De dónde vinieron los créditos y cuánto queda de cada uno.',
+      currentPlan: 'Plan actual',
+      creditsPlan: 'Plan de créditos',
+      grantsNote: 'El gasto usa las concesiones registradas por orden FIFO, después los créditos de pago históricos y por último los gratuitos. Los créditos mixtos históricos se conservan sin un origen inferido.',
       grantInvoice: 'Factura {{invoice}} · {{start}} – {{end}}',
       noGrants: 'Sin créditos concedidos',
       grants: {
@@ -2233,6 +2261,10 @@ const es: LocaleDict = {
     skip: 'Omitir',
     stepCount: 'Paso {{position}} de {{total}}',
     saveFailed: 'No se pudo guardar tu respuesta. Inténtalo de nuevo.',
+    unavailable: {
+      title: 'La bienvenida no está disponible ahora',
+      body: 'No pudimos cargar tu configuración. Revisa tu conexión e inténtalo de nuevo.',
+    },
     steps: { terms: 'Términos', useCases: 'Casos de uso' },
     welcome: {
       title: 'Te damos la bienvenida a Oxy Console',

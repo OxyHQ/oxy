@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 
 import type { Application, AppUsageStats, CallerAccess } from '@/hooks/use-applications';
 import { useApplicationUsage } from '@/hooks/use-applications';
+import { formatDate } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 
 const PERIODS = ['24h', '7d', '30d', '90d'] as const;
@@ -22,6 +23,12 @@ type EndpointRow = AppUsageStats['byEndpoint'][number];
 
 const count = (value: number) => value.toLocaleString();
 
+/** `2026-10-22` is a calendar day, not an instant: read it in local time so it never shifts. */
+const dayStart = (day: string) => {
+  const [year = 0, month = 1, date = 1] = day.split('-').map(Number);
+  return new Date(year, month - 1, date);
+};
+
 /** Platform API calls made with this application's credentials, over a period. */
 export function UsagePanel({
   application,
@@ -30,7 +37,7 @@ export function UsagePanel({
   application: Application;
   access: CallerAccess;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const canRead = access.can('usage:read');
   const [period, setPeriod] = useState<string>('7d');
   const {
@@ -47,7 +54,7 @@ export function UsagePanel({
         header: t('applications.usage.day'),
         accessor: (row) => row._id,
         minWidth: 140,
-        cell: ({ row }) => <Text>{row._id}</Text>,
+        cell: ({ row }) => <Text>{formatDate(dayStart(row._id), locale)}</Text>,
       },
       {
         id: 'requests',
@@ -74,7 +81,7 @@ export function UsagePanel({
         cell: ({ row }) => <Muted className="tabular-nums">{count(row.credits)}</Muted>,
       },
     ],
-    [t],
+    [t, locale],
   );
 
   const endpointColumns = useMemo<ReadonlyArray<DataTableColumn<EndpointRow>>>(
@@ -144,7 +151,10 @@ export function UsagePanel({
           {byDay.length > 0 ? (
             <AreaChartCard
               title={t('applications.usage.totalRequests')}
-              data={byDay.map((day) => ({ label: day._id, requests: day.requests }))}
+              data={byDay.map((day) => ({
+                label: formatDate(dayStart(day._id), locale, 'short'),
+                requests: day.requests,
+              }))}
               series={[{ key: 'requests', label: t('applications.usage.totalRequests') }]}
               variant="overlap"
               format={count}

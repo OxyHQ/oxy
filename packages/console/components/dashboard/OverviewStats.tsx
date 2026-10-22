@@ -7,7 +7,7 @@ import { StatCards, type StatCardsItem } from '@oxy.so/bloom/stat-cards';
 import { useMemo } from 'react';
 
 import { useTranslation } from '@/lib/i18n';
-import { formatCount, formatMoney } from '@/lib/money';
+import { formatCount, formatMoneyHeadline } from '@/lib/money';
 import type {
   LedgerBalanceResponse,
   SpendReportResponse,
@@ -71,19 +71,22 @@ export function OverviewStats({
       {
         icon: RiMoneyDollarCircleLine,
         label: t('dashboardPage.stats.spend'),
-        value: total === undefined ? '—' : formatMoney(total.netAmount, total.currency),
+        value: total === undefined ? '—' : formatMoneyHeadline(total.netAmount, total.currency),
         ...deltaChip(trendRatio(spendDaily, 7), 'neutral'),
         accessory: <Sparkline data={spendDaily} />,
       },
       {
         icon: RiBankCardLine,
         label: t('dashboardPage.stats.available'),
-        value: bucket === undefined ? '—' : formatMoney(bucket.availableToSpend, bucket.currency),
+        value:
+          bucket === undefined
+            ? '—'
+            : formatMoneyHeadline(bucket.availableToSpend, bucket.currency),
         delta:
           bucket === undefined
             ? '—'
             : t('dashboardPage.stats.held', {
-                amount: formatMoney(bucket.reserved, bucket.currency),
+                amount: formatMoneyHeadline(bucket.reserved, bucket.currency),
               }),
         deltaColor: 'neutral',
       },

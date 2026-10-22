@@ -1,7 +1,6 @@
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
@@ -18,13 +17,15 @@ import { View } from 'react-native';
 
 import { useAccount } from '@/hooks/use-account';
 import { useApplications } from '@/hooks/use-applications';
+import { formatDate } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
+import { ApplicationStatusBadge } from './ApplicationStatusBadge';
 import { CreateApplicationDialog } from './CreateApplicationDialog';
 
 /** The list panel: the account's applications, a filter and the create action. */
 export function ApplicationsList() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const { oxyServices } = useAuth();
@@ -42,14 +43,16 @@ export function ApplicationsList() {
   // the role name: a per-member revoke can withdraw it without changing the role.
   const canCreate = currentAccount ? canCreateApplications(currentAccount) : false;
 
+  // A deleted application is an audit record, not something to manage.
+  const listed = applications.filter((app) => app.status !== 'deleted');
   const needle = query.trim().toLowerCase();
   const visible = needle
-    ? applications.filter(
+    ? listed.filter(
         (app) =>
           app.name.toLowerCase().includes(needle) ||
           (app.description ?? '').toLowerCase().includes(needle),
       )
-    : applications;
+    : listed;
 
   return (
     <Screen
@@ -74,7 +77,7 @@ export function ApplicationsList() {
       }
     >
       <ScreenScrollView contentContainerClassName="gap-2 p-2 pb-6">
-        {applications.length > 5 ? (
+        {listed.length > 5 ? (
           <View className="px-2 pb-1">
             <Search
               label={t('applications.search')}
@@ -103,7 +106,7 @@ export function ApplicationsList() {
               {t('applications.retry')}
             </Button>
           </Admonition>
-        ) : applications.length === 0 ? (
+        ) : listed.length === 0 ? (
           <EmptyState
             icon={RiBox3Line}
             title={t('applications.empty.title')}
@@ -133,7 +136,7 @@ export function ApplicationsList() {
               subtitle={
                 app.description ||
                 t('applications.createdOn', {
-                  date: new Date(app.createdAt).toLocaleDateString(),
+                  date: formatDate(app.createdAt, locale),
                 })
               }
               leading={
@@ -143,18 +146,7 @@ export function ApplicationsList() {
                   source={resolveStoredImageUrl(oxyServices, app.icon) ?? null}
                 />
               }
-              trailing={
-                <Badge
-                  content={
-                    app.status === 'active'
-                      ? t('applications.status.active')
-                      : t('applications.status.inactive')
-                  }
-                  size="label-small"
-                  variant={app.status === 'active' ? 'solid' : 'subtle'}
-                  color={app.status === 'active' ? 'success' : 'default'}
-                />
-              }
+              trailing={<ApplicationStatusBadge status={app.status} />}
             />
           ))
         )}

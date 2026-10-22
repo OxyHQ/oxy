@@ -19,6 +19,7 @@ import {
   billingAuditReferences,
 } from '@/lib/billing-audit';
 import { humaniseAuditToken } from '@/lib/credential-audit';
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 
 const KINDS = [
@@ -52,6 +53,7 @@ export function BillingAuditTable({
   onLoadMore: () => void;
 }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
   const [kind, setKind] = useState('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -76,7 +78,7 @@ export function BillingAuditTable({
         header: t('billingPage.audit.when'),
         flex: 1.1,
         sortable: false,
-        cell: ({ row }) => <Muted>{new Date(row.createdAt).toLocaleString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.dateTime(row.createdAt)}</Muted>,
       },
       {
         id: 'change',
@@ -89,7 +91,9 @@ export function BillingAuditTable({
             <Chip size="md" hue="neutral">
               {humaniseAuditToken(row.kind)}
             </Chip>
-            <Muted className="text-xs">{t(`billingPage.audit.kinds.${row.kind}`)}</Muted>
+            <Muted className="text-xs text-muted-foreground">
+              {t(`billingPage.audit.kinds.${row.kind}`)}
+            </Muted>
           </View>
         ),
       },
@@ -104,13 +108,13 @@ export function BillingAuditTable({
             <View className="gap-0.5">
               {references.map((reference) => (
                 <Text key={reference.id} className="font-mono text-xs" numberOfLines={1}>
-                  <Muted className="text-xs">
+                  <Muted className="text-xs text-muted-foreground">
                     {t(`billingPage.audit.references.${reference.label}`)}{' '}
                   </Muted>
                   {reference.id}
                 </Text>
               ))}
-              <Muted className="font-mono text-xs" numberOfLines={1}>
+              <Muted className="font-mono text-xs text-muted-foreground" numberOfLines={1}>
                 {t('billingPage.audit.entry', { id: row.id })}
               </Muted>
             </View>
@@ -140,7 +144,7 @@ export function BillingAuditTable({
         ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   return (

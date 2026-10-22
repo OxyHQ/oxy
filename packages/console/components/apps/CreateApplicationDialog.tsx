@@ -60,7 +60,7 @@ export function CreateApplicationDialog({ open, onClose }: { open: boolean; onCl
         },
       ]}
     >
-      <View className="gap-4">
+      <View className="gap-4 pb-4">
         <Field label={t('applications.fields.name')} required>
           <TextFieldInput
             label={t('applications.fields.name')}

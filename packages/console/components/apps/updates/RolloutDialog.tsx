@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { View } from 'react-native';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';
 import { Slider } from '@oxy.so/bloom/slider';
@@ -44,16 +45,18 @@ export function RolloutDialog({
         { label: t('common.cancel'), color: 'cancel' },
       ]}
     >
-      <Field label={t('appsUpdates.promote.rollout')} description={`${rollout}%`}>
-        <Slider
-          value={rollout}
-          onValueChange={(next) => setRollout(Math.round(next))}
-          min={0}
-          max={100}
-          step={1}
-          accessibilityLabel={t('appsUpdates.promote.rollout')}
-        />
-      </Field>
+      <View className="pb-4">
+        <Field label={t('appsUpdates.promote.rollout')} description={`${rollout}%`}>
+          <Slider
+            value={rollout}
+            onValueChange={(next) => setRollout(Math.round(next))}
+            min={0}
+            max={100}
+            step={1}
+            accessibilityLabel={t('appsUpdates.promote.rollout')}
+          />
+        </Field>
+      </View>
     </Dialog>
   );
 }

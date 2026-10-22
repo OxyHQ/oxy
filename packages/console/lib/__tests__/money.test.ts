@@ -4,6 +4,7 @@ import {
   formatBasisPoints,
   formatCount,
   formatMoney,
+  formatMoneyHeadline,
   isUnitPriceAtMost,
   isZeroAmount,
 } from '@/lib/money';
@@ -201,5 +202,18 @@ describe('formatCount', () => {
   it('groups counts, which are integers and not money', () => {
     expect(formatCount(0)).toBe('0');
     expect(formatCount(1234567)).toBe('1,234,567');
+  });
+});
+
+describe('formatMoneyHeadline', () => {
+  it('rounds half-up to cents without a float', () => {
+    expect(formatMoneyHeadline('1321.966900000000', 'USD')).toBe('1,321.97 USD');
+    expect(formatMoneyHeadline('12.4031', 'USD')).toBe('12.40 USD');
+    expect(formatMoneyHeadline('9.995', 'USD')).toBe('10.00 USD');
+    expect(formatMoneyHeadline('473.51', 'USD')).toBe('473.51 USD');
+  });
+
+  it('keeps sub-cent amounts exact', () => {
+    expect(formatMoneyHeadline('0.003456', 'USD')).toBe('0.003456 USD');
   });
 });

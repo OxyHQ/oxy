@@ -8,7 +8,7 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
 
 import { useTranslation } from '@/lib/i18n';
-import { formatMoney } from '@/lib/money';
+import { formatMoneyHeadline } from '@/lib/money';
 import type { LedgerBalanceResponse } from '@/lib/reporting';
 import { plotNumber } from '@/lib/reporting-charts';
 
@@ -27,7 +27,7 @@ export function BalanceStats({ balance }: { balance: LedgerBalanceResponse }) {
   return (
     <View className="gap-6">
       {balance.balances.map((bucket) => {
-        const money = (amount: string) => formatMoney(amount, bucket.currency);
+        const money = (amount: string) => formatMoneyHeadline(amount, bucket.currency);
         return (
           <View key={bucket.currency} className="gap-4">
             {manyCurrencies ? <Text variant="headline-semibold">{bucket.currency}</Text> : null}

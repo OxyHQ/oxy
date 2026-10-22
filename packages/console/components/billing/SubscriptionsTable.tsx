@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import type { Subscription, useProductSubscriptions } from '@/hooks/use-billing';
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatCount } from '@/lib/money';
 
@@ -53,6 +54,7 @@ export function SubscriptionsTable({
   onCancel: (pending: PendingCancel) => void;
 }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
 
   const rows = useMemo<SubscriptionRow[]>(
     () => [
@@ -97,10 +99,12 @@ export function SubscriptionsTable({
         accessor: (row) => row.name,
         sortDescFirst: false,
         cell: ({ row }) => (
-          <View>
-            <Text numberOfLines={1}>{row.name}</Text>
+          <View className="w-full min-w-0">
+            <Text className="text-sm text-foreground" numberOfLines={1}>
+              {row.name}
+            </Text>
             {row.detail === '' ? null : (
-              <Muted className="text-xs" numberOfLines={1}>
+              <Muted className="text-xs text-muted-foreground" numberOfLines={1}>
                 {row.detail}
               </Muted>
             )}
@@ -131,7 +135,7 @@ export function SubscriptionsTable({
         id: 'period',
         header: t('billingPage.plans.columns.through'),
         accessor: (row) => Date.parse(row.periodEnd),
-        cell: ({ row }) => <Muted>{new Date(row.periodEnd).toLocaleDateString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.date(row.periodEnd)}</Muted>,
       },
       {
         id: 'actions',

@@ -12,6 +12,8 @@ export function useClarityClient(): ClarityClient {
     () =>
       new ClarityClient({
         baseUrl: config.clarityUrl,
+        // The SDK calls this as a method of itself; a bare `fetch` throws "Illegal invocation".
+        fetch: (input, init) => fetch(input, init),
         getAccessToken: () => {
           const token = oxyServices.session.accessToken;
           if (!token) throw new Error('Your Oxy session is not ready.');

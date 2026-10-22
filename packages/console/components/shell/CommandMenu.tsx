@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { Platform, Linking } from 'react-native';
 import { create } from 'zustand';
 
+import { useContentClaimsAccess } from '@/hooks/use-content-claims';
 import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { useTranslation } from '@/lib/i18n';
 import { buildCommandItems } from './command-menu-items';
@@ -33,6 +34,7 @@ export function CommandMenu() {
   const { t } = useTranslation();
   const router = useRouter();
   const { open: openSettings } = useConsoleSettings();
+  const isStaff = useContentClaimsAccess().data?.canReview === true;
   const open = useCommandMenuState((state) => state.open);
   const setOpen = useCommandMenuState((state) => state.setOpen);
 
@@ -55,8 +57,9 @@ export function CommandMenu() {
         openExternal: (url) => void Linking.openURL(url),
         openSettings: () => openSettings(),
         createWorkspace: openCreateWorkspace,
+        isStaff,
       }),
-    [t, router, openSettings],
+    [t, router, openSettings, isStaff],
   );
 
   return (

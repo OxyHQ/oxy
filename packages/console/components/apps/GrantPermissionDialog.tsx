@@ -77,7 +77,7 @@ export function GrantPermissionDialog({
         },
       ]}
     >
-      <View className="gap-4">
+      <View className="gap-4 pb-4">
         <Field label={t('applications.roles.username')}>
           <TextFieldInput
             label={t('applications.roles.username')}

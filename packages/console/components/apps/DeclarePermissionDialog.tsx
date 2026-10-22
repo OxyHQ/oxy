@@ -64,7 +64,7 @@ export function DeclarePermissionDialog({
         },
       ]}
     >
-      <View className="gap-4">
+      <View className="gap-4 pb-4">
         <Field label={t('applications.roles.key')} error={keyError}>
           <TextFieldInput
             label={t('applications.roles.key')}

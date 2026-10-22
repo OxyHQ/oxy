@@ -5,8 +5,9 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
 
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
-import { formatAmount, formatBasisPoints } from '@/lib/money';
+import { formatAmount, formatBasisPoints, formatMoney } from '@/lib/money';
 import type { BudgetAlert } from '@/lib/reporting';
 
 /**
@@ -18,12 +19,16 @@ import type { BudgetAlert } from '@/lib/reporting';
 export function BudgetAlertsTable({
   alerts,
   budgetName,
+  budgetCurrency,
 }: {
   alerts: ReadonlyArray<BudgetAlert>;
   /** The budget's scope in words, from its id. */
   budgetName: (spendingLimitId: string) => string;
+  /** The budget's currency, if the budget is still listed. */
+  budgetCurrency: (spendingLimitId: string) => string | undefined;
 }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
 
   const columns = useMemo<DataTableColumn<BudgetAlert>[]>(
     () => [
@@ -32,7 +37,7 @@ export function BudgetAlertsTable({
         header: t('billingPage.budgets.alerts.when'),
         flex: 1.2,
         accessor: (row) => Date.parse(row.createdAt),
-        cell: ({ row }) => <Muted>{new Date(row.createdAt).toLocaleString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.dateTime(row.createdAt)}</Muted>,
       },
       {
         id: 'budget',
@@ -40,7 +45,11 @@ export function BudgetAlertsTable({
         flex: 1.4,
         accessor: (row) => budgetName(row.spendingLimitId),
         sortDescFirst: false,
-        cell: ({ row }) => <Text numberOfLines={1}>{budgetName(row.spendingLimitId)}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm text-foreground" numberOfLines={1}>
+            {budgetName(row.spendingLimitId)}
+          </Text>
+        ),
       },
       {
         id: 'threshold',
@@ -56,10 +65,19 @@ export function BudgetAlertsTable({
         id: 'spend',
         header: t('billingPage.budgets.alerts.spend'),
         align: 'end',
-        cell: ({ row }) => <Text className="tabular-nums">{formatAmount(row.spendAmount)}</Text>,
+        cell: ({ row }) => {
+          const currency = budgetCurrency(row.spendingLimitId);
+          return (
+            <Text className="text-sm tabular-nums text-foreground">
+              {currency === undefined
+                ? formatAmount(row.spendAmount)
+                : formatMoney(row.spendAmount, currency)}
+            </Text>
+          );
+        },
       },
     ],
-    [budgetName, t],
+    [budgetName, budgetCurrency, dates, t],
   );
 
   return (

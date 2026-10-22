@@ -691,7 +691,9 @@ export function RoutingPolicyForm({
               <View className="max-w-64">
                 <Field label={t('appsInference.form.price.addPerUnit')}>
                   <Select
-                    value=""
+                    // Remounted per added unit so it returns to its placeholder: an empty
+                    // string is a value to Bloom's Select and would draw a blank trigger.
+                    key={perUnit.length}
                     onValueChange={(unit) =>
                       setPerUnit((current) => [
                         ...current,

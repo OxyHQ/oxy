@@ -6,6 +6,7 @@ import { RiReceiptLine } from '@oxy.so/bloom/icons/RiReceiptLine';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
 
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatCount, formatMoney } from '@/lib/money';
 import { plotNumber } from '@/lib/reporting-charts';
@@ -20,6 +21,7 @@ const STATUS_HUE: Record<BillingInvoice['status'], ChipHue> = {
 /** The account's invoices, newest period first. A prepaid account has none. */
 export function InvoicesTable({ invoices }: { invoices: ReadonlyArray<BillingInvoice> }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
 
   const columns = useMemo<DataTableColumn<BillingInvoice>[]>(
     () => [
@@ -29,9 +31,8 @@ export function InvoicesTable({ invoices }: { invoices: ReadonlyArray<BillingInv
         flex: 1.4,
         accessor: (row) => Date.parse(row.periodStart),
         cell: ({ row }) => (
-          <Text>
-            {new Date(row.periodStart).toLocaleDateString()} –{' '}
-            {new Date(row.periodEnd).toLocaleDateString()}
+          <Text className="text-sm text-foreground">
+            {dates.date(row.periodStart)} – {dates.date(row.periodEnd)}
           </Text>
         ),
       },
@@ -39,7 +40,11 @@ export function InvoicesTable({ invoices }: { invoices: ReadonlyArray<BillingInv
         id: 'charges',
         header: t('billingPage.invoices.charges'),
         accessor: (row) => row.receiptCount,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.receiptCount)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.receiptCount)}
+          </Muted>
+        ),
       },
       {
         id: 'status',
@@ -58,11 +63,13 @@ export function InvoicesTable({ invoices }: { invoices: ReadonlyArray<BillingInv
         // Sort order only; the cell shows the exact string.
         accessor: (row) => plotNumber(row.totalAmount),
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.totalAmount, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.totalAmount, row.currency)}
+          </Text>
         ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   return (

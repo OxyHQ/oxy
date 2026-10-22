@@ -94,6 +94,8 @@ const en: LocaleDict = {
     playground: 'Playground',
     usage: 'Usage',
     billing: 'Billing',
+    clarity: 'Clarity',
+    claims: 'Content claims',
     documentation: 'Documentation',
     settings: 'Settings',
   },
@@ -120,11 +122,19 @@ const en: LocaleDict = {
     subtitle: 'Applications you own or collaborate on',
     backToList: 'Back to applications',
     selectTitle: 'Select an application',
+    detailEmptyTitle: 'Applications you create show up here',
+    detailEmptyBody: 'Each application gets its own credentials, roles, webhooks and usage.',
     selectBody:
       'Choose an application from the list to manage its settings, credentials and usage.',
     loadFailed: 'This application could not be loaded.',
     createdOn: 'Created {{date}}',
-    status: { active: 'Active', inactive: 'Inactive' },
+    status: {
+      active: 'Active',
+      pending_review: 'In review',
+      suspended: 'Suspended',
+      deleted: 'Deleted',
+      inactive: 'Inactive',
+    },
     fields: {
       name: 'Name',
       namePlaceholder: 'My Awesome App',
@@ -180,9 +190,9 @@ const en: LocaleDict = {
       redirectBody:
         'Exact-match allowlist for OAuth redirects. Add each URI your application uses.',
       redirectRemove: 'Remove {{uri}}',
-      paymentsTitle: 'Peable permissions',
+      paymentsTitle: 'Payments permissions',
       paymentsBody:
-        'Grant payments scopes before creating a service credential for Peable integrations.',
+        'Grant payments scopes before creating a service credential for payment integrations.',
       aliaTitle: 'Alia chat and inference',
       aliaBody:
         'App-only Alia chat, billed to this application. Select both capabilities when creating an API key.',
@@ -208,7 +218,7 @@ const en: LocaleDict = {
       lastUsed: 'Last used',
       neverUsed: 'Never',
       statuses: { active: 'Active', deprecated: 'Rotated', revoked: 'Revoked' },
-      expiresOn: 'Stops working {{date}}',
+      expiresOn: 'Until {{date}}',
       actions: 'Actions',
       count_one: '{{count}} credential',
       count_other: '{{count}} credentials',
@@ -539,6 +549,8 @@ const en: LocaleDict = {
           'When a request was served somewhere other than its first route. A cross-model switch appears only where your own policy authorised that destination by name.',
         empty: 'No route switch has been recorded.',
         differentModel: 'Different model',
+        showAll: 'Show all {{count}} switches',
+        showFewer: 'Show fewer switches',
         sameModel: 'Same model, other deployment',
       },
     },
@@ -863,7 +875,6 @@ const en: LocaleDict = {
   },
 
   appsStore: {
-    loadFailed: 'The store page could not be loaded.',
     sections: {
       listing: 'Listing',
       support: 'Support',
@@ -950,7 +961,6 @@ const en: LocaleDict = {
       'Release channels and the current head of each runtime × platform. Promote a build forward, or roll back instantly without a new binary.',
     noPermission: 'You do not have permission to manage updates for this application.',
     loadFailed: 'Could not load update channels.',
-    retry: 'Try again',
     empty: {
       title: 'No updates published yet',
       body: 'Channels are created the first time you publish. From your app directory, run `oxy-ship publish --channel production` to ship your first over-the-air update.',
@@ -962,9 +972,8 @@ const en: LocaleDict = {
     table: 'Heads of channel {{channel}}',
     columns: {
       runtime: 'Runtime',
-      update: 'Update',
+      update: 'Update / commit',
       message: 'Message',
-      commit: 'Commit',
       age: 'Age',
       rollout: 'Rollout',
       status: 'Status',
@@ -1295,6 +1304,21 @@ const en: LocaleDict = {
       quotasDescription: 'Limits attached to the active Oxy account.',
       measuredTitle: 'Measured usage',
       measuredDescription: "Clarity's account usage ledger.",
+      quota: {
+        searchesPerMonth: 'Searches per month',
+        fetchesPerMonth: 'Page fetches per month',
+        sites: 'Registered sites',
+        activeCrawls: 'Concurrent crawls',
+        pagesPerCrawl: 'Pages per crawl',
+        requestsPerMinuteCredential: 'Requests per minute, per credential',
+        requestsPerMinuteApplication: 'Requests per minute, per application',
+      },
+      operations: {
+        search: 'Searches',
+        fetch_started: 'Page fetches',
+        page_indexed: 'Pages indexed',
+        browser_render: 'Browser renders',
+      },
       none: 'No usage has been recorded.',
       operation: 'Operation',
       period: 'Period',
@@ -1471,7 +1495,7 @@ const en: LocaleDict = {
       blockSelected: 'Block {{count}} selected',
       blockAll: 'Block every file target',
       block: {
-        titleWithCount: 'Block these files ({{label}})',
+        titleWithCount: 'Block {{count}} selected files',
         title: 'Block these files',
         description:
           "This takes the files' exact bytes down for EVERY owner who holds them, not only the one named: every copy stops being served, leaves the CDN, and can never be uploaded, imported or copied again by anyone. The owners are emailed and the applications using the files are told. The claimant is told the content was removed.",
@@ -1528,7 +1552,6 @@ const en: LocaleDict = {
     placeholder: 'Type a command or search…',
     empty: 'No results found.',
     createApp: 'Create new app',
-    clarity: 'Clarity Search',
     groups: { actions: 'Actions', navigation: 'Navigation' },
   },
 
@@ -1584,6 +1607,7 @@ const en: LocaleDict = {
   },
 
   dashboardPage: {
+    subtitleWorkspace: 'Activity in {{name}} at a glance.',
     headline: 'Let\'s get you up and running',
     welcome: 'Welcome to your new account. Follow the steps highlighted to get up and running in minutes.',
     inviteTeam: 'Invite your team',
@@ -1592,6 +1616,7 @@ const en: LocaleDict = {
       credits: 'Buy some credits',
       creditsAction: 'Purchase',
       application: 'Create your first application',
+      applicationIn: 'Create your first application in {{workspace}}',
       applicationAction: 'Create',
       request: 'Make your first request',
       requestAction: 'View docs',
@@ -1826,9 +1851,9 @@ const en: LocaleDict = {
       heldAcross_one: 'across {{count}} request',
       heldAcross_other: 'across {{count}} requests',
       heldAcross_zero: 'across {{count}} requests',
-      heldSummary_one: '{{count}} request in flight. Authorised against the most it could cost; nothing has been charged.',
-      heldSummary_other: '{{count}} requests in flight. Authorised against the most each could cost; nothing has been charged.',
-      heldSummary_zero: '{{count}} requests in flight. Authorised against the most each could cost; nothing has been charged.',
+      heldSummary_one: '{{count}} request in flight',
+      heldSummary_other: '{{count}} requests in flight',
+      heldSummary_zero: '{{count}} requests in flight',
       heldTruncated: 'More holds exist than are listed.',
       heldTable: 'Held reservations',
       request: 'Request',
@@ -1906,7 +1931,7 @@ const en: LocaleDict = {
       rearmed: 'Budget re-armed.',
       disabled: 'Budget disabled.',
       alertsTitle: 'Threshold crossings',
-      alertsBody: 'Each is recorded once per budget, period and threshold, so an alert does not re-fire on every request for the rest of the period.',
+      alertsBody: 'One alert per budget, period and threshold.',
       noAlerts: 'No thresholds have been crossed.',
       alerts: {
         label: 'Threshold crossings',
@@ -1990,7 +2015,10 @@ const en: LocaleDict = {
       creditsCount: '{{credits}} credits',
       purchase: 'Purchase',
       grantsTitle: 'Credit grants',
-      grantsBody: 'Where credits came from and how much is left. Spending uses tracked grants in FIFO order, then historical paid credits, then free credits. Historical mixed credits are kept without an inferred origin.',
+      grantsBody: 'Where credits came from and what is left of each.',
+      currentPlan: 'Current plan',
+      creditsPlan: 'Credit plan',
+      grantsNote: 'Spending uses tracked grants in FIFO order, then historical paid credits, then free credits. Historical mixed credits are kept without an inferred origin.',
       grantInvoice: 'Invoice {{invoice}} · {{start}} – {{end}}',
       noGrants: 'No credit grants',
       grants: {
@@ -2222,6 +2250,10 @@ const en: LocaleDict = {
     skip: 'Skip',
     stepCount: 'Step {{position}} of {{total}}',
     saveFailed: 'Could not save your answer. Try again.',
+    unavailable: {
+      title: 'The welcome is unavailable right now',
+      body: 'We could not load your setup. Check your connection and try again.',
+    },
     steps: { terms: 'Terms', useCases: 'Use cases' },
     welcome: {
       title: 'Welcome to Oxy Console',

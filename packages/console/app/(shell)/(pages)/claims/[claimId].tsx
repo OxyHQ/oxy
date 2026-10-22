@@ -25,6 +25,7 @@ export default function ContentClaimScreen() {
       header={
         <PageHeader
           title={claim.data?.reference ?? t('claimsPage.title')}
+          subtitle={claim.data ? t(`claimsPage.kinds.${claim.data.kind}`) : undefined}
           leading={<AppShellMenuButton />}
           onBack={() => router.navigate('/claims')}
           backLabel={t('claimsPage.detail.back')}

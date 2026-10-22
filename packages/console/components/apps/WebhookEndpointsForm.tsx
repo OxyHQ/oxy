@@ -68,7 +68,7 @@ export function WebhookEndpointsForm({
   };
 
   return (
-    <Card appearance="outline">
+    <Card appearance="plain" border="thin">
       <CardHeader>
         <CardTitle>{t('applications.webhooks.title')}</CardTitle>
         <CardDescription>{t('applications.webhooks.subtitle')}</CardDescription>

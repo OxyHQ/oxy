@@ -1,7 +1,6 @@
 import type { CommandItem } from '@oxy.so/bloom/command';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBuilding2Line } from '@oxy.so/bloom/icons/RiBuilding2Line';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 
 import type { TranslateFn } from '@/lib/i18n';
 import { CONSOLE_NAV, SETTINGS_NAV } from '@/lib/navigation';
@@ -11,15 +10,16 @@ export interface CommandMenuActions {
   openExternal: (url: string) => void;
   openSettings: () => void;
   createWorkspace: () => void;
+  /** Whether the signed-in account is staff with the claims capability. */
+  isStaff?: boolean;
 }
 
 /**
- * The palette's items: a few actions, then every sidebar section and Settings, then the
- * routes the sidebar leaves out. Pure, so it is testable without rendering.
+ * The palette's items: a few actions, then every sidebar section and Settings. Pure, so it is testable without rendering.
  */
 export function buildCommandItems(
   t: TranslateFn,
-  { navigate, openExternal, openSettings, createWorkspace }: CommandMenuActions,
+  { navigate, openExternal, openSettings, createWorkspace, isStaff = false }: CommandMenuActions,
 ): Array<CommandItem> {
   const group = (key: 'actions' | 'navigation') => t(`commandMenu.groups.${key}`);
   return [
@@ -39,7 +39,7 @@ export function buildCommandItems(
       keywords: ['new', 'organization', 'account'],
       onSelect: createWorkspace,
     },
-    ...CONSOLE_NAV.map((entry) => ({
+    ...CONSOLE_NAV.filter((entry) => !entry.staff || isStaff).map((entry) => ({
       id: `nav:${entry.href}`,
       label: t(entry.labelKey),
       icon: entry.icon as CommandItem['icon'],
@@ -52,13 +52,6 @@ export function buildCommandItems(
       icon: SETTINGS_NAV.icon as CommandItem['icon'],
       group: group('navigation'),
       onSelect: openSettings,
-    },
-    {
-      id: 'nav:/clarity',
-      label: t('commandMenu.clarity'),
-      icon: RiSearchLine,
-      group: group('navigation'),
-      onSelect: () => navigate('/clarity'),
     },
   ];
 }

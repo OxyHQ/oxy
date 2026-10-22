@@ -207,8 +207,8 @@ export function ClaimActions({ claim, selected, offerBlock, onBlocked }: ClaimAc
           onClose={close}
           placement={{ base: 'bottom', md: 'center' }}
           title={
-            open === 'block'
-              ? t('claimsPage.actions.block.titleWithCount', { label: blockLabel.toLowerCase() })
+            open === 'block' && selected.length > 0
+              ? t('claimsPage.actions.block.titleWithCount', { count: selected.length })
               : t(`claimsPage.actions.${open}.title`)
           }
           description={t(`claimsPage.actions.${open}.description`)}

@@ -23,6 +23,7 @@ import {
 } from '@/hooks/use-application-roles';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
+import { formatDate } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 import { DeclarePermissionDialog } from './DeclarePermissionDialog';
 import { GrantPermissionDialog } from './GrantPermissionDialog';
@@ -44,7 +45,7 @@ export function RolesPanel({
   application: Application;
   access: CallerAccess;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const appId = application._id;
   const canRead = access.can('roles:read');
   const canManage = access.can('roles:manage');
@@ -170,7 +171,7 @@ export function RolesPanel({
       header: t('applications.roles.sinceColumn'),
       accessor: (row) => new Date(row.grantedAt),
       width: 130,
-      cell: ({ row }) => <Muted>{new Date(row.grantedAt).toLocaleDateString()}</Muted>,
+      cell: ({ row }) => <Muted>{formatDate(row.grantedAt, locale)}</Muted>,
     },
     ...(canManage
       ? [
@@ -240,7 +241,9 @@ export function RolesPanel({
         getRowId={(row) => row.key}
         accessibilityLabel={t('applications.roles.permissionsTitle')}
         title={t('applications.roles.permissionsTitle')}
-        summary={t('applications.roles.permissionsBody')}
+        summary={
+          <Muted className="max-w-xs md:max-w-lg">{t('applications.roles.permissionsBody')}</Muted>
+        }
         toolbar={
           canManage ? (
             <Button leadingIcon={RiAddLine} size="sm" onPress={() => setDeclaring(true)}>
@@ -259,7 +262,9 @@ export function RolesPanel({
         getRowId={(row) => row.id}
         accessibilityLabel={t('applications.roles.peopleTitle')}
         title={t('applications.roles.peopleTitle')}
-        summary={t('applications.roles.peopleBody')}
+        summary={
+          <Muted className="max-w-xs md:max-w-lg">{t('applications.roles.peopleBody')}</Muted>
+        }
         toolbar={
           canManage && declared.length > 0 ? (
             <Button leadingIcon={RiUserAddLine} size="sm" onPress={() => setGranting(true)}>

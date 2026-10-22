@@ -10,6 +10,7 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatCount, formatMoney } from '@/lib/money';
 import { REPORT_RANGE_DAYS, type ReportRangeDays, type SettledCharge } from '@/lib/reporting';
@@ -32,6 +33,7 @@ export function ChargesTable({
   truncated: boolean;
 }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
   const [outcome, setOutcome] = useState('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -57,7 +59,7 @@ export function ChargesTable({
         header: t('billingPage.charges.settled'),
         flex: 1.2,
         accessor: (row) => Date.parse(row.settledAt),
-        cell: ({ row }) => <Muted>{new Date(row.settledAt).toLocaleString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.dateTime(row.settledAt)}</Muted>,
       },
       {
         id: 'model',
@@ -66,7 +68,7 @@ export function ChargesTable({
         accessor: (row) => row.resolvedModelReference,
         sortDescFirst: false,
         cell: ({ row }) => (
-          <Text className="font-mono text-xs" numberOfLines={1}>
+          <Text className="font-mono text-xs text-foreground" numberOfLines={1}>
             {row.resolvedModelReference}
           </Text>
         ),
@@ -100,7 +102,7 @@ export function ChargesTable({
         header: t('billingPage.charges.tokens'),
         accessor: (row) => row.units.input_tokens + row.units.output_tokens,
         cell: ({ row }) => (
-          <Muted className="tabular-nums">
+          <Muted className="text-sm tabular-nums text-muted-foreground">
             {formatCount(row.units.input_tokens)} / {formatCount(row.units.output_tokens)}
           </Muted>
         ),
@@ -111,11 +113,13 @@ export function ChargesTable({
         align: 'end',
         accessor: (row) => plotNumber(row.netAmount),
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.netAmount, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.netAmount, row.currency)}
+          </Text>
         ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   const reset = (set: (value: string) => void) => (value: string) => {

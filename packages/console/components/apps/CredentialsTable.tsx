@@ -24,10 +24,15 @@ import {
 } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
 import { copyText } from '@/lib/clipboard';
+import { formatDate } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 import { CreateCredentialDialog } from './CreateCredentialDialog';
 import { CredentialTrail } from './CredentialTrail';
 import { RevealedSecret, type RevealedSecretValue } from './RevealedSecret';
+
+/** A long public identifier reads as `oxy_dk_000100ab…cd34`; Copy gives the whole thing. */
+const shortIdentifier = (id: string) =>
+  id.length > 24 ? `${id.slice(0, 16)}…${id.slice(-4)}` : id;
 
 /**
  * The application's credentials: public, confidential, service and API-key
@@ -41,7 +46,7 @@ export function CredentialsTable({
   application: Application;
   access: CallerAccess;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const appId = application._id;
   const canRead = access.can('credentials:read');
   const canCreate = access.can('credentials:create');
@@ -107,16 +112,15 @@ export function CredentialsTable({
         id: 'name',
         header: t('applications.credentials.name'),
         accessor: (row) => row.name,
-        minWidth: 220,
-        flex: 2,
+        width: 210,
         cell: ({ row }) => (
-          <View className="min-w-0 gap-0.5">
+          <View className="w-full min-w-0 gap-0.5">
             <Text numberOfLines={1}>{row.name}</Text>
             {/* For an API key the identifier a developer recognises is its `oxy_sk_`
                 prefix, not the OAuth client id it also carries. Both are public;
                 neither is the key. */}
             <Muted className="font-mono text-xs" numberOfLines={1}>
-              {row.tokenPrefix ?? row.publicKey}
+              {shortIdentifier(row.tokenPrefix ?? row.publicKey)}
             </Muted>
           </View>
         ),
@@ -125,30 +129,26 @@ export function CredentialsTable({
         id: 'type',
         header: t('applications.credentials.type'),
         accessor: (row) => row.type,
-        width: 130,
+        width: 150,
         cell: ({ row }) => (
-          <Badge
-            content={t(`applications.credentials.types.${row.type}`)}
-            size="label-small"
-            variant="outlined"
-            color="default"
-          />
-        ),
-      },
-      {
-        id: 'environment',
-        header: t('applications.credentials.environment'),
-        accessor: (row) => row.environment,
-        width: 130,
-        cell: ({ row }) => (
-          <Muted>{t(`applications.credentials.environments.${row.environment}`)}</Muted>
+          <View className="items-start gap-0.5">
+            <Badge
+              content={t(`applications.credentials.types.${row.type}`)}
+              size="label-small"
+              variant="outlined"
+              color="default"
+            />
+            <Muted className="text-xs">
+              {t(`applications.credentials.environments.${row.environment}`)}
+            </Muted>
+          </View>
         ),
       },
       {
         id: 'status',
         header: t('applications.credentials.status'),
         accessor: (row) => row.status,
-        width: 170,
+        width: 140,
         cell: ({ row }) => (
           <View className="min-w-0 items-start gap-0.5">
             <Badge
@@ -163,7 +163,7 @@ export function CredentialsTable({
             {row.status === 'deprecated' && row.expiresAt ? (
               <Muted className="text-xs" numberOfLines={1}>
                 {t('applications.credentials.expiresOn', {
-                  date: new Date(row.expiresAt).toLocaleDateString(),
+                  date: formatDate(row.expiresAt, locale),
                 })}
               </Muted>
             ) : null}
@@ -174,11 +174,11 @@ export function CredentialsTable({
         id: 'lastUsed',
         header: t('applications.credentials.lastUsed'),
         accessor: (row) => (row.lastUsedAt ? new Date(row.lastUsedAt) : null),
-        width: 150,
+        width: 120,
         cell: ({ row }) => (
           <Muted>
             {row.lastUsedAt
-              ? new Date(row.lastUsedAt).toLocaleDateString()
+              ? formatDate(row.lastUsedAt, locale)
               : t('applications.credentials.neverUsed')}
           </Muted>
         ),
@@ -240,7 +240,7 @@ export function CredentialsTable({
         },
       },
     ],
-    [t, canRotate, canRevoke],
+    [t, locale, canRotate, canRevoke],
   );
 
   if (!canRead) {
@@ -288,7 +288,7 @@ export function CredentialsTable({
           />
         }
         pageSize={10}
-        minWidth={820}
+        minWidth={770}
       />
 
       <CreateCredentialDialog

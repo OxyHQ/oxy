@@ -7,8 +7,9 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { useApplicationNames } from '@/hooks/use-application-names';
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
-import { formatMoney } from '@/lib/money';
+import { formatMoney, formatMoneyHeadline } from '@/lib/money';
 import type { PendingReservation, PendingReservationsResponse } from '@/lib/reporting';
 import { plotNumber } from '@/lib/reporting-charts';
 
@@ -21,6 +22,7 @@ import { plotNumber } from '@/lib/reporting-charts';
  */
 export function HoldsTable({ held }: { held: PendingReservationsResponse }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
   const applicationName = useApplicationNames();
 
   const columns = useMemo<DataTableColumn<PendingReservation>[]>(
@@ -30,7 +32,7 @@ export function HoldsTable({ held }: { held: PendingReservationsResponse }) {
         header: t('billingPage.charges.request'),
         flex: 1.4,
         cell: ({ row }) => (
-          <Text className="font-mono text-xs" numberOfLines={1}>
+          <Text className="font-mono text-xs text-foreground" numberOfLines={1}>
             {row.requestId}
           </Text>
         ),
@@ -53,7 +55,7 @@ export function HoldsTable({ held }: { held: PendingReservationsResponse }) {
         header: t('billingPage.charges.expires'),
         accessor: (row) => Date.parse(row.expiresAt),
         sortDescFirst: false,
-        cell: ({ row }) => <Muted>{new Date(row.expiresAt).toLocaleTimeString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.dateTime(row.expiresAt)}</Muted>,
       },
       {
         id: 'held',
@@ -61,7 +63,9 @@ export function HoldsTable({ held }: { held: PendingReservationsResponse }) {
         align: 'end',
         accessor: (row) => plotNumber(row.reservedAmount),
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.reservedAmount, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.reservedAmount, row.currency)}
+          </Text>
         ),
       },
     ],
@@ -75,7 +79,7 @@ export function HoldsTable({ held }: { held: PendingReservationsResponse }) {
           stats={held.totals.map((total) => ({
             icon: RiLockLine,
             label: t('billingPage.charges.heldTitle'),
-            value: formatMoney(total.heldAmount, total.currency),
+            value: formatMoneyHeadline(total.heldAmount, total.currency),
             delta: t('billingPage.charges.heldAcross', { count: total.reservationCount }),
             deltaColor: 'neutral' as const,
           }))}

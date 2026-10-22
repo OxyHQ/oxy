@@ -34,6 +34,11 @@ import { RoutingPolicyForm } from './RoutingPolicyForm';
 
 const formatDateTime = (iso: string): string => new Date(iso).toLocaleString();
 
+/** Past this many characters a highlight's value wraps under its label instead of beside it. */
+const LONG_VALUE = 32;
+
+const SWITCHES_SHOWN = 8;
+
 /**
  * The routing policy in force for one application, and the controls to change it.
  *
@@ -161,7 +166,6 @@ export function RoutingPolicy() {
     <>
       <Item
         title={t('appsInference.routing.title')}
-        subtitle={t('appsInference.routing.description')}
         trailing={
           canWrite ? (
             <View className="flex-row items-center gap-2">
@@ -185,6 +189,9 @@ export function RoutingPolicy() {
           ) : undefined
         }
       />
+      <Text className="-mt-3 px-4 text-xs text-muted-foreground">
+        {t('appsInference.routing.description')}
+      </Text>
 
       {stored === null || stored === undefined ? (
         <EmptyState
@@ -224,14 +231,25 @@ export function RoutingPolicy() {
                 />
               }
             />
-            {routingPolicyHighlights(stored.policy, routingProfiles).map((highlight) => (
-              <GroupedSectionItem
-                key={highlight.label}
-                title={highlight.label}
-                value={highlight.value}
-                titleNumberOfLines={0}
-              />
-            ))}
+            {routingPolicyHighlights(stored.policy, routingProfiles).map((highlight) =>
+              highlight.value.length <= LONG_VALUE ? (
+                <GroupedSectionItem
+                  key={highlight.label}
+                  title={highlight.label}
+                  value={highlight.value}
+                />
+              ) : (
+                // Bloom's grouped row clamps its description to two lines; a list of allowed
+                // levels or ceilings must be read whole, so it takes an Item that wraps.
+                <Item
+                  key={highlight.label}
+                  title={highlight.label}
+                  subtitle={
+                    <Text className="text-xs text-muted-foreground">{highlight.value}</Text>
+                  }
+                />
+              ),
+            )}
           </GroupedSection>
 
           <PolicyVersionHistory policyId={stored.routingPolicyId} />
@@ -332,6 +350,7 @@ function RouteSwitchHistory({
 }) {
   const { t } = useTranslation();
   const { data: events = [], isLoading } = useRouteSwitchEvents(applicationId, 50, enabled);
+  const [expanded, setExpanded] = useState(false);
 
   if (!enabled) {
     return null;
@@ -347,31 +366,45 @@ function RouteSwitchHistory({
       description={t('appsInference.routing.switches.empty')}
     />
   ) : (
-    <GroupedSection
-      title={t('appsInference.routing.switches.title')}
-      footer={t('appsInference.routing.switches.description')}
-      separator="line"
-    >
-      {events.map((event) => (
-        <GroupedSectionItem
-          key={event.eventId}
-          title={event.reason.replaceAll('_', ' ')}
-          description={`${event.fromModelReference} → ${event.toModelReference} · ${event.toProvider} · ${formatDateTime(event.occurredAt)}`}
-          titleNumberOfLines={0}
-          rightElement={
-            <Badge
-              content={
-                event.scope === 'model'
-                  ? t('appsInference.routing.switches.differentModel')
-                  : t('appsInference.routing.switches.sameModel')
-              }
-              variant={event.scope === 'model' ? 'subtle' : 'outlined'}
-              color={event.scope === 'model' ? 'primary' : 'default'}
-              size="label-small"
-            />
-          }
-        />
-      ))}
-    </GroupedSection>
+    <View className="gap-3">
+      <GroupedSection
+        title={t('appsInference.routing.switches.title')}
+        footer={t('appsInference.routing.switches.description')}
+        separator="line"
+      >
+        {(expanded ? events : events.slice(0, SWITCHES_SHOWN)).map((event) => (
+          <Item
+            key={event.eventId}
+            title={event.reason.replaceAll('_', ' ')}
+            subtitle={
+              <Text className="text-xs text-muted-foreground">
+                {`${event.fromModelReference} → ${event.toModelReference} · ${event.toProvider} · ${formatDateTime(event.occurredAt)}`}
+              </Text>
+            }
+            trailing={
+              <Badge
+                content={
+                  event.scope === 'model'
+                    ? t('appsInference.routing.switches.differentModel')
+                    : t('appsInference.routing.switches.sameModel')
+                }
+                variant={event.scope === 'model' ? 'subtle' : 'outlined'}
+                color={event.scope === 'model' ? 'primary' : 'default'}
+                size="label-small"
+              />
+            }
+          />
+        ))}
+      </GroupedSection>
+      {events.length > SWITCHES_SHOWN && (
+        <View className="flex-row">
+          <Button appearance="plain" size="sm" onPress={() => setExpanded((current) => !current)}>
+            {expanded
+              ? t('appsInference.routing.switches.showFewer')
+              : t('appsInference.routing.switches.showAll', { count: events.length })}
+          </Button>
+        </View>
+      )}
+    </View>
   );
 }

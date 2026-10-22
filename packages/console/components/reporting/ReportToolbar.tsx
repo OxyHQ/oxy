@@ -5,7 +5,7 @@ import {
   SegmentedControlItemText,
 } from '@oxy.so/bloom/segmented-control';
 import { Muted } from '@oxy.so/bloom/typography';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { useTranslation } from '@/lib/i18n';
 
@@ -40,21 +40,24 @@ export function ReportToolbar<TDimension extends string>({
 
   return (
     <View className="flex-row flex-wrap items-center gap-x-6 gap-y-3">
-      <View className="flex-row flex-wrap items-center gap-3">
+      <View className="max-w-full gap-2 sm:flex-row sm:items-center sm:gap-3">
         <Muted>{t('reporting.breakdown')}</Muted>
-        <SegmentedControl
-          type="radio"
-          size="sm"
-          label={t('reporting.breakdown')}
-          value={dimension}
-          onValueChange={(next: string) => onDimensionChange(next as TDimension)}
-        >
-          {dimensions.map((entry) => (
-            <SegmentedControlItem key={entry.value} value={entry.value}>
-              <SegmentedControlItemText>{entry.label}</SegmentedControlItemText>
-            </SegmentedControlItem>
-          ))}
-        </SegmentedControl>
+        {/* Four options are wider than a phone: the control scrolls inside itself. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <SegmentedControl
+            type="radio"
+            size="sm"
+            label={t('reporting.breakdown')}
+            value={dimension}
+            onValueChange={(next: string) => onDimensionChange(next as TDimension)}
+          >
+            {dimensions.map((entry) => (
+              <SegmentedControlItem key={entry.value} value={entry.value}>
+                <SegmentedControlItemText>{entry.label}</SegmentedControlItemText>
+              </SegmentedControlItem>
+            ))}
+          </SegmentedControl>
+        </ScrollView>
       </View>
 
       {currencies.length > 1 && currency !== undefined && onCurrencyChange !== undefined ? (

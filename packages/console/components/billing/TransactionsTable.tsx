@@ -6,6 +6,7 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo, useState } from 'react';
 
 import type { Transaction } from '@/hooks/use-billing';
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatCount } from '@/lib/money';
 
@@ -19,6 +20,7 @@ const STATUS_HUE: Record<Transaction['status'], ChipHue> = {
 /** Credit purchases, subscription payments and refunds. Amounts are provider cents. */
 export function TransactionsTable({ transactions }: { transactions: ReadonlyArray<Transaction> }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
 
@@ -42,7 +44,7 @@ export function TransactionsTable({ transactions }: { transactions: ReadonlyArra
         id: 'date',
         header: t('billingPage.plans.transactionsColumns.date'),
         accessor: (row) => Date.parse(row.createdAt),
-        cell: ({ row }) => <Muted>{new Date(row.createdAt).toLocaleDateString()}</Muted>,
+        cell: ({ row }) => <Muted>{dates.date(row.createdAt)}</Muted>,
       },
       {
         id: 'description',
@@ -50,7 +52,11 @@ export function TransactionsTable({ transactions }: { transactions: ReadonlyArra
         flex: 1.6,
         accessor: (row) => describe(row),
         sortDescFirst: false,
-        cell: ({ row }) => <Text numberOfLines={1}>{describe(row)}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm text-foreground" numberOfLines={1}>
+            {describe(row)}
+          </Text>
+        ),
       },
       {
         id: 'status',
@@ -67,7 +73,7 @@ export function TransactionsTable({ transactions }: { transactions: ReadonlyArra
         header: t('billingPage.plans.transactionsColumns.credits'),
         accessor: (row) => row.credits,
         cell: ({ row }) => (
-          <Text className="tabular-nums">
+          <Text className="text-sm tabular-nums text-foreground">
             {t('billingPage.plans.plusCredits', { credits: formatCount(row.credits) })}
           </Text>
         ),
@@ -78,13 +84,13 @@ export function TransactionsTable({ transactions }: { transactions: ReadonlyArra
         align: 'end',
         accessor: (row) => row.amount,
         cell: ({ row }) => (
-          <Text className="tabular-nums">
+          <Text className="text-sm tabular-nums text-foreground">
             {(row.amount / 100).toFixed(2)} {row.currency.toUpperCase()}
           </Text>
         ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   return (

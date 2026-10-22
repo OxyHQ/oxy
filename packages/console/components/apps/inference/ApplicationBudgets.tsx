@@ -11,6 +11,7 @@ import {
   type DataTableRowActionItem,
 } from '@oxy.so/bloom/data-table';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
@@ -153,7 +154,7 @@ export function ApplicationBudgets() {
       {
         id: 'limit',
         header: t('appsInference.budgets.columns.limit'),
-        minWidth: 180,
+        minWidth: 150,
         cell: ({ row }) => (
           <Text className="text-sm font-medium text-foreground">
             {`${labels.period(row.period)} · ${formatMoney(row.limitAmount, row.currency)}`}
@@ -163,7 +164,7 @@ export function ApplicationBudgets() {
       {
         id: 'status',
         header: t('appsInference.budgets.columns.status'),
-        minWidth: 170,
+        minWidth: 140,
         cell: ({ row }) => (
           <View className="flex-row flex-wrap items-center gap-1.5">
             <Badge
@@ -201,7 +202,7 @@ export function ApplicationBudgets() {
       {
         id: 'spent',
         header: t('appsInference.budgets.columns.spent'),
-        minWidth: 220,
+        minWidth: 190,
         cell: ({ row }) => (
           <Text className="text-xs text-muted-foreground">
             {t('appsInference.budgets.row.spent', {
@@ -277,38 +278,35 @@ export function ApplicationBudgets() {
         <Admonition type="error">{t('appsInference.budgets.loadFailed')}</Admonition>
       ) : (
         <>
-          <DataTable
-            rows={own}
-            columns={columns}
-            getRowId={(budget) => budget.spendingLimitId}
-            accessibilityLabel={t('appsInference.budgets.own.title')}
+          <Item
             title={t('appsInference.budgets.own.title')}
-            summary={
-              <Text className="text-xs text-muted-foreground">
-                {t('appsInference.budgets.description')}
-              </Text>
-            }
-            toolbar={
+            trailing={
               canManage ? (
                 <Button size="sm" icon={RiAddLine} onPress={() => setDialog('new')}>
                   {t('appsInference.budgets.new')}
                 </Button>
               ) : undefined
             }
-            emptyState={
-              <EmptyState variant="compact" title={t('appsInference.budgets.own.empty')} />
-            }
-            minWidth={720}
-            size="sm"
           />
+          <Text className="-mt-3 px-4 text-xs text-muted-foreground">
+            {t('appsInference.budgets.description')}
+          </Text>
+          {own.length === 0 ? (
+            <EmptyState variant="compact" title={t('appsInference.budgets.own.empty')} />
+          ) : (
+            <DataTable
+              rows={own}
+              columns={columns}
+              getRowId={(budget) => budget.spendingLimitId}
+              accessibilityLabel={t('appsInference.budgets.own.title')}
+              minWidth={640}
+              size="sm"
+            />
+          )}
 
-          <DataTable
-            rows={inherited}
-            columns={baseColumns}
-            getRowId={(budget) => budget.spendingLimitId}
-            accessibilityLabel={t('appsInference.budgets.inherited.title')}
+          <Item
             title={t('appsInference.budgets.inherited.title')}
-            summary={
+            subtitle={
               inherited.length > 0 ? (
                 <Text className="text-xs text-muted-foreground">
                   {t('appsInference.budgets.inherited.note')}{' '}
@@ -318,12 +316,19 @@ export function ApplicationBudgets() {
                 </Text>
               ) : undefined
             }
-            emptyState={
-              <EmptyState variant="compact" title={t('appsInference.budgets.inherited.empty')} />
-            }
-            minWidth={720}
-            size="sm"
           />
+          {inherited.length === 0 ? (
+            <EmptyState variant="compact" title={t('appsInference.budgets.inherited.empty')} />
+          ) : (
+            <DataTable
+              rows={inherited}
+              columns={baseColumns}
+              getRowId={(budget) => budget.spendingLimitId}
+              accessibilityLabel={t('appsInference.budgets.inherited.title')}
+              minWidth={640}
+              size="sm"
+            />
+          )}
         </>
       )}
 

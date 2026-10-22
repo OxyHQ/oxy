@@ -14,6 +14,7 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Field } from '@oxy.so/bloom/field';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloudLine } from '@oxy.so/bloom/icons/RiCloudLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -321,7 +322,7 @@ export function ProviderConnections() {
     {
       id: 'provider',
       header: t('appsInference.byok.columns.provider'),
-      minWidth: 200,
+      minWidth: 160,
       cell: ({ row }) => (
         <View className="gap-0.5">
           <Text className="text-sm font-medium text-foreground">{row.provider}</Text>
@@ -334,17 +335,27 @@ export function ProviderConnections() {
     {
       id: 'state',
       header: t('appsInference.byok.columns.state'),
-      minWidth: 260,
+      minWidth: 190,
       cell: ({ row }) => (
         <View className="flex-row flex-wrap items-center gap-1.5">
           <Badge
-            content={row.status}
+            content={humanise(row.status)}
             variant="subtle"
             color={statusColor(connectionStatusVariant(row.status))}
             size="label-small"
           />
-          <Badge content={row.environment} variant="outlined" size="label-small" />
-          <Badge content={row.validation.state} variant="subtle" size="label-small" />
+          <Badge
+            content={humanise(row.environment)}
+            variant="outlined"
+            color="default"
+            size="label-small"
+          />
+          <Badge
+            content={humanise(row.validation.state)}
+            variant="subtle"
+            color={validationColor(row.validation.state)}
+            size="label-small"
+          />
           {row.custodyState === 'reconcile' && (
             <Badge
               content={t('appsInference.byok.card.recoveryNeeded')}
@@ -359,7 +370,7 @@ export function ProviderConnections() {
     {
       id: 'details',
       header: t('appsInference.byok.columns.details'),
-      minWidth: 300,
+      minWidth: 210,
       cell: ({ row }) => <ConnectionDetails connection={row} applicationId={application._id} />,
     },
     {
@@ -457,6 +468,20 @@ export function ProviderConnections() {
         {`\n${t('appsInference.byok.terms.body')}`}
       </Admonition>
 
+      <Item
+        title={t('appsInference.byok.title')}
+        trailing={
+          canUpdateApplication && storeUnavailable === null ? (
+            <Button size="sm" icon={RiAddLine} onPress={() => setShowConnect(true)}>
+              {t('appsInference.byok.connect.open')}
+            </Button>
+          ) : undefined
+        }
+      />
+      <Text className="-mt-3 px-4 text-xs text-muted-foreground">
+        {t('appsInference.byok.description')}
+      </Text>
+
       {isError ? (
         <Admonition type="error">
           <Text className="font-semibold">{t('appsInference.byok.loadFailedTitle')}</Text>
@@ -464,34 +489,20 @@ export function ProviderConnections() {
         </Admonition>
       ) : isLoading ? (
         <Skeleton.Box width="100%" height={120} borderRadius={14} />
+      ) : applicable.length === 0 ? (
+        <EmptyState
+          icon={RiCloudLine}
+          variant="compact"
+          title={t('appsInference.byok.empty.title')}
+          description={t('appsInference.byok.empty.body')}
+        />
       ) : (
         <DataTable
           rows={applicable}
           columns={columns}
           getRowId={(connection) => connection.connectionId}
           accessibilityLabel={t('appsInference.byok.title')}
-          title={t('appsInference.byok.title')}
-          summary={
-            <Text className="text-xs text-muted-foreground">
-              {t('appsInference.byok.description')}
-            </Text>
-          }
-          toolbar={
-            canUpdateApplication && storeUnavailable === null ? (
-              <Button size="sm" icon={RiAddLine} onPress={() => setShowConnect(true)}>
-                {t('appsInference.byok.connect.open')}
-              </Button>
-            ) : undefined
-          }
-          emptyState={
-            <EmptyState
-              icon={RiCloudLine}
-              variant="compact"
-              title={t('appsInference.byok.empty.title')}
-              description={t('appsInference.byok.empty.body')}
-            />
-          }
-          minWidth={960}
+          minWidth={640}
           size="sm"
         />
       )}
@@ -515,7 +526,7 @@ export function ProviderConnections() {
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       >
-        <View className="gap-4">
+        <View className="gap-4 pb-4">
           <Field
             label={t('appsInference.byok.connect.provider')}
             description={t('appsInference.byok.connect.providerHelp')}
@@ -596,7 +607,7 @@ export function ProviderConnections() {
           { label: t('common.cancel'), color: 'cancel' },
         ]}
       >
-        <View className="gap-2">
+        <View className="gap-2 pb-4">
           <Field
             label={t('appsInference.byok.validate.deployment')}
             description={
@@ -607,7 +618,10 @@ export function ProviderConnections() {
                   : undefined
             }
           >
-            <Select value={validationDeploymentId} onValueChange={setValidationDeploymentId}>
+            <Select
+              value={validationDeploymentId || undefined}
+              onValueChange={setValidationDeploymentId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t('appsInference.byok.validate.selectDeployment')} />
                 <SelectIcon />
@@ -739,6 +753,15 @@ function statusColor(
   variant: 'default' | 'secondary' | 'destructive',
 ): 'success' | 'default' | 'error' {
   return variant === 'default' ? 'success' : variant === 'destructive' ? 'error' : 'default';
+}
+
+const humanise = (value: string): string => value.replaceAll('_', ' ');
+
+function validationColor(state: string): 'success' | 'default' | 'error' | 'warning' {
+  if (state === 'valid') return 'success';
+  if (state === 'invalid' || state === 'expired') return 'error';
+  if (state === 'unvalidated') return 'default';
+  return 'warning';
 }
 
 /** What is known about a connection beyond its state: bootstrap, custody and dates. */

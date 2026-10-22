@@ -77,6 +77,12 @@ export default function BillingBudgetsPage() {
     [budgets.data, scopeLabel],
   );
 
+  const budgetCurrency = useCallback(
+    (spendingLimitId: string) =>
+      budgets.data?.rows.find((row) => row.spendingLimitId === spendingLimitId)?.currency,
+    [budgets.data],
+  );
+
   return (
     <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
@@ -111,7 +117,11 @@ export default function BillingBudgetsPage() {
           ) : alerts.isError ? (
             <ApiState error={alerts.error} onRetry={() => void alerts.refetch()} />
           ) : (
-            <BudgetAlertsTable alerts={alerts.data?.rows ?? []} budgetName={budgetName} />
+            <BudgetAlertsTable
+              alerts={alerts.data?.rows ?? []}
+              budgetName={budgetName}
+              budgetCurrency={budgetCurrency}
+            />
           )}
 
           {accountId !== undefined ? (

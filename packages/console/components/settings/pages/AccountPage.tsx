@@ -39,6 +39,7 @@ import {
   useTransferAccountOwnership,
   useUpdateAccountMember,
 } from '@/hooks/use-account';
+import { useMemberProfiles } from '@/hooks/use-member-profiles';
 import { getErrorMessage } from '@/lib/api-error';
 import config from '@/lib/config';
 import { useTranslation } from '@/lib/i18n';
@@ -82,6 +83,9 @@ export function AccountPage() {
   const removeMember = useRemoveAccountMember();
   const transferOwnership = useTransferAccountOwnership();
 
+  const profiles = useMemberProfiles(
+    (membersQuery.data ?? []).map((member) => member.memberUserId),
+  );
   const [inviteOpen, setInviteOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [pending, setPending] = useState<PendingMemberAction | null>(null);
@@ -281,7 +285,8 @@ export function AccountPage() {
       const isOwner = member.role === 'owner';
       const isEditableHere = (member.source ?? 'direct') === 'direct';
       const isLastOwner = isOwner && ownerCount <= 1;
-      const name = shortUserId(member.memberUserId);
+      const profile = profiles.get(member.memberUserId);
+      const name = profile?.name ?? profile?.handle ?? shortUserId(member.memberUserId);
       const actions = [
         ...(canTransfer && isEditableHere && !isOwner
           ? [
@@ -305,7 +310,11 @@ export function AccountPage() {
       return {
         key: member._id,
         label: name,
-        description: isEditableHere ? undefined : t('settingsPage.members.inherited'),
+        description: isEditableHere
+          ? profile?.name && profile.handle
+            ? `@${profile.handle}`
+            : undefined
+          : t('settingsPage.members.inherited'),
         control: (
           <View className="flex-row items-center gap-2">
             {isOwner ? (

@@ -1,11 +1,13 @@
 import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiBarChartLine } from '@oxy.so/bloom/icons/RiBarChartLine';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiCompass3Line } from '@oxy.so/bloom/icons/RiCompass3Line';
 import { RiCpuLine } from '@oxy.so/bloom/icons/RiCpuLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
 import { RiPlayCircleLine } from '@oxy.so/bloom/icons/RiPlayCircleLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import type { SidebarIcon } from '@oxy.so/bloom/sidebar';
 
 import config from '@/lib/config';
@@ -17,6 +19,8 @@ export interface ConsoleNavEntry {
   icon: SidebarIcon;
   /** An off-site destination (opens outside the app); `href` then only keys the row. */
   external?: string;
+  /** Shown only to staff who hold the capability behind the route (see `useContentClaimsAccess`). */
+  staff?: boolean;
 }
 
 /**
@@ -30,6 +34,8 @@ export const CONSOLE_NAV: ReadonlyArray<ConsoleNavEntry> = [
   { href: '/usage', labelKey: 'nav.usage', icon: RiBarChartLine },
   { href: '/billing', labelKey: 'nav.billing', icon: RiBankCardLine },
   { href: '/models', labelKey: 'nav.models', icon: RiCpuLine },
+  { href: '/clarity', labelKey: 'nav.clarity', icon: RiCompass3Line },
+  { href: '/claims', labelKey: 'nav.claims', icon: RiShieldCheckLine, staff: true },
   {
     href: '/documentation',
     labelKey: 'nav.documentation',

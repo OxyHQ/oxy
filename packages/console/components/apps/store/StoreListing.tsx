@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
-import { Admonition } from '@oxy.so/bloom/admonition';
+import { Text, View } from 'react-native';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
@@ -21,6 +20,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
+import { ApiState } from '@/components/loading/ApiState';
 import { useAppDetail } from '@/components/apps/app-context';
 import type { PublisherListing } from '@/hooks/use-store-listing';
 import {
@@ -74,7 +74,13 @@ export function StoreListing() {
   const { t } = useTranslation();
   const { application, access } = useAppDetail();
   const canEdit = access.can('app:update');
-  const { data: listing, isLoading, isError } = useStoreListing(application._id);
+  const {
+    data: listing,
+    isLoading,
+    isError,
+    error: loadError,
+    refetch,
+  } = useStoreListing(application._id);
   const { data: categories } = useStoreCategories();
 
   const writeListing = useWriteStoreListing(application._id);
@@ -113,7 +119,7 @@ export function StoreListing() {
   }
 
   if (isError) {
-    return <Admonition type="error">{t('appsStore.loadFailed')}</Admonition>;
+    return <ApiState error={loadError} onRetry={() => refetch()} />;
   }
 
   const handleSave = async () => {
@@ -169,7 +175,11 @@ export function StoreListing() {
     <>
       <Item
         title={t('appsStore.title')}
-        subtitle={status ? t(`appsStore.status.${status}.help`) : t('appsStore.notListed')}
+        subtitle={
+          <Text className="text-xs text-muted-foreground">
+            {status ? t(`appsStore.status.${status}.help`) : t('appsStore.notListed')}
+          </Text>
+        }
         trailing={
           status && STATUSES.includes(status) ? (
             <Badge
@@ -220,7 +230,11 @@ export function StoreListing() {
             disabled={!canEdit}
           />
           <Field label={t('appsStore.fields.category')} disabled={!canEdit}>
-            <Select value={categorySlug} onValueChange={setCategorySlug} disabled={!canEdit}>
+            <Select
+              value={categorySlug || undefined}
+              onValueChange={setCategorySlug}
+              disabled={!canEdit}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t('appsStore.fields.uncategorised')}>
                   {() =>

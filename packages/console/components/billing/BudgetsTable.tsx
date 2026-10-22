@@ -64,9 +64,11 @@ export function BudgetsTable({
         accessor: (row) => scopeLabel(row),
         sortDescFirst: false,
         cell: ({ row }) => (
-          <View>
-            <Text numberOfLines={1}>{scopeLabel(row)}</Text>
-            <Muted className="text-xs">
+          <View className="w-full min-w-0">
+            <Text className="text-foreground" numberOfLines={1}>
+              {scopeLabel(row)}
+            </Text>
+            <Muted className="text-xs text-muted-foreground">
               {t(`billingPage.budgets.periods.${row.period}`)} ·{' '}
               {formatMoney(row.limitAmount, row.currency)}
             </Muted>
@@ -81,7 +83,7 @@ export function BudgetsTable({
         cell: ({ row }) => (
           <View className="gap-1.5">
             <Meter decorative value={Math.min(row.utilizationBps, 10000)} max={10000} />
-            <Muted className="text-xs">
+            <Muted className="text-xs text-muted-foreground">
               {t('billingPage.budgets.used', { percent: formatBasisPoints(row.utilizationBps) })}
             </Muted>
           </View>
@@ -92,7 +94,9 @@ export function BudgetsTable({
         header: t('billingPage.budgets.columns.spent'),
         accessor: (row) => plotNumber(row.currentSpend),
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.currentSpend, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.currentSpend, row.currency)}
+          </Text>
         ),
       },
       {
@@ -100,7 +104,9 @@ export function BudgetsTable({
         header: t('billingPage.budgets.columns.remaining'),
         accessor: (row) => plotNumber(row.remaining),
         cell: ({ row }) => (
-          <Muted className="tabular-nums">{formatMoney(row.remaining, row.currency)}</Muted>
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatMoney(row.remaining, row.currency)}
+          </Muted>
         ),
       },
       {

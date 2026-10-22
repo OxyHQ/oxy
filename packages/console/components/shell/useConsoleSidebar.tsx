@@ -23,6 +23,7 @@ import { Linking } from 'react-native';
 import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { accountInitials, useAccountLabels } from '@/components/settings/account-labels';
 import { buildWorkspaceTree } from '@/components/settings/workspace-tree';
+import { useContentClaimsAccess } from '@/hooks/use-content-claims';
 import { type AccountNode, accountLabel, useAccount } from '@/hooks/use-account';
 import { getErrorMessage } from '@/lib/api-error';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
@@ -50,6 +51,7 @@ export function useConsoleSidebar({ onAction }: { onAction?: () => void } = {}):
   const { open: openSettings } = useConsoleSettings();
   const labels = useAccountLabels();
   const { accounts, currentAccount, setCurrentAccount } = useAccount();
+  const isStaff = useContentClaimsAccess().data?.canReview === true;
   const [collapsed, setCollapsed] = useState(false);
 
   const avatarOf = useCallback(
@@ -77,14 +79,16 @@ export function useConsoleSidebar({ onAction }: { onAction?: () => void } = {}):
           onAction?.();
         },
       },
-      ...CONSOLE_NAV.filter((entry) => !entry.external).map((entry) => ({
-        key: entry.href,
-        label: t(entry.labelKey),
-        icon: entry.icon,
-        href: entry.href,
-      })),
+      ...CONSOLE_NAV.filter((entry) => !entry.external && (!entry.staff || isStaff)).map(
+        (entry) => ({
+          key: entry.href,
+          label: t(entry.labelKey),
+          icon: entry.icon,
+          href: entry.href,
+        }),
+      ),
     ],
-    [t, onAction],
+    [t, onAction, isStaff],
   );
 
   const secondaryItems = useMemo<Array<SidebarNavItem>>(

@@ -11,9 +11,9 @@ import { ClaimDeadlineBadge, ClaimStateBadge } from './ClaimBadges';
 /** A labelled free-text statement, shown in full: it is someone's own words. */
 function Statement({ label, children }: { label: string; children: string }) {
   return (
-    <View className="gap-1">
-      <Muted className="text-xs">{label}</Muted>
-      <Text selectable>{children}</Text>
+    <View className="gap-1 px-4">
+      <Text className="font-medium">{label}</Text>
+      <Muted selectable>{children}</Muted>
     </View>
   );
 }

@@ -4,7 +4,10 @@ import { SettingsSelect } from '@/components/settings/SettingsSelect';
 import { useTranslation } from '@/lib/i18n';
 
 const MODES = ['light', 'system', 'dark'] as const;
-const PRESETS = COLOR_PRESET_REGISTRY.filter((preset) => FREE_COLOR_NAMES.includes(preset.name));
+// The console's own default (`oxy`) leads the free presets, so the select never shows a raw name.
+const PRESETS = COLOR_PRESET_REGISTRY.filter(
+  (preset) => preset.name === 'oxy' || FREE_COLOR_NAMES.includes(preset.name),
+);
 
 export function AppearancePage() {
   const { t } = useTranslation();

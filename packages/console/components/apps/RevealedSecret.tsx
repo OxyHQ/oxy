@@ -54,7 +54,7 @@ export function RevealedSecret({
   );
 
   return (
-    <Card appearance="outline">
+    <Card appearance="plain" border="thin">
       <CardHeader>
         <CardTitle>
           {t('applications.credentials.saveSecret', { name: value.credentialName })}

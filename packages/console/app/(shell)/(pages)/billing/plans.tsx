@@ -8,6 +8,7 @@ import {
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { toast } from '@oxy.so/bloom/toast';
+import { Muted } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useState } from 'react';
 
@@ -137,7 +138,12 @@ export default function BillingPlansPage() {
       ) : grants.isLoading ? (
         <TableSkeleton rows={3} columns={5} />
       ) : (
-        <CreditGrantsTable grants={grants.data ?? []} />
+        <>
+          <CreditGrantsTable grants={grants.data ?? []} />
+          <Muted className="px-1 text-xs text-muted-foreground">
+            {t('billingPage.plans.grantsNote')}
+          </Muted>
+        </>
       )}
 
       {transactions.isError ? (

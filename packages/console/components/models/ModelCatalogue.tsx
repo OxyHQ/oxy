@@ -42,7 +42,7 @@ function activeCapability(filters: CatalogueFilters): Capability | typeof ANY {
   return ANY;
 }
 
-/** The catalogue as a table: search and filters in its toolbar, a row opens the model's details. */
+/** The catalogue as a table: search and filters in its toolbar, its row action opens the model's details. */
 export function ModelCatalogue() {
   const { t } = useTranslation();
   const catalogue = useModelCatalogue();
@@ -91,7 +91,7 @@ export function ModelCatalogue() {
       {
         id: 'capabilities',
         header: t('modelsPage.columns.capabilities'),
-        basis: 240,
+        basis: 220,
         cell: ({ row }) => (
           <View className="flex-row flex-wrap gap-1">
             {row.capabilities.tools && <Chip size="sm">{t('modelsPage.capability.tools')}</Chip>}
@@ -112,7 +112,7 @@ export function ModelCatalogue() {
       {
         id: 'price',
         header: t('modelsPage.columns.price'),
-        basis: 200,
+        basis: 290,
         cell: ({ row }) => {
           const input = row.pricing?.unitPrices.find((price) => price.unit === 'input_tokens');
           return input === undefined ? (
@@ -179,7 +179,7 @@ export function ModelCatalogue() {
         title={t('modelsPage.tabs.models')}
         summary={t('modelsPage.filters.count', { count: rows.length })}
         pageSize={12}
-        minWidth={900}
+        minWidth={1000}
         toolbar={
           <>
             <DataTableSearch

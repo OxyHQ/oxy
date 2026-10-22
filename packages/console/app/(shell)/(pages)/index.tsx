@@ -9,6 +9,7 @@ import { OverviewStats } from '@/components/dashboard/OverviewStats';
 import { ApiState } from '@/components/loading/ApiState';
 import { NoBillingAccess } from '@/components/reporting/NoBillingAccess';
 import { OverviewSkeleton } from '@/components/reporting/ReportSkeleton';
+import { accountLabel } from '@/hooks/use-account';
 import { useApplicationNames } from '@/hooks/use-application-names';
 import { useApplications } from '@/hooks/use-applications';
 import { useBillingAccess } from '@/hooks/use-billing-access';
@@ -29,10 +30,13 @@ import { calendarDays } from '@/lib/reporting-charts';
  */
 export default function DashboardPage() {
   const { t } = useTranslation();
-  const { accountId, canRead } = useBillingAccess();
+  const { account, accountId, canRead } = useBillingAccess();
+  const workspaceName = account === null ? undefined : accountLabel(account);
   const applicationName = useApplicationNames();
-  const { data: applications = [] } = useApplications();
-  const { data: credits } = useCredits();
+  const applicationsQuery = useApplications();
+  const applications = applicationsQuery.data ?? [];
+  const creditsQuery = useCredits();
+  const credits = creditsQuery.data;
 
   const wide = useMemo(() => lastCalendarDays(90), []);
   const month = useMemo(() => lastCalendarDays(30), []);
@@ -51,6 +55,9 @@ export default function DashboardPage() {
   const hasCredits = (credits?.credits ?? 0) > 0;
   const hasApplication = applications.length > 0;
   const onboarded = hasCredits && hasApplication && hasRequest;
+  // The checklist is judged on all three answers; showing it before they arrive
+  // flashes steps that are already done.
+  const settled = !creditsQuery.isPending && !applicationsQuery.isPending && !usage.isLoading;
 
   return (
     <Screen
@@ -58,19 +65,24 @@ export default function DashboardPage() {
       header={
         <PageHeader
           title={t('dashboard.title')}
-          subtitle={t('dashboard.subtitle')}
+          subtitle={
+            workspaceName === undefined
+              ? t('dashboard.subtitle')
+              : t('dashboardPage.subtitleWorkspace', { name: workspaceName })
+          }
           leading={<AppShellMenuButton />}
           safeArea={false}
         />
       }
     >
       <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
-        {onboarded ? null : (
+        {onboarded || !settled ? null : (
           <OnboardingChecklist
             hasCredits={hasCredits}
             hasApplication={hasApplication}
             hasRequest={hasRequest}
             compact={hasRequest}
+            workspaceName={workspaceName}
           />
         )}
 

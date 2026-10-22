@@ -84,26 +84,36 @@ export function ChannelReleases({
       {
         id: 'runtime',
         header: t('appsUpdates.columns.runtime'),
-        minWidth: 160,
+        minWidth: 150,
         cell: ({ row }) => (
           <View className="flex-row items-center gap-2">
             <Text className="font-mono text-sm text-foreground">{row.runtimeVersion}</Text>
-            <Badge content={platformLabel(row.platform)} variant="outlined" size="label-small" />
+            <Badge
+              content={platformLabel(row.platform)}
+              variant="outlined"
+              color="default"
+              size="label-small"
+            />
           </View>
         ),
       },
       {
         id: 'update',
         header: t('appsUpdates.columns.update'),
-        width: 110,
+        width: 120,
         cell: ({ row }) => (
-          <Text className="font-mono text-xs text-muted-foreground">{shortId(row.id)}</Text>
+          <View className="gap-0.5">
+            <Text className="font-mono text-xs text-foreground">{shortId(row.id)}</Text>
+            <Text className="font-mono text-xs text-muted-foreground">
+              {row.gitCommit ? shortCommit(row.gitCommit) : '—'}
+            </Text>
+          </View>
         ),
       },
       {
         id: 'message',
         header: t('appsUpdates.columns.message'),
-        minWidth: 180,
+        minWidth: 120,
         cell: ({ row }) => (
           <Text className="text-sm text-foreground" numberOfLines={1}>
             {row.message || '—'}
@@ -111,19 +121,9 @@ export function ChannelReleases({
         ),
       },
       {
-        id: 'commit',
-        header: t('appsUpdates.columns.commit'),
-        width: 100,
-        cell: ({ row }) => (
-          <Text className="font-mono text-xs text-muted-foreground">
-            {row.gitCommit ? shortCommit(row.gitCommit) : '—'}
-          </Text>
-        ),
-      },
-      {
         id: 'age',
         header: t('appsUpdates.columns.age'),
-        width: 120,
+        width: 100,
         cell: ({ row }) => (
           <Text className="text-sm text-muted-foreground">{formatAge(row.createdAt, locale)}</Text>
         ),
@@ -131,7 +131,7 @@ export function ChannelReleases({
       {
         id: 'rollout',
         header: t('appsUpdates.columns.rollout'),
-        width: 90,
+        width: 80,
         cell: ({ row }) => (
           <Text className="text-sm text-foreground">{`${row.rolloutPercent}%`}</Text>
         ),
@@ -139,7 +139,7 @@ export function ChannelReleases({
       {
         id: 'status',
         header: t('appsUpdates.columns.status'),
-        width: 120,
+        width: 110,
         cell: ({ row }) => (
           <Badge
             content={row.status.replace('_', ' ')}
@@ -239,7 +239,7 @@ export function ChannelReleases({
           />
         }
         pageSize={20}
-        minWidth={900}
+        minWidth={720}
         size="sm"
       />
 

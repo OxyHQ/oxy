@@ -4,10 +4,10 @@ import {
   type BarListTab,
   TokensChartCard,
 } from '@oxy.so/bloom/chart-cards';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 
-import { useTranslation } from '@/lib/i18n';
+import { useLocale, useTranslation } from '@/lib/i18n';
 import { formatCount } from '@/lib/money';
 import type { UsageReportResponse, UsageRow } from '@/lib/reporting';
 import {
@@ -54,6 +54,8 @@ export function UsageCharts({
   extraTabs?: ReadonlyArray<BarListTab>;
 }) {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const count = useCallback((value: number) => formatCount(value, locale), [locale]);
 
   const ranges = useMemo(
     () =>
@@ -66,16 +68,17 @@ export function UsageCharts({
           labelOf,
           limit: SERIES_LIMIT,
           otherLabel: t('reporting.other'),
+          locale,
         },
         (count) => t('reporting.lastDays', { count }),
       ),
-    [usage, days, keyOf, labelOf, t],
+    [usage, days, keyOf, labelOf, locale, t],
   );
 
   const windowDays = useMemo(() => days.slice(-period), [days, period]);
   const inWindow = useMemo(
     () => usage.rows.filter((row) => row.day !== undefined && windowDays.includes(row.day)),
-    [usage, windowDays],
+    [usage, windowDays, locale],
   );
 
   const tabs = useMemo<BarListTab[]>(() => {
@@ -94,8 +97,11 @@ export function UsageCharts({
 
   const tokensPerDay = useMemo(() => {
     const values = dailyTotals(usage.rows, windowDays, tokensOf);
-    return windowDays.map((day, index) => ({ label: dayLabel(day), value: values[index] ?? 0 }));
-  }, [usage, windowDays]);
+    return windowDays.map((day, index) => ({
+      label: dayLabel(day, locale),
+      value: values[index] ?? 0,
+    }));
+  }, [usage, windowDays, locale]);
 
   return (
     <View className="gap-4">
@@ -106,7 +112,7 @@ export function UsageCharts({
             ranges={ranges}
             defaultRange={windowId(period)}
             onRangeChange={(id) => onPeriodChange(windowFromId(id))}
-            format={formatCount}
+            format={count}
             accessibilityLabel={title.requests}
           />
         </View>
@@ -122,7 +128,7 @@ export function UsageCharts({
       <TokensChartCard
         title={t('usageCharts.tokensPerDay')}
         data={tokensPerDay}
-        format={formatCount}
+        format={count}
         startLabel={tokensPerDay[0]?.label}
         endLabel={t('usageCharts.today')}
         accessibilityLabel={t('usageCharts.tokensPerDay')}

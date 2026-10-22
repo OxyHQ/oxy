@@ -30,11 +30,14 @@ export function OnboardingChecklist({
   hasApplication,
   hasRequest,
   compact,
+  workspaceName,
 }: {
   hasCredits: boolean;
   hasApplication: boolean;
   hasRequest: boolean;
   compact: boolean;
+  /** The active workspace: the application step is about ITS applications. */
+  workspaceName: string | undefined;
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -67,7 +70,11 @@ export function OnboardingChecklist({
       {steps.map((step) => (
         <GroupedSectionItem
           key={step.id}
-          title={t(`dashboardPage.steps.${step.id}`)}
+          title={
+            step.id === 'application' && workspaceName !== undefined
+              ? t('dashboardPage.steps.applicationIn', { workspace: workspaceName })
+              : t(`dashboardPage.steps.${step.id}`)
+          }
           icon={
             step.completed ? (
               <RiCheckboxCircleFill size="lg" fill={theme.colors.success} />
@@ -90,7 +97,7 @@ export function OnboardingChecklist({
     <View className="flex-row flex-wrap items-center justify-center gap-x-24 gap-y-12 px-4 py-12">
       <View className="w-full max-w-md gap-4">
         <Text variant="display-4-semibold">{t('dashboardPage.headline')}</Text>
-        <Muted className="text-lg">{t('dashboardPage.welcome')}</Muted>
+        <Muted className="text-lg text-muted-foreground">{t('dashboardPage.welcome')}</Muted>
         <View className="mt-8 items-start">
           <Button
             appearance="outline"

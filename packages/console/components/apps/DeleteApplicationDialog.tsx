@@ -4,6 +4,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { View } from 'react-native';
 
 import { type Application, useDeleteApplication } from '@/hooks/use-applications';
 import { isDeleteConfirmed } from '@/lib/application-delete';
@@ -65,17 +66,19 @@ export function DeleteApplicationDialog({
         },
       ]}
     >
-      <Field label={t('applications.general.deleteConfirmLabel', { name: application.name })}>
-        <TextFieldInput
-          label={t('applications.general.deleteConfirmLabel', { name: application.name })}
-          value={typed}
-          onChangeText={setTyped}
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          autoComplete="off"
-        />
-      </Field>
+      <View className="pb-4">
+        <Field label={t('applications.general.deleteConfirmLabel', { name: application.name })}>
+          <TextFieldInput
+            label={t('applications.general.deleteConfirmLabel', { name: application.name })}
+            value={typed}
+            onChangeText={setTyped}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </Field>
+      </View>
     </Dialog>
   );
 }

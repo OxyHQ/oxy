@@ -107,6 +107,29 @@ export function formatMoney(amount: string, currency: string): string {
   return `${formatAmount(amount)} ${currency}`;
 }
 
+/**
+ * An amount for a headline tile: rounded half-up to cents, so a card reads
+ * `1,321.97 USD` and not `1,321.9669 USD`.
+ *
+ * DISPLAY rounding only, done on the digit string with `BigInt` (no float), and
+ * never applied to an amount that is below one cent: that keeps its significant
+ * digits through {@link formatAmount}, so a tiny charge cannot read as `0.00`.
+ * Tables and receipts keep the exact form; this is for tiles.
+ */
+export function formatMoneyHeadline(amount: string, currency: string): string {
+  const parts = splitDecimal(amount);
+  if (parts === undefined || parts.fraction.length <= 2) {
+    return formatMoney(amount, currency);
+  }
+  const cents = BigInt(`${parts.integer}${parts.fraction.slice(0, 2)}`);
+  if (cents === 0n) {
+    return formatMoney(amount, currency);
+  }
+  const rounded = parts.fraction.charCodeAt(2) >= 53 ? cents + 1n : cents;
+  const digits = rounded.toString().padStart(3, '0');
+  return formatMoney(`${digits.slice(0, -2)}.${digits.slice(-2)}`, currency);
+}
+
 /** True when an amount is exactly zero, however many zeros it was written with. */
 export function isZeroAmount(amount: string): boolean {
   const parts = splitDecimal(amount);
@@ -215,6 +238,13 @@ export function formatBasisPoints(bps: number): string {
 }
 
 /** Whole counts — requests, tokens, images. Never an amount of money. */
-export function formatCount(value: number): string {
-  return value.toLocaleString('en-US');
+export function formatCount(value: number, locale: string = 'en-US'): string {
+  return value.toLocaleString(locale);
+}
+
+/** Large counts in a stat card that must fit a narrow tile: 6.6M, 2.1M. */
+export function formatCompactCount(value: number, locale: string = 'en-US'): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(
+    value,
+  );
 }

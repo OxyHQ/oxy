@@ -21,6 +21,7 @@ import { View } from 'react-native';
 import type { Application } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
 import { copyText } from '@/lib/clipboard';
+import { formatDateTime } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -39,7 +40,7 @@ export function FilesWebhookForm({
   application: Application;
   canEdit: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { oxyServices } = useAuth();
   const queryClient = useQueryClient();
   const [url, setUrl] = useState(application.filesWebhookUrl ?? '');
@@ -80,12 +81,12 @@ export function FilesWebhookForm({
 
   const status = application.filesWebhookVerifiedAt
     ? t('applications.filesWebhook.verifiedAt', {
-        when: new Date(application.filesWebhookVerifiedAt).toLocaleString(),
+        when: formatDateTime(application.filesWebhookVerifiedAt, locale),
       })
     : t('applications.filesWebhook.notSet');
 
   return (
-    <Card appearance="outline">
+    <Card appearance="plain" border="thin">
       <CardHeader>
         <CardTitle>{t('applications.filesWebhook.title')}</CardTitle>
         <CardDescription>{t('applications.filesWebhook.body')}</CardDescription>

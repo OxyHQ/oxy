@@ -1,23 +1,14 @@
 import { useAppShellPanel } from '@oxy.so/bloom/app-shell';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Badge } from '@oxy.so/bloom/badge';
-import { RiBarChartLine } from '@oxy.so/bloom/icons/RiBarChartLine';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
-import { RiKey2Line } from '@oxy.so/bloom/icons/RiKey2Line';
-import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
-import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
-import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { RiStore2Line } from '@oxy.so/bloom/icons/RiStore2Line';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useAuth } from '@oxy.so/services/ui/client';
-import type { ComponentProps } from 'react';
 import { type Href, usePathname, useRouter } from 'expo-router';
 
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { useTranslation } from '@/lib/i18n';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
+import { ApplicationStatusBadge } from './ApplicationStatusBadge';
 
 /**
  * The detail `Screen` header: identity, then the section tabs in the header's
@@ -43,32 +34,28 @@ export function ApplicationHeader({
   const { oxyServices } = useAuth();
   const { alone } = useAppShellPanel();
   const base = `/apps/${application._id}`;
-  const active = application.status === 'active';
 
   const tabs: ReadonlyArray<{
     value: string;
     allowed: boolean;
-    icon: ComponentProps<typeof TabsTrigger>['leadingIcon'];
   }> = [
-    { value: 'credentials', allowed: access.can('credentials:read'), icon: RiKey2Line },
-    { value: 'roles', allowed: access.can('roles:read'), icon: RiGroupLine },
-    { value: 'webhooks', allowed: access.can('webhooks:read'), icon: RiPlugLine },
-    { value: 'usage', allowed: access.can('usage:read'), icon: RiBarChartLine },
-    { value: 'inference', allowed: access.can('app:read'), icon: RiSparklingLine },
-    { value: 'store', allowed: access.can('app:read'), icon: RiStore2Line },
-    { value: 'updates', allowed: access.can('updates:manage'), icon: RiRocket2Line },
+    { value: 'credentials', allowed: access.can('credentials:read') },
+    { value: 'roles', allowed: access.can('roles:read') },
+    { value: 'webhooks', allowed: access.can('webhooks:read') },
+    { value: 'usage', allowed: access.can('usage:read') },
+    { value: 'inference', allowed: access.can('app:read') },
+    { value: 'store', allowed: access.can('app:read') },
+    { value: 'updates', allowed: access.can('updates:manage') },
   ];
   const items: ReadonlyArray<{
     value: string;
     label: string;
     href: Href;
-    leadingIcon: ComponentProps<typeof TabsTrigger>['leadingIcon'];
   }> = [
     {
       value: 'general',
       label: t('applications.tabs.general'),
       href: base as Href,
-      leadingIcon: RiSettings3Line,
     },
     ...tabs
       .filter((tab) => tab.allowed)
@@ -76,7 +63,6 @@ export function ApplicationHeader({
         value: tab.value,
         label: t(`applications.tabs.${tab.value}`),
         href: `${base}/${tab.value}` as Href,
-        leadingIcon: tab.icon,
       })),
   ];
 
@@ -97,14 +83,7 @@ export function ApplicationHeader({
           source={resolveStoredImageUrl(oxyServices, application.icon) ?? null}
         />
       }
-      actions={
-        <Badge
-          content={active ? t('applications.status.active') : t('applications.status.inactive')}
-          size="label-small"
-          variant={active ? 'solid' : 'subtle'}
-          color={active ? 'success' : 'default'}
-        />
-      }
+      actions={<ApplicationStatusBadge status={application.status} />}
       accessory={
         <Tabs
           value={selected}
@@ -116,12 +95,7 @@ export function ApplicationHeader({
           label={t('applications.tabs.label')}
         >
           {items.map((item) => (
-            <TabsTrigger
-              key={item.value}
-              value={item.value}
-              label={item.label}
-              leadingIcon={item.leadingIcon}
-            />
+            <TabsTrigger key={item.value} value={item.value} label={item.label} />
           ))}
         </Tabs>
       }

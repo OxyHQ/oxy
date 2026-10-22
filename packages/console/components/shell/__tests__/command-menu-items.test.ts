@@ -1,10 +1,10 @@
 jest.mock('@oxy.so/bloom/icons/RiAddLine', () => ({ RiAddLine: () => null }));
 jest.mock('@oxy.so/bloom/icons/RiBuilding2Line', () => ({ RiBuilding2Line: () => null }));
-jest.mock('@oxy.so/bloom/icons/RiSearchLine', () => ({ RiSearchLine: () => null }));
 jest.mock('@/lib/navigation', () => ({
   CONSOLE_NAV: [
     { href: '/', labelKey: 'nav.dashboard', icon: () => null },
     { href: '/apps', labelKey: 'nav.apps', icon: () => null },
+    { href: '/claims', labelKey: 'nav.claims', icon: () => null, staff: true },
     { href: '/docs', labelKey: 'nav.documentation', icon: () => null, external: 'https://docs' },
   ],
   SETTINGS_NAV: { key: 'settings', labelKey: 'nav.settings', icon: () => null },
@@ -23,7 +23,7 @@ const actions = (overrides: Partial<Parameters<typeof buildCommandItems>[1]> = {
 });
 
 describe('buildCommandItems', () => {
-  it('lists the actions, every section, Settings and the routes the sidebar omits once each', () => {
+  it('lists the actions, every section, Settings once each and staff sections only for staff', () => {
     const ids = buildCommandItems(t, actions()).map((item) => item.id);
     expect(ids).toEqual([
       'create-app',
@@ -32,9 +32,13 @@ describe('buildCommandItems', () => {
       'nav:/apps',
       'nav:/docs',
       'nav:settings',
-      'nav:/clarity',
     ]);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('adds the staff sections for staff', () => {
+    const ids = buildCommandItems(t, actions({ isStaff: true })).map((item) => item.id);
+    expect(ids).toContain('nav:/claims');
   });
 
   it('groups actions apart from navigation', () => {

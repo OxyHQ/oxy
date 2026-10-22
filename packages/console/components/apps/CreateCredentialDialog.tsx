@@ -126,7 +126,7 @@ export function CreateCredentialDialog({
         },
       ]}
     >
-      <View className="gap-4">
+      <View className="gap-4 pb-4">
         <Field label={t('applications.credentials.name')}>
           <TextFieldInput
             label={t('applications.credentials.name')}
@@ -135,17 +135,19 @@ export function CreateCredentialDialog({
             placeholder={t('applications.credentials.namePlaceholder')}
           />
         </Field>
-        <RadioGroup
-          label={t('applications.credentials.type')}
-          variant="card"
-          value={type}
-          onValueChange={chooseType}
-          options={TYPES.map((value) => ({
-            value,
-            label: t(`applications.credentials.types.${value}`),
-            description: t(`applications.credentials.typeHints.${value}`),
-          }))}
-        />
+        <Field label={t('applications.credentials.type')}>
+          <RadioGroup
+            label={t('applications.credentials.type')}
+            variant="card"
+            value={type}
+            onValueChange={chooseType}
+            options={TYPES.map((value) => ({
+              value,
+              label: t(`applications.credentials.types.${value}`),
+              description: t(`applications.credentials.typeHints.${value}`),
+            }))}
+          />
+        </Field>
         {type === 'service' ? (
           paymentsScopes.length > 0 ? (
             <GroupedSection
@@ -201,16 +203,18 @@ export function CreateCredentialDialog({
             <Admonition type="info">{t('applications.credentials.grantScopeFirst')}</Admonition>
           )
         ) : null}
-        <RadioGroup
-          label={t('applications.credentials.environment')}
-          variant="chip"
-          value={environment}
-          onValueChange={setEnvironment}
-          options={ENVIRONMENTS.map((value) => ({
-            value,
-            label: t(`applications.credentials.environments.${value}`),
-          }))}
-        />
+        <Field label={t('applications.credentials.environment')}>
+          <RadioGroup
+            label={t('applications.credentials.environment')}
+            variant="chip"
+            value={environment}
+            onValueChange={setEnvironment}
+            options={ENVIRONMENTS.map((value) => ({
+              value,
+              label: t(`applications.credentials.environments.${value}`),
+            }))}
+          />
+        </Field>
       </View>
     </Dialog>
   );

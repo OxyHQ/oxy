@@ -97,61 +97,70 @@ export function ClaimsQueue() {
 
   return (
     <View className="gap-4">
-      <View className="gap-2">
-        <ChipRow accessibilityLabel={t('claimsPage.filters.state')}>
-          {CONTENT_CLAIM_STATES.map((state) => (
-            <Chip
-              key={state}
-              size="md"
-              role="checkbox"
-              selected={filters.states.includes(state)}
-              onPress={() =>
-                setFilters((current) => ({
-                  ...current,
-                  states: toggleFilterValue(current.states, state),
-                }))
-              }
-            >
-              {t(`claimsPage.states.${state}`)}
-            </Chip>
-          ))}
-        </ChipRow>
-        <ChipRow accessibilityLabel={t('claimsPage.filters.kind')}>
-          {CONTENT_CLAIM_KINDS.map((kind) => (
-            <Chip
-              key={kind}
-              size="md"
-              role="checkbox"
-              selected={filters.kinds.includes(kind)}
-              onPress={() =>
-                setFilters((current) => ({
-                  ...current,
-                  kinds: toggleFilterValue(current.kinds, kind),
-                }))
-              }
-            >
-              {t(`claimsPage.kinds.${kind}`)}
-            </Chip>
-          ))}
-        </ChipRow>
-        <ChipRow accessibilityLabel={t('claimsPage.filters.deadline')}>
-          {DEADLINE_FILTERS.map((option) => (
-            <Chip
-              key={option}
-              size="md"
-              role="checkbox"
-              selected={filters.deadline === option}
-              onPress={() =>
-                setFilters((current) => ({
-                  ...current,
-                  deadline: current.deadline === option ? null : option,
-                }))
-              }
-            >
-              {t(`claimsPage.deadlines.${option}`)}
-            </Chip>
-          ))}
-        </ChipRow>
+      <View className="gap-3">
+        <View className="gap-1">
+          <Muted className="text-xs">{t('claimsPage.filters.state')}</Muted>
+          <ChipRow accessibilityLabel={t('claimsPage.filters.state')}>
+            {CONTENT_CLAIM_STATES.map((state) => (
+              <Chip
+                key={state}
+                size="sm"
+                role="checkbox"
+                selected={filters.states.includes(state)}
+                onPress={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    states: toggleFilterValue(current.states, state),
+                  }))
+                }
+              >
+                {t(`claimsPage.states.${state}`)}
+              </Chip>
+            ))}
+          </ChipRow>
+        </View>
+        <View className="gap-1">
+          <Muted className="text-xs">{t('claimsPage.filters.kind')}</Muted>
+          <ChipRow accessibilityLabel={t('claimsPage.filters.kind')}>
+            {CONTENT_CLAIM_KINDS.map((kind) => (
+              <Chip
+                key={kind}
+                size="sm"
+                role="checkbox"
+                selected={filters.kinds.includes(kind)}
+                onPress={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    kinds: toggleFilterValue(current.kinds, kind),
+                  }))
+                }
+              >
+                {t(`claimsPage.kinds.${kind}`)}
+              </Chip>
+            ))}
+          </ChipRow>
+        </View>
+        <View className="gap-1">
+          <Muted className="text-xs">{t('claimsPage.filters.deadline')}</Muted>
+          <ChipRow accessibilityLabel={t('claimsPage.filters.deadline')}>
+            {DEADLINE_FILTERS.map((option) => (
+              <Chip
+                key={option}
+                size="sm"
+                role="checkbox"
+                selected={filters.deadline === option}
+                onPress={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    deadline: current.deadline === option ? null : option,
+                  }))
+                }
+              >
+                {t(`claimsPage.deadlines.${option}`)}
+              </Chip>
+            ))}
+          </ChipRow>
+        </View>
       </View>
 
       {query.isLoading ? (

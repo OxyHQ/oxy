@@ -57,20 +57,30 @@ export function SpendTable({
         flex: 1.5,
         accessor: (row) => labelOf(keyOf(row)),
         sortDescFirst: false,
-        cell: ({ row }) => <Text numberOfLines={1}>{labelOf(keyOf(row))}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm text-foreground" numberOfLines={1}>
+            {labelOf(keyOf(row))}
+          </Text>
+        ),
       },
       {
         id: 'receipts',
         header: t('billingPage.spend.receipts'),
         accessor: (row) => row.receiptCount,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.receiptCount)}</Muted>,
+        cell: ({ row }) => (
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatCount(row.receiptCount)}
+          </Muted>
+        ),
       },
       {
         id: 'refunded',
         header: t('billingPage.spend.refunded'),
         accessor: (row) => plotNumber(row.refundedAmount),
         cell: ({ row }) => (
-          <Muted className="tabular-nums">{formatMoney(row.refundedAmount, row.currency)}</Muted>
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatMoney(row.refundedAmount, row.currency)}
+          </Muted>
         ),
       },
       {
@@ -78,7 +88,9 @@ export function SpendTable({
         header: t('billingPage.spend.net'),
         accessor: (row) => plotNumber(row.netAmount),
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.netAmount, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.netAmount, row.currency)}
+          </Text>
         ),
       },
       ...(linksToApplication

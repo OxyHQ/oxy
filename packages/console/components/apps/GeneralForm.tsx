@@ -1,4 +1,3 @@
-import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
@@ -24,6 +23,7 @@ import { hasAliaMachineScopes } from '@/lib/application-scopes';
 import { copyText } from '@/lib/clipboard';
 import { useTranslation } from '@/lib/i18n';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
+import { ApplicationStatusBadge } from './ApplicationStatusBadge';
 import { DeleteApplicationDialog } from './DeleteApplicationDialog';
 import {
   draftFromApplication,
@@ -84,11 +84,9 @@ export function GeneralForm({
     }
   };
 
-  const active = application.status === 'active';
-
   return (
     <>
-      <Card appearance="outline">
+      <Card appearance="plain" border="thin">
         <CardHeader>
           <CardTitle>{t('applications.general.title')}</CardTitle>
           <CardDescription>{t('applications.general.subtitle')}</CardDescription>
@@ -164,7 +162,7 @@ export function GeneralForm({
         </CardBody>
       </Card>
 
-      <Card appearance="outline">
+      <Card appearance="plain" border="thin">
         <CardHeader>
           <CardTitle>{t('applications.general.redirectTitle')}</CardTitle>
           <CardDescription>{t('applications.general.redirectBody')}</CardDescription>
@@ -257,14 +255,7 @@ export function GeneralForm({
           accessibilityLabel={t('applications.general.idCopy')}
           icon={<RiFileCopyLine />}
           onPress={() => void copyText(application._id, t('applications.general.idCopied'))}
-          rightElement={
-            <Badge
-              content={active ? t('applications.status.active') : t('applications.status.inactive')}
-              size="label-small"
-              variant={active ? 'solid' : 'subtle'}
-              color={active ? 'success' : 'default'}
-            />
-          }
+          rightElement={<ApplicationStatusBadge status={application.status} />}
         />
       </GroupedSection>
 

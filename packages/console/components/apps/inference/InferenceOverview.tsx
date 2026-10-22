@@ -20,7 +20,7 @@ import { useModelCatalogue } from '@/hooks/use-models';
 import { useAccountProviderConnections } from '@/hooks/use-provider-connections';
 import { useEffectiveRoutingPolicy } from '@/hooks/use-routing-policy';
 import { useTranslation } from '@/lib/i18n';
-import { formatCount, formatMoney } from '@/lib/money';
+import { formatCompactCount, formatCount, formatMoney } from '@/lib/money';
 import { connectionAppliesToApplication } from '@/lib/provider-connection';
 import { lastCalendarDays } from '@/lib/reporting';
 import { effectivePolicyOrigin } from '@/lib/routing-policy';
@@ -143,7 +143,7 @@ export function InferenceOverview() {
           {
             icon: RiCpuLine,
             label: t('appsInference.overview.stats.tokens'),
-            value: `${formatCount(totals.input)} / ${formatCount(totals.output)}`,
+            value: `${formatCompactCount(totals.input)} / ${formatCompactCount(totals.output)}`,
             delta: t('appsInference.overview.stats.tokensDetail'),
             deltaColor: 'neutral' as const,
           },
@@ -155,7 +155,7 @@ export function InferenceOverview() {
           label: t('appsInference.overview.stats.spend'),
           value: formatMoney(total.netAmount, total.currency),
           delta: t('appsInference.overview.stats.receipts', {
-            count: formatCount(total.receiptCount),
+            count: total.receiptCount,
           }),
           deltaColor: 'neutral' as const,
         }))
@@ -229,7 +229,9 @@ export function InferenceOverview() {
               : t('appsInference.overview.models.published')
           }
           titleNumberOfLines={0}
-          rightElement={<Badge content={String(catalogue.length)} variant="subtle" />}
+          rightElement={
+            <Badge content={String(catalogue.length)} variant="subtle" color="primary" />
+          }
         />
         <GroupedSectionItem
           title={t('appsInference.overview.policy.label')}
@@ -262,7 +264,9 @@ export function InferenceOverview() {
                 : t('appsInference.overview.credentials.live')
           }
           titleNumberOfLines={0}
-          rightElement={<Badge content={String(liveConnections.length)} variant="subtle" />}
+          rightElement={
+            <Badge content={String(liveConnections.length)} variant="subtle" color="primary" />
+          }
         />
       </GroupedSection>
     </>

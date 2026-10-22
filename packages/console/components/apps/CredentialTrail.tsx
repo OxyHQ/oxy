@@ -6,6 +6,7 @@ import { Dialog } from '@oxy.so/bloom/dialog';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
+import { View } from 'react-native';
 
 import {
   type ApplicationCredential,
@@ -17,6 +18,7 @@ import {
   credentialAuditVariant,
   humaniseAuditToken,
 } from '@/lib/credential-audit';
+import { formatDateTime } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -41,7 +43,7 @@ export function CredentialTrail({
   credential: ApplicationCredential | null;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const {
     data: events = [],
     isLoading,
@@ -76,7 +78,7 @@ export function CredentialTrail({
               row.environment ?? t('applications.credentials.noEnvironment'),
               row.effectiveUntil !== null
                 ? t('applications.credentials.until', {
-                    when: new Date(row.effectiveUntil).toLocaleString(),
+                    when: formatDateTime(row.effectiveUntil, locale),
                   })
                 : null,
             ]
@@ -88,11 +90,11 @@ export function CredentialTrail({
       {
         id: 'when',
         header: t('applications.credentials.trailWhen'),
-        minWidth: 170,
-        cell: ({ row }) => <Muted>{new Date(row.createdAt).toLocaleString()}</Muted>,
+        minWidth: 200,
+        cell: ({ row }) => <Muted>{formatDateTime(row.createdAt, locale)}</Muted>,
       },
     ],
-    [t],
+    [t, locale],
   );
 
   return (
@@ -115,17 +117,19 @@ export function CredentialTrail({
           </Button>
         </Admonition>
       ) : (
-        <DataTable
-          rows={events}
-          columns={columns}
-          getRowId={(row, index) => `${row.eventType}-${row.createdAt}-${index}`}
-          accessibilityLabel={t('applications.credentials.trailTitle', {
-            name: credential?.name ?? '',
-          })}
-          emptyState={t('applications.credentials.trailEmpty')}
-          pageSize={10}
-          minWidth={540}
-        />
+        <View className="pb-4">
+          <DataTable
+            rows={events}
+            columns={columns}
+            getRowId={(row, index) => `${row.eventType}-${row.createdAt}-${index}`}
+            accessibilityLabel={t('applications.credentials.trailTitle', {
+              name: credential?.name ?? '',
+            })}
+            emptyState={t('applications.credentials.trailEmpty')}
+            pageSize={10}
+            minWidth={600}
+          />
+        </View>
       )}
     </Dialog>
   );

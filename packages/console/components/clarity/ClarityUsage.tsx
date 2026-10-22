@@ -22,6 +22,7 @@ export function ClarityUsage() {
       header: t('clarityPage.usage.operation'),
       basis: 240,
       accessor: (row) => row.operation,
+      cell: ({ row }) => t(`clarityPage.usage.operations.${row.operation}`),
     },
     {
       id: 'period',
@@ -54,9 +55,13 @@ export function ClarityUsage() {
               <ApiState error={quotas.error} onRetry={quotas.refetch} />
             ) : (
               quotas.data && (
-                <GroupedSection separator="line">
+                <GroupedSection separator="line" variant="plain">
                   {Object.entries(quotas.data).map(([key, value]) => (
-                    <GroupedSectionItem key={key} title={key} value={value.toLocaleString()} />
+                    <GroupedSectionItem
+                      key={key}
+                      title={t(`clarityPage.usage.quota.${key}`)}
+                      value={value.toLocaleString()}
+                    />
                   ))}
                 </GroupedSection>
               )

@@ -78,7 +78,9 @@ export function BudgetDialog({
 
   const [period, setPeriod] = useState<BudgetPeriod>(budget?.period ?? 'monthly');
   const [limitAmount, setLimitAmount] = useState(budget?.limitAmount ?? '');
-  const [currency, setCurrency] = useState<string>(budget?.currency ?? currencies[0] ?? '');
+  // Balances load after the dialog mounts, so the default is resolved at read time.
+  const [pickedCurrency, setCurrency] = useState<string>(budget?.currency ?? '');
+  const currency = pickedCurrency || (currencies[0] ?? '');
   const [enforcement, setEnforcement] = useState<BudgetEnforcement>(
     budget?.enforcement ?? 'hard_stop',
   );
@@ -145,7 +147,6 @@ export function BudgetDialog({
       description={t('appsInference.budgets.form.description')}
       scrollable
       actions={[
-        { label: t('common.cancel'), color: 'cancel' },
         {
           label: isEdit
             ? t('appsInference.budgets.form.save')
@@ -156,9 +157,10 @@ export function BudgetDialog({
           loading: isPending,
           shouldCloseOnPress: false,
         },
+        { label: t('common.cancel'), color: 'cancel' },
       ]}
     >
-      <View className="gap-5 py-2">
+      <View className="gap-5 pb-4 pt-2">
         <View className="flex-row gap-4">
           <Field label={t('appsInference.budgets.form.period')} style={{ flex: 1 }}>
             <Select

@@ -69,7 +69,7 @@ export function PromoteDialog({
         { label: t('common.cancel'), color: 'cancel' },
       ]}
     >
-      <View className="gap-4">
+      <View className="gap-4 pb-4">
         <View className="gap-2">
           <Field label={t('appsUpdates.promote.target')}>
             <TextFieldInput

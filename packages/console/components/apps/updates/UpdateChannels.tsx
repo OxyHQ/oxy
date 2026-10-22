@@ -7,6 +7,7 @@ import { RiRocket2Line } from '@oxy.so/bloom/icons/RiRocket2Line';
 import { RiStackLine } from '@oxy.so/bloom/icons/RiStackLine';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { ApiState } from '@/components/loading/ApiState';
 import { useAppDetail } from '@/components/apps/app-context';
 import { useUpdateChannels } from '@/hooks/use-updates';
 import { useTranslation } from '@/lib/i18n';
@@ -27,6 +28,7 @@ export function UpdateChannels() {
     data: channels = [],
     isLoading,
     isError,
+    error,
     refetch,
   } = useUpdateChannels(application._id, canManage);
   const [selected, setSelected] = useState<string | null>(null);
@@ -40,13 +42,7 @@ export function UpdateChannels() {
   }
 
   if (isError) {
-    return (
-      <EmptyState
-        variant="compact"
-        title={t('appsUpdates.loadFailed')}
-        action={{ label: t('appsUpdates.retry'), onPress: () => refetch() }}
-      />
-    );
+    return <ApiState error={error} onRetry={() => refetch()} />;
   }
 
   if (channels.length === 0) {

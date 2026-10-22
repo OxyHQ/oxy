@@ -6,6 +6,7 @@ import { RiRepeatLine } from '@oxy.so/bloom/icons/RiRepeatLine';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useMemo } from 'react';
 
+import { useDateFormat } from '@/hooks/use-date-format';
 import { useTranslation } from '@/lib/i18n';
 import { formatMoney } from '@/lib/money';
 
@@ -22,6 +23,7 @@ export function AutoRechargeAttempts({
   attempts: ReadonlyArray<AutoRechargeAttempt>;
 }) {
   const { t } = useTranslation();
+  const dates = useDateFormat();
 
   const columns = useMemo<DataTableColumn<AutoRechargeAttempt>[]>(
     () => [
@@ -30,13 +32,17 @@ export function AutoRechargeAttempts({
         header: t('billingPage.attempts.when'),
         flex: 1.2,
         accessor: (row) => Date.parse(row.createdAt),
-        cell: ({ row }) => <Text>{new Date(row.createdAt).toLocaleString()}</Text>,
+        cell: ({ row }) => (
+          <Text className="text-sm text-foreground">{dates.dateTime(row.createdAt)}</Text>
+        ),
       },
       {
         id: 'trigger',
         header: t('billingPage.attempts.trigger'),
         cell: ({ row }) => (
-          <Muted className="tabular-nums">{formatMoney(row.balanceAtTrigger, row.currency)}</Muted>
+          <Muted className="text-sm tabular-nums text-muted-foreground">
+            {formatMoney(row.balanceAtTrigger, row.currency)}
+          </Muted>
         ),
       },
       {
@@ -54,11 +60,13 @@ export function AutoRechargeAttempts({
         header: t('billingPage.attempts.amount'),
         align: 'end',
         cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.requestedAmount, row.currency)}</Text>
+          <Text className="text-sm tabular-nums text-foreground">
+            {formatMoney(row.requestedAmount, row.currency)}
+          </Text>
         ),
       },
     ],
-    [t],
+    [dates, t],
   );
 
   return (
