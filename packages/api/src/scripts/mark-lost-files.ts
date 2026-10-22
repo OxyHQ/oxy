@@ -20,6 +20,7 @@
  */
 
 import { closePostgres, connectPostgres } from '../config/postgres';
+import { closeRedis, getRedisClient } from '../config/redis';
 import { findFileById } from '../services/fileRepository';
 import { assetService } from '../services/assetServiceSingleton';
 import { s3Service } from '../services/s3ServiceSingleton';
@@ -42,6 +43,9 @@ async function main(): Promise<void> {
   if (ids.length === 0) throw new Error('Name at least one file id');
   const apply = process.env.APPLY === 'true';
   await connectPostgres();
+  // Connected before any change, so the cross-task file-cache invalidation a
+  // mark publishes reaches every API task (it is skipped while Redis is not ready).
+  await getRedisClient()?.connect();
   try {
     let failed = 0;
     for (const fileId of ids) {
@@ -53,14 +57,19 @@ async function main(): Promise<void> {
   } finally {
     // The CDN purges a lost file's paths queued; send them before exiting.
     await flushCdnInvalidations();
+    await closeRedis();
     await closePostgres();
   }
 }
 
-main().catch((error) => {
-  logger.error(
-    '[mark-lost-files] failed',
-    error instanceof Error ? error : new Error(String(error)),
-  );
-  process.exit(1);
-});
+// Exits when done: a one-off task otherwise stays up on whatever timers the
+// API's modules started (the purge queue, the caches).
+main()
+  .then(() => process.exit())
+  .catch((error) => {
+    logger.error(
+      '[mark-lost-files] failed',
+      error instanceof Error ? error : new Error(String(error)),
+    );
+    process.exit(1);
+  });
