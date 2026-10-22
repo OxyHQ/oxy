@@ -141,6 +141,12 @@ export {
  * The ActivityPub actor + inbox + follow-graph router (actor GET incl. the
  * `instance` actor, inbox POST with HTTP-sig verify, followers/following pages).
  */
+/**
+ * A deleted local actor: its `Delete` of itself, and the `Tombstone` its URLs
+ * answer `410 Gone` with afterwards.
+ */
+export { buildActorDeleteActivity, goneTombstone, type IsActorGone } from './goneActor';
+
 export {
   createActorRouter,
   type ActorRouterConfig,

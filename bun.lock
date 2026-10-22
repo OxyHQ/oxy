@@ -577,7 +577,7 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.7.0",
+      "version": "2.8.0",
       "dependencies": {
         "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || 4.11.0-oxy-one.0",
         "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0",

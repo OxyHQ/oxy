@@ -30,6 +30,7 @@ import { readBodyChunks } from './boundedBody';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import type { LocalActorBuilder } from '../actorObject';
+import { buildActorDeleteActivity } from './goneActor';
 
 /** Total time budget for a single delivery POST (connect + response headers). */
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
@@ -360,6 +361,15 @@ export interface DeliveryService {
   ): Promise<void>;
   /** Rebroadcast the FULL actor document as an Update(Person) to remote followers. */
   federateActorUpdate(actorOxyUserId: string, username: string): Promise<void>;
+  /**
+   * Tell every remote follower the actor is gone: its `Delete` of itself
+   * (`goneActor.ts`), one per (shared) inbox, signed with its own key. Needs the
+   * accepted follower rows, so call it BEFORE deleting them. Asks no consent and
+   * resolves no profile, since the account is already gone at its identity
+   * provider; it needs only the handle and the key the handle addresses. Throws
+   * when it cannot queue, so the caller's job retries.
+   */
+  federateActorDelete(actorOxyUserId: string, username: string): Promise<void>;
 }
 
 /** Build the outbound delivery + follow-lifecycle service from an app's adapters. */
@@ -850,6 +860,15 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     }
   }
 
+  async function federateActorDelete(actorOxyUserId: string, username: string): Promise<void> {
+    if (!config.federationEnabled) return;
+    await deliverToFollowers(
+      buildActorDeleteActivity(urls.actor(username)),
+      actorOxyUserId,
+      username,
+    );
+  }
+
   return {
     deliverActivity,
     queueDelivery,
@@ -860,5 +879,6 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     sendAccept,
     sendReject,
     federateActorUpdate,
+    federateActorDelete,
   };
 }

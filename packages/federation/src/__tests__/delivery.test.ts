@@ -471,6 +471,29 @@ describe('federateActorUpdate', () => {
   });
 });
 
+describe('federateActorDelete', () => {
+  it("sends the actor's own Delete, once per shared inbox, with no consent or profile read", async () => {
+    const shared = 'https://shared.example/inbox';
+    const rig = makeRig({
+      sharingEnabled: false,
+      followerActorUris: ['a', 'b'],
+      followerInboxes: { a: { sharedInboxUrl: shared }, b: { sharedInboxUrl: shared } },
+    });
+
+    await rig.service.federateActorDelete('u-alice', 'alice');
+
+    expect(rig.enqueued).toHaveLength(1);
+    expect(rig.enqueued[0].activityJson).toEqual({
+      '@context': AP_CONTEXT,
+      id: `${urls.actor('alice')}#delete`,
+      type: 'Delete',
+      actor: urls.actor('alice'),
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      object: urls.actor('alice'),
+    });
+  });
+});
+
 describe('live delivery authorization', () => {
   const activity = {
     type: 'Create',
