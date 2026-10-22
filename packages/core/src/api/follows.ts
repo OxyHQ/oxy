@@ -245,7 +245,7 @@ export class FollowsApi {
    * Signed out: `[]`. Cached 2 minutes.
    */
   async mutualIds(params?: { limit?: number }): Promise<string[]> {
-    const response = await this.ctx.request<{ data: string[] }>(
+    return this.ctx.request<string[]>(
       'GET',
       '/users/mutual-ids',
       buildPaginationParams(params ?? {}),
@@ -254,7 +254,6 @@ export class FollowsApi {
         cacheTTL: GRAPH_TTL,
       },
     );
-    return response.data || [];
   }
 
   /**
@@ -263,13 +262,12 @@ export class FollowsApi {
    * a friends-of-friends feed. Signed out: `[]`. Cached 2 minutes.
    */
   async followsOfFollowsIds(params?: { limit?: number }): Promise<string[]> {
-    const response = await this.ctx.request<{ data: string[] }>(
+    return this.ctx.request<string[]>(
       'GET',
       '/users/follows-of-follows-ids',
       buildPaginationParams(params ?? {}),
       { cache: true, cacheTTL: GRAPH_TTL },
     );
-    return response.data || [];
   }
 
   /**
@@ -277,22 +275,10 @@ export class FollowsApi {
    * Cached 2 minutes; follow, block and restrict writes bust it.
    */
   async viewerGraph(): Promise<ViewerGraph> {
-    const response = await this.ctx.request<{ data: ViewerGraph }>(
-      'GET',
-      '/users/me/graph',
-      undefined,
-      {
-        cache: true,
-        cacheTTL: GRAPH_TTL,
-      },
-    );
-    const graph = response.data;
-    return {
-      followingIds: graph?.followingIds || [],
-      mutualIds: graph?.mutualIds || [],
-      blockedIds: graph?.blockedIds || [],
-      restrictedIds: graph?.restrictedIds || [],
-    };
+    return this.ctx.request<ViewerGraph>('GET', '/users/me/graph', undefined, {
+      cache: true,
+      cacheTTL: GRAPH_TTL,
+    });
   }
 
   // ── Targets (`/v2/follows`) ──────────────────────────────────────────────

@@ -222,6 +222,7 @@ describe('actor type by Oxy account kind', () => {
     expect(community.attributedTo).toBe('https://mention.earth/ap/users/nate/moderators');
     expect(community.moderators).toBe(community.attributedTo);
     expect(community.postingRestrictedToMods).toBe(false);
+    expect(community.sensitive).toBe(false);
     // Read back by the same table: an open Group is a community, not a channel.
     expect(accountKindForActor(community)).toBe('community');
     const person = buildActor(PARAMS);

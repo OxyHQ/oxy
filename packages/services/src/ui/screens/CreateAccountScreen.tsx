@@ -7,13 +7,10 @@ import { View, ActivityIndicator } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxy.so/core';
 import {
-  accountCategoryLabel,
   accountNameInvalidKey,
   accountNameInvalidMessage,
   accountNameMaxLength,
   isValidAccountName,
-  MAX_ACCOUNT_CATEGORIES,
-  SELECTABLE_ACCOUNT_CATEGORY_IDS,
 } from '@oxy.so/core';
 import {
   applyBotUsernameSuffix,
@@ -33,6 +30,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useOxy } from '../context/oxyRuntimeContext';
+import { AccountCategoriesSection } from '../components/accountSettings/AccountCategoriesSection';
 import { toast } from '@oxy.so/bloom/toast';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
@@ -103,13 +101,6 @@ const kindDescription = (
 };
 
 /**
- * Only the SELECTABLE ids are offered. The full `ACCOUNT_CATEGORY_IDS` still
- * contains withdrawn ones so that accounts already carrying them keep working —
- * offering them here would be how an account newly acquires one.
- */
-const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUNT_CATEGORY_IDS;
-
-/**
  * Create a new account in the unified account graph (an organization, project,
  * or bot). The caller becomes its owner. Optionally nested under a parent
  * account via the `parentAccountId` prop. NOT the cryptographic Commons/DID
@@ -123,7 +114,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 }) => {
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
 
   const parentId = typeof parentAccountId === 'string' ? parentAccountId : undefined;
 
@@ -291,23 +282,6 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
     [kind, t],
   );
 
-  /**
-   * Append on select, splice out on de-select. Never sorts — appending is what
-   * makes the FIRST category the user chose the primary one, and a sort would
-   * silently reassign that. De-selecting the primary promotes whatever the user
-   * picked next, which is the only interpretation that does not invent a choice
-   * on their behalf.
-   */
-  const toggleAccountCategory = useCallback((category: AccountCategoryId) => {
-    setAccountCategories((current) => {
-      if (current.includes(category)) {
-        return current.filter((entry) => entry !== category);
-      }
-      if (current.length >= MAX_ACCOUNT_CATEGORIES) return current;
-      return [...current, category];
-    });
-  }, []);
-
   const canCreate =
     canUsePrivateApi &&
     usernameStatus === 'available' &&
@@ -449,39 +423,14 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
               />
             </>
           ) : null}
-          {/* Categories — multi-select, shown for every kind this screen can create
-          (they are all non-personal). The badge on a selected row is its
-          POSITION, so the primary is legible as "1" rather than being a rule the
-          user has to be told. */}
-          <View className="gap-space-4">
-            <GroupedSection title={t('accounts.create.accountCategory.label')}>
-              {ACCOUNT_CATEGORY_OPTIONS.map((option) => {
-                const position = accountCategories.indexOf(option);
-                const selected = position >= 0;
-                const label = accountCategoryLabel(locale, option);
-                return (
-                  <GroupedSectionItem
-                    key={option}
-                    title={label}
-                    disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
-                    onPress={() => toggleAccountCategory(option)}
-                    showChevron={false}
-                    rightElement={
-                      selected ? (
-                        <Text className="text-caption-1 font-semibold text-primary">
-                          {position + 1}
-                        </Text>
-                      ) : undefined
-                    }
-                    accessibilityLabel={label}
-                  />
-                );
-              })}
-            </GroupedSection>
-            <Text className="text-caption font-caption text-text-tertiary px-space-4">
-              {t('accounts.create.accountCategory.hint', { max: MAX_ACCOUNT_CATEGORIES })}
-            </Text>
-          </View>
+          {/* Categories — the same editor the account's settings use: what is
+          chosen, in order (the first is the primary), and the vocabulary to add
+          from. */}
+          <AccountCategoriesSection
+            value={accountCategories}
+            onChange={setAccountCategories}
+            disabled={isCreating}
+          />
 
           {/* Details — a grouped section card hosting the form fields */}
           <GroupedSection title={t('accounts.create.detailsSection') || 'Details'}>

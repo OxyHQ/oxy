@@ -133,6 +133,17 @@ export {
 } from './actorObject';
 
 /**
+ * A local `Group`'s outbox and followers, in the shapes Lemmy serves and reads
+ * back; every other actor keeps the paged collections.
+ */
+export {
+  GROUP_OUTBOX_SIZE,
+  isGroupActorKind,
+  groupOutboxCollection,
+  groupFollowersCollection,
+} from './groupCollections';
+
+/**
  * Supported external networks, keyed by the transport a connector speaks.
  * `instagram-graph` is Meta's Graph API Business Discovery: a read-only
  * fallback for Business/Creator Instagram accounts whose identity Oxy resolves

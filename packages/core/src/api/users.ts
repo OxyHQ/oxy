@@ -285,13 +285,13 @@ export class UsersApi {
    * account. Cached 5 minutes.
    */
   async moderators(communityId: string): Promise<User[]> {
-    const response = await this.ctx.request<{ data: User[] }>(
+    const moderators = await this.ctx.request<User[]>(
       'GET',
       `/users/${communityId}/moderators`,
       undefined,
       { cache: true, cacheTTL: PROFILE_TTL },
     );
-    return (response.data ?? []).map((user) => normalizeUserIdentity(user));
+    return moderators.map((user) => normalizeUserIdentity(user));
   }
 
   /**

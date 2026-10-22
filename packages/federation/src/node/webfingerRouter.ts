@@ -17,6 +17,7 @@ import { discoveryCacheControl } from './httpCacheControl';
 import { isSameFederationHost } from '../apUri';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
+import type { IsActorGone } from './goneActor';
 
 /** Default HTTP response max-age. The injected JRD cache has its own policy. */
 const WEBFINGER_CACHE_TTL = 3600;
@@ -65,6 +66,12 @@ export interface WebfingerRouterConfig {
     get(username: string): Promise<WebfingerJrd | null>;
     set(username: string, jrd: WebfingerJrd): void;
   };
+  /**
+   * Whether a username that resolved to nobody names a DELETED local actor
+   * (`goneActor.ts`). True ⇒ `410 Gone` instead of 404, which is what makes
+   * Mastodon delete its copy of the account. Omitted ⇒ every miss is a 404.
+   */
+  isActorGone?: IsActorGone;
   /** HTTP response TTL in whole seconds, 0..86400. Defaults to 3600; 0 sends no-store. */
   httpCacheTtlSeconds?: number;
   /** Diagnostics sink. */
@@ -147,7 +154,13 @@ export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
       }
 
       const user = await config.resolveUser(username);
-      if (!user) return res.status(404).json({ error: 'User not found' });
+      if (!user) {
+        if (config.isActorGone && (await config.isActorGone(username))) {
+          res.set('Cache-Control', httpCacheControl);
+          return res.status(410).json({ error: 'User deleted' });
+        }
+        return res.status(404).json({ error: 'User not found' });
+      }
 
       // Sharing OFF must be indistinguishable from a nonexistent user — same 404
       // body, no separate error code. UNLIKE the other user-scoped surfaces,

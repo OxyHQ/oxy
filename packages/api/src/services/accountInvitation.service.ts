@@ -6,7 +6,8 @@ import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { accountInvitations } from '../db/schema/accountInvitations';
 import { accountMembers } from '../db/schema/accountMembers';
 import { users } from '../db/schema/users';
-import { accountService } from './account.service';
+import { accountService, joinCommunityAsOperator } from './account.service';
+import { invalidateAccountGraphCaches } from './followCommand.service';
 import { sendAccountInvitation } from './accountEmail.mail';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/error';
 import { resolveEffectivePermissions, type AccountRole } from '../utils/accountRoles';
@@ -147,7 +148,7 @@ export const accountInvitationService = {
     return { invitation: invitationDto(row), account };
   },
   async accept(token: string, userId: string) {
-    return getDb().transaction(async (tx) => {
+    const { accepted, joined } = await getDb().transaction(async (tx) => {
       const [row] = await tx
         .select(columns())
         .from(accountInvitations)
@@ -178,7 +179,7 @@ export const accountInvitationService = {
       if (person?.kind !== 'personal')
         throw new BadRequestError('Choose a personal account to accept');
       const [account] = await tx
-        .select({ id: users.id })
+        .select({ id: users.id, kind: users.kind })
         .from(users)
         .where(and(eq(users.id, row.accountId), ne(users.accountStatus, 'archived')))
         .for('share');
@@ -215,7 +216,11 @@ export const accountInvitationService = {
         .where(and(eq(accountInvitations.id, row.id), gt(accountInvitations.expiresAt, new Date())))
         .returning(columns());
       if (!consumed) throw new BadRequestError('Invitation expired');
-      return { accountId: row.accountId, success: true };
+      // A community's new moderator is one of its members too.
+      const joined = await joinCommunityAsOperator(tx, account, userId);
+      return { accepted: { accountId: row.accountId, success: true }, joined };
     });
+    if (joined) await invalidateAccountGraphCaches(userId, [accepted.accountId]);
+    return accepted;
   },
 };

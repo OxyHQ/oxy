@@ -1,5 +1,5 @@
 {
-  "id": "95c9839a-f75f-43b7-aab3-183d0b845d75",
+  "id": "c3f31556-d172-4404-b7e9-d08565d8056b",
   "prevId": "8a16cd65-fa0e-4fd8-ae77-571ebcdf9107",
   "version": "7",
   "dialect": "postgresql",
@@ -9428,118 +9428,6 @@
         "conduct_strikes_resolution_complete_check": {
           "name": "conduct_strikes_resolution_complete_check",
           "value": "(\"conduct_strikes\".\"status\" = 'active') = (\"conduct_strikes\".\"resolved_at\" is null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.console_onboarding": {
-      "name": "console_onboarding",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "terms_version": {
-          "name": "terms_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "terms_accepted_at": {
-          "name": "terms_accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "adult_acknowledged": {
-          "name": "adult_acknowledged",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "aup_acknowledged": {
-          "name": "aup_acknowledged",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "marketing_opt_in": {
-          "name": "marketing_opt_in",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "use_cases": {
-          "name": "use_cases",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "use_case_description": {
-          "name": "use_case_description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "use_cases_answered_at": {
-          "name": "use_cases_answered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "console_onboarding_user_id_users_id_fk": {
-          "name": "console_onboarding_user_id_users_id_fk",
-          "tableFrom": "console_onboarding",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "console_onboarding_use_case_description_check": {
-          "name": "console_onboarding_use_case_description_check",
-          "value": "\"console_onboarding\".\"use_case_description\" is null or char_length(\"console_onboarding\".\"use_case_description\") <= 2000"
-        },
-        "console_onboarding_use_cases_check": {
-          "name": "console_onboarding_use_cases_check",
-          "value": "\"console_onboarding\".\"use_cases\" <@ array['build-with-api', 'ai-models', 'publish-apps', 'billing-credits', 'explore-platform']::text[]"
-        },
-        "console_onboarding_terms_complete_check": {
-          "name": "console_onboarding_terms_complete_check",
-          "value": "(\"console_onboarding\".\"terms_version\" is null) = (\"console_onboarding\".\"terms_accepted_at\" is null) and (\"console_onboarding\".\"terms_version\" is null or (\"console_onboarding\".\"adult_acknowledged\" and \"console_onboarding\".\"aup_acknowledged\"))"
         }
       },
       "isRLSEnabled": false
@@ -25527,6 +25415,24 @@
         "retention_days": {
           "name": "retention_days",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_messages": {
+          "name": "total_messages",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unseen_messages": {
+          "name": "unseen_messages",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         },

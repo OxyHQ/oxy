@@ -24,6 +24,11 @@ const LOADERS: Record<string, () => Promise<{ default: LocaleDict }>> = {
   'ko-KR': () => import('./locales/ko-KR'),
   'zh-CN': () => import('./locales/zh-CN'),
   'ar-SA': () => import('./locales/ar-SA'),
+  'bn-BD': () => import('./locales/bn-BD'),
+  'hi-IN': () => import('./locales/hi-IN'),
+  'id-ID': () => import('./locales/id-ID'),
+  'ru-RU': () => import('./locales/ru-RU'),
+  'tr-TR': () => import('./locales/tr-TR'),
 };
 
 /** Base subtag → the dictionary that serves it. */
@@ -39,6 +44,11 @@ const ALIASES: Record<string, string> = {
   ko: 'ko-KR',
   zh: 'zh-CN',
   ar: 'ar-SA',
+  bn: 'bn-BD',
+  hi: 'hi-IN',
+  id: 'id-ID',
+  ru: 'ru-RU',
+  tr: 'tr-TR',
 };
 
 const DICTS: Record<string, LocaleDict> = { [FALLBACK]: enUS };

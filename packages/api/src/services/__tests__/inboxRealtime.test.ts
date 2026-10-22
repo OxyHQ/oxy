@@ -13,11 +13,12 @@
  *    deduping an optimistic insert on `messageId` compared a row id against a
  *    `<...@oxy.so>` header and never matched.
  *
- * The unread count is the one to watch. It replaced the denormalized
- * `mailboxes.unseen_messages` column, so it is a filtered aggregate that can
- * return 0 for a reason that is not "no unread mail" — a wrong predicate
- * returns 0 just as quietly. It is asserted as an exact NON-ZERO number against
- * rows written in the same test.
+ * The unread count is the one to watch. It is `mailboxes.unseen_messages`,
+ * kept by the triggers on `messages`, or a filtered aggregate for a folder not
+ * counted yet (`services/folderCounts.ts`); either can return 0 for a reason
+ * that is not "no unread mail" — a wrong predicate returns 0 just as quietly.
+ * It is asserted as an exact NON-ZERO number against rows written in the same
+ * test.
  */
 
 const mockGetIO = jest.fn();

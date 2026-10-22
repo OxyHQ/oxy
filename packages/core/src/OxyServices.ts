@@ -22,7 +22,12 @@ import { ContentClaimsApi } from './api/contentClaims';
  * Servers use `OxyServer` from `@oxy.so/core/server`: the same client plus the
  * service-token lane and the Express / Socket.IO middleware.
  */
-import { HttpService, type AuthRefreshReason, type RequestOptions } from './HttpService';
+import {
+  HttpService,
+  type AuthRefreshReason,
+  type RequestOptions,
+  type ResponsePayload,
+} from './HttpService';
 import type { OxyConfig as OxyConfigBase } from './models/interfaces';
 import { toOxyApiError } from './OxyServices.errors';
 import type { HttpMethod, OxyContext } from './client/context';
@@ -107,7 +112,7 @@ export class OxyServices {
     url: string,
     data?: unknown,
     options: RequestOptions = {},
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     try {
       return await this.http.request<T>({
         method,

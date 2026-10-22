@@ -42,6 +42,7 @@ export {
 export type { HttpMethod } from './client/context';
 export type {
   RequestOptions,
+  ResponsePayload,
   ResponseRequest,
   ResponseTransport,
   AuthenticatedResponseRequest,

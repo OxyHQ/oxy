@@ -25,7 +25,7 @@ When they conflict, STOP and escalate rather than resolving it silently.
 sites can stay unchanged; embedded id arrays as `jsonb` instead of junction
 tables; `jsonb` as a dumping ground for anything that has a known shape; a
 document version counter (`__v`); dead tables; denormalized counters a JOIN can
-answer.
+answer (one reviewed exception, maintained by a trigger: see Settled decisions).
 
 **Required:** real FK constraints with an explicit `ON DELETE` decided per relation;
 junction tables for many-to-many; `NOT NULL` where the data is actually always
@@ -75,6 +75,20 @@ restrict enforcement on media, with no error and no log.
   unrepresentable. Any spatial test must verify ORDERING against an independently
   checkable real-world distance: a lat/lon swap yields a plausible point in the wrong
   hemisphere, so a test asserting only "a row came back" passes against the exact bug.
+- **`mailboxes` stores its three folder counters, and only a trigger writes them**
+  (Nate's explicit approval, 2026-10-20: the escalation the "denormalized counters"
+  rule demands). `total_messages`, `unseen_messages` and `size_bytes` replace a
+  per-request aggregate over the account's whole `messages` set. Measured, not
+  inherited: 53 ms → 0.08 ms for `listMailboxes` and 49 ms → 0.06 ms for the quota
+  read on a 200 000-message account, against 15 ms and 12 ms for the best
+  index-only alternative (table in `schema/mailboxes.ts`). The Mongo counters drifted
+  because eighteen write sites `$inc`ed them by hand; here no application code
+  writes them. Statement-level AFTER triggers on `messages` (`0206`,
+  `schema/mailboxCounters.ts`) fold each statement into per-mailbox deltas inside
+  the writing transaction. NULL means "not counted yet"; a reader falls back to the
+  aggregate until `src/scripts/backfill-mailbox-counters.ts` has counted it. A new
+  stored counter anywhere follows the same shape (a trigger, never a write-site
+  increment) and needs the same measurement and approval.
 - **There is no non-transactional fallback.** Multi-write paths run in a real
   transaction in every deployment.
 - **Hidden columns are `protectedColumns.ts`.** Drizzle enumerates columns
@@ -153,6 +167,29 @@ baseline and hot tables):
 - **Backfills are batched, or run as a one-shot task** — never one statement over
   a whole large table in a deploy.
 - A reviewed exception says why in its own file: `-- oxy:lock-review=<reason>`.
+
+## Renumbering a migration after another one lands first
+
+Two open PRs that each add the next migration collide on the number when the first
+merges. Renumber the second from a tree that is **already rebased and rebuilt**,
+or its snapshots describe the wrong schema and CI fails at `API Build`:
+
+1. Rebase onto `origin/main` first. Resolve the journal by taking main's
+   `meta/_journal.json`; delete your `NNNN_*.sql` and `meta/NNNN_snapshot.json`.
+2. Rebuild `@oxy.so/db`, `@oxy.so/contracts` and `@oxy.so/core` **after** the rebase
+   (`bun run build` in each). `drizzle-kit` reads the schema through their `dist/`:
+   a `dist/` built before the rebase carries the old enums, and the snapshot
+   silently loses what main added since (it happened: `users_kind_check` lost
+   `'community'`, so CI wanted a `DROP/ADD CONSTRAINT` migration nobody wrote).
+3. `bun run db:generate -- --name <name>` (or `--custom` for hand-written SQL) with a
+   dummy `DATABASE_URL`; it never connects. Then put your reviewed SQL, with its
+   `-- oxy:deploy-phase=` marker, over the generated file. Keep the snapshot.
+4. A migration that changes schema in steps (columns, then a default) needs one
+   snapshot per step: generate each with the schema as it was at that step.
+5. Replace the old number in comments and in any test that reads the file by name.
+6. Prove it the way CI does, from a clean install:
+   `bun install --frozen-lockfile && bunx turbo run build --filter=@oxy.so/api && bun scripts/check-drizzle-snapshot-sync.mjs`.
+   `node scripts/check-drizzle-snapshot-sync.mjs` on a warm tree can pass when CI fails.
 
 ## Verification — evidence, not assertion
 

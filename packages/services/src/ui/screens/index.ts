@@ -18,3 +18,11 @@ export { default as AccountSettingsScreen } from './AccountSettingsScreen';
 
 export { default as SupervisionScreen } from './SupervisionScreen';
 export { default as OxyOneScreen } from './OxyOneScreen';
+
+// The body of the `AccountSettings` surface, for an app embedding a managed
+// account's settings in its own page with its own sections around them.
+export {
+  AccountSettings,
+  type AccountSettingsProps,
+  type AccountSettingsArchiveOptions,
+} from '../components/accountSettings/AccountSettings';

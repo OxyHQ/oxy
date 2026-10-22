@@ -8,7 +8,8 @@
  *    signature verification (Phase 2, `trustForwardedHost`) and actor-match, then
  *    202 + async dispatch to the injected inbound dispatcher,
  *  - `GET /users/:username/followers` + `/following` — the OXY follow graph
- *    (local + bridged federated edges) as paginated `OrderedCollection`s,
+ *    (local + bridged federated edges) as paginated `OrderedCollection`s; a
+ *    community `Group`'s followers are only counted (`groupCollections.ts`),
  *  - `GET /users/:username/moderators` — a community `Group`'s moderators.
  *
  * The CONTENT routes (`outbox`, `featured`, per-post dereference) stay in the app,
@@ -28,11 +29,9 @@ import { discoveryCacheControl } from './httpCacheControl';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
-import {
-  LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
-  localActorTypeForAccountKind,
-  type LocalActorBuilder,
-} from '../actorObject';
+import type { LocalActorBuilder } from '../actorObject';
+import { groupFollowersCollection, isGroupActorKind } from '../groupCollections';
+import { goneTombstone, type IsActorGone } from './goneActor';
 
 /** Page size for the paginated followers/following collections (mirrors the outbox). */
 const FOLLOW_PAGE_SIZE = 20;
@@ -133,6 +132,13 @@ export interface ActorRouterConfig {
    * the route is not mounted; any account that is not a community 404s.
    */
   fetchModerators?(userId: string): Promise<User[]>;
+  /**
+   * Whether a username that resolved to nobody names a DELETED local actor
+   * (`goneActor.ts`). True ⇒ the actor, its inbox and its collections answer
+   * `410 Gone` (the actor with a `Tombstone`) instead of 404. Omitted ⇒ every
+   * miss is a 404.
+   */
+  isActorGone?: IsActorGone;
   /** Actor HTTP response TTL in whole seconds, 0..86400. Defaults to 1800; 0 sends no-store. */
   httpCacheTtlSeconds?: number;
   /** Diagnostics sink. */
@@ -176,6 +182,19 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
   function wantsActivityPub(req: Request): boolean {
     return config.wantsActivityPub(req.headers.accept);
+  }
+
+  /**
+   * The answer for a username nobody resolved to: 410 with the actor's
+   * `Tombstone` when it is a deleted actor, else the usual 404.
+   */
+  async function userMissing(res: Response, username: string): Promise<Response> {
+    if (config.isActorGone && (await config.isActorGone(username))) {
+      res.set('Content-Type', apContentType);
+      res.set('Cache-Control', httpCacheControl);
+      return res.status(410).json(goneTombstone(urls.actor(username)));
+    }
+    return res.status(404).json({ error: 'User not found' });
   }
 
   /** Common inbox handler with HTTP signature verification. */
@@ -249,7 +268,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
   /**
    * Serve a user's followers OR following as a paginated `OrderedCollection` over
-   * the authoritative Oxy follow graph (local + bridged federated edges).
+   * the authoritative Oxy follow graph (local + bridged federated edges). A
+   * `Group`'s followers are the unpaged, itemless `Collection` Lemmy reads.
    */
   async function serveFollowCollection(
     req: Request,
@@ -264,7 +284,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
     try {
       const user = await config.resolveUser(username);
-      if (!user) return res.status(404).json({ error: 'User not found' });
+      if (!user) return userMissing(res, username);
 
       if (!config.consent.isSharingEnabledFromUser(user)) {
         return res.status(404).json({ error: 'User not found' });
@@ -276,7 +296,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         direction === 'followers' ? user._count?.followers : user._count?.following;
       const profileTotal = typeof rawCount === 'number' ? rawCount : undefined;
 
-      if (!page) {
+      const groupFollowers = direction === 'followers' && isGroupActorKind(user.kind);
+      if (!page || groupFollowers) {
         // Prefer the profile `_count`; only when absent (the rare search fallback)
         // fetch the authoritative total from a minimal graph list call. Fail-soft
         // to 0 — never 500 the summary.
@@ -294,6 +315,9 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         }
 
         res.set('Content-Type', apContentType);
+        if (groupFollowers) {
+          return res.json(groupFollowersCollection({ id: collectionUrl(username), totalItems }));
+        }
         return res.json({
           '@context': AP_CONTEXT,
           id: collectionUrl(username),
@@ -403,7 +427,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       }
 
       const user = await config.resolveUser(username);
-      if (!user) return res.status(404).json({ error: 'User not found' });
+      if (!user) return userMissing(res, username);
 
       // Sharing OFF must be indistinguishable from a nonexistent user — same 404
       // body, no separate error code. Derived from the already-resolved user.
@@ -457,9 +481,12 @@ export function createActorRouter(config: ActorRouterConfig): Router {
     // server drop it permanently rather than retry, so availability wins over
     // gating freshness — the activity is processed and any consent decision is
     // re-checked downstream by the id-based (fail-open) gates.
+    // A DELETED actor's inbox refuses delivery with 410, so the sender stops
+    // rather than treating it as a transient miss.
     const username = getUsername(req);
     const sharingState = await config.consent.getSharingStateByUsername(username);
-    if (sharingState === 'disabled' || sharingState === 'unknown-user') {
+    if (sharingState === 'unknown-user') return userMissing(res, username);
+    if (sharingState === 'disabled') {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -492,11 +519,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       const username = getUsername(req);
       try {
         const user = await config.resolveUser(username);
-        if (
-          !user ||
-          !config.consent.isSharingEnabledFromUser(user) ||
-          localActorTypeForAccountKind(user.kind) !== LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community
-        ) {
+        if (!user) return userMissing(res, username);
+        if (!config.consent.isSharingEnabledFromUser(user) || !isGroupActorKind(user.kind)) {
           return res.status(404).json({ error: 'User not found' });
         }
         const moderators = await fetchModerators(String(user._id || user.id));

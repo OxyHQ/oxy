@@ -188,6 +188,58 @@ interface RequestConfig extends RequestOptions {
   _isAuthRetry?: boolean;
 }
 
+/**
+ * The keys whose presence beside `data` makes a body a PAGE rather than a
+ * payload — see {@link HttpService.unwrapResponse} for why this list is narrow.
+ *
+ *  - `pagination` — the offset-paginated house envelope (`sendPaginated`).
+ *  - `nextCursor` — the keyset-paginated one (the account audit trails).
+ *
+ * Membership is decided by key PRESENCE, never by value: the last page sends
+ * `nextCursor: null`, and an envelope that collapsed into a bare payload
+ * exactly when the stream ended would be a worse bug than the one this fixes.
+ */
+const PAGE_ENVELOPE_KEYS = ['pagination', 'nextCursor'] as const;
+
+/** `T`'s declared keys — an index signature (`Record<string, …>`) declares none. */
+type DeclaredKeys<T> = keyof {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/**
+ * `never` for the house `{ data }` envelope that is not a page; `unknown`
+ * (no-op in an intersection) for everything else. See {@link ResponsePayload}.
+ */
+type EnvelopeGuard<T> = T extends object
+  ? 'data' extends DeclaredKeys<T>
+    ? [Extract<DeclaredKeys<T>, (typeof PAGE_ENVELOPE_KEYS)[number]>] extends [never]
+      ? never
+      : unknown
+    : unknown
+  : unknown;
+
+/**
+ * What a request typed `T` resolves to: `T` itself — unless `T` is the house
+ * `{ data }` envelope, which resolves to `never`.
+ *
+ * `T` names what the transport DELIVERS, never the body the route sends:
+ * {@link HttpService.unwrapResponse} reduces `{ data: X }` to `X` before the
+ * caller sees it. A call site typed `request<{ data: X }>` that then read
+ * `.data` was reading it off `X` — `undefined` on every call, with no error
+ * anywhere; that is how `users.moderators()` answered `[]` for every
+ * community. As `never`, reading anything off such a result is a compile
+ * error (`Property 'data' does not exist on type 'never'`): type the payload.
+ *
+ * It follows the runtime rule: `data` beside a {@link PAGE_ENVELOPE_KEYS} key
+ * is a page, which travels whole and is typed whole. `unknown`, arrays,
+ * primitives, index signatures and every shape without a declared `data` key
+ * are unchanged. An intersection rather than a conditional, so it stays
+ * assignable to `T`: a generic wrapper that forwards its own `T` and returns
+ * `Promise<T>` compiles as before (it can declare `Promise<ResponsePayload<T>>`
+ * to carry the check to its own callers).
+ */
+export type ResponsePayload<T> = T & EnvelopeGuard<T>;
+
 /** Methods whose calls concurrent callers may share (read-only). */
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET']);
 
@@ -619,13 +671,19 @@ export class HttpService {
   }
 
   /**
-   * Main request method - handles everything in one place
+   * One request to the API, resolving to what the route's body DELIVERS: the
+   * payload of a `{ data }` envelope, a page whole — see
+   * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
-  async request<T = unknown>(config: RequestConfig): Promise<T> {
+  async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
     const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
     const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
     if (!cache && !deduplicate) {
-      return this.requestWithCacheLease<T>(config, { key: '', id: 0, valid: true });
+      return this.requestWithCacheLease<ResponsePayload<T>>(config, {
+        key: '',
+        id: 0,
+        valid: true,
+      });
     }
     const key = this.generateCacheKey(config.method, config.url, config.data || config.params);
     let lease = this.readLeases.get(key);
@@ -635,7 +693,7 @@ export class HttpService {
     }
     lease.readers++;
     try {
-      return await this.requestWithCacheLease<T>(config, lease);
+      return await this.requestWithCacheLease<ResponsePayload<T>>(config, lease);
     } finally {
       lease.readers--;
       if (lease.readers === 0 && this.readLeases.get(key) === lease) this.readLeases.delete(key);
@@ -1240,19 +1298,6 @@ export class HttpService {
   private static readonly CACHE_IDENTITY_DELIM = ' id=';
 
   /**
-   * The keys whose presence beside `data` makes a body a PAGE rather than a
-   * payload — see {@link unwrapResponse} for why this list is narrow.
-   *
-   *  - `pagination` — the offset-paginated house envelope (`sendPaginated`).
-   *  - `nextCursor` — the keyset-paginated one (the account audit trails).
-   *
-   * Membership is decided by key PRESENCE, never by value: the last page sends
-   * `nextCursor: null`, and an envelope that collapsed into a bare payload
-   * exactly when the stream ended would be a worse bug than the one this fixes.
-   */
-  private static readonly PAGE_ENVELOPE_KEYS: readonly string[] = ['pagination', 'nextCursor'];
-
-  /**
    * Derive a stable, non-sensitive identity discriminator for cache scoping.
    *
    * Thin instance wrapper over the pure {@link computeIdentityTag} helper —
@@ -1579,7 +1624,7 @@ export class HttpService {
 
     // A page travels whole: its cursor/pagination sibling is unrecoverable
     // information, not decoration.
-    if (HttpService.PAGE_ENVELOPE_KEYS.some((key) => key in responseData)) {
+    if (PAGE_ENVELOPE_KEYS.some((key) => key in responseData)) {
       return responseData;
     }
 
@@ -1790,7 +1835,10 @@ export class HttpService {
   }
 
   // Convenience methods
-  async get<T = unknown>(url: string, config?: Omit<RequestConfig, 'method' | 'url'>): Promise<T> {
+  async get<T = unknown>(
+    url: string,
+    config?: Omit<RequestConfig, 'method' | 'url'>,
+  ): Promise<ResponsePayload<T>> {
     return this.request<T>({ method: 'GET', url, ...config });
   }
 
@@ -1798,7 +1846,7 @@ export class HttpService {
     url: string,
     data?: unknown,
     config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     return this.request<T>({ method: 'POST', url, data, ...config });
   }
 
@@ -1806,7 +1854,7 @@ export class HttpService {
     url: string,
     data?: unknown,
     config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     return this.request<T>({ method: 'PUT', url, data, ...config });
   }
 
@@ -1814,14 +1862,14 @@ export class HttpService {
     url: string,
     data?: unknown,
     config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     return this.request<T>({ method: 'PATCH', url, data, ...config });
   }
 
   async delete<T = unknown>(
     url: string,
     config?: Omit<RequestConfig, 'method' | 'url'>,
-  ): Promise<T> {
+  ): Promise<ResponsePayload<T>> {
     return this.request<T>({ method: 'DELETE', url, ...config });
   }
 

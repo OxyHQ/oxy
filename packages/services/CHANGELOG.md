@@ -1,5 +1,55 @@
 # Changelog
 
+## [12.12.0] - 2026-10-22
+
+### Changed
+
+- Creating an account picks its categories with the same editor as the
+  account's settings (`AccountCategoriesSection`): the chosen categories in
+  order, the first one primary with "Make primary", and the vocabulary to add
+  from. The create screen's own position-badge list is gone.
+
+## [12.11.0] - 2026-10-22
+
+Needs `@oxy.so/core` 6.13.0.
+
+### Added
+
+- `AccountSettings` from `@oxy.so/services/screens`: the body of the
+  `AccountSettings` surface, for an app that embeds a managed account's
+  settings in its own page. `extraSections` renders the app's own sections
+  before the danger zone; `onUpdated(account, { cleared })` follows every
+  accepted profile write, after the SDK's user cache already holds it, for the
+  app's own copies of the identity; `archive` replaces the danger-zone row's
+  words (a row with its own `title` shows only its own `description`) and the
+  confirmation (a rejection is reported and nothing is archived), runs
+  `beforeArchive` after the confirmation and before Oxy's archive (a rejection
+  stops the archive), and `onArchived` in place of closing. Without `navigate`, Members opens as a sheet.
+- The account settings edit the account's picture — through the same
+  source list, cropper and upload as the personal profile — and its
+  categories (primary first, "Make primary", the selectable vocabulary to add
+  from, at most `MAX_ACCOUNT_CATEGORIES`). A category id this build cannot name
+  keeps its row and survives a save.
+- `ChangeAvatar` takes an optional `subject` (`{ avatar, displayName }`) to
+  preview and offer removing a picture that is not the signed-in user's.
+
+### Changed
+
+- The account settings' Save is enabled only when something changed.
+## [12.10.1] - 2026-10-22
+
+### Fixed
+
+- "Switch account" in Manage your Oxy account did nothing when the account
+  dialog was already open underneath: it now brings the account switcher back to
+  the front. The row is hidden for identity-bound sessions, where the switcher
+  can never open.
+- Closing a morphed account dialog whose host surface is already gone no longer
+  leaves the dialog marked open.
+- Signing out reports a failed sign-out instead of "Signed out" (Manage), and a
+  rejected sign-out in the account menu shows the error instead of an unhandled
+  rejection.
+
 ## [12.10.0] - 2026-10-22
 
 Needs `@oxy.so/core` 6.12.0.

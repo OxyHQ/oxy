@@ -61,6 +61,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     openAvatarPicker,
     accounts,
     openAccountDialog,
+    accountDialogController,
     hasIdentity,
   } = useOxy();
 
@@ -105,7 +106,12 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     }
     setSigningOut(true);
     try {
-      await logout();
+      const result = await logout();
+      if (result?.status === 'failed') {
+        loggerUtil.warn('Sign out failed', { component: 'ManageAccountScreen' }, result.error);
+        toast.error(t('common.errors.signOutFailed') || 'Failed to sign out');
+        return;
+      }
       toast.success(t('common.actions.signedOut') || 'Signed out');
       onClose?.();
     } catch (error) {
@@ -360,22 +366,25 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
             {/* Accounts (unified account graph) */}
             {accounts.length > 0 || isAuthenticated ? (
               <GroupedSection title={t('accountCenter.sections.accounts') || 'Accounts'}>
-                <GroupedSectionItem
-                  icon={<SettingsIcon name="account-switch" color={bloomTheme.colors.info} />}
-                  title={t('accounts.manage.switch.title') || 'Switch account'}
-                  description={
-                    accounts.length > 0
-                      ? // One account is "1 account", not "1 accounts".
-                        t(
-                          accounts.length === 1
-                            ? 'accounts.manage.switch.countOne'
-                            : 'accounts.manage.switch.count',
-                          { count: accounts.length },
-                        )
-                      : t('accounts.manage.switch.empty') || 'Accounts you own or share'
-                  }
-                  onPress={() => openAccountDialog('accounts')}
-                />
+                {/* No controller means the dialog can never open (identity-bound session). */}
+                {accountDialogController ? (
+                  <GroupedSectionItem
+                    icon={<SettingsIcon name="account-switch" color={bloomTheme.colors.info} />}
+                    title={t('accounts.manage.switch.title') || 'Switch account'}
+                    description={
+                      accounts.length > 0
+                        ? // One account is "1 account", not "1 accounts".
+                          t(
+                            accounts.length === 1
+                              ? 'accounts.manage.switch.countOne'
+                              : 'accounts.manage.switch.count',
+                            { count: accounts.length },
+                          )
+                        : t('accounts.manage.switch.empty') || 'Accounts you own or share'
+                    }
+                    onPress={() => openAccountDialog('accounts')}
+                  />
+                ) : null}
                 <GroupedSectionItem
                   icon={<SettingsIcon name="account-plus" color={bloomTheme.colors.primary} />}
                   title={t('accounts.create.title') || 'Create account'}

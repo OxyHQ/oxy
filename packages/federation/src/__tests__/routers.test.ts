@@ -6,6 +6,8 @@ import { createInboundDispatcher } from '../node/inboundDispatch';
 import { createWebfingerRouter, type WebfingerRouterConfig } from '../node/webfingerRouter';
 import { createActorRouter, type ActorRouterConfig } from '../node/actorRouter';
 import { createUrlBuilders } from '../urls';
+import { AP_CONTEXT } from '../apContext';
+import { groupOutboxCollection } from '../groupCollections';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 
 /**
@@ -208,6 +210,16 @@ describe('webfinger router', () => {
       .query({ resource: 'acct:alice@www.mention.earth' });
     expect(res.status).toBe(200);
     expect(res.body.links[0].href).toBe(urls.actor('alice'));
+  });
+
+  it('answers 410 for a deleted actor, and still 404 for an unknown one', async () => {
+    const app = makeWebfingerApp({ isActorGone: async (username) => username === 'gone' });
+    const gone = await request(app).get('/.well-known/webfinger?resource=acct:gone@mention.earth');
+    expect(gone.status).toBe(410);
+    const unknown = await request(app).get(
+      '/.well-known/webfinger?resource=acct:ghost@mention.earth',
+    );
+    expect(unknown.status).toBe(404);
   });
 
   it('404s a sharing-disabled user indistinguishably', async () => {
@@ -589,6 +601,35 @@ describe('actor router — inbox POST', () => {
   });
 });
 
+describe('actor router — a deleted actor', () => {
+  it('answers 410 with a Tombstone on the actor, its inbox and collections; an unknown user stays 404', async () => {
+    const app = makeActorApp({
+      actorConfig: { isActorGone: async (username) => username === 'gone' },
+    });
+    const actor = await request(app)
+      .get('/ap/users/gone')
+      .set('Accept', 'application/activity+json');
+    expect(actor.status).toBe(410);
+    expect(actor.body).toMatchObject({ id: urls.actor('gone'), type: 'Tombstone' });
+
+    const inbox = await request(app)
+      .post('/ap/users/gone/inbox')
+      .set('Content-Type', 'application/activity+json')
+      .send({ type: 'Follow' });
+    expect(inbox.status).toBe(410);
+
+    const followers = await request(app)
+      .get('/ap/users/gone/followers')
+      .set('Accept', 'application/activity+json');
+    expect(followers.status).toBe(410);
+
+    const unknown = await request(app)
+      .get('/ap/users/ghost')
+      .set('Accept', 'application/activity+json');
+    expect(unknown.status).toBe(404);
+  });
+});
+
 describe('community moderators collection', () => {
   const moderatorsApp = () =>
     makeActorApp({
@@ -628,5 +669,36 @@ describe('community moderators collection', () => {
   it('404s an account that is not a community', async () => {
     const res = await request(moderatorsApp()).get('/ap/users/alice/moderators');
     expect(res.status).toBe(404);
+  });
+
+  // Lemmy's `GroupFollowers { type: Collection, totalItems, items }` and
+  // `GroupOutbox { type: OrderedCollection, totalItems, orderedItems }`: no
+  // paging, items inline. A Person keeps the paged shape Mastodon walks.
+  it("serves a Group's followers and outbox in the shapes Lemmy deserializes", async () => {
+    const followers = await request(moderatorsApp()).get('/ap/users/forum/followers?page=true');
+    expect(followers.body).toEqual({
+      '@context': AP_CONTEXT,
+      id: urls.followers('forum'),
+      type: 'Collection',
+      totalItems: 3,
+      items: [],
+    });
+    const announce = { id: `${urls.actor('forum')}/relays/1`, type: 'Announce' };
+    expect(
+      groupOutboxCollection({
+        id: urls.outbox('forum'),
+        totalItems: 1,
+        orderedItems: [{ '@context': AP_CONTEXT, ...announce }],
+      }),
+    ).toEqual({
+      '@context': AP_CONTEXT,
+      id: urls.outbox('forum'),
+      type: 'OrderedCollection',
+      totalItems: 1,
+      orderedItems: [announce],
+    });
+
+    const person = await request(moderatorsApp()).get('/ap/users/alice/followers');
+    expect(person.body).toMatchObject({ type: 'OrderedCollection', first: expect.any(String) });
   });
 });

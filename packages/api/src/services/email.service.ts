@@ -73,6 +73,7 @@ import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { users } from '../db/schema/users';
 import { SYSTEM_LABELS, isSystemLabel, isSystemLabelId } from '../constants/systemLabels';
 import { getAvatarPathsBatch } from './senderAvatar.service';
+import { resolveFolderCounts, storedMail } from './folderCounts';
 import {
   DEFAULT_MAILBOXES,
   EMAIL_QUOTAS,
@@ -1459,14 +1460,13 @@ async function insertMessageWithChildren(
   });
 }
 
-/** The bytes a user's messages take up: the quota counts the messages themselves. */
+/**
+ * The bytes a user's messages take up: the quota counts the messages
+ * themselves, read from the trigger-maintained folder counters (falling back to
+ * the aggregate while a folder is not counted yet — `folderCounts.ts`).
+ */
 async function storedBytes(db: DatabaseOrTransaction, userId: string): Promise<number> {
-  const [row] = await db
-    .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
-    .from(messages)
-    .where(eq(messages.userId, userId));
-  // `sum()` is `numeric`; postgres.js hands a bigint back as a string.
-  return Number(row?.used ?? 0);
+  return (await storedMail(db, userId)).bytes;
 }
 
 function refuseOverQuota(used: number, additionalBytes: number, limit: number): void {
@@ -1737,50 +1737,36 @@ class EmailService {
   /**
    * A user's folders with their three counters.
    *
-   * `total_messages`, `unseen_messages` and `size` are derived here rather than
-   * stored, so there is no hand-maintained counter to drift. See
-   * `db/schema/mailboxes.ts`.
+   * The counters are the columns the triggers on `messages` maintain, so this
+   * is one indexed read of `mailboxes`; a folder not counted yet is aggregated
+   * from `messages` instead (`folderCounts.ts`). See `db/schema/mailboxes.ts`.
    */
   async listMailboxes(userId: string): Promise<MailboxDto[]> {
-    const stats = getDb()
-      .select({
-        mailboxId: messages.mailboxId,
-        total: sql<number>`count(*)::int`.as('total'),
-        unseen: sql<number>`count(*) filter (where not ${messages.seen})::int`.as('unseen'),
-        bytes: sql<number>`coalesce(sum(${messages.size}), 0)::bigint`.as('bytes'),
-      })
-      .from(messages)
-      .where(eq(messages.userId, userId))
-      .groupBy(messages.mailboxId)
-      .as('stats');
-
-    const rows = await getDb()
-      .select({
-        mailbox: mailboxes,
-        total: stats.total,
-        unseen: stats.unseen,
-        bytes: stats.bytes,
-      })
+    const db = getDb();
+    const rows = await db
+      .select()
       .from(mailboxes)
-      .leftJoin(stats, eq(stats.mailboxId, mailboxes.id))
       .where(eq(mailboxes.userId, userId))
       .orderBy(asc(mailboxes.path));
+    const counts = await resolveFolderCounts(db, userId, rows);
 
-    return rows.map((row) => ({
-      _id: row.mailbox.id,
-      id: row.mailbox.id,
-      userId: row.mailbox.userId,
-      name: row.mailbox.name,
-      path: row.mailbox.path,
-      specialUse: row.mailbox.specialUse,
-      retentionDays: row.mailbox.retentionDays,
-      totalMessages: row.total ?? 0,
-      unseenMessages: row.unseen ?? 0,
-      // `sum()` is `numeric`, which postgres.js hands back as a string.
-      size: Number(row.bytes ?? 0),
-      createdAt: row.mailbox.createdAt,
-      updatedAt: row.mailbox.updatedAt,
-    }));
+    return rows.map((row) => {
+      const count = counts.get(row.id);
+      return {
+        _id: row.id,
+        id: row.id,
+        userId: row.userId,
+        name: row.name,
+        path: row.path,
+        specialUse: row.specialUse,
+        retentionDays: row.retentionDays,
+        totalMessages: count?.total ?? 0,
+        unseenMessages: count?.unseen ?? 0,
+        size: count?.bytes ?? 0,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
   }
 
   /**
@@ -2031,6 +2017,15 @@ class EmailService {
    * Attach `threadCount` / `threadParticipants` to every page message that has
    * any threading header.
    *
+   * ## The stored key, and the walk it replaces
+   *
+   * A message's thread is its connected component under Message-ID adjacency
+   * (`emailThreading.ts`), and `messages.thread_id` stores it: one indexed read
+   * of `(user_id, thread_id)` per thread on the page. A message with no stored
+   * thread yet (stored before the column, until the backfill has run) is
+   * walked instead, exactly as every message used to be; the two answer the
+   * same component, so the wire cannot tell which one did.
+   *
    * ## The walk is transitive
    *
    * Postgres walks the adjacency TRANSITIVELY (`WITH RECURSIVE`), so the numbers
@@ -2052,32 +2047,74 @@ class EmailService {
     if (seeds.length === 0) return;
 
     const seedIds = seeds.map((m) => m.id);
-    const rows = await getDb().execute<{
+    const db = getDb();
+    // A seed with a stored thread reads its members by that key, one aggregate
+    // per thread; a seed with none (stored before the column, until the
+    // backfill reaches it) comes back without a thread and is walked, exactly
+    // as every seed used to be. The walk is a separate statement on purpose:
+    // folded in, even empty, its recursive estimate trips JIT (630 ms a page).
+    const stored = await db.execute<{
       rootId: string;
-      threadId: string;
+      threadId: string | null;
       threadCount: number;
       participants: string[];
     }>(sql`
-      with recursive walk(root_id, id, ks) as (
-          select seed.id, seed.id, ${threadKeys('seed')}
+      with seed_thread as (
+          select seed.id, seed.thread_id
           from messages seed
           where seed.user_id = ${userId} and seed.id = any(${textArray(seedIds)})
-        union
-          select walk.root_id, linked.id, ${threadKeys('linked')}
-          from walk
-          join messages linked
-            on linked.user_id = ${userId}
-           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+      ),
+      stored as (
+          select member.thread_id,
+                 min(member.id) as "threadId",
+                 -- A copy of the user's own Sent message is the same message.
+                 (count(*) filter (where member.sent_copy_of is null))::int as "threadCount",
+                 array_agg(distinct member.from_address) as participants
+          from messages member
+          where member.user_id = ${userId}
+            and member.thread_id in (select thread_id from seed_thread)
+          group by member.thread_id
       )
-      select walk.root_id as "rootId",
-             min(walk.id) as "threadId",
-             -- A copy of the user's own Sent message is the same message.
-             (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
-             array_agg(distinct member.from_address) as participants
-      from walk
-      join messages member on member.id = walk.id
-      group by walk.root_id
+      select seed_thread.id as "rootId", stored."threadId", stored."threadCount", stored.participants
+      from seed_thread
+      left join stored on stored.thread_id = seed_thread.thread_id
     `);
+    const unassigned = stored.filter((row) => row.threadId === null).map((row) => row.rootId);
+    const walked =
+      unassigned.length === 0
+        ? []
+        : await db.execute<{
+            rootId: string;
+            threadId: string;
+            threadCount: number;
+            participants: string[];
+          }>(sql`
+            with recursive walk(root_id, id, ks) as (
+                select seed.id, seed.id, ${threadKeys('seed')}
+                from messages seed
+                where seed.user_id = ${userId} and seed.id = any(${textArray(unassigned)})
+              union
+                select walk.root_id, linked.id, ${threadKeys('linked')}
+                from walk
+                join messages linked
+                  on linked.user_id = ${userId}
+                 and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+            )
+            select walk.root_id as "rootId",
+                   min(walk.id) as "threadId",
+                   -- A copy of the user's own Sent message is the same message.
+                   (count(distinct walk.id) filter (where member.sent_copy_of is null))::int as "threadCount",
+                   array_agg(distinct member.from_address) as participants
+            from walk
+            join messages member on member.id = walk.id
+            group by walk.root_id
+          `);
+    const rows = [
+      ...stored.flatMap((row) =>
+        row.threadId === null ? [] : [{ ...row, threadId: row.threadId }],
+      ),
+      ...walked,
+    ];
 
     const byRoot = new Map(rows.map((row) => [row.rootId, row]));
     for (const message of page) {
@@ -3545,9 +3582,10 @@ class EmailService {
   /**
    * Every message in the anchor's thread, oldest first.
    *
-   * The same `WITH RECURSIVE` walk `attachThreadMetadata` counts with — one
-   * definition of "same thread", so a list that says `threadCount: 5` can never
-   * open onto a thread view showing three.
+   * The same thread `attachThreadMetadata` counts — the stored `thread_id`, or
+   * the `WITH RECURSIVE` walk for a row that has none yet — one definition of
+   * "same thread", so a list that says `threadCount: 5` can never open onto a
+   * thread view showing three.
    *
    * The anchor is always in its own component, so no separate dedup-and-append
    * step is needed — the walk returns it whether or not it has any counterpart.
@@ -3555,26 +3593,21 @@ class EmailService {
   async getThread(userId: string, messageId: string): Promise<MessageDto[]> {
     const db = getDb();
     const [anchor] = await db
-      .select({ id: messages.id })
+      .select({ id: messages.id, threadId: messages.threadId })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
     if (!anchor) throw new NotFoundError('Message not found');
 
-    const memberRows = await db.execute<{ id: string }>(sql`
-      with recursive walk(id, ks) as (
-          select seed.id, ${threadKeys('seed')}
-          from messages seed
-          where seed.user_id = ${userId} and seed.id = ${anchor.id}
-        union
-          select linked.id, ${threadKeys('linked')}
-          from walk
-          join messages linked
-            on linked.user_id = ${userId}
-           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
-      )
-      select id from walk
-    `);
+    // The members by the stored key; walked only for an anchor stored before
+    // threads were (thread_id NULL).
+    const memberRows =
+      anchor.threadId !== null
+        ? await db
+            .select({ id: messages.id })
+            .from(messages)
+            .where(and(eq(messages.userId, userId), eq(messages.threadId, anchor.threadId)))
+        : await this.walkThread(userId, anchor.id);
 
     const rows = await db
       .select(MESSAGE_COLUMNS_WITH_BODY)
@@ -3600,6 +3633,24 @@ class EmailService {
     await EmailService.enrichWithAvatars(thread);
 
     return thread;
+  }
+
+  /** The anchor's thread by the `WITH RECURSIVE` walk, for a row with no stored thread. */
+  private async walkThread(userId: string, anchorId: string): Promise<Array<{ id: string }>> {
+    return getDb().execute<{ id: string }>(sql`
+      with recursive walk(id, ks) as (
+          select seed.id, ${threadKeys('seed')}
+          from messages seed
+          where seed.user_id = ${userId} and seed.id = ${anchorId}
+        union
+          select linked.id, ${threadKeys('linked')}
+          from walk
+          join messages linked
+            on linked.user_id = ${userId}
+           and ${threadAdjacency('linked', sql.raw('walk.ks'))}
+      )
+      select id from walk
+    `);
   }
 
   // ─── Labels ──────────────────────────────────────────────────────────
@@ -4782,9 +4833,10 @@ class EmailService {
   /**
    * Bytes stored, against the tier's allowance.
    *
-   * This sums the messages themselves — every message belongs to exactly one
-   * of that user's mailboxes — so it cannot drift from what is actually stored
-   * the way a cached counter could.
+   * The sum of the user's folder counters. Every message belongs to exactly
+   * one of that user's folders, and the counters are written by a trigger in
+   * the same transaction as the messages, so they cannot drift the way the
+   * hand-maintained Mongo counters did.
    */
   async getQuotaUsage(
     userId: string,

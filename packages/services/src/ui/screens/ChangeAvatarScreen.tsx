@@ -47,6 +47,7 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { SettingsIcon } from '../components/SettingsIcon';
 import type { BaseScreenProps } from '../types/navigation';
+import type { AvatarPickerSubject } from '../hooks/useAvatarPicker';
 
 /** Component name used in `logger` context for filtered diagnostics. */
 const LOG_COMPONENT = 'ChangeAvatarScreen';
@@ -131,10 +132,25 @@ async function loadImagePicker(): Promise<ImagePickerModule | null> {
   }
 }
 
-const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) => {
+/**
+ * The `subject` route prop, when a caller is changing a picture that is not the
+ * signed-in user's (see `pickAvatarFile`). Route props arrive untyped.
+ */
+function readSubject(value: unknown): AvatarPickerSubject | null {
+  if (!value || typeof value !== 'object') return null;
+  const { avatar, displayName } = value as Record<string, unknown>;
+  return {
+    avatar: typeof avatar === 'string' && avatar.length > 0 ? avatar : null,
+    displayName: typeof displayName === 'string' ? displayName : undefined,
+  };
+}
+
+const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss, subject }) => {
   const bloomTheme = useTheme();
   const { t } = useI18n();
   const { user, oxyServices } = useOxy();
+  const other = useMemo(() => readSubject(subject), [subject]);
+  const currentAvatar = other ? other.avatar : user?.avatar;
 
   /** Set when a permission was refused — drives the inline denied notice. */
   const [denied, setDenied] = useState<DeniedSource | null>(null);
@@ -144,13 +160,16 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
   useSurfaceHeader(useMemo(() => ({ title: t('changeAvatar.title') }), [t]));
 
   const displayName = useMemo(
-    () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? '',
-    [user],
+    () =>
+      other
+        ? (other.displayName ?? '')
+        : (user?.name?.displayName ?? getNormalizedUserHandle(user) ?? ''),
+    [other, user],
   );
   const avatarUri = useMemo(
     // `thumb` is 256x256 — exactly a 2x source for the 132dp hero.
-    () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),
-    [user?.avatar, oxyServices],
+    () => (currentAvatar ? oxyServices.assets.publicUrl(currentAvatar, 'thumb') : undefined),
+    [currentAvatar, oxyServices],
   );
 
   /**
@@ -362,7 +381,7 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
           title={t('changeAvatar.sources.remove.title')}
           description={t('changeAvatar.sources.remove.description')}
           destructive
-          disabled={busy || !user?.avatar}
+          disabled={busy || !currentAvatar}
           onPress={() => void removeCurrentPhoto()}
         />
       </GroupedSection>

@@ -1,6 +1,64 @@
 # Changelog: `@oxy.so/federation`
 
 
+## 2.10.0
+
+The identity bridge's transport is typed as core's `serviceRequest`, so an app
+passes it straight through and the compiler checks what the bridge names.
+
+### Changed
+
+- `ServiceRequest` resolves to `ResponsePayload<T>` (`@oxy.so/core` 6.14.0):
+  `T` is the `{ data }`-unwrapped payload, and a `T` naming the envelope
+  resolves to `never`, so reading `.data` off it fails to compile. An app passes
+  `serviceRequest` through as is —
+  `(method, path, body) => oxy.serviceRequest(method, path, body)`; an adapter
+  returning a bare `Promise<T>` still satisfies it.
+- Requires `@oxy.so/core` ^6.14.0 (was any major from 1 to 6).
+
+## 2.9.0
+
+A community's outbox and followers parse on Lemmy and PieFed.
+
+### Added
+
+- `isGroupActorKind(kind)`: whether a local account is announced as a `Group`.
+  The moderators route and the Group collection shapes below all ask it.
+- `groupOutboxCollection({ id, totalItems, orderedItems })` and
+  `GROUP_OUTBOX_SIZE` (50): a `Group`'s outbox as one unpaged
+  `OrderedCollection` of its latest `Announce`s, which is what Lemmy's
+  `GroupOutbox` requires. A paged outbox with only `first` failed to parse, so
+  a Lemmy server that discovered a community backfilled none of its posts.
+- `groupFollowersCollection({ id, totalItems })`.
+
+### Changed
+
+- `createActorRouter`: a `Group`'s followers are a `Collection` with
+  `totalItems` and `items: []`, the shape Lemmy's `GroupFollowers` reads, on
+  every request (including `?page=true`). The follower list is no longer
+  served for a community. Other actors are unchanged.
+- The `Group` actor carries `sensitive: false`, Lemmy's community NSFW flag.
+
+## 2.8.0
+
+A deleted local actor tells the fediverse once, then answers `410 Gone`.
+
+### Added
+
+- `DeliveryService.federateActorDelete(actorOxyUserId, username)`: the actor's
+  `Delete` of itself (`<actor>#delete`, to `as:Public`, the shape Mastodon
+  sends), one per follower (shared) inbox, signed with its own key. No consent
+  or profile read, since the account is already gone at Oxy. Throws when it
+  cannot queue, so the caller retries.
+- `createActorRouter({ isActorGone })` and `createWebfingerRouter({ isActorGone })`:
+  a username that resolves to nobody and is a deleted actor answers `410 Gone`
+  instead of 404: the actor GET with a `Tombstone`, its inbox, its
+  followers/following/moderators collections, and WebFinger. That is what
+  Mastodon (WebFinger), Lemmy, PieFed and Mbin (refetch) read as permanent.
+  Omitted, every miss is a 404 as before.
+- `buildActorDeleteActivity(actorUri)` and `goneTombstone(id)`, exported from
+  `@oxy.so/federation/node` for the app's own content routes.
+
 ## 2.7.0
 
 ### Added
