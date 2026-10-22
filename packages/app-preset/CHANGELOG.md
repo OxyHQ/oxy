@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.6.0
+
+### Added
+
+- Opt-in `staticHydrationBoundary` Metro adapter for Expo Router 58 static
+  exports. The app and document render at separate React roots, matching the
+  browser's `#root` hydration boundary and preserving `useId` and workspace DOM.
+  Fonts, styles, metadata, loader data and scripts retain their Expo contracts;
+  live streaming delegates to Expo unchanged. Version guard and real hydration
+  tests protect the private renderer integration.
+
 ## 3.5.0
 
 ### Fixed

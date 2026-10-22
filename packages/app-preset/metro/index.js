@@ -37,6 +37,8 @@
  *   module ids, its resolver shims, inline requires), so a worker runtime can
  *   load the app's bundle. Pair it with the Babel factory's option of the same
  *   name; neither works alone. Needs `react-native-worklets` installed.
+ * @param {boolean} [options.staticHydrationBoundary=false] Correct the app/document
+ *   render boundary in Expo 58 static exports; guarded to reviewed router versions.
  * @returns {import('metro-config').MetroConfig}
  */
 const { getDefaultConfig } = require('expo/metro-config');
@@ -45,6 +47,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { resolveOxyBuildId } = require('../build-id');
 const { requireFromProject } = require('../plugin/requireFromProject');
+const { withStaticHydrationBoundary } = require('./static-hydration/resolver');
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -312,9 +315,10 @@ function withWorkletsBundleMode(config, projectRoot) {
 }
 
 function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
-  const { workletsBundleMode = false } = options;
+  const { workletsBundleMode = false, staticHydrationBoundary = false } = options;
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
-  const config = withBloomSingleInstance(nativeWindConfig, projectRoot);
+  let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
+  if (staticHydrationBoundary) config = withStaticHydrationBoundary(config, projectRoot);
   return workletsBundleMode ? withWorkletsBundleMode(config, projectRoot) : config;
 }
 

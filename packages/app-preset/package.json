@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -60,7 +60,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs",
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run test",
     "test": "node --test __tests__/*.test.js"
   },
   "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` requires `@oxy.so/services/plugins/withOxySharedPermissions` (services 11+, where it first exists, so the services floor is the major that ships it). Both peers retain a measured floor and are deliberately OPEN-ENDED above it: Oxy apps always run the latest Bloom and Services, so a new release of either must never need a preset release first. A release that breaks this package's file-path coupling is caught by its own tests and the apps' CI, not by a cap. Never replace either constraint with `*`.",
@@ -77,12 +77,23 @@
     "react-native-webgpu": ">=0.5.18 <1.0.0",
     "react-native-worklets": "*",
     "sharp": ">=0.33.0",
-    "tailwindcss": ">=4.0.0"
+    "tailwindcss": ">=4.0.0",
+    "@expo/router-server": "<59.0.0",
+    "expo-router": "<59.0.0",
+    "expo-font": "<59.0.0",
+    "expo-server": "<59.0.0",
+    "react": ">=19.0.0 <20.0.0",
+    "react-dom": ">=19.0.0 <20.0.0"
   },
   "devDependencies": {
     "expo": "catalog:",
     "nativewind": "catalog:",
-    "tailwindcss": "4.3.3"
+    "tailwindcss": "4.3.3",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "expo-router": "catalog:",
+    "@expo/router-server": "catalog:"
   },
   "peerDependenciesMeta": {
     "@oxy.so/bloom": {
@@ -111,6 +122,27 @@
     },
     "sharp": {
       "optional": true
+    },
+    "@expo/router-server": {
+      "optional": true
+    },
+    "expo-router": {
+      "optional": true
+    },
+    "expo-font": {
+      "optional": true
+    },
+    "expo-server": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
     }
+  },
+  "dependencies": {
+    "parse5": "catalog:"
   }
 }

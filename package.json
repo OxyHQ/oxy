@@ -117,7 +117,9 @@
       "zustand": "^5.0.14",
       "@oxy.so/core": "^6.14.0",
       "@typescript-eslint/parser": "^8.70.0",
-      "expo-video": "~58.0.11"
+      "expo-video": "~58.0.11",
+      "parse5": "7.3.0",
+      "@expo/router-server": "58.0.14"
     }
   },
   "scripts": {

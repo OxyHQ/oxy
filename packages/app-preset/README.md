@@ -24,6 +24,44 @@ and JSON.
 | CSS base | `@oxy.so/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
 | tsconfig | `@oxy.so/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
 
+## Static web hydration on Expo 58
+
+Apps exporting static HTML can enable the reviewed Expo 58 compatibility adapter:
+
+```js
+module.exports = createOxyMetroConfig(__dirname, {
+  staticHydrationBoundary: true,
+});
+```
+
+Expo Router's renderer in `@expo/router-server` 58.0.14–58.0.16 renders the app
+inside `+html`, but the browser hydrates only `#root`. Document siblings then
+change React `useId` paths. An ID in text (for example Bloom's scoped stylesheet)
+causes React to replace the workspace during hydration.
+
+The adapter renders the app at its own React root and then renders the document
+around that completed markup. It preserves Expo's route/loader contexts,
+metadata, asset order, bootstrap script, fonts and styles, including resources
+registered inside async Suspense content. React’s public `prerender` API waits
+for all content without hidden streaming segments that would require JavaScript. React 19's hoisted document resources
+move into the final head; the app's remaining HTML and hydration markers retain
+the exact bytes produced by React. Server errors fail the static export. `Head` metadata is collected from the
+routed app tree; `+html` owns its literal head and `useServerDocumentContext`,
+as in Expo (the route-aware `Head` component requires navigation context).
+
+Only web/node bundles and `output: 'static'` use the adapter. Live streaming
+requests delegate to Expo unchanged. It is off by default; enabling it with an
+unreviewed router-server version fails with a diagnostic instead of silently
+assuming private APIs are compatible. Optional peer ranges do not restrict
+older Expo apps when the adapter is off. Review/remove the adapter when Expo
+fixes the app/document render boundary upstream. The adapted Expo code retains
+its MIT license in `metro/static-hydration/EXPO-LICENSE`.
+
+Verify production exports, not just Metro development: JavaScript-disabled
+screenshots must show real chrome, and hydration must retain the same workspace
+DOM node without recoverable React errors. The package tests exercise real
+`prerender` and `hydrateRoot`; publication runs those gates too.
+
 ## Usage
 
 ### 1. Config plugin (`app.config.js` / `app.json`)
