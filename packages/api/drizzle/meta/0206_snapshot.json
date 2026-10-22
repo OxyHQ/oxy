@@ -1,6 +1,6 @@
 {
-  "id": "a2cd612e-a7f9-40c0-8f20-5eaddfc827a5",
-  "prevId": "2aa424d8-41ce-41e4-bc98-f8b7ecc4ce14",
+  "id": "5bae784b-4c13-458d-82c5-495c11961223",
+  "prevId": "c3f31556-d172-4404-b7e9-d08565d8056b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -37487,7 +37487,7 @@
         },
         "users_kind_check": {
           "name": "users_kind_check",
-          "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel')"
+          "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel', 'community')"
         },
         "users_account_categories_check": {
           "name": "users_account_categories_check",
@@ -37499,7 +37499,7 @@
         },
         "users_account_categories_kind_check": {
           "name": "users_account_categories_kind_check",
-          "value": "\"users\".\"kind\" in ('organization', 'project', 'bot', 'channel') or cardinality(\"users\".\"account_categories\") = 0"
+          "value": "\"users\".\"kind\" in ('organization', 'project', 'bot', 'channel', 'community') or cardinality(\"users\".\"account_categories\") = 0"
         },
         "users_character_kind_check": {
           "name": "users_character_kind_check",
