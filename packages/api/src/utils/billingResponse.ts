@@ -5,7 +5,7 @@
  * `GET /billing/transactions` serialize through here. Two things about the wire
  * shape are contract and one is not:
  *
- *   - **`_id` IS contract.** `packages/console/src/hooks/use-billing.ts` declares
+ *   - **`_id` IS contract.** `packages/console/hooks/use-billing.ts` declares
  *     `_id: string` on both `Subscription` and `Transaction`. It is the row key
  *     the console renders lists by, so it is emitted here from the drizzle `id`.
  *   - **The MINOR-UNIT renames are invisible.** `billing_transactions.amount` and

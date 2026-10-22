@@ -9,7 +9,7 @@
  *
  * ## Why `GET /models/stats` still exists
  *
- * Console reads it today (`packages/console/src/hooks/use-models.ts`, consumed
+ * Console reads it today (`packages/console/hooks/use-models.ts`, consumed
  * by its models page and its playground). The URL therefore keeps its contract
  * and serves REAL catalogue data — the envelope `{ models, count, timestamp }`
  * is unchanged so the page renders, and every entry is now a
