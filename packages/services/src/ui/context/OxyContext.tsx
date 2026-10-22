@@ -999,8 +999,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     if (host) {
       accountDialogHostRef.current = null;
       setAccountDialogOpen(false);
-      host.goBack();
-      return;
+      // A host that is already gone cannot pop; fall through to the detached surface.
+      if (host.goBack()) return;
     }
     accountDialogSurfaceRef.current?.dismiss();
   }, []);
@@ -1161,7 +1161,16 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       accountDialogControllerRef.current?.setView(nextView);
 
       // Its own detached surface is already open → just re-point the view above.
+      // A route surface (e.g. ManageAccount) may sit ON TOP of it, so re-pointing the
+      // view is not enough: bring the AccountDialog frame back to the front too.
       if (accountDialogSurfaceRef.current) {
+        const top = topRouteSurface();
+        if (top) {
+          accountDialogHostRef.current = top;
+          top.navigate('AccountDialog', { initialView: nextView });
+        } else {
+          accountDialogSurfaceRef.current.navigate('AccountDialog', { initialView: nextView });
+        }
         setAccountDialogOpen(true);
         return;
       }
