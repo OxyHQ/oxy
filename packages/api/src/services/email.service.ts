@@ -73,6 +73,7 @@ import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { users } from '../db/schema/users';
 import { SYSTEM_LABELS, isSystemLabel, isSystemLabelId } from '../constants/systemLabels';
 import { getAvatarPathsBatch } from './senderAvatar.service';
+import { resolveFolderCounts, storedMail } from './folderCounts';
 import {
   DEFAULT_MAILBOXES,
   EMAIL_QUOTAS,
@@ -1459,14 +1460,13 @@ async function insertMessageWithChildren(
   });
 }
 
-/** The bytes a user's messages take up: the quota counts the messages themselves. */
+/**
+ * The bytes a user's messages take up: the quota counts the messages
+ * themselves, read from the trigger-maintained folder counters (falling back to
+ * the aggregate while a folder is not counted yet — `folderCounts.ts`).
+ */
 async function storedBytes(db: DatabaseOrTransaction, userId: string): Promise<number> {
-  const [row] = await db
-    .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
-    .from(messages)
-    .where(eq(messages.userId, userId));
-  // `sum()` is `numeric`; postgres.js hands a bigint back as a string.
-  return Number(row?.used ?? 0);
+  return (await storedMail(db, userId)).bytes;
 }
 
 function refuseOverQuota(used: number, additionalBytes: number, limit: number): void {
@@ -1737,50 +1737,36 @@ class EmailService {
   /**
    * A user's folders with their three counters.
    *
-   * `total_messages`, `unseen_messages` and `size` are derived here rather than
-   * stored, so there is no hand-maintained counter to drift. See
-   * `db/schema/mailboxes.ts`.
+   * The counters are the columns the triggers on `messages` maintain, so this
+   * is one indexed read of `mailboxes`; a folder not counted yet is aggregated
+   * from `messages` instead (`folderCounts.ts`). See `db/schema/mailboxes.ts`.
    */
   async listMailboxes(userId: string): Promise<MailboxDto[]> {
-    const stats = getDb()
-      .select({
-        mailboxId: messages.mailboxId,
-        total: sql<number>`count(*)::int`.as('total'),
-        unseen: sql<number>`count(*) filter (where not ${messages.seen})::int`.as('unseen'),
-        bytes: sql<number>`coalesce(sum(${messages.size}), 0)::bigint`.as('bytes'),
-      })
-      .from(messages)
-      .where(eq(messages.userId, userId))
-      .groupBy(messages.mailboxId)
-      .as('stats');
-
-    const rows = await getDb()
-      .select({
-        mailbox: mailboxes,
-        total: stats.total,
-        unseen: stats.unseen,
-        bytes: stats.bytes,
-      })
+    const db = getDb();
+    const rows = await db
+      .select()
       .from(mailboxes)
-      .leftJoin(stats, eq(stats.mailboxId, mailboxes.id))
       .where(eq(mailboxes.userId, userId))
       .orderBy(asc(mailboxes.path));
+    const counts = await resolveFolderCounts(db, userId, rows);
 
-    return rows.map((row) => ({
-      _id: row.mailbox.id,
-      id: row.mailbox.id,
-      userId: row.mailbox.userId,
-      name: row.mailbox.name,
-      path: row.mailbox.path,
-      specialUse: row.mailbox.specialUse,
-      retentionDays: row.mailbox.retentionDays,
-      totalMessages: row.total ?? 0,
-      unseenMessages: row.unseen ?? 0,
-      // `sum()` is `numeric`, which postgres.js hands back as a string.
-      size: Number(row.bytes ?? 0),
-      createdAt: row.mailbox.createdAt,
-      updatedAt: row.mailbox.updatedAt,
-    }));
+    return rows.map((row) => {
+      const count = counts.get(row.id);
+      return {
+        _id: row.id,
+        id: row.id,
+        userId: row.userId,
+        name: row.name,
+        path: row.path,
+        specialUse: row.specialUse,
+        retentionDays: row.retentionDays,
+        totalMessages: count?.total ?? 0,
+        unseenMessages: count?.unseen ?? 0,
+        size: count?.bytes ?? 0,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
   }
 
   /**
@@ -4782,9 +4768,10 @@ class EmailService {
   /**
    * Bytes stored, against the tier's allowance.
    *
-   * This sums the messages themselves — every message belongs to exactly one
-   * of that user's mailboxes — so it cannot drift from what is actually stored
-   * the way a cached counter could.
+   * The sum of the user's folder counters. Every message belongs to exactly
+   * one of that user's folders, and the counters are written by a trigger in
+   * the same transaction as the messages, so they cannot drift the way the
+   * hand-maintained Mongo counters did.
    */
   async getQuotaUsage(
     userId: string,
