@@ -51,7 +51,7 @@
       "axios": "^1.18.1",
       "class-variance-authority": "^0.7.1",
       "clsx": "^2.1.1",
-      "dompurify": "3.4.16",
+      "dompurify": "3.4.17",
       "drizzle-kit": "0.31.10",
       "drizzle-orm": "0.45.2",
       "eslint": "^9.39.5",

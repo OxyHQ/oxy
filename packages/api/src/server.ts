@@ -233,7 +233,7 @@ import { performanceMonitor } from './utils/performanceMonitor';
 import { isDatabaseReachable, waitForDatabaseConnection } from './utils/dbConnection';
 import { closePostgres, getDb } from './config/postgres';
 import { users } from './db/schema/users';
-import { isFederatableUser } from './utils/profileQuery';
+import { isFederatableUser, isPermanentlyGoneActor } from './utils/profileQuery';
 import { errorHandler } from './middleware/errorHandler';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
@@ -1062,7 +1062,12 @@ import {
 } from './services/federation.service';
 import federationRoutes from './routes/federation';
 import { createWebfingerHandler } from './routes/webfinger';
-import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
+import {
+  createUrlBuilders,
+  INSTANCE_ACTOR_USERNAME,
+  normalizeActorUsername,
+} from '@oxy.so/federation';
+import { goneTombstone } from '@oxy.so/federation/node';
 import { accountNameParts } from './utils/displayName';
 import { accountNameColumns } from './utils/publicUserProjection';
 
@@ -1091,6 +1096,7 @@ async function findFederatableUserByUsername(username: string) {
       bio: users.bio,
       description: users.description,
       kind: users.kind,
+      type: users.type,
       accountStatus: users.accountStatus,
       reputationTier: users.reputationTier,
       fediverseSharing: users.privacyFediverseSharing,
@@ -1140,7 +1146,20 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
 
     // Per-user actor
     const user = await findFederatableUserByUsername(username);
-    if (!user || !isFederatableUser(user)) return res.status(404).json({ error: 'User not found' });
+    if (!user || !isFederatableUser(user)) {
+      // An archived channel or community is gone for good: a Tombstone, which is
+      // what makes Lemmy, PieFed, Mbin and Mastodon drop their copy.
+      if (isPermanentlyGoneActor(user)) {
+        res.setHeader('Content-Type', 'application/activity+json');
+        res.setHeader('Cache-Control', 'max-age=1800');
+        return res
+          .status(410)
+          .json(
+            goneTombstone(createUrlBuilders(AP_DOMAIN).actor(normalizeActorUsername(username))),
+          );
+      }
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     const actor = await getUserActor({
       username: user.username,
@@ -1201,6 +1220,7 @@ app.get(
     isOwnFederationDomain,
     findUserByUsername: findFederatableUserByUsername,
     isFederatableUser,
+    isGoneUser: isPermanentlyGoneActor,
     logger,
   }),
 );

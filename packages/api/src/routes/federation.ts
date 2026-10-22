@@ -28,6 +28,7 @@ import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { users } from '../db/schema/users';
+import { isPermanentlyGoneActor } from '../utils/profileQuery';
 import userCache from '../utils/userCache';
 import credentialDomainCache from '../utils/credentialDomainCache';
 import { getUserPublicKey, signWithKeyId, federationService } from '../services/federation.service';
@@ -56,6 +57,8 @@ import {
   UnpurgeableDomainError,
 } from '../services/federation/blockedDomainPurge.service';
 import {
+  actorGoneParamsSchema,
+  actorGoneResponseSchema,
   publicKeyParamsSchema,
   publicKeyQuerySchema,
   signRequestSchema,
@@ -65,6 +68,7 @@ import {
   federationDomainPurgeSchema,
   federationMoveSchema,
   type FederationMoveBody,
+  type ActorGoneParams,
   type PublicKeyParams,
   type PublicKeyQuery,
   type SignRequestBody,
@@ -327,6 +331,46 @@ router.get(
       keyId: publicKey.keyId,
       publicKeyPem: publicKey.publicKeyPem,
     });
+  }),
+);
+
+/**
+ * GET /federation/actor-gone/:username
+ *
+ * Whether a LOCAL handle names an actor that is gone for good, which the relying
+ * app's actor, inbox, collections and WebFinger then answer `410 Gone` instead
+ * of 404. Asked by Mention only for a handle that resolved to no live account
+ * (`@oxy.so/federation`'s `isActorGone`).
+ *
+ * `gone` is true while an archived channel, community or other non-personal
+ * account holds the handle (`isPermanentlyGoneActor`). The account row is the
+ * whole record: an archive is never undone and the handle cannot be registered
+ * again, so the answer holds for as long as the row exists. A personal account
+ * is never reported here; its deletion is answered from the app's own erasure
+ * ledger, for that ledger's retention only.
+ *
+ * Read-only. An unknown handle is `gone: false`, never a 404, so a caller can
+ * cache either answer the same way.
+ *
+ * @response 200 actorGoneResponseSchema Whether the handle's actor is gone for good.
+ */
+router.get(
+  '/actor-gone/:username',
+  serviceAuthMiddleware,
+  validate({ params: actorGoneParamsSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    assertFederationScope(req);
+
+    const { username } = req.params as unknown as ActorGoneParams;
+    const [holder] = await getDb()
+      .select({ kind: users.kind, type: users.type, accountStatus: users.accountStatus })
+      .from(users)
+      .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
+      .limit(1);
+    return sendSuccess(
+      res,
+      actorGoneResponseSchema.parse({ username, gone: isPermanentlyGoneActor(holder) }),
+    );
   }),
 );
 

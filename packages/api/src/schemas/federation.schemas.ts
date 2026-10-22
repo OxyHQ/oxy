@@ -32,9 +32,21 @@ const keyIdSchema = z
     message: 'keyId must end with #main-key',
   });
 
-// GET /federation/public-key/:username
-export const publicKeyParamsSchema = z.object({
+/** A local handle in a `/federation/...:username` path. */
+const usernameParamsSchema = z.object({
   username: z.string().trim().min(1, 'username is required').max(256),
+});
+
+// GET /federation/public-key/:username
+export const publicKeyParamsSchema = usernameParamsSchema;
+
+// GET /federation/actor-gone/:username
+export const actorGoneParamsSchema = usernameParamsSchema;
+
+/** `gone`: the handle is held by an account whose actor answers 410 for good. */
+export const actorGoneResponseSchema = z.object({
+  username: z.string(),
+  gone: z.boolean(),
 });
 
 // GET /federation/public-key/:username?domain=<domain>
@@ -181,6 +193,7 @@ export const federationDomainPurgeSchema = z.object({
 });
 
 export type PublicKeyParams = z.infer<typeof publicKeyParamsSchema>;
+export type ActorGoneParams = z.infer<typeof actorGoneParamsSchema>;
 export type PublicKeyQuery = z.infer<typeof publicKeyQuerySchema>;
 export type SignRequestBody = z.infer<typeof signRequestSchema>;
 export type FederationFollowBody = z.infer<typeof federationFollowSchema>;

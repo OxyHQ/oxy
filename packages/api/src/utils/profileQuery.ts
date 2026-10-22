@@ -306,6 +306,33 @@ export function isFederatableUser(
 }
 
 /**
+ * Whether an account's ActivityPub actor is GONE FOR GOOD, to be answered
+ * `410 Gone` rather than 404: a local, non-personal account (a channel, a
+ * community, an organization, a project, a bot) that was archived.
+ *
+ * Permanent because the archive is: it writes a closure fence, nothing restores
+ * an archived account, and the row keeps its handle (`users_lower_username_key`
+ * is not partial), so nobody can register the name again. The answer lasts as
+ * long as the row does, with nothing kept beside it.
+ *
+ * A personal account is excluded. Its deletion is a privacy erasure, and the
+ * relying app answers 410 only while its own ledger keeps the handle (Mention:
+ * `account_erasures`, 14 days), whether Oxy deleted the row or archived it to
+ * retain financial records. A federated row is a remote actor, never ours to
+ * answer for.
+ */
+export function isPermanentlyGoneActor(
+  user: { kind?: string; type?: string; accountStatus?: string } | null | undefined,
+): boolean {
+  return (
+    !!user &&
+    user.accountStatus === 'archived' &&
+    user.kind !== 'personal' &&
+    user.type !== 'federated'
+  );
+}
+
+/**
  * A federated actor is only recommendable while it is still RESOLVING: it must
  * carry an actor URI and a domain, have been re-resolved inside the freshness
  * window, and not have been marked unavailable. Non-federated accounts pass

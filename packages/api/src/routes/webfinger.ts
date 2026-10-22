@@ -11,6 +11,8 @@ export interface WebfingerDependencies<User> {
   isOwnFederationDomain(domain: string): boolean;
   findUserByUsername(username: string): Promise<User | undefined>;
   isFederatableUser(user: User): boolean;
+  /** An unfederatable user whose actor is gone for good: 410 instead of 404, so Mastodon drops it. */
+  isGoneUser(user: User): boolean;
   logger: { error(message: string, error: unknown): void };
 }
 
@@ -55,8 +57,13 @@ export function createWebfingerHandler<User>(deps: WebfingerDependencies<User>) 
       // instance actor must resolve here as it does at `/ap/users/:username`.
       if (canonicalUsername !== INSTANCE_ACTOR_USERNAME) {
         const user = await deps.findUserByUsername(canonicalUsername);
-        if (!user || !deps.isFederatableUser(user))
+        if (!user || !deps.isFederatableUser(user)) {
+          if (user && deps.isGoneUser(user)) {
+            res.setHeader('Cache-Control', 'max-age=3600');
+            return res.status(410).json({ error: 'User deleted' });
+          }
           return res.status(404).json({ error: 'User not found' });
+        }
       }
 
       res.setHeader('Content-Type', 'application/jrd+json');

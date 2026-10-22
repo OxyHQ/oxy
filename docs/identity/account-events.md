@@ -49,6 +49,15 @@ reasons:
   there used to keep its posts, and stay federated, in Mention forever.
 - **The event carries the handle**, which a relying party needs to address the
   actor `Delete` once Oxy stops resolving the archived account.
+- **The handle stays held.** The archived row keeps its username, and
+  `users_lower_username_key` is not partial, so the name cannot be registered
+  again. An archived managed account's ActivityPub actor is therefore gone for
+  good, and is answered `410 Gone` for as long as the row exists: on Oxy's own
+  `/ap/users/:username` and WebFinger, and to a relying app through
+  `GET /federation/actor-gone/:username` (`isPermanentlyGoneActor`), which
+  Mention asks after its erasure ledger lets the handle go. A person's deletion
+  is not answered there: the relying app answers 410 for it only while its own
+  ledger keeps the handle.
 
 Recipients follow the rule below: first-party, internal and system
 applications, plus any application the managed account granted or had a session
