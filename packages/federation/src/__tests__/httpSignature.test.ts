@@ -249,6 +249,28 @@ describe('verifyHttpSignature', () => {
     expect(result.reason).toBe('verify-failed');
   });
 
+  it('asks for the key again once when the stored one is out of date', async () => {
+    const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
+    const signed = await signRequest(sign, KEY_ID, 'POST', INBOX_URL, body);
+    const { publicKey: replacedKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+    });
+    const asked: unknown[] = [];
+    const result = await verifyHttpSignature(
+      { method: 'POST', path: new URL(INBOX_URL).pathname, headers: lowerHeaders(signed), body },
+      async (keyId, options) => {
+        asked.push(options);
+        return {
+          publicKeyPem: options?.refresh ? TEST_PUBLIC_KEY_PEM : replacedKey,
+          actorUri: ACTOR_URI,
+        };
+      },
+    );
+    expect(result).toEqual({ verified: true, actorUri: ACTOR_URI });
+    expect(asked).toEqual([undefined, { refresh: true }]);
+  });
+
   it('rejects when the Date header is outside the allowed skew', async () => {
     const body = JSON.stringify({ type: 'Create', id: 'https://remote/a/1' });
     const signed = await signRequest(sign, KEY_ID, 'POST', INBOX_URL, body);

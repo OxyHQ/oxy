@@ -1,6 +1,30 @@
 # Changelog: `@oxy.so/federation`
 
 
+## 2.11.0
+
+A remote actor that rotated its key is believed again on its next signed
+request, instead of being refused until its stored actor happened to refresh.
+
+### Changed
+
+- `verifyHttpSignature` asks `fetchPublicKey` once more, with
+  `{ refresh: true }`, when the key it was given does not verify, and verifies
+  against the key that comes back when it differs. An actor that rotates its key
+  keeps its keyId, so a stored copy cannot tell the old key from the new one.
+- `FetchPublicKey` takes an optional second argument, `FetchPublicKeyOptions`
+  (`{ refresh?: boolean }`, exported). An adapter that ignores it still
+  satisfies the type, and keeps the old behaviour.
+- `ActorResolver.fetchPublicKey(keyId, { refresh: true })` fetches the owning
+  actor again and stores what it publishes, unless that actor was fetched in the
+  last minute (the key that failed is then the one it publishes, and anyone can
+  send a bad signature naming a real keyId). Concurrent refreshes of one actor
+  share a single fetch. It resolves the actor from the stored row's URI when
+  there is one, rather than the keyId with its fragment cut.
+- `createActorRouter`'s `inbound.fetchPublicKey` is a `FetchPublicKey`, and the
+  inbox passes the refresh request through to it. An app that wraps the resolver
+  passes the second argument on.
+
 ## 2.10.0
 
 The identity bridge's transport is typed as core's `serviceRequest`, so an app

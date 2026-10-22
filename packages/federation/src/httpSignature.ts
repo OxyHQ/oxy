@@ -155,12 +155,24 @@ export interface VerifyHttpResult {
   reason?: string;
 }
 
+/** How {@link FetchPublicKey} is asked for a key. */
+export interface FetchPublicKeyOptions {
+  /**
+   * Fetch the key from the actor that owns it rather than from any copy kept
+   * locally. {@link verifyHttpSignature} asks this once when the key it was
+   * given does not verify: an actor that rotated its key signs with one a
+   * stored copy has never seen. `null` means nothing newer could be had.
+   */
+  refresh?: boolean;
+}
+
 /**
  * Resolve a `keyId` to its public key PEM and the actor URI that owns it, or
  * `null` when the key cannot be fetched (a failed fetch fails verification).
  */
 export type FetchPublicKey = (
   keyId: string,
+  options?: FetchPublicKeyOptions,
 ) => Promise<{ publicKeyPem: string; actorUri: string } | null>;
 
 /** Options controlling inbound signature verification. */
@@ -264,19 +276,30 @@ export async function verifyHttpSignature(
   });
 
   const signingString = signingParts.join('\n');
-  const verifier = crypto.createVerify('sha256');
-  verifier.update(signingString);
-  verifier.end();
+  /** `true` when `publicKeyPem` verifies the signature, otherwise why it does not. */
+  const check = (publicKeyPem: string): true | string => {
+    const verifier = crypto.createVerify('sha256');
+    verifier.update(signingString);
+    verifier.end();
+    try {
+      return verifier.verify(publicKeyPem, parsed.signature, 'base64') || 'verify-failed';
+    } catch (err) {
+      options.onDebug?.('HTTP signature verification failed:', err);
+      return err instanceof Error ? err.message : 'verify-exception';
+    }
+  };
 
-  try {
-    const isValid = verifier.verify(keyData.publicKeyPem, parsed.signature, 'base64');
-    return {
-      verified: isValid,
-      actorUri: isValid ? keyData.actorUri : undefined,
-      reason: isValid ? undefined : 'verify-failed',
-    };
-  } catch (err) {
-    options.onDebug?.('HTTP signature verification failed:', err);
-    return { verified: false, reason: err instanceof Error ? err.message : 'verify-exception' };
+  const verdict = check(keyData.publicKeyPem);
+  if (verdict === true) return { verified: true, actorUri: keyData.actorUri };
+
+  // The key may only be out of date: an actor that rotates its key keeps the
+  // keyId and signs with the new one. Ask the owner once before rejecting.
+  const fresh = await fetchPublicKey(parsed.keyId, { refresh: true });
+  if (!fresh || fresh.publicKeyPem === keyData.publicKeyPem) {
+    return { verified: false, reason: verdict };
   }
+  const freshVerdict = check(fresh.publicKeyPem);
+  return freshVerdict === true
+    ? { verified: true, actorUri: fresh.actorUri }
+    : { verified: false, reason: freshVerdict };
 }

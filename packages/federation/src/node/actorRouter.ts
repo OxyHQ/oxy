@@ -26,7 +26,7 @@ import type { AccountKind } from '@oxy.so/contracts';
 import type { User } from '@oxy.so/core';
 import { AP_CONTEXT } from '../apContext';
 import { discoveryCacheControl } from './httpCacheControl';
-import { verifyHttpSignature } from '../httpSignature';
+import { type FetchPublicKey, verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
 import type { LocalActorBuilder } from '../actorObject';
@@ -104,8 +104,11 @@ export interface ActorRouterConfig {
   getBanner(oxyUserId: string): Promise<string | null>;
   /** Inbound-delivery adapters. */
   inbound: {
-    /** Resolve a `keyId` to its public key PEM + owning actor uri (HTTP-sig verify). */
-    fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null>;
+    /**
+     * Resolve a `keyId` to its public key PEM + owning actor uri (HTTP-sig verify).
+     * Asked again with `refresh` when the key it gave does not verify.
+     */
+    fetchPublicKey: FetchPublicKey;
     /** Whether to trust `X-Forwarded-Host` when reconstructing the signed host line. */
     trustForwardedHost: boolean;
     /** Enqueue a verified inbound activity for async processing (false ⇒ process inline). */
@@ -212,7 +215,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
           headers: req.headers as Record<string, string | string[] | undefined>,
           body: req.rawBody ?? req.body,
         },
-        (keyId) => config.inbound.fetchPublicKey(keyId),
+        (keyId, options) => config.inbound.fetchPublicKey(keyId, options),
         {
           trustForwardedHost: config.inbound.trustForwardedHost,
           onDebug: (message, detail) => logger.debug(message, detail),
