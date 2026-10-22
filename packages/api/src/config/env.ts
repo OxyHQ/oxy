@@ -51,15 +51,11 @@ export interface RequiredEnvVars {
   // provider chain resolves the ECS task role, which is how production runs.
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
-  // The S3 bucket Oxy Files is migrating FROM, or — before the R2 cutover —
-  // the store itself (ADR 0047; `services/s3ServiceSingleton.ts`).
-  AWS_S3_BUCKET: string;
   AWS_ENDPOINT_URL?: string; // Optional for S3-compatible services
 
-  // Oxy Files' object store: Cloudflare R2 (ADR 0047). R2_BUCKET needs the
-  // other three.
-  R2_BUCKET?: string;
-  R2_ENDPOINT?: string;
+  // Oxy Files' object store: Cloudflare R2 (ADR 0047; `services/s3ServiceSingleton.ts`).
+  R2_BUCKET: string;
+  R2_ENDPOINT: string;
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
 
@@ -274,10 +270,10 @@ export function validateRequiredEnvVars(): void {
     'ACCESS_TOKEN_SECRET',
     'REFRESH_TOKEN_SECRET',
     'AWS_REGION',
-    // The store before the R2 cutover, and the legacy store a migration
-    // mirrors deletes into after it (ADR 0047). R2_BUCKET replaces it here
-    // when the migration is retired.
-    'AWS_S3_BUCKET',
+    // Oxy Files' store (ADR 0047): the bucket and its endpoint; the token is
+    // checked with them by `objectStorageConfigFromEnv`.
+    'R2_BUCKET',
+    'R2_ENDPOINT',
   ];
 
   const missing: string[] = [];
@@ -289,11 +285,9 @@ export function validateRequiredEnvVars(): void {
     }
   }
 
-  // R2 is all four variables or none (`objectStorageConfigFromEnv`).
-  if (process.env.R2_BUCKET) {
-    for (const key of ['R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
-      if (!process.env[key]) missing.push(key);
-    }
+  // R2 is all four variables.
+  for (const key of ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) {
+    if (!process.env[key]) missing.push(key);
   }
 
   if (
@@ -303,8 +297,8 @@ export function validateRequiredEnvVars(): void {
     warnings.push('DATABASE_URL should start with "postgres://" or "postgresql://"');
   }
 
-  if (process.env.AWS_S3_BUCKET && process.env.AWS_S3_BUCKET.includes('/')) {
-    warnings.push('AWS_S3_BUCKET should be just the bucket name, not a full path');
+  if (process.env.R2_BUCKET && process.env.R2_BUCKET.includes('/')) {
+    warnings.push('R2_BUCKET should be just the bucket name, not a full path');
   }
 
   // ASSET_CDN_URL must be an absolute http(s) URL when set, since every public
@@ -488,7 +482,6 @@ export function getSanitizedConfig(): Record<string, string> {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: process.env.PORT || ENV_DEFAULTS.PORT,
     AWS_REGION: process.env.AWS_REGION || ENV_DEFAULTS.AWS_REGION,
-    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET || '',
     AWS_ENDPOINT_URL: process.env.AWS_ENDPOINT_URL || 'default',
     R2_BUCKET: process.env.R2_BUCKET || '',
     R2_ENDPOINT: process.env.R2_ENDPOINT || '',

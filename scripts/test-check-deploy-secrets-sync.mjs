@@ -312,7 +312,7 @@ expectVerdict(
 
 const retiredNotRemoved = createFixture();
 edit(retiredNotRemoved, WORKFLOW, 'retired-binding-not-removed', (text) =>
-  text.replace(',"INBOX_APPLICATION_SECRET"]', ']'),
+  text.replace(',"INBOX_APPLICATION_SECRET"', ''),
 );
 expectVerdict(
   'retired-binding-not-removed',
@@ -323,7 +323,7 @@ expectVerdict(
 
 const removeNamesUnreadable = createFixture();
 edit(removeNamesUnreadable, WORKFLOW, 'remove-names-unparseable', (text) =>
-  text.replace(',"INBOX_APPLICATION_SECRET"]', ',INBOX_APPLICATION_SECRET]'),
+  text.replace(',"CDN_CLOUDFRONT_DISTRIBUTION_ID"]', ',CDN_CLOUDFRONT_DISTRIBUTION_ID]'),
 );
 expectVerdict(
   'remove-names-unparseable',
@@ -379,7 +379,7 @@ edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     'const required: (keyof RequiredEnvVars)[] = [\n' +
       "    'ACCESS_TOKEN_SECRET',\n    'REFRESH_TOKEN_SECRET',\n    'DEVICE_ID_SALT',\n" +
-      "    'AWS_REGION',\n    'AWS_S3_BUCKET',\n    'REDIS_URL',\n  ];",
+      "    'AWS_REGION',\n    'R2_BUCKET',\n    'REDIS_URL',\n  ];",
   ),
 );
 expectVerdict(

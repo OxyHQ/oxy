@@ -75,7 +75,7 @@ def main():
           'ACCESS_TOKEN_SECRET':'rollback-fixture-access-secret-only-64-characters-not-production',
           'REFRESH_TOKEN_SECRET':'rollback-fixture-refresh-secret-only-64-characters-not-production',
           'DEVICE_ID_SALT':'rollback-fixture-device-salt-only-64-characters-not-production',
-          'AWS_REGION':'us-west-2','AWS_ACCESS_KEY_ID':'fixture-no-aws-key','AWS_SECRET_ACCESS_KEY':'fixture-no-aws-secret','AWS_S3_BUCKET':'fixture-no-bucket',
+          'AWS_REGION':'us-west-2','AWS_ACCESS_KEY_ID':'fixture-no-aws-key','AWS_SECRET_ACCESS_KEY':'fixture-no-aws-secret','R2_BUCKET':'fixture-no-bucket','R2_ENDPOINT':'https://fixture.invalid','R2_ACCESS_KEY_ID':'fixture-no-r2-key','R2_SECRET_ACCESS_KEY':'fixture-no-r2-secret',
           'AUTH_WEB_ORIGIN':'http://127.0.0.1:17974','OXY_API_URL':'http://127.0.0.1:17975','ASSET_CDN_URL':'http://127.0.0.1:17975','LOG_LEVEL':'warn'}
         for phase in ['fresh','repeat']:
             assert not (ROOT/'packages/api/.env').exists()

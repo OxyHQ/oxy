@@ -16,7 +16,7 @@ import {
   type PurgeKind,
   type PurgeSender,
 } from '../cdnPurge';
-import { CdnEdgeQueues, getCdnInvalidationQueue } from '../cdnInvalidation';
+import { getCdnInvalidationQueue } from '../cdnInvalidation';
 import { logger } from '../../utils/logger';
 
 const SHA = 'cd'.repeat(32);
@@ -131,28 +131,6 @@ describe('batching and failure', () => {
 });
 
 describe('the process-wide CDN queue', () => {
-  it('tells CloudFront and Cloudflare about the same deletes', () => {
-    const a = {
-      enqueueDeletedKey: jest.fn(),
-      enqueuePath: jest.fn(),
-      flush: jest.fn(),
-      pendingPaths: () => [],
-    };
-    const b = {
-      enqueueDeletedKey: jest.fn(),
-      enqueuePath: jest.fn(),
-      flush: jest.fn(),
-      pendingPaths: () => [],
-    };
-    const edges = new CdnEdgeQueues([a, b]);
-    edges.enqueueDeletedKey('public/content/a.png');
-    edges.enqueuePath('/id');
-    for (const queue of [a, b]) {
-      expect(queue.enqueueDeletedKey).toHaveBeenCalledWith('public/content/a.png');
-      expect(queue.enqueuePath).toHaveBeenCalledWith('/id');
-    }
-  });
-
   it('is one object, so the S3 singleton and the delete paths share it', () => {
     expect(getCdnInvalidationQueue()).toBe(getCdnInvalidationQueue());
   });

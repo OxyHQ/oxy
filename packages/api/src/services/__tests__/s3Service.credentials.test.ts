@@ -45,11 +45,14 @@ describe('S3Service — credential source', () => {
     expect(s3ClientConfigs[0]).not.toHaveProperty('credentials');
   });
 
-  it('the shared singleton omits credentials when the env carries no AWS keys', () => {
+  it("the shared singleton signs with R2's bucket token, never the AWS keys in the env", () => {
     const saved = { ...process.env };
-    delete process.env.AWS_ACCESS_KEY_ID;
-    delete process.env.AWS_SECRET_ACCESS_KEY;
-    process.env.AWS_S3_BUCKET = 'media-test';
+    process.env.AWS_ACCESS_KEY_ID = 'aws-key';
+    process.env.AWS_SECRET_ACCESS_KEY = 'aws-secret';
+    process.env.R2_BUCKET = 'oxy-files';
+    process.env.R2_ENDPOINT = 'https://acct.r2.cloudflarestorage.com';
+    process.env.R2_ACCESS_KEY_ID = 'r2-id';
+    process.env.R2_SECRET_ACCESS_KEY = 'r2-secret';
     try {
       jest.isolateModules(() => {
         // biome-ignore lint/style/noCommonJs: required inside jest.isolateModules to get a fresh module registry
@@ -59,6 +62,10 @@ describe('S3Service — credential source', () => {
       process.env = saved;
     }
     expect(s3ClientConfigs).toHaveLength(1);
-    expect(s3ClientConfigs[0]).not.toHaveProperty('credentials');
+    expect(s3ClientConfigs[0]).toMatchObject({
+      region: 'auto',
+      endpoint: 'https://acct.r2.cloudflarestorage.com',
+      credentials: { accessKeyId: 'r2-id', secretAccessKey: 'r2-secret' },
+    });
   });
 });

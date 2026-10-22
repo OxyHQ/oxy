@@ -27,7 +27,7 @@ process.env.REFRESH_TOKEN_SECRET ??= 'edge-mount-refresh-token-secret-32-chars';
 process.env.AWS_REGION ??= 'us-west-2';
 process.env.AWS_ACCESS_KEY_ID ??= 'edge-mount';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'edge-mount';
-process.env.AWS_S3_BUCKET ??= 'edge-mount';
+process.env.R2_BUCKET ??= 'edge-mount';
 
 import type { AddressInfo } from 'node:net';
 import { closePostgres, connectPostgres } from '../../config/postgres';

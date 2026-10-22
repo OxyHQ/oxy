@@ -66,7 +66,7 @@ process.env.REFRESH_TOKEN_SECRET ??= 'metrics-gate-refresh-token-secret-32-chars
 process.env.AWS_REGION ??= 'us-west-2';
 process.env.AWS_ACCESS_KEY_ID ??= 'metrics-gate';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'metrics-gate';
-process.env.AWS_S3_BUCKET ??= 'metrics-gate';
+process.env.R2_BUCKET ??= 'metrics-gate';
 
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';

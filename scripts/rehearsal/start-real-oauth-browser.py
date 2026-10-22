@@ -108,7 +108,8 @@ def main():
             'REFRESH_TOKEN_SECRET': 'fixture-real-oauth-refresh-secret-64-characters-no-production',
             'DEVICE_ID_SALT': 'fixture-real-oauth-device-salt-64-characters-no-production',
             'AWS_REGION': 'us-west-2', 'AWS_ACCESS_KEY_ID': 'fixture-no-aws-key',
-            'AWS_SECRET_ACCESS_KEY': 'fixture-no-aws-secret', 'AWS_S3_BUCKET': 'fixture-no-bucket',
+            'AWS_SECRET_ACCESS_KEY': 'fixture-no-aws-secret', 'R2_BUCKET': 'fixture-no-bucket', 'R2_ENDPOINT': 'https://fixture.invalid',
+            'R2_ACCESS_KEY_ID': 'fixture-no-r2-key', 'R2_SECRET_ACCESS_KEY': 'fixture-no-r2-secret',
             'AUTH_WEB_ORIGIN': 'http://127.0.0.1:17961',
             'OXY_API_URL': 'http://127.0.0.1:17960', 'ASSET_CDN_URL': 'http://127.0.0.1:17960',
             'LOG_LEVEL': 'warn', 'SMTP_RELAY_HOST': '127.0.0.1', 'SMTP_RELAY_PORT': '17964'}

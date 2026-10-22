@@ -336,14 +336,8 @@ jobs:
           # approve its route.
           # The Instagram Graph fallback's flag and API version are repository
           # variables: unset renders "", which the API reads as off / v23.0.
-          # CDN_CLOUDFRONT_DISTRIBUTION_ID (cloud.oxy.so, EJGHFASAD3H1W) turns on
-          # CloudFront invalidation of deleted public objects. Also a repository
-          # variable: unset renders "", which the API reads as off (one warning),
-          # so this can merge before oxy-infra grants cloudfront:CreateInvalidation.
           # R2_BUCKET / R2_ENDPOINT (+ the R2_* token below) make Cloudflare R2
-          # Oxy Files' store (ADR 0047); AWS_S3_BUCKET, still on the revision,
-          # is then the legacy store deletes are mirrored into until the
-          # migration is retired. CLOUDFLARE_ZONE_ID (oxy.so) and
+          # Oxy Files' store (ADR 0047). CLOUDFLARE_ZONE_ID (oxy.so) and
           # CLOUDFLARE_CACHE_PURGE_TOKEN turn on the cloud.oxy.so purge. The
           # asset-variant worker re-asserts the same storage bindings
           # (deploy-asset-variant-worker.sh).
@@ -353,7 +347,7 @@ jobs:
           # the backlog this releases cannot turn into stale "important email"
           # messages.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","R2_BUCKET":"oxy-files","R2_ENDPOINT":"https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com","CLOUDFLARE_ZONE_ID":"7f70358609578c4a1f24dbf6cb9c4498","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
+            {"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","R2_BUCKET":"oxy-files","R2_ENDPOINT":"https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com","CLOUDFLARE_ZONE_ID":"7f70358609578c4a1f24dbf6cb9c4498","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
           # Re-assert the Terraform-declared ADOT sidecar because releases are
           # rendered from the currently-running task revision. It carries TRACES
           # only, to X-Ray, sampled at 1% by OTEL_TRACES_SAMPLER above: at ~45M
@@ -376,8 +370,10 @@ jobs:
           # `catalogs:write`, fails, and the rollout rolls back to the revision
           # that still carries the pair. The SSM parameters stay until that
           # binding has been proven in production.
+          # AWS_S3_BUCKET and CDN_CLOUDFRONT_DISTRIBUTION_ID: Oxy Files left S3
+          # and CloudFront for R2 and the cloud.oxy.so Worker (ADR 0047).
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET","AWS_S3_BUCKET","CDN_CLOUDFRONT_DISTRIBUTION_ID"]
           # The service-token JWKS (ADR 0012), then the Inbox MCP checks.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-oxy-api.sh
           # The deploy script renders from the task definition the service is

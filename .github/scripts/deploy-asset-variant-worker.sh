@@ -112,12 +112,14 @@ if [[ "$phase" == "start" ]]; then
     del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
     | ($secrets | map(.name)) as $secretNames
     | ($environment | map(.name)) as $environmentNames
+    # Oxy Files left S3 for R2 (ADR 0047): AWS_S3_BUCKET leaves the worker.
+    | ["AWS_S3_BUCKET"] as $retiredNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
           | .command = ["bun", "packages/api/dist/asset-variant-worker.js"]
           | .secrets = ((.secrets // [] | map(select(.name as $n | $secretNames | index($n) | not))) + $secrets)
-          | .environment = ((.environment // [] | map(select(.name as $n | $environmentNames | index($n) | not))) + $environment)
+          | .environment = ((.environment // [] | map(select(.name as $n | ($environmentNames + $retiredNames) | index($n) | not))) + $environment)
         else . end
       )
   ' <<<"$task_definition")"

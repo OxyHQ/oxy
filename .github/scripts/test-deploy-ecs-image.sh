@@ -1081,7 +1081,7 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","R2_BUCKET":"oxy-files","R2_ENDPOINT":"https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com","CLOUDFLARE_ZONE_ID":"7f70358609578c4a1f24dbf6cb9c4498","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
+grep -F '{"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","R2_BUCKET":"oxy-files","R2_ENDPOINT":"https://fa4392797e57d4e63ceaaf7b1dc687ed.r2.cloudflarestorage.com","CLOUDFLARE_ZONE_ID":"7f70358609578c4a1f24dbf6cb9c4498","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_EXTRA_CONTAINERS_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false' \
@@ -1093,7 +1093,7 @@ if grep -F 'ecs-default-config' "$workflow_file" >/dev/null; then
   exit 1
 fi
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET"]' \
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET","AWS_S3_BUCKET","CDN_CLOUDFRONT_DISTRIBUTION_ID"]' \
   "$workflow_file" >/dev/null
 # ADR 0026: oxy-api acts as Oxy Inbox through its task role's workload binding.
 # The retired key pair is removed above and must be neither re-asserted nor

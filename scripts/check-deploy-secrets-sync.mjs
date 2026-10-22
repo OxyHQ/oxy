@@ -78,7 +78,8 @@ const SSM_MUTATION = /put-parameter|delete-parameter|put-secure-parameter\.sh/;
  */
 const SUPPLIED_AS_PLAIN_ENV = new Map([
   ['AWS_REGION', 'a region string, not a secret'],
-  ['AWS_S3_BUCKET', 'a bucket name, not a secret'],
+  ['R2_BUCKET', 'a bucket name, not a secret'],
+  ['R2_ENDPOINT', "the R2 account's S3 API endpoint, not a secret"],
 ]);
 
 /**

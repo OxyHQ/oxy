@@ -39,7 +39,7 @@ process.env.REFRESH_TOKEN_SECRET ??= 'health-gate-refresh-token-secret-32-chars'
 process.env.AWS_REGION ??= 'us-west-2';
 process.env.AWS_ACCESS_KEY_ID ??= 'health-gate';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'health-gate';
-process.env.AWS_S3_BUCKET ??= 'health-gate';
+process.env.R2_BUCKET ??= 'health-gate';
 
 import type { AddressInfo } from 'net';
 import postgres from 'postgres';
