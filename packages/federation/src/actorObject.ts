@@ -400,11 +400,14 @@ export function createLocalActorBuilder(config: LocalActorBuilderConfig): LocalA
     // `attributedTo` (Lemmy, PieFed; Mbin reads `moderators`) and says anybody
     // may post into it. PeerTube refuses a `Group` without `attributedTo`, and a
     // `Group` claiming `postingRestrictedToMods` is read as a channel by every
-    // implementation, ours included ({@link accountKindForActor}).
+    // implementation, ours included ({@link accountKindForActor}). `sensitive`
+    // is Lemmy's NSFW flag on a community, sent as Lemmy sends it; an Oxy
+    // community has no NSFW setting.
     if (actorObject.type === LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community) {
       actorObject.attributedTo = config.urls.moderators(username);
       actorObject.moderators = config.urls.moderators(username);
       actorObject.postingRestrictedToMods = false;
+      actorObject.sensitive = false;
     }
 
     const aliases = normalizeAlsoKnownAs(params.alsoKnownAs);

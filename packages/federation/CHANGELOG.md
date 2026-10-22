@@ -1,6 +1,29 @@
 # Changelog: `@oxy.so/federation`
 
 
+## 2.9.0
+
+A community's outbox and followers parse on Lemmy and PieFed.
+
+### Added
+
+- `isGroupActorKind(kind)`: whether a local account is announced as a `Group`.
+  The moderators route and the Group collection shapes below all ask it.
+- `groupOutboxCollection({ id, totalItems, orderedItems })` and
+  `GROUP_OUTBOX_SIZE` (50): a `Group`'s outbox as one unpaged
+  `OrderedCollection` of its latest `Announce`s, which is what Lemmy's
+  `GroupOutbox` requires. A paged outbox with only `first` failed to parse, so
+  a Lemmy server that discovered a community backfilled none of its posts.
+- `groupFollowersCollection({ id, totalItems })`.
+
+### Changed
+
+- `createActorRouter`: a `Group`'s followers are a `Collection` with
+  `totalItems` and `items: []`, the shape Lemmy's `GroupFollowers` reads, on
+  every request (including `?page=true`). The follower list is no longer
+  served for a community. Other actors are unchanged.
+- The `Group` actor carries `sensitive: false`, Lemmy's community NSFW flag.
+
 ## 2.8.0
 
 A deleted local actor tells the fediverse once, then answers `410 Gone`.

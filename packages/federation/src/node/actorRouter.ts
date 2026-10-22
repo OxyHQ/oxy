@@ -8,7 +8,8 @@
  *    signature verification (Phase 2, `trustForwardedHost`) and actor-match, then
  *    202 + async dispatch to the injected inbound dispatcher,
  *  - `GET /users/:username/followers` + `/following` — the OXY follow graph
- *    (local + bridged federated edges) as paginated `OrderedCollection`s,
+ *    (local + bridged federated edges) as paginated `OrderedCollection`s; a
+ *    community `Group`'s followers are only counted (`groupCollections.ts`),
  *  - `GET /users/:username/moderators` — a community `Group`'s moderators.
  *
  * The CONTENT routes (`outbox`, `featured`, per-post dereference) stay in the app,
@@ -28,11 +29,8 @@ import { discoveryCacheControl } from './httpCacheControl';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
-import {
-  LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
-  localActorTypeForAccountKind,
-  type LocalActorBuilder,
-} from '../actorObject';
+import type { LocalActorBuilder } from '../actorObject';
+import { groupFollowersCollection, isGroupActorKind } from '../groupCollections';
 import { goneTombstone, type IsActorGone } from './goneActor';
 
 /** Page size for the paginated followers/following collections (mirrors the outbox). */
@@ -270,7 +268,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
   /**
    * Serve a user's followers OR following as a paginated `OrderedCollection` over
-   * the authoritative Oxy follow graph (local + bridged federated edges).
+   * the authoritative Oxy follow graph (local + bridged federated edges). A
+   * `Group`'s followers are the unpaged, itemless `Collection` Lemmy reads.
    */
   async function serveFollowCollection(
     req: Request,
@@ -297,7 +296,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         direction === 'followers' ? user._count?.followers : user._count?.following;
       const profileTotal = typeof rawCount === 'number' ? rawCount : undefined;
 
-      if (!page) {
+      const groupFollowers = direction === 'followers' && isGroupActorKind(user.kind);
+      if (!page || groupFollowers) {
         // Prefer the profile `_count`; only when absent (the rare search fallback)
         // fetch the authoritative total from a minimal graph list call. Fail-soft
         // to 0 — never 500 the summary.
@@ -315,6 +315,9 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         }
 
         res.set('Content-Type', apContentType);
+        if (groupFollowers) {
+          return res.json(groupFollowersCollection({ id: collectionUrl(username), totalItems }));
+        }
         return res.json({
           '@context': AP_CONTEXT,
           id: collectionUrl(username),
@@ -517,10 +520,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       try {
         const user = await config.resolveUser(username);
         if (!user) return userMissing(res, username);
-        if (
-          !config.consent.isSharingEnabledFromUser(user) ||
-          localActorTypeForAccountKind(user.kind) !== LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND.community
-        ) {
+        if (!config.consent.isSharingEnabledFromUser(user) || !isGroupActorKind(user.kind)) {
           return res.status(404).json({ error: 'User not found' });
         }
         const moderators = await fetchModerators(String(user._id || user.id));
