@@ -49,11 +49,17 @@ const errorMessage = (error: unknown, fallback: string): string =>
 export interface AccountSettingsArchiveOptions {
   /** The danger-zone row's title, replacing "Archive account". */
   title?: string;
-  /** The row's subtitle. */
+  /**
+   * The row's subtitle. With a `title` of its own the row shows only this
+   * (nothing when omitted), never Oxy's subtitle under the app's title.
+   */
   description?: string;
   /** The danger-zone section's footer. */
   footer?: string;
-  /** Replaces the default confirmation. Resolve `false` to back out. */
+  /**
+   * Replaces the default confirmation. Resolve `false` to back out; a rejection
+   * is reported as an archive failure and nothing is archived.
+   */
   confirm?: (node: AccountNode) => Promise<boolean>;
   /**
    * Runs after the confirmation and BEFORE Oxy archives the account — for an
@@ -211,15 +217,21 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   const handleArchive = useCallback(async () => {
     if (!node) return;
-    const confirmed = archive?.confirm
-      ? await archive.confirm(node)
-      : await surfaces.confirm({
-          title: t('accounts.settings.archive.confirmTitle'),
-          description: t('accounts.settings.archive.confirmDescription'),
-          confirmLabel: t('accounts.settings.archive.title'),
-          cancelLabel: t('common.cancel'),
-          destructive: true,
-        });
+    let confirmed: boolean;
+    try {
+      confirmed = archive?.confirm
+        ? await archive.confirm(node)
+        : await surfaces.confirm({
+            title: t('accounts.settings.archive.confirmTitle'),
+            description: t('accounts.settings.archive.confirmDescription'),
+            confirmLabel: t('accounts.settings.archive.title'),
+            cancelLabel: t('common.cancel'),
+            destructive: true,
+          });
+    } catch (error) {
+      toast.error(errorMessage(error, t('accounts.settings.toasts.archiveFailed')));
+      return;
+    }
     if (confirmed) archiveMutation.mutate(node);
   }, [archive, archiveMutation, node, t]);
 
@@ -393,7 +405,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
           <GroupedSectionItem
             icon={<SettingsIcon name="archive-arrow-down" color={colors.error} />}
             title={archive?.title ?? t('accounts.settings.archive.title')}
-            description={archive?.description ?? t('accounts.settings.archive.subtitle')}
+            description={
+              archive?.title ? archive.description : t('accounts.settings.archive.subtitle')
+            }
             destructive
             disabled={archiveMutation.isPending}
             onPress={() => void handleArchive()}

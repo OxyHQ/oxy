@@ -12,9 +12,10 @@ Needs `@oxy.so/core` 6.13.0.
   before the danger zone; `onUpdated(account, { cleared })` follows every
   accepted profile write, after the SDK's user cache already holds it, for the
   app's own copies of the identity; `archive` replaces the danger-zone row's
-  words, the confirmation, runs `beforeArchive` after the confirmation and
-  before Oxy's archive (a rejection stops the archive), and `onArchived` in
-  place of closing. Without `navigate`, Members opens as a sheet.
+  words (a row with its own `title` shows only its own `description`) and the
+  confirmation (a rejection is reported and nothing is archived), runs
+  `beforeArchive` after the confirmation and before Oxy's archive (a rejection
+  stops the archive), and `onArchived` in place of closing. Without `navigate`, Members opens as a sheet.
 - The account settings edit the account's picture — through the same
   source list, cropper and upload as the personal profile — and its
   categories (primary first, "Make primary", the selectable vocabulary to add
