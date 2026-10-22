@@ -21460,6 +21460,206 @@
         "operationId": "getCivicUserIdCard"
       }
     },
+    "/console/onboarding": {
+      "get": {
+        "tags": [
+          "Console"
+        ],
+        "summary": "The signed-in person's Console onboarding state",
+        "description": "A person with no record gets the empty state (terms not accepted, use cases unanswered).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The onboarding state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "termsVersion",
+                    "termsAcceptedAt",
+                    "termsCurrent",
+                    "marketingOptIn",
+                    "useCases",
+                    "useCaseDescription",
+                    "useCasesAnswered"
+                  ],
+                  "properties": {
+                    "termsVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "termsAcceptedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "termsCurrent": {
+                      "type": "boolean"
+                    },
+                    "marketingOptIn": {
+                      "type": "boolean"
+                    },
+                    "useCases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "useCaseDescription": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "useCasesAnswered": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          }
+        },
+        "operationId": "getConsoleOnboarding"
+      }
+    },
+    "/console/onboarding/terms": {
+      "post": {
+        "tags": [
+          "Console"
+        ],
+        "summary": "Accept the current Console terms",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version",
+                  "adultAcknowledged",
+                  "aupAcknowledged",
+                  "marketingOptIn"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "string"
+                  },
+                  "adultAcknowledged": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "aupAcknowledged": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "marketingOptIn": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated onboarding state."
+          },
+          "400": {
+            "description": "Validation failed (an acknowledgement is not true)."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "409": {
+            "description": "The version is not the current terms version."
+          }
+        },
+        "operationId": "postConsoleOnboardingTerms"
+      }
+    },
+    "/console/onboarding/use-cases": {
+      "post": {
+        "tags": [
+          "Console"
+        ],
+        "summary": "Save what the person came to do, or skip",
+        "description": "An empty list is a skip and still counts as answered. Requires the current terms to be accepted.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "useCases"
+                ],
+                "properties": {
+                  "useCases": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "build-with-api",
+                        "ai-models",
+                        "publish-apps",
+                        "billing-credits",
+                        "explore-platform"
+                      ]
+                    }
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated onboarding state."
+          },
+          "400": {
+            "description": "Validation failed (unknown use case, description too long)."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "409": {
+            "description": "The current terms have not been accepted."
+          }
+        },
+        "operationId": "postConsoleOnboardingUseCases"
+      }
+    },
     "/contacts/discover": {
       "post": {
         "tags": [
@@ -80102,6 +80302,10 @@
     {
       "name": "Contacts",
       "description": "Privacy-first contact discovery via SHA-256 hashed identifiers. The server never sees raw email or phone. Routes under /contacts/*."
+    },
+    {
+      "name": "Console",
+      "description": "Oxy Console first-run onboarding: terms acceptance and use cases, per person. Routes under /console/onboarding/*."
     },
     {
       "name": "Files",
