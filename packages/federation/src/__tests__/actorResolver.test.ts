@@ -173,6 +173,26 @@ describe('fetchPublicKey — signature lookups stay honest', () => {
     });
   });
 
+  it('refetches a key on refresh, unless its actor was fetched just now', async () => {
+    const keyId = `${ALLOWED_ACTOR}#main-key`;
+    const cachedKey = { uri: ALLOWED_ACTOR, publicKeyPem: 'PEM' };
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const stale = makeResolver({
+      cachedKey,
+      cached: { uri: ALLOWED_ACTOR, lastFetchedAt: lastWeek },
+    });
+    await stale.resolver.fetchPublicKey(keyId, { refresh: true });
+    expect(stale.signedFetchCalls).toEqual([ALLOWED_ACTOR]);
+
+    const fresh = makeResolver({
+      cachedKey,
+      cached: { uri: ALLOWED_ACTOR, lastFetchedAt: new Date() },
+    });
+    await expect(fresh.resolver.fetchPublicKey(keyId, { refresh: true })).resolves.toBeNull();
+    expect(fresh.signedFetchCalls).toHaveLength(0);
+  });
+
   it('will not resolve a blocked domain key that would require network I/O', async () => {
     const rig = makeResolver({ cachedKey: null, cached: null });
     await expect(rig.resolver.fetchPublicKey(`${BLOCKED_ACTOR}#main-key`)).resolves.toBeNull();

@@ -30,6 +30,7 @@ import type { NormalizedExternalActor } from '../index';
 import { readBodyChunks, ResponseBodyTooLargeError } from './boundedBody';
 import type { SignedFetch } from './signedFetch';
 import type { ReportActorGoneOutcome } from './identityBridge';
+import type { FetchPublicKeyOptions } from '../httpSignature';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.
@@ -39,6 +40,14 @@ const ACTOR_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /** Staleness threshold after which a cached actor is eligible for a background re-fetch. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * How recently fetched an actor must be for its stored key to count as current
+ * when a signature fails against it. An actor fetched this recently is not
+ * fetched again: the key that failed is the one it publishes, and anyone can
+ * send a bad signature naming a real actor's keyId.
+ */
+const KEY_REFETCH_MIN_INTERVAL_MS = 60 * 1000; // 1 minute
 
 /** The AP content type asked for on signed actor/collection fetches. */
 const AP_CONTENT_TYPE = 'application/activity+json';
@@ -341,6 +350,9 @@ function actorPublicKeyIsSelfConsistent(actor: Record<string, unknown>, actorId:
 export class ActorResolver<TActor extends FederatedActorRecordBase> {
   /** Actor URIs with an in-flight background refresh (guards against refresh storms). */
   private readonly inFlightActorRefreshes = new Set<string>();
+
+  /** Actor key refetches in flight, by actor URI: concurrent failed signatures share one. */
+  private readonly inFlightKeyRefetches = new Map<string, Promise<TActor | null>>();
 
   constructor(private readonly config: ActorResolverConfig<TActor>) {}
 
@@ -897,15 +909,26 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
    * still evaluated honestly and its activity is then dropped as policy, rather
    * than being reported as a forged signature. The uncached branch still refuses,
    * because resolving it would mean network I/O toward a blocked host.
+   *
+   * With `refresh`, the key is fetched again from the actor that owns it — asked
+   * when the stored key did not verify a signature, because an actor that rotated
+   * its key keeps its keyId. The stored actor is updated with what comes back.
    */
-  async fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null> {
+  async fetchPublicKey(
+    keyId: string,
+    options: FetchPublicKeyOptions = {},
+  ): Promise<{ publicKeyPem: string; actorUri: string } | null> {
+    const stored = await this.config.store.findActorByPublicKeyId(keyId);
     // keyId is typically the actor URI with #main-key appended
-    const actorUri = keyId.replace(/#.*$/, '');
+    const actorUri = stored?.uri ?? keyId.replace(/#.*$/, '');
 
-    // Check local cache first
-    const cached = await this.config.store.findActorByPublicKeyId(keyId);
-    if (cached?.publicKeyPem) {
-      return { publicKeyPem: cached.publicKeyPem, actorUri: cached.uri };
+    if (options.refresh) {
+      const actor = await this.refetchActorKey(actorUri);
+      return actor?.publicKeyPem ? { publicKeyPem: actor.publicKeyPem, actorUri: actor.uri } : null;
+    }
+
+    if (stored?.publicKeyPem) {
+      return { publicKeyPem: stored.publicKeyPem, actorUri: stored.uri };
     }
 
     // Fetch the actor to get the public key (uses 24h cache)
@@ -913,6 +936,29 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     if (!actor?.publicKeyPem) return null;
 
     return { publicKeyPem: actor.publicKeyPem, actorUri: actor.uri };
+  }
+
+  /**
+   * Fetch `actorUri` again for its current key, or null when it was fetched too
+   * recently for that to tell anything new (see {@link KEY_REFETCH_MIN_INTERVAL_MS})
+   * or cannot be fetched. `fetchRemoteActor` refuses a blocked host.
+   */
+  private refetchActorKey(actorUri: string): Promise<TActor | null> {
+    let refetch = this.inFlightKeyRefetches.get(actorUri);
+    if (!refetch) {
+      refetch = (async () => {
+        const existing = await this.config.store.findActorByUri(actorUri);
+        const fetchedMs = existing?.lastFetchedAt?.getTime();
+        if (typeof fetchedMs === 'number' && Date.now() - fetchedMs < KEY_REFETCH_MIN_INTERVAL_MS) {
+          return null;
+        }
+        return this.fetchRemoteActor(actorUri, false, existing?.acct);
+      })().finally(() => {
+        this.inFlightKeyRefetches.delete(actorUri);
+      });
+      this.inFlightKeyRefetches.set(actorUri, refetch);
+    }
+    return refetch;
   }
 }
 

@@ -36,6 +36,7 @@ export {
   type VerifyHttpRequest,
   type VerifyHttpResult,
   type FetchPublicKey,
+  type FetchPublicKeyOptions,
   type VerifyHttpSignatureOptions,
 } from './httpSignature';
 
