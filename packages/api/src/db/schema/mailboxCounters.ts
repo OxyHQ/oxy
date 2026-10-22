@@ -5,7 +5,7 @@
  * Schema SUPPORT, not a table — imported directly, never re-exported from
  * `schema/index.ts`, like `accountBillingImmutability.ts`. drizzle-kit cannot
  * emit a trigger, so the DDL is hand-written and its authoritative text lives
- * HERE; `drizzle/0193_mailbox_counter_triggers.sql` carries it verbatim, and
+ * HERE; `drizzle/0206_mailbox_counter_triggers.sql` carries it verbatim, and
  * `schema/__tests__/mailboxCounters.test.ts` fails if the two differ or if a
  * trigger is missing.
  *

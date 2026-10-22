@@ -33,7 +33,7 @@ const MIGRATION_PATH = join(
   '..',
   '..',
   'drizzle',
-  '0193_mailbox_counter_triggers.sql',
+  '0206_mailbox_counter_triggers.sql',
 );
 
 const unique = () => randomUUID().replace(/-/g, '');
