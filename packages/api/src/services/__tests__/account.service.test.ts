@@ -367,6 +367,18 @@ describe('createChildAccount', () => {
     expect(membership.accountId).toBe(account.id);
   });
 
+  // Joining a community is following it, and its creator is its first member.
+  test("a community's creator follows it from the moment it exists", async () => {
+    const creator = await previewCreator();
+    const { account: community } = await accountService.createChildAccount(creator.id, creator.id, {
+      kind: 'community',
+      username: uniqueUsername('joined'),
+    });
+
+    expect(await userService.isFollowing(creator.id, community.id)).toBe(true);
+    expect((await userService.getUserStats(community.id)).followers).toBe(1);
+  });
+
   /**
    * `users.verified` is personhood (`recomputePersonhood`), and it promotes the
    * account to the `verified` trust tier — validator pool, ranking weight. A

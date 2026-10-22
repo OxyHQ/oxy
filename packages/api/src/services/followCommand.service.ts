@@ -97,16 +97,6 @@ function eventId(type: FollowEventType, relationshipId: string, at: Date): strin
   return `${type}:${relationshipId}:${at.getTime()}`;
 }
 
-/** Invalidate cached graph projections after `user_follows` changes. */
-async function invalidateAccountFollowCaches(
-  followerId: string,
-  followedId: string,
-): Promise<void> {
-  await Promise.all([graphCache.invalidate(followerId), graphCache.invalidate(followedId)]);
-  userCache.invalidate(followerId, 'graph');
-  userCache.invalidate(followedId, 'graph');
-}
-
 /**
  * Effective state = the global relationship, unless this application says
  * otherwise.
@@ -335,7 +325,7 @@ export async function followTarget(input: {
   });
 
   if (result.created && target.localUserId) {
-    await invalidateAccountFollowCaches(capability.userId, target.localUserId);
+    await invalidateAccountGraphCaches(capability.userId, [target.localUserId]);
   }
 
   return result;
@@ -432,7 +422,7 @@ export async function unfollowEverywhere(input: {
   });
 
   if (result.removed && result.followedId) {
-    await invalidateAccountFollowCaches(capability.userId, result.followedId);
+    await invalidateAccountGraphCaches(capability.userId, [result.followedId]);
   }
 
   return { removed: result.removed };
@@ -927,85 +917,111 @@ async function ensureAccountTargets(
  * (`POST /users/:id/follow`, the bulk follow), an MCP connection, and the
  * federation bridge.
  *
- * The same one-transaction write as {@link followTarget}: the relationship on
- * each account's `oxy.user` target, the `user_follows` projection, and a
- * `follow.created` event per relationship this call created. No application
- * delegated the action, so the relationship carries no origin application and
- * no grant — the user acted directly.
+ * One transaction around {@link writeAccountFollows}, then the caches of every
+ * account whose graph moved.
  *
  * Callers decide WHICH accounts are followed (existence, self-follow, blocks,
  * "already following" across equivalent identities); this writes them.
  *
  * @returns The account ids whose `user_follows` edge this call created.
  */
-export async function followAccounts(input: {
+export async function followAccounts(input: AccountFollowsInput): Promise<{ created: string[] }> {
+  const created = await getDb().transaction((tx) => writeAccountFollows(tx, input));
+  await invalidateAccountGraphCaches(input.followerId, created);
+  return { created };
+}
+
+export interface AccountFollowsInput {
   followerId: string;
   followedIds: readonly string[];
   cause?: FollowEventCause;
   source?: FollowSource;
-}): Promise<{ created: string[] }> {
+}
+
+/**
+ * The writes of {@link followAccounts}, in the CALLER's transaction — for a
+ * follow that is part of a larger decision and must commit or roll back with it
+ * (a community's operator joining the community as they come to operate it).
+ *
+ * The same one-transaction write as {@link followTarget}: the relationship on
+ * each account's `oxy.user` target, the `user_follows` projection, and a
+ * `follow.created` event per relationship this call created. No application
+ * delegated the action, so the relationship carries no origin application and
+ * no grant — the user acted directly.
+ *
+ * Caches are the caller's, AFTER its commit: pass the returned ids to
+ * {@link invalidateAccountGraphCaches}. Invalidating inside the transaction
+ * would let a concurrent read re-cache the pre-commit graph.
+ *
+ * @returns The account ids whose `user_follows` edge this call created.
+ */
+export async function writeAccountFollows(tx: Tx, input: AccountFollowsInput): Promise<string[]> {
   const { followerId } = input;
   const followedIds = [...new Set(input.followedIds)].filter((id) => id !== followerId);
-  if (followedIds.length === 0) return { created: [] };
+  if (followedIds.length === 0) return [];
   const at = new Date();
   const actor = { userId: followerId, applicationId: null, grantId: null };
 
-  const created = await getDb().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow:' + followerId}))`);
-    const targets = await ensureAccountTargets(tx, followedIds);
-    const targetById = new Map([...targets.values()].map((target) => [target.id, target]));
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'follow:' + followerId}))`);
+  const targets = await ensureAccountTargets(tx, followedIds);
+  const targetById = new Map([...targets.values()].map((target) => [target.id, target]));
 
-    const relationships = await tx
-      .insert(followRelationships)
-      .values(
-        [...targets.values()].map((target) => ({
-          followerUserId: followerId,
-          followTargetId: target.id,
-          state: 'active' as const,
-          source: input.source ?? 'app',
-        })),
-      )
-      .onConflictDoNothing({
-        target: [followRelationships.followerUserId, followRelationships.followTargetId],
-      })
-      .returning({
-        id: followRelationships.id,
-        followTargetId: followRelationships.followTargetId,
-      });
+  const relationships = await tx
+    .insert(followRelationships)
+    .values(
+      [...targets.values()].map((target) => ({
+        followerUserId: followerId,
+        followTargetId: target.id,
+        state: 'active' as const,
+        source: input.source ?? 'app',
+      })),
+    )
+    .onConflictDoNothing({
+      target: [followRelationships.followerUserId, followRelationships.followTargetId],
+    })
+    .returning({
+      id: followRelationships.id,
+      followTargetId: followRelationships.followTargetId,
+    });
 
-    const edges = await tx
-      .insert(userFollows)
-      .values(followedIds.map((followedId) => ({ followerId, followedId })))
-      .onConflictDoNothing()
-      .returning({ followedId: userFollows.followedId });
+  const edges = await tx
+    .insert(userFollows)
+    .values(followedIds.map((followedId) => ({ followerId, followedId })))
+    .onConflictDoNothing()
+    .returning({ followedId: userFollows.followedId });
 
-    for (const relationship of relationships) {
-      const target = targetById.get(relationship.followTargetId);
-      if (!target) continue;
-      await emit(tx, {
-        type: 'follow.created',
-        cause: input.cause ?? 'user_action',
-        capability: actor,
-        relationshipId: relationship.id,
-        targetUri: target.canonicalUri,
-        targetKind: target.kind,
-        at,
-      });
-    }
-
-    return edges.map((edge) => edge.followedId);
-  });
-
-  if (created.length > 0) {
-    await Promise.all([
-      graphCache.invalidate(followerId),
-      ...created.map((id) => graphCache.invalidate(id)),
-    ]);
-    userCache.invalidate(followerId, 'graph');
-    for (const id of created) userCache.invalidate(id, 'graph');
+  for (const relationship of relationships) {
+    const target = targetById.get(relationship.followTargetId);
+    if (!target) continue;
+    await emit(tx, {
+      type: 'follow.created',
+      cause: input.cause ?? 'user_action',
+      capability: actor,
+      relationshipId: relationship.id,
+      targetUri: target.canonicalUri,
+      targetKind: target.kind,
+      at,
+    });
   }
 
-  return { created };
+  return edges.map((edge) => edge.followedId);
+}
+
+/**
+ * Invalidate the cached graphs of a follower and of the accounts whose
+ * `user_follows` edge from them just changed. Nothing changed, nothing to drop.
+ */
+export async function invalidateAccountGraphCaches(
+  followerId: string,
+  accountIds: readonly string[],
+): Promise<void> {
+  if (accountIds.length === 0) return;
+  await Promise.all([
+    graphCache.invalidate(followerId),
+    ...accountIds.map((id) => graphCache.invalidate(id)),
+  ]);
+  userCache.invalidate(followerId, 'graph');
+  for (const id of accountIds) userCache.invalidate(id, 'graph');
 }
 
 /**
@@ -1080,15 +1096,7 @@ export async function unfollowAccounts(input: {
     return edges.map((edge) => edge.followedId);
   });
 
-  if (removed.length > 0) {
-    await Promise.all([
-      graphCache.invalidate(followerId),
-      ...removed.map((id) => graphCache.invalidate(id)),
-    ]);
-    userCache.invalidate(followerId, 'graph');
-    for (const id of removed) userCache.invalidate(id, 'graph');
-  }
-
+  await invalidateAccountGraphCaches(followerId, removed);
   return { removed };
 }
 
