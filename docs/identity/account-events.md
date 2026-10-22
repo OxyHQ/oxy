@@ -183,8 +183,17 @@ still sign the actor `Delete` (and its posts' `Delete`s) through
 `POST /federation/sign` after the account is gone, and peers verify that
 signature against the key the actor published.
 
-Any future purge of `federation_key_pairs` for deleted accounts must wait a
-grace period measured in **days** after the deletion (at least the push retry
-window plus the relying parties' own delivery retries), so every relying party
-can still sign its actor `Delete`s. Purging with the account would leave the
-deleted actor's posts federated forever.
+The key is the deleted account's alone, though. Each user key is bound to the
+account it was minted for (`federation_key_pairs.oxy_user_id`, which survives the
+account for exactly this reason). While nobody holds the handle the key keeps
+signing the departed actor's `Delete`s; once another account claims the handle,
+the next read of the key replaces it with a fresh pair for the newcomer and the
+old private key is destroyed — a re-registered handle never inherits its
+predecessor's key (`services/federation/actorKeys.ts`). Rows from before the
+binding were settled by `scripts/reconcile-federation-key-owners.ts`.
+
+Any purge of a deleted account's key while nobody holds its handle must still
+wait a grace period measured in **days** after the deletion (at least the push
+retry window plus the relying parties' own delivery retries), so every relying
+party can still sign its actor `Delete`s. Purging with the account would leave
+the deleted actor's posts federated forever.

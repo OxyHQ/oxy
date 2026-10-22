@@ -32,7 +32,13 @@ import {
   type SafeFetchResult,
 } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
-import { federationKeyPairs } from '../db/schema/federationKeyPairs';
+import {
+  composeInstanceKeyId,
+  findKeyPair,
+  getInstanceKeyPair,
+  getUserKeyPair,
+  type KeyPairDoc,
+} from './federation/actorKeys';
 import { type ACCOUNT_KINDS, users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
@@ -345,211 +351,31 @@ export function isFediverseHandle(query: string): boolean {
 // ============================================================
 // HTTP Signature Signing
 // ============================================================
+//
+// Key custody, and the rule that a user key belongs to one account lifetime,
+// live in `./federation/actorKeys`. Re-exported here for the routes.
 
-/**
- * The three key-pair columns this service works in.
- *
- * `private_key_pem` is a PROTECTED column (`db/schema/protectedColumns.ts`), so
- * naming it here is a deliberate opt-in — this module is the only one that may
- * hold a private signing key, because it is the only one that signs. Every
- * other reader goes through {@link getPublicKeyForKeyId} / {@link getUserPublicKey},
- * which select the public half by name.
- */
-const KEY_PAIR_COLUMNS = {
-  keyId: federationKeyPairs.keyId,
-  publicKeyPem: federationKeyPairs.publicKeyPem,
-  privateKeyPem: federationKeyPairs.privateKeyPem,
-} as const;
-
-interface KeyPairDoc {
-  keyId: string;
-  publicKeyPem: string;
-  privateKeyPem: string;
-}
-
-/** The public half of a key pair — safe to return over the wire. */
-export interface PublicKeyDoc {
-  keyId: string;
-  publicKeyPem: string;
-}
-
-interface WebFingerResolution {
-  actorUri: string;
-  subjectAcct?: string;
-}
-
-const _keyPairCache = new Map<string, KeyPairDoc>();
-
-/**
- * Compose the canonical `#main-key` keyId for a (username, domain) pair.
- *
- * The keyId is the single identity coordinate for a federation key: it embeds
- * BOTH the actor username and the serving domain, so a key minted for
- * `bob@mention.earth` (`https://mention.earth/ap/users/bob#main-key`) is
- * distinct from `bob` on oxy.so. The in-memory cache and the unique `key_id`
- * index therefore enforce "one key pair per (username, domain)"
- * automatically — no separate compound field is required.
- */
-function composeUserKeyId(username: string, domain: string): string {
-  return `https://${domain}/ap/users/${username}#main-key`;
-}
-
-/** Compose the instance-actor keyId for a domain. */
-function composeInstanceKeyId(domain: string): string {
-  return `https://${domain}/ap/users/instance#main-key`;
-}
-
-/** Read one key pair by its keyId, or null when none exists. */
-async function findKeyPair(keyId: string): Promise<KeyPairDoc | null> {
-  const [row] = await getDb()
-    .select(KEY_PAIR_COLUMNS)
-    .from(federationKeyPairs)
-    .where(eq(federationKeyPairs.keyId, keyId))
-    .limit(1);
-  return row ?? null;
-}
-
-/**
- * Get or create an RSA key pair for the given keyId.
- * Generated once per identity, stored in Postgres, cached in memory.
- *
- * The insert is `on conflict do nothing` on the unique `key_id` and falls back
- * to a read, which makes it genuinely idempotent under concurrency rather than
- * merely usually-idempotent: a read-then-create would leave a window in which
- * two simultaneous first signatures for the same actor both generated a key and
- * the second write failed the unique index outright. Instead the loser simply
- * adopts the winner's key — which matters because the two would be DIFFERENT
- * keys, and a signature made with the one that lost verification against the
- * published public key would fail on the remote side.
- */
-async function getOrCreateKeyPair(keyId: string): Promise<KeyPairDoc> {
-  const cached = _keyPairCache.get(keyId);
-  if (cached) return cached;
-
-  const existing = await findKeyPair(keyId);
-  if (existing) {
-    _keyPairCache.set(keyId, existing);
-    return existing;
-  }
-
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-
-  const [inserted] = await getDb()
-    .insert(federationKeyPairs)
-    .values({ keyId, publicKeyPem: publicKey, privateKeyPem: privateKey })
-    .onConflictDoNothing({ target: federationKeyPairs.keyId })
-    .returning(KEY_PAIR_COLUMNS);
-
-  const result = inserted ?? (await findKeyPair(keyId));
-  if (!result) {
-    throw new Error(`Federation key pair for ${keyId} could not be created or resolved`);
-  }
-  _keyPairCache.set(keyId, result);
-  return result;
-}
-
-/**
- * Get or create the instance-level key pair for a domain.
- * Defaults to Oxy's own federation domain ({@link AP_DOMAIN}) for backward
- * compatibility with Oxy's own instance actor and signed fetches.
- */
-async function getInstanceKeyPair(domain: string = AP_DOMAIN): Promise<KeyPairDoc> {
-  return getOrCreateKeyPair(composeInstanceKeyId(domain));
-}
+export {
+  getPublicKeyForKeyId,
+  getUserKeyPair,
+  getUserPublicKey,
+  signWithKeyId,
+} from './federation/actorKeys';
 
 /**
  * The keyId of Oxy's own instance actor (`https://<AP_DOMAIN>/ap/users/instance`),
  * minting its key pair if this database has none yet — the actor route mints it
  * the same way on first read. Used by `POST /federation/instance-fetch/sign`,
- * which then signs through {@link signWithKeyId}, so the private key stays in
- * this module.
+ * which then signs through `signWithKeyId`, so the private key stays in
+ * `actorKeys`.
  */
 export async function ensureInstanceKeyId(): Promise<string> {
-  return (await getInstanceKeyPair()).keyId;
+  return (await getInstanceKeyPair(AP_DOMAIN)).keyId;
 }
 
-/**
- * Get or create a per-user key pair scoped to a domain.
- *
- * The key material is keyed by the full keyId (which embeds the domain), so a
- * single username maps to a DISTINCT key per domain. Defaults to Oxy's own
- * federation domain ({@link AP_DOMAIN}) for backward compatibility with Oxy's
- * own actor endpoints and managed accounts.
- */
-export async function getUserKeyPair(
-  username: string,
-  domain: string = AP_DOMAIN,
-): Promise<KeyPairDoc> {
-  const normalizedUsername = username.trim().toLowerCase();
-  return getOrCreateKeyPair(composeUserKeyId(normalizedUsername, domain));
-}
-
-/**
- * Return the PUBLIC half of an existing key pair for a keyId, or null if no key
- * pair exists for it. Never auto-creates and never exposes the private key —
- * used by the public-key endpoint and by callers that only need to publish a
- * `publicKey` block. To create a key on demand, use {@link getUserKeyPair} /
- * {@link getInstanceKeyPair}.
- */
-export async function getPublicKeyForKeyId(keyId: string): Promise<PublicKeyDoc | null> {
-  const cached = _keyPairCache.get(keyId);
-  if (cached) {
-    return { keyId: cached.keyId, publicKeyPem: cached.publicKeyPem };
-  }
-
-  const existing = await findKeyPair(keyId);
-  if (!existing) return null;
-
-  _keyPairCache.set(keyId, existing);
-  return { keyId: existing.keyId, publicKeyPem: existing.publicKeyPem };
-}
-
-/**
- * Get or create the public half of a domain-scoped USER key pair.
- *
- * Used by the `/federation/public-key/:username` endpoint so Mention can
- * publish a spec-compliant `publicKey` block whose `id`/`owner` live on its own
- * domain — WITHOUT ever receiving the private key. Creation is intentional here:
- * the first publish of an actor mints its key, mirroring how Oxy's own actor
- * endpoints lazily create keys.
- */
-export async function getUserPublicKey(
-  username: string,
-  domain: string = AP_DOMAIN,
-): Promise<PublicKeyDoc> {
-  const keyPair = await getUserKeyPair(username, domain);
-  return { keyId: keyPair.keyId, publicKeyPem: keyPair.publicKeyPem };
-}
-
-/**
- * Sign an HTTP-Signature signing string with the private key identified by
- * `keyId`. The private key NEVER leaves this process — only the base64
- * signature is returned. The key pair MUST already exist (callers publish the
- * public key first via {@link getUserPublicKey} / the actor endpoints); this
- * does NOT auto-create a key, so a sign request for an unknown keyId returns
- * null and the route surfaces a 404.
- *
- * @returns The base64 RSA-SHA256 signature, or null if no key pair exists.
- */
-export async function signWithKeyId(keyId: string, signingString: string): Promise<string | null> {
-  const cached = _keyPairCache.get(keyId);
-  let keyPair: KeyPairDoc | null = cached ?? null;
-
-  if (!keyPair) {
-    keyPair = await findKeyPair(keyId);
-    if (keyPair) _keyPairCache.set(keyId, keyPair);
-  }
-
-  if (!keyPair) return null;
-
-  const signer = crypto.createSign('sha256');
-  signer.update(signingString);
-  signer.end();
-  return signer.sign(keyPair.privateKeyPem, 'base64');
+interface WebFingerResolution {
+  actorUri: string;
+  subjectAcct?: string;
 }
 
 /**
@@ -578,7 +404,7 @@ async function signedFetch(
   accept: string,
   existingKey?: KeyPairDoc,
 ): Promise<SafeFetchResult | null> {
-  const keyPair = existingKey ?? (await getInstanceKeyPair());
+  const keyPair = existingKey ?? (await getInstanceKeyPair(AP_DOMAIN));
   const signWithInstanceKey = async (_keyId: string, signingString: string): Promise<string> => {
     const signer = crypto.createSign('sha256');
     signer.update(signingString);
@@ -936,7 +762,9 @@ export async function getUserActor(
   // Canonicalize before key lookup and actor URL assembly so `id`/`publicKey.owner`
   // always match `publicKey.id` (getUserKeyPair lowercases internally).
   const username = user.username.split('@')[0].trim().toLowerCase();
+  // Null when no account holds the handle: a key is never minted ahead of its owner.
   const keyPair = await getUserKeyPair(username, domain);
+  if (!keyPair) return null;
 
   // An ActivityPub actor's `name` field requires a non-empty string. The API no
   // longer synthesizes a display name, so fall back to the handle (`username` is

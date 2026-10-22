@@ -295,6 +295,7 @@ async function loadBridgeUser(userId: string): Promise<BridgeUser | null> {
  *
  * The requested `domain` MUST be one of the requesting credential's registered
  * federation hosts (derived from the Application's redirectUris), otherwise 403.
+ * 404 when no account holds `username` and no key was ever minted for it.
  */
 router.get(
   '/public-key/:username',
@@ -316,7 +317,12 @@ router.get(
       throw new ForbiddenError('domain is not registered for this application');
     }
 
+    // A user key is minted only for an account that holds the handle, so a
+    // handle nobody holds (and that never had a key) has no key to publish.
     const publicKey = await getUserPublicKey(username, domain);
+    if (!publicKey) {
+      throw new NotFoundError('No account holds this handle');
+    }
     return sendSuccess(res, {
       keyId: publicKey.keyId,
       publicKeyPem: publicKey.publicKeyPem,
