@@ -50,3 +50,18 @@ gone, the way Mastodon handles account deletion:
 
 The app's own content routes (outbox, posts) can answer the same way with
 `goneTombstone(id)`.
+
+## Community collections
+
+A local `Group` (an account whose kind is `community`, see
+`isGroupActorKind`) serves its outbox and followers in the shapes Lemmy
+deserializes, because Lemmy and PieFed read neither paging nor `first`:
+
+- **Outbox:** one `OrderedCollection` with its latest `GROUP_OUTBOX_SIZE` (50)
+  `Announce { Create }` activities inline in `orderedItems`. The outbox is an
+  app content route; build it with `groupOutboxCollection`.
+- **Followers:** `createActorRouter` serves a `Collection` with `totalItems` and
+  `items: []`, the count without the list, as Lemmy does
+  (`groupFollowersCollection`).
+
+Every other actor keeps the paged `OrderedCollection` that Mastodon walks.

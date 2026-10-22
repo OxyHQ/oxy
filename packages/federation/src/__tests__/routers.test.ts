@@ -6,6 +6,8 @@ import { createInboundDispatcher } from '../node/inboundDispatch';
 import { createWebfingerRouter, type WebfingerRouterConfig } from '../node/webfingerRouter';
 import { createActorRouter, type ActorRouterConfig } from '../node/actorRouter';
 import { createUrlBuilders } from '../urls';
+import { AP_CONTEXT } from '../apContext';
+import { groupOutboxCollection } from '../groupCollections';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 
 /**
@@ -667,5 +669,36 @@ describe('community moderators collection', () => {
   it('404s an account that is not a community', async () => {
     const res = await request(moderatorsApp()).get('/ap/users/alice/moderators');
     expect(res.status).toBe(404);
+  });
+
+  // Lemmy's `GroupFollowers { type: Collection, totalItems, items }` and
+  // `GroupOutbox { type: OrderedCollection, totalItems, orderedItems }`: no
+  // paging, items inline. A Person keeps the paged shape Mastodon walks.
+  it("serves a Group's followers and outbox in the shapes Lemmy deserializes", async () => {
+    const followers = await request(moderatorsApp()).get('/ap/users/forum/followers?page=true');
+    expect(followers.body).toEqual({
+      '@context': AP_CONTEXT,
+      id: urls.followers('forum'),
+      type: 'Collection',
+      totalItems: 3,
+      items: [],
+    });
+    const announce = { id: `${urls.actor('forum')}/relays/1`, type: 'Announce' };
+    expect(
+      groupOutboxCollection({
+        id: urls.outbox('forum'),
+        totalItems: 1,
+        orderedItems: [{ '@context': AP_CONTEXT, ...announce }],
+      }),
+    ).toEqual({
+      '@context': AP_CONTEXT,
+      id: urls.outbox('forum'),
+      type: 'OrderedCollection',
+      totalItems: 1,
+      orderedItems: [announce],
+    });
+
+    const person = await request(moderatorsApp()).get('/ap/users/alice/followers');
+    expect(person.body).toMatchObject({ type: 'OrderedCollection', first: expect.any(String) });
   });
 });
