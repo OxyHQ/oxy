@@ -1978,6 +1978,19 @@ const dict = {
       bio: {
         label: 'Biografía (opcional)',
       },
+      picture: {
+        change: 'Cambiar imagen',
+      },
+      categories: {
+        title: 'Categorías',
+        footer: 'La primera categoría es la principal que se muestra en el perfil. Hasta {{max}}.',
+        primary: 'Principal',
+        makePrimary: 'Hacer principal',
+        remove: 'Quitar {{category}}',
+        add: 'Añadir una categoría',
+        atCap: 'Hasta {{max}}. Quita una para añadir otra.',
+        unavailable: 'Categoría no disponible',
+      },
       sections: {
         access: 'Acceso',
         dangerZone: 'Zona de peligro',

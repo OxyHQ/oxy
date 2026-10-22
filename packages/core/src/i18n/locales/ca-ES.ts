@@ -613,5 +613,59 @@ const dict = {
       rateLimited: 'Massa intents. Torna-ho a provar d’aquí a una estona.',
     },
   },
+  accounts: {
+    members: {
+      title: 'Membres',
+    },
+    settings: {
+      title: 'Configuració del compte',
+      subtitle: "Gestiona el perfil, els membres i l'accés d'aquest compte.",
+      save: 'Desa els canvis',
+      displayName: {
+        label: 'Nom visible',
+        invalidChars: 'Fes servir només lletres, espais, apòstrofs i separadors de nom',
+        invalidTitle: 'Fes servir text pla sense < ni > (fins a 300 caràcters)',
+      },
+      bio: {
+        label: 'Biografia (opcional)',
+      },
+      picture: {
+        change: 'Canvia la imatge',
+      },
+      categories: {
+        title: 'Categories',
+        footer: 'La primera categoria és la principal que es mostra al perfil. Fins a {{max}}.',
+        primary: 'Principal',
+        makePrimary: 'Fes-la principal',
+        remove: 'Treu {{category}}',
+        add: 'Afegeix una categoria',
+        atCap: 'Fins a {{max}}. Treu-ne una per afegir-ne una altra.',
+        unavailable: 'Categoria no disponible',
+      },
+      sections: {
+        access: 'Accés',
+        dangerZone: 'Zona de perill',
+      },
+      members: {
+        subtitle: 'Convida persones i gestiona els rols',
+      },
+      archive: {
+        title: 'Arxiva el compte',
+        subtitle: 'Desactiva aquest compte',
+        confirmTitle: 'Arxiva el compte',
+        confirmDescription:
+          "Vols arxivar aquest compte? Es desactivarà i els seus membres en perdran l'accés.",
+      },
+      errors: {
+        missingAccount: "No s'ha seleccionat cap compte.",
+      },
+      toasts: {
+        saved: 'Compte actualitzat',
+        saveFailed: "No s'ha pogut actualitzar el compte",
+        archived: 'Compte arxivat',
+        archiveFailed: "No s'ha pogut arxivar el compte",
+      },
+    },
+  },
 };
 export default dict;

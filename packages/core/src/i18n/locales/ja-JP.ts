@@ -610,5 +610,59 @@ const dict = {
       rateLimited: '試行回数が多すぎます。しばらくしてからもう一度お試しください。',
     },
   },
+  accounts: {
+    members: {
+      title: 'メンバー',
+    },
+    settings: {
+      title: 'アカウント設定',
+      subtitle: 'このアカウントのプロフィール、メンバー、アクセスを管理します。',
+      save: '変更を保存',
+      displayName: {
+        label: '表示名',
+        invalidChars: '文字、スペース、アポストロフィ、名前の区切り文字のみ使用できます',
+        invalidTitle: '< や > を含まないプレーンテキストを使用してください(300文字まで)',
+      },
+      bio: {
+        label: '自己紹介(任意)',
+      },
+      picture: {
+        change: '画像を変更',
+      },
+      categories: {
+        title: 'カテゴリ',
+        footer: '最初のカテゴリがプロフィールに表示されるメインのカテゴリです。最大{{max}}個まで。',
+        primary: 'メイン',
+        makePrimary: 'メインにする',
+        remove: '{{category}}を削除',
+        add: 'カテゴリを追加',
+        atCap: '最大{{max}}個までです。追加するには1つ削除してください。',
+        unavailable: '利用できないカテゴリ',
+      },
+      sections: {
+        access: 'アクセス',
+        dangerZone: '危険ゾーン',
+      },
+      members: {
+        subtitle: 'メンバーを招待して役割を管理',
+      },
+      archive: {
+        title: 'アカウントをアーカイブ',
+        subtitle: 'このアカウントを無効にする',
+        confirmTitle: 'アカウントをアーカイブ',
+        confirmDescription:
+          'このアカウントをアーカイブしますか?無効になり、メンバーはアクセスできなくなります。',
+      },
+      errors: {
+        missingAccount: 'アカウントが選択されていません。',
+      },
+      toasts: {
+        saved: 'アカウントを更新しました',
+        saveFailed: 'アカウントを更新できませんでした',
+        archived: 'アカウントをアーカイブしました',
+        archiveFailed: 'アカウントをアーカイブできませんでした',
+      },
+    },
+  },
 };
 export default dict;

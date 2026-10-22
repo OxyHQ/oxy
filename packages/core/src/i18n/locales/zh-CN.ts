@@ -592,5 +592,58 @@ const dict = {
       rateLimited: '尝试次数过多，请稍后再试。',
     },
   },
+  accounts: {
+    members: {
+      title: '成员',
+    },
+    settings: {
+      title: '账户设置',
+      subtitle: '管理此账户的资料、成员和访问权限。',
+      save: '保存更改',
+      displayName: {
+        label: '显示名称',
+        invalidChars: '只能使用字母、空格、撇号和名称分隔符',
+        invalidTitle: '请使用不含 < 或 > 的纯文本(最多 300 个字符)',
+      },
+      bio: {
+        label: '简介(可选)',
+      },
+      picture: {
+        change: '更换图片',
+      },
+      categories: {
+        title: '类别',
+        footer: '第一个类别是资料中显示的主要类别。最多 {{max}} 个。',
+        primary: '主要',
+        makePrimary: '设为主要',
+        remove: '移除{{category}}',
+        add: '添加类别',
+        atCap: '最多 {{max}} 个。移除一个后才能添加其他类别。',
+        unavailable: '类别不可用',
+      },
+      sections: {
+        access: '访问',
+        dangerZone: '危险区域',
+      },
+      members: {
+        subtitle: '邀请成员并管理角色',
+      },
+      archive: {
+        title: '归档账户',
+        subtitle: '停用此账户',
+        confirmTitle: '归档账户',
+        confirmDescription: '要归档此账户吗?账户将被停用,其成员将失去访问权限。',
+      },
+      errors: {
+        missingAccount: '未选择账户。',
+      },
+      toasts: {
+        saved: '账户已更新',
+        saveFailed: '无法更新账户',
+        archived: '账户已归档',
+        archiveFailed: '无法归档账户',
+      },
+    },
+  },
 };
 export default dict;

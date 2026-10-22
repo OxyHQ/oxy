@@ -623,5 +623,60 @@ const dict = {
       rateLimited: 'Zu viele Versuche. Versuche es gleich noch einmal.',
     },
   },
+  accounts: {
+    members: {
+      title: 'Mitglieder',
+    },
+    settings: {
+      title: 'Kontoeinstellungen',
+      subtitle: 'Profil, Mitglieder und Zugriff dieses Kontos verwalten.',
+      save: 'Änderungen speichern',
+      displayName: {
+        label: 'Anzeigename',
+        invalidChars: 'Nur Buchstaben, Leerzeichen, Apostrophe und Namenstrenner verwenden',
+        invalidTitle: 'Nur einfachen Text ohne < oder > verwenden (bis zu 300 Zeichen)',
+      },
+      bio: {
+        label: 'Bio (optional)',
+      },
+      picture: {
+        change: 'Bild ändern',
+      },
+      categories: {
+        title: 'Kategorien',
+        footer:
+          'Die erste Kategorie ist die Hauptkategorie, die im Profil angezeigt wird. Bis zu {{max}}.',
+        primary: 'Hauptkategorie',
+        makePrimary: 'Zur Hauptkategorie machen',
+        remove: '{{category}} entfernen',
+        add: 'Kategorie hinzufügen',
+        atCap: 'Bis zu {{max}}. Entferne eine, um eine andere hinzuzufügen.',
+        unavailable: 'Kategorie nicht verfügbar',
+      },
+      sections: {
+        access: 'Zugriff',
+        dangerZone: 'Gefahrenbereich',
+      },
+      members: {
+        subtitle: 'Personen einladen und Rollen verwalten',
+      },
+      archive: {
+        title: 'Konto archivieren',
+        subtitle: 'Dieses Konto deaktivieren',
+        confirmTitle: 'Konto archivieren',
+        confirmDescription:
+          'Dieses Konto archivieren? Es wird deaktiviert und seine Mitglieder verlieren den Zugriff.',
+      },
+      errors: {
+        missingAccount: 'Kein Konto ausgewählt.',
+      },
+      toasts: {
+        saved: 'Konto aktualisiert',
+        saveFailed: 'Konto konnte nicht aktualisiert werden',
+        archived: 'Konto archiviert',
+        archiveFailed: 'Konto konnte nicht archiviert werden',
+      },
+    },
+  },
 };
 export default dict;

@@ -612,5 +612,59 @@ const dict = {
       rateLimited: 'Troppi tentativi. Riprova tra poco.',
     },
   },
+  accounts: {
+    members: {
+      title: 'Membri',
+    },
+    settings: {
+      title: "Impostazioni dell'account",
+      subtitle: "Gestisci il profilo, i membri e l'accesso di questo account.",
+      save: 'Salva modifiche',
+      displayName: {
+        label: 'Nome visualizzato',
+        invalidChars: 'Usa solo lettere, spazi, apostrofi e separatori di nome',
+        invalidTitle: 'Usa testo semplice senza < o > (fino a 300 caratteri)',
+      },
+      bio: {
+        label: 'Bio (facoltativa)',
+      },
+      picture: {
+        change: 'Cambia immagine',
+      },
+      categories: {
+        title: 'Categorie',
+        footer: 'La prima categoria è quella principale mostrata sul profilo. Fino a {{max}}.',
+        primary: 'Principale',
+        makePrimary: 'Rendi principale',
+        remove: 'Rimuovi {{category}}',
+        add: 'Aggiungi una categoria',
+        atCap: "Fino a {{max}}. Rimuovine una per aggiungerne un'altra.",
+        unavailable: 'Categoria non disponibile',
+      },
+      sections: {
+        access: 'Accesso',
+        dangerZone: 'Zona pericolosa',
+      },
+      members: {
+        subtitle: 'Invita persone e gestisci i ruoli',
+      },
+      archive: {
+        title: 'Archivia account',
+        subtitle: 'Disattiva questo account',
+        confirmTitle: 'Archivia account',
+        confirmDescription:
+          "Archiviare questo account? Verrà disattivato e i suoi membri perderanno l'accesso.",
+      },
+      errors: {
+        missingAccount: 'Nessun account selezionato.',
+      },
+      toasts: {
+        saved: 'Account aggiornato',
+        saveFailed: "Impossibile aggiornare l'account",
+        archived: 'Account archiviato',
+        archiveFailed: "Impossibile archiviare l'account",
+      },
+    },
+  },
 };
 export default dict;
