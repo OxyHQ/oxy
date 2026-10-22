@@ -188,7 +188,6 @@ const en: LocaleDict = {
     signOut: 'Sign out',
   },
   applications: {
-    retry: 'Retry',
     retry: 'Try again',
     search: 'Search applications',
     noMatches: 'No application matches your search.',

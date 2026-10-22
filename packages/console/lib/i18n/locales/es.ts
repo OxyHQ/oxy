@@ -188,7 +188,6 @@ const es: LocaleDict = {
   },
   applications: {
     retry: 'Reintentar',
-    retry: 'Reintentar',
     search: 'Buscar aplicaciones',
     noMatches: 'Ninguna aplicación coincide con tu búsqueda.',
     listFailed: 'No se pudieron cargar las aplicaciones.',
