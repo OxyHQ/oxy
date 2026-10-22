@@ -21,7 +21,7 @@
  * billed" a type error in a component instead of a judgement call. The rule the
  * epic states — a usage figure never appears under a heading implying it is what
  * the customer was charged — is enforced in the UI by
- * `components/billing/provenance-banner.tsx`, which takes the stamp off the
+ * `components/reporting/ProvenanceBanner.tsx`, which takes the stamp off the
  * response itself rather than a prop somebody sets by hand.
  *
  * ## Why the wire types are declared here rather than imported

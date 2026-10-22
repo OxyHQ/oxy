@@ -1,20 +1,13 @@
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
-import { Button } from '@oxy.so/bloom/button';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
 
-import { ClaimDetail } from '@/components/claims/claim-detail';
-import {
-  ClaimDeadlineBadge,
-  ClaimStateBadge,
-  ClaimsRefusal,
-} from '@/components/claims/claim-badges';
+import { ClaimDetail } from '@/components/claims/ClaimDetail';
+import { ClaimsRefusal } from '@/components/claims/ClaimsRefusal';
+import { ApiState } from '@/components/loading/ApiState';
+import { DetailSkeleton } from '@/components/loading/ContentSkeleton';
 import { useContentClaim, useContentClaimsAccess } from '@/hooks/use-content-claims';
-import { isPermissionRefused } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
 
 /** One content claim, behind the same `content:claims` gate as the queue. */
@@ -24,84 +17,31 @@ export default function ContentClaimScreen() {
   const { claimId } = useLocalSearchParams<{ claimId: string }>();
   const access = useContentClaimsAccess();
   const canReview = access.data?.canReview === true;
-  const query = useContentClaim(claimId, canReview);
-  const claim = query.data;
-
-  const title = claim?.reference ?? t('claimsPage.title');
-  const backHref = '/claims' as const;
-
-  let body: React.ReactNode;
-  if (access.isLoading || (canReview && query.isLoading)) {
-    body = (
-      <View className="items-center py-12">
-        <Loading />
-      </View>
-    );
-  } else if (!canReview || (query.isError && isPermissionRefused(query.error))) {
-    body = <ClaimsRefusal />;
-  } else if (query.isError || !claim) {
-    body = (
-      <EmptyState
-        variant="compact"
-        description={t('claimsPage.detail.loadFailed')}
-        footer={
-          <Button appearance="plain" tone="accent" size="sm" href={backHref}>
-            {t('claimsPage.detail.back')}
-          </Button>
-        }
-      />
-    );
-  } else {
-    body = (
-      <>
-        <View className="gap-2">
-          <View className="flex-row flex-wrap items-center gap-2">
-            <ClaimStateBadge state={claim.state} />
-            <ClaimDeadlineBadge claim={claim} />
-          </View>
-          <Text className="text-sm text-muted-foreground">
-            {t('claimsPage.detail.meta', {
-              kind: t(`claimsPage.kinds.${claim.kind}`),
-              relationship: t(`claimsPage.relationships.${claim.relationship}`),
-              received: new Date(claim.receivedAt).toLocaleString(),
-              closed: claim.closedAt
-                ? t('claimsPage.detail.closed', { date: new Date(claim.closedAt).toLocaleString() })
-                : '',
-              submitted: claim.submittedByUserId
-                ? t('claimsPage.detail.submittedBy', { user: claim.submittedByUserId })
-                : '',
-            })}
-          </Text>
-          {claim.deadlineAt ? (
-            <Text className="text-sm text-muted-foreground">
-              {t('claimsPage.detail.deadline', {
-                date: new Date(claim.deadlineAt).toLocaleDateString(),
-              })}
-            </Text>
-          ) : null}
-        </View>
-        <ClaimDetail claim={claim} />
-      </>
-    );
-  }
+  const claim = useContentClaim(claimId, canReview);
 
   return (
     <Screen
-      className="flex-1 bg-background"
+      scroll="auto"
       header={
         <PageHeader
-          title={title}
+          title={claim.data?.reference ?? t('claimsPage.title')}
           leading={<AppShellMenuButton />}
-          presentation="bar"
-          sticky={false}
+          onBack={() => router.navigate('/claims')}
+          backLabel={t('claimsPage.detail.back')}
           safeArea={false}
-          onBack={() => router.navigate(backHref)}
-          backLabel={t('common.back')}
         />
       }
     >
-      <ScreenScrollView contentContainerClassName="p-6">
-        <View className="w-full max-w-6xl gap-6">{body}</View>
+      <ScreenScrollView contentContainerClassName="p-4 md:p-6">
+        {access.isLoading || (canReview && claim.isLoading) ? (
+          <DetailSkeleton />
+        ) : !canReview ? (
+          <ClaimsRefusal />
+        ) : claim.isError ? (
+          <ApiState error={claim.error} onRetry={claim.refetch} />
+        ) : claim.data ? (
+          <ClaimDetail claim={claim.data} />
+        ) : null}
       </ScreenScrollView>
     </Screen>
   );

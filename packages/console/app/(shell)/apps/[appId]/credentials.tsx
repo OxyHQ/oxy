@@ -1,7 +1,8 @@
 import { useAppDetail } from '@/components/apps/app-context';
-import { CredentialsSection } from '@/components/apps/credentials-section';
+import { CredentialsTable } from '@/components/apps/CredentialsTable';
 
 export default function AppCredentialsScreen() {
   const { application, access } = useAppDetail();
-  return <CredentialsSection key={application._id} application={application} access={access} />;
+  // Keyed by application so a revealed secret never outlives the selection.
+  return <CredentialsTable key={application._id} application={application} access={access} />;
 }

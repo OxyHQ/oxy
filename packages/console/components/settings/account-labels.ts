@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { AccountKind, AccountNode, AccountRole } from '@/hooks/use-account';
-import { resolveStoredImageUrl } from '@/lib/image-upload';
 import { useTranslation } from '@/lib/i18n';
 
 /** First-letter initials for an avatar fallback. */
@@ -30,5 +29,3 @@ export function useAccountLabels() {
     [t],
   );
 }
-
-export { resolveStoredImageUrl };

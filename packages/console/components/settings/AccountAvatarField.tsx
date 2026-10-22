@@ -1,5 +1,6 @@
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
+import { Dialog } from '@oxy.so/bloom/dialog';
 import { FileUpload, type FileUploadFile } from '@oxy.so/bloom/file-upload';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useState } from 'react';
@@ -15,9 +16,9 @@ import {
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'svg', 'webp'] as const;
 
 /**
- * Upload-only avatar widget (Google-Cloud-Console style): pick or drop a file,
- * validate it, upload it as a public asset, and surface the resolved URL via
- * `onChange` ('' when removed). No URL paste.
+ * Avatar row control: the current image, Change (a dialog with Bloom's FileUpload: pick or
+ * drop, validate, upload as a public asset) and Remove. `onChange` gets the resolved URL,
+ * '' when removed. No URL paste.
  */
 export function AccountAvatarField({
   value,
@@ -38,9 +39,8 @@ export function AccountAvatarField({
 }) {
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
+  const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  // Bumped after each upload so the picker resets to its idle state.
-  const [pickerKey, setPickerKey] = useState(0);
 
   const processFile = async (picked: FileUploadFile) => {
     const file = picked.raw;
@@ -55,6 +55,7 @@ export function AccountAvatarField({
     setIsUploading(true);
     try {
       onChange(await uploadPublicImage(oxyServices, file));
+      setOpen(false);
     } catch (error) {
       onError(
         error instanceof Error && error.message
@@ -63,39 +64,52 @@ export function AccountAvatarField({
       );
     } finally {
       setIsUploading(false);
-      setPickerKey((key) => key + 1);
     }
   };
 
   return (
-    <View className="gap-3">
-      <View className="flex-row items-center gap-3">
-        <Avatar
-          size={56}
-          uri={resolveStoredImageUrl(oxyServices, value)}
-          initials={initials}
-          alt={label}
-        />
-        {value ? (
-          <Button
-            appearance="plain"
-            size="sm"
-            disabled={disabled || isUploading}
-            onPress={() => onChange('')}
-          >
-            {t('settingsPage.general.removeAvatar')}
-          </Button>
-        ) : null}
-      </View>
-      <FileUpload
-        key={pickerKey}
-        accessibilityLabel={label}
-        allowedExtensions={IMAGE_EXTENSIONS}
-        maxBytes={MAX_IMAGE_UPLOAD_BYTES}
-        disabled={disabled || isUploading}
-        onFileSelected={(file) => void processFile(file)}
-        onReject={(message) => onError(message)}
+    <View className="flex-row items-center gap-2">
+      <Avatar
+        size={40}
+        uri={resolveStoredImageUrl(oxyServices, value)}
+        initials={initials}
+        alt={label}
       />
+      <Button
+        size="sm"
+        appearance="subtle"
+        tone="neutral"
+        disabled={disabled}
+        onPress={() => setOpen(true)}
+      >
+        {t('settingsPage.general.changeAvatar')}
+      </Button>
+      {value ? (
+        <Button
+          size="sm"
+          appearance="plain"
+          tone="neutral"
+          disabled={disabled || isUploading}
+          onPress={() => onChange('')}
+        >
+          {t('settingsPage.general.removeAvatar')}
+        </Button>
+      ) : null}
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('settingsPage.general.accountAvatar')}
+        actions={[{ label: t('common.cancel'), color: 'cancel' }]}
+      >
+        <FileUpload
+          accessibilityLabel={label}
+          allowedExtensions={IMAGE_EXTENSIONS}
+          maxBytes={MAX_IMAGE_UPLOAD_BYTES}
+          disabled={isUploading}
+          onFileSelected={(file) => void processFile(file)}
+          onReject={(message) => onError(message)}
+        />
+      </Dialog>
     </View>
   );
 }

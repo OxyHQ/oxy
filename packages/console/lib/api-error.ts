@@ -58,3 +58,43 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/** The answers the console speaks for, one fixed sentence each (see `ApiState`). */
+export type ApiErrorKind =
+  | 'forbidden'
+  | 'missing'
+  | 'conflict'
+  | 'rateLimited'
+  | 'unavailable'
+  | 'unreachable'
+  | 'unknown';
+
+/**
+ * Sort an error by its `status`, never its prose: the API's messages are
+ * operator-facing text (or the SDK's `[object Object]`) and are never shown.
+ * An error with no status at all never reached the server.
+ */
+export function classifyApiError(error: unknown): ApiErrorKind {
+  if (!isApiAugmentedError(error)) {
+    return 'unknown';
+  }
+  switch (error.status) {
+    case 403:
+      return 'forbidden';
+    case 404:
+      return 'missing';
+    case 409:
+      return 'conflict';
+    case 429:
+      return 'rateLimited';
+    case 502:
+    case 503:
+    case 504:
+      return 'unavailable';
+    case undefined:
+    case 0:
+      return 'unreachable';
+    default:
+      return 'unknown';
+  }
+}

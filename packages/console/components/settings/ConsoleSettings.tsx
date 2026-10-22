@@ -17,27 +17,30 @@ import {
   useRef,
   useState,
 } from 'react';
+import { AccountPage } from '@/components/settings/pages/AccountPage';
+import { AppearancePage } from '@/components/settings/pages/AppearancePage';
+import { AuditPage } from '@/components/settings/pages/AuditPage';
+import { LanguagePage } from '@/components/settings/pages/LanguagePage';
 import { useTranslation } from '@/lib/i18n';
-import { AccountSection } from './sections/AccountSection';
-import { AppearanceSection } from './sections/AppearanceSection';
-import { AuditSection } from './sections/AuditSection';
-import { LanguageSection } from './sections/LanguageSection';
 
 export type ConsoleSettingsPage = 'account' | 'audit' | 'appearance' | 'language';
 
-const SECTIONS = [
-  { key: 'account', labelKey: 'settingsPage.tabs.account', icon: RiSettings3Line },
-  { key: 'audit', labelKey: 'settingsPage.tabs.audit', icon: RiHistoryLine },
-  { key: 'appearance', labelKey: 'settingsPage.appearance.title', icon: RiPaletteLine },
-  { key: 'language', labelKey: 'settings.language.title', icon: RiEarthLine },
-] as const satisfies ReadonlyArray<{ key: ConsoleSettingsPage; labelKey: string; icon: unknown }>;
-
-const sectionContent: Record<ConsoleSettingsPage, ReactNode> = {
-  account: <AccountSection />,
-  audit: <AuditSection />,
-  appearance: <AppearanceSection />,
-  language: <LanguageSection />,
-};
+const PAGES = [
+  {
+    key: 'account',
+    labelKey: 'settingsPage.tabs.account',
+    icon: RiSettings3Line,
+    Page: AccountPage,
+  },
+  { key: 'audit', labelKey: 'settingsPage.tabs.audit', icon: RiHistoryLine, Page: AuditPage },
+  {
+    key: 'appearance',
+    labelKey: 'settingsPage.appearance.title',
+    icon: RiPaletteLine,
+    Page: AppearancePage,
+  },
+  { key: 'language', labelKey: 'settings.language.title', icon: RiEarthLine, Page: LanguagePage },
+] as const;
 
 interface ConsoleSettingsValue {
   open: (page?: ConsoleSettingsPage) => void;
@@ -53,15 +56,15 @@ export function useConsoleSettings(): ConsoleSettingsValue {
 }
 
 export function ConsoleSettingsProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const control = useDialogControl();
   const { showBottomSheet } = useOxy();
-  const pendingAccount = useRef(false);
-  const { t } = useTranslation();
+  const pendingOxyAccount = useRef(false);
   const [page, setPage] = useState<ConsoleSettingsPage>('account');
-  const [request, setRequest] = useState<{
-    sequence: number;
-    initialView: 'navigation' | 'page';
-  }>({ sequence: 0, initialView: 'navigation' });
+  const [request, setRequest] = useState<{ sequence: number; initialView: 'navigation' | 'page' }>({
+    sequence: 0,
+    initialView: 'navigation',
+  });
 
   useEffect(() => {
     if (request.sequence) control.open();
@@ -74,45 +77,36 @@ export function ConsoleSettingsProvider({ children }: { children: ReactNode }) {
       initialView: next ? 'page' : 'navigation',
     }));
   }, []);
-
   const close = useCallback(() => control.close(), [control]);
-
   const value = useMemo(() => ({ open, close }), [open, close]);
-
-  const pages = useMemo(
-    () =>
-      Object.fromEntries(
-        SECTIONS.map((section) => [
-          section.key,
-          { title: t(section.labelKey), content: sectionContent[section.key] },
-        ]),
-      ),
-    [t],
-  );
 
   return (
     <SettingsContext.Provider value={value}>
       {children}
       <SettingsModal
-        initialView={request.initialView}
         control={control}
+        initialView={request.initialView}
+        page={page}
+        onPageChange={(next) => setPage(next as ConsoleSettingsPage)}
         onClose={() => {
-          if (pendingAccount.current) {
-            pendingAccount.current = false;
+          // The Oxy account sheet opens once this dialog has finished closing.
+          if (pendingOxyAccount.current) {
+            pendingOxyAccount.current = false;
             showBottomSheet?.('ManageAccount');
           }
         }}
-        page={page}
-        onPageChange={(next) => setPage(next as ConsoleSettingsPage)}
-        pages={pages}
+        labels={{ dialog: t('common.settings'), close: t('common.close'), back: t('common.back') }}
+        pages={Object.fromEntries(
+          PAGES.map(({ key, labelKey, Page }) => [key, { title: t(labelKey), content: <Page /> }]),
+        )}
         groups={[
           {
             label: t('app.name'),
-            items: SECTIONS.map((section) => ({
-              key: section.key,
-              label: t(section.labelKey),
-              icon: section.icon,
-              page: section.key,
+            items: PAGES.map(({ key, labelKey, icon }) => ({
+              key,
+              label: t(labelKey),
+              icon,
+              page: key,
             })),
           },
           {
@@ -123,7 +117,7 @@ export function ConsoleSettingsProvider({ children }: { children: ReactNode }) {
                 label: t('settingsPage.manageOxyAccount'),
                 icon: RiAccountCircleLine,
                 onPress: () => {
-                  pendingAccount.current = true;
+                  pendingOxyAccount.current = true;
                   control.close();
                 },
               },

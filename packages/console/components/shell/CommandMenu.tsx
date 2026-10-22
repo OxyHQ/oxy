@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { useTranslation } from '@/lib/i18n';
 import { buildCommandItems } from './command-menu-items';
+import { openCreateWorkspace } from './CreateWorkspaceDialog';
 
 interface CommandMenuState {
   open: boolean;
@@ -49,12 +50,12 @@ export function CommandMenu() {
 
   const items = useMemo(
     () =>
-      buildCommandItems(
-        t,
-        (href) => router.navigate(href),
-        (url) => void Linking.openURL(url),
-        () => openSettings(),
-      ),
+      buildCommandItems(t, {
+        navigate: (href) => router.navigate(href as never),
+        openExternal: (url) => void Linking.openURL(url),
+        openSettings: () => openSettings(),
+        createWorkspace: openCreateWorkspace,
+      }),
     [t, router, openSettings],
   );
 

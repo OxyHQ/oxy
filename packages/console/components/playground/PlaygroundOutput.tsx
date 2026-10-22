@@ -1,48 +1,55 @@
-import { Badge } from '@oxy.so/bloom/badge';
+import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
+import { Chip } from '@oxy.so/bloom/chip';
 import { CodeBlock } from '@oxy.so/bloom/code';
+import { Markdown } from '@oxy.so/bloom/markdown';
+import { Muted } from '@oxy.so/bloom/typography';
 import type { InferenceMessage } from '@oxy.so/contracts';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * One message of the normalized output.
- *
- * A message's content is always a LIST of parts, and only the `text` parts have
- * anything to print. An image or audio part is named rather than rendered: the
- * playground is not a media viewer, and silently dropping a part would make a
- * multimodal answer look truncated.
+ * The normalized output. A message's content is a list of parts and only `text` parts
+ * have anything to print: an image or audio part is named, not dropped, so a
+ * multimodal answer never looks truncated.
  */
-export function PlaygroundOutput({ message }: { message: InferenceMessage }) {
+export function PlaygroundOutput({ output }: { output: ReadonlyArray<InferenceMessage> }) {
   const { t } = useTranslation();
   return (
-    <View className="gap-1">
-      <Text className="text-xs capitalize text-muted-foreground">{message.role}</Text>
-      {message.content.map((part, index) =>
-        part.type === 'text' ? (
-          <Text key={index} selectable className="text-sm text-foreground">
-            {part.text}
-          </Text>
-        ) : (
-          <View key={index} className="items-start">
-            <Badge
-              size="label-small"
-              variant="outlined"
-              content={t('playgroundPage.output.nonText', { type: part.type })}
-            />
-          </View>
-        ),
-      )}
-      {message.toolCalls?.map((call) => (
-        <CodeBlock
-          key={call.id}
-          code={call.arguments}
-          filename={call.name}
-          language="json"
-          lineNumbers={false}
-          wrap
-        />
-      ))}
-    </View>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('playgroundPage.output.title')}</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <View className="gap-4">
+          {output.map((message, index) => (
+            <View key={index} className="gap-2">
+              <Muted className="text-xs capitalize">{message.role}</Muted>
+              {message.content.map((part, partIndex) =>
+                part.type === 'text' ? (
+                  <Markdown key={partIndex} size="md">
+                    {part.text}
+                  </Markdown>
+                ) : (
+                  <View key={partIndex} className="items-start">
+                    <Chip size="sm">{t('playgroundPage.output.nonText', { type: part.type })}</Chip>
+                  </View>
+                ),
+              )}
+              {message.toolCalls?.map((call) => (
+                <CodeBlock
+                  key={call.id}
+                  code={call.arguments}
+                  filename={call.name}
+                  language="json"
+                  lineNumbers={false}
+                  wrap
+                />
+              ))}
+            </View>
+          ))}
+        </View>
+      </CardBody>
+    </Card>
   );
 }

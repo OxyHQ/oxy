@@ -1,67 +1,64 @@
 import type { CommandItem } from '@oxy.so/bloom/command';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
+import { RiBuilding2Line } from '@oxy.so/bloom/icons/RiBuilding2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
-import type { Href } from 'expo-router';
 
 import type { TranslateFn } from '@/lib/i18n';
 import { CONSOLE_NAV, SETTINGS_NAV } from '@/lib/navigation';
 
-/** Sections reachable from the palette that the sidebar does not list. */
-const EXTRA_DESTINATIONS: ReadonlyArray<{
-  id: string;
-  href: Href;
-  labelKey: string;
-  icon: CommandItem['icon'];
-}> = [
-  { id: 'playground', href: '/playground', labelKey: 'nav.playground', icon: RiPlayLine },
-  { id: 'clarity', href: '/clarity', labelKey: 'commandMenu.clarity', icon: RiSearchLine },
-];
+export interface CommandMenuActions {
+  navigate: (href: string) => void;
+  openExternal: (url: string) => void;
+  openSettings: () => void;
+  createWorkspace: () => void;
+}
 
 /**
- * The palette's items: a few actions, then every sidebar section, then the
- * sections the sidebar leaves out. Pure, so it is testable without rendering.
+ * The palette's items: a few actions, then every sidebar section and Settings, then the
+ * routes the sidebar leaves out. Pure, so it is testable without rendering.
  */
 export function buildCommandItems(
   t: TranslateFn,
-  navigate: (href: Href) => void,
-  openExternal: (url: string) => void,
-  openSettings: () => void,
+  { navigate, openExternal, openSettings, createWorkspace }: CommandMenuActions,
 ): Array<CommandItem> {
-  const actions: Array<CommandItem> = [
+  const group = (key: 'actions' | 'navigation') => t(`commandMenu.groups.${key}`);
+  return [
     {
       id: 'create-app',
       label: t('commandMenu.createApp'),
       icon: RiAddLine,
-      group: t('commandMenu.groups.actions'),
+      group: group('actions'),
       keywords: ['new', 'application', 'create'],
       onSelect: () => navigate('/apps'),
     },
-  ];
-
-  const navigation: Array<CommandItem> = [
+    {
+      id: 'create-workspace',
+      label: t('settingsPage.switcher.create'),
+      icon: RiBuilding2Line,
+      group: group('actions'),
+      keywords: ['new', 'organization', 'account'],
+      onSelect: createWorkspace,
+    },
     ...CONSOLE_NAV.map((entry) => ({
-      id: `nav-${entry.key}`,
+      id: `nav:${entry.href}`,
       label: t(entry.labelKey),
       icon: entry.icon as CommandItem['icon'],
-      group: t('commandMenu.groups.navigation'),
+      group: group('navigation'),
       onSelect: () => (entry.external ? openExternal(entry.external) : navigate(entry.href)),
     })),
     {
-      id: `nav-${SETTINGS_NAV.key}`,
+      id: `nav:${SETTINGS_NAV.key}`,
       label: t(SETTINGS_NAV.labelKey),
       icon: SETTINGS_NAV.icon as CommandItem['icon'],
-      group: t('commandMenu.groups.navigation'),
+      group: group('navigation'),
       onSelect: openSettings,
     },
-    ...EXTRA_DESTINATIONS.map((entry) => ({
-      id: `nav-${entry.id}`,
-      label: t(entry.labelKey),
-      icon: entry.icon,
-      group: t('commandMenu.groups.navigation'),
-      onSelect: () => navigate(entry.href),
-    })),
+    {
+      id: 'nav:/clarity',
+      label: t('commandMenu.clarity'),
+      icon: RiSearchLine,
+      group: group('navigation'),
+      onSelect: () => navigate('/clarity'),
+    },
   ];
-
-  return [...actions, ...navigation];
 }

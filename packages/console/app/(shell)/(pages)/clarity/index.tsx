@@ -1,5 +1,5 @@
-import { ClarityPage } from '@/components/clarity/clarity-page';
+import { ClarityOverview } from '@/components/clarity/ClarityOverview';
 
 export default function ClarityOverviewScreen() {
-  return <ClarityPage section="overview" />;
+  return <ClarityOverview />;
 }

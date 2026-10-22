@@ -1,7 +1,7 @@
 import { useAppDetail } from '@/components/apps/app-context';
-import { UsageSection } from '@/components/apps/usage-section';
+import { UsagePanel } from '@/components/apps/UsagePanel';
 
 export default function AppUsageScreen() {
   const { application, access } = useAppDetail();
-  return <UsageSection key={application._id} application={application} access={access} />;
+  return <UsagePanel key={application._id} application={application} access={access} />;
 }

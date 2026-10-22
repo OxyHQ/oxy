@@ -1,195 +1,179 @@
-import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
-import { Checkbox } from '@oxy.so/bloom/checkbox';
-import { DataTable, type DataTableColumn } from '@oxy.so/bloom/data-table';
+import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiMoneyDollarCircleLine } from '@oxy.so/bloom/icons/RiMoneyDollarCircleLine';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { Muted, Text } from '@oxy.so/bloom/typography';
-import { useMemo, useState } from 'react';
-import { useReportLabels } from '@/components/billing/labels';
-import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
-import { ReportControls } from '@/components/billing/report-controls';
-import { useAccount } from '@/hooks/use-account';
+import { useCallback, useMemo, useState } from 'react';
+
+import { SpendCharts } from '@/components/billing/SpendCharts';
+import { SpendStats } from '@/components/billing/SpendStats';
+import { SpendTable } from '@/components/billing/SpendTable';
+import { ApiState } from '@/components/loading/ApiState';
+import { TableSkeleton } from '@/components/loading/ContentSkeleton';
+import { NoBillingAccess } from '@/components/reporting/NoBillingAccess';
+import { ProvenanceBanner } from '@/components/reporting/ProvenanceBanner';
+import { OverviewSkeleton } from '@/components/reporting/ReportSkeleton';
+import { ReportToolbar } from '@/components/reporting/ReportToolbar';
+import { useApplicationNames } from '@/hooks/use-application-names';
+import { useBillingAccess } from '@/hooks/use-billing-access';
 import { useAccountSpendReport } from '@/hooks/use-inference-reporting';
 import { useTranslation } from '@/lib/i18n';
-import { compareExactDecimals, formatCount, formatMoney } from '@/lib/money';
 import {
-  type ReportRangeDays,
-  SPEND_DIMENSIONS,
   type SpendDimension,
   type SpendRow,
   lastCalendarDays,
   spendDimensionValue,
 } from '@/lib/reporting';
+import { type ChartWindow, calendarDays } from '@/lib/reporting-charts';
 
 const LEDGER = { source: 'financial_ledger', consistency: 'authoritative' } as const;
 
+const BREAKDOWNS = [
+  'application',
+  'resolvedModel',
+  'provider',
+  'environment',
+] as const satisfies ReadonlyArray<SpendDimension>;
+
+type Breakdown = (typeof BREAKDOWNS)[number];
+
 /**
- * What the account was actually charged, by application, model, provider and time.
+ * What the account was actually charged: net of reversals, per currency, by
+ * application, served model, provider or environment.
  *
- * Money, and only money: every figure comes from `usage_receipts` with reversals
- * from `usage_refunds` — the financial ledger. `receiptCount` is how many settled
- * receipts a row aggregates, a property of the BILL, not of the traffic; request
- * and token counts live on the Usage page. Totals are per currency and this page
- * never adds one to another; rows are ordered by a string comparison of the exact
- * decimals so sorting cannot cost a digit.
+ * Money, and only money: every figure is read from the financial ledger. Totals
+ * are the server's, one per currency, and nothing on this page adds one currency
+ * to another or sums amounts into a headline. The request and token counts for
+ * the same period are on Usage, and may not agree with a bill.
  */
 export default function BillingSpendPage() {
   const { t } = useTranslation();
-  const labels = useReportLabels();
-  const { currentAccount, canReadBilling } = useAccount();
-  const accountId = currentAccount?.accountId;
-  const canRead = currentAccount !== null && canReadBilling(currentAccount);
+  const { accountId, canRead } = useBillingAccess();
+  const applicationName = useApplicationNames();
 
-  const [rangeDays, setRangeDays] = useState<ReportRangeDays>(30);
-  const [groupBy, setGroupBy] = useState<ReadonlyArray<SpendDimension>>(['application']);
+  const [breakdown, setBreakdown] = useState<Breakdown>('application');
   const [includeDescendants, setIncludeDescendants] = useState(false);
+  const [period, setPeriod] = useState<ChartWindow>(30);
+  const [chosenCurrency, setChosenCurrency] = useState<string | undefined>();
 
-  const range = useMemo(() => lastCalendarDays(rangeDays), [rangeDays]);
-  const spendQuery = useAccountSpendReport(
+  const wide = useMemo(() => lastCalendarDays(90), []);
+  const days = useMemo(() => calendarDays(wide), [wide]);
+  const periodRange = useMemo(() => lastCalendarDays(period), [period]);
+
+  // The chart needs a row per day; the table, bars and tiles need what the
+  // ledger totals over the period, which only the server may add up.
+  const daily = useAccountSpendReport(
     accountId,
-    { range, groupBy, includeDescendants },
+    { range: wide, groupBy: ['day', breakdown], includeDescendants },
     canRead,
   );
-  const report = spendQuery.data;
-
-  const rows = useMemo(() => {
-    if (report === undefined) {
-      return [];
-    }
-    return [...report.rows].sort((left, right) =>
-      compareExactDecimals(right.netAmount, left.netAmount),
-    );
-  }, [report]);
-
-  const columns = useMemo<ReadonlyArray<DataTableColumn<SpendRow>>>(
-    () => [
-      ...groupBy.map(
-        (dimension): DataTableColumn<SpendRow> => ({
-          id: dimension,
-          header: labels.dimension(dimension),
-          minWidth: 140,
-          cell: ({ row }) => (
-            <Text className="font-mono text-xs">{spendDimensionValue(row, dimension)}</Text>
-          ),
-        }),
-      ),
-      {
-        id: 'receipts',
-        header: t('billingPage.spend.receipts'),
-        align: 'end',
-        width: 110,
-        cell: ({ row }) => <Muted className="tabular-nums">{formatCount(row.receiptCount)}</Muted>,
-      },
-      {
-        id: 'refunded',
-        header: t('billingPage.spend.refunded'),
-        align: 'end',
-        width: 140,
-        cell: ({ row }) => (
-          <Muted className="tabular-nums">{formatMoney(row.refundedAmount, row.currency)}</Muted>
-        ),
-      },
-      {
-        id: 'net',
-        header: t('billingPage.spend.net'),
-        align: 'end',
-        width: 150,
-        cell: ({ row }) => (
-          <Text className="tabular-nums">{formatMoney(row.netAmount, row.currency)}</Text>
-        ),
-      },
-    ],
-    [groupBy, labels, t],
+  const totals = useAccountSpendReport(
+    accountId,
+    { range: periodRange, groupBy: [breakdown], includeDescendants },
+    canRead,
   );
 
-  const groupedBy = t('reportKit.by', {
-    dimensions: groupBy.map(labels.dimension).join(', ').toLowerCase(),
-  });
+  const currencies = useMemo(
+    () => (totals.data?.totals ?? []).map((total) => total.currency),
+    [totals.data],
+  );
+  const currency =
+    chosenCurrency !== undefined && currencies.includes(chosenCurrency)
+      ? chosenCurrency
+      : currencies[0];
+  const total = totals.data?.totals.find((entry) => entry.currency === currency);
+
+  const dailyRows = useMemo(
+    () => (daily.data?.rows ?? []).filter((row) => row.currency === currency),
+    [daily.data, currency],
+  );
+  const rankingRows = useMemo(
+    () => (totals.data?.rows ?? []).filter((row) => row.currency === currency),
+    [totals.data, currency],
+  );
+
+  const keyOf = useCallback((row: SpendRow) => spendDimensionValue(row, breakdown), [breakdown]);
+  const labelOf = useCallback(
+    (key: string) => (breakdown === 'application' && key !== '—' ? applicationName(key) : key),
+    [breakdown, applicationName],
+  );
+
+  const dimensionLabel = t(`reporting.dimensions.${breakdown}`);
+  const dimensions = BREAKDOWNS.map((value) => ({
+    value,
+    label: t(`reporting.dimensions.${value}`),
+  }));
+  const isLoading = daily.isLoading || totals.isLoading;
+  const error = totals.error ?? daily.error;
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
+    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
-        <EmptyState icon={RiLockLine} title={t('billingPage.spend.denied')} />
+        <NoBillingAccess />
       ) : (
         <>
           <ProvenanceBanner provenance={LEDGER} />
-          <ProvenanceCrossReference provenance={LEDGER} />
-
-          <ReportControls
-            rangeDays={rangeDays}
-            onRangeDaysChange={setRangeDays}
-            dimensions={SPEND_DIMENSIONS}
-            selected={groupBy}
-            onSelectedChange={setGroupBy}
-            dimensionLabel={labels.dimension}
-          />
-          <Checkbox
-            checked={includeDescendants}
-            onCheckedChange={setIncludeDescendants}
-            label={t('reportKit.includeDescendants')}
+          <ReportToolbar
+            dimensions={dimensions}
+            dimension={breakdown}
+            onDimensionChange={setBreakdown}
+            includeDescendants={includeDescendants}
+            onIncludeDescendantsChange={setIncludeDescendants}
+            currencies={currencies}
+            currency={currency}
+            onCurrencyChange={setChosenCurrency}
           />
 
-          {spendQuery.isLoading ? (
-            <Skeleton.Box width="100%" height={176} />
-          ) : report === undefined || report.totals.length === 0 ? (
-            <Muted>{t('billingPage.spend.nothing')}</Muted>
+          {isLoading ? (
+            <>
+              <OverviewSkeleton />
+              <TableSkeleton />
+            </>
+          ) : error !== null ? (
+            <ApiState
+              error={error}
+              onRetry={() => {
+                void totals.refetch();
+                void daily.refetch();
+              }}
+            />
+          ) : total === undefined || currency === undefined ? (
+            <EmptyState
+              icon={RiMoneyDollarCircleLine}
+              title={t('billingPage.spend.emptyTitle')}
+              description={t('billingPage.spend.nothing')}
+            />
           ) : (
-            report.totals.map((total) => (
-              <GroupedSection
-                key={total.currency}
-                title={`${t('billingPage.spend.billed', { from: range.from, to: range.to })} · ${total.currency}`}
-              >
-                <GroupedSectionItem
-                  title={t('billingPage.spend.netCharged')}
-                  description={t('billingPage.spend.netChargedHint')}
-                  value={formatMoney(total.netAmount, total.currency)}
-                />
-                <GroupedSectionItem
-                  title={t('billingPage.spend.beforeReversals')}
-                  description={t('billingPage.spend.beforeReversalsHint')}
-                  value={formatMoney(total.billedAmount, total.currency)}
-                />
-                <GroupedSectionItem
-                  title={t('billingPage.spend.refundedTotal')}
-                  description={t('billingPage.spend.refundedHint')}
-                  value={formatMoney(total.refundedAmount, total.currency)}
-                />
-                <GroupedSectionItem
-                  title={t('billingPage.spend.receiptsTotal')}
-                  description={t('billingPage.spend.receiptsHint')}
-                  value={formatCount(total.receiptCount)}
-                />
-              </GroupedSection>
-            ))
+            <>
+              {daily.data?.truncated ? (
+                <Admonition type="warning">{t('billingPage.spend.chartTruncated')}</Admonition>
+              ) : null}
+              <SpendStats total={total} daily={dailyRows} days={days} period={period} />
+              <SpendCharts
+                currency={currency}
+                daily={dailyRows}
+                days={days}
+                period={period}
+                onPeriodChange={setPeriod}
+                ranking={rankingRows}
+                keyOf={keyOf}
+                labelOf={labelOf}
+                title={{
+                  overTime: t('billingPage.spend.overTime', {
+                    dimension: dimensionLabel.toLowerCase(),
+                  }),
+                  breakdown: dimensionLabel,
+                }}
+              />
+              <SpendTable
+                rows={rankingRows}
+                keyOf={keyOf}
+                labelOf={labelOf}
+                dimensionLabel={dimensionLabel}
+                linksToApplication={breakdown === 'application'}
+                truncated={totals.data?.truncated === true}
+              />
+            </>
           )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{groupedBy}</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {spendQuery.isLoading ? (
-                <Skeleton.Box width="100%" height={132} />
-              ) : (
-                <DataTable
-                  rows={rows}
-                  columns={columns}
-                  getRowId={(row, index) =>
-                    `${groupBy.map((dimension) => spendDimensionValue(row, dimension)).join('|')}-${row.currency}-${index}`
-                  }
-                  accessibilityLabel={t('billingPage.spend.tableLabel')}
-                  minWidth={560}
-                  emptyState={
-                    <EmptyState variant="compact" title={t('billingPage.spend.noCharges')} />
-                  }
-                />
-              )}
-              {report?.truncated === true && <Muted>{t('billingPage.spend.truncated')}</Muted>}
-            </CardBody>
-          </Card>
         </>
       )}
     </ScreenScrollView>

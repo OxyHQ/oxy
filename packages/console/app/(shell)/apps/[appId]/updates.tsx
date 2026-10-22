@@ -1,8 +1,6 @@
-import { UpdatesSection } from '@/components/apps-updates/updates-section';
-import { useAppDetail } from '@/components/apps/app-context';
+import { UpdateChannels } from '@/components/apps/updates/UpdateChannels';
 
 /** Over-the-air update channels for the application. */
 export default function AppUpdatesScreen() {
-  const { application, access } = useAppDetail();
-  return <UpdatesSection application={application} access={access} />;
+  return <UpdateChannels />;
 }

@@ -1,79 +1,68 @@
-import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { Dialog } from '@oxy.so/bloom/dialog';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { Field } from '@oxy.so/bloom/field';
-import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
-import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
-import { Muted, Text } from '@oxy.so/bloom/typography';
-import { exactDecimalSchema } from '@oxy.so/contracts';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { AccountBalanceCard } from '@/components/billing/account-balance-card';
-import { statusBadge } from '@/components/billing/labels';
-import { ProvenanceBanner } from '@/components/billing/provenance-banner';
+
+import { AutoRechargeAttempts } from '@/components/billing/AutoRechargeAttempts';
+import { AutoRechargeSection } from '@/components/billing/AutoRechargeSection';
+import { BalanceStats } from '@/components/billing/BalanceStats';
+import { OverviewSkeleton } from '@/components/billing/BillingSkeleton';
+import { InvoicesTable } from '@/components/billing/InvoicesTable';
+import { ProfileSection } from '@/components/billing/ProfileSection';
+import { TopUpDialog } from '@/components/billing/TopUpDialog';
+import { ApiState } from '@/components/loading/ApiState';
+import { NoBillingAccess } from '@/components/reporting/NoBillingAccess';
+import { ProvenanceBanner } from '@/components/reporting/ProvenanceBanner';
 import { accountLabel, useAccount } from '@/hooks/use-account';
 import {
   useAccountBillingPortal,
   useAccountBillingState,
   useAccountInvoices,
-  useAccountTopUpCheckout,
   useAutoRechargeAttempts,
   useProvisionAccountBilling,
-  useUpdateAutoRecharge,
 } from '@/hooks/use-account-billing';
+import { useBillingAccess } from '@/hooks/use-billing-access';
 import { useLedgerBalance } from '@/hooks/use-inference-reporting';
 import { getErrorMessage } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';
-import { formatMoney } from '@/lib/money';
+
+const LEDGER = { source: 'financial_ledger', consistency: 'authoritative' } as const;
 
 /**
- * The account's balance and billing profile.
+ * The account's balance, billing profile, automatic top-ups and invoices.
  *
  * Everything here is ACCOUNT-scoped: the balance belongs to the account being
- * worked in, not to the signed-in user, and when that account merely inherits a
- * profile the header says whose money it is spending. Product plans and their
- * credits are a different unit and live on their own page.
- *
- * Both reads that produce money (the ledger balance and the billing profile) are
- * stamped `financial_ledger` / `authoritative` by the API.
+ * worked in, and when that account inherits a profile the profile section names
+ * whose money it spends. Product plans and credits are a different unit and live
+ * on their own tab. An account nobody has decided who pays for is not a balance
+ * of zero, so it gets a provisioning prompt instead of four empty tiles.
  */
 export default function BillingOverviewPage() {
   const { t } = useTranslation();
-  const { accounts, currentAccount, canReadBilling, canManageBilling } = useAccount();
-  const accountId = currentAccount?.accountId;
-  const canRead = currentAccount !== null && canReadBilling(currentAccount);
-  const canManage = currentAccount !== null && canManageBilling(currentAccount);
+  const { accounts } = useAccount();
+  const { accountId, canRead, canManage } = useBillingAccess();
 
-  const balanceQuery = useLedgerBalance(accountId, canRead);
-  const stateQuery = useAccountBillingState(accountId, canRead);
-  const invoicesQuery = useAccountInvoices(accountId, canRead);
-  const attemptsQuery = useAutoRechargeAttempts(accountId, canRead);
+  const balance = useLedgerBalance(accountId, canRead);
+  const state = useAccountBillingState(accountId, canRead);
+  const invoices = useAccountInvoices(accountId, canRead);
+  const attempts = useAutoRechargeAttempts(accountId, canRead);
 
   const provision = useProvisionAccountBilling();
-  const checkout = useAccountTopUpCheckout();
   const portal = useAccountBillingPortal();
-  const updateAutoRecharge = useUpdateAutoRecharge();
+  const [topUp, setTopUp] = useState(false);
 
-  const [showTopUp, setShowTopUp] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState('');
-  const [topUpError, setTopUpError] = useState<string | null>(null);
-
-  const state = stateQuery.data ?? null;
-  const payer = state?.inherited
-    ? accounts.find((node) => node.accountId === state.billingAccountId)
+  const profile = state.data?.profile;
+  const payer = state.data?.inherited
+    ? accounts.find((node) => node.accountId === state.data?.billingAccountId)
     : undefined;
-  const invoices = invoicesQuery.data ?? [];
-  const attempts = attemptsQuery.data ?? [];
 
   const handleProvision = async () => {
-    if (accountId === undefined) {
-      return;
-    }
+    if (accountId === undefined) return;
     try {
       await provision.mutateAsync({ accountId });
       toast.success(t('billingPage.overview.provisioned'));
@@ -82,278 +71,109 @@ export default function BillingOverviewPage() {
     }
   };
 
-  const handleTopUp = async () => {
-    if (accountId === undefined) {
-      return;
-    }
-    // Parsed with the contract's own schema — the same one the ledger's NUMERIC
-    // columns are declared against — so an amount that would become a float is
-    // refused here rather than after the card is charged.
-    const amount = exactDecimalSchema.safeParse(topUpAmount.trim());
-    if (!amount.success) {
-      setTopUpError(t('billingPage.overview.topUpExact'));
-      return;
-    }
-    if (/^0+(\.0*)?$/.test(topUpAmount.trim())) {
-      setTopUpError(t('billingPage.overview.topUpZero'));
-      return;
-    }
-    setTopUpError(null);
-    try {
-      const result = await checkout.mutateAsync({
-        accountId,
-        amount: amount.data,
-        successUrl: `${window.location.origin}/billing?topup=success`,
-        cancelUrl: `${window.location.origin}/billing?topup=canceled`,
-      });
-      window.location.href = result.url;
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, t('billingPage.overview.topUpFailed')));
-    }
-  };
-
   const handlePortal = async () => {
-    if (accountId === undefined) {
-      return;
-    }
+    if (accountId === undefined) return;
     try {
-      const url = await portal.mutateAsync({
+      window.location.href = await portal.mutateAsync({
         accountId,
         returnUrl: `${window.location.origin}/billing`,
       });
-      window.location.href = url;
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, t('billingPage.overview.portalFailed')));
     }
   };
 
-  const handleDisableAutoRecharge = async () => {
-    if (accountId === undefined) {
-      return;
-    }
-    try {
-      await updateAutoRecharge.mutateAsync({ accountId, autoRecharge: { enabled: false } });
-      toast.success(t('billingPage.overview.autoRechargeOff'));
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, t('billingPage.overview.autoRechargeFailed')));
-    }
-  };
-
-  const autoRecharge = state?.profile.autoRecharge;
-
-  const profile = state?.profile;
-  const autoRechargeRule =
-    profile !== undefined &&
-    autoRecharge?.enabled &&
-    autoRecharge.threshold !== undefined &&
-    autoRecharge.amount !== undefined
-      ? t('billingPage.overview.autoRechargeRule', {
-          amount: formatMoney(autoRecharge.amount, profile.currency),
-          threshold: formatMoney(autoRecharge.threshold, profile.currency),
-        })
-      : t('billingPage.overview.off');
-
   return (
-    <ScreenScrollView contentContainerClassName="gap-6 px-4 py-6 pb-12">
+    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
-        <EmptyState icon={RiLockLine} title={t('billingPage.overview.denied')} />
+        <NoBillingAccess />
+      ) : balance.isLoading ? (
+        <OverviewSkeleton />
+      ) : balance.isError ? (
+        <ApiState error={balance.error} onRetry={() => void balance.refetch()} />
+      ) : balance.data === undefined ? null : !balance.data.provisioned ? (
+        <EmptyState
+          icon={RiBankCardLine}
+          title={t('billingPage.balance.noProfileTitle')}
+          description={t('billingPage.balance.noProfileBody')}
+          action={
+            canManage
+              ? {
+                  label: t('billingPage.overview.createProfile'),
+                  onPress: () => void handleProvision(),
+                  loading: provision.isPending,
+                }
+              : undefined
+          }
+        />
       ) : (
         <>
-          <ProvenanceBanner
-            provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
-          />
+          <ProvenanceBanner provenance={LEDGER} />
 
-          <View className="gap-3">
-            <Text variant="headline-semibold">{t('billingPage.overview.balance')}</Text>
-            <AccountBalanceCard balance={balanceQuery.data} isLoading={balanceQuery.isLoading} />
-            {balanceQuery.data?.provisioned === false && canManage && (
-              <View className="items-start">
-                <Button
-                  appearance="outline"
-                  size="sm"
-                  onPress={handleProvision}
-                  disabled={provision.isPending}
-                >
-                  {provision.isPending
-                    ? t('billingPage.overview.creating')
-                    : t('billingPage.overview.createProfile')}
-                </Button>
+          {canManage ? (
+            <View className="flex-row flex-wrap gap-2">
+              <Button leadingIcon={RiAddLine} onPress={() => setTopUp(true)}>
+                {t('billingPage.overview.addFunds')}
+              </Button>
+              <Button
+                appearance="outline"
+                leadingIcon={RiExternalLinkLine}
+                loading={portal.isPending}
+                onPress={() => void handlePortal()}
+              >
+                {t('billingPage.overview.openPortal')}
+              </Button>
+            </View>
+          ) : null}
+
+          <BalanceStats balance={balance.data} />
+
+          {state.isLoading ? null : state.isError ? (
+            <ApiState error={state.error} onRetry={() => void state.refetch()} />
+          ) : state.data === null || state.data === undefined || profile === undefined ? (
+            <EmptyState
+              variant="compact"
+              icon={RiBankCardLine}
+              title={t('billingPage.overview.noProfile')}
+            />
+          ) : (
+            <View className="gap-4 xl:flex-row xl:items-start">
+              <View className="min-w-0 xl:flex-1">
+                <ProfileSection
+                  state={state.data}
+                  payerName={payer === undefined ? undefined : accountLabel(payer)}
+                  canManage={canManage}
+                />
               </View>
-            )}
-          </View>
-
-          {stateQuery.isLoading ? (
-            <Skeleton.Box width="100%" height={176} />
-          ) : state === null || profile === undefined ? (
-            <GroupedSection title={t('billingPage.overview.profile')}>
-              <GroupedSectionItem title={t('billingPage.overview.noProfile')} />
-            </GroupedSection>
-          ) : (
-            <GroupedSection
-              title={t('billingPage.overview.profile')}
-              footer={canManage ? t('billingPage.overview.modeSetByOxy') : undefined}
-            >
-              <GroupedSectionItem
-                title={t('billingPage.overview.paidBy')}
-                value={
-                  payer === undefined ? t('billingPage.overview.thisAccount') : accountLabel(payer)
-                }
-              />
-              <GroupedSectionItem
-                title={t('billingPage.overview.mode')}
-                value={t(
-                  profile.billingMode === 'prepaid'
-                    ? 'billingPage.mode.prepaid'
-                    : 'billingPage.mode.invoiced',
-                )}
-              />
-              <GroupedSectionItem
-                title={t('billingPage.overview.currency')}
-                value={profile.currency}
-              />
-              <GroupedSectionItem
-                title={t('billingPage.overview.status')}
-                rightElement={
-                  <Badge
-                    content={profile.status}
-                    {...statusBadge(profile.status === 'active' ? 'default' : 'secondary')}
-                  />
-                }
-              />
-              <GroupedSectionItem
-                title={t('billingPage.overview.autoRecharge')}
-                value={autoRechargeRule}
-                rightElement={
-                  canManage && profile.autoRecharge.enabled ? (
-                    <Button
-                      appearance="outline"
-                      size="sm"
-                      onPress={handleDisableAutoRecharge}
-                      disabled={updateAutoRecharge.isPending}
-                    >
-                      {t('billingPage.overview.turnOffAutoRecharge')}
-                    </Button>
-                  ) : undefined
-                }
-              />
-              {profile.billingMode === 'invoiced' && (
-                <GroupedSectionItem
-                  title={t('billingPage.overview.creditLimit')}
-                  value={formatMoney(profile.creditLimit, profile.currency)}
+              <View className="min-w-0 xl:flex-1">
+                <AutoRechargeSection
+                  accountId={state.data.accountId}
+                  profile={profile}
+                  canManage={canManage}
                 />
-              )}
-            </GroupedSection>
+              </View>
+            </View>
           )}
 
-          <GroupedSection
-            title={t('billingPage.overview.paymentTitle')}
-            footer={t('billingPage.overview.paymentBody')}
-          >
-            {canManage && (
-              <GroupedSectionItem
-                title={t('billingPage.overview.addFunds')}
-                onPress={() => setShowTopUp(true)}
-              />
-            )}
-            {canManage && (
-              <GroupedSectionItem
-                title={
-                  portal.isPending
-                    ? t('billingPage.overview.opening')
-                    : t('billingPage.overview.openPortal')
-                }
-                disabled={portal.isPending}
-                onPress={handlePortal}
-              />
-            )}
-          </GroupedSection>
-
-          {invoicesQuery.isLoading ? (
-            <Skeleton.Box width="100%" height={96} />
-          ) : invoices.length === 0 ? (
-            <Muted>{t('billingPage.overview.noInvoices')}</Muted>
+          {invoices.isError ? (
+            <ApiState error={invoices.error} onRetry={() => void invoices.refetch()} />
           ) : (
-            <GroupedSection title={t('billingPage.overview.invoices')}>
-              {invoices.map((invoice) => (
-                <GroupedSectionItem
-                  key={invoice.id}
-                  title={`${new Date(invoice.periodStart).toLocaleDateString()} – ${new Date(invoice.periodEnd).toLocaleDateString()}`}
-                  description={t('billingPage.overview.charges', { count: invoice.receiptCount })}
-                  value={formatMoney(invoice.totalAmount, invoice.currency)}
-                  rightElement={
-                    <Badge
-                      content={invoice.status}
-                      {...statusBadge(invoice.status === 'paid' ? 'default' : 'secondary')}
-                    />
-                  }
-                />
-              ))}
-            </GroupedSection>
+            <InvoicesTable invoices={invoices.data ?? []} />
+          )}
+          {attempts.isError ? (
+            <ApiState error={attempts.error} onRetry={() => void attempts.refetch()} />
+          ) : (
+            <AutoRechargeAttempts attempts={attempts.data ?? []} />
           )}
 
-          {attemptsQuery.isLoading ? (
-            <Skeleton.Box width="100%" height={96} />
-          ) : attempts.length === 0 ? (
-            <Muted>{t('billingPage.overview.noAuto')}</Muted>
-          ) : (
-            <GroupedSection title={t('billingPage.overview.recentAuto')}>
-              {attempts.map((attempt) => (
-                <GroupedSectionItem
-                  key={attempt.id}
-                  title={formatMoney(attempt.requestedAmount, attempt.currency)}
-                  description={t('billingPage.overview.triggeredAt', {
-                    balance: formatMoney(attempt.balanceAtTrigger, attempt.currency),
-                    when: new Date(attempt.createdAt).toLocaleString(),
-                  })}
-                  value={attempt.failureCode}
-                  rightElement={
-                    <Badge
-                      content={attempt.status}
-                      {...statusBadge(
-                        attempt.status === 'succeeded'
-                          ? 'default'
-                          : attempt.status === 'failed'
-                            ? 'destructive'
-                            : 'secondary',
-                      )}
-                    />
-                  }
-                />
-              ))}
-            </GroupedSection>
-          )}
+          <TopUpDialog
+            open={topUp}
+            onClose={() => setTopUp(false)}
+            accountId={balance.data.accountId}
+            currency={profile?.currency}
+          />
         </>
       )}
-
-      <Dialog
-        open={showTopUp}
-        onClose={() => setShowTopUp(false)}
-        title={t('billingPage.overview.addFunds')}
-        description={t('billingPage.overview.topUpDescription', {
-          currency: state === null ? '' : ` (${state.profile.currency})`,
-        })}
-        actions={[
-          { label: t('common.cancel'), color: 'cancel' },
-          {
-            label: checkout.isPending
-              ? t('billingPage.overview.opening')
-              : t('billingPage.overview.continueToPayment'),
-            onPress: handleTopUp,
-            disabled: checkout.isPending,
-            shouldCloseOnPress: false,
-          },
-        ]}
-      >
-        <Field label={t('billingPage.overview.amount')} error={topUpError}>
-          <TextFieldInput
-            label={t('billingPage.overview.amount')}
-            value={topUpAmount}
-            inputMode="decimal"
-            placeholder="50.00"
-            onChangeText={setTopUpAmount}
-          />
-        </Field>
-      </Dialog>
     </ScreenScrollView>
   );
 }

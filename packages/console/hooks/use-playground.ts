@@ -118,6 +118,9 @@ export interface PlaygroundRunInput {
   /** `<publisher>/<model>` or `<publisher>/<model>@<revision>`. */
   readonly model: string;
   readonly input: string;
+  /** Sent only when set; absent means the route's own default. */
+  readonly temperature?: number;
+  readonly maxOutputTokens?: number;
 }
 
 /** True when a body looks like the edge's structured error rather than a result. */
@@ -147,7 +150,13 @@ function isInferenceError(body: unknown): body is InferenceError {
 export const playgroundRunOptions = mutationOptions({
   mutationKey: ['playground-run'],
   retry: false,
-  mutationFn: async ({ apiKey, model, input }: PlaygroundRunInput): Promise<PlaygroundResult> => {
+  mutationFn: async ({
+    apiKey,
+    model,
+    input,
+    temperature,
+    maxOutputTokens,
+  }: PlaygroundRunInput): Promise<PlaygroundResult> => {
     const startedAt = performance.now();
     const response = await fetch(`${config.oxyUrl}/v1/responses`, {
       method: 'POST',
@@ -158,7 +167,12 @@ export const playgroundRunOptions = mutationOptions({
       // No `credentials: 'include'`. The edge takes the credential from the
       // Authorization header and nothing else; sending ambient credentials
       // would put this call back on the session lane ADR 0010 removed.
-      body: JSON.stringify({ model, input }),
+      body: JSON.stringify({
+        model,
+        input,
+        ...(temperature === undefined ? {} : { temperature }),
+        ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+      }),
     });
     const roundTripMs = performance.now() - startedAt;
 

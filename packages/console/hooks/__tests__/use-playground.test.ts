@@ -1,6 +1,10 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { MutationFunctionContext } from '@tanstack/react-query';
-import { playgroundReceiptOptions, playgroundRunOptions } from '@/hooks/use-playground';
+import {
+  type PlaygroundRunInput,
+  playgroundReceiptOptions,
+  playgroundRunOptions,
+} from '@/hooks/use-playground';
 import config from '@/lib/config';
 
 /**
@@ -69,7 +73,7 @@ function mutationContext(mutationKey: ReadonlyArray<unknown> | undefined): Mutat
 }
 
 /** The run's `mutationFn`, which `mutationOptions` types as possibly absent. */
-function runPlayground(variables: { apiKey: string; model: string; input: string }) {
+function runPlayground(variables: PlaygroundRunInput) {
   const mutationFn = playgroundRunOptions.mutationFn;
   if (mutationFn === undefined) {
     throw new Error('the run options carry no mutationFn');
@@ -135,6 +139,26 @@ describe('the playground run', () => {
     expect(JSON.parse(String(init.body))).toEqual({
       model: 'anthropic/claude-sonnet',
       input: 'hi',
+    });
+  });
+
+  it('sends sampling parameters only when they are set', async () => {
+    const fetchMock = stubFetch(200, COMPLETION_BODY);
+
+    await runPlayground({
+      apiKey: API_KEY,
+      model: 'anthropic/claude-sonnet',
+      input: 'hi',
+      temperature: 0,
+      maxOutputTokens: 256,
+    });
+
+    const [, init] = lastFetchCall(fetchMock);
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'anthropic/claude-sonnet',
+      input: 'hi',
+      temperature: 0,
+      maxOutputTokens: 256,
     });
   });
 
