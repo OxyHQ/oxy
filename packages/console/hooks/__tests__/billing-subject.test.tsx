@@ -16,7 +16,7 @@ const mock = {
   request: jest.fn(),
   cancel: jest.fn(),
 };
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: { id: mock.subject },
     isAuthenticated: true,

@@ -42,6 +42,13 @@ const en: LocaleDict = {
     },
   },
 
+  auth: {
+    gate: {
+      title: 'Sign in to Oxy Cloud',
+      subtitle: 'Sign in with your Oxy account to manage your apps, keys and billing.',
+    },
+  },
+
   shell: {
     openMenu: 'Open menu',
     resizePanes: 'Resize panes',

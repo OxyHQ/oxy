@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { ModelCatalogueEntry, RoutingProfile } from '@oxy.so/contracts';
 
 // ===========================================================================

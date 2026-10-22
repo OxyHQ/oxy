@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { Channel, Update, UpdatePlatform } from '@oxy.so/contracts';
 
 // ===========================================================================

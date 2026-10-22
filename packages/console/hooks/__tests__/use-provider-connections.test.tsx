@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const makeRequest = jest.fn();
 
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     oxyServices: { request: makeRequest },
     isAuthenticated: true,

@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { ContentClaimDetailView, ContentClaimListResponse } from '@oxy.so/contracts';
 import { isPermissionRefused } from '@/lib/api-error';
 import { type ContentClaimFilters, claimQueryParams } from '@/lib/content-claims';

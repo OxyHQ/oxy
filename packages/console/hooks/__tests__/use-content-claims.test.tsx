@@ -5,7 +5,7 @@ import type { ContentClaimDetailView } from '@oxy.so/contracts';
 
 const makeRequest = jest.fn();
 
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     oxyServices: { request: makeRequest },
     isAuthenticated: true,

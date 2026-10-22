@@ -1,5 +1,5 @@
 import { ClarityClient } from '@clarity.surf/sdk';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useMemo } from 'react';
 import config from '@/lib/config';
 

@@ -41,6 +41,13 @@ const es: LocaleDict = {
     },
   },
 
+  auth: {
+    gate: {
+      title: 'Inicia sesión en Oxy Cloud',
+      subtitle: 'Inicia sesión con tu cuenta de Oxy para gestionar tus apps, claves y facturación.',
+    },
+  },
+
   shell: {
     openMenu: 'Abrir menú',
     resizePanes: 'Redimensionar paneles',
