@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.7.0
+
+### Changed
+
+- `ContentClaimTargetView.file.status` admits `lost`: a file whose bytes are gone
+  for good (OxyHQ/oxy ADR 0043 D13). The row is kept and never served.
+
 ## 5.6.0
 
 ### Added

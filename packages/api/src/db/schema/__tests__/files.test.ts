@@ -261,12 +261,13 @@ describe('files — the per-owner partial uniques on sha256', () => {
       for (const status of FILE_LIVE_STATUSES) {
         expect(row.indexdef).toContain(`'${status}'`);
       }
-      // And the tombstone status must NOT be in the predicate.
-      const tombstoned = FILE_STATUSES.filter(
+      // And the statuses that hold no bytes must NOT be in the predicate: the
+      // tombstone, and `lost` (ADR 0043 D13).
+      const notLive = FILE_STATUSES.filter(
         (status) => !(FILE_LIVE_STATUSES as readonly string[]).includes(status),
       );
-      expect(tombstoned).toEqual(['deleted']);
-      expect(row.indexdef).not.toContain(`'deleted'`);
+      expect(notLive).toEqual(['lost', 'deleted']);
+      for (const status of notLive) expect(row.indexdef).not.toContain(`'${status}'`);
     },
   );
 });

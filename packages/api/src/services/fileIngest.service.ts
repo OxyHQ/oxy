@@ -24,6 +24,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { getDb } from '../config/postgres';
 import { IMMUTABLE_ASSET_CACHE_CONTROL } from '../config/cdn';
+import { deleteObjectsNoLiveRowUses } from './accountStorageDeletion.worker';
 import {
   fileIngests,
   OPEN_FILE_INGEST_STATUSES,
@@ -33,7 +34,6 @@ import {
 } from '../db/schema/fileIngests';
 import { applications } from '../db/schema/applications';
 import { fileSources } from '../db/schema/fileSources';
-import { FILE_LIVE_STATUSES, files } from '../db/schema/files';
 import type { FileOwner, FileRecord, FileVisibility } from '../types/file.types';
 import { ApiError, BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { LARGE_UPLOAD_MAX_BYTES, storedExtensionFor } from '../utils/fileContentPolicy';
@@ -1176,24 +1176,21 @@ export class FileIngestService {
       await this.s3.abortMultipartUpload(row.stagingKey, row.s3UploadId).catch(() => undefined);
     }
     const finalKey = this.assets.largeUploadFinalKey(row.stagingKey, row.visibility);
-    const keys = [...new Set([row.stagingKey, finalKey])];
-    const used = new Set(
-      (
-        await getDb()
-          .select({ key: files.storageKey })
-          .from(files)
-          .where(
-            and(inArray(files.storageKey, keys), inArray(files.status, [...FILE_LIVE_STATUSES])),
-          )
-      ).map((file) => file.key),
-    );
-    for (const key of keys.filter((candidate) => !used.has(candidate))) {
-      await this.s3.deleteFile(key).catch((cause: unknown) => {
-        logger.warn('Ingest: could not delete a staging object', {
-          ingestId: row.id,
-          key,
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
+    const keys = [row.stagingKey, finalKey];
+    const store = { deleteObject: (key: string) => this.s3.deleteFile(key) };
+    try {
+      if (row.sha256) {
+        // Verified bytes may already be — or be becoming — a live row's file.
+        await deleteObjectsNoLiveRowUses(row.sha256, keys, store);
+      } else {
+        // Never verified, so never finalized: no row can name these keys, and
+        // no other upload can share them (a key is shared only through a row).
+        for (const key of new Set(keys)) await store.deleteObject(key);
+      }
+    } catch (cause) {
+      logger.warn('Ingest: could not delete a staging object', {
+        ingestId: row.id,
+        error: cause instanceof Error ? cause.message : String(cause),
       });
     }
   }

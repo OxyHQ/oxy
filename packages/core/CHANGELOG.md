@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 6.12.0
+
+A file whose bytes are gone for good is `lost` (ADR 0043 D13): kept, so its
+owner and the applications using it see why it no longer opens, and never
+served.
+
+### Added
+
+- `AssetStatus` (`AssetLiveStatus | 'lost'`): what a lookup reports.
+  `FileMetadata.status`, `ServiceAssetMetadata.status` (`assets.service.byIds`)
+  and `ApplicationFile.status` are `AssetStatus`; the file record's `status`
+  admits `lost`.
+- `file.lost` in `FILE_EVENT_TYPES` (`@oxy.so/core/server`): the event every
+  application using the file receives, with `file.status` `lost`. Replace or
+  remove what you show, as for `file.deleted`. A receiver built on an earlier
+  core refuses it as not a file event.
+- `fileManagement.contentLost` (en-US, es-ES).
+- Pins `@oxy.so/contracts` 5.7.0.
+
 ## 6.11.1
 
 ### Changed

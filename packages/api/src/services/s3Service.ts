@@ -801,18 +801,6 @@ export class S3Service {
   }
 
   /**
-   * Move file (copy + delete)
-   */
-  async moveFile(sourceKey: string, destinationKey: string): Promise<void> {
-    try {
-      await this.copyFile(sourceKey, destinationKey);
-      await this.deleteFile(sourceKey);
-    } catch (error) {
-      throw new Error(`Failed to move file in S3: ${error}`);
-    }
-  }
-
-  /**
    * Upload multiple files
    */
   async uploadMultipleFiles(
@@ -825,14 +813,6 @@ export class S3Service {
     );
 
     return Promise.all(uploadPromises);
-  }
-
-  /**
-   * Delete multiple files
-   */
-  async deleteMultipleFiles(keys: string[]): Promise<void> {
-    const deletePromises = keys.map((key) => this.deleteFile(key));
-    await Promise.all(deletePromises);
   }
 
   /**

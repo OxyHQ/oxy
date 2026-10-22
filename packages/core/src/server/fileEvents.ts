@@ -38,7 +38,12 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-/** Every file event type. `file.blocked`/`file.unblocked` arrive with content takedowns. */
+/**
+ * Every file event type. `file.blocked`/`file.unblocked` arrive with content
+ * takedowns; `file.lost` when the file's bytes are gone for good (ADR 0043 D13)
+ * — the file still exists, status `lost`, and is never served again: replace or
+ * remove what you show, as for `file.deleted`.
+ */
 export const FILE_EVENT_TYPES = [
   'file.deleted',
   'file.visibility_changed',
@@ -46,6 +51,7 @@ export const FILE_EVENT_TYPES = [
   'file.restored',
   'file.blocked',
   'file.unblocked',
+  'file.lost',
 ] as const;
 
 export type FileEventType = (typeof FILE_EVENT_TYPES)[number];
@@ -61,7 +67,7 @@ export interface FileEvent {
     /** Who owns the file — never which account. */
     ownerKind: 'account' | 'application' | 'platform';
     visibility: 'public' | 'unlisted' | 'private';
-    /** The file's status after the change: `deleted`, `trash`, `active` or `blocked`. */
+    /** The file's status after the change: `deleted`, `trash`, `active`, `blocked` or `lost`. */
     status: string;
   };
   /** YOUR application's references to the file (empty when you own it and do not reference it). */

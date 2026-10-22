@@ -29,6 +29,8 @@ const WRITERS: Record<string, string> = {
   'services/fileRepository.ts#addFileReferences':
     'itself after its own transaction; in a caller transaction the caller enterServing()s each restored file (linkFile, reconciliation)',
   'services/fileRepository.ts#reactivateTrashedFile': 'itself, after its own transaction',
+  'services/fileRepository.ts#markFileLostRow':
+    'AssetService.markFileLost: fileCache.invalidate after its transaction commits',
   'services/fileRepository.ts#trashAccountFile':
     'itself, after its own transaction (and leaveServing)',
   'services/fileRepository.ts#trashUnreferencedApplicationFile':

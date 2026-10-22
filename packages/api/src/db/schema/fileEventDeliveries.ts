@@ -38,7 +38,9 @@ import { applications } from './applications';
 /**
  * Every file event type. `file.blocked` / `file.unblocked` are emitted by the
  * takedown flow of stage 4 (ADR 0043 D10); they are in the set now so a
- * receiver can be written against the whole vocabulary.
+ * receiver can be written against the whole vocabulary. `file.lost` says the
+ * file's bytes are gone for good (ADR 0043 D13): the application replaces or
+ * removes what it showed, as for `file.deleted`, but the file still exists.
  */
 export const FILE_EVENT_TYPES = [
   'file.deleted',
@@ -47,6 +49,7 @@ export const FILE_EVENT_TYPES = [
   'file.restored',
   'file.blocked',
   'file.unblocked',
+  'file.lost',
 ] as const;
 
 export type FileEventType = (typeof FILE_EVENT_TYPES)[number];

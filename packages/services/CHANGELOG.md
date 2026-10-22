@@ -1,5 +1,17 @@
 # Changelog
 
+## [12.10.0] - 2026-10-22
+
+Needs `@oxy.so/core` 6.12.0.
+
+### Changed
+
+- The file manager lists a `lost` file (ADR 0043 D13) as lost: an offline icon
+  and "Lost — its contents could not be recovered" instead of a broken
+  thumbnail, no preview or download, and its remove action deletes it (nothing
+  is left to put in trash). It is left out of the photos, videos and audio
+  views, which show media.
+
 ## [12.9.0] - 2026-10-22
 
 Needs `@oxy.so/contracts` 5.6.0.

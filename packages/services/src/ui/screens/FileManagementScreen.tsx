@@ -150,10 +150,13 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // Derived filtered and sorted files (avoid setState loops)
   const filteredFiles = useMemo(() => {
     let filteredByMode = files;
+    // A lost file (ADR 0043 D13) has no media to show: it is listed under
+    // "all" and "documents" only, as lost, never as a broken thumbnail.
+    const withMedia = files.filter((file) => file.status !== 'lost');
     if (viewMode === 'photos') {
-      filteredByMode = files.filter((file) => file.contentType.startsWith('image/'));
+      filteredByMode = withMedia.filter((file) => file.contentType.startsWith('image/'));
     } else if (viewMode === 'videos') {
-      filteredByMode = files.filter((file) => file.contentType.startsWith('video/'));
+      filteredByMode = withMedia.filter((file) => file.contentType.startsWith('video/'));
     } else if (viewMode === 'documents') {
       filteredByMode = files.filter(
         (file) =>
@@ -167,7 +170,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           file.contentType.includes('powerpoint'),
       );
     } else if (viewMode === 'audio') {
-      filteredByMode = files.filter((file) => file.contentType.startsWith('audio/'));
+      filteredByMode = withMedia.filter((file) => file.contentType.startsWith('audio/'));
     }
 
     let filtered = filteredByMode;
@@ -721,6 +724,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         toggleSelect(file);
         return;
       }
+      // Nothing to open: its bytes are gone (ADR 0043 D13). The row says so.
+      if (file.status === 'lost') return;
       try {
         setLoadingFileContent(true);
         setOpenedFile(file);
@@ -865,7 +870,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       const isImage = file.contentType.startsWith('image/');
       const isPDF = file.contentType.includes('pdf');
       const isVideo = file.contentType.startsWith('video/');
-      const hasPreview = isImage || isPDF || isVideo;
+      const isLost = file.status === 'lost';
+      const hasPreview = !isLost && (isImage || isPDF || isVideo);
       const isSelected = selectedIds.has(file.id);
 
       // Create icon for preview thumbnails (36x36)
@@ -948,7 +954,9 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         id: file.id,
         icon:
           fileIcon ??
-          (!hasPreview ? (
+          (isLost ? (
+            <Ionicons name="cloud-offline-outline" size={20} color={colors.error} />
+          ) : !hasPreview ? (
             <Ionicons name={getFileIcon(file.contentType)} size={20} color={colors.primary} />
           ) : undefined),
         title: file.filename,
@@ -958,9 +966,11 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}${
           file.status === 'blocked'
             ? ` • ${t('fileManagement.removedAfterClaim')}`
-            : file.inUse === false
-              ? ` • ${t('fileManagement.notInUse')}`
-              : ''
+            : isLost
+              ? ` • ${t('fileManagement.contentLost')}`
+              : file.inUse === false
+                ? ` • ${t('fileManagement.notInUse')}`
+                : ''
         }`,
         onPress: () => {
           // Support selection in regular mode with long press or if already selecting
@@ -975,7 +985,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         rightElement:
           !selectMode && selectedIds.size === 0 ? (
             <View className="flex-row items-center gap-1.5 ml-3">
-              {isImage || isVideo || file.contentType.includes('pdf') ? (
+              {hasPreview ? (
                 <Button
                   appearance="subtle"
                   tone="neutral"
@@ -987,16 +997,18 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                   icon={<Ionicons name="eye" size={18} color={colors.text} />}
                 />
               ) : null}
-              <Button
-                appearance="subtle"
-                tone="neutral"
-                size="sm"
-                iconOnly
-                stopPropagation
-                accessibilityLabel={`Download ${file.filename}`}
-                onPress={() => handleFileDownload(file.id, file.filename)}
-                icon={<Ionicons name="download" size={18} color={colors.text} />}
-              />
+              {isLost ? null : (
+                <Button
+                  appearance="subtle"
+                  tone="neutral"
+                  size="sm"
+                  iconOnly
+                  stopPropagation
+                  accessibilityLabel={`Download ${file.filename}`}
+                  onPress={() => handleFileDownload(file.id, file.filename)}
+                  icon={<Ionicons name="download" size={18} color={colors.text} />}
+                />
+              )}
               <Button
                 appearance="subtle"
                 tone="danger"
@@ -1005,7 +1017,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                 stopPropagation
                 loading={deletingId === file.id}
                 accessibilityLabel={t(
-                  file.status === 'blocked'
+                  libraryRemovalFor(file) === 'delete'
                     ? 'fileManagement.a11y.deleteFile'
                     : 'fileManagement.a11y.moveToTrash',
                   { name: file.filename },
@@ -1308,7 +1320,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         onDownload={handleFileDownload}
         onDelete={confirmFileDelete}
         deleteLabel={
-          openedFile.status === 'blocked'
+          libraryRemovalFor(openedFile) === 'delete'
             ? t('fileManagement.deleteFile')
             : t('fileManagement.moveToTrash')
         }

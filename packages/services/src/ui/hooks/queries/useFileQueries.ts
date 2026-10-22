@@ -60,7 +60,10 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
     chunkSize: 0,
     uploadDate: raw.createdAt ?? '',
     ...(typeof raw.inUse === 'boolean' ? { inUse: raw.inUse } : {}),
-    ...(raw.status === 'active' || raw.status === 'trash' || raw.status === 'blocked'
+    ...(raw.status === 'active' ||
+    raw.status === 'trash' ||
+    raw.status === 'blocked' ||
+    raw.status === 'lost'
       ? { status: raw.status }
       : {}),
     ...(typeof raw.trashedAt === 'string' ? { trashedAt: raw.trashedAt } : {}),

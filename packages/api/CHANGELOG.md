@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Fixed (an upload's cleanup can no longer delete the object of a row being committed)
+
+A large upload or import that failed (`fileUploadSession.fail`,
+`fileIngest.discardStaging`) or finished on another key
+(`finalizeLargeUpload`) deleted its leftover keys after asking, OUTSIDE the
+content-hash lock, whether a live row named them — in that exact spelling,
+originals only. The insert that makes a key a row's takes that lock, so a
+cleanup racing it (a second verifier after a lease lapsed, a discard during a
+retry's finalize) could not see the row and deleted the object it was about to
+name: an `active` file with no bytes, a permanent 404. Every such delete now goes
+through `deleteObjectsNoLiveRowUses` (`accountStorageDeletion.worker.ts`):
+checked and deleted under the lock, against both spellings and renditions, as
+the storage-deletion worker does. A census test names every direct delete of
+stored bytes. `S3Service.moveFile` and `deleteMultipleFiles`, unguarded and
+unused, are gone. The same class of check-then-delete outside a lock, in the
+storage model before #1441/#1444/#1445, is how 53 rows lost their objects before
+the move to R2 (oxy-infra runbook 61).
+
+### Added (`lost`: a file whose bytes are gone for good, ADR 0043 D13)
+
+`files.status` admits `lost` (migration `0200`, `pre`) and `file.lost` joins the
+file events. `assetService.markFileLost` moves a live row there only when its
+object is absent in both spellings, under the content-hash lock, after
+re-fetching a federated copy; a federation cache entry is refused (its service
+evicts and re-caches it). The row, name, metadata and references stay; the owner
+sees it in the library as lost (`GET /assets`, `GET /assets/:id`), every using
+application gets `file.lost`, the CDN forgets it, and the owner deletes it with
+a plain delete. Lookups that mean "a row holding these bytes"
+(`findLiveFileBySha256ForOwner`, the storage source, the by-sha256 service
+lookup, the twin search) take live statuses only, so a re-upload is a new file.
+Changing a lost file's visibility or writing bytes to it is `409 FILE_LOST`.
+`scripts/mark-lost-files.ts` is the operator's entry (report by default,
+`APPLY=true` to mark).
+
 ### Fixed (every ended session is announced, and every task forgets it at once)
 
 Every write that ends a session goes through `services/sessionRevocation.service.ts`
