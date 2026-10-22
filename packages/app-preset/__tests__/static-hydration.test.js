@@ -64,11 +64,18 @@ test('awaits Suspense before collecting resources and preserves hydration', asyn
     release = resolve;
   });
   const resources = [];
+  let notifyStarted;
+  const started = new Promise((resolve) => {
+    notifyStarted = resolve;
+  });
   function Content() {
-    if (!ready) throw suspended;
+    if (!ready) {
+      notifyStarted();
+      throw suspended;
+    }
     if (!resources.length)
       resources.push(h('style', { key: 'late-style', id: 'late-style' }, '.late{}'));
-    return h('main', { 'data-workspace': true }, h(Field));
+    return h('main', { 'data-workspace': true }, h(Field), 'message '.repeat(14000));
   }
   const app = h(React.Suspense, { fallback: h('div', null, 'Pending') }, h(Content));
   let documentRendered = false;
@@ -77,13 +84,19 @@ test('awaits Suspense before collecting resources and preserves hydration', asyn
     assert.equal(ready, true);
     return documentWithApp(html, { head: resources });
   });
-  await Promise.resolve();
+  await started;
+  // Give a streaming renderer time to flush its fallback: allReady alone is
+  // not enough to prevent hidden segments from being queued after the root.
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(documentRendered, false);
   ready = true;
   release();
   const html = await promise;
   assert.equal((html.match(/id="late-style"/g) ?? []).length, 1);
-  assert.doesNotMatch(html, /Pending/);
+  assert.doesNotMatch(html, /Pending|<!--\$\?-->|id="[BS]:|\$RC\(/);
+  const staticDocument = new JSDOM(html).window.document;
+  assert.ok(staticDocument.querySelector('#root main'));
+  assert.equal(staticDocument.querySelector('[hidden]'), null);
   await hydrate(html, app);
 });
 test('emits bootstrap and ordered document scripts once, with metadata outside root', async () => {
@@ -189,5 +202,18 @@ test('keeps root-level stylesheet and event-handler links inside the hydrated ap
       assert.equal(document.querySelectorAll('#root link').length, 1);
       assert.equal(document.head.querySelectorAll('link').length, 0);
     });
+  }
+});
+
+test('rejects hidden streaming segments and recovery scripts outside the static root', () => {
+  const { extractDocumentResources } = require('../metro/static-hydration/document-resources');
+  for (const tail of [
+    '<div hidden id="S:0">Late content</div>',
+    '<script>$RC("B:0","S:0")</script>',
+  ]) {
+    assert.throws(
+      () => extractDocumentResources(`<div id="root">Pending</div>${tail}`),
+      /outside #root/,
+    );
   }
 });

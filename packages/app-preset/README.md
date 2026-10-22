@@ -42,7 +42,8 @@ causes React to replace the workspace during hydration.
 The adapter renders the app at its own React root and then renders the document
 around that completed markup. It preserves Expo's route/loader contexts,
 metadata, asset order, bootstrap script, fonts and styles, including resources
-registered inside async Suspense content. React 19's hoisted document resources
+registered inside async Suspense content. React’s public `prerender` API waits
+for all content without hidden streaming segments that would require JavaScript. React 19's hoisted document resources
 move into the final head; the app's remaining HTML and hydration markers retain
 the exact bytes produced by React. Server errors fail the static export. `Head` metadata is collected from the
 routed app tree; `+html` owns its literal head and `useServerDocumentContext`,
@@ -59,7 +60,7 @@ its MIT license in `metro/static-hydration/EXPO-LICENSE`.
 Verify production exports, not just Metro development: JavaScript-disabled
 screenshots must show real chrome, and hydration must retain the same workspace
 DOM node without recoverable React errors. The package tests exercise real
-`renderToReadableStream` and `hydrateRoot`; publication runs those gates too.
+`prerender` and `hydrateRoot`; publication runs those gates too.
 
 ## Usage
 

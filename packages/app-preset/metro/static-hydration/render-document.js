@@ -1,18 +1,21 @@
 const { createElement } = require('react');
-const { renderToReadableStream } = require('react-dom/server');
+const { prerender } = require('react-dom/static');
 const { extractDocumentResources } = require('./document-resources');
 
 async function renderToHtml(element, options = {}) {
   const errors = [];
-  const stream = await renderToReadableStream(element, {
+  const { prelude, postponed } = await prerender(element, {
+    // Even completed boundaries can otherwise be outlined into hidden segments
+    // once they exceed React's default progressive chunk size.
+    progressiveChunkSize: Number.MAX_SAFE_INTEGER,
     ...options,
     onError(error) {
       errors.push(error);
     },
   });
-  await stream.allReady;
   if (errors.length) throw errors[0];
-  return new Response(stream).text();
+  if (postponed) throw new Error('The static app render did not complete.');
+  return new Response(prelude).text();
 }
 
 /**
@@ -27,7 +30,8 @@ async function renderHydratableDocument(app, createDocument, options = {}) {
     signal: options.signal,
   });
   const { appHtml, resources } = extractDocumentResources(rendered);
-  // Styles and fonts registered by suspended app content now exist too.
+  // Static prerender with the unlimited progressive chunk size waits for
+  // Suspense without hidden segments. Its styles and fonts now exist too.
   const documentHtml = await renderToHtml(createDocument(appHtml), options);
   return documentHtml.replace('</head>', () => `${resources}</head>`);
 }

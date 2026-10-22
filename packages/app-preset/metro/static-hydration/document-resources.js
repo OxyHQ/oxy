@@ -12,6 +12,19 @@ function extractDocumentResources(html) {
       node.tagName === 'div' &&
       node.attrs.some(({ name, value }) => name === 'id' && value === 'root'),
   );
+  for (const node of fragment.childNodes) {
+    if (node === root || node.nodeName === '#comment') continue;
+    if (node.nodeName === '#text' && !node.value.trim()) continue;
+    const attrs = new Map((node.attrs ?? []).map(({ name, value }) => [name, value]));
+    const resource =
+      ['title', 'meta', 'base', 'link', 'style'].includes(node.tagName) ||
+      (node.tagName === 'script' && attrs.has('async') && attrs.has('src'));
+    if (!resource) {
+      throw new Error(
+        'Static rendering emitted content outside #root instead of a completed document resource.',
+      );
+    }
+  }
   const location = root?.sourceCodeLocation;
   if (!location?.startTag || !location.endTag) {
     throw new Error('The static app renderer did not produce its #root container.');
