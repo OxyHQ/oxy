@@ -22,9 +22,10 @@ community's moderators, the viewer's follow graph and the store were affected.
 - `ResponsePayload<T>`: what `oxy.request<T>()` (and `serviceRequest`, the
   `HttpService` methods and the namespaces' context) now resolves to. `T` is the
   payload the transport delivers; typing the `{ data }` envelope instead
-  resolves to a type with no `data`, so reading it is a compile error. A page
-  (`data` beside `pagination` or `nextCursor`) travels whole, as before. A
-  generic wrapper that forwards its own `T` declares `Promise<ResponsePayload<T>>`.
+  resolves to `never`, so reading `.data` off it is a compile error. A page
+  (`data` beside `pagination` or `nextCursor`) is typed whole, as it travels.
+  Every other `T` is unchanged, and a generic wrapper returning `Promise<T>`
+  still compiles.
 
 ## 6.13.0
 

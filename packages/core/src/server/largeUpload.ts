@@ -15,7 +15,6 @@
  */
 import { createHash } from 'node:crypto';
 import type { ServiceLane } from '../client/context';
-import type { ResponsePayload } from '../HttpService';
 import type { AudioRenditionOptions, FileVisibility } from '../models/interfaces';
 
 /** What a large upload reads from: a Blob (`fs.openAsBlob(path)` for a file), bytes, or a file path. */
@@ -166,11 +165,7 @@ export async function runLargeUpload<TFile>(
   if (blob.size === 0) throw new Error('Cannot upload an empty file');
   const sha256 = options.sha256?.toLowerCase() ?? (await sha256Of(blob, onProgress, signal));
 
-  const call = <T>(
-    method: 'GET' | 'POST',
-    path: string,
-    body?: unknown,
-  ): Promise<ResponsePayload<T>> =>
+  const call = <T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> =>
     service.request<T>(method, path, body, {
       headers,
       cache: false,

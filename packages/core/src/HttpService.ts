@@ -206,36 +206,39 @@ type DeclaredKeys<T> = keyof {
   [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
 };
 
-/** What a request typed as the `{ data }` envelope resolves to instead. */
-interface EnvelopeAlreadyUnwrapped {
-  readonly 'the transport delivers the payload of { data }: type the payload, not the envelope': never;
-}
+/**
+ * `never` for the house `{ data }` envelope that is not a page; `unknown`
+ * (no-op in an intersection) for everything else. See {@link ResponsePayload}.
+ */
+type EnvelopeGuard<T> = T extends object
+  ? 'data' extends DeclaredKeys<T>
+    ? [Extract<DeclaredKeys<T>, (typeof PAGE_ENVELOPE_KEYS)[number]>] extends [never]
+      ? never
+      : unknown
+    : unknown
+  : unknown;
 
 /**
- * What a request typed `T` resolves to: `T` itself, unless `T` is the house
- * `{ data }` envelope — then a type with no `data` to read.
+ * What a request typed `T` resolves to: `T` itself — unless `T` is the house
+ * `{ data }` envelope, which resolves to `never`.
  *
  * `T` names what the transport DELIVERS, never the body the route sends:
  * {@link HttpService.unwrapResponse} reduces `{ data: X }` to `X` before the
  * caller sees it. A call site typed `request<{ data: X }>` that then read
  * `.data` was reading it off `X` — `undefined` on every call, with no error
  * anywhere; that is how `users.moderators()` answered `[]` for every
- * community. Resolving such a `T` to {@link EnvelopeAlreadyUnwrapped} makes the
- * `.data` read (or returning the value as the envelope) a compile error.
+ * community. As `never`, reading anything off such a result is a compile
+ * error (`Property 'data' does not exist on type 'never'`): type the payload.
  *
- * Mirrors the runtime rule exactly: `data` beside a {@link PAGE_ENVELOPE_KEYS}
- * key is a page, which travels whole and is typed as such. `unknown`, arrays,
+ * It follows the runtime rule: `data` beside a {@link PAGE_ENVELOPE_KEYS} key
+ * is a page, which travels whole and is typed whole. `unknown`, arrays,
  * primitives, index signatures and every shape without a declared `data` key
- * pass unchanged. A generic wrapper that forwards its own `T` declares
- * `Promise<ResponsePayload<T>>` as well.
+ * are unchanged. An intersection rather than a conditional, so it stays
+ * assignable to `T`: a generic wrapper that forwards its own `T` and returns
+ * `Promise<T>` compiles as before (it can declare `Promise<ResponsePayload<T>>`
+ * to carry the check to its own callers).
  */
-export type ResponsePayload<T> = T extends object
-  ? 'data' extends DeclaredKeys<T>
-    ? [Extract<DeclaredKeys<T>, (typeof PAGE_ENVELOPE_KEYS)[number]>] extends [never]
-      ? EnvelopeAlreadyUnwrapped
-      : T
-    : T
-  : T;
+export type ResponsePayload<T> = T & EnvelopeGuard<T>;
 
 /** Methods whose calls concurrent callers may share (read-only). */
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET']);
@@ -670,18 +673,17 @@ export class HttpService {
   /**
    * One request to the API, resolving to what the route's body DELIVERS: the
    * payload of a `{ data }` envelope, a page whole — see
-   * {@link ResponsePayload}, which makes typing the envelope a compile error.
+   * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
-  request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
-    return this.send<ResponsePayload<T>>(config);
-  }
-
-  /** {@link request}, with `T` already the delivered type. */
-  private async send<T>(config: RequestConfig): Promise<T> {
+  async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
     const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
     const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
     if (!cache && !deduplicate) {
-      return this.requestWithCacheLease<T>(config, { key: '', id: 0, valid: true });
+      return this.requestWithCacheLease<ResponsePayload<T>>(config, {
+        key: '',
+        id: 0,
+        valid: true,
+      });
     }
     const key = this.generateCacheKey(config.method, config.url, config.data || config.params);
     let lease = this.readLeases.get(key);
@@ -691,7 +693,7 @@ export class HttpService {
     }
     lease.readers++;
     try {
-      return await this.requestWithCacheLease<T>(config, lease);
+      return await this.requestWithCacheLease<ResponsePayload<T>>(config, lease);
     } finally {
       lease.readers--;
       if (lease.readers === 0 && this.readLeases.get(key) === lease) this.readLeases.delete(key);
@@ -923,7 +925,7 @@ export class HttpService {
               // queue slot, so a queued retry waits for a slot while holding one.
               // With every slot held by a 401 (a revoked session under load) no
               // retry could ever start and the whole client stalled.
-              return this.send<T>({
+              return this.request<T>({
                 ...config,
                 _isAuthRetry: true,
                 retry: false,
