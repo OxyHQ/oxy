@@ -30,13 +30,20 @@ import type { S3Service } from './s3Service';
 import { FEDERATION_MEDIA_CACHE_PURPOSE, isAllowedCacheMime } from '../constants/federationCache';
 import { ImageNotRenderableError, VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
-import { FILE_LIVE_STATUS_SQL_LIST, files as filesTable } from '../db/schema/files';
+import {
+  FILE_LIVE_STATUSES,
+  FILE_LIVE_STATUS_SQL_LIST,
+  files as filesTable,
+} from '../db/schema/files';
 import { storageByteReservations } from '../db/schema/storageByteReservations';
 import {
   recordFileStorageDeletion,
   recordFileStorageRelocation,
 } from './accountStorageDeletion.service';
-import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
+import {
+  deleteObjectsNoLiveRowUses,
+  runStorageDeletionBatch,
+} from './accountStorageDeletion.worker';
 import { withContentHashLock } from './contentHashLock';
 import {
   ContentBlockedError,
@@ -106,6 +113,7 @@ import {
   classifyApplicationFileDeleteRefusal,
   classifyFederatedDeleteRefusal,
   listFilesByApplication,
+  markFileLostRow,
   reactivateTrashedFile,
   tombstoneApplicationFile,
   tombstoneFederatedFileForApp,
@@ -223,6 +231,14 @@ function isSameFederatedUpload(file: FileRecord, options: StreamedMediaOptions):
 
 /** Outcome of {@link AssetService.deleteApplicationFile}. */
 export type ApplicationFileDeleteOutcome = 'deleted' | 'not_found' | 'in_use';
+
+/**
+ * Outcome of {@link AssetService.markFileLost}: `lost` — moved; `present` — an
+ * object is there (or a federated copy was just re-fetched), nothing changed;
+ * `not_live` — no live row by that id; `federation_cache` — refused, a cache
+ * entry is evicted by its using service instead (ADR 0043 D5).
+ */
+export type MarkFileLostOutcome = 'lost' | 'present' | 'not_live' | 'federation_cache';
 
 /** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
 export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
@@ -1380,14 +1396,16 @@ export class AssetService {
       // A copy this attempt may have made before losing a race is its own key too.
       if (outcome.file.storageKey !== finalKey) objectsToDrop.add(finalKey);
     }
-    for (const key of objectsToDrop) {
-      await this.s3Service.deleteFile(key).catch((error: unknown) => {
-        logger.warn('Large upload: failed to delete an object the file does not use', {
-          key,
-          error: error instanceof Error ? error.message : String(error),
-        });
+    // Under the content-hash lock, like the insert that could make one of
+    // them a live row's: never an object such a row uses, in either spelling.
+    await deleteObjectsNoLiveRowUses(upload.sha256, [...objectsToDrop], {
+      deleteObject: (key) => this.s3Service.deleteFile(key),
+    }).catch((error: unknown) => {
+      logger.warn('Large upload: failed to delete an object the file does not use', {
+        keys: [...objectsToDrop],
+        error: error instanceof Error ? error.message : String(error),
       });
-    }
+    });
 
     if (outcome.kind === 'existing') {
       return { file: await this.reuseOwnLiveFile(outcome.file, upload.owner), deduplicated: true };
@@ -3062,6 +3080,57 @@ export class AssetService {
     return 'tombstoned';
   }
 
+  /**
+   * Move a file whose bytes are gone for good to `lost` (ADR 0043 D13): the
+   * repair for a live row that names an object no store holds, run by an
+   * operator (`scripts/mark-lost-files.ts`) once the loss is established.
+   *
+   * Never on the strength of one failed read: the original is looked for in
+   * BOTH spellings (bare and `public/`), under the content-hash lock — which a
+   * purge and every new row's insert also take — and a federated copy is first
+   * re-fetched from its origin. A federation CACHE entry is refused: its using
+   * service evicts it and caches it again (D5), which is the cache's repair.
+   *
+   * The row, its references and its metadata stay; `file.lost` goes to every
+   * application using it, and the CDN forgets every path it served for it.
+   */
+  async markFileLost(fileId: string): Promise<MarkFileLostOutcome> {
+    const file = await findFileById(fileId);
+    const isLive = (candidate: FileRecord | null) =>
+      candidate !== null && (FILE_LIVE_STATUSES as readonly string[]).includes(candidate.status);
+    if (!file || !isLive(file)) return 'not_live';
+    if (
+      file.systemOwner === '__federation_media_cache__' ||
+      file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE
+    )
+      return 'federation_cache';
+    if (
+      this.getFederationRepairRemoteUrl(file) !== null &&
+      (await this.repairMissingFederationFileContent(file))
+    )
+      return 'present';
+
+    const spellings = [
+      ...new Set([stripPublicPrefix(file.storageKey), applyPublicPrefix(file.storageKey)]),
+    ];
+    const outcome = await withContentHashLock(file.sha256, async (tx) => {
+      for (const key of spellings) {
+        if (await this.s3Service.fileExists(key)) return 'present' as const;
+      }
+      return (await markFileLostRow(tx, file.id)) ?? ('not_live' as const);
+    });
+    if (typeof outcome === 'string') return outcome;
+
+    fileCache.invalidate(outcome.id);
+    this.invalidateServedPaths(outcome);
+    logger.warn('File marked lost: its stored object is gone in every spelling', {
+      fileId: outcome.id,
+      sha256: outcome.sha256,
+      storageKey: outcome.storageKey,
+    });
+    return 'lost';
+  }
+
   /** Whether the store holds an object at this file's key (the stale-upload report). */
   async storedObjectExists(fileId: string): Promise<boolean> {
     const file = await findFileById(fileId);
@@ -3127,6 +3196,10 @@ export class AssetService {
       const file = await findFileById(fileId);
       if (!file) {
         throw new Error('File not found');
+      }
+      // No bytes to move between spellings (ADR 0043 D13).
+      if (file.status === 'lost') {
+        throw new ApiError(409, 'This file was lost; it has nothing to publish', 'FILE_LOST');
       }
 
       // Only update if visibility is actually changing

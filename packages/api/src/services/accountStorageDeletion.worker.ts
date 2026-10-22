@@ -37,7 +37,7 @@
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
-import { applyPublicPrefix } from '../config/cdn';
+import { applyPublicPrefix, isPublicKey, stripPublicPrefix } from '../config/cdn';
 import { getEnvBoolean, getEnvNumber } from '../config/env';
 import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
 import { FILE_LIVE_STATUSES, files } from '../db/schema/files';
@@ -235,6 +235,52 @@ export async function isStorageTargetInUse(
 ): Promise<boolean> {
   const inUse = await storageSpellingsInUse(row, db);
   return inUse.base || inUse.public;
+}
+
+/**
+ * Delete objects an unfinished upload or import wrote — `keys`, which hold (or
+ * were to hold) the bytes `sha256` — except any a LIVE row uses, checked and
+ * deleted under the content-hash lock. The one way, outside this worker's
+ * ledger, to delete an object that a live row could name.
+ *
+ * Why the lock and not a plain "does a row name it" read: the insert that makes
+ * a key a live row's takes the same lock (`finalizeLargeUpload`, every upload
+ * path). A read outside it cannot see that insert until it commits, so a
+ * cleanup racing it — a failed attempt of the same upload session whose lease
+ * another verifier took over, an import discarded while its retry finalizes —
+ * deleted the object of the row that committed a moment later: an `active`
+ * file whose bytes are gone, a permanent 404 nothing ever repairs. Under the
+ * lock the insert either committed first (the object is kept) or runs after
+ * the delete (and writes its own object).
+ *
+ * Each key is checked in its OWN spelling (bare or `public/`), against a live
+ * row's original and its renditions ({@link storageSpellingsInUse}), not only
+ * against `files.storage_key` in that exact spelling.
+ */
+export async function deleteObjectsNoLiveRowUses(
+  sha256: string,
+  keys: readonly string[],
+  store: Pick<StorageDeletionStore, 'deleteObject'> = defaultStore,
+): Promise<{ deleted: string[]; kept: string[] }> {
+  const deleted: string[] = [];
+  const kept: string[] = [];
+  const unique = [...new Set(keys)];
+  if (unique.length === 0) return { deleted, kept };
+  await withContentHashLock(sha256, async (tx) => {
+    for (const key of unique) {
+      const inUse = await storageSpellingsInUse(
+        { kind: 'object', target: stripPublicPrefix(key), sha256 },
+        tx,
+      );
+      if (isPublicKey(key) ? inUse.public : inUse.base) {
+        kept.push(key);
+        continue;
+      }
+      await store.deleteObject(key);
+      deleted.push(key);
+    }
+  });
+  return { deleted, kept };
 }
 
 /** Delete every key under a prefix, page by page. Throws when more remain after the round budget. */

@@ -203,6 +203,28 @@ removes nothing no longer trashes. `DELETE /assets/:id/links` is closed by D4
 (GoWay's claim withdrawal removes a contributor's reference as the GoWay
 application, not with the business's session).
 
+### D13 — Lost: bytes gone for good are a state, not a 404
+
+Added 2026-10-22, after the R2 migration's audit found 53 live rows naming
+objects no store held (oxy-infra runbook 61).
+
+- `lost` is a status: the row's object is absent in every spelling and nothing
+  can bring it back. The row is kept — owner, name, metadata, references — so
+  the person sees in their library that the file was lost, and every
+  application using it gets `file.lost` (D9) and can replace what it showed.
+- Never served (like `trash`, `blocked`, `deleted`). Not live: it holds no
+  bytes, counts against no quota and keeps no object from a purge; the same
+  bytes uploaded again are a new file. The owner removes it with a plain delete.
+- Entered only through `assetService.markFileLost`, by an operator once a loss
+  is established — never from one failed read: the object is looked for in both
+  spellings under the content-hash lock, and a federated copy is first
+  re-fetched from its origin. A federation cache entry is never lost: its using
+  service evicts it and caches it again (D5).
+- What made rows lose their objects is closed at the root: every delete of
+  stored bytes outside the storage-deletion ledger checks and deletes under the
+  content-hash lock (`deleteObjectsNoLiveRowUses`), with a census of direct
+  deletes.
+
 ## Rollout
 
 1. **Oxy core**: D12; schema (owner, `file_references`, `unreferenced_since`,

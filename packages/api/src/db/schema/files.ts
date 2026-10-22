@@ -73,8 +73,9 @@ import { users } from './users';
 /**
  * Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row.
  *
- * Only `active` is ever served (ADR 0043 D5): `trash`, `blocked` and `deleted`
- * are refused by every read path and leave the CDN (`config/cdn.isServableStatus`).
+ * Only `active` is ever served (ADR 0043 D5): `trash`, `blocked`, `lost` and
+ * `deleted` are refused by every read path and leave the CDN
+ * (`config/cdn.isServableStatus`).
  *
  * `blocked` is a takedown (ADR 0043 D10, `services/contentClaims/`): the bytes
  * are on `blocked_content_hashes` after a content claim, and EVERY live row
@@ -84,8 +85,18 @@ import { users } from './users';
  * (`FILE_LIVE_STATUSES`): the bytes are kept, as evidence and for a
  * reinstatement, and the per-owner unique keeps a second row of them from
  * being created underneath it.
+ *
+ * `lost` (ADR 0043 D13): the row's bytes are gone from storage — absent in
+ * every spelling, checked under the content-hash lock — and nothing can bring
+ * them back. The row is KEPT, so its owner and every application using it see
+ * the file as lost instead of a bare 404, and its references, name and
+ * metadata stay. It holds no bytes, so it is no claim on its content hash
+ * (not in `FILE_LIVE_STATUSES`): it counts against no quota, keeps no object
+ * from a purge, and a new upload of the same bytes is a new file. Entered only
+ * through `assetService.markFileLost`; a federation cache entry is never
+ * `lost` — it is evicted, and its using service caches it again.
  */
-export const FILE_STATUSES = ['active', 'trash', 'blocked', 'deleted'] as const;
+export const FILE_STATUSES = ['active', 'trash', 'blocked', 'lost', 'deleted'] as const;
 
 /**
  * The statuses that hold a claim on their content hash.

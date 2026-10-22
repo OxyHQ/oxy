@@ -485,9 +485,10 @@ export interface FileMetadata {
   inUse?: boolean;
   /**
    * `blocked`: taken down after a content claim (ADR 0043 D10) — shown to its
-   * owner as such, served to nobody. Absent when the server did not say.
+   * owner as such, served to nobody. `lost`: its bytes are gone for good (D13)
+   * — shown as lost, served to nobody. Absent when the server did not say.
    */
-  status?: AssetLiveStatus;
+  status?: AssetStatus;
   /**
    * When the owner moved the file to trash (ISO 8601); set on a file listed by
    * `assets.list({ status: 'trash' })`. Absent when the server did not say.
@@ -632,9 +633,11 @@ export interface Asset {
   /**
    * `blocked`: taken down after a content claim (ADR 0043 D10) — not served
    * anywhere and its bytes cannot be uploaded again (451 `CONTENT_BLOCKED`);
-   * only Oxy staff lift it. Like `trash`, never served.
+   * only Oxy staff lift it. Like `trash`, never served. `lost`: its bytes are
+   * gone for good (ADR 0043 D13) — the file is kept so you see why it no longer
+   * opens; never served, and its owner can only delete it.
    */
-  status: 'active' | 'trash' | 'blocked' | 'deleted';
+  status: 'active' | 'trash' | 'blocked' | 'lost' | 'deleted';
   visibility: FileVisibility;
   usageCount: number;
   /**
@@ -783,12 +786,19 @@ export interface ServiceLinkedDownloadUrl {
  */
 export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
 
+/**
+ * A file's status as a lookup reports it: a live one, or `lost` — its bytes are
+ * gone for good (ADR 0043 D13). A lost file is kept, never served; show it as
+ * lost rather than as a broken image, and replace or remove what used it.
+ */
+export type AssetStatus = AssetLiveStatus | 'lost';
+
 export interface ServiceAssetMetadata {
   id: string;
   sha256: string;
   mime: string;
   size: number;
-  status: AssetLiveStatus;
+  status: AssetStatus;
   /** Intrinsic width in pixels when variant/metadata extraction has run. */
   width?: number;
   /** Intrinsic height in pixels when variant/metadata extraction has run. */
@@ -837,7 +847,7 @@ export interface ApplicationFile {
   ext: string;
   originalName?: string;
   ownerApplicationId: string;
-  status: AssetLiveStatus;
+  status: AssetStatus;
   visibility: FileVisibility;
   createdAt: string;
   updatedAt: string;

@@ -210,7 +210,7 @@ export interface ContentClaimTargetView {
   /** The file as it stands now, or null when there is no such row any more. */
   file: {
     id: string;
-    status: 'active' | 'trash' | 'blocked' | 'deleted';
+    status: 'active' | 'trash' | 'blocked' | 'lost' | 'deleted';
     visibility: 'private' | 'public' | 'unlisted';
     mime: string;
     size: number;

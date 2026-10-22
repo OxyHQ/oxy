@@ -25,9 +25,12 @@ export interface TrashAssetsApi {
 /** What removing a file from the library does to it. */
 export type LibraryRemoval = 'trash' | 'delete';
 
-/** A `blocked` file is deleted (it cannot go to trash); every other is trashed. */
+/**
+ * A `blocked` file is deleted (it cannot go to trash), and so is a `lost` one
+ * (ADR 0043 D13: nothing is left to restore); every other is trashed.
+ */
 export function libraryRemovalFor(file: Pick<FileMetadata, 'status'>): LibraryRemoval {
-  return file.status === 'blocked' ? 'delete' : 'trash';
+  return file.status === 'blocked' || file.status === 'lost' ? 'delete' : 'trash';
 }
 
 /** The HTTP status of a failed asset call, when it carries one. */

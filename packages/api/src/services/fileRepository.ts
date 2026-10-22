@@ -65,6 +65,7 @@ import {
   users,
 } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
+import { FILE_LIVE_STATUSES } from '../db/schema/files';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type {
   FileAccessGrantRecord,
@@ -262,9 +263,10 @@ export async function findFilesByIds(fileIds: string[]): Promise<FileRecord[]> {
  * through {@link findLiveStorageSourceBySha256} instead, which returns a KEY to
  * reuse, never a row to hand out.
  *
- * `deleted` is excluded deliberately: a tombstone is a deletion intent, not a
- * reusable asset. The per-owner partial uniques cover exactly the two statuses
- * selected here, so at most one row can match.
+ * Only the live statuses (`FILE_LIVE_STATUSES`): a tombstone is a deletion
+ * intent, not a reusable asset, and a `lost` row holds no bytes (ADR 0043 D13)
+ * — the owner's new upload of them is a new file. The per-owner partial
+ * uniques cover exactly these statuses, so at most one row can match.
  */
 export async function findLiveFileBySha256ForOwner(
   sha256: string,
@@ -274,7 +276,13 @@ export async function findLiveFileBySha256ForOwner(
   const rows = await db
     .select()
     .from(files)
-    .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted'), ownerPredicate(owner)))
+    .where(
+      and(
+        eq(files.sha256, sha256),
+        inArray(files.status, [...FILE_LIVE_STATUSES]),
+        ownerPredicate(owner),
+      ),
+    )
     .limit(1);
   const [record] = await withChildren(rows, db);
   return record ?? null;
@@ -316,7 +324,7 @@ export async function findLiveStorageSourceBySha256(
   const rows = await db
     .select()
     .from(files)
-    .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')))
+    .where(and(eq(files.sha256, sha256), inArray(files.status, [...FILE_LIVE_STATUSES])))
     .orderBy(asc(files.createdAt), asc(files.id));
   if (rows.length === 0) return null;
   const wantPublic = visibility === 'public';
@@ -342,7 +350,7 @@ export async function isStorageKeyUsedByOtherLiveRow(
     .where(
       and(
         eq(files.sha256, sha256),
-        ne(files.status, 'deleted'),
+        inArray(files.status, [...FILE_LIVE_STATUSES]),
         ne(files.id, excludeFileId),
         eq(files.storageKey, storageKey),
       ),
@@ -378,7 +386,7 @@ export async function findLiveFilesBySha256(
     .where(
       and(
         inArray(files.sha256, sha256s),
-        ne(files.status, 'deleted'),
+        inArray(files.status, [...FILE_LIVE_STATUSES]),
         options.ownerUserId === undefined ? undefined : eq(files.ownerUserId, options.ownerUserId),
       ),
     )
@@ -410,8 +418,9 @@ export type OwnerFileListing = 'library' | 'trash';
 
 /**
  * One page of an ACCOUNT's files. `library` (the default) is what the person
- * keeps: `active` files and `blocked` ones (shown as removed after a claim),
- * newest first. `trash` is what they moved to trash and can restore or delete
+ * keeps: `active` files, `blocked` ones (shown as removed after a claim) and
+ * `lost` ones (shown as lost, ADR 0043 D13 — the person sees why the file no
+ * longer opens, and deletes it when they want), newest first. `trash` is what they moved to trash and can restore or delete
  * for good (ADR 0043 D5), most recently trashed first. A trashed file is never
  * in the library: it is not served, and listing it among the person's files
  * would offer actions on something they put away.
@@ -429,7 +438,7 @@ export async function listFilesByOwner(
   const trash = options.listing === 'trash';
   const where = and(
     eq(files.ownerUserId, ownerUserId),
-    trash ? eq(files.status, 'trash') : inArray(files.status, ['active', 'blocked']),
+    trash ? eq(files.status, 'trash') : inArray(files.status, ['active', 'blocked', 'lost']),
     options.inUse === undefined
       ? undefined
       : options.inUse
@@ -558,7 +567,7 @@ export async function findSameSpellingTwins(
       and(
         eq(files.sha256, sha256),
         ne(files.id, excludeFileId),
-        ne(files.status, 'deleted'),
+        inArray(files.status, [...FILE_LIVE_STATUSES]),
         variantless
           ? notExists(
               getDb()
@@ -1214,6 +1223,25 @@ export async function reactivateTrashedFile(
   // Committed: every API task drops its copy (ADR 0043 stage 4b).
   if (changed) fileCache.invalidate(fileId);
   return changed;
+}
+
+/**
+ * Move a file whose bytes are gone for good to `lost` (ADR 0043 D13), inside
+ * the caller's transaction — which holds the content-hash lock and has just
+ * found no object in any spelling — with `file.lost` queued for every
+ * application using the file (D9). From any live status: an `active`, `trash`
+ * or `blocked` row that names nothing is lost all the same. `trashed_at` goes
+ * with `trash`. `null` when the row is no longer live.
+ */
+export async function markFileLostRow(tx: Transaction, fileId: string): Promise<FileRecord | null> {
+  const rows = await tx
+    .update(files)
+    .set({ status: 'lost', trashedAt: null })
+    .where(and(eq(files.id, fileId), inArray(files.status, [...FILE_LIVE_STATUSES])))
+    .returning();
+  const [record] = await withChildren(rows, tx);
+  if (record) await recordFileEvents(tx, 'file.lost', [record.id]);
+  return record ?? null;
 }
 
 /**

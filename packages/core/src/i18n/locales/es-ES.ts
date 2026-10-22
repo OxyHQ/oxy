@@ -1447,6 +1447,7 @@ const dict = {
     loadingMore: 'Cargando más...',
     notInUse: 'Sin usar',
     removedAfterClaim: 'Retirado tras una reclamación legal',
+    contentLost: 'Perdido: su contenido no se pudo recuperar',
     moveToTrash: 'Mover a la papelera',
     moveToTrashCount: 'Mover a la papelera ({{count}})',
     appAccess: {

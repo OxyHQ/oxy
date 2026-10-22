@@ -39,7 +39,7 @@ import {
   type FileUploadSessionReference,
   type FileUploadSessionRow,
 } from '../db/schema/fileUploadSessions';
-import { FILE_LIVE_STATUSES, files } from '../db/schema/files';
+import { deleteObjectsNoLiveRowUses } from './accountStorageDeletion.worker';
 import type { AssetService } from './assetService';
 import type { S3Service } from './s3Service';
 import { IMMUTABLE_ASSET_CACHE_CONTROL } from '../config/cdn';
@@ -852,29 +852,18 @@ export class FileUploadSessionService {
     row: FileUploadSessionRow,
     error: { code: string; message: string },
   ): Promise<void> {
-    // The session's own keys — but never one a live row names (an attempt that
-    // stored the file and died before completing the session).
+    // The session's own keys — but never one a live row uses (an attempt that
+    // stored the file and died before completing the session, or one storing
+    // it right now), decided under the content-hash lock.
     const finalKey = this.assets.largeUploadFinalKey(row.stagingKey, row.visibility);
-    const keys = [...new Set([row.stagingKey, finalKey])];
-    const used = new Set(
-      (
-        await getDb()
-          .select({ key: files.storageKey })
-          .from(files)
-          .where(
-            and(inArray(files.storageKey, keys), inArray(files.status, [...FILE_LIVE_STATUSES])),
-          )
-      ).map((file) => file.key),
-    );
-    for (const key of keys.filter((candidate) => !used.has(candidate))) {
-      await this.s3.deleteFile(key).catch((cause: unknown) => {
-        logger.warn('Large upload: could not delete a failed upload object', {
-          uploadId: row.id,
-          key,
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
+    await deleteObjectsNoLiveRowUses(row.sha256, [row.stagingKey, finalKey], {
+      deleteObject: (key) => this.s3.deleteFile(key),
+    }).catch((cause: unknown) => {
+      logger.warn('Large upload: could not delete a failed upload object', {
+        uploadId: row.id,
+        error: cause instanceof Error ? cause.message : String(cause),
       });
-    }
+    });
     await this.finish(row, 'failed', error);
     logger.warn('Large upload failed', { uploadId: row.id, code: error.code });
   }

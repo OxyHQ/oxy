@@ -1441,6 +1441,7 @@ const dict = {
     loadingMore: 'Loading more...',
     notInUse: 'Not in use',
     removedAfterClaim: 'Removed after a legal claim',
+    contentLost: 'Lost — its contents could not be recovered',
     moveToTrash: 'Move to trash',
     moveToTrashCount: 'Move to trash ({{count}})',
     appAccess: {

@@ -790,6 +790,11 @@ router.post(
     if (file.status === 'deleted') {
       throw new BadRequestError('Cannot upload to deleted file');
     }
+    // A lost file stays lost (ADR 0043 D13): its owner deletes it, and the
+    // same bytes uploaded again are a new file.
+    if (file.status === 'lost') {
+      throw new ApiError(409, 'This file was lost; upload it again as a new file', 'FILE_LOST');
+    }
     // Only the row's owner writes its bytes. The key is content-addressed and
     // SHARED by every owner's row for the same content, so the bytes written
     // must also BE that content: anything else would replace what other owners
