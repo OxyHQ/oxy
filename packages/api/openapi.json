@@ -21490,13 +21490,17 @@
                   ],
                   "properties": {
                     "termsVersion": {
-                      "type": "string",
-                      "nullable": true
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "termsAcceptedAt": {
-                      "type": "string",
-                      "format": "date-time",
-                      "nullable": true
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
                     },
                     "termsCurrent": {
                       "type": "boolean"
@@ -21511,8 +21515,10 @@
                       }
                     },
                     "useCaseDescription": {
-                      "type": "string",
-                      "nullable": true
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "useCasesAnswered": {
                       "type": "boolean"

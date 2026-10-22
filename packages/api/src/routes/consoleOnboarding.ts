@@ -105,12 +105,12 @@ async function readState(userId: string): Promise<ConsoleOnboardingState> {
  *               type: object
  *               required: [termsVersion, termsAcceptedAt, termsCurrent, marketingOptIn, useCases, useCaseDescription, useCasesAnswered]
  *               properties:
- *                 termsVersion: { type: string, nullable: true }
- *                 termsAcceptedAt: { type: string, format: date-time, nullable: true }
+ *                 termsVersion: { type: [string, "null"] }
+ *                 termsAcceptedAt: { type: [string, "null"], format: date-time }
  *                 termsCurrent: { type: boolean }
  *                 marketingOptIn: { type: boolean }
  *                 useCases: { type: array, items: { type: string } }
- *                 useCaseDescription: { type: string, nullable: true }
+ *                 useCaseDescription: { type: [string, "null"] }
  *                 useCasesAnswered: { type: boolean }
  *       401:
  *         description: Missing or invalid bearer token.
