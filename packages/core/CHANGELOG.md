@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## 6.14.0
+
+Every SDK read that typed the `{ data }` envelope and read `.data` again came
+back empty: the transport had already reduced the envelope to its payload. A
+community's moderators, the viewer's follow graph and the store were affected.
+
+### Fixed
+
+- `users.moderators()` answers the community's moderators (it answered `[]`).
+- `follows.viewerGraph()` answers the signed-in viewer's following, mutual,
+  blocked and restricted ids (each was `[]`); `follows.mutualIds()` and
+  `follows.followsOfFollowsIds()` answer their ids (they answered `[]`).
+- `store.categories()` answers the shelves (it answered `[]`), `store.app()`
+  the listing and `store.reviews.write()` the saved review (both answered
+  `undefined`), and `store.reviews.mine()` the caller's review (it answered
+  `null`, or threw when they had none).
+
+### Added
+
+- `ResponsePayload<T>`: what `oxy.request<T>()` (and `serviceRequest`, the
+  `HttpService` methods and the namespaces' context) now resolves to. `T` is the
+  payload the transport delivers; typing the `{ data }` envelope instead
+  resolves to `never`, so reading `.data` off it is a compile error. A page
+  (`data` beside `pagination` or `nextCursor`) is typed whole, as it travels.
+  Every other `T` is unchanged, and a generic wrapper returning `Promise<T>`
+  still compiles.
+
 ## 6.13.0
 
 ### Added

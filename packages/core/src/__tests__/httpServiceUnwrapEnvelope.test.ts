@@ -20,7 +20,8 @@
  * Reverting the fix must redden the first and leave the other two green.
  */
 
-import { HttpService } from '../HttpService';
+import { HttpService, type ResponsePayload } from '../HttpService';
+import { OxyServices } from '../OxyServices';
 
 /** One entry of an audit page — only the shape matters here. */
 const ENTRY = { source: 'application_credential', eventType: 'created' } as const;
@@ -40,7 +41,7 @@ describe('HttpService response-envelope unwrapping', () => {
   });
 
   /** Drive a real `HttpService.get` against a stubbed wire body. */
-  async function fetchWireBody<T>(body: unknown): Promise<T> {
+  async function fetchWireBody<T>(body: unknown): Promise<ResponsePayload<T>> {
     globalThis.fetch = jest.fn(async () => jsonBody(body)) as unknown as typeof fetch;
     const http = new HttpService({ baseURL: 'http://api.test.invalid' });
     return http.get<T>('/accounts/acct-1/audit', { cache: false });
@@ -101,6 +102,21 @@ describe('HttpService response-envelope unwrapping', () => {
     const unwrapped = await fetchWireBody<typeof entries>({ data: entries, count: 2 });
 
     expect(unwrapped).toEqual(entries);
+  });
+
+  it('hands a namespace the payload of `{ data }` — `users.moderators` answers the users', async () => {
+    // The call site types the PAYLOAD (`User[]`): typing the envelope and
+    // reading `.data` again answered `[]` for every community, and
+    // `ResponsePayload` now makes that a compile error.
+    const moderator = { id: 'user-1', username: 'nate' };
+    globalThis.fetch = jest.fn(async () =>
+      jsonBody({ data: [moderator] }),
+    ) as unknown as typeof fetch;
+    const oxy = new OxyServices({ baseURL: 'http://api.test.invalid' });
+
+    const moderators = await oxy.users.moderators('community-1');
+
+    expect(moderators).toEqual([expect.objectContaining({ id: 'user-1', username: 'nate' })]);
   });
 
   it('passes through a body that has no `data` key at all', async () => {

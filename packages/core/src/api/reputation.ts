@@ -18,6 +18,7 @@ import type {
 } from '@oxy.so/contracts';
 import { isFullReputationBalance } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
+import type { PaginationInfo } from '../models/interfaces';
 import { OxyAuthenticationError } from '../OxyServices.errors';
 
 const SHORT = 60 * 1000;
@@ -31,6 +32,12 @@ export const REPUTATION_CACHE_PREFIX = 'GET:/reputation/';
 export interface ReputationPage {
   limit?: number;
   offset?: number;
+}
+
+/** The offset-paginated envelope (`sendPaginated`); a page travels whole. */
+interface OffsetPage<T> {
+  data: T[];
+  pagination: PaginationInfo;
 }
 
 export class ReputationApi {
@@ -73,13 +80,13 @@ export class ReputationApi {
 
   /** The leaderboard, by lifetime total, descending. */
   async leaderboard(page: ReputationPage = {}): Promise<ReputationLeaderboardEntry[]> {
-    const res = await this.ctx.request<{ data?: ReputationLeaderboardEntry[] }>(
+    const res = await this.ctx.request<OffsetPage<ReputationLeaderboardEntry>>(
       'GET',
       '/reputation/leaderboard',
       pageParams(page),
       { cache: true, cacheTTL: LONG },
     );
-    return res.data ?? [];
+    return res.data;
   }
 
   /** The enabled rules: what earns and what costs reputation. */
@@ -102,13 +109,13 @@ export class ReputationApi {
    */
   async transactions(userId?: string, page: ReputationPage = {}): Promise<ReputationTransaction[]> {
     const id = this.resolveUserId(userId);
-    const res = await this.ctx.request<{ data?: ReputationTransaction[] }>(
+    const res = await this.ctx.request<OffsetPage<ReputationTransaction>>(
       'GET',
       `/reputation/${encodeURIComponent(id)}/transactions`,
       pageParams(page),
       { cache: true, cacheTTL: SHORT },
     );
-    return res.data ?? [];
+    return res.data;
   }
 
   /**
