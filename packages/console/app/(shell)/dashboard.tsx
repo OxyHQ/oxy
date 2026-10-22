@@ -1,6 +1,7 @@
 import { Button } from '@oxy.so/bloom/button';
-import { Card } from '@oxy.so/bloom/card';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -59,7 +60,7 @@ export default function DashboardPage() {
   return (
     <PageFrame title={t('dashboard.title')} subtitle={t('dashboard.subtitle')}>
       <View className="flex-row flex-wrap items-center justify-center gap-x-24 gap-y-12 px-8 py-12">
-        <View className="max-w-md gap-4">
+        <View className="w-full max-w-md gap-4">
           <Text className="text-3xl font-semibold text-foreground">
             {t('dashboardPage.headline')}
           </Text>
@@ -76,36 +77,23 @@ export default function DashboardPage() {
         </View>
 
         <View className="w-full max-w-md gap-6">
-          <Card border="hairline" clipContent>
-            {steps.map((step, index) => (
-              <View
+          <GroupedSection>
+            {steps.map((step) => (
+              <GroupedSectionItem
                 key={step.id}
-                className={`flex-row items-center justify-between gap-4 px-6 py-5 ${
-                  index < steps.length - 1 ? 'border-b border-border' : ''
-                }`}
-              >
-                <View className="min-w-0 flex-1 flex-row items-center gap-4">
-                  {step.completed ? (
+                title={step.title}
+                icon={
+                  step.completed ? (
                     <RiCheckboxCircleFill size="lg" fill={theme.colors.success} />
                   ) : (
-                    <View className="size-6 rounded-full border-2 border-border" />
-                  )}
-                  <Text
-                    className={`shrink text-sm ${
-                      step.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-                    }`}
-                  >
-                    {step.title}
-                  </Text>
-                </View>
-                {step.action && !step.completed ? (
-                  <Pressable accessibilityRole="link" onPress={() => router.navigate(step.href)}>
-                    <Text className="text-sm text-muted-foreground">{step.action}</Text>
-                  </Pressable>
-                ) : null}
-              </View>
+                    <RiCheckboxBlankCircleLine size="lg" fill={theme.colors.textSecondary} />
+                  )
+                }
+                value={step.action && !step.completed ? step.action : undefined}
+                onPress={step.completed ? undefined : () => router.navigate(step.href)}
+              />
             ))}
-          </Card>
+          </GroupedSection>
 
           {hasApplication ? (
             <View className="items-center gap-0.5">

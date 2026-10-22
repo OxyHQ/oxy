@@ -1,4 +1,6 @@
 import { AppShell } from '@oxy.so/bloom/app-shell';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { BREAKPOINTS } from '@oxy.so/bloom/styles';
 import type { SidebarNavItem, SidebarProps } from '@oxy.so/bloom/sidebar';
 import { ProfileButton, useOxy } from '@oxy.so/services/ui/client';
 import { usePathname, useRouter } from 'expo-router';
@@ -67,35 +69,50 @@ export function ConsoleShell({ children, list }: ConsoleShellProps) {
 
   const errorBoundary = { resetKey: pathname };
 
+  const shellProps = {
+    ...CONSOLE_WORKSPACE,
+    testID: 'console-workspace',
+    drawerOpen,
+    onDrawerOpenChange: setDrawerOpen,
+    sidebar,
+    bottomBar: <ConsoleBottomBar />,
+    drawerOpenLabel: t('shell.openMenu'),
+    drawerCloseLabel: t('common.close'),
+  };
+
+  // A sole `panelLayout` panel is sized by Bloom's default panel width (360px), so
+  // without a list pane the page sits in a plain framed ContentPanel that fills the shell.
+  if (!list) {
+    return (
+      <>
+        <CommandMenu />
+        <AppShell {...shellProps} scroll="external">
+          <ContentPanel framedFrom={BREAKPOINTS.md} errorBoundary={errorBoundary}>
+            {children}
+          </ContentPanel>
+        </AppShell>
+      </>
+    );
+  }
+
   return (
     <>
       <CommandMenu />
       <AppShell
-        {...CONSOLE_WORKSPACE}
-        testID="console-workspace"
-        drawerOpen={drawerOpen}
-        onDrawerOpenChange={setDrawerOpen}
-        sidebar={sidebar}
-        bottomBar={<ConsoleBottomBar />}
-        drawerOpenLabel={t('shell.openMenu')}
-        drawerCloseLabel={t('common.close')}
+        {...shellProps}
         panelLayout={{
           ...CONSOLE_PANELS,
           activePanel: 'detail',
           widths: { list: listWidth },
           onWidthsChange: (widths) => setListWidth(widths.list ?? listWidth),
           panels: [
-            ...(list
-              ? [
-                  {
-                    ...CONSOLE_LIST_PANEL,
-                    resizable: true,
-                    resizeLabel: t('shell.resizePanes'),
-                    errorBoundary,
-                    content: list,
-                  },
-                ]
-              : []),
+            {
+              ...CONSOLE_LIST_PANEL,
+              resizable: true,
+              resizeLabel: t('shell.resizePanes'),
+              errorBoundary,
+              content: list,
+            },
             { ...CONSOLE_DETAIL_PANEL, errorBoundary, content: children },
           ],
         }}
