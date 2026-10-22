@@ -28,11 +28,21 @@ import { closePostgres, connectPostgres } from '../../config/postgres';
 import { ACCOUNT_KINDS } from '@oxy.so/contracts';
 import { localActorTypeForAccountKind } from '@oxy.so/federation';
 import { getUserActor, getUserKeyPair } from '../federation.service';
+import { holdHandles } from '../__fixtures__/handleHolders';
 
 const DOMAIN = 'mention.earth';
 
 beforeAll(async () => {
   await connectPostgres();
+  await holdHandles(
+    'bob',
+    'grace',
+    'henry',
+    'cleared-bio',
+    'no-alias',
+    'aliased',
+    ...ACCOUNT_KINDS.map((kind) => `kind-${kind}`),
+  );
 });
 
 afterAll(async () => {
@@ -59,6 +69,7 @@ describe('getUserActor', () => {
   it('publishes the SAME public key the key store holds for that actor', async () => {
     const actor = await getUserActor({ username: 'grace', kind: 'personal' }, DOMAIN);
     const keyPair = await getUserKeyPair('grace', DOMAIN);
+    if (!keyPair) throw new Error('grace has no key');
 
     // The actor document is what remote servers verify signatures against, so a
     // published key that is not the stored one is a silent federation outage.

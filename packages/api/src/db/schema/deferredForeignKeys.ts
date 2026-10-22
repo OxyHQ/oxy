@@ -516,6 +516,15 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'not an Oxy account — so there is no local row to reference.',
   },
   {
+    table: federationKeyPairs,
+    column: federationKeyPairs.oxyUserId,
+    reason:
+      'The account lifetime a signing key belongs to. It must OUTLIVE that account: a ' +
+      "deleted account's actor Delete is still signed with the key after the user row is " +
+      'gone, and the id left behind is what tells a later holder of the same handle apart ' +
+      'from it, so the key is replaced rather than inherited.',
+  },
+  {
     table: appAffinitySeenEvents,
     column: appAffinitySeenEvents.eventId,
     reason:

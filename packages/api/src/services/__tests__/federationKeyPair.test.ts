@@ -29,9 +29,28 @@ jest.mock('../../utils/userCache', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { federationKeyPairs } from '../../db/schema/federationKeyPairs';
-import { getPublicKeyForKeyId, getUserKeyPair, signWithKeyId } from '../federation.service';
+import { users } from '../../db/schema/users';
+import {
+  getPublicKeyForKeyId,
+  getUserKeyPair as getUserKeyPairOrNull,
+  signWithKeyId,
+} from '../federation.service';
+import { holdHandles } from '../__fixtures__/handleHolders';
 
 const DOMAIN = 'mention.earth';
+
+async function getUserKeyPair(username: string, domain: string) {
+  const keyPair = await getUserKeyPairOrNull(username, domain);
+  if (!keyPair) throw new Error(`no key pair for ${username}`);
+  return keyPair;
+}
+
+function verifies(publicKeyPem: string, signature: string | null): boolean {
+  const verifier = createVerify('sha256');
+  verifier.update('signing string');
+  verifier.end();
+  return signature !== null && verifier.verify(publicKeyPem, signature, 'base64');
+}
 
 /** The row stored for `keyId`, including the private half. */
 async function storedKeyPair(keyId: string) {
@@ -49,6 +68,7 @@ async function storedKeyPair(keyId: string) {
 
 beforeAll(async () => {
   await connectPostgres();
+  await holdHandles('bob', 'carol', 'dave', 'erin', 'frank');
 });
 
 afterAll(async () => {
@@ -101,13 +121,39 @@ describe('getUserKeyPair', () => {
     const keyPair = await getUserKeyPair('erin', DOMAIN);
 
     const signature = await signWithKeyId(keyPair.keyId, 'signing string');
-    expect(signature).not.toBeNull();
+    expect(verifies(keyPair.publicKeyPem, signature)).toBe(true);
+  });
 
-    const verifier = createVerify('sha256');
-    verifier.update('signing string');
-    verifier.end();
-    expect(signature).not.toBeNull();
-    expect(verifier.verify(keyPair.publicKeyPem, signature ?? '', 'base64')).toBe(true);
+  it('mints nothing for a handle no account holds', async () => {
+    expect(await getUserKeyPairOrNull('nobody-holds-this', DOMAIN)).toBeNull();
+    expect(await storedKeyPair(`https://${DOMAIN}/ap/users/nobody-holds-this#main-key`)).toBeNull();
+  });
+
+  it("gives a re-registered handle a fresh key, never the deleted account's", async () => {
+    const [deletedId] = await holdHandles('ivy');
+    const old = await getUserKeyPair('ivy', DOMAIN);
+    await getDb().delete(users).where(eq(users.id, deletedId));
+
+    // With nobody holding the handle, the deleted actor's Delete still signs.
+    expect(verifies(old.publicKeyPem, await signWithKeyId(old.keyId, 'signing string'))).toBe(true);
+
+    const [newId] = await holdHandles('ivy');
+    // Past the in-process recheck window, as another task would be.
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 10 * 60_000);
+    try {
+      const fresh = await getUserKeyPair('ivy', DOMAIN);
+      expect(fresh.keyId).toBe(old.keyId);
+      expect(fresh.publicKeyPem).not.toBe(old.publicKeyPem);
+      expect(fresh.oxyUserId).toBe(newId);
+
+      const signature = await signWithKeyId(old.keyId, 'signing string');
+      expect(verifies(fresh.publicKeyPem, signature)).toBe(true);
+      expect(verifies(old.publicKeyPem, signature)).toBe(false);
+      expect((await storedKeyPair(old.keyId))?.privateKeyPem).not.toBe(old.privateKeyPem);
+    } finally {
+      clock.mockRestore();
+    }
   });
 });
 

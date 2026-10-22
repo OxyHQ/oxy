@@ -1,0 +1,12 @@
+-- oxy:deploy-phase=pre
+--
+-- The account a federation signing key was minted for, so a handle registered
+-- again by somebody else gets a fresh key instead of its predecessor's
+-- (src/db/schema/federationKeyPairs.ts). Nullable with no default: a
+-- metadata-only ADD COLUMN, so the ACCESS EXCLUSIVE lock is held for no time.
+-- Rows that predate it are bound or replaced by the one-shot
+-- scripts/reconcile-federation-key-owners.ts, never by this migration.
+--
+-- WHY `pre`: additive. The image still serving names its columns and ignores
+-- this one; the arriving image reads null as "predates the column".
+ALTER TABLE "federation_key_pairs" ADD COLUMN IF NOT EXISTS "oxy_user_id" text;
