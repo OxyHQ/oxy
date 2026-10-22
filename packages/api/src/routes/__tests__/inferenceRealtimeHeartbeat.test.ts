@@ -57,6 +57,21 @@ function open(options: WebSocket.ClientOptions = {}): Promise<WebSocket> {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * The deadline for an event that must happen, not the time it takes. These tests
+ * used to sleep a fixed multiple of the interval and then count (`wait(INTERVAL_MS
+ * * 6)`, then `pings >= 3`), which assumes a 40 ms timer fires on time. On a
+ * loaded CI runner it does not: it counted 2 pings where the same code counts 6 on
+ * a quiet machine, and failed API Tests shards in CI. Waiting for the condition
+ * with a deadline far above any plausible delay keeps the assertion and removes the
+ * race; a genuine regression (no pings, no close) still fails, at the deadline.
+ */
+const DEADLINE_MS = 8_000;
+async function until(condition: () => boolean): Promise<void> {
+  const deadline = Date.now() + DEADLINE_MS;
+  while (!condition() && Date.now() < deadline) await wait(INTERVAL_MS / 2);
+}
+
 it('pings a connected customer and keeps it while it answers', async () => {
   const ws = await open();
   let pings = 0;
@@ -68,7 +83,9 @@ it('pings a connected customer and keeps it while it answers', async () => {
     closed = true;
   });
 
-  await wait(INTERVAL_MS * 6);
+  // Three pings is two full intervals after the first: the connection has been
+  // kept across more than one heartbeat, answering each.
+  await until(() => pings >= 3 || closed);
 
   expect(pings).toBeGreaterThanOrEqual(3);
   expect(closed).toBe(false);
@@ -85,7 +102,7 @@ it('terminates a customer that stops answering pings', async () => {
   });
 
   // One interval to send the ping, the next to find it unanswered.
-  const code = await Promise.race([closed, wait(INTERVAL_MS * 10).then(() => 'still open')]);
+  const code = await Promise.race([closed, wait(DEADLINE_MS).then(() => 'still open')]);
 
   expect(code).toBe(1006);
   expect(pings).toBe(1);
