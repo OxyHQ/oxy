@@ -301,6 +301,15 @@ export function accountCannotParentSameKind(
 }
 
 /**
+ * TEMPORARY PREVIEW GATE. Communities are in a private preview: only an account
+ * with one of these handles (compared trimmed and lower-cased) may create a
+ * `community` account. Mention hides its own UI and API behind the same two
+ * handles (`canUseCommunities`). To open communities to everyone, delete this
+ * constant, `isCommunityPreviewAccount` and its one use in `createChildAccount`.
+ */
+export const COMMUNITY_PREVIEW_HANDLES: readonly string[] = ['oxy', 'nate'];
+
+/**
  * Would re-parenting `accountId` under `newParent` create a cycle? True when the
  * new parent IS the account itself, or the account is already an ancestor of the
  * new parent (i.e. the new parent is a descendant of the account).
@@ -443,6 +452,17 @@ async function replaceAncestors(
   }
 }
 
+/** Whether the stored handle of `userId` is in {@link COMMUNITY_PREVIEW_HANDLES}. */
+async function isCommunityPreviewAccount(userId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const handle = row?.username?.trim().toLowerCase();
+  return handle !== undefined && COMMUNITY_PREVIEW_HANDLES.includes(handle);
+}
+
 export class AccountService {
   // -------------------------------------------------------------------------
   // Tree maintenance
@@ -468,9 +488,15 @@ export class AccountService {
     input: CreateChildAccountInput,
     options: { authorize?: { sessionId?: string } } = {},
   ): Promise<{ account: AccountRow; membership: AccountMemberRow }> {
-    if (!CHILD_ACCOUNT_KINDS.includes(input.kind)) {
+    // The preview gate answers exactly like an unknown kind (and before any
+    // parent is read), so the refusal does not reveal that communities exist. The
+    // handle is the STORED one of the creating account, never client input.
+    const kindUnavailable =
+      !CHILD_ACCOUNT_KINDS.includes(input.kind) ||
+      (input.kind === 'community' && !(await isCommunityPreviewAccount(creatorUserId)));
+    if (kindUnavailable) {
       throw new BadRequestError(
-        `A child account kind must be one of: ${CHILD_ACCOUNT_KINDS.join(', ')}`,
+        `A child account kind must be one of: ${CHILD_ACCOUNT_KINDS.filter((kind) => kind !== 'community').join(', ')}`,
       );
     }
     // No kind check for `accountCategories` here: `CHILD_ACCOUNT_KINDS` is
