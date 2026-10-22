@@ -42,12 +42,18 @@ every signed-in viewer. The same shape broke it before (2026-10-04 to 10-12,
 ## Consequences
 
 - The registered catalogue can no longer lag the code that reads it.
-- Mention still pins the catalogue (`MENTION_OXY_FOREGROUND_CATALOG_BINDING`, in
-  `oxy-infra`): its own check that the ticket it was given is for the catalogue
-  it approved. `registrationId` is generated at registration, so a NEW catalogue
-  version is a two-step rollout: the deploy registers it and prints the binding,
-  then the pin moves in `oxy-infra` and Mention redeploys. Until the pin moves,
-  tickets are refused `ticket_catalog_no_longer_current`.
+- Mention still pins the catalogue (`MENTION_OXY_FOREGROUND_CATALOG_BINDING`): its
+  own check that the ticket it was given is for the catalogue it approved.
+  `registrationId` is generated at registration, so a NEW catalogue version is a
+  two-step rollout: the deploy registers it and prints the binding, then the pin
+  moves and Mention redeploys. Until then Oxy refuses the tickets
+  (`ticket_catalog_no_longer_current`, at the approval step).
+- **The pin that takes effect is in Mention's deploy workflows**
+  (`TASK_ENV_OVERRIDES_JSON` in `deploy-aws.yml` and its copy
+  `deploy-backend-config.yml`), applied by *Redeploy Mention Backend
+  Configuration*. A value in `oxy-infra` does not reach the running service:
+  `modules/app-service` ignores `task_definition` and the deploy derives each
+  revision from the live one, so Terraform's revision is never adopted.
 - The pilot's `catalogs:write` ephemeral-registrar path stays for apps that
   register their own catalogue (Inbox, Noted); it is not how Oxy registers its
   own.
