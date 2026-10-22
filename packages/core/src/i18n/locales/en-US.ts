@@ -1969,6 +1969,19 @@ const dict = {
       bio: {
         label: 'Bio (optional)',
       },
+      picture: {
+        change: 'Change picture',
+      },
+      categories: {
+        title: 'Categories',
+        footer: 'The first category is the main one shown on the profile. Up to {{max}}.',
+        primary: 'Primary',
+        makePrimary: 'Make primary',
+        remove: 'Remove {{category}}',
+        add: 'Add a category',
+        atCap: 'Up to {{max}}. Remove one to add another.',
+        unavailable: 'Unavailable category',
+      },
       sections: {
         access: 'Access',
         dangerZone: 'Danger zone',

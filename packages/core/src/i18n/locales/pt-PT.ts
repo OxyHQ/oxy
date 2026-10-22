@@ -615,5 +615,59 @@ const dict = {
       rateLimited: 'Demasiadas tentativas. Tente novamente daqui a pouco.',
     },
   },
+  accounts: {
+    members: {
+      title: 'Membros',
+    },
+    settings: {
+      title: 'Definições da conta',
+      subtitle: 'Gira o perfil, os membros e o acesso desta conta.',
+      save: 'Guardar alterações',
+      displayName: {
+        label: 'Nome de apresentação',
+        invalidChars: 'Use apenas letras, espaços, apóstrofos e separadores de nome',
+        invalidTitle: 'Use texto simples sem < nem > (até 300 caracteres)',
+      },
+      bio: {
+        label: 'Biografia (opcional)',
+      },
+      picture: {
+        change: 'Alterar imagem',
+      },
+      categories: {
+        title: 'Categorias',
+        footer: 'A primeira categoria é a principal, mostrada no perfil. Até {{max}}.',
+        primary: 'Principal',
+        makePrimary: 'Tornar principal',
+        remove: 'Remover {{category}}',
+        add: 'Adicionar uma categoria',
+        atCap: 'Até {{max}}. Remova uma para adicionar outra.',
+        unavailable: 'Categoria indisponível',
+      },
+      sections: {
+        access: 'Acesso',
+        dangerZone: 'Zona de perigo',
+      },
+      members: {
+        subtitle: 'Convide pessoas e gira as funções',
+      },
+      archive: {
+        title: 'Arquivar conta',
+        subtitle: 'Desativar esta conta',
+        confirmTitle: 'Arquivar conta',
+        confirmDescription:
+          'Arquivar esta conta? Será desativada e os seus membros perderão o acesso.',
+      },
+      errors: {
+        missingAccount: 'Nenhuma conta selecionada.',
+      },
+      toasts: {
+        saved: 'Conta atualizada',
+        saveFailed: 'Não foi possível atualizar a conta',
+        archived: 'Conta arquivada',
+        archiveFailed: 'Não foi possível arquivar a conta',
+      },
+    },
+  },
 };
 export default dict;

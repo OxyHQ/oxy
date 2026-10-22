@@ -606,5 +606,59 @@ const dict = {
       rateLimited: '시도 횟수가 너무 많습니다. 잠시 후 다시 시도하세요.',
     },
   },
+  accounts: {
+    members: {
+      title: '멤버',
+    },
+    settings: {
+      title: '계정 설정',
+      subtitle: '이 계정의 프로필, 멤버, 접근 권한을 관리합니다.',
+      save: '변경사항 저장',
+      displayName: {
+        label: '표시 이름',
+        invalidChars: '문자, 공백, 아포스트로피, 이름 구분자만 사용하세요',
+        invalidTitle: '< 또는 > 없이 일반 텍스트를 사용하세요(최대 300자)',
+      },
+      bio: {
+        label: '소개(선택 사항)',
+      },
+      picture: {
+        change: '사진 변경',
+      },
+      categories: {
+        title: '카테고리',
+        footer: '첫 번째 카테고리가 프로필에 표시되는 기본 카테고리입니다. 최대 {{max}}개.',
+        primary: '기본',
+        makePrimary: '기본으로 설정',
+        remove: '{{category}} 삭제',
+        add: '카테고리 추가',
+        atCap: '최대 {{max}}개입니다. 다른 카테고리를 추가하려면 하나를 삭제하세요.',
+        unavailable: '사용할 수 없는 카테고리',
+      },
+      sections: {
+        access: '접근',
+        dangerZone: '위험 구역',
+      },
+      members: {
+        subtitle: '사람을 초대하고 역할을 관리하세요',
+      },
+      archive: {
+        title: '계정 보관',
+        subtitle: '이 계정 비활성화',
+        confirmTitle: '계정 보관',
+        confirmDescription:
+          '이 계정을 보관할까요? 계정이 비활성화되고 멤버는 접근 권한을 잃게 됩니다.',
+      },
+      errors: {
+        missingAccount: '선택된 계정이 없습니다.',
+      },
+      toasts: {
+        saved: '계정이 업데이트되었습니다',
+        saveFailed: '계정을 업데이트하지 못했습니다',
+        archived: '계정이 보관되었습니다',
+        archiveFailed: '계정을 보관하지 못했습니다',
+      },
+    },
+  },
 };
 export default dict;

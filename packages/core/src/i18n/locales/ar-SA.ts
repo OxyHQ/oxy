@@ -603,5 +603,58 @@ const dict = {
       rateLimited: 'محاولات كثيرة جدًا. حاول مجددًا بعد قليل.',
     },
   },
+  accounts: {
+    members: {
+      title: 'الأعضاء',
+    },
+    settings: {
+      title: 'إعدادات الحساب',
+      subtitle: 'أدِر الملف الشخصي لهذا الحساب وأعضاءه والوصول إليه.',
+      save: 'حفظ التغييرات',
+      displayName: {
+        label: 'الاسم المعروض',
+        invalidChars: 'استخدم الحروف والمسافات والفواصل العليا وفواصل الأسماء فقط',
+        invalidTitle: 'استخدم نصًا عاديًا بدون < أو > (حتى 300 حرف)',
+      },
+      bio: {
+        label: 'نبذة (اختياري)',
+      },
+      picture: {
+        change: 'تغيير الصورة',
+      },
+      categories: {
+        title: 'الفئات',
+        footer: 'الفئة الأولى هي الفئة الرئيسية المعروضة في الملف الشخصي. حتى {{max}}.',
+        primary: 'رئيسية',
+        makePrimary: 'اجعلها رئيسية',
+        remove: 'إزالة {{category}}',
+        add: 'إضافة فئة',
+        atCap: 'حتى {{max}}. أزِل واحدة لإضافة أخرى.',
+        unavailable: 'فئة غير متاحة',
+      },
+      sections: {
+        access: 'الوصول',
+        dangerZone: 'منطقة الخطر',
+      },
+      members: {
+        subtitle: 'ادعُ أشخاصًا وأدِر الأدوار',
+      },
+      archive: {
+        title: 'أرشفة الحساب',
+        subtitle: 'إلغاء تنشيط هذا الحساب',
+        confirmTitle: 'أرشفة الحساب',
+        confirmDescription: 'هل تريد أرشفة هذا الحساب؟ سيتم إلغاء تنشيطه وسيفقد أعضاؤه الوصول.',
+      },
+      errors: {
+        missingAccount: 'لم يتم تحديد أي حساب.',
+      },
+      toasts: {
+        saved: 'تم تحديث الحساب',
+        saveFailed: 'تعذر تحديث الحساب',
+        archived: 'تمت أرشفة الحساب',
+        archiveFailed: 'تعذرت أرشفة الحساب',
+      },
+    },
+  },
 };
 export default dict;

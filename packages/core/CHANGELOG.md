@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 6.13.0
+
+### Added
+
+- `accounts.settings.picture.change` and `accounts.settings.categories.*`, the
+  words of a managed account's picture and categories in its settings.
+- `accounts.settings.*` and `accounts.members.title` in Catalan, French,
+  German, Italian, Portuguese, Japanese, Korean, Chinese and Arabic, which
+  served them in English.
+
 ## 6.12.0
 
 A file whose bytes are gone for good is `lost` (ADR 0043 D13): kept, so its

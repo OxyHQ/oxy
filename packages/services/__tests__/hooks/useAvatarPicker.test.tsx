@@ -74,13 +74,13 @@ describe('useAvatarPicker', () => {
 
     // ONE flow — the source list and the cropper live inside it.
     expect(openWithinOrPresent).toHaveBeenCalledTimes(1);
-    expect(openWithinOrPresent).toHaveBeenCalledWith('ChangeAvatar');
+    expect(openWithinOrPresent).toHaveBeenCalledWith('ChangeAvatar', undefined);
 
     expect(oxyServices.assets.upload).toHaveBeenCalledTimes(1);
     expect(updateAvatarVisibility).toHaveBeenCalledWith(
       'uploaded-1',
       expect.anything(),
-      'useAvatarPicker',
+      'pickAvatarFile',
     );
     expect(updateProfileWithAvatar).toHaveBeenCalledWith(
       { avatar: 'uploaded-1' },

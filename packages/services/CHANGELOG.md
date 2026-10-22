@@ -1,5 +1,31 @@
 # Changelog
 
+## [12.11.0] - 2026-10-22
+
+Needs `@oxy.so/core` 6.13.0.
+
+### Added
+
+- `AccountSettings` from `@oxy.so/services/screens`: the body of the
+  `AccountSettings` surface, for an app that embeds a managed account's
+  settings in its own page. `extraSections` renders the app's own sections
+  before the danger zone; `onUpdated(account, { cleared })` follows every
+  accepted profile write, after the SDK's user cache already holds it, for the
+  app's own copies of the identity; `archive` replaces the danger-zone row's
+  words, the confirmation, runs `beforeArchive` after the confirmation and
+  before Oxy's archive (a rejection stops the archive), and `onArchived` in
+  place of closing. Without `navigate`, Members opens as a sheet.
+- The account settings edit the account's picture — through the same
+  source list, cropper and upload as the personal profile — and its
+  categories (primary first, "Make primary", the selectable vocabulary to add
+  from, at most `MAX_ACCOUNT_CATEGORIES`). A category id this build cannot name
+  keeps its row and survives a save.
+- `ChangeAvatar` takes an optional `subject` (`{ avatar, displayName }`) to
+  preview and offer removing a picture that is not the signed-in user's.
+
+### Changed
+
+- The account settings' Save is enabled only when something changed.
 ## [12.10.1] - 2026-10-22
 
 ### Fixed

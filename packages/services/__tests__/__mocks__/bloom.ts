@@ -97,6 +97,23 @@ export const Loading = () => createElement('span', null, 'loading');
 export const SpinnerIcon = () =>
   createElement('span', { 'data-testid': 'spinner-icon', 'aria-hidden': 'true' });
 
+/** `@oxy.so/bloom/button` `CloseButton`: an icon-only button named by its label. */
+export const CloseButton = ({
+  onPress,
+  disabled,
+  accessibilityLabel,
+}: {
+  onPress?: () => void;
+  disabled?: boolean;
+  accessibilityLabel: string;
+}) =>
+  createElement('button', {
+    type: 'button',
+    onClick: onPress,
+    disabled,
+    'aria-label': accessibilityLabel,
+  });
+
 /** `@oxy.so/bloom/button` `LinkButton`: a text action, pressable like `Button`. */
 export const LinkButton = Button;
 
