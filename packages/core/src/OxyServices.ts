@@ -53,6 +53,7 @@ import { DevicesApi } from './api/devices';
 import { TopicsApi } from './api/topics';
 import { AppDataApi } from './api/appData';
 import { ContactsApi } from './api/contacts';
+import { ConsoleApi } from './api/console';
 
 export interface OxyConfig extends OxyConfigBase {
   /** Oxy Cloud (file CDN) origin. Default `https://cloud.oxy.so`. */
@@ -213,6 +214,7 @@ export class OxyServices {
   private _topics?: TopicsApi;
   private _appData?: AppDataApi;
   private _contacts?: ContactsApi;
+  private _console?: ConsoleApi;
   private _contentClaims?: ContentClaimsApi;
 
   /** This client's auth state (token, user id) and its server session. */
@@ -328,6 +330,11 @@ export class OxyServices {
   get appData(): AppDataApi {
     if (!this._appData) this._appData = new AppDataApi(this.context);
     return this._appData;
+  }
+  /** Oxy Console: first-run onboarding (terms and use cases) for the signed-in person. */
+  get console(): ConsoleApi {
+    if (!this._console) this._console = new ConsoleApi(this.context);
+    return this._console;
   }
   get contacts(): ContactsApi {
     if (!this._contacts) this._contacts = new ContactsApi(this.context);

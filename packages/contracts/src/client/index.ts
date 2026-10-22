@@ -200,6 +200,12 @@ export {
 export { publicApplicationCheck } from './sessionStatus';
 
 export {
+  CONSOLE_TERMS_VERSION,
+  CONSOLE_USE_CASES,
+  type ConsoleUseCaseId,
+} from './consoleOnboarding';
+
+export {
   EMAIL_ACCOUNTS_MAX,
   EMAIL_SIGNIN_CHOICE_TTL_MS,
   EMAIL_SIGNIN_LINK_TTL_MS,
