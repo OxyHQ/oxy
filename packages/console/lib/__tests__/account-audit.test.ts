@@ -275,9 +275,7 @@ describe('accountAuditAccess', () => {
  * alone. A regex that matched the whole file, or nothing at all, fails that.
  */
 describe("the two permissions are the route's own", () => {
-  const ACCOUNTS_ROUTE = fileURLToPath(
-    new URL('../../../../api/src/routes/accounts.ts', import.meta.url),
-  );
+  const ACCOUNTS_ROUTE = join(__dirname, '../../../api/src/routes/accounts.ts');
 
   /** Every `requireAccountPermission` between one route registration and the next. */
   function gateOf(source: string, path: string): Array<string> {

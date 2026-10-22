@@ -155,7 +155,7 @@ jobs:
           # Auth IdP's OWN registered Oxy client id. `packages/auth/lib/oxy-client.ts`
           # falls back to a committed id when this is unset. A repo VARIABLE rather
           # than a secret — the id ships inside the bundle. Named per APP because
-          # auth and console share `VITE_OXY_CLIENT_ID`.
+          # auth and console share a var name (auth is still Vite).
           VITE_OXY_CLIENT_ID: ${{ vars.AUTH_OXY_CLIENT_ID }}
           # No analytics variables: auth.oxy.so runs no product analytics
           # (ADR 0024 D1).
@@ -309,11 +309,11 @@ jobs:
       - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun x turbo run build --filter=oxy-console
         env:
-          # Console's PRODUCTION Oxy client id. `packages/console/src/lib/config.ts`
+          # Console's PRODUCTION Oxy client id. `packages/console/lib/config.ts`
           # falls back to a committed id when this is unset. A repo VARIABLE rather
           # than a secret — the id ships inside the bundle. Named per APP because
-          # auth and console share `VITE_OXY_CLIENT_ID`.
-          VITE_OXY_CLIENT_ID: ${{ vars.CONSOLE_OXY_CLIENT_ID }}
+          # auth and console share a var name (auth is still Vite).
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.CONSOLE_OXY_CLIENT_ID }}
       # A WORKER, not a Pages project — same reason as accounts above.
       # `oxy-console.pages.dev` served a second copy of the application registry
       # on a hostname that is in no CORS allowlist and in no registered

@@ -26,20 +26,12 @@ workers_dev = false
 # from 2026-09-13 until it was retired unused: Oxy reads web traffic from
 # Cloudflare analytics instead, with no code or secret in this app.)
 #
-# 411 files, 21 MB, largest 9.4 MiB (the Vite entry chunk): inside the
-# 20,000-file and 25 MiB-per-file limits.
 [assets]
 directory = "./dist"
 
-# A REAL single-page app, unlike accounts next door: `vite build` emits ONE
-# `index.html` plus hashed assets — measured, 1 HTML file in `dist` — and
-# TanStack Router does every route on the client. So the fallback is not an edge
-# case here, it is how every URL but `/` is answered.
-#
-# Replaces `public/_redirects` (`/*  /index.html  200`), deleted in this same
-# change because Workers' `_redirects` deliberately does not implement 200
-# rewrites. Behaviour is unchanged, including the wart it already ships: a miss
-# on a stale hashed `.js` is answered with `text/html`.
+# A real single-page app (`expo export --platform web`, `output: 'single'`): one
+# `index.html`, Expo Router does every route on the client, so the fallback
+# answers every URL but `/`.
 not_found_handling = "single-page-application"
 
 # The only way in. Cloudflare writes the record for a custom domain itself,

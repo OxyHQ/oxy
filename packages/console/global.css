@@ -1,0 +1,11 @@
+/* Shared Oxy Tailwind v4 + NativeWind + Bloom base. Wiring this file through
+   metro.config.js is what compiles the utility stylesheet for the web build;
+   without it every className layout utility (including the SDK's) is inert. */
+@import "@oxy.so/app-preset/base.css";
+
+@source "./app/**/*.{js,jsx,ts,tsx}";
+@source "./components/**/*.{js,jsx,ts,tsx}";
+@source "./contexts/**/*.{js,jsx,ts,tsx}";
+@source "./hooks/**/*.{js,jsx,ts,tsx}";
+@source "./lib/**/*.{js,jsx,ts,tsx}";
+@source "./constants/**/*.{js,jsx,ts,tsx}";

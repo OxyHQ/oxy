@@ -8,6 +8,7 @@ import type { LocaleDict } from '../types';
  */
 const en: LocaleDict = {
   common: {
+    close: 'Close',
     cancel: 'Cancel',
     save: 'Save',
     continue: 'Continue',
@@ -26,6 +27,7 @@ const en: LocaleDict = {
     search: 'Search',
     settings: 'Settings',
     learnMore: 'Learn more',
+    signIn: 'Sign in with Oxy',
   },
 
   app: {
@@ -38,6 +40,11 @@ const en: LocaleDict = {
       label: 'Language',
       ariaLabel: 'Choose language',
     },
+  },
+
+  shell: {
+    openMenu: 'Open menu',
+    resizePanes: 'Resize panes',
   },
 
   nav: {

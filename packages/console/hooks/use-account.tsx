@@ -131,7 +131,7 @@ function persistAccountId(id: string): void {
     localStorage.setItem(CURRENT_ACCOUNT_KEY, id);
   } catch (error) {
     // Persisting the selection is best-effort; surface for diagnostics only.
-    if (import.meta.env.DEV) {
+    if (__DEV__) {
       console.warn('Failed to persist current account id', error);
     }
   }
