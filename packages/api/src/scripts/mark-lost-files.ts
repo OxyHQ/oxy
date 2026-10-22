@@ -28,6 +28,19 @@ import { applyPublicPrefix, stripPublicPrefix } from '../config/cdn';
 import { flushCdnInvalidations } from '../services/cdnInvalidation';
 import { logger } from '../utils/logger';
 
+/** `getRedisClient()` starts connecting; wait until it is ready, for at most 15 s. */
+async function redisReady(): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis || redis.status === 'ready') return;
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Redis was not ready within 15 s')), 15_000);
+    redis.once('ready', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 async function report(fileId: string): Promise<string> {
   const file = await findFileById(fileId);
   if (!file) return 'not_live';
@@ -43,9 +56,9 @@ async function main(): Promise<void> {
   if (ids.length === 0) throw new Error('Name at least one file id');
   const apply = process.env.APPLY === 'true';
   await connectPostgres();
-  // Connected before any change, so the cross-task file-cache invalidation a
-  // mark publishes reaches every API task (it is skipped while Redis is not ready).
-  await getRedisClient()?.connect();
+  // Ready before any change, so the cross-task file-cache invalidation a mark
+  // publishes reaches every API task (it is skipped while Redis is not ready).
+  await redisReady();
   try {
     let failed = 0;
     for (const fileId of ids) {
