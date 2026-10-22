@@ -4906,8 +4906,7 @@ router.get(
     let storageKey = file.storageKey;
     if (variantType) {
       try {
-        const ensured = await assetService.ensureVariant(fileId, variantType, file);
-        storageKey = ensured.key;
+        storageKey = await assetService.variantKeyOrOriginal(file, variantType);
       } catch (e: any) {
         logger.warn('Variant ensure failed', { fileId, variantType, error: e?.message });
         if (fallback === 'placeholder') {
