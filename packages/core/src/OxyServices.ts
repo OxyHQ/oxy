@@ -68,6 +68,8 @@ export interface LinkedHttpClient {
   fetch: typeof globalThis.fetch;
   /** Same origin/session fences; public endpoints may be called while signed out. */
   fetchOptional: typeof globalThis.fetch;
+  /** Resolve afresh for each socket handshake; HTTP↔WS must preserve host, port and TLS. */
+  getAccessToken(target: string | URL, options?: { signal?: AbortSignal }): Promise<string>;
   dispose(): void;
 }
 
@@ -188,6 +190,12 @@ export class OxyServices {
         disposed: () => disposed,
         session: 'optional',
       }),
+      getAccessToken: async (target, options) => {
+        if (disposed) throw new Error('The linked client has been disposed');
+        const token = await client.getAuthenticatedAccessToken(target, options);
+        if (disposed) throw new Error('The linked client has been disposed');
+        return token;
+      },
       dispose: () => {
         disposed = true;
         unsubscribe();
