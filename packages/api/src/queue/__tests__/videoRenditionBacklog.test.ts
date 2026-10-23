@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 
 jest.mock('../../services/s3ServiceSingleton', () => ({ s3Service: {} }));
 jest.mock('../../services/variantService', () => ({
@@ -22,6 +22,15 @@ import {
 
 beforeAll(connectPostgres);
 afterAll(closePostgres);
+// The scheduler owns a fleet-wide backlog, not an application-scoped queue.
+// Each case must own the disposable database's request table: an older fixture
+// otherwise correctly consumes the repair lane's single outstanding lease.
+beforeEach(async () => {
+  await getDb().delete(fileRenditionRequests);
+});
+afterEach(async () => {
+  await getDb().delete(fileRenditionRequests);
+});
 const sha = () => randomBytes(32).toString('hex');
 async function application() {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning();
@@ -168,13 +177,18 @@ it('feeds the existing bounded scheduler at backlog priority without bypassing b
   const app = await application();
   const row = await video(app);
   await seedVideoRenditionBacklog({ applicationId: app, dryRun: false });
-  const addBulk = jest.fn(async () => {});
+  type QueuedJob = {
+    data: { fileId: string; requestedAt?: string };
+    opts: { jobId: string };
+  };
+  const queued = new Map<string, QueuedJob>();
+  const addBulk = jest.fn(async (jobs: QueuedJob[]) => {
+    for (const job of jobs) queued.set(job.opts.jobId, job);
+  });
   let depth = ASSET_VARIANT_QUEUE_TARGET_DEPTH;
   const queue = {
     getJobs: async () => [],
-    getJob: async () => ({
-      data: { requestedAt: (await requests([row.id]))[0].requestedAt.toISOString() },
-    }),
+    getJob: async (jobId: string) => queued.get(jobId),
     getJobCounts: async (...states: string[]) =>
       Object.fromEntries(states.map((s) => [s, s === 'prioritized' ? depth : 0])),
     addBulk,
@@ -185,17 +199,14 @@ it('feeds the existing bounded scheduler at backlog priority without bypassing b
   expect((await requests([row.id]))[0].enqueuedUntil).toBeNull();
   depth = 0;
   await runAssetVariantSchedulerPass(asQueue);
-  expect(addBulk).toHaveBeenCalledWith(
-    expect.arrayContaining([
-      expect.objectContaining({
-        data: expect.objectContaining({ fileId: row.id }),
-        opts: expect.objectContaining({ priority: ASSET_VARIANT_JOB_PRIORITY }),
-      }),
-    ]),
-  );
+  expect(addBulk).toHaveBeenCalledTimes(1);
+  expect(addBulk).toHaveBeenCalledWith([
+    expect.objectContaining({
+      data: expect.objectContaining({ fileId: row.id }),
+      opts: expect.objectContaining({ priority: ASSET_VARIANT_JOB_PRIORITY }),
+    }),
+  ]);
   expect((await requests([row.id]))[0].enqueuedUntil).not.toBeNull();
-  // Leave no runnable request from this fixture for other scheduler cases.
-  await getDb().delete(fileRenditionRequests).where(eq(fileRenditionRequests.fileId, row.id));
 });
 
 it('promotes an existing leased bulk request, preserving its identity and a fresh request', async () => {
