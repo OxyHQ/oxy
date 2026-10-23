@@ -413,6 +413,78 @@ describe('linked SDK fetch transport', () => {
     oxy.dispose();
   });
 
+  it('honors Request overrides and never replays a streamed request body on 401', async () => {
+    const oxy = createServices();
+    oxy.session.setAccessToken(
+      createJwt({
+        userId: 'person',
+        sessionId: 'session',
+        exp: Math.floor(Date.now() / 1000) + 300,
+      }),
+    );
+    const refresh = jest.fn();
+    oxy.http.setAuthRefreshHandler(refresh);
+    const abort = new AbortController();
+    abort.abort();
+    const request = new Request('https://api.alia.onl/v1', {
+      method: 'POST',
+      body: 'payload',
+      signal: abort.signal,
+      headers: { 'x-original': 'value' },
+    });
+    const fetch = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 401 }));
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const response = await linked.fetch(request, {
+      body: null,
+      signal: null,
+      headers: { 'x-replacement': 'value' },
+    });
+    expect(response.status).toBe(401);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1]?.body).toBe(request.body);
+    expect(fetch.mock.calls[0][1]?.signal).toBeUndefined();
+    expect(new Headers(fetch.mock.calls[0][1]?.headers).has('x-original')).toBe(false);
+    expect(refresh).not.toHaveBeenCalled();
+    await expect(linked.fetch(request, { method: 'GET', signal: null })).rejects.toThrow(
+      'cannot have a body',
+    );
+    linked.dispose();
+    oxy.dispose();
+  });
+
+  it('captures the account before a caller can switch it while fetch is starting', async () => {
+    const oxy = createServices();
+    oxy.session.setAccessToken(
+      createJwt({
+        userId: 'first',
+        sessionId: 'first-session',
+        exp: Math.floor(Date.now() / 1000) + 300,
+      }),
+    );
+    const fetch = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('old-account-data'));
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const response = linked.fetch('/v1');
+    oxy.session.setAccessToken(
+      createJwt({
+        userId: 'second',
+        sessionId: 'second-session',
+        exp: Math.floor(Date.now() / 1000) + 300,
+      }),
+    );
+    await expect(response).rejects.toThrow();
+    if (fetch.mock.calls.length) {
+      expect(new Headers(fetch.mock.calls[0][1]?.headers).get('authorization')).not.toBe(
+        `Bearer ${oxy.session.getAccessToken()}`,
+      );
+    }
+    linked.dispose();
+    oxy.dispose();
+  });
+
   it('rejects foreign origins before acquiring credentials and rejects after disposal', async () => {
     const oxy = createServices();
     const fetch = jest.spyOn(globalThis, 'fetch');
