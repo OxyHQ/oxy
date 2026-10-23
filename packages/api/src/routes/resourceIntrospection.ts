@@ -1,13 +1,16 @@
 import express from 'express';
 import { z } from 'zod';
 import {
+  type ResourcePrincipal,
   resourceDomainOwnershipRequestSchema,
   resourceDomainOwnershipResponseSchema,
 } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
+import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
+import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import accountService from '../services/account.service';
-import sessionService from '../services/session.service';
+import { resolveExternalResourceSession } from '../services/resourceSessionAuthority.service';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { resolveMachineCredential } from '../middleware/machineCredential';
 import { verifyServiceToken, type ServiceTier } from '../middleware/serviceToken';
@@ -20,31 +23,32 @@ const router = express.Router();
 
 const bodySchema = z.object({ token: z.string().min(1).max(16_384) }).strict();
 
-type Introspection = {
-  active: boolean;
-  accountId?: string;
-  applicationId?: string;
-  credentialId?: string;
-  environment?: string;
-  delegatedUserId?: string;
-  /** Internal (one of Oxy's own applications) or external; see `ServiceTier`. */
+type Introspection = ResourcePrincipal & {
+  /** Removed with the legacy resource receiver projection at final cutover. */
   tier?: ServiceTier;
-  authority?: 'first_party' | 'external';
-  audience?: string;
-  scopes?: string[];
-  permissions: string[];
-  expiresAt?: string;
+  delegatedUserId?: string;
 };
+const inactive = () => ({ active: false, scopes: [], permissions: [] });
 
-const inactive = (): Introspection => ({ active: false, scopes: [], permissions: [] });
-
-function requireCanonicalClarityBackend(
+async function requireCanonicalClarityBackend(
   request: ServiceAuthRequest,
   response: express.Response,
   next: express.NextFunction,
-): void {
-  if (request.serviceApp?.appId === CLARITY_BACKEND_APPLICATION_ID) {
-    next();
+): Promise<void> {
+  try {
+    const receiver = request.serviceApp;
+    if (receiver?.appId === CLARITY_BACKEND_APPLICATION_ID) {
+      const principal =
+        receiver.authority === 'first_party'
+          ? await resolveLiveAgencyServicePrincipal(receiver)
+          : await resolveLegacyResourceWorkload(receiver);
+      if (principal?.authority === 'first_party') {
+        next();
+        return;
+      }
+    }
+  } catch (error) {
+    next(error);
     return;
   }
   response.status(403).json({
@@ -75,6 +79,15 @@ router.post(
       const token = request.body.token as string;
       const receiver = request.serviceApp;
       if (!receiver) return response.json(inactive());
+      const receiverPrincipal =
+        receiver.authority === 'first_party'
+          ? await resolveLiveAgencyServicePrincipal(receiver)
+          : ((await resolveLegacyResourceWorkload(receiver)) ??
+            (await resolveLiveAgencyServicePrincipal(receiver)));
+      // An old Clarity service key is not a first-party receiver merely because of its app ID.
+      if (!receiverPrincipal)
+        return response.status(403).json({ error: 'resource_server_identity_required' });
+      const modernReceiver = receiver.authority === 'first_party';
       const expectedAudience = `oxy-service:${receiver.appId}` as const;
       const ownService = verifyServiceToken(token, expectedAudience);
       if (ownService.ok && ownService.payload.authority === 'first_party') {
@@ -84,9 +97,10 @@ router.post(
         )
           return response.json(inactive());
         const principal = await resolveLiveAgencyServicePrincipal(ownService.payload);
-        if (!principal || principal.authority !== 'first_party') return response.json(inactive());
+        if (principal?.authority !== 'first_party') return response.json(inactive());
         return response.json({
           active: true,
+          kind: 'service',
           authority: 'first_party',
           audience: expectedAudience,
           accountId: principal.ownerAccountId,
@@ -98,12 +112,64 @@ router.post(
           expiresAt: new Date((ownService.payload.exp as number) * 1000).toISOString(),
         } satisfies Introspection);
       }
+      // Finite v1 caller bridge. Exact signed audience, live binding and immutable
+      // inventory tuple are required; neither an API key nor registry branding qualifies.
+      const legacyService = verifyServiceToken(token);
+      if (legacyService.ok && legacyService.payload.environment === receiver.environment) {
+        const legacy = await resolveLegacyResourceWorkload(legacyService.payload);
+        if (legacy && receiverPrincipal.authority === 'first_party') {
+          const base = {
+            active: true as const,
+            kind: 'service' as const,
+            accountId: legacy.ownerAccountId,
+            applicationId: legacy.applicationId,
+            credentialId: legacy.credentialId,
+            environment: legacyService.payload.environment,
+            audience: 'oxy-api',
+            tier: 'internal' as const,
+            permissions: [],
+            expiresAt: new Date((legacyService.payload.exp as number) * 1000).toISOString(),
+          };
+          // Old Clarity validates scopes even for its internal tier. Only this
+          // authenticated v1 receiver sees the old shape during its rolling upgrade.
+          return response.json(
+            modernReceiver
+              ? { ...base, authority: 'first_party' }
+              : { ...base, scopes: [...(legacyService.payload.scopes ?? [])] },
+          );
+        }
+      }
+
+      if (modernReceiver) {
+        const human = await validateForegroundRequesterBearer(token, receiverPrincipal);
+        if (human) {
+          const access = await accountService.resolveEffectiveAccess(
+            human.principalAccountId,
+            human.subjectAccountId,
+            human.sessionId,
+          );
+          if (!access) return response.json(inactive());
+          return response.json({
+            active: true,
+            kind: 'session',
+            authority: 'first_party',
+            accountId: human.subjectAccountId,
+            requesterAccountId: human.principalAccountId,
+            effectiveAccountId: human.subjectAccountId,
+            applicationId: null,
+            tier: 'internal',
+            permissions: access.permissions,
+            expiresAt: human.expiresAt.toISOString(),
+          } satisfies Introspection);
+        }
+      }
       // The legacy resource-key/session projection remains Clarity's external API.
       if (receiver.appId !== CLARITY_BACKEND_APPLICATION_ID) return response.json(inactive());
       const machine = await resolveMachineCredential(token);
       if (machine.ok) {
         return response.json({
           active: true,
+          kind: 'key',
           accountId: machine.principal.ownerAccountId,
           applicationId: machine.principal.applicationId,
           credentialId: machine.principal.credentialId,
@@ -112,49 +178,53 @@ router.post(
           tier: 'external',
           authority: 'external',
           scopes: machine.principal.scopes,
+          ...(machine.principal.expiresAt ? { expiresAt: machine.principal.expiresAt } : {}),
           permissions: [],
         } satisfies Introspection);
       }
       if (token.startsWith('oxy_sk_')) return response.json(inactive());
 
-      const service = verifyServiceToken(token);
+      const service = ownService.ok ? ownService : legacyService;
       if (service.ok && service.payload.authority !== 'first_party') {
         const principal = await resolveLiveAgencyServicePrincipal(service.payload);
         if (!principal) return response.json(inactive());
         return response.json({
           active: true,
+          kind: 'service',
           accountId: principal.ownerAccountId,
           applicationId: principal.applicationId,
           credentialId: principal.credentialId,
+          audience: ownService.ok ? expectedAudience : 'oxy-api',
           environment: service.payload.environment,
           tier: 'external',
           authority: 'external',
           scopes: [...(principal.scopes ?? [])],
           permissions: [],
-          expiresAt: service.payload.exp
-            ? new Date(service.payload.exp * 1_000).toISOString()
-            : undefined,
+          expiresAt: new Date((service.payload.exp as number) * 1_000).toISOString(),
         } satisfies Introspection);
       }
 
-      const session = await sessionService.validateSession(token).catch(() => null);
-      const identity = session?.token;
-      if (!session || !identity?.applicationId) return response.json(inactive());
-      const operatorId = identity.principalUserId;
+      const session = await resolveExternalResourceSession(token);
+      if (!session) return response.json(inactive());
       const access = await accountService.resolveEffectiveAccess(
-        operatorId,
-        identity.subjectAccountId,
-        session.session.sessionId,
+        session.requesterAccountId,
+        session.effectiveAccountId,
+        session.sessionId,
       );
+      if (!access) return response.json(inactive());
       return response.json({
         active: true,
-        accountId: identity.subjectAccountId,
-        applicationId: identity.applicationId,
-        delegatedUserId: identity.principalUserId,
+        kind: 'session',
+        accountId: session.accountId,
+        requesterAccountId: session.requesterAccountId,
+        effectiveAccountId: session.effectiveAccountId,
+        applicationId: session.applicationId,
+        delegatedUserId: session.requesterAccountId,
+        expiresAt: session.expiresAt,
         tier: 'external',
         authority: 'external',
-        scopes: [...identity.scopes],
-        permissions: access?.permissions ?? [],
+        scopes: session.scopes,
+        permissions: access.permissions,
       } satisfies Introspection);
     } catch (error) {
       next(error);
