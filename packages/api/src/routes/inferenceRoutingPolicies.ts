@@ -60,10 +60,11 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as routingPolicyPrincipal } from '../middleware/userOrServiceAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   emptyBodySchema,
   routeSwitchQuery,
@@ -172,33 +173,6 @@ type RoutingPolicyPrincipal =
 interface RoutingRequest extends AuthRequest {
   serviceApp?: ServiceTokenPayload;
 }
-
-/**
- * Dispatch between the two existing verifiers.
- *
- * `verifyServiceToken` is the package's single source of truth for the service
- * token contract; `authMiddleware` is its single source of truth for a user
- * bearer. This function decides which one answers and adds no third parsing
- * path. A bearer that is not a valid service token falls through to
- * `authMiddleware`, which produces the 401 — so an expired user token is
- * answered by the middleware that understands user tokens.
- */
-const routingPolicyPrincipal = (
-  req: RoutingRequest,
-  res: Response,
-  next: (error?: unknown) => void,
-): void => {
-  const header = req.headers.authorization;
-  if (header !== undefined && header.startsWith('Bearer ')) {
-    const verification = verifyServiceToken(header.slice('Bearer '.length));
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  void authMiddleware(req, res, next);
-};
 
 function principalOf(req: RoutingRequest): RoutingPolicyPrincipal {
   if (req.serviceApp !== undefined) {
