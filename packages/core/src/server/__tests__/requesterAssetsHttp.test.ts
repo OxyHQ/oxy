@@ -136,3 +136,58 @@ it('isolates operation clients across private graph and Files reads, ignores for
     );
   }
 });
+
+it('keeps an external MCP media proof separate and confines it to its exact media transport', async () => {
+  const calls: { token: unknown; tool: unknown; owner: unknown }[] = [];
+  let revoked = false;
+  const server = createServer((req, res) => {
+    calls.push({
+      token: req.headers['x-oxy-mcp-media-token'],
+      tool: req.headers['x-oxy-mcp-media-tool'],
+      owner: req.headers['x-owner-user-id'],
+    });
+    expect(req.headers['x-oxy-requester-token']).toBeUndefined();
+    expect(req.headers['x-oxy-task-id']).toBeUndefined();
+    expect(req.headers['x-oxy-capability-ticket']).toBeUndefined();
+    expect(req.headers.authorization).toBe('Bearer workload');
+    req.resume();
+    res.writeHead(revoked ? 403 : 200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(revoked ? { error: 'revoked' } : { data: { file: { id: 'media' } } }));
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({ baseURL, enableRetry: false });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('workload');
+  try {
+    const proof = {
+      connectionToken: 'external-original',
+      tool: 'upload-media' as const,
+      accountId: 'account',
+    };
+    const media = oxy.assets.withMcpMediaRequester(proof);
+    proof.connectionToken = 'mutated';
+    expect(await media.uploadUserMedia('account', new Uint8Array([1]), 'image/png')).toEqual({
+      id: 'media',
+    });
+    expect(media).not.toHaveProperty('get');
+    await expect(
+      media.importUserMedia('account', 'https://example.test/image.png'),
+    ).rejects.toThrow('limited');
+    expect(calls).toEqual([{ token: 'external-original', tool: 'upload-media', owner: 'account' }]);
+    const urls = oxy.assets.withMcpMediaRequester({
+      connectionToken: 'external-url',
+      tool: 'upload-media-from-url',
+    });
+    await urls.importUserMedia('account', 'https://example.test/image.png');
+    revoked = true;
+    await expect(
+      urls.importUserMedia('account', 'https://example.test/image.png'),
+    ).rejects.toBeDefined();
+    expect(calls).toHaveLength(3);
+  } finally {
+    oxy.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
