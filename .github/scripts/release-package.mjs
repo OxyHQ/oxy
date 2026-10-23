@@ -236,6 +236,11 @@ function npmView(spec, field) {
   throw new Error(`npm view ${spec} ${field} failed: ${result.stderr.trim() || result.error}`);
 }
 
+/** Whether anything on the registry satisfies `name@range`. */
+function resolvesOnRegistry(spec) {
+  return npmView(spec, 'version') !== null;
+}
+
 function parseVersion(version) {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(version);
   if (!match) throw new Error(`"${version}" is not a semantic version`);
@@ -405,7 +410,7 @@ function pack(directory, destination) {
     execFileSync(command, args, { cwd: directory, stdio: ['ignore', 2, 2] });
   if (readManifest(directory).scripts?.['release:pack'])
     run('bun', ['run', 'release:pack', destination]);
-  else run('bun', ['pm', 'pack', '--ignore-scripts', '--destination', destination]);
+  else run('bun', ['pm', 'pack', '--ignore-scripts', '--quiet', '--destination', destination]);
   const tarballs = readdirSync(destination).filter((file) => file.endsWith('.tgz'));
   if (tarballs.length !== 1)
     fail(`expected exactly one tarball in ${destination}, found ${tarballs.length}`);
