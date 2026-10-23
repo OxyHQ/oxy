@@ -1,11 +1,8 @@
 import { createServer, type Server } from 'node:http';
-import { OxyServer } from '../OxyServer';
-import { postOxyServiceJson } from '../../../../mcp/src/serviceRequest';
-import { introspectOxyMcpAccessToken } from '../../../../mcp/src/introspection';
-import {
-  registerCapabilityCatalog,
-  capabilityCatalogDigest,
-} from '../../../../mcp/src/catalogRegistration';
+import { OxyServer } from '@oxy.so/core/server';
+import { postOxyServiceJson } from '../serviceRequest';
+import { introspectOxyMcpAccessToken } from '../introspection';
+import { registerCapabilityCatalog, capabilityCatalogDigest } from '../catalogRegistration';
 import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 async function listen(server: Server) {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
