@@ -143,7 +143,7 @@ describe('oxy.assets lifecycle', () => {
     });
   });
 
-  it('text() fetches the resolved URL and sends cookies only to the API origin', async () => {
+  it('text() fetches the resolved URL without ambient cookies', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ url: 'https://cloud.oxy.so/f1' }))
       .mockResolvedValueOnce(new Response('hello', { status: 200 }))
@@ -154,6 +154,6 @@ describe('oxy.assets lifecycle', () => {
     expect((fetchMock.mock.calls[1] as [string, RequestInit])[1].credentials).toBe('omit');
 
     await expect(oxy.assets.text('f2')).resolves.toBe('private');
-    expect((fetchMock.mock.calls[3] as [string, RequestInit])[1].credentials).toBe('include');
+    expect((fetchMock.mock.calls[3] as [string, RequestInit])[1].credentials).toBe('omit');
   });
 });

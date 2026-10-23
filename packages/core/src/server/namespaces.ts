@@ -300,7 +300,7 @@ export class ServerAssetsApi extends AssetsApi {
         });
       },
     };
-    return new ServerAssetsApi({ ...this.ctx, service });
+    return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
   }
 
   /**
