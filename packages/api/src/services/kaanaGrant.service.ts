@@ -156,9 +156,7 @@ import {
   type DeclaredCatalogueObservation,
   currentDeclaredCatalogue,
 } from './kaanaDeclaredCatalogue.service';
-import {
-  currentDeploymentLiveness,
-} from './kaanaDeploymentPublication.service';
+import { currentDeploymentLiveness } from './kaanaDeploymentPublication.service';
 import {
   type GrantLane,
   type GrantLine,
