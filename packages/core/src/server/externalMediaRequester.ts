@@ -6,16 +6,29 @@ export interface ExternalMcpMediaProof {
   tool: 'upload-media' | 'upload-media-from-url';
   accountId?: string;
 }
+/** Existing external housing document actions; only private bounded uploads. */
+export interface ExternalMcpDocumentProof {
+  connectionToken: string;
+  tool: 'uploadLeaseDocument' | 'submitApplication' | 'addApplicationDocuments';
+  accountId?: string;
+}
+
 export function bindExternalMcpMediaLane(
   original: ServiceLane,
-  proof: ExternalMcpMediaProof,
+  proof: ExternalMcpMediaProof | ExternalMcpDocumentProof,
 ): ServiceLane {
   const { connectionToken, tool, accountId } = proof;
   if (
     !connectionToken ||
     connectionToken.length > 16384 ||
     /\s/.test(connectionToken) ||
-    (tool !== 'upload-media' && tool !== 'upload-media-from-url') ||
+    ![
+      'upload-media',
+      'upload-media-from-url',
+      'uploadLeaseDocument',
+      'submitApplication',
+      'addApplicationDocuments',
+    ].includes(tool) ||
     (accountId !== undefined && (!accountId || /\s/.test(accountId)))
   )
     throw new Error('A connection token and its existing media tool are required');
@@ -24,8 +37,16 @@ export function bindExternalMcpMediaLane(
       return original.available;
     },
     request: (method, url, data, options) => {
-      const allowed =
-        tool === 'upload-media'
+      const allowed = [
+        'uploadLeaseDocument',
+        'submitApplication',
+        'addApplicationDocuments',
+      ].includes(tool)
+        ? (method === 'POST' && url === '/assets/service/user-media/uploads') ||
+          (method === 'GET' && /^\/assets\/service\/user-media\/uploads\/[^/?#]+$/.test(url)) ||
+          (method === 'POST' &&
+            /^\/assets\/service\/user-media\/uploads\/[^/?#]+\/(parts|complete)$/.test(url))
+        : tool === 'upload-media'
           ? method === 'POST' && url === '/assets/service/user-media'
           : (method === 'POST' && url === '/assets/service/user-media/import') ||
             (method === 'GET' && /^\/assets\/service\/user-media\/imports\/[^/?#]+$/.test(url));

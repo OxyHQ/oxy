@@ -238,3 +238,73 @@ it('keeps forwarded contexts isolated across namespace reads and strips a forged
     );
   }
 });
+
+it('forwards an external housing proof only through the private-document upload facade', async () => {
+  let revoked = false;
+  const seen: string[] = [];
+  const server = createServer((req, res) => {
+    expect(req.url).toBe('/assets/service/user-media/uploads');
+    expect(req.headers['x-oxy-mcp-media-tool']).toBe('uploadLeaseDocument');
+    expect(req.headers['x-oxy-mcp-media-token']).toBe('external-housing');
+    expect(req.headers['x-owner-user-id']).toBe('account');
+    expect(req.headers['x-oxy-requester-token']).toBeUndefined();
+    seen.push(String(req.headers['x-oxy-mcp-media-token']));
+    req.resume();
+    res.writeHead(revoked ? 403 : 200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify(
+        revoked
+          ? { error: 'revoked' }
+          : {
+              data: {
+                uploadId: null,
+                status: 'completed',
+                size: 1,
+                deduplicated: true,
+                file: { id: 'document', visibility: 'private' },
+              },
+            },
+      ),
+    );
+  });
+  const oxy = new OxyServer({ baseURL: await listen(server), enableRetry: false });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('workload');
+  try {
+    const proof = {
+      connectionToken: 'external-housing',
+      tool: 'uploadLeaseDocument' as const,
+      accountId: 'account',
+    };
+    const documents = oxy.assets.withMcpDocumentRequester(proof);
+    proof.connectionToken = 'mutated';
+    expect(documents).not.toHaveProperty('get');
+    expect(documents).not.toHaveProperty('importUserMedia');
+    await expect(
+      documents.uploadUserMediaLarge('account', new Uint8Array([1]), {
+        mime: 'application/pdf',
+        visibility: 'private',
+        signal: AbortSignal.abort(),
+      }),
+    ).rejects.toBeDefined();
+    expect(seen).toHaveLength(0);
+    const uploaded = await documents.uploadUserMediaLarge('account', new Uint8Array([1]), {
+      mime: 'application/pdf',
+      visibility: 'private',
+    });
+    expect(uploaded.file.id).toBe('document');
+    revoked = true;
+    await expect(
+      documents.uploadUserMediaLarge('account', new Uint8Array([1]), {
+        mime: 'application/pdf',
+        visibility: 'private',
+      }),
+    ).rejects.toBeDefined();
+    expect(seen).toHaveLength(2);
+  } finally {
+    oxy.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
