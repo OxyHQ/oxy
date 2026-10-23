@@ -12,6 +12,7 @@
  */
 
 import { OxyServer } from '../OxyServer';
+import * as workloadIdentity from '../workloadIdentity';
 import { logger } from '../../logger';
 import type { RequestOptions } from '../../types';
 
@@ -257,8 +258,15 @@ it('never logs requester proofs echoed in a failed transport error', async () =>
 });
 
 it('sends original service and requester proofs only as headers and never caches a derived own context', async () => {
-  const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
-  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('receiver-workload');
+  const oxy = new OxyServer({
+    baseURL: 'http://test.invalid',
+    workloadCredentials: async () => ({ AccessKeyId: 'ASIATEST', SecretAccessKey: 'test' }),
+  });
+  jest.spyOn(workloadIdentity, 'requestWorkloadServiceToken').mockResolvedValue({
+    token: 'receiver-workload',
+    expiresIn: 300,
+    appName: 'receiver',
+  });
   const calls = captureRequests(oxy, {
     authorized: true,
     authority: 'first_party',
