@@ -7,7 +7,7 @@
  * table's header for the incident that made it so.
  */
 
-import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { type DatabaseOrTransaction, getDb } from '../config/postgres';
 import { fileRenditionRequests } from '../db/schema';
 
@@ -68,17 +68,20 @@ export async function releaseRenditionRequest(
 
 export type RenditionLane = 'fresh' | 'repair' | 'bulk';
 
-/** A complete round always grants both background lanes a turn when due. */
+/** A complete round grants each due background lane a turn when its lease is free. */
 export const RENDITION_DISPATCH_ROUND: readonly RenditionLane[] = [
-  ...Array<RenditionLane>(14).fill('fresh'),
+  ...Array<RenditionLane>(30).fill('fresh'),
   'repair',
   'bulk',
 ];
 
 /**
  * Claim in weighted rounds, oldest within each lane. Empty lanes donate their
- * slots. The caller holds the fleet-wide scheduler transaction lock and only
- * refills whole rounds, so a stream of one-slot vacancies cannot reset fairness.
+ * slots only to lanes with admission headroom. Each background lane owns at
+ * most one unexpired lease, including active jobs and delayed retries, so slow
+ * maintenance cannot fill the window before a fresh upload arrives. The caller
+ * holds the fleet-wide scheduler transaction lock and only refills whole rounds,
+ * so a stream of one-slot vacancies cannot reset fairness.
  * Rows selected beyond the final window are locked briefly but never leased.
  */
 export async function claimDueRenditionRequests(
@@ -90,6 +93,22 @@ export async function claimDueRenditionRequests(
   const lanes: RenditionLane[] = ['fresh', 'repair', 'bulk'];
   const candidates = new Map<RenditionLane, RenditionRequest[]>();
   for (const lane of lanes) {
+    // Keep active/delayed ownership until settlement or normal lease expiry.
+    // A previous deployment may exceed this cap; let it drain without resetting
+    // attempts, cancelling work, or granting another background lease.
+    if (lane !== 'fresh') {
+      const [leased] = await db
+        .select({ fileId: fileRenditionRequests.fileId })
+        .from(fileRenditionRequests)
+        .where(
+          and(
+            eq(fileRenditionRequests.lane, lane),
+            gte(fileRenditionRequests.enqueuedUntil, sql`now()`),
+          ),
+        )
+        .limit(1);
+      if (leased) continue;
+    }
     candidates.set(
       lane,
       await db
@@ -108,7 +127,7 @@ export async function claimDueRenditionRequests(
           ),
         )
         .orderBy(asc(fileRenditionRequests.requestedAt), asc(fileRenditionRequests.fileId))
-        .limit(limit)
+        .limit(lane === 'fresh' ? limit : 1)
         .for('update', { skipLocked: true }),
     );
   }

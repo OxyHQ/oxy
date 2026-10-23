@@ -119,7 +119,7 @@ jest.mock('../../services/renditionRequests', () => ({
   oldestRenditionRequestAt: () => mockOldest(),
   claimDueRenditionRequests: (limit: number) =>
     Promise.resolve(mockDue.splice(0, Math.max(0, limit))),
-  RENDITION_DISPATCH_ROUND: Array(16).fill('fresh'),
+  RENDITION_DISPATCH_ROUND: Array(32).fill('fresh'),
   adoptRenditionRequests: () => Promise.resolve(0),
 }));
 

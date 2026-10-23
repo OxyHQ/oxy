@@ -319,9 +319,12 @@ identity and leases while bulk requests are promoted, and finished videos are sk
 backlog run, or a backlog cursor to an encode run.
 
 Every normal upload enters the same dispatcher: there is no direct 2,000-job
-prefill. It leases full 16-slot rounds of 14 fresh uploads, 1 targeted repair and
-1 legacy bulk request, oldest within each lane. Empty lanes donate their slots.
-Redis holds at most 32 waiting/delayed jobs under the new fleet; all use equal
+prefill. It leases full 32-slot rounds of 30 fresh uploads, 1 targeted repair and
+1 legacy bulk request, oldest within each lane. Each background lane can hold
+only one unexpired durable lease, including waiting, active and delayed retry
+jobs. Empty or capped lanes donate slots to eligible lanes; an idle fresh lane
+cannot fill the queue with slow background jobs before uploads arrive. Redis
+holds at most 64 waiting/delayed jobs (two complete rounds) under the new fleet; all use equal
 BullMQ priority so FIFO preserves the dispatch order. Refilling only full rounds
 prevents continuous one-slot vacancies from resetting the quota to fresh uploads.
 An idle upload wakes admission immediately; otherwise workers tick every 10 seconds.
@@ -331,18 +334,25 @@ that omit `lane` default to bulk. During rolling deployment, the new dispatcher
 normalizes old priority 10 jobs without resetting attempts/delay and commits excess
 waiting work back to PostgreSQL before removing it from Redis. Active jobs and
 already-attempted retries remain owned by their existing jobs. Such retained
-retries can temporarily keep the window above 32 until they drain; do not reset
+retries can temporarily keep the window above 64 until they drain; do not reset
 their retry budget to shrink it. Verify all old API/worker revisions are gone and
 the queue has converged before bulk seeding. The fair-slot guarantee applies to
 the complete new fleet, not while old dispatchers can still refill 1,000 jobs.
 
-A repair at its lane's head that becomes due immediately after a refill waits
-behind at most 32 already-admitted jobs plus its reserved slot in the next 16-job
-round (position 15). Jobs already ahead in its own lane add one round each.
-This bounds dispatch slots, not wall time or CPU allocation: long videos can
-occupy a worker much longer than images. The 14:1:1 default favors fresh dispatch
-while giving each background lane progress; measure actual completed video
-throughput after deployment rather than converting weights into a promised ETA.
+A repair at its lane's head with no outstanding lease waits behind at most
+64 already-admitted jobs plus its reserved slot in the next 32-job round
+(position 31). A lane's previous lease must settle or expire before another
+request can be admitted. Existing over-cap leases drain naturally; retries,
+request renewal and lease-expiry recovery retain their existing ownership rules.
+The cap limits unexpired durable ownership, not absolute concurrent execution
+after recovery or during a rolling deployment.
+
+The 30:1:1 dispatch ratio alone does not allocate CPU fairly: observed video jobs
+can take much longer than images. Limiting each background lane to one lease
+leaves capacity for normal uploads while continuing background repairs. Both
+weights and the two-round window are dispatch policy, not a latency or completion
+SLA. Measure fresh backlog age, arrivals and completions after rollout rather
+than converting job counts into a promised repair ETA.
 
 Inspect `Oxy/Queues` `QueueDepth`, `PendingRenditionRequests`,
 `OldestWaitingJobAgeSeconds` and `PermanentJobFailures`, worker completion logs,
