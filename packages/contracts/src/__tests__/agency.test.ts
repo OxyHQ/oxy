@@ -6,6 +6,7 @@ import {
   delegationGrantSchema,
   grantLimitSchema,
   foregroundExecutionAuthorizationInputSchema,
+  firstPartyExecutionAuthorizationInputSchema,
 } from '../index';
 
 const resource = {
@@ -455,4 +456,37 @@ describe('present requester contracts', () => {
         foregroundExecutionAuthorizationInputSchema.safeParse({ ...input, ...change }).success,
       ).toBe(false);
   });
+});
+
+it('own task executions bind exactly one direct run or scheduled automation, without app ceilings', () => {
+  const base = {
+    authority: 'first_party',
+    actor: { type: 'agent', accountId: 'bot' },
+    resource,
+    tool: 'read',
+    expectedCatalog: { registrationId: 'catalog', version: '1', digest: '0'.repeat(64) },
+    expiresAt: '2027-01-01T00:00:00.000Z',
+  };
+  const direct = { ...base, kind: 'direct_request', runId: 'run' };
+  expect(firstPartyExecutionAuthorizationInputSchema.safeParse(direct).success).toBe(true);
+  expect(
+    firstPartyExecutionAuthorizationInputSchema.safeParse({ ...direct, automationId: 'schedule' })
+      .success,
+  ).toBe(false);
+  expect(firstPartyExecutionAuthorizationInputSchema.safeParse(base).success).toBe(false);
+  const automation = { ...base, kind: 'automation', automationId: 'schedule' };
+  expect(firstPartyExecutionAuthorizationInputSchema.safeParse(automation).success).toBe(true);
+  expect(
+    firstPartyExecutionAuthorizationInputSchema.safeParse({ ...automation, runId: 'run' }).success,
+  ).toBe(false);
+  expect(
+    firstPartyExecutionAuthorizationInputSchema.safeParse({ ...automation, stepId: 'step' })
+      .success,
+  ).toBe(false);
+  for (const field of ['ceilingId', 'grantId', 'maximumAutonomy']) {
+    expect(
+      firstPartyExecutionAuthorizationInputSchema.safeParse({ ...direct, [field]: 'permission' })
+        .success,
+    ).toBe(false);
+  }
 });

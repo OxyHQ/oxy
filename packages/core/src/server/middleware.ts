@@ -56,24 +56,11 @@ interface JwtPayload {
 }
 
 /**
- * Result from the service-acting-as verification endpoint.
- * Confirms that a given service app holds an active delegation grant for
- * the supplied user, along with the explicit scope list the grant covers.
- *
- * The API side stores this as an ordinary `app_grants` row — the SAME revocable
- * record the OAuth consent screen writes and the "Connected apps" UI lists and
- * deletes — whose `scopes` name `acting-as:offline`. There is deliberately no
- * separate delegation table: a second store would be a second revocation
- * surface, and a user who disconnects an application in "Connected apps" means
- * it, so one revoke has to end everything.
- *
- * `scopes` is what THAT USER consented to, not what the application may do in
- * general. `requireScope` intersects it with the token's own app-wide scopes for
- * a delegated request, and the intersection is the effective authority.
- *
- * The SDK never inspects the grant directly — it round-trips through
- * `GET /internal/service-acting-as/verify?appId=...&userId=...` so the
- * authoritative store stays server-side.
+ * Live account attribution from Oxy's service-acting-as endpoint. First-party
+ * workloads present requester session/task proof and receive authority without
+ * scopes. External callers require a live OAuth delegation grant; its scope list
+ * intersects the external token. Neither lane accepts a user-id header as proof.
+ * Positive own responses are never cached, so task cancellation is immediate.
  */
 export interface ServiceActingAsVerification {
   authority?: 'first_party' | 'external';
@@ -317,8 +304,8 @@ export interface AuthMiddlewareOptions {
    */
   expectedIssuer?: string;
   /**
-   * Expected JWT audience. Defaults to `'oxy-api'`. Override only if your
-   * private fork mints tokens for a different audience.
+   * Expected registered receiving service audience, `oxy-service:<applicationId>`.
+   * Product SDKs export their canonical audience; Oxy API defaults to `oxy-api`.
    */
   expectedAudience?: string;
 }
