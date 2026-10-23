@@ -1,3 +1,4 @@
+import { resolveRequesterContext } from './requesterContext.service';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import {
@@ -17,10 +18,22 @@ export async function resolveServiceRequester(
   const token = headers['x-oxy-requester-token'];
   const taskId = headers['x-oxy-task-id'];
   const ticket = headers['x-oxy-capability-ticket'];
-  const proofs = [token, taskId, ticket].filter((proof) => proof !== undefined);
+  const context = headers['x-oxy-requester-context'];
+  const proofs = [token, taskId, ticket, context].filter((proof) => proof !== undefined);
   if (proofs.length === 0) return undefined;
   if (principal.authority !== 'first_party' || proofs.length !== 1)
     throw new ForbiddenError('One first-party requester proof is required.');
+  if (context !== undefined) {
+    const resolved =
+      typeof context === 'string' ? await resolveRequesterContext(context, principal) : null;
+    if (
+      !resolved ||
+      (headers['x-oxy-user-id'] !== undefined &&
+        headers['x-oxy-user-id'] !== resolved.binding.subjectAccountId)
+    )
+      throw new ForbiddenError('The forwarded requester context is no longer valid.');
+    return resolved.binding;
+  }
   if (ticket !== undefined) {
     const requester =
       typeof ticket === 'string' ? await resolveCapabilityRequester(ticket, principal) : null;

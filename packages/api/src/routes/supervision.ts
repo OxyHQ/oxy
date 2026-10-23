@@ -1,3 +1,4 @@
+import { resolveRequesterContext } from '../services/requesterContext.service';
 import {
   resolveCapabilityRequester,
   requireRequesterEffect,
@@ -170,7 +171,16 @@ async function serviceContext(req: ServiceAuthRequest, requireUser: boolean) {
   const live = await principal(req);
   const proof = safetyRequesterSchema.parse(req.body.requester);
   let user: string | null;
-  if ('capabilityTicket' in proof) {
+  if ('requesterContext' in proof) {
+    const resolved = await resolveRequesterContext(proof.requesterContext, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The forwarded requester context is no longer authorized',
+      );
+    user = resolved.binding.subjectAccountId;
+  } else if ('capabilityTicket' in proof) {
     const resolved = await resolveCapabilityRequester(proof.capabilityTicket, live);
     if (!resolved)
       throw new supervision.SafetyError(

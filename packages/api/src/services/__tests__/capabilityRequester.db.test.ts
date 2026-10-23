@@ -166,18 +166,18 @@ async function fixture(effect: 'read' | 'write' = 'read') {
   const base = { owner, user, other, bot, app, presenter, session, registration, input };
   const result = await issue(base, authorization.id);
   expect(result.decision.allowed).toBe(true);
-  const serviceToken = (principal = receiver) =>
+  const serviceToken = (principal = receiver, audience = 'oxy-api') =>
     signServiceTokenEd25519({
       type: 'service',
       authority: 'first_party',
       appId: principal.applicationId,
       appName: 'Operation recipient',
       credentialId: principal.credentialId,
-      ownerAccountId: owner.id,
+      ownerAccountId: principal.ownerAccountId,
       environment: 'development',
       tier: 'internal',
       iss: 'oxy-auth',
-      aud: 'oxy-api',
+      aud: audience,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 300,
     })!;
@@ -329,4 +329,167 @@ it('checks live workload and catalogue ownership before a downstream operation',
     .set('Authorization', `Bearer ${f.serviceToken()}`)
     .set('X-Oxy-Capability-Ticket', f.ticket);
   expect(response.status).toBe(401);
+});
+
+it('binds each forwarded service hop to the real incoming JWT, original account and live chain', async () => {
+  const { resolveRequesterContext } = await import('../requesterContext.service');
+  const f = await fixture();
+  const verify = (
+    receiver: typeof f.receiver,
+    caller: typeof f.presenter,
+    proof: { taskId?: string; requesterContext?: string },
+    audience = `oxy-service:${receiver.applicationId}`,
+    account = f.user.id,
+  ) => {
+    const call = request(app)
+      .get('/internal/service-acting-as/verify')
+      .set('Authorization', `Bearer ${f.serviceToken(receiver)}`)
+      .set('X-Oxy-Presented-Service-Token', f.serviceToken(caller, audience))
+      .query({
+        appId: caller.applicationId,
+        credentialId: caller.credentialId,
+        ownerAccountId: caller.ownerAccountId,
+        environment: 'development',
+        userId: account,
+        ...(proof.taskId ? { taskId: proof.taskId } : {}),
+      });
+    if (proof.requesterContext)
+      call.set('X-Oxy-Presented-Requester-Context', proof.requesterContext);
+    return call;
+  };
+  const first = await verify(f.receiver, f.presenter, { taskId: f.task.id });
+  expect(first.status).toBe(200);
+  expect(first.body.data).toMatchObject({ authorized: true, authority: 'first_party' });
+  const context = first.body.data.requesterContext;
+  expect(typeof context).toBe('string');
+  const resolved = await resolveRequesterContext(context, f.receiver);
+  expect(resolved?.binding).toMatchObject({
+    principalAccountId: f.user.id,
+    subjectAccountId: f.user.id,
+  });
+  expect(resolved?.claims.actor).toEqual({ type: 'agent', accountId: f.bot.id });
+  expect(resolved?.claims.exp - resolved!.claims.iat).toBeLessThanOrEqual(60);
+  expect(await resolveRequesterContext(context, f.presenter)).toBeNull();
+  expect(
+    (await verify(f.receiver, f.presenter, { taskId: f.task.id }, `oxy-service:${f.app.id}`)).body
+      .data.authorized,
+  ).toBe(false);
+  expect(
+    (
+      await verify(
+        f.receiver,
+        f.presenter,
+        { taskId: f.task.id },
+        `oxy-service:${f.receiver.applicationId}`,
+        f.other.id,
+      )
+    ).body.data.authorized,
+  ).toBe(false);
+  const other = await fixture();
+  const second = await verify(other.receiver, f.receiver, { requesterContext: context });
+  expect(second.body.data.authorized).toBe(true);
+  const next = await resolveRequesterContext(second.body.data.requesterContext, other.receiver);
+  expect(next?.claims.exp).toBe(resolved?.claims.exp);
+  expect(next?.claims.chain).toHaveLength(3);
+  expect(next?.binding.principalAccountId).toBe(f.user.id);
+  expect(await resolveRequesterContext(second.body.data.requesterContext, f.receiver)).toBeNull();
+  await getDb()
+    .delete(applicationWorkloadIdentities)
+    .where(eq(applicationWorkloadIdentities.id, f.receiverBinding.id));
+  expect(
+    await resolveRequesterContext(second.body.data.requesterContext, other.receiver),
+  ).toBeNull();
+});
+
+it('uses forwarded context for Files and Safety without minting a session or surviving root revocation and expiry', async () => {
+  const { resolveRequesterContext } = await import('../requesterContext.service');
+  const f = await fixture();
+  const response = await request(app)
+    .get('/internal/service-acting-as/verify')
+    .set('Authorization', `Bearer ${f.serviceToken()}`)
+    .set(
+      'X-Oxy-Presented-Service-Token',
+      f.serviceToken(f.presenter, `oxy-service:${f.receiver.applicationId}`),
+    )
+    .query({
+      appId: f.app.id,
+      credentialId: f.presenter.credentialId,
+      ownerAccountId: f.owner.id,
+      environment: 'development',
+      userId: f.user.id,
+      taskId: f.task.id,
+    });
+  const context = response.body.data.requesterContext;
+  expect(typeof context).toBe('string');
+  const headers = {
+    Authorization: `Bearer ${f.serviceToken()}`,
+    'X-Oxy-Requester-Context': context,
+  };
+  const upload = (owner = f.user.id) =>
+    request(app)
+      .post('/assets/service/user-media')
+      .set(headers)
+      .set('x-owner-user-id', owner)
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('test'));
+  expect((await upload()).status).toBe(200);
+  expect((await upload(f.other.id)).status).toBe(403);
+  expect(
+    (
+      await request(app)
+        .post('/safety/service/profile-access')
+        .set('Authorization', headers.Authorization)
+        .send({ input: { subjectAccountId: f.user.id }, requester: { requesterContext: context } })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await request(app).post(`/internal/accounts/${f.bot.id}/service-switch`).set(headers).send({}))
+      .status,
+  ).toBe(403);
+  const decoded = JSON.parse(Buffer.from(context.split('.')[1], 'base64url').toString());
+  const now = jest.spyOn(Date, 'now').mockReturnValue((decoded.exp + 1) * 1000);
+  expect(await resolveRequesterContext(context, f.receiver)).toBeNull();
+  now.mockRestore();
+  await revokeFirstPartyTask(f.task.id, f.presenter);
+  expect((await upload()).status).toBe(403);
+});
+
+it('derives foreground context only from the original live shared session and never from an external caller token', async () => {
+  const { resolveRequesterContext } = await import('../requesterContext.service');
+  const f = await fixture();
+  const call = (token: string) =>
+    request(app)
+      .get('/internal/service-acting-as/verify')
+      .set('Authorization', `Bearer ${f.serviceToken()}`)
+      .set('X-Oxy-Requester-Token', f.session.accessToken)
+      .set('X-Oxy-Presented-Service-Token', token)
+      .query({
+        appId: f.app.id,
+        credentialId: f.presenter.credentialId,
+        ownerAccountId: f.owner.id,
+        environment: 'development',
+        userId: f.user.id,
+      });
+  const incoming = f.serviceToken(f.presenter, `oxy-service:${f.receiver.applicationId}`);
+  const response = await call(incoming);
+  const context = response.body.data.requesterContext;
+  expect(typeof context).toBe('string');
+  expect((await resolveRequesterContext(context, f.receiver))?.claims.source.kind).toBe('session');
+  const payload = JSON.parse(Buffer.from(incoming.split('.')[1], 'base64url').toString());
+  const external = signServiceTokenEd25519({
+    ...payload,
+    authority: 'external',
+    scopes: ['acting-as:offline', 'user:read'],
+  });
+  expect((await call(external!)).body.data.authorized).toBe(false);
+  const parts = context.split('.');
+  parts[1] = Buffer.from(
+    JSON.stringify({
+      ...JSON.parse(Buffer.from(parts[1], 'base64url').toString()),
+      effectiveAccountId: f.other.id,
+    }),
+  ).toString('base64url');
+  expect(await resolveRequesterContext(parts.join('.'), f.receiver)).toBeNull();
+  await sessionService.deactivateSession(f.session.sessionId);
+  expect(await resolveRequesterContext(context, f.receiver)).toBeNull();
 });

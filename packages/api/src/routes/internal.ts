@@ -1,4 +1,10 @@
 import {
+  issueRequesterContext,
+  resolveRequesterContext,
+} from '../services/requesterContext.service';
+import { verifyServiceToken } from '../middleware/serviceToken';
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
+import {
   resolveFirstPartyTask,
   taskAllowsEffectiveAccount,
 } from '../services/firstPartyTasks.service';
@@ -250,42 +256,104 @@ router.get(
     const { appId, userId, credentialId, ownerAccountId, environment, taskId } =
       serviceActingAsVerifyQuery.parse(req.query);
     const requesterToken = req.headers['x-oxy-requester-token'];
-    if (requesterToken !== undefined || taskId !== undefined) {
-      const binding =
-        req.serviceApp?.authority === 'first_party' && credentialId && ownerAccountId && environment
-          ? await resolveLiveAgencyWorkloadByHandle(appId, credentialId)
+    const presentedContext = req.headers['x-oxy-presented-requester-context'];
+    const presentedToken = req.headers['x-oxy-presented-service-token'];
+    if (
+      requesterToken !== undefined ||
+      taskId !== undefined ||
+      presentedContext !== undefined ||
+      presentedToken !== undefined
+    ) {
+      const denied = () =>
+        sendSuccess(res, { authorized: false, authority: 'first_party', epoch: '0' });
+      if (
+        req.serviceApp?.authority !== 'first_party' ||
+        !credentialId ||
+        !ownerAccountId ||
+        !environment ||
+        [requesterToken, taskId, presentedContext].filter((proof) => proof !== undefined).length !==
+          1
+      )
+        return denied();
+      const binding = await resolveLiveAgencyWorkloadByHandle(appId, credentialId);
+      if (
+        !binding?.environmentBound ||
+        binding.ownerAccountId !== ownerAccountId ||
+        binding.environment !== environment
+      )
+        return denied();
+      const caller = {
+        authority: 'first_party' as const,
+        applicationId: appId,
+        credentialId,
+        ownerAccountId,
+        capabilities: binding.capabilities,
+      };
+      const previous =
+        typeof presentedContext === 'string'
+          ? await resolveRequesterContext(presentedContext, caller)
           : null;
-      const task =
-        binding?.environmentBound &&
-        taskId &&
-        requesterToken === undefined &&
-        binding.ownerAccountId === ownerAccountId &&
-        binding.environment === environment
-          ? await resolveFirstPartyTask(taskId, {
-              applicationId: appId,
-              credentialId: binding.handle,
-            })
-          : null;
-      const requester = task
-        ? (await taskAllowsEffectiveAccount(task, userId, {
-            type: task.actorType,
-            accountId: task.actorAccountId ?? undefined,
-          }))
-          ? { subjectAccountId: userId }
-          : null
-        : binding?.environmentBound &&
-            !taskId &&
-            binding.ownerAccountId === ownerAccountId &&
-            binding.environment === environment &&
-            typeof requesterToken === 'string'
-          ? await validateForegroundRequesterBearer(requesterToken, {
-              authority: 'first_party',
-              applicationId: appId,
-              credentialId: binding.handle,
-              ownerAccountId: binding.ownerAccountId,
-              capabilities: binding.capabilities,
-            })
-          : null;
+      const task = taskId ? await resolveFirstPartyTask(taskId, caller) : null;
+      const requester =
+        previous?.binding ??
+        (task
+          ? (await taskAllowsEffectiveAccount(task, userId, {
+              type: task.actorType,
+              accountId: task.actorAccountId ?? undefined,
+            }))
+            ? {
+                subjectAccountId: userId,
+                principalAccountId: task.requesterAccountId,
+                sessionId: task.requesterSessionId,
+                digest: task.requesterSessionBindingDigest,
+                expiresAt: task.expiresAt,
+              }
+            : null
+          : typeof requesterToken === 'string'
+            ? await validateForegroundRequesterBearer(requesterToken, caller)
+            : null);
+      if (!requester || requester.subjectAccountId !== userId) return denied();
+      let requesterContext: string | null = null;
+      if (presentedToken !== undefined) {
+        const received =
+          typeof presentedToken === 'string'
+            ? verifyServiceToken(presentedToken, `oxy-service:${req.serviceApp.appId}`)
+            : null;
+        if (
+          !received?.ok ||
+          received.payload.authority !== 'first_party' ||
+          received.payload.appId !== appId ||
+          received.payload.credentialId !== credentialId ||
+          received.payload.ownerAccountId !== ownerAccountId ||
+          received.payload.environment !== environment ||
+          typeof received.payload.exp !== 'number'
+        )
+          return denied();
+        const receiver = await resolveLiveAgencyServicePrincipal(req.serviceApp);
+        if (!receiver) return denied();
+        requesterContext = await issueRequesterContext({
+          caller,
+          receiver,
+          binding: {
+            ...requester,
+            expiresAt: new Date(
+              Math.min(requester.expiresAt.getTime(), received.payload.exp * 1000),
+            ),
+          },
+          source:
+            previous?.claims.source ??
+            (task
+              ? { kind: 'task', taskId: task.id }
+              : { kind: 'session', sessionId: requester.sessionId, digest: requester.digest }),
+          actor:
+            previous?.claims.actor ??
+            (task
+              ? { type: task.actorType, accountId: task.actorAccountId ?? undefined }
+              : { type: 'requester', accountId: requester.principalAccountId }),
+          ...(previous ? { previous: previous.claims } : {}),
+        });
+        if (!requesterContext) return denied();
+      } else if (presentedContext !== undefined) return denied();
       const [generation] = await getDb()
         .select({ epoch: serviceActingAsAuthorityEpochs.epoch })
         .from(serviceActingAsAuthorityEpochs)
@@ -296,13 +364,12 @@ router.get(
           ),
         )
         .limit(1);
-      const epoch = generation?.epoch.toString() ?? '0';
-      return sendSuccess(
-        res,
-        requester?.subjectAccountId === userId
-          ? { authorized: true, authority: 'first_party', epoch }
-          : { authorized: false, authority: 'first_party', epoch },
-      );
+      return sendSuccess(res, {
+        authorized: true,
+        authority: 'first_party',
+        epoch: generation?.epoch.toString() ?? '0',
+        ...(requesterContext ? { requesterContext } : {}),
+      });
     }
     const anyCredentialContext =
       credentialId !== undefined || ownerAccountId !== undefined || environment !== undefined;
@@ -514,7 +581,7 @@ router.post(
       throw new ForbiddenError(`This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`);
     }
 
-    if (req.serviceRequester?.operation)
+    if (req.serviceRequester?.operation || req.serviceRequester?.forwardedContext)
       throw new ForbiddenError('Operation context cannot mint shared sessions.');
     const operator = serviceAccountSwitchOperator.safeParse(
       serviceApp.authority === 'first_party'
