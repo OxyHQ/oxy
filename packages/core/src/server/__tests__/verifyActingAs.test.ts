@@ -47,7 +47,10 @@ describe('verifyActingAs', () => {
   let oxy: OxyServer;
 
   beforeEach(() => {
-    oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
   });
 
@@ -192,7 +195,10 @@ describe('verifyActingAs cache', () => {
   });
 
   it('shares one lookup between concurrent checks of the same pair', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
     let release: (value: unknown) => void = () => {};
     const request = jest.spyOn(oxy, 'request').mockImplementation(
@@ -213,7 +219,10 @@ describe('verifyActingAs cache', () => {
   });
 
   it('forgets the least recently used pair past 1000 entries', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
     const request = jest
       .spyOn(oxy, 'request')
@@ -233,7 +242,10 @@ describe('verifyActingAs cache', () => {
 });
 
 it('never logs requester proofs echoed in a failed transport error', async () => {
-  const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+  const oxy = new OxyServer({
+    baseURL: 'http://test.invalid',
+    serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+  });
   const proof = 'private-requester-token';
   jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-token');
   captureRequests(oxy, new Error(proof));

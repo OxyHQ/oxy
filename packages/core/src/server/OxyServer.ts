@@ -780,7 +780,7 @@ export class OxyServer extends OxyServices {
   private async defaultApplicationId(): Promise<string | null> {
     if (this.configuredApplicationId) return this.configuredApplicationId;
     if (!this.canMintServiceToken()) return null;
-    const appId = jwtDecode<{ appId?: unknown }>(await this.serviceToken()).appId;
+    const appId = jwtDecode<{ appId?: unknown }>(await this.platformServiceToken()).appId;
     return typeof appId === 'string' && appId.length > 0 ? appId : null;
   }
 
@@ -900,14 +900,14 @@ export class OxyServer extends OxyServices {
    *   request for the next {@link ANONYMOUS_SERVICE_TOKEN_RETRY_MS}, so an Oxy
    *   refusing attestation is asked once per window rather than once per read.
    *
-   * The token comes from {@link serviceToken}: cached and single-flight, so
+   * The token uses the platform protocol: cached and single-flight, so
    * concurrent reads share one mint.
    */
   private async serviceTokenForAnonymousRequest(): Promise<string | null> {
     if (Date.now() < this.anonymousServiceTokenRetryAt) return null;
     if (!this.canMintServiceToken()) return null;
     try {
-      return await this.serviceToken();
+      return await this.platformServiceToken();
     } catch (error) {
       this.anonymousServiceTokenRetryAt = Date.now() + ANONYMOUS_SERVICE_TOKEN_RETRY_MS;
       logger.warn(
@@ -933,7 +933,7 @@ export class OxyServer extends OxyServices {
       if (this.disposed || !this.canMintServiceToken()) return null;
       this.serviceEventFeed = new OxyServiceEventFeed({
         baseURL: this.baseURL,
-        serviceToken: () => this.serviceToken(),
+        serviceToken: () => this.platformServiceToken(),
         onRevocation: (event) => this.applySessionRevocation(event),
         onDown: () => this.session.invalidateValidations(),
       });
@@ -1052,7 +1052,7 @@ export class OxyServer extends OxyServices {
     startedAt: number,
   ): Promise<ServiceActingAsVerification | null> {
     try {
-      const serviceToken = await this.serviceToken();
+      const serviceToken = await this.platformServiceToken();
       const result = await this.request<ServiceActingAsVerification>(
         'GET',
         '/internal/service-acting-as/verify',
@@ -1281,7 +1281,7 @@ export class OxyServer extends OxyServices {
 
   /** The `appId` claim of this service's own token. */
   private async configuredServiceAppId(): Promise<string> {
-    const serviceToken = await this.serviceToken();
+    const serviceToken = await this.platformServiceToken();
     const appId = jwtDecode<{ appId?: unknown }>(serviceToken).appId;
     if (typeof appId !== 'string' || appId.length === 0) {
       throw new OxyAccountEventError(

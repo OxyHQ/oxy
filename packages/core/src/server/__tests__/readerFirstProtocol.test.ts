@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { OxyServer } from '../OxyServer';
+import { createEcosystemTraffic } from '../traffic';
 let server: Server;
 let baseURL: string;
 const versions: number[] = [];
@@ -15,13 +16,26 @@ beforeAll(async () => {
     res.setHeader('content-type', 'application/json');
     if (req.url?.endsWith('/challenge')) return res.end(JSON.stringify({ nonce: 'test-nonce' }));
     if (req.url?.endsWith('/workload')) {
-      const version = JSON.parse(body).protocolVersion ?? 1;
+      const exchange = JSON.parse(body);
+      expect(exchange.attestation.headers['x-amz-security-token']).toBe('temporary');
+      expect(exchange.attestation.headers.authorization).toContain('Credential=ASIATEST/');
+      const version = exchange.protocolVersion ?? 1;
       versions.push(version);
       return res.end(
         JSON.stringify({ token: serviceToken(version), expiresIn: 300, appName: 'test' }),
       );
     }
     received.push(req.headers.authorization ?? '');
+    if (req.url?.startsWith('/internal/service-acting-as/verify')) {
+      if (
+        req.headers.authorization !== `Bearer ${serviceToken(2)}` ||
+        req.headers['x-oxy-requester-token'] !== 'requester-proof'
+      ) {
+        res.statusCode = 403;
+        return res.end('{}');
+      }
+      return res.end(JSON.stringify({ authorized: true, authority: 'first_party', epoch: '1' }));
+    }
     if (req.url === '/auth/resources/introspect')
       return res.end(
         JSON.stringify({
@@ -50,15 +64,17 @@ it('isolates legacy manual mint/cache from v2 namespaces, receiver introspection
   const oxy = new OxyServer({
     baseURL,
     workloadCredentials: async () => ({
-      accessKeyId: 'ASIATEST',
-      secretAccessKey: 'secret',
-      sessionToken: 'temporary',
-      expiration: new Date(Date.now() + 3600000),
+      AccessKeyId: 'ASIATEST',
+      SecretAccessKey: 'secret',
+      Token: 'temporary',
     }),
   });
   try {
     expect(await oxy.serviceToken()).toBe(serviceToken(1));
     await oxy.serviceRequest('GET', '/metadata');
+    await expect(
+      oxy.verifyActingAs('sender', 'person', { requesterToken: 'requester-proof' }),
+    ).resolves.toEqual({ authorized: true, authority: 'first_party', epoch: '1' });
     const person = await oxy.introspectResourceToken('a-session');
     expect(person).toMatchObject({
       kind: 'session',
@@ -72,9 +88,33 @@ it('isolates legacy manual mint/cache from v2 namespaces, receiver introspection
     client.dispose();
     expect(await oxy.serviceToken()).toBe(serviceToken(1));
     expect(versions).toEqual([1, 2]);
-    expect(received).toHaveLength(3);
+    expect(received).toHaveLength(4);
     expect(received.every((bearer) => bearer === `Bearer ${serviceToken(2)}`)).toBe(true);
   } finally {
     oxy.dispose();
   }
+});
+
+it('publishes activity through v2 with an injected role and no container environment', async () => {
+  const startVersions = versions.length;
+  const startRequests = received.length;
+  const onError = jest.fn();
+  const traffic = createEcosystemTraffic({
+    service: 'test',
+    region: 'us-west-2',
+    baseURL,
+    onError,
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIATEST',
+      SecretAccessKey: 'secret',
+      Token: 'temporary',
+    }),
+  });
+  await traffic.stop();
+  expect(onError).not.toHaveBeenCalled();
+  expect(versions.slice(startVersions)).toEqual([2]);
+  expect(received.slice(startRequests)).toEqual([
+    `Bearer ${serviceToken(2)}`,
+    `Bearer ${serviceToken(2)}`,
+  ]);
 });

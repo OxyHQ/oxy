@@ -100,6 +100,7 @@ describe('verifyAccountEvent', () => {
 
   it('defaults the audience to the appId of the configured service credential', async () => {
     const oxy = client();
+    oxy.configureServiceAuth('event-key', 'event-secret');
     const serviceToken = `${b64url(JSON.stringify({ alg: 'EdDSA' }))}.${b64url(JSON.stringify({ appId: 'app-mention' }))}.sig`;
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue(serviceToken);
 
