@@ -3,17 +3,21 @@
  *
  * Runtime refuses the complete route set when any selectable route's score is
  * stale, so a scorecard's `validUntil` is a production cliff. The catalogue
- * bootstrap is insert-only and refuses every existing-row difference; this is
- * the one narrow, repo-recorded writer that may move an existing row forward:
+ * bootstrap never moves an existing row; this is the one narrow writer that may:
  *
- * - only deployments whose reviewed config carries a `scoreRenewal`;
- * - only when the live row equals, field by field, the exact state that
- *   renewal `supersedes` (anything else is drift and refuses the whole run);
+ * - every reviewed deployment (text, speech and voice) is renewed together;
+ * - the live row's reviewed values (scores, sources, evidence, measurement
+ *   windows, funding, price version) must equal the reviewed config, and its
+ *   current validity must be the product of an audited write (exactly one
+ *   provenance event at its `changedAt`); anything else is drift and refuses
+ *   the whole run;
  * - only the three validity instants, `reason`, `changedByUserId` and
- *   `changedAt` change; scores, sources, evidence and windows are asserted equal;
- * - every renewal appends one immutable provenance event at `reviewedAt`.
+ *   `changedAt` change, to `kaanaScorecardRenewalReview(now)`: the run's UTC
+ *   day plus the reviewed validity window, never a date written in source;
+ * - every renewal appends one immutable provenance event at that `changedAt`.
  *
- * A row already at the renewed state is a no-op, so a rerun is idempotent.
+ * A row already valid until the renewed instant is a no-op, so a rerun is
+ * idempotent.
  */
 
 import { createHash } from 'node:crypto';
@@ -23,7 +27,6 @@ import {
   KAANA_INITIAL_SCORE_POLICY,
   type KaanaInitialProvider,
   type KaanaScorecardReview,
-  kaanaCurrentScorecardReview,
   kaanaScoreMeasuredAt,
   requireSingleKaanaBootstrapScoreEvent,
 } from '../config/kaanaInitialCatalogue';
@@ -42,18 +45,22 @@ export type KaanaScorecardTransaction = Parameters<
 
 export const KAANA_SCORECARD_RENEWAL_OPERATION_PREFIX = 'scorecard-renewal:';
 
-/** Every reviewed column of a scorecard row, as the bootstrap writes it. */
-export function kaanaReviewedScorecardFields(
+export interface KaanaScorecardBindings {
+  readonly priceVersionId: string;
+  readonly reviewerUserId: string;
+  readonly existingFundingEvidenceRef?: string;
+}
+
+/**
+ * The reviewed VALUES of a scorecard row: every reviewed column except its
+ * validity (the three `validUntil` instants, `reason`, `changedByUserId`,
+ * `changedAt`), which the bootstrap writes once and only a renewal moves.
+ */
+export function kaanaReviewedScorecardValues(
   provider: KaanaInitialProvider,
-  review: KaanaScorecardReview,
-  bindings: {
-    readonly priceVersionId: string;
-    readonly reviewerUserId: string;
-    readonly existingFundingEvidenceRef?: string;
-  },
+  bindings: KaanaScorecardBindings,
 ) {
   const measuredAt = new Date(kaanaScoreMeasuredAt(provider));
-  const validUntil = new Date(review.validUntil);
   return {
     deploymentId: provider.deploymentId,
     priceScore: provider.scores.price,
@@ -65,18 +72,15 @@ export function kaanaReviewedScorecardFields(
     latencyEvidenceRef: KAANA_INITIAL_SCORE_POLICY.latencyEvidenceRef,
     latencyMeasurementWindowStart: measuredAt,
     latencyMeasurementWindowEnd: measuredAt,
-    latencyValidUntil: validUntil,
     throughputScore: provider.scores.throughput,
     throughputSource: 'reviewed_scorecard' as const,
     throughputEvidenceRef: provider.performanceEvidenceRef,
     throughputMeasurementWindowStart: measuredAt,
     throughputMeasurementWindowEnd: measuredAt,
-    throughputValidUntil: validUntil,
     balancedScore: provider.scores.balanced,
     balancedSource: 'reviewed_scorecard' as const,
     balancedEvidenceRef: `${provider.priceEvidenceRef};${provider.performanceEvidenceRef}`,
     balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
-    balancedValidUntil: validUntil,
     fundingClass: KAANA_INITIAL_SCORE_POLICY.fundingClass,
     fundingState: KAANA_INITIAL_SCORE_POLICY.fundingState,
     fundingEvidenceRef: kaanaBootstrapExistingFundingEvidence(
@@ -88,9 +92,50 @@ export function kaanaReviewedScorecardFields(
     fundingRemainingUnit: null,
     fundingObservedAt: null,
     fundingValidUntil: null,
+  };
+}
+
+/** Every reviewed column of a scorecard row written with `review`'s validity. */
+export function kaanaReviewedScorecardFields(
+  provider: KaanaInitialProvider,
+  review: KaanaScorecardReview,
+  bindings: KaanaScorecardBindings,
+) {
+  const validUntil = new Date(review.validUntil);
+  return {
+    ...kaanaReviewedScorecardValues(provider, bindings),
+    latencyValidUntil: validUntil,
+    throughputValidUntil: validUntil,
+    balancedValidUntil: validUntil,
     reason: review.reason,
     changedByUserId: bindings.reviewerUserId,
     changedAt: new Date(review.changedAt),
+  };
+}
+
+/** The validity columns of a live scorecard row. */
+export interface KaanaScorecardValidity {
+  readonly latencyValidUntil: Date;
+  readonly throughputValidUntil: Date;
+  readonly balancedValidUntil: Date;
+  readonly reason: string;
+  readonly changedByUserId: string;
+  readonly changedAt: Date;
+}
+
+/** The complete reviewed state a live row holds: reviewed values, its own validity. */
+export function kaanaScorecardRowState(
+  values: ReturnType<typeof kaanaReviewedScorecardValues>,
+  row: KaanaScorecardValidity,
+) {
+  return {
+    ...values,
+    latencyValidUntil: row.latencyValidUntil,
+    throughputValidUntil: row.throughputValidUntil,
+    balancedValidUntil: row.balancedValidUntil,
+    reason: row.reason,
+    changedByUserId: row.changedByUserId,
+    changedAt: row.changedAt,
   };
 }
 
@@ -125,21 +170,30 @@ export type KaanaScorecardRenewalDecision =
   | { readonly action: 'drift'; readonly fields: readonly string[] };
 
 /**
- * Pure decision over one live row. Only the exact superseded state may be
- * renewed; a row matching neither state is drift and must never be "fixed".
+ * Pure decision over one live row. A row whose reviewed values differ, whose
+ * three validity instants disagree, or that changed after the renewal's
+ * instant is drift and must never be "fixed"; a row already valid until the
+ * renewed instant is current; every other row is renewed.
  */
 export function decideKaanaScorecardRenewal(
-  row: Readonly<Record<string, unknown>>,
-  current: Readonly<Record<string, unknown>>,
-  superseded: Readonly<Record<string, unknown>> | undefined,
+  row: Readonly<Record<string, unknown>> & KaanaScorecardValidity,
+  values: Readonly<Record<string, unknown>>,
+  renewal: { readonly validUntil: Date; readonly changedAt: Date },
 ): KaanaScorecardRenewalDecision {
-  const currentDifferences = kaanaScorecardFieldDifferences(row, current);
-  if (currentDifferences.length === 0) return { action: 'current' };
-  if (superseded !== undefined) {
-    const supersededDifferences = kaanaScorecardFieldDifferences(row, superseded);
-    if (supersededDifferences.length === 0) return { action: 'renew' };
+  const valueDifferences = kaanaScorecardFieldDifferences(row, values);
+  if (valueDifferences.length > 0) return { action: 'drift', fields: valueDifferences };
+  const validityDifferences = kaanaScorecardFieldDifferences(row, {
+    latencyValidUntil: row.balancedValidUntil,
+    throughputValidUntil: row.balancedValidUntil,
+  });
+  if (validityDifferences.length > 0) return { action: 'drift', fields: validityDifferences };
+  if (row.balancedValidUntil.getTime() >= renewal.validUntil.getTime()) {
+    return { action: 'current' };
   }
-  return { action: 'drift', fields: currentDifferences };
+  if (row.changedAt.getTime() > renewal.changedAt.getTime()) {
+    return { action: 'drift', fields: ['changedAt'] };
+  }
+  return { action: 'renew' };
 }
 
 export interface KaanaScorecardRenewalOutcome {
@@ -177,12 +231,16 @@ export async function requireKaanaCatalogueReviewer(
   }
 }
 
-async function requireOneProvenanceEvent(
+/**
+ * A scorecard state is real only as the product of an audited write: exactly
+ * one append-only event at its `changedAt`, holding every other column.
+ */
+export async function requireKaanaScorecardProvenanceEvent(
   tx: KaanaScorecardTransaction,
   deploymentId: string,
-  createdAt: Date,
-  expected: Readonly<Record<string, unknown>>,
+  expected: Readonly<Record<string, unknown>> & { readonly changedAt: Date },
 ): Promise<void> {
+  const createdAt = expected.changedAt;
   // Named columns, not `.select()`: every column of the score tables is
   // staff-only (protectedColumns.ts), and this staff script reads them all
   // deliberately to compare the whole scorecard.
@@ -215,26 +273,27 @@ export async function renewKaanaRoutingScorecards(
   input: {
     readonly providers: readonly KaanaInitialProvider[];
     readonly reviewerUserId: string;
+    /** `kaanaScorecardRenewalReview(now)`: the validity every row is renewed to. */
+    readonly renewal: KaanaScorecardReview;
     /** `routingScoreValidityThreshold(now)`: the minimum acceptable expiry. */
     readonly minimumValidUntil: Date;
   },
 ): Promise<KaanaScorecardRenewalOutcome[]> {
+  const renewal = {
+    validUntil: new Date(input.renewal.validUntil),
+    changedAt: new Date(input.renewal.changedAt),
+  };
+  if (renewal.validUntil < input.minimumValidUntil) {
+    throw new Error(
+      `renewed validity ${input.renewal.validUntil} does not cover the configured minimum validity horizon`,
+    );
+  }
+  if (renewal.changedAt.getTime() > Date.now()) {
+    throw new Error(`renewal changedAt ${input.renewal.changedAt} is in the future`);
+  }
+
   const outcomes: KaanaScorecardRenewalOutcome[] = [];
   for (const provider of input.providers) {
-    const renewal = provider.scoreRenewal;
-    if (renewal === undefined) continue;
-    const review = kaanaCurrentScorecardReview(provider);
-    if (new Date(review.validUntil) < input.minimumValidUntil) {
-      throw new Error(
-        `${provider.deploymentId} renewed validity ${review.validUntil} does not cover the configured minimum validity horizon`,
-      );
-    }
-    if (new Date(review.changedAt).getTime() > Date.now()) {
-      throw new Error(
-        `${provider.deploymentId} renewal reviewedAt ${review.changedAt} is in the future`,
-      );
-    }
-
     const deployments = await tx
       .select({ priceVersionId: inferenceDeployments.priceVersionId })
       .from(inferenceDeployments)
@@ -268,56 +327,59 @@ export async function renewKaanaRoutingScorecards(
       reviewerUserId: input.reviewerUserId,
       existingFundingEvidenceRef: row.fundingEvidenceRef,
     };
-    const current = kaanaReviewedScorecardFields(provider, review, bindings);
-    const superseded = kaanaReviewedScorecardFields(provider, renewal.supersedes, bindings);
-    const decision = decideKaanaScorecardRenewal(row, current, superseded);
-
+    const values = kaanaReviewedScorecardValues(provider, bindings);
+    const decision = decideKaanaScorecardRenewal(row, values, renewal);
     if (decision.action === 'drift') {
       throw new Error(
-        `Scorecard ${provider.deploymentId} matches neither its renewed nor its superseded reviewed state (differs in: ${decision.fields.join(', ')}); refusing to overwrite drift`,
+        `Scorecard ${provider.deploymentId} is not a reviewed state this renewal may move forward (differs in: ${decision.fields.join(', ')}); refusing to overwrite drift`,
       );
     }
+    // The state being kept or replaced must itself be the product of an audited write.
+    await requireKaanaScorecardProvenanceEvent(
+      tx,
+      provider.deploymentId,
+      kaanaScorecardRowState(values, row),
+    );
+
+    let state: KaanaScorecardValidity = row;
     if (decision.action === 'renew') {
-      // The superseded state must itself be the product of an audited write.
-      await requireOneProvenanceEvent(tx, provider.deploymentId, superseded.changedAt, superseded);
+      const renewed = kaanaReviewedScorecardFields(provider, input.renewal, bindings);
       const updated = await tx
         .update(inferenceDeploymentRoutingScores)
         .set({
-          latencyValidUntil: current.latencyValidUntil,
-          throughputValidUntil: current.throughputValidUntil,
-          balancedValidUntil: current.balancedValidUntil,
-          reason: current.reason,
-          changedByUserId: current.changedByUserId,
-          changedAt: current.changedAt,
+          latencyValidUntil: renewed.latencyValidUntil,
+          throughputValidUntil: renewed.throughputValidUntil,
+          balancedValidUntil: renewed.balancedValidUntil,
+          reason: renewed.reason,
+          changedByUserId: renewed.changedByUserId,
+          changedAt: renewed.changedAt,
           updatedAt: new Date(),
         })
         .where(eq(inferenceDeploymentRoutingScores.deploymentId, provider.deploymentId))
         .returning();
-      if (updated.length !== 1 || kaanaScorecardFieldDifferences(updated[0], current).length > 0) {
+      if (updated.length !== 1 || kaanaScorecardFieldDifferences(updated[0], renewed).length > 0) {
         throw new Error(`Scorecard ${provider.deploymentId} renewal did not persist exactly`);
       }
-      const { changedAt, ...eventValues } = current;
+      const { changedAt, ...eventValues } = renewed;
       await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
         ...eventValues,
         // Stated, not only spread: the reviewed economics travel with every
         // routing-score event (routingScoreEconomicsCallsites.test.ts).
-        fundingClass: current.fundingClass,
-        fundingState: current.fundingState,
-        fundingEvidenceRef: current.fundingEvidenceRef,
+        fundingClass: renewed.fundingClass,
+        fundingState: renewed.fundingState,
+        fundingEvidenceRef: renewed.fundingEvidenceRef,
         createdAt: changedAt,
       });
+      await requireKaanaScorecardProvenanceEvent(tx, provider.deploymentId, renewed);
+      state = renewed;
     }
-    await requireOneProvenanceEvent(tx, provider.deploymentId, current.changedAt, current);
 
     outcomes.push({
       deploymentId: provider.deploymentId,
       action: decision.action,
-      fromValidUntil: (decision.action === 'renew'
-        ? superseded.balancedValidUntil
-        : current.balancedValidUntil
-      ).toISOString(),
-      toValidUntil: current.balancedValidUntil.toISOString(),
-      toChangedAt: current.changedAt.toISOString(),
+      fromValidUntil: row.balancedValidUntil.toISOString(),
+      toValidUntil: state.balancedValidUntil.toISOString(),
+      toChangedAt: state.changedAt.toISOString(),
     });
   }
   return outcomes;

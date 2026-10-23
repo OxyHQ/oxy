@@ -9,10 +9,8 @@ import {
   KAANA_INITIAL_ROUTING_PROFILE_IDS,
   KAANA_INITIAL_ROUTING_PROFILES,
   KAANA_INITIAL_SCORECARD_REASON,
-  KAANA_INITIAL_SCORE_VALID_UNTIL,
   KAANA_REVIEWED_CATALOGUES,
   KAANA_REVIEWED_PROVIDERS,
-  KAANA_SCORE_RENEWAL_2026_09_24,
   KAANA_SPEECH_CATALOGUE,
   KAANA_SPEECH_MODEL,
   KAANA_SPEECH_MODEL_REFERENCE,
@@ -26,7 +24,7 @@ import {
   KAANA_VOICE_OBSERVATION,
   kaanaVoiceCatalogue,
   requireKaanaVoiceCatalogue,
-  kaanaCurrentScorecardReview,
+  kaanaInitialScorecardReview,
   kaanaReviewedCatalogueOperations,
   kaanaReviewedCatalogueProjection,
   requireSingleKaanaBootstrapScoreEvent,
@@ -278,7 +276,7 @@ describe("Alia's reviewed text-to-speech catalogue", () => {
     );
   });
 
-  it('scores the single route like the unmeasured OpenRouter route, valid with the renewed rows', () => {
+  it('scores the single route like the unmeasured OpenRouter route', () => {
     expect(xai?.scores).toEqual({
       price: 1_000,
       latency: 500,
@@ -287,15 +285,11 @@ describe("Alia's reviewed text-to-speech catalogue", () => {
     });
     expect(xai?.performanceEvidenceRef).toMatch(/^not-measured:/);
     expect(KAANA_INITIAL_BALANCED_FORMULA_REF).toContain('round((price+throughput)/2)');
-    // A first review, not a renewal: the renewal workflow skips it until a
-    // later renewal names its exact superseded state.
-    expect(xai?.scoreRenewal).toBeUndefined();
-    expect(kaanaCurrentScorecardReview(xai!)).toEqual({
+    expect(kaanaInitialScorecardReview(xai!)).toEqual({
       changedAt: '2026-09-24T00:00:00.000Z',
-      validUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+      validUntil: '2026-11-01T00:00:00.000Z',
       reason: expect.stringContaining('single exact speech route'),
     });
-    expect(KAANA_SCORE_RENEWAL_2026_09_24.validUntil).toBe(KAANA_INITIAL_SCORE_VALID_UNTIL);
   });
 });
 

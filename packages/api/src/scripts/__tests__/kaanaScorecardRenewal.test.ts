@@ -1,16 +1,16 @@
 /**
- * Same-value scorecard renewal against a REAL Postgres: the renewal may move
- * only the exact superseded state forward, records one immutable event, is a
- * no-op on rerun, and refuses every other state without writing.
+ * Same-value scorecard renewal against a REAL Postgres: the renewal moves an
+ * audited reviewed row to the derived validity, records one immutable event,
+ * is a no-op on rerun, and refuses every other state without writing.
  */
 
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import {
   KAANA_INITIAL_PROVIDERS,
-  KAANA_INITIAL_SCORE_VALID_UNTIL,
   type KaanaInitialProvider,
-  kaanaCurrentScorecardReview,
+  kaanaInitialScorecardReview,
+  kaanaScorecardRenewalReview,
 } from '../../config/kaanaInitialCatalogue';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -32,7 +32,8 @@ import {
 } from '../kaanaScorecardRenewal';
 
 const REVIEWER = '6981c9178fcdefaf81988ffb';
-const MINIMUM_VALID_UNTIL = new Date('2026-09-25T00:00:00.000Z');
+const RENEWAL = kaanaScorecardRenewalReview(new Date());
+const MINIMUM_VALID_UNTIL = new Date(Date.now() + 3_600_000);
 
 beforeAll(async () => {
   await connectPostgres();
@@ -126,24 +127,22 @@ async function seedDeployment(provider: KaanaInitialProvider): Promise<string> {
   return priceVersion.id;
 }
 
-/** Write the superseded state exactly as the original bootstrap did. */
-async function seedSupersededScorecard(
+/** Write the initial reviewed state exactly as the bootstrap does. */
+async function seedInitialScorecard(
   provider: KaanaInitialProvider,
   priceVersionId: string,
   overrides: { balancedScore?: number; withEvent?: boolean } = {},
 ): Promise<void> {
-  const renewal = provider.scoreRenewal;
-  if (renewal === undefined) throw new Error('fixture provider has no renewal');
-  const superseded = kaanaReviewedScorecardFields(provider, renewal.supersedes, {
+  const initial = kaanaReviewedScorecardFields(provider, kaanaInitialScorecardReview(provider), {
     priceVersionId,
     reviewerUserId: REVIEWER,
   });
   const row = {
-    ...superseded,
-    fundingClass: superseded.fundingClass,
-    fundingState: superseded.fundingState,
-    fundingEvidenceRef: superseded.fundingEvidenceRef,
-    balancedScore: overrides.balancedScore ?? superseded.balancedScore,
+    ...initial,
+    fundingClass: initial.fundingClass,
+    fundingState: initial.fundingState,
+    fundingEvidenceRef: initial.fundingEvidenceRef,
+    balancedScore: overrides.balancedScore ?? initial.balancedScore,
   };
   await getDb().insert(inferenceDeploymentRoutingScores).values(row);
   if (overrides.withEvent !== false) {
@@ -165,6 +164,7 @@ function renewInTransaction(providers: readonly KaanaInitialProvider[]) {
     renewKaanaRoutingScorecards(tx, {
       providers,
       reviewerUserId: REVIEWER,
+      renewal: RENEWAL,
       minimumValidUntil: MINIMUM_VALID_UNTIL,
     }),
   );
@@ -193,78 +193,63 @@ async function countEvents(deploymentId: string, createdAt?: Date) {
   return rows.length;
 }
 
-describe('the reviewed scorecard renewal config', () => {
-  it('renews every reviewed route to the same new validity with unchanged scores', () => {
-    for (const provider of KAANA_INITIAL_PROVIDERS) {
-      const review = kaanaCurrentScorecardReview(provider);
-      expect(review.validUntil).toBe(KAANA_INITIAL_SCORE_VALID_UNTIL);
-      expect(review.validUntil).toBe('2026-11-01T00:00:00.000Z');
-      expect(review.changedAt).toBe('2026-09-24T00:00:00.000Z');
-      expect(provider.scoreRenewal?.supersedes.validUntil).toBe(
-        provider.slug === 'openrouter' ? '2026-10-11T00:00:00.000Z' : '2026-10-02T00:00:00.000Z',
-      );
-      expect(Date.parse(provider.scoreRenewal?.supersedes.changedAt ?? '')).toBeLessThan(
-        Date.parse(review.changedAt),
-      );
-    }
-  });
-
-  it('changes only validity, reason, reviewer and changedAt between the two states', () => {
-    for (const provider of KAANA_INITIAL_PROVIDERS) {
-      const renewal = provider.scoreRenewal;
-      if (renewal === undefined) throw new Error('missing renewal');
-      const bindings = { priceVersionId: 'price_exact', reviewerUserId: REVIEWER };
-      const current = kaanaReviewedScorecardFields(
-        provider,
-        kaanaCurrentScorecardReview(provider),
-        bindings,
-      );
-      const superseded = kaanaReviewedScorecardFields(provider, renewal.supersedes, bindings);
-      const changed = Object.keys(current).filter(
-        (key) =>
-          JSON.stringify(current[key as keyof typeof current]) !==
-          JSON.stringify(superseded[key as keyof typeof superseded]),
-      );
-      expect(changed.sort()).toEqual(
-        [
-          'balancedValidUntil',
-          'changedAt',
-          'latencyValidUntil',
-          'reason',
-          'throughputValidUntil',
-        ].sort(),
-      );
-    }
+describe('the derived renewal validity', () => {
+  it('is the UTC day of the run plus the reviewed window, the same all day', () => {
+    const morning = kaanaScorecardRenewalReview(new Date('2026-10-23T00:00:00.000Z'));
+    expect(morning).toEqual(kaanaScorecardRenewalReview(new Date('2026-10-23T23:59:59.999Z')));
+    expect(morning.changedAt).toBe('2026-10-23T00:00:00.000Z');
+    expect(morning.validUntil).toBe('2026-11-22T00:00:00.000Z');
+    expect(morning.reason).toContain('on 2026-10-23');
+    expect(morning.reason).toContain('extended to 2026-11-22');
   });
 });
 
 describe('decideKaanaScorecardRenewal', () => {
-  const current = { balancedScore: 800, balancedValidUntil: new Date('2026-11-01') };
-  const superseded = { balancedScore: 800, balancedValidUntil: new Date('2026-10-02') };
+  const at = (iso: string) => new Date(iso);
+  const values = { balancedScore: 800 };
+  const row = {
+    balancedScore: 800,
+    latencyValidUntil: at('2026-11-01'),
+    throughputValidUntil: at('2026-11-01'),
+    balancedValidUntil: at('2026-11-01'),
+    reason: 'reviewed',
+    changedByUserId: REVIEWER,
+    changedAt: at('2026-09-24'),
+  };
+  const renewal = { validUntil: at('2026-11-22'), changedAt: at('2026-10-23') };
 
   it('classifies current, renewable and drifted rows', () => {
-    expect(decideKaanaScorecardRenewal(current, current, superseded)).toEqual({
-      action: 'current',
-    });
-    expect(decideKaanaScorecardRenewal(superseded, current, superseded)).toEqual({
-      action: 'renew',
+    expect(decideKaanaScorecardRenewal(row, values, renewal)).toEqual({ action: 'renew' });
+    expect(
+      decideKaanaScorecardRenewal(
+        { ...row, balancedValidUntil: at('2026-11-22') },
+        values,
+        renewal,
+      ),
+    ).toEqual({ action: 'drift', fields: ['latencyValidUntil', 'throughputValidUntil'] });
+    expect(
+      decideKaanaScorecardRenewal(row, values, { ...renewal, validUntil: at('2026-11-01') }),
+    ).toEqual({ action: 'current' });
+    expect(decideKaanaScorecardRenewal({ ...row, balancedScore: 900 }, values, renewal)).toEqual({
+      action: 'drift',
+      fields: ['balancedScore'],
     });
     expect(
-      decideKaanaScorecardRenewal({ ...superseded, balancedScore: 900 }, current, superseded),
-    ).toEqual({ action: 'drift', fields: ['balancedScore', 'balancedValidUntil'] });
-    expect(decideKaanaScorecardRenewal(superseded, current, undefined)).toEqual({
-      action: 'drift',
-      fields: ['balancedValidUntil'],
-    });
+      decideKaanaScorecardRenewal(
+        { ...row, changedAt: at('2026-10-23T09:00:00Z') },
+        values,
+        renewal,
+      ),
+    ).toEqual({ action: 'drift', fields: ['changedAt'] });
   });
 
   it('binds the plan hash to every outcome', () => {
     const outcome = {
       deploymentId: 'dep_exact',
       action: 'renew' as const,
-      fromValidUntil: '2026-10-02T00:00:00.000Z',
-      toValidUntil: '2026-11-01T00:00:00.000Z',
-      toChangedAt: '2026-09-24T00:00:00.000Z',
+      fromValidUntil: '2026-11-01T00:00:00.000Z',
+      toValidUntil: '2026-11-22T00:00:00.000Z',
+      toChangedAt: '2026-10-23T00:00:00.000Z',
     };
     const hash = createKaanaScorecardRenewalPlanSha256({
       reviewerUserId: REVIEWER,
@@ -283,29 +268,31 @@ describe('decideKaanaScorecardRenewal', () => {
 });
 
 describe('renewKaanaRoutingScorecards against Postgres', () => {
-  it('renews the exact superseded row once, appends one event and is idempotent', async () => {
+  it('renews an audited reviewed row once, appends one event and is idempotent', async () => {
     const provider = syntheticProvider(KAANA_INITIAL_PROVIDERS[0]);
     const priceVersionId = await seedDeployment(provider);
-    await seedSupersededScorecard(provider, priceVersionId);
+    await seedInitialScorecard(provider, priceVersionId);
+    const initial = kaanaInitialScorecardReview(provider);
 
     const [renewed] = await renewInTransaction([provider]);
     expect(renewed).toEqual({
       deploymentId: provider.deploymentId,
       action: 'renew',
-      fromValidUntil: '2026-10-02T00:00:00.000Z',
-      toValidUntil: '2026-11-01T00:00:00.000Z',
-      toChangedAt: '2026-09-24T00:00:00.000Z',
+      fromValidUntil: initial.validUntil,
+      toValidUntil: RENEWAL.validUntil,
+      toChangedAt: RENEWAL.changedAt,
     });
 
     const row = await readRow(provider.deploymentId);
-    expect(row.balancedValidUntil.toISOString()).toBe('2026-11-01T00:00:00.000Z');
-    expect(row.latencyValidUntil.toISOString()).toBe('2026-11-01T00:00:00.000Z');
-    expect(row.throughputValidUntil.toISOString()).toBe('2026-11-01T00:00:00.000Z');
-    expect(row.changedAt.toISOString()).toBe('2026-09-24T00:00:00.000Z');
+    expect(row.balancedValidUntil.toISOString()).toBe(RENEWAL.validUntil);
+    expect(row.latencyValidUntil.toISOString()).toBe(RENEWAL.validUntil);
+    expect(row.throughputValidUntil.toISOString()).toBe(RENEWAL.validUntil);
+    expect(row.changedAt.toISOString()).toBe(RENEWAL.changedAt);
+    expect(row.reason).toBe(RENEWAL.reason);
     expect(row.balancedScore).toBe(provider.scores.balanced);
-    expect(row.latencyMeasurementWindowEnd.toISOString()).toBe('2026-09-02T00:00:00.000Z');
+    expect(row.latencyMeasurementWindowEnd.toISOString()).toBe(initial.changedAt);
     expect(await countEvents(provider.deploymentId)).toBe(2);
-    expect(await countEvents(provider.deploymentId, new Date('2026-09-24T00:00:00.000Z'))).toBe(1);
+    expect(await countEvents(provider.deploymentId, new Date(RENEWAL.changedAt))).toBe(1);
 
     const [again] = await renewInTransaction([provider]);
     expect(again.action).toBe('current');
@@ -315,26 +302,30 @@ describe('renewKaanaRoutingScorecards against Postgres', () => {
   it('refuses a drifted row without writing anything', async () => {
     const provider = syntheticProvider(KAANA_INITIAL_PROVIDERS[1]);
     const priceVersionId = await seedDeployment(provider);
-    await seedSupersededScorecard(provider, priceVersionId, { balancedScore: 1 });
+    await seedInitialScorecard(provider, priceVersionId, { balancedScore: 1 });
 
     await expect(renewInTransaction([provider])).rejects.toThrow(
-      /matches neither its renewed nor its superseded reviewed state.*balancedScore/,
+      /not a reviewed state this renewal may move forward.*balancedScore/,
     );
     const row = await readRow(provider.deploymentId);
-    expect(row.balancedValidUntil.toISOString()).toBe('2026-10-02T00:00:00.000Z');
+    expect(row.balancedValidUntil.toISOString()).toBe(
+      kaanaInitialScorecardReview(provider).validUntil,
+    );
     expect(await countEvents(provider.deploymentId)).toBe(1);
   });
 
-  it('refuses to renew a superseded row that has no audited provenance event', async () => {
+  it('refuses to renew a row that has no audited provenance event', async () => {
     const provider = syntheticProvider(KAANA_INITIAL_PROVIDERS[2]);
     const priceVersionId = await seedDeployment(provider);
-    await seedSupersededScorecard(provider, priceVersionId, { withEvent: false });
+    await seedInitialScorecard(provider, priceVersionId, { withEvent: false });
 
     await expect(renewInTransaction([provider])).rejects.toThrow(
       /exactly one append-only provenance event; found 0/,
     );
     const row = await readRow(provider.deploymentId);
-    expect(row.balancedValidUntil.toISOString()).toBe('2026-10-11T00:00:00.000Z');
+    expect(row.balancedValidUntil.toISOString()).toBe(
+      kaanaInitialScorecardReview(provider).validUntil,
+    );
   });
 
   it('refuses a renewed validity that does not cover the minimum horizon', async () => {
@@ -344,7 +335,8 @@ describe('renewKaanaRoutingScorecards against Postgres', () => {
         renewKaanaRoutingScorecards(tx, {
           providers: [provider],
           reviewerUserId: REVIEWER,
-          minimumValidUntil: new Date('2026-11-01T00:00:00.001Z'),
+          renewal: RENEWAL,
+          minimumValidUntil: new Date(Date.parse(RENEWAL.validUntil) + 1),
         }),
       ),
     ).rejects.toThrow(/does not cover the configured minimum validity horizon/);

@@ -3,10 +3,11 @@
  * Renew the validity of the reviewed Kaana routing scorecards, same values only.
  *
  * Safe by default: without APPLY=1 the complete transaction runs and is rolled
- * back, printing the plan SHA-256 an apply must repeat. Only rows that exactly
- * equal the `scoreRenewal.supersedes` state in
- * `src/config/kaanaInitialCatalogue.ts` are renewed; a row already at the
- * renewed state is a no-op and any other state is refused as drift. Every
+ * back, printing the plan SHA-256 an apply must repeat. Every reviewed route in
+ * `src/config/kaanaInitialCatalogue.ts` is renewed to today's UTC day plus the
+ * reviewed validity window (`kaanaScorecardRenewalReview`), so a dry run and
+ * its apply on the same day share one plan. A row already valid that long is a
+ * no-op, and a row whose reviewed values differ is refused as drift. Every
  * renewal appends one immutable provenance event.
  *
  * It does not read the Kaana inventory: renewal changes no route identity, and
@@ -25,7 +26,10 @@
 
 import { sql } from 'drizzle-orm';
 import { routingScoreValidityThreshold } from '../src/config/inferenceRoutingScoreValidity';
-import { KAANA_REVIEWED_PROVIDERS } from '../src/config/kaanaInitialCatalogue';
+import {
+  KAANA_REVIEWED_PROVIDERS,
+  kaanaScorecardRenewalReview,
+} from '../src/config/kaanaInitialCatalogue';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { requireKaanaCatalogueBootstrapApplyAuthorization } from '../src/scripts/kaanaCatalogueBootstrapPlan';
 import {
@@ -55,7 +59,9 @@ interface RenewalSummary {
 }
 
 async function renew(): Promise<RenewalSummary> {
-  const minimumValidUntil = routingScoreValidityThreshold(new Date());
+  const now = new Date();
+  const minimumValidUntil = routingScoreValidityThreshold(now);
+  const renewal = kaanaScorecardRenewalReview(now);
   await connectPostgres();
   let summary: RenewalSummary | undefined;
   try {
@@ -65,15 +71,12 @@ async function renew(): Promise<RenewalSummary> {
       );
       await requireKaanaCatalogueReviewer(tx, reviewerUserId);
       const outcomes = await renewKaanaRoutingScorecards(tx, {
-        // Every reviewed route, text and speech; only those carrying a
-        // `scoreRenewal` are touched.
+        // Every reviewed route: text, speech and voice.
         providers: KAANA_REVIEWED_PROVIDERS,
         reviewerUserId,
+        renewal,
         minimumValidUntil,
       });
-      if (outcomes.length === 0) {
-        throw new Error('No reviewed provider carries a scoreRenewal; nothing to renew');
-      }
       const planSha256 = createKaanaScorecardRenewalPlanSha256({
         reviewerUserId,
         outcomes,
