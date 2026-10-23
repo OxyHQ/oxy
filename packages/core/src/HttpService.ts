@@ -1788,6 +1788,9 @@ export class HttpService {
         signal: config.signal,
         credentials: 'omit',
         redirect: 'error',
+        // The browser cache is separate from SDK caches and cannot distinguish
+        // account changes unless every receiver supplies correct Vary headers.
+        cache: 'no-store',
       };
       // Node fetch requires this flag for streaming uploads; ordinary and
       // multipart bodies keep the platform's existing body serialization.
