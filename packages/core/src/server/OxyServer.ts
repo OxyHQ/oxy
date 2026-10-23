@@ -674,6 +674,19 @@ export class OxyServer extends OxyServices {
       serviceTokenScopes?: string[];
     } = {},
   ): Promise<ResponsePayload<T>> {
+    const target = new URL(
+      /^https?:\/\//i.test(url)
+        ? url
+        : `${this.baseURL.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`,
+    );
+    if (
+      target.origin !== new URL(this.baseURL).origin ||
+      !['http:', 'https:'].includes(target.protocol) ||
+      target.username ||
+      target.password
+    ) {
+      throw new Error('Service requests must target the configured API origin');
+    }
     const { actAs, requesterToken, taskId, headers, serviceTokenScopes, ...rest } = options;
     const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
@@ -681,7 +694,7 @@ export class OxyServer extends OxyServices {
     if (requesterToken && taskId) throw new Error('Provide one requester proof');
     if (requesterToken) merged['X-Oxy-Requester-Token'] = requesterToken;
     if (taskId) merged['X-Oxy-Task-Id'] = taskId;
-    return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
+    return this.request<T>(method, target.href, data, { cache: false, ...rest, headers: merged });
   }
 
   // ── Application roles ────────────────────────────────────────────────────
