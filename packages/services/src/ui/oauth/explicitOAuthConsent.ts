@@ -1,11 +1,9 @@
 /**
  * Explicit OAuth consent for an already-authenticated Oxy user.
  *
- * This is deliberately separate from sign-in routing. First-party applications
- * normally use the account dialog, but a consent-required scope (for example
- * `acting-as:offline`) still has to go through the OAuth authorize surface. The
- * caller must invoke this operation from a real user gesture; it never runs on
- * mount, retries silently, or grants anything locally.
+ * External applications may request additional scopes through OAuth. Own Oxy
+ * applications use the account dialog and never create OAuth consent grants.
+ * The caller invokes this operation from a user gesture.
  */
 
 import type { OxyServices, PublicApplication } from "@oxy.so/core";
@@ -44,6 +42,7 @@ export type OAuthConsentFailureReason =
 
 export type OAuthConsentUnsupportedReason =
 	| "missing-client-id"
+	| "first-party-application"
 	| "identity-bound"
 	| "not-authenticated"
 	| "unsupported-platform";
@@ -171,6 +170,12 @@ export async function requestOAuthConsent(
 	} catch {
 		closeOAuthPopup(popup);
 		return { status: "failed", reason: "client-resolution-failed" };
+	}
+
+	if (application.isOfficial || application.isInternal ||
+		["first_party", "internal", "system"].includes(application.type)) {
+		closeOAuthPopup(popup);
+		return { status: "unsupported", reason: "first-party-application" };
 	}
 
 	const configuredScopes = new Set(application.scopes);

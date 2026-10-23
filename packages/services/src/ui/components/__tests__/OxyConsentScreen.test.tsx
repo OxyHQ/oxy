@@ -25,6 +25,7 @@ function renderScreen(props: Partial<OxyConsentScreenProps> = {}) {
       scopes={props.scopes ?? ['openid', 'profile']}
       user={props.user}
       resource={props.resource}
+      mode={props.mode}
       onAllow={props.onAllow ?? onAllow}
       onDeny={props.onDeny ?? onDeny}
       busy={props.busy}
@@ -36,6 +37,18 @@ function renderScreen(props: Partial<OxyConsentScreenProps> = {}) {
 }
 
 describe('OxyConsentScreen', () => {
+  it('renders own sign-in without any permission grant language or rows', () => {
+    const { queryByTestId, queryByText, getByTestId } = renderScreen({
+      mode: 'sign-in',
+      scopes: ['files:write'],
+      application: { name: 'Inbox', isOfficial: true },
+    });
+    expect(queryByTestId('consent-scope-files:write')).toBeNull();
+    expect(queryByTestId('consent-scope-basic')).toBeNull();
+    expect(queryByText('Permissions requested')).toBeNull();
+    expect(getByTestId('consent-allow').textContent).toContain('Continue');
+  });
+
   it('renders every requested scope with a friendly label and falls back to the raw scope for unknown ones', () => {
     const { getByTestId } = renderScreen({ scopes: ['openid', 'files:write', 'custom:thing'] });
 

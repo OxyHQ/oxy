@@ -129,7 +129,8 @@ export interface OxyContextState {
 
   /**
    * Ask the already-authenticated user for explicit OAuth consent to exact
-   * application scopes. Must be called from a user gesture. Works on web and
+   * external application scopes. Own Oxy apps do not use this operation.
+   * Must be called from a user gesture. Works on web and
    * native and commits only a callback bound to the same user, state, PKCE pair
    * and byte-exact redirect URI.
    */
