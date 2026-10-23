@@ -12,6 +12,7 @@
  */
 
 import { OxyServer } from '../OxyServer';
+import { logger } from '../../logger';
 import type { RequestOptions } from '../../types';
 
 const APP = 'delegating-app';
@@ -229,4 +230,16 @@ describe('verifyActingAs cache', () => {
     await oxy.verifyActingAs(APP, 'user-0', { cache: true });
     expect(request).toHaveBeenCalledTimes(1002);
   });
+});
+
+it('never logs requester proofs echoed in a failed transport error', async () => {
+  const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+  const proof = 'private-requester-token';
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-token');
+  captureRequests(oxy, new Error(proof));
+  const warning = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+  expect(await oxy.verifyActingAs(APP, USER, { requesterToken: proof })).toBeNull();
+  expect(warning).toHaveBeenCalled();
+  expect(JSON.stringify(warning.mock.calls)).not.toContain(proof);
+  jest.restoreAllMocks();
 });
