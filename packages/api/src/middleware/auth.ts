@@ -6,9 +6,7 @@ import {
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
 import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
-import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
-import { isSupervised } from '../services/supervisionPolicy.service';
-import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
+import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
@@ -342,12 +340,13 @@ export const serviceAuthMiddleware = async (
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     try {
+      const live = await resolveLiveServiceTokenAuthority(verification.payload);
+      if (!live) return res.status(401).json({ error: 'invalid_service_identity' });
       const externalMedia = hasExternalMcpMediaProof(req.headers);
       if (externalMedia && verification.payload.authority !== 'first_party')
         throw new ForbiddenError('The registered resource workload is required.');
       if (verification.payload.authority === 'first_party') {
-        const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
-        if (!principal) return res.status(401).json({ error: 'invalid_service_identity' });
+        const principal = live.principal;
         if (externalMedia)
           req.serviceExternalMedia = await resolveExternalMcpMediaRequest(principal, req);
         else
@@ -357,14 +356,7 @@ export const serviceAuthMiddleware = async (
             ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
           );
       }
-      if (
-        (await isSupervised(verification.payload.ownerAccountId)) ||
-        !(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId))
-      )
-        return sendAuthFailure(res, 403, {
-          error: 'Forbidden',
-          message: 'The owning account has no operating authority',
-        });
+      req.serviceApp = live.payload;
     } catch (error) {
       if (error instanceof ForbiddenError)
         return sendAuthFailure(res, 403, { error: 'Forbidden', message: error.message });
@@ -373,7 +365,6 @@ export const serviceAuthMiddleware = async (
         message: 'Account authority could not be verified',
       });
     }
-    req.serviceApp = verification.payload;
     return next();
   }
 
@@ -421,7 +412,8 @@ export const simpleAuthMiddleware = async (
     }
 
     const token = authHeader.split(' ')[1];
-    if (!process.env.ACCESS_TOKEN_SECRET) {
+    const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
+    if (!accessTokenSecret) {
       logger.error('ACCESS_TOKEN_SECRET not configured');
       return res.status(500).json({
         error: 'Server configuration error',
@@ -431,7 +423,7 @@ export const simpleAuthMiddleware = async (
 
     try {
       // Decode token to check if it's session-based
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!) as TokenDecoded;
+      const decoded = jwt.verify(token, accessTokenSecret) as TokenDecoded;
 
       // Only session-based tokens are supported
       if (!decoded.sessionId) {

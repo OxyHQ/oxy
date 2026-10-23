@@ -62,10 +62,11 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as providerConnectionPrincipal } from '../middleware/userOrServiceAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   providerConnectionAccountBody,
   providerConnectionAccountParams,
@@ -172,7 +173,7 @@ const providerServiceReadLimiter = rateLimit({
   max: PROVIDER_SERVICE_READS_PER_15_MINUTES,
   prefix: 'rl:inference:providers:service-read:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 const providerServiceWriteRefusalLimiter = rateLimit({
@@ -180,7 +181,7 @@ const providerServiceWriteRefusalLimiter = rateLimit({
   max: PROVIDER_SERVICE_WRITES_REFUSED_PER_15_MINUTES,
   prefix: 'rl:inference:providers:service-write-refusal:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 const providerValidationLimiter = rateLimit({
@@ -188,7 +189,7 @@ const providerValidationLimiter = rateLimit({
   max: PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES,
   prefix: 'rl:inference:providers:validation:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -204,29 +205,6 @@ interface ProviderRequest extends AuthRequest {
 }
 
 type ProviderScope = 'inference:providers:read' | 'inference:providers:write';
-
-/**
- * Dispatch between the package's two existing verifiers, adding no third. A
- * bearer that is not a valid service token falls through to `authMiddleware`,
- * which produces the 401 — so an expired user token is answered by the
- * middleware that understands user tokens.
- */
-const providerConnectionPrincipal = (
-  req: ProviderRequest,
-  res: Response,
-  next: (error?: unknown) => void,
-): void => {
-  const header = req.headers.authorization;
-  if (header !== undefined && header.startsWith('Bearer ')) {
-    const verification = verifyServiceToken(header.slice('Bearer '.length));
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  void authMiddleware(req, res, next);
-};
 
 function principalOf(req: ProviderRequest): ProviderPrincipal {
   if (req.serviceApp !== undefined) {

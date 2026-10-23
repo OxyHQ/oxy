@@ -25,8 +25,9 @@ import {
   promoteRequestSchema,
   updateRolloutPatchSchema,
 } from '@oxy.so/contracts';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as authenticatePrincipal } from '../middleware/userOrServiceAuth';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -61,31 +62,6 @@ const readLimiter = rateLimit({
   message: 'Too many update read operations. Please slow down.',
   keyGenerator: (req: express.Request) => `updates:read:${hashedIpKey(req)}`,
 });
-
-/**
- * Authenticate the caller as EITHER a service token OR a user session. A valid
- * `service`-type JWT sets `req.serviceApp`; anything else falls through to the
- * standard user-session middleware. App-level authorization is deferred to
- * {@link authorizeForApp} (it needs the target applicationId from the body).
- */
-function authenticatePrincipal(
-  req: UpdatesAdminRequest,
-  res: express.Response,
-  next: express.NextFunction,
-): void {
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice('Bearer '.length);
-    const verification = verifyServiceToken(token);
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  // Not a service token → require a user session.
-  void authMiddleware(req, res, next);
-}
 
 /**
  * Enforce that the authenticated principal may manage updates for

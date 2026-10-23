@@ -49,11 +49,12 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  */
 
 import { Router, type Response } from 'express';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as billingPrincipal } from '../middleware/userOrServiceAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   accountBillingParams,
   accountInvoicesSchema,
@@ -244,31 +245,6 @@ interface BillingRequest extends AuthRequest {
 type BillingPrincipal =
   | { readonly kind: 'user'; readonly userId: string; readonly sessionId?: string }
   | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
-
-/**
- * Dispatch between the package's two existing verifiers, adding no third.
- *
- * The same arrangement `inferenceRoutingPolicies.ts` and
- * `inferenceProviderConnections.ts` use. A bearer that is not a valid service
- * token falls through to `authMiddleware`, which produces the 401 — so an
- * expired user token is answered by the middleware that understands user tokens.
- */
-const billingPrincipal = (
-  req: BillingRequest,
-  res: Response,
-  next: (error?: unknown) => void,
-): void => {
-  const header = req.headers.authorization;
-  if (header !== undefined && header.startsWith('Bearer ')) {
-    const verification = verifyServiceToken(header.slice('Bearer '.length));
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  void authMiddleware(req, res, next);
-};
 
 function principalOf(req: BillingRequest): BillingPrincipal {
   if (req.serviceApp !== undefined) {

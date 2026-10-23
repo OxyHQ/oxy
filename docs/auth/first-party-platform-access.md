@@ -59,3 +59,15 @@ requester/account and ends when that authority is no longer valid.
 Do not confuse OAuth scopes with lexical variables, database tenant boundaries,
 cloud bucket restrictions, app roles or signed operation tickets. Those names
 can contain “scope” without representing the removed inter-app permission model.
+
+## Live service authentication
+
+All platform service routes, including mixed user/service routes, must use
+`serviceAuthMiddleware` or the shared `userOrServiceAuthMiddleware` dispatcher.
+A JWT signature is necessary but does not prove that a workload binding,
+application, owner or external credential remains active. Both required and
+optional service authentication resolve current authority before attaching a
+principal. External scopes are the intersection of the original signed scopes
+and the live credential/application ceiling; official branding never changes
+that authority. Invalidated service identities fail authentication before a
+resource is resolved. Domain and tenant checks still run after authentication.
