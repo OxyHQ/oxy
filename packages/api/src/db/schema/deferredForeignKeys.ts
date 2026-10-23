@@ -70,7 +70,7 @@ import { authSessions } from './authSessions';
 import { billingStripeEvents } from './billingStripeEvents';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
-import { capabilityExecutionAuthorizations } from './agency';
+import { capabilityExecutionAuthorizations, firstPartyTasks } from './agency';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
@@ -220,6 +220,18 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     }),
   ),
 
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.requesterSessionId,
+    reason:
+      'Historical original requester proof. Durable goals and schedules outlive session cleanup; immediate request roots revalidate the exact live session and binding digest.',
+  },
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.originId,
+    reason:
+      'Originating request, goal or schedule identifier belongs to the coordinator product, scoped by coordinator application and origin kind, not to an Oxy table.',
+  },
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.requesterSessionId,
