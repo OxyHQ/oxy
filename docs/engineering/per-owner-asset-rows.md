@@ -197,3 +197,57 @@ Treat 0124 as forward-only.
 - The cache namespace stays at one row per hash, so Mention cache entries with
   identical bytes share one id. Evicting one entry deletes the row that another
   entry uses.
+
+## Video rendition repair
+
+Video encoding preserves the displayed aspect ratio (including rotation and
+non-square input pixels), with even square-pixel output, no generated padding,
+and no enlargement beyond the displayed source dimensions. MP4 and HLS share
+one tier calculation; HLS has aligned two-second segments. MP4 stores its index
+at the beginning of the file. The HLS master advertises the encoded dimensions
+and measured segment bandwidth.
+
+A complete video set uses a `video-v2/<generation>` directory. Segments upload
+before rendition playlists; the master uploads last. Only after the whole set
+succeeds does one transaction replace the video rows and intrinsic metadata.
+Old playable objects and the original remain untouched. A finished master’s
+`metadata.encodingProfile` is the completion marker; legacy twin sets cannot
+satisfy it. The same completed set is shared only with live twins of the same
+visibility spelling, and each public file resolver is purged.
+
+The file’s intrinsic `metadata.video.storageRoots` retains validated SHA roots
+from previous generations and twins. Subsequent generations reuse a known root
+instead of changing it with the calendar. File/account/application deletion and
+visibility relocation record those roots in the existing storage deletion
+ledger, whose content lock and per-spelling ownership checks protect live
+public/private twins. Old generation playlists, MP4s and unlisted HLS segments
+therefore follow the same visibility/deletion lifecycle as the current set.
+
+Run **Repair video renditions** (`run-video-rendition-repair.yml`) on protected
+`main` after deploying the encoder. It builds a dedicated one-shot image, uses
+the live ECS network/roles, and does not replace the API service. Default is a
+dry run, capped at 100 content/visibility groups (maximum 1,000). Start with
+`file_id=01a16684-e7ee-7213-8bca-051c9cabce02` and `limit=1`; inspect its original,
+new MP4/HLS dimensions, manifests and browser playback before a broader pass.
+Set `dry_run=false` only for the intended pass.
+
+The underlying command inside the API image is:
+
+```bash
+DRY_RUN=true LIMIT=1 FILE_ID=01a16684-e7ee-7213-8bca-051c9cabce02 bun run packages/api/src/scripts/repair-video-renditions.ts
+```
+
+Each completed/skipped/failed group logs its `cursor`; the final result contains
+`nextCursor`. Pass it as workflow `after` (or environment `AFTER`) to continue
+past failures without starving later groups. Keep failed file IDs for explicit
+retries without a cursor. Re-running from the beginning skips completed current
+sets. Missing originals and encoding failures remain visible and exit 75.
+The task is stopped when its workflow ends; a partially encoded generation never
+replaces a playable set. No production repair runs automatically on deployment.
+
+An edge resolver purge cannot remove a `302` already cached in a browser.
+Mention keeps the canonical by-ID `?variant=hls_master` URL, whose current
+response allows one hour of freshness and up to one day of stale revalidation.
+Validate both a cold client and a resolver that has expired/revalidated; do not
+report instant convergence for clients still holding an earlier redirect.
+The repair adds no hydration request and no random query parameter.

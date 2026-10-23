@@ -1585,10 +1585,31 @@ export async function tombstoneFileIfDue(
   return record ?? null;
 }
 
+/** Record ownership before the first object upload, without replacing concurrent media metadata. */
+export async function rememberVideoStorageRoot(fileId: string, root: string): Promise<void> {
+  await getDb()
+    .update(files)
+    .set({
+      metadata: sql`coalesce(${files.metadata}, '{}'::jsonb) || jsonb_build_object('video',
+      (case when jsonb_typeof(${files.metadata}->'video') = 'object' then ${files.metadata}->'video' else '{}'::jsonb end)
+      || jsonb_build_object('storageRoots',
+        (case when jsonb_typeof(${files.metadata}->'video'->'storageRoots') = 'array'
+          then ${files.metadata}->'video'->'storageRoots' else '[]'::jsonb end) || jsonb_build_array(${root}::text)))`,
+    })
+    .where(
+      and(
+        eq(files.id, fileId),
+        sql`not coalesce(${files.metadata}->'video'->'storageRoots' ? ${root}, false)`,
+      ),
+    );
+  fileCache.invalidate(fileId);
+}
+
 /**
  * Write a batch of renditions for a file, optionally alongside its `metadata`,
  * in ONE transaction — replacing any existing row of the SAME `type` and
- * leaving rows of every other type untouched.
+ * leaving unrelated types untouched. A complete video replacement also retires
+ * obsolete video tiers while preserving lazy image renditions.
  *
  * The transaction keeps variants and metadata indivisible.
  * Intrinsic metadata (dimensions, duration) is derived from the same decode pass
@@ -1608,6 +1629,7 @@ export async function upsertVariantSet(
   fileId: string,
   variants: NewFileVariant[],
   patch?: FilePatch,
+  { replaceVideoSet = false }: { replaceVideoSet?: boolean } = {},
 ): Promise<FileVariantRecord[]> {
   const written = await getDb().transaction(async (tx) => {
     const old = await readMeteredOwner(tx, fileId);
@@ -1617,7 +1639,17 @@ export async function upsertVariantSet(
       if (types.length > 0) {
         await tx
           .delete(fileVariants)
-          .where(and(eq(fileVariants.fileId, fileId), inArray(fileVariants.type, types)));
+          .where(
+            and(
+              eq(fileVariants.fileId, fileId),
+              or(
+                inArray(fileVariants.type, types),
+                replaceVideoSet
+                  ? sql`(left(${fileVariants.type}, 4) = 'hls_' or ${fileVariants.type} in ('360p', '720p', '1080p', 'source'))`
+                  : undefined,
+              ),
+            ),
+          );
       }
 
       const inserted =
