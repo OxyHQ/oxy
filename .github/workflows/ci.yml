@@ -281,59 +281,52 @@ jobs:
       # nested timeouts (this step's previous form) bounded the damage but could
       # not remove the mirror.
       #
-      # Instead: the static ffmpeg 6.0 / ffprobe 6.0 builds from the `b6.0`
-      # release of eugeneware/ffmpeg-static (the project `ffmpeg-static` on npm
-      # downloads from). A release asset is permanent and is served from the same
-      # GitHub infrastructure as this job's own checkout and cache restores. Each
-      # file is pinned by SHA-256, so a changed or truncated download fails the
-      # step instead of reaching the suite, and the download is retried by curl.
-      # libx264 is in the build, which the fixture needs (the positive control
-      # below encodes one frame to prove it).
-      #
-      # To bump: change FFMPEG_RELEASE and both digests together, and run the
-      # control. Do not use a `latest` URL here — an unpinned binary is the same
-      # unreviewed input this step exists to remove.
+      # Use a checksum-pinned BtbN month-end GPL build (includes libx264).
+      # The former eugeneware b6.0 binaries SIGSEGV while reading MPEG-TS, even
+      # for a minimal locally generated segment; their MP4-only control missed it.
+      # Month-end releases are retained for two years, unlike daily builds:
+      # https://github.com/BtbN/FFmpeg-Builds#release-retention-policy
+      # Refresh this pin before September 2028; update release, archive and digest
+      # together, then run both format controls and the real video rendition suite.
       - name: Install ffmpeg (video variant tests)
         timeout-minutes: 10
         env:
-          FFMPEG_RELEASE: b6.0
-          FFMPEG_SHA256: ed652b2f32e0851d1946894fb8333f5b677c1b2ce6b9d187910a67f8b99da028
-          FFPROBE_SHA256: a339171d90f7482b2db02234e261b9e00d51526391f87fa633d5da7b98a28cf4
+          FFMPEG_RELEASE: autobuild-2026-09-30-13-08
+          FFMPEG_ARCHIVE: ffmpeg-n8.1.3-9-g29e619e767-linux64-gpl-8.1
+          FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
         run: |
           set -euo pipefail
           bin="$RUNNER_TEMP/ffmpeg-bin"
           mkdir -p "$bin"
-          fetch() {
-            name="$1"; digest="$2"
-            curl --fail --silent --show-error --location \
-              --retry 5 --retry-all-errors --retry-delay 5 --max-time 300 \
-              -o "$bin/$name" \
-              "https://github.com/eugeneware/ffmpeg-static/releases/download/$FFMPEG_RELEASE/$name-linux-x64"
-            echo "$digest  $bin/$name" | sha256sum --check --strict -
-            chmod +x "$bin/$name"
-          }
-          fetch ffmpeg "$FFMPEG_SHA256"
-          fetch ffprobe "$FFPROBE_SHA256"
+          archive="$RUNNER_TEMP/ffmpeg.tar.xz"
+          curl --fail --silent --show-error --location \
+            --retry 5 --retry-all-errors --retry-delay 5 --max-time 300 \
+            -o "$archive" \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$FFMPEG_ARCHIVE.tar.xz"
+          echo "$FFMPEG_SHA256  $archive" | sha256sum --check --strict -
+          tar -xJf "$archive" --strip-components=2 -C "$bin" \
+            "$FFMPEG_ARCHIVE/bin/ffmpeg" "$FFMPEG_ARCHIVE/bin/ffprobe"
           echo "$bin" >> "$GITHUB_PATH"
           export PATH="$bin:$PATH"
           ffmpeg -version | head -1
           ffprobe -version | head -1
-          # The positive control. `pipefail` is on, so the two lines above do fail
-          # on a missing binary; this asserts what they cannot — that the binary
-          # can do the one thing the suite needs. Encoding one frame the way the
-          # fixture builder does (`-f lavfi testsrc`, `-c:v libx264`) fails loudly
-          # if it cannot.
+          # Prove encoding, probing AND decoding in the two containers used by
+          # production renditions. A binary crash fails installation, not a suite.
           probe_dir=$(mktemp -d)
-          ffmpeg -hide_banner -loglevel error -f lavfi \
-            -i testsrc=size=64x64:rate=10:duration=1 \
-            -c:v libx264 -pix_fmt yuv420p -movflags +faststart -y "$probe_dir/probe.mp4"
-          codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$probe_dir/probe.mp4")
-          rm -rf "$probe_dir"
-          if [ "$codec" != h264 ]; then
-            echo "::error::ffmpeg is on PATH but encoded '$codec', not h264 — the video variant fixture cannot be built"
-            exit 1
-          fi
-          echo "ffmpeg encodes h264 via lavfi: the video variant fixture can be built"
+          trap 'rm -rf "$probe_dir"' EXIT
+          for extension in mp4 ts; do
+            ffmpeg -hide_banner -loglevel error -f lavfi \
+              -i testsrc=size=64x64:rate=10:duration=1 \
+              -c:v libx264 -pix_fmt yuv420p -y "$probe_dir/probe.$extension"
+            codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
+              -of json "$probe_dir/probe.$extension" | jq -r '.streams[0].codec_name')
+            if [ "$codec" != h264 ]; then
+              echo "::error::ffmpeg encoded '$codec', not h264, in $extension"
+              exit 1
+            fi
+            ffmpeg -hide_banner -loglevel error -i "$probe_dir/probe.$extension" -f null -
+          done
+          echo "ffmpeg/ffprobe encode, probe and decode H.264 in MP4 and MPEG-TS"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0

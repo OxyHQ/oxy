@@ -26,6 +26,8 @@ const WRITERS: Record<string, string> = {
   'services/assetService.ts#relocateAllForVisibility': 'cacheFile after its transaction',
   'services/fileRepository.ts#updateFile': 'itself, after its own transaction',
   'services/fileRepository.ts#upsertVariantSet': 'itself, after its own transaction',
+  'services/fileRepository.ts#rememberVideoStorageRoot':
+    'itself, after the awaited autocommit update (fileCache.invalidate)',
   'services/fileRepository.ts#addFileReferences':
     'itself after its own transaction; in a caller transaction the caller enterServing()s each restored file (linkFile, reconciliation)',
   'services/fileRepository.ts#reactivateTrashedFile': 'itself, after its own transaction',

@@ -41,13 +41,6 @@ export interface Env {
  */
 export const EDGE_CACHE_MAX_BYTES = 500 * 1024 * 1024;
 
-/**
- * A ranged miss on an object up to this size fills the cache first and answers
- * from it. A larger one is answered from R2 straight away (a video's first
- * frame must not wait for the whole file) and filled in the background.
- */
-export const SYNCHRONOUS_FILL_MAX_BYTES = 16 * 1024 * 1024;
-
 /** Keys this isolate is already filling in the background, so a burst of ranges fills once. */
 const backgroundFills = new Set<string>();
 
@@ -137,12 +130,12 @@ async function fillCache(
   route: ObjectRoute,
   cacheKey: Request,
   deps: Deps,
-): Promise<boolean> {
+): Promise<void> {
   const object = await bucketFor(env, route).get(route.key);
-  if (!hasBody(object)) return false;
+  if (!hasBody(object)) return;
   if (object.size > EDGE_CACHE_MAX_BYTES) {
     await object.body.cancel();
-    return false;
+    return;
   }
   const headers = objectHeaders(object, route);
   headers.set('content-length', String(object.size));
@@ -150,7 +143,6 @@ async function fillCache(
     cacheKey,
     new Response(sized(object.body, object.size), { status: 200, headers }),
   );
-  return true;
 }
 
 function bucketFor(env: Env, route: ObjectRoute): R2Bucket {
@@ -184,19 +176,6 @@ export async function serveObject(
   if (rangeHeader) {
     const head = await bucket.head(route.key);
     if (!head) return finalize(notFound(), null);
-    if (head.size <= SYNCHRONOUS_FILL_MAX_BYTES) {
-      if (await fillCache(env, route, cacheKey, deps)) {
-        const filled = await deps.cache.match(cacheLookup(url, request));
-        if (filled) return finalize(filled, route);
-      }
-    } else if (head.size <= EDGE_CACHE_MAX_BYTES && !backgroundFills.has(route.key)) {
-      backgroundFills.add(route.key);
-      deps.waitUntil(
-        fillCache(env, route, cacheKey, deps)
-          .catch(() => false)
-          .finally(() => backgroundFills.delete(route.key)),
-      );
-    }
     let object: R2ObjectBody | R2Object | null;
     try {
       object = await bucket.get(route.key, { range: request.headers, onlyIf: request.headers });
@@ -208,6 +187,20 @@ export async function serveObject(
     if (!object) return finalize(notFound(), null);
     const headers = objectHeaders(object, route);
     if (!hasBody(object)) return finalize(new Response(null, { status: 304, headers }), route);
+    // Start with the requested bytes, even for small objects. Waiting for the
+    // entire file to fill the cache delays the first frame and every cold seek.
+    // Invalid and conditional requests never trigger a full-object download.
+    const fillKey = `${route.bucket}:${route.key}`;
+    if (object.size <= EDGE_CACHE_MAX_BYTES && !backgroundFills.has(fillKey)) {
+      backgroundFills.add(fillKey);
+      deps.waitUntil(
+        fillCache(env, route, cacheKey, deps)
+          .catch((error: unknown) => {
+            console.error('Media edge cache fill failed', error);
+          })
+          .finally(() => backgroundFills.delete(fillKey)),
+      );
+    }
     const range = rangeOf(object);
     if (!range) {
       headers.set('content-length', String(object.size));
