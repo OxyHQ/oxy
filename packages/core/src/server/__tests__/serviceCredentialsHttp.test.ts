@@ -58,6 +58,7 @@ it('shares v2 workload credentials across HTTP/WS and bounds destinations, cance
         requester: { accountId: 'A', token: 'proof' },
       },
       { baseURL, audience: 'kaana.ai', attribution: { accountId: ' ' } },
+      { baseURL, audience: 'kaana.ai', attribution: { accountId: 'a'.repeat(65) } },
     ])
       expect(() => oxy.createServiceClient(invalid as unknown as ServiceClientOptions)).toThrow(
         'Inference attribution',
