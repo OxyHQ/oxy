@@ -15,7 +15,7 @@ import { recordRenditionRequest } from '../../services/renditionRequests';
 import { VIDEO_RENDITION_PROFILE } from '../../services/video-renditions';
 import { seedVideoRenditionBacklog } from '../../scripts/video-rendition-backlog';
 import {
-  ASSET_VARIANT_BACKLOG_PRIORITY,
+  ASSET_VARIANT_JOB_PRIORITY,
   ASSET_VARIANT_QUEUE_TARGET_DEPTH,
   runAssetVariantSchedulerPass,
 } from '../assetVariants.queue';
@@ -171,6 +171,10 @@ it('feeds the existing bounded scheduler at backlog priority without bypassing b
   const addBulk = jest.fn(async () => {});
   let depth = ASSET_VARIANT_QUEUE_TARGET_DEPTH;
   const queue = {
+    getJobs: async () => [],
+    getJob: async () => ({
+      data: { requestedAt: (await requests([row.id]))[0].requestedAt.toISOString() },
+    }),
     getJobCounts: async (...states: string[]) =>
       Object.fromEntries(states.map((s) => [s, s === 'prioritized' ? depth : 0])),
     addBulk,
@@ -185,11 +189,34 @@ it('feeds the existing bounded scheduler at backlog priority without bypassing b
     expect.arrayContaining([
       expect.objectContaining({
         data: expect.objectContaining({ fileId: row.id }),
-        opts: expect.objectContaining({ priority: ASSET_VARIANT_BACKLOG_PRIORITY }),
+        opts: expect.objectContaining({ priority: ASSET_VARIANT_JOB_PRIORITY }),
       }),
     ]),
   );
   expect((await requests([row.id]))[0].enqueuedUntil).not.toBeNull();
   // Leave no runnable request from this fixture for other scheduler cases.
   await getDb().delete(fileRenditionRequests).where(eq(fileRenditionRequests.fileId, row.id));
+});
+
+it('promotes an existing leased bulk request, preserving its identity and a fresh request', async () => {
+  const app = await application();
+  const bulk = await video(app);
+  const fresh = await video(app);
+  const at = new Date();
+  const until = new Date(Date.now() + 60000);
+  await getDb()
+    .insert(fileRenditionRequests)
+    .values({ fileId: bulk.id, requestedAt: at, enqueuedUntil: until });
+  await recordRenditionRequest(fresh.id, 60000);
+  const beforeFresh = await requests([fresh.id]);
+  const result = await seedVideoRenditionBacklog({ applicationId: app, dryRun: false });
+  expect(result).toMatchObject({ inserted: 0, promoted: 1, alreadyPending: 2 });
+  expect(await requests([bulk.id])).toEqual([
+    expect.objectContaining({ lane: 'repair', requestedAt: at, enqueuedUntil: until }),
+  ]);
+  expect(await requests([fresh.id])).toEqual(beforeFresh);
+  expect(await seedVideoRenditionBacklog({ applicationId: app, dryRun: false })).toMatchObject({
+    inserted: 0,
+    promoted: 0,
+  });
 });
