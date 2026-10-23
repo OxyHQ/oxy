@@ -34,6 +34,7 @@ import {
   supervisionAudit,
 } from '../db/schema';
 import userCache from '../utils/userCache';
+import { broadcastSupervisionChanged } from '../utils/socket';
 import { visibleOrganizationIdentityPredicate } from '../utils/profileQuery';
 
 const supervisionProfilesFields = {
@@ -286,6 +287,7 @@ export async function inviteGuardian(child: string, guardian: string) {
     return invitationDto(row);
   });
   userCache.invalidate(child);
+  broadcastSupervisionChanged([child, guardian]);
   return invitation;
 }
 export async function cancelInvitation(id: string, actor: string) {
@@ -305,6 +307,7 @@ export async function cancelInvitation(id: string, actor: string) {
     .returning();
   if (!row) throw missing();
   await audit(getDb(), row.childAccountId, actor, 'invitation_cancelled');
+  broadcastSupervisionChanged([row.childAccountId, row.guardianAccountId]);
 }
 async function invalidateGuardianApprovals(tx: DatabaseOrTransaction, child: string) {
   await tx.delete(supervisionContacts).where(eq(supervisionContacts.childAccountId, child));
@@ -415,6 +418,7 @@ export async function acceptInvitation(id: string, guardian: string) {
   announceUserSessionsRevoked(child);
   userCache.invalidate(child);
   invalidateSupervision(child);
+  broadcastSupervisionChanged([child, guardian]);
   return getSupervisionState(guardian);
 }
 export async function listContacts(child: string, actor: string) {
@@ -473,7 +477,7 @@ export async function changeContact(
   });
 }
 export async function reviewSupervision(actor: string, input: SupervisionReviewInput) {
-  await getDb().transaction(async (tx) => {
+  const previousGuardian = await getDb().transaction(async (tx) => {
     const [staff] = await tx
       .select({ isStaff: users.isStaff })
       .from(users)
@@ -544,8 +548,10 @@ export async function reviewSupervision(actor: string, input: SupervisionReviewI
       relatedAccountId: input.guardianAccountId,
       evidenceReference: input.evidenceReference,
     });
+    return profile.guardianAccountId;
   });
   invalidateSupervision(input.childAccountId);
+  broadcastSupervisionChanged([input.childAccountId, previousGuardian, input.guardianAccountId]);
 }
 function purchaseSummaryDto(row: typeof supervisionPurchaseApprovals.$inferSelect) {
   return purchaseApprovalSummarySchema.parse({

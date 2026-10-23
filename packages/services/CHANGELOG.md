@@ -1,5 +1,20 @@
 # Changelog
 
+## [12.13.0] - 2026-10-23
+
+Needs `@oxy.so/contracts` 5.8.0.
+
+### Changed
+
+- `useSupervision()` reads the session's supervision state from the cache
+  instead of blocking every mount on a fresh request. `OxyProvider` keeps it
+  current: fetched when the session is established, refetched when the app
+  returns to the foreground and when the session socket signals
+  `supervision_changed`. `data` is undefined only while the session's first
+  fetch is pending, while the query is disabled and after a failed fetch. The
+  return shape is unchanged; the server still enforces supervision on every
+  content request.
+
 ## [12.12.0] - 2026-10-22
 
 ### Changed
