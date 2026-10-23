@@ -12,6 +12,7 @@ import {
   manifestProblems,
   plan,
   publicPackages,
+  plannedDependencyVersions,
   releaseTag,
   workspaceDependencies,
   workspacePackages,
@@ -439,5 +440,37 @@ test('plan and published remain usable from a sparse helper checkout without ins
   assert.equal(
     spawnSync('node', [sparseTool, 'published', '@example/package', '1.0.0'], options).status,
     0,
+  );
+});
+
+test('npm aliases validate their real target against preceding planned releases', () => {
+  const workspaces = [
+    { manifest: { name: '@oxy.so/zod4', version: '4.6.8' } },
+    { manifest: { name: '@oxy.so/mcp', version: '1.3.2' } },
+  ];
+  const manifest = { dependencies: { zod: 'npm:@oxy.so/zod4@4.6.8' } };
+  const preceding = plannedDependencyVersions(
+    '@oxy.so/mcp',
+    workspaces,
+    new Set(['@oxy.so/zod4', '@oxy.so/mcp']),
+  );
+  assert.deepEqual(consumerRanges(manifest, preceding), []);
+  const later = plannedDependencyVersions(
+    '@oxy.so/mcp',
+    workspaces,
+    new Set(['@oxy.so/mcp', '@oxy.so/zod4']),
+  );
+  assert.deepEqual(consumerRanges(manifest, later), ['@oxy.so/zod4@4.6.8']);
+  assert.deepEqual(
+    consumerRanges({ dependencies: { zod: 'npm:@oxy.so/zod4@^5.0.0' } }, preceding),
+    ['@oxy.so/zod4@^5.0.0'],
+  );
+  assert.deepEqual(
+    consumerRanges({ dependencies: { zod: 'npm:external-parser@^4.6.8' } }, preceding),
+    ['external-parser@^4.6.8'],
+  );
+  assert.deepEqual(
+    consumerRanges({ dependencies: { zod: 'npm:@oxy.so/zod4@latest' } }, preceding),
+    ['@oxy.so/zod4@latest'],
   );
 });

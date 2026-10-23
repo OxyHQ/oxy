@@ -150,5 +150,9 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "zshy": "catalog:"
   }
 }

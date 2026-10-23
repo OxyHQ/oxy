@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.3.2
+
+- Use the maintained, source-built Zod security backport to reject oversized constrained collections before traversing their elements, preserving the existing validation API.
+
 ## 1.3.1
 
 ### Fixed
