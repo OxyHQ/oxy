@@ -6,13 +6,25 @@ import { createEcosystemTraffic } from '../traffic';
  * Named `mock*` because ts-jest hoists `jest.mock` above the imports and only
  * lets a factory close over a binding with that prefix.
  */
-const mockClients: Array<{ configureServiceAuth: jest.Mock; serviceToken: jest.Mock }> = [];
+const mockClients: Array<{
+  configureServiceAuth: jest.Mock;
+  serviceRequest: jest.Mock;
+  dispose: jest.Mock;
+}> = [];
 
 jest.mock('../OxyServer', () => ({
   OxyServer: jest.fn(() => {
     const client = {
       configureServiceAuth: jest.fn(),
-      serviceToken: jest.fn(async () => 'token-from-workload'),
+      dispose: jest.fn(),
+      serviceRequest: jest.fn(async (_method, path, data) => {
+        const response = await globalThis.fetch(`https://api.oxy.so${path}`, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer token-from-workload' },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error('Activity collection failed');
+      }),
     };
     mockClients.push(client);
     return client;
@@ -117,30 +129,6 @@ it('publishes independently of viewers and waits for registration before removin
   }
 });
 
-it('rejects a partial activity credential instead of mixing it with service credentials', () => {
-  const previous = { ...process.env };
-  try {
-    process.env.OXY_ACTIVITY_API_KEY = 'activity-key';
-    Reflect.deleteProperty(process.env, 'OXY_ACTIVITY_API_SECRET');
-    process.env.OXY_SERVICE_API_KEY = 'service-key';
-    process.env.OXY_SERVICE_API_SECRET = 'service-secret';
-    expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow(
-      'complete OXY_ACTIVITY',
-    );
-  } finally {
-    process.env = previous;
-  }
-});
-
-/**
- * Who may publish ecosystem activity, and who is still refused.
- *
- * ADR 0026 made "no api key, no secret" a legitimate shape for a first-party
- * service: it attests its ECS task role instead. This constructor used to throw
- * on exactly that shape, so the migration it asks for — delete two variables
- * from a task definition — killed the process at boot, the circuit breaker
- * rolled the deploy back, and the operator was told the service was stable.
- */
 describe('ecosystem activity credentials', () => {
   const previous = { ...process.env };
   const originalFetch = globalThis.fetch;
@@ -150,7 +138,7 @@ describe('ecosystem activity credentials', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('uses a service key pair when the process holds one', async () => {
+  it('ignores ambient legacy key pairs for its own workload publisher', async () => {
     clearCredentialEnvironment();
     process.env.OXY_SERVICE_API_KEY = 'service-key';
     process.env.OXY_SERVICE_API_SECRET = 'service-secret';
@@ -160,8 +148,8 @@ describe('ecosystem activity credentials', () => {
     const traffic = createEcosystemTraffic({ service: 'mention', region: 'us-west-2' });
     await traffic.stop();
 
-    expect(lastClient().configureServiceAuth).toHaveBeenCalledWith('service-key', 'service-secret');
-    expect(lastClient().serviceToken).toHaveBeenCalled();
+    expect(lastClient().configureServiceAuth).not.toHaveBeenCalled();
+    expect(lastClient().serviceRequest).toHaveBeenCalled();
   });
 
   it('lets an explicit credential win over the environment', async () => {
@@ -180,17 +168,31 @@ describe('ecosystem activity credentials', () => {
 
     expect(authorizations(sent)).not.toContain('Bearer token-from-workload');
     expect(authorizations(sent)).toContain('Bearer explicit-token');
-    expect(lastClient().serviceToken).not.toHaveBeenCalled();
+    expect(lastClient().serviceRequest).not.toHaveBeenCalled();
   });
 
-  it('refuses a process with no credential and nothing to attest', () => {
+  it('accepts an injected temporary credential provider without an ECS environment', async () => {
     clearCredentialEnvironment();
-
-    // A laptop or a CI box: the container credentials endpoint is not going to
-    // appear later, so saying so at boot beats failing on the first heartbeat.
-    expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow(
-      /needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity/,
-    );
+    const sent: RequestInit[] = [];
+    globalThis.fetch = recordingFetch(sent);
+    const provider = async () => ({
+      AccessKeyId: 'ASIATEST',
+      SecretAccessKey: 'test',
+      Token: 'temporary',
+    });
+    const traffic = createEcosystemTraffic({
+      service: 'homiio',
+      region: 'us-west-2',
+      workloadCredentials: provider,
+    });
+    await traffic.stop();
+    const { OxyServer } = await import('../OxyServer');
+    expect(OxyServer).toHaveBeenLastCalledWith({
+      baseURL: 'https://api.oxy.so',
+      workloadCredentials: provider,
+    });
+    expect(lastClient().serviceRequest).toHaveBeenCalled();
+    expect(lastClient().dispose).toHaveBeenCalledTimes(1);
   });
 
   it('publishes with no key pair at all when the process can attest its workload identity', async () => {
@@ -204,10 +206,9 @@ describe('ecosystem activity credentials', () => {
     const traffic = createEcosystemTraffic({ service: 'mention', region: 'us-west-2' });
     await traffic.stop();
 
-    // Unconfigured on purpose: that is what sends `serviceToken()` down the
-    // workload path instead of handing it half a credential.
+    // No environment credential pair is configured on the own workload client.
     expect(lastClient().configureServiceAuth).not.toHaveBeenCalled();
-    expect(lastClient().serviceToken).toHaveBeenCalled();
+    expect(lastClient().serviceRequest).toHaveBeenCalled();
     expect(authorizations(sent)).toContain('Bearer token-from-workload');
   });
 });

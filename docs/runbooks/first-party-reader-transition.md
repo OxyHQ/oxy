@@ -11,6 +11,11 @@ The preparatory SDK keeps manual `OxyServer.serviceToken()` and
 `protocolVersion` field). External credential pairs remain external regardless
 of the host's infrastructure identity. `serviceRequest()` to Oxy, resource and
 service introspection, and `createServiceClient()` use v2 workload authority.
+Every internal SDK-to-Oxy call also uses v2, including requester verification,
+anonymous service reads, the revocation feed and ecosystem activity. The
+activity publisher accepts an optional temporary `workloadCredentials` provider;
+legacy API-key environment variables no longer select its identity. Explicit
+legacy credential callbacks remain subject to the API receiver policy.
 Workload caches and in-flight exchanges are separated by audience AND protocol.
 The public low-level `requestWorkloadServiceToken()` also remains v2. There is no
 public protocol option.
