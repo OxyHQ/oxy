@@ -247,6 +247,7 @@ export async function requestWorkloadServiceToken(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       provider: 'aws-iam',
+      protocolVersion: 2,
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),
