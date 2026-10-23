@@ -259,7 +259,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
 const FROZEN_EMBEDDED_SHAPES: string[] = [
   'aliaReleaseArtifactSchema',
   'aliaReleaseSignatureSchema',
-  'authenticatedPrincipalSchema',
   'autoRechargeSchema',
   'billingPrincipalSchema',
   'catalogueServingProviderSummarySchema',
@@ -331,6 +330,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
  * is that the SET of unions is a decision somebody makes on purpose.
  */
 const FROZEN_UNION_SHAPES: string[] = [
+  'authenticatedPrincipalSchema',
   // The routes the control plane authorized, and how each one is authorized
   'authorizedRouteSchema',
   'embeddingResponseSchema',
