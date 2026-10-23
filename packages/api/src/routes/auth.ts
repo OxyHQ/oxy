@@ -3820,9 +3820,9 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     appName: app.name,
     credentialId: credential.id,
     ownerAccountId: app.ownerAccountId,
-    // An untrusted application reaches this line only on the self-service
-    // exception above; it stays external, with its scopes.
-    tier: isTrustedApplication(app) ? 'internal' : 'external',
+    // A customer credential never proves an Oxy workload, regardless of app branding.
+    authority: 'external',
+    tier: 'external',
     scopes,
     environment: credential.environment,
   } as const;
