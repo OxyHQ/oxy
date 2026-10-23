@@ -342,16 +342,12 @@ export const messages = pgTable(
     index('messages_starred_idx')
       .on(t.userId, t.pinned.desc(), t.date.desc())
       .where(sql`${t.starred}`),
-    // (7) The weighted text index.
-    index('messages_search_vector_idx').using('gin', t.searchVector),
-    // (8) Label membership.
-    index('messages_labels_idx').using('gin', t.labels),
-    // (7b) + (8b) The same two, scoped to the owner. Every search and label
-    // view filters `user_id`, and (7)/(8) cannot: they match a common term or
-    // label in every mailbox on the platform and discard the other owners' rows
-    // afterwards. `btree_gin` (`db/extensions.ts`) gives GIN its `text` operator
-    // class, so `user_id` and the term intersect inside the index. These
-    // supersede (7) and (8), which a later `post` migration drops.
+    // (7) The weighted text index and (8) label membership, both scoped to the
+    // owner. Every search and label view filters `user_id`; an unscoped GIN
+    // matches a common term or label in every mailbox on the platform and
+    // discards the other owners' rows afterwards. `btree_gin`
+    // (`db/extensions.ts`) gives GIN its `text` operator class, so `user_id` and
+    // the term intersect inside the index.
     index('messages_user_id_search_vector_idx').using('gin', t.userId, t.searchVector),
     index('messages_user_id_labels_idx').using('gin', t.userId, t.labels),
     // (9) Alias-tag filtering.

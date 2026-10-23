@@ -1,0 +1,34 @@
+-- oxy:deploy-phase=post
+--
+-- Drop the two unscoped GIN indexes on `messages` the owner-scoped ones replaced:
+--
+--  * messages_search_vector_idx → messages_user_id_search_vector_idx (0201)
+--  * messages_labels_idx        → messages_user_id_labels_idx (0201)
+--
+-- Every search and label view filters `user_id` and is served by its
+-- replacement; each dropped index is a full extra copy of its keys written on
+-- every insert and every update that touches them.
+--
+-- Evidence (pg_stat_user_indexes, production, 2026-10-22 14:00 UTC and
+-- 2026-10-23 07:17 UTC, after the image that reads by stored thread_id went
+-- live): idx_scan of both stayed at 257 and 224, last used 21 and 20 October.
+--
+-- The other two unscoped indexes from the same series
+-- (messages_user_id_mailbox_id_pinned_date_idx, messages_references_idx) were
+-- still being scanned at that second sample and are NOT dropped here.
+--
+-- ## LOCKS
+--
+-- DROP INDEX takes ACCESS EXCLUSIVE on `messages` until the transaction ends,
+-- queued behind every running read of the table. Drop them OUT OF BAND first,
+-- from a one-shot task, outside any transaction (runbook:
+-- docs/engineering/per-owner-asset-rows.md, "Rollout order") — SHARE UPDATE
+-- EXCLUSIVE only, reads and writes continue —
+--
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_search_vector_idx;
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_labels_idx;
+--
+-- after which every statement below is a catalogue lookup. `IF EXISTS` is
+-- load-bearing for that route. Nothing else shares this file.
+DROP INDEX IF EXISTS "messages_search_vector_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "messages_labels_idx";
