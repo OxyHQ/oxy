@@ -145,6 +145,24 @@ jobs:
           aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
             --query 'taskDefinition' --output json > live-taskdef.json
 
+          # Ownership tags authorize cleanup only for this production family.
+          # Refuse a drifted service/role before registering or running anything.
+          if [[ "$CLUSTER" != oxy-cluster || "$SERVICE" != oxy-api ]] ||
+            ! [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]] ||
+            ! jq -e '
+              .family == "oxy-oxy-api" and
+              .taskRoleArn == "arn:aws:iam::237343248947:role/oxy-oxy-api-task" and
+              .executionRoleArn == "arn:aws:iam::237343248947:role/oxy-ecs-execution"
+            ' live-taskdef.json >/dev/null; then
+            echo "::error::Video repair requires the reviewed Oxy API family and roles."
+            exit 1
+          fi
+          TASK_TAGS=$(jq -nc --arg run "$GITHUB_RUN_ID" '[
+            {key:"OxyOperation",value:"VideoRenditionRepair"},
+            {key:"OxyTaskFamily",value:"oxy-oxy-api"},
+            {key:"OxyRunId",value:$run}
+          ]')
+
           CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
 
           # A throwaway revision differing from the live one ONLY by the image.
@@ -211,6 +229,7 @@ jobs:
               "${placement[@]}" \
               --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
               --overrides "$OVERRIDES" \
+              --tags "$TASK_TAGS" \
               --started-by "gh-video-rendition-repair")
             if [ "$(jq '.failures | length' <<<"$RUN_JSON")" = "0" ]; then
               break
@@ -246,13 +265,19 @@ jobs:
           # Always stop the task we own if this step is cancelled or times out.
           stop_owned_task() {
             aws ecs stop-task --cluster "$CLUSTER" --task "$TASK_ARN" \
-              --reason "Video repair workflow ended" >/dev/null || true
+              --reason "Video repair workflow ended" >/dev/null
           }
           finish_repair() {
-            stop_owned_task
+            result=$?
+            trap - EXIT
+            if ! stop_owned_task; then
+              echo "::error::Could not stop owned video repair task $TASK_ARN; operator cleanup required."
+              if [ "$result" -eq 0 ]; then result=1; fi
+            fi
             aws logs get-log-events --log-group-name "$LOG_GROUP" \
               --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" --start-from-head \
               --query 'events[].message' --output text || true
+            exit "$result"
           }
           trap finish_repair EXIT
           trap 'exit 130' INT TERM

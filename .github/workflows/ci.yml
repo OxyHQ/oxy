@@ -934,6 +934,7 @@ jobs:
           node scripts/test-service-credential-two-phase.mjs
           node scripts/test-seed-oxy-applications-workflow.mjs
           node scripts/test-reconcile-profile-media-workflow.mjs
+          node scripts/test-video-repair-task-ownership.mjs
           node scripts/test-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
           node scripts/check-kaana-request-v2-rollout.mjs
