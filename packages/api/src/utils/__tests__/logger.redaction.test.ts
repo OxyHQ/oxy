@@ -290,3 +290,21 @@ it('redacts forwarded operation tickets in both header and Safety requester bodi
   expect(lines[0].raw).not.toContain(value);
   expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
 });
+
+it('redacts the external MCP media header and nested connection proof', () => {
+  const value = secret('external-mcp-media');
+  const lines = capture(
+    () =>
+      logger.info('external media proof probe', {
+        req: {
+          headers: { 'x-oxy-mcp-media-token': value },
+          body: { requester: { connectionToken: value } },
+        },
+        requestId: CONTROL_VALUE,
+      }),
+    'external media proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
