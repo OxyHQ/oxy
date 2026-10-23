@@ -266,7 +266,8 @@ For a corpus, use the same workflow with `mode=backlog`. This task only inserts
 requests into the existing `file_rendition_requests` table. It does not download
 originals or run encoders. The normal worker fleet processes these requests
 after the seeder exits, with its existing leases, deduplicated job IDs, three
-attempts with backoff, and bounded Redis window. No new queue or schema is needed.
+attempts with backoff, and bounded Redis window. Migration 0216 adds durable
+request lanes to this existing table; there is no separate repair queue.
 Deploy the idempotent video worker before seeding: ordinary video jobs skip an
 already complete current generation and copy it to outdated same-spelling twins.
 An explicit `reencode` still rebuilds from the original.
@@ -275,7 +276,8 @@ An application ID is required. Candidates must be active videos owned by that
 application or named by an actual `file_references` row for it; old descriptive
 `metadata.serviceAppId` alone is insufficient. Each content/visibility group
 gets one representative request. Existing pending requests keep their timestamps
-and leases. Portrait groups are seeded first, using ordinary request timestamps,
+and leases. Existing bulk requests move to the repair lane; fresh upload
+requests keep their fresh lane. Portrait groups are seeded first, using ordinary request timestamps,
 then the other shapes. Finished current masters are excluded.
 
 For Mention, start with a dry run using:
@@ -289,19 +291,55 @@ gh workflow run run-video-rendition-repair.yml --repo OxyHQ/oxy --ref main \
 Review the scope and counts, then use `dry_run=false` for the intended seed.
 `limit` bounds each database page (maximum 1,000); `max_groups` bounds the whole
 invocation (maximum 100,000). One image build can seed the full intended corpus.
-Each page logs considered/inserted counts and an `after` cursor of the form
+Each page logs considered/inserted/promoted counts and an `after` cursor of the form
 `0:<sha256>:public` (portrait) or `1:<sha256>:public` (other). Resume an interrupted
-seed with that cursor, or rerun from the beginning: existing requests are left
-alone and finished videos are skipped. Never pass a sample-encode cursor to a
+seed with that cursor, or rerun from the beginning: existing requests keep their
+identity and leases while bulk requests are promoted, and finished videos are skipped. Never pass a sample-encode cursor to a
 backlog run, or a backlog cursor to an encode run.
 
-Requests use the existing scheduler priority 10; directly admitted uploads have
-priority 0. This deliberately preserves upload precedence, and means a saturated
-worker fleet can delay the backfill. Inspect `Oxy/Queues` `QueueDepth`,
-`PendingRenditionRequests`, `OldestWaitingJobAgeSeconds` and
-`PermanentJobFailures` before promising completion time. The scheduler only adds
-backlog work when Redis depth is below 1,000. Capacity and the existing backlog
-must be considered; seeding requests is not evidence that videos are repaired.
+Every normal upload enters the same dispatcher: there is no direct 2,000-job
+prefill. It leases full 16-slot rounds of 14 fresh uploads, 1 targeted repair and
+1 legacy bulk request, oldest within each lane. Empty lanes donate their slots.
+Redis holds at most 32 waiting/delayed jobs under the new fleet; all use equal
+BullMQ priority so FIFO preserves the dispatch order. Refilling only full rounds
+prevents continuous one-slot vacancies from resetting the quota to fresh uploads.
+An idle upload wakes admission immediately; otherwise workers tick every 10 seconds.
+
+Deploy migration 0216 before the new API/workers. Existing rows and old writers
+that omit `lane` default to bulk. During rolling deployment, the new dispatcher
+normalizes old priority 10 jobs without resetting attempts/delay and commits excess
+waiting work back to PostgreSQL before removing it from Redis. Active jobs and
+already-attempted retries remain owned by their existing jobs. Such retained
+retries can temporarily keep the window above 32 until they drain; do not reset
+their retry budget to shrink it. Verify all old API/worker revisions are gone and
+the queue has converged before bulk seeding. The fair-slot guarantee applies to
+the complete new fleet, not while old dispatchers can still refill 1,000 jobs.
+
+A repair at its lane's head that becomes due immediately after a refill waits
+behind at most 32 already-admitted jobs plus its reserved slot in the next 16-job
+round (position 15). Jobs already ahead in its own lane add one round each.
+This bounds dispatch slots, not wall time or CPU allocation: long videos can
+occupy a worker much longer than images. The 14:1:1 default favors fresh dispatch
+while giving each background lane progress; measure actual completed video
+throughput after deployment rather than converting weights into a promised ETA.
+
+Inspect `Oxy/Queues` `QueueDepth`, `PendingRenditionRequests`,
+`OldestWaitingJobAgeSeconds` and `PermanentJobFailures`, worker completion logs,
+and lane counts before estimating completion. For read-only operational progress:
+
+```sql
+SELECT lane, count(*) AS pending,
+       count(*) FILTER (WHERE enqueued_until > now()) AS leased,
+       min(requested_at) AS oldest
+FROM file_rendition_requests GROUP BY lane ORDER BY lane;
+```
+
+An active older Redis job can deduplicate a renewed request for the same file.
+Admission checks the stored job version and releases only the newly claimed
+request's lease if it is not actually represented, so it becomes runnable after
+the older job finishes instead of waiting for the 30-minute lease expiry.
+A crash after a partial Redis write rolls the claim back; stable job IDs suppress
+duplicate queued work on restart. Seeding remains distinct from successful repair.
 
 Cancellation of the seeding workflow stops further inserts, but requests already
 committed continue through the worker fleet. A fleet stop is the existing

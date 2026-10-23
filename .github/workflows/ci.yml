@@ -253,6 +253,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6391:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -356,6 +366,7 @@ jobs:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
           DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5432/oxy_test
+          TEST_QUEUE_REDIS_URL: redis://127.0.0.1:6391
           # The suite's own environment (token secrets, AWS) is `jest.setup.cjs`'s.
           NODE_ENV: test
           # Verified to reach the Jest process under `bun run`: heap_size_limit

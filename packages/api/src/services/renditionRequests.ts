@@ -38,10 +38,10 @@ export async function recordRenditionRequest(
   const enqueuedUntil = leaseMs === null ? null : leaseUntil(leaseMs);
   const [row] = await db
     .insert(fileRenditionRequests)
-    .values({ fileId, requestedAt: NOW_MS, enqueuedUntil })
+    .values({ fileId, requestedAt: NOW_MS, enqueuedUntil, lane: 'fresh' })
     .onConflictDoUpdate({
       target: fileRenditionRequests.fileId,
-      set: { requestedAt: NOW_MS, enqueuedUntil },
+      set: { requestedAt: NOW_MS, enqueuedUntil, lane: 'fresh' },
     })
     .returning({
       fileId: fileRenditionRequests.fileId,
@@ -66,11 +66,20 @@ export async function releaseRenditionRequest(
     );
 }
 
+export type RenditionLane = 'fresh' | 'repair' | 'bulk';
+
+/** A complete round always grants both background lanes a turn when due. */
+export const RENDITION_DISPATCH_ROUND: readonly RenditionLane[] = [
+  ...Array<RenditionLane>(14).fill('fresh'),
+  'repair',
+  'bulk',
+];
+
 /**
- * Lease up to `limit` due requests (no lease, or one that ran out), oldest
- * first, for the caller to add to the queue. A request whose job is still
- * queued when its lease runs out is leased again; re-adding its job is a no-op
- * because the job id is the file's.
+ * Claim in weighted rounds, oldest within each lane. Empty lanes donate their
+ * slots. The caller holds the fleet-wide scheduler transaction lock and only
+ * refills whole rounds, so a stream of one-slot vacancies cannot reset fairness.
+ * Rows selected beyond the final window are locked briefly but never leased.
  */
 export async function claimDueRenditionRequests(
   limit: number,
@@ -78,29 +87,56 @@ export async function claimDueRenditionRequests(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<RenditionRequest[]> {
   if (limit < 1) return [];
-  const due = db
-    .select({ fileId: fileRenditionRequests.fileId })
-    .from(fileRenditionRequests)
-    .where(
-      or(
-        isNull(fileRenditionRequests.enqueuedUntil),
-        lt(fileRenditionRequests.enqueuedUntil, sql`now()`),
-      ),
-    )
-    .orderBy(asc(fileRenditionRequests.requestedAt), asc(fileRenditionRequests.fileId))
-    .limit(limit)
-    .for('update', { skipLocked: true });
-  const claimed = await db
-    .update(fileRenditionRequests)
-    .set({ enqueuedUntil: leaseUntil(leaseMs) })
-    .where(inArray(fileRenditionRequests.fileId, due))
-    .returning({
-      fileId: fileRenditionRequests.fileId,
-      requestedAt: fileRenditionRequests.requestedAt,
-    });
-  return claimed.sort(
-    (a, b) => a.requestedAt.getTime() - b.requestedAt.getTime() || a.fileId.localeCompare(b.fileId),
-  );
+  const lanes: RenditionLane[] = ['fresh', 'repair', 'bulk'];
+  const candidates = new Map<RenditionLane, RenditionRequest[]>();
+  for (const lane of lanes) {
+    candidates.set(
+      lane,
+      await db
+        .select({
+          fileId: fileRenditionRequests.fileId,
+          requestedAt: fileRenditionRequests.requestedAt,
+        })
+        .from(fileRenditionRequests)
+        .where(
+          and(
+            eq(fileRenditionRequests.lane, lane),
+            or(
+              isNull(fileRenditionRequests.enqueuedUntil),
+              lt(fileRenditionRequests.enqueuedUntil, sql`now()`),
+            ),
+          ),
+        )
+        .orderBy(asc(fileRenditionRequests.requestedAt), asc(fileRenditionRequests.fileId))
+        .limit(limit)
+        .for('update', { skipLocked: true }),
+    );
+  }
+  const selected: RenditionRequest[] = [];
+  for (let slot = 0; selected.length < limit; slot++) {
+    const preferred = candidates.get(
+      RENDITION_DISPATCH_ROUND[slot % RENDITION_DISPATCH_ROUND.length],
+    );
+    const next =
+      preferred?.shift() ??
+      lanes
+        .map((lane) => candidates.get(lane))
+        .find((rows) => rows?.length)
+        ?.shift();
+    if (!next) break;
+    selected.push(next);
+  }
+  if (selected.length > 0)
+    await db
+      .update(fileRenditionRequests)
+      .set({ enqueuedUntil: leaseUntil(leaseMs) })
+      .where(
+        inArray(
+          fileRenditionRequests.fileId,
+          selected.map((row) => row.fileId),
+        ),
+      );
+  return selected;
 }
 
 /**

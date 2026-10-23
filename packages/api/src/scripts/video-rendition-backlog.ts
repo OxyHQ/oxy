@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applications, fileRenditionRequests } from '../db/schema';
 import { VIDEO_RENDITION_PROFILE } from '../services/video-renditions';
@@ -38,6 +38,7 @@ export async function seedVideoRenditionBacklog(options: {
   let nextCursor = after;
   let considered = 0;
   let inserted = 0;
+  let promoted = 0;
   let exhausted = false;
   while (considered < maxGroups) {
     const [rank, hash, visibility] = nextCursor?.split(':') ?? [];
@@ -73,17 +74,36 @@ export async function seedVideoRenditionBacklog(options: {
       (row) => row.orientation_rank === candidates[0].orientation_rank,
     );
     if (!dryRun) {
-      const written = await db
-        .insert(fileRenditionRequests)
-        .values(
-          page.map((row) => ({
-            fileId: row.file_id,
-            requestedAt: sql`date_trunc('milliseconds', now())`,
-          })),
-        )
-        .onConflictDoNothing()
-        .returning({ fileId: fileRenditionRequests.fileId });
-      inserted += written.length;
+      await db.transaction(async (tx) => {
+        const written = await tx
+          .insert(fileRenditionRequests)
+          .values(
+            page.map((row) => ({
+              fileId: row.file_id,
+              lane: 'repair' as const,
+              requestedAt: sql`date_trunc('milliseconds', now())`,
+            })),
+          )
+          .onConflictDoNothing()
+          .returning({ fileId: fileRenditionRequests.fileId });
+        // An already requested legacy file must join the repair lane too. Keep
+        // its timestamp/lease intact, and never demote a user's fresh request.
+        const moved = await tx
+          .update(fileRenditionRequests)
+          .set({ lane: 'repair' })
+          .where(
+            and(
+              inArray(
+                fileRenditionRequests.fileId,
+                page.map((row) => row.file_id),
+              ),
+              eq(fileRenditionRequests.lane, 'bulk'),
+            ),
+          )
+          .returning({ fileId: fileRenditionRequests.fileId });
+        inserted += written.length;
+        promoted += moved.length;
+      });
     }
     considered += page.length;
     const last = page[page.length - 1];
@@ -93,6 +113,7 @@ export async function seedVideoRenditionBacklog(options: {
       dryRun,
       considered,
       inserted,
+      promoted,
       nextCursor,
     });
   }
@@ -101,6 +122,7 @@ export async function seedVideoRenditionBacklog(options: {
     dryRun,
     considered,
     inserted,
+    promoted,
     alreadyPending: dryRun ? 0 : considered - inserted,
     nextCursor,
     reachedLimit: !exhausted && considered === maxGroups,
