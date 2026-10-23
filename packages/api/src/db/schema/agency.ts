@@ -200,6 +200,9 @@ export const agentRequesterCeilings = pgTable(
 
 export type AgentRequesterCeilingRow = typeof agentRequesterCeilings.$inferSelect;
 
+/** Context stays inspectable for thirty days after expiry or revocation. */
+export const FIRST_PARTY_TASK_RETENTION_SECONDS = 30 * 86400;
+
 /** Durable context for an Oxy-owned request, goal or schedule. No app permissions. */
 export const firstPartyTasks = pgTable(
   'first_party_tasks',
@@ -246,6 +249,8 @@ export const firstPartyTasks = pgTable(
       columns: [t.requesterAuthMethodId, t.requesterAccountId],
       foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
     }).onDelete('restrict'),
+    index('first_party_tasks_expiry_idx').on(t.expiresAt),
+    index('first_party_tasks_revoked_idx').on(t.revokedAt),
     index('first_party_tasks_requester_idx').on(t.requesterAccountId, t.createdAt),
     index('first_party_tasks_origin_idx').on(t.coordinatorApplicationId, t.originKind, t.originId),
   ],
@@ -256,7 +261,7 @@ export const capabilityExecutionAuthorizations = pgTable(
   {
     id: generatedId(),
     authority: text({ enum: ['first_party', 'external'] }),
-    taskId: text().references(() => firstPartyTasks.id, { onDelete: 'restrict' }),
+    taskId: text().references(() => firstPartyTasks.id, { onDelete: 'cascade' }),
     kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
     requesterAccountId: text()
       .notNull()
