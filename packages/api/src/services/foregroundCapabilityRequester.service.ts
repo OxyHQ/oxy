@@ -1,3 +1,4 @@
+import type { CapabilityRequesterOperation } from './capabilityRequester.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Present-requester approval within the existing capability ticket family. */
 import { createHash } from 'node:crypto';
@@ -23,6 +24,7 @@ export interface ForegroundRequesterBinding {
   subjectAccountId: string;
   digest: string;
   expiresAt: Date;
+  operation?: CapabilityRequesterOperation;
 }
 
 function sessionDigest(session: CachedSession): string {

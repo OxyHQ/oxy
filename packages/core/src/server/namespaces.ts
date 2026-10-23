@@ -61,6 +61,7 @@ import type {
   ServiceUserMediaFile,
   ServiceUserMediaImport,
 } from '../models/interfaces';
+import { bindRequesterLane, type RequesterProof } from './requesterContext';
 import { AssetsApi } from '../api/assets';
 import {
   runLargeUpload,
@@ -260,46 +261,8 @@ function uniqueIds(ids: string[]): string[] {
 
 export class ServerAssetsApi extends AssetsApi {
   /** Isolated requester context for uploads, imports, recordings and reads. */
-  withRequester(
-    proof: (
-      | { requesterToken: string; taskId?: never }
-      | { taskId: string; requesterToken?: never }
-    ) & { accountId?: string },
-  ): ServerAssetsApi {
-    const value = proof.requesterToken ?? proof.taskId;
-    if (
-      !value ||
-      /\s/.test(value) ||
-      (proof.requesterToken && proof.taskId) ||
-      (proof.accountId !== undefined && (!proof.accountId || /\s/.test(proof.accountId)))
-    )
-      throw new Error('One requester proof and an optional exact account ID are required');
-    const original = lane(this.ctx);
-    const fixed = {
-      requesterToken: proof.requesterToken,
-      taskId: proof.taskId,
-      actAs: proof.accountId,
-    };
-    const service: ServiceLane = {
-      available: original.available,
-      request: (method, url, data, options) => {
-        const headers = { ...options?.headers };
-        for (const key of Object.keys(headers)) {
-          if (
-            ['x-oxy-user-id', 'x-oxy-task-id', 'x-oxy-requester-token'].includes(key.toLowerCase())
-          )
-            delete headers[key];
-        }
-        return original.request(method, url, data, {
-          ...options,
-          ...fixed,
-          headers,
-          cache: false,
-          deduplicate: false,
-          retry: false,
-        });
-      },
-    };
+  withRequester(proof: RequesterProof): ServerAssetsApi {
+    const service = bindRequesterLane(lane(this.ctx), proof);
     return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
   }
 

@@ -258,6 +258,7 @@ export type MessagingSessionsInput = z.infer<typeof messagingSessionsInputSchema
 export const safetyRequesterSchema = z.union([
   z.object({ accessToken: z.string().min(1).max(16384).nullable() }).strict(),
   z.object({ connectionToken: z.string().min(1).max(16384) }).strict(),
+  z.object({ capabilityTicket: z.string().min(1).max(16384) }).strict(),
 ]);
 export type SafetyRequester = z.infer<typeof safetyRequesterSchema>;
 export type ProfileAccessBatchInput = z.infer<typeof profileAccessBatchInputSchema>;

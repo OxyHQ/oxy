@@ -269,3 +269,24 @@ it('redacts ephemeral task creation proof nested in a request body', () => {
   expect(lines[0].raw).not.toContain(value);
   expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
 });
+
+it('redacts forwarded operation tickets in both header and Safety requester bodies', () => {
+  const value = secret('operation-ticket');
+  const lines = capture(
+    () =>
+      logger.info('operation proof probe', {
+        capabilityTicket: value,
+        req: {
+          headers: { 'x-oxy-capability-ticket': value },
+          body: { requester: { capabilityTicket: value } },
+        },
+        headers: { 'X-Oxy-Capability-Ticket': value },
+        body: { requester: { capabilityTicket: value } },
+        requestId: CONTROL_VALUE,
+      }),
+    'operation proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
