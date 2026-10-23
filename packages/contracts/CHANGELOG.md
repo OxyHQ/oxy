@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.0.0
+
+### Breaking
+
+- Distinguish first-party authority without scopes from external scoped service, inference and agent authority.
+
+### Added
+
+- Typed resource introspection preserves service, API-key and human-session identity, original requester, effective account and live account permissions.
+- First-party task and operation context contracts preserve requester provenance without storing user bearer tokens.
+
 ## 5.7.0
 
 ### Changed

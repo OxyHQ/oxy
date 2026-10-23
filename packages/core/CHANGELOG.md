@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 7.0.0
+
+### Breaking
+
+- Own service authority is explicit and scope-free. Workload callers use shared service transports; external credential pairs retain scoped authority.
+- Own workload mint requests reject scope options. Reader-first deployment temporarily preserves v1 only for public manual token calls; internal SDK calls use v2.
+
+### Added
+
+- Shared linked-client fetch, recipient-bound service clients, resource introspection for services, keys and sessions, and fixed requester proof clients for Files and other platform calls.
+- Optional server-only temporary IAM credential provider and workload-only ecosystem activity publishing.
+- Revocable requester context for multiple own-service hops and a separate external MCP media proof, preserving each original account and external grant.
+
+### Fixed
+
+- Prevent redirects, ambient cookies and shared response caches from leaking requester or operation authority across accounts.
+- Apply caller cancellation during workload preparation and bound the shared identity exchange, so an unavailable issuer cannot leave product requests waiting indefinitely.
+
 ## 6.15.1
 
 ### Fixed
