@@ -41,6 +41,9 @@ export function bindExternalMcpMediaLane(
             'x-oxy-task-id',
             'x-oxy-requester-token',
             'x-oxy-capability-ticket',
+            'x-oxy-requester-context',
+            'x-oxy-presented-requester-context',
+            'x-oxy-presented-service-token',
             'x-oxy-mcp-media-token',
             'x-oxy-mcp-media-tool',
           ].includes(key.toLowerCase())
