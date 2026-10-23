@@ -42,8 +42,7 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "lint": "biome lint --error-on-warnings ./src"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

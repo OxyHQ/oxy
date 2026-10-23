@@ -1,39 +1,54 @@
 name: npm release
 
 # THE release of every public npm package OxyHQ owns, called by each
-# repository's own `.github/workflows/release-packages.yml` (OxyHQ/oxy calls it
-# locally). One package per run, from one exact protected commit, published with
-# npm trusted publishing (OIDC) and provenance. There is no NPM_TOKEN anywhere.
-# docs/engineering/package-rules.md#publishing.
+# repository's own `.github/workflows/release-packages.yml` on every push to
+# its default branch (OxyHQ/oxy calls it locally). A run releases whatever the
+# pushed commit holds that the registry does not: every public package whose
+# version is not on npm yet, dependencies first, from exactly that commit, with
+# npm trusted publishing (OIDC) and provenance. A version bump merged to the
+# default branch IS the release; there is no dispatch, no typed commit and no
+# rehearsal. There is no NPM_TOKEN anywhere. docs/engineering/package-rules.md#publishing.
 #
 # npm checks the trusted publisher against the CALLING workflow, so every
 # package's trusted publisher on npmjs.com is: organization `OxyHQ`, its
 # repository, workflow `release-packages.yml`, environment `npm`. The caller
-# grants `id-token: write` and `contents: write` on its calling job; only the
-# publish job keeps the first and only the tag job the second.
+# grants `actions: read`, `id-token: write` and `contents: write` on its
+# calling job; only the plan job keeps the first, only the publish job the
+# second and only the tag job the third.
 #
-#   build    the caller's tree at the exact reviewed commit: frozen install, the
-#            builds of the workspace packages it links, the package's own
-#            `prepublishOnly` (its typecheck, tests and build), then its one
-#            tarball: `bun pm pack`, which rewrites `workspace:`/`catalog:`
-#            ranges, or the package's own `release:pack` when it publishes a
-#            staged manifest it packs and tests itself.
-#            `release-package.mjs inspect` checks the tarball (including that
-#            every `workspace:` dependency is pinned to the version its
-#            workspace has in this commit, never a stale `bun.lock` one); the
-#            version must be absent from the registry and the dist-tag sane. Uploads the
-#            tarball and its SHA-512 as the trusted bytes. No credential of any
-#            kind, and no `id-token`.
-#   publish  environment `npm`, `id-token: write`. A fresh checkout rebuilds and
-#            repacks; the result must equal the trusted bytes, the version must
-#            still be absent, and only then `npm publish`. npm exchanges this
-#            job's OIDC token for a one-use publish credential.
+#   plan     reads every package.json of the commit and asks the registry
+#            which public versions are missing (`release-package.mjs plan`).
+#            Nothing missing, nothing else runs: most pushes end here. Else it
+#            waits for the caller's CI (`ci_workflow`) to have passed on this
+#            exact commit, from the merge queue (`merge_group`) or a `push` run,
+#            and fails closed when it did not, never ran, or GitHub cannot say.
+#            The release does not test: CI already tested this very tree.
+#   build    the commit's tree: frozen install, then ONE build of each package
+#            released and of each workspace it links (its `build` script, with
+#            whatever its `prebuild`/`postbuild` hooks check), then each
+#            package's one tarball, packed without lifecycle scripts:
+#            `bun pm pack --ignore-scripts`, which rewrites `workspace:`/
+#            `catalog:` ranges, or the package's own `release:pack` when it
+#            publishes a staged manifest it packs and tests itself.
+#            `release-package.mjs inspect` checks each tarball. Uploads the
+#            tarballs, their SHA-512 and the plan as the trusted bytes. No
+#            credential of any kind, and no `id-token`.
+#   publish  environment `npm`, `id-token: write`, and none of the
+#            repository's code: it checks the trusted bytes against their
+#            sums and publishes them in dependency order. A version already on
+#            the registry (a re-run) is skipped, not republished. npm exchanges
+#            this job's OIDC token for a one-use publish credential.
 #   tag      `contents: write`, nothing else. Tags the released commit
-#            `<name>@<version>` (annotated) — the docs sync and every
-#            consumer that pins a release by tag reads it — and, when the
-#            package's CHANGELOG.md has a section for the version, publishes
-#            it as a GitHub release. Idempotent: an existing tag must already
-#            name `expected_source_sha`, or the job fails.
+#            `<name>@<version>` (annotated) for each package it published — the
+#            docs sync and every consumer that pins a release by tag reads it —
+#            and, when the package's CHANGELOG.md has a section for the
+#            version, publishes it as a GitHub release. Idempotent: an existing
+#            tag must already name this commit, or the job fails.
+#
+# The caller queues its runs (`concurrency` with `queue: max`), so none is ever
+# cancelled; and since each run releases whatever is missing at its own
+# commit, a run that finds its versions already published by an earlier one
+# simply has nothing to do.
 #
 # The checks run from this workflow's own commit of OxyHQ/oxy
 # (`job.workflow_repository`@`job.workflow_sha`), checked out beside the
@@ -42,49 +57,81 @@ name: npm release
 on:
   workflow_call:
     inputs:
-      package:
-        description: Package name to release, e.g. @oxy.so/core
-        required: true
-        type: string
-      expected_source_sha:
-        description: Exact protected commit to build and publish
-        required: true
-        type: string
-      dry_run:
-        description: Build, verify and preflight the registry without publishing
-        required: true
-        type: boolean
-      dist_tag:
-        description: npm dist-tag; latest only moves forward and never names a prerelease
+      ci_workflow:
+        description: The caller's CI workflow file, whose passing run on the commit vouches for it
         required: false
         type: string
-        default: latest
+        default: ci.yml
 
 permissions:
   contents: read
 
 env:
-  PACKAGE_NAME: ${{ inputs.package }}
-  EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
-  DIST_TAG: ${{ inputs.dist_tag }}
   RELEASE_PACKAGE: ${{ github.workspace }}/release-tools/.github/scripts/release-package.mjs
 
 jobs:
+  plan:
+    name: what this commit releases
+    # Only the protected default branch releases.
+    if: github.ref_protected && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    # Bounds the wait for CI on push in a repository without a merge queue.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          # The plan reads manifests only.
+          sparse-checkout: '**/package.json'
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: release-tools
+          sparse-checkout: .github/scripts/release-package.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: the public versions the registry does not have yet
+        id: plan
+        working-directory: source
+        run: |
+          node "$RELEASE_PACKAGE" plan > "$RUNNER_TEMP/plan.json"
+          jq . "$RUNNER_TEMP/plan.json"
+          echo "release=$(jq -c .release "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+          echo "build=$(jq -c .build "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+          if [ "$(jq '.release | length' "$RUNNER_TEMP/plan.json")" = 0 ]; then
+            echo "::notice::every public package of $GITHUB_SHA is on the registry already; nothing to release"
+          fi
+
+      - name: CI passed on this exact commit
+        if: steps.plan.outputs.release != '[]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+        run: node "$RELEASE_PACKAGE" ci "$GITHUB_SHA" "$CI_WORKFLOW"
+
   build:
     name: build the trusted bytes
-    # The default branch, or a maintained `release/*` line; protected either way.
-    if: >-
-      github.ref_protected && (
-        github.ref == format('refs/heads/{0}', github.event.repository.default_branch) ||
-        startsWith(github.ref, 'refs/heads/release/')
-      )
+    needs: plan
+    if: needs.plan.outputs.release != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
-    outputs:
-      package_dir: ${{ steps.registry.outputs.package_dir }}
-      version: ${{ steps.registry.outputs.version }}
+    env:
+      RELEASE: ${{ needs.plan.outputs.release }}
+      BUILD: ${{ needs.plan.outputs.build }}
     defaults:
       run:
         working-directory: source
@@ -103,13 +150,6 @@ jobs:
           sparse-checkout: .github/scripts/release-package.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
-
-      - name: the run is the exact commit that was reviewed
-        run: |
-          if [ "$GITHUB_SHA" != "$EXPECTED_SOURCE_SHA" ]; then
-            echo "$GITHUB_REF is at $GITHUB_SHA, not the expected $EXPECTED_SOURCE_SHA"
-            exit 1
-          fi
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -122,40 +162,35 @@ jobs:
       - name: install the exact reviewed dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
 
-      - name: the package is a public package of this repository
-        run: echo "PACKAGE_DIR=$(node "$RELEASE_PACKAGE" resolve "$PACKAGE_NAME")" >> "$GITHUB_ENV"
-
-      - name: the package's own pre-flight
+      - name: build each released package and each workspace it links, once
         run: |
-          for dependency in $(node "$RELEASE_PACKAGE" dependencies "$PACKAGE_NAME"); do
-            (cd "$dependency" && bun run --if-present build)
+          for directory in $(jq -r '.[]' <<<"$BUILD"); do
+            echo "::group::build $directory"
+            (cd "$directory" && bun run --if-present build)
+            echo "::endgroup::"
           done
-          (cd "$PACKAGE_DIR" && bun run prepublishOnly)
 
-      - name: pack
+      - name: pack and inspect each tarball
         run: |
-          rm -rf "$RUNNER_TEMP/release" && mkdir "$RUNNER_TEMP/release"
-          tarball="$(node "$RELEASE_PACKAGE" pack "$PACKAGE_DIR" "$RUNNER_TEMP/release")"
-          node "$RELEASE_PACKAGE" inspect "$tarball" "$PACKAGE_DIR"
-          # Summed from inside the directory, so the file names the tarball by its
-          # bare name: the artifact is downloaded flat into trusted/.
-          (cd "$RUNNER_TEMP/release" && sha512sum "$(basename "$tarball")" | tee SHA512SUMS)
-
-      - name: the version is not on the registry yet, and the dist-tag is sane
-        id: registry
-        run: |
-          version="$(node -p "require('./$PACKAGE_DIR/package.json').version")"
-          if npm view "$PACKAGE_NAME@$version" version --userconfig /dev/null >/dev/null 2>&1; then
-            echo "$PACKAGE_NAME@$version is already published; bump the version"
-            exit 1
-          fi
-          node "$RELEASE_PACKAGE" dist-tag "$PACKAGE_NAME" "$version" "$DIST_TAG"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "package_dir=$PACKAGE_DIR" >> "$GITHUB_OUTPUT"
+          out="$RUNNER_TEMP/release"
+          rm -rf "$out" && mkdir "$out"
+          mapfile -t releasing < <(jq -r '.[].name' <<<"$RELEASE")
+          while read -r package; do
+            directory="$(jq -r .directory <<<"$package")"
+            # A directory of its own: `pack` wants exactly one tarball where it writes.
+            staging="$(mktemp -d)"
+            tarball="$(node "$RELEASE_PACKAGE" pack "$directory" "$staging")"
+            node "$RELEASE_PACKAGE" inspect "$tarball" "$directory" "${releasing[@]}"
+            mv "$tarball" "$out/"
+            jq -c --arg tarball "$(basename "$tarball")" '. + {tarball: $tarball}' <<<"$package" >> "$out/release.jsonl"
+          done < <(jq -c '.[]' <<<"$RELEASE")
+          # Summed from inside the directory, so the file names each tarball by
+          # its bare name: the artifact is downloaded flat into trusted/.
+          (cd "$out" && sha512sum *.tgz release.jsonl | tee SHA512SUMS)
 
       - uses: actions/upload-artifact@v7
         with:
-          name: release-${{ github.run_id }}
+          name: release-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/release/
           if-no-files-found: error
           retention-days: 30
@@ -163,23 +198,15 @@ jobs:
   publish:
     name: publish with provenance
     needs: build
-    if: inputs.dry_run == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     environment: npm
     permissions:
       contents: read
       id-token: write
-    defaults:
-      run:
-        working-directory: source
+    outputs:
+      published: ${{ steps.published.outputs.published }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          path: source
-          persist-credentials: false
-
       - uses: actions/checkout@v7
         with:
           repository: ${{ job.workflow_repository }}
@@ -188,10 +215,6 @@ jobs:
           sparse-checkout: .github/scripts/release-package.mjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: source/package.json
 
       - uses: actions/setup-node@v7
         with:
@@ -207,49 +230,45 @@ jobs:
             exit 1
           fi
 
-      - name: rebuild from the exact source
-        run: |
-          bun install --frozen-lockfile --minimum-release-age=0
-          PACKAGE_DIR="$(node "$RELEASE_PACKAGE" resolve "$PACKAGE_NAME")"
-          echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
-          for dependency in $(node "$RELEASE_PACKAGE" dependencies "$PACKAGE_NAME"); do
-            (cd "$dependency" && bun run --if-present build)
-          done
-          mkdir "$RUNNER_TEMP/rebuilt"
-          node "$RELEASE_PACKAGE" pack "$PACKAGE_DIR" "$RUNNER_TEMP/rebuilt"
-
       - uses: actions/download-artifact@v8
         with:
-          name: release-${{ github.run_id }}
+          name: release-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/trusted
 
-      - name: the rebuilt bytes are the trusted bytes
+      - name: publish the trusted tarballs, dependencies first
+        working-directory: ${{ runner.temp }}/trusted
         run: |
-          (cd "$RUNNER_TEMP/trusted" && sha512sum --check SHA512SUMS)
-          trusted=("$RUNNER_TEMP"/trusted/*.tgz)
-          rebuilt=("$RUNNER_TEMP"/rebuilt/*.tgz)
-          cmp "${trusted[0]}" "${rebuilt[0]}"
+          sha512sum --check SHA512SUMS
+          while read -r package; do
+            name="$(jq -r .name <<<"$package")"
+            version="$(jq -r .version <<<"$package")"
+            # 0: on the registry, 1: not yet, anything else: it cannot say.
+            if node "$RELEASE_PACKAGE" published "$name" "$version"; then
+              echo "::notice::$name@$version is on the registry already; not published again"
+              continue
+            elif [ $? -ne 1 ]; then
+              exit 1
+            fi
+            # An absolute path: npm reads a bare `dir/<file>.tgz` as the GitHub
+            # shorthand `user/repo` and tries to clone it (Kaana's 5.0.0
+            # release failed exactly so).
+            npm publish "$PWD/$(jq -r .tarball <<<"$package")" \
+              --provenance --access public --tag "$(jq -r .tag <<<"$package")"
+            echo "$package" >> "$RUNNER_TEMP/published.jsonl"
+          done < release.jsonl
 
-      - name: the version is not on the registry yet (anonymous preflight)
+      # Also when a later package failed: what did go out gets its tag.
+      - name: what went out
+        id: published
+        if: ${{ !cancelled() }}
         run: |
-          version="$(node -p "require('./$PACKAGE_DIR/package.json').version")"
-          if npm view "$PACKAGE_NAME@$version" version --userconfig /dev/null >/dev/null 2>&1; then
-            echo "$PACKAGE_NAME@$version is already published; bump the version"
-            exit 1
-          fi
-
-      - name: publish the trusted tarball
-        run: |
-          trusted=("$RUNNER_TEMP"/trusted/*.tgz)
-          # An absolute path: npm reads a bare `dir/<file>.tgz` as the GitHub
-          # shorthand `user/repo` and tries to clone it (Kaana's 5.0.0 release
-          # failed exactly so).
-          npm publish "${trusted[0]}" --provenance --access public --tag "$DIST_TAG"
+          touch "$RUNNER_TEMP/published.jsonl"
+          echo "published=$(jq -sc . "$RUNNER_TEMP/published.jsonl")" >> "$GITHUB_OUTPUT"
 
   tag:
     name: tag the released commit
-    needs: [build, publish]
-    if: inputs.dry_run == false
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -257,20 +276,16 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      PACKAGE_DIR: ${{ needs.build.outputs.package_dir }}
-      VERSION: ${{ needs.build.outputs.version }}
+      PUBLISHED: ${{ needs.publish.outputs.published }}
     steps:
-      - name: tag <name>@<version> at the released commit
+      - name: tag <name>@<version> at the released commit, with its changelog as a GitHub release
         run: |
-          tag="$PACKAGE_NAME@$VERSION"
-          echo "TAG=$tag" >> "$GITHUB_ENV"
-
-          # The commit refs/tags/$tag names, peeled through annotated tags;
+          # The commit refs/tags/$1 names, peeled through annotated tags;
           # nothing when the tag does not exist. Any other API error fails
           # (explicitly: a command substitution does not inherit `-e`).
           tagged_commit() {
             local object
-            if ! object="$(gh api "repos/$GH_REPO/git/ref/tags/$tag" --jq '.object.type + " " + .object.sha' 2>"$RUNNER_TEMP/ref-error")"; then
+            if ! object="$(gh api "repos/$GH_REPO/git/ref/tags/$1" --jq '.object.type + " " + .object.sha' 2>"$RUNNER_TEMP/ref-error")"; then
               grep -q 'HTTP 404' "$RUNNER_TEMP/ref-error" && return 0
               cat "$RUNNER_TEMP/ref-error" >&2
               return 1
@@ -281,75 +296,85 @@ jobs:
             echo "${object#* }"
           }
 
-          # Already tagged (a re-run, or a hand tag): fine only at this commit.
+          # Already tagged (a re-run, or a lost race): fine only at this commit.
           check_existing() {
-            if [ "$1" != "$EXPECTED_SOURCE_SHA" ]; then
-              echo "::error::$tag already exists at $1, not at the released commit $EXPECTED_SOURCE_SHA"
+            if [ "$2" != "$GITHUB_SHA" ]; then
+              echo "::error::$1 already exists at $2, not at the released commit $GITHUB_SHA"
               exit 1
             fi
-            echo "$tag already names $EXPECTED_SOURCE_SHA"
+            echo "$1 already names $GITHUB_SHA"
           }
 
-          existing="$(tagged_commit)"
-          if [ -n "$existing" ]; then
-            check_existing "$existing"
-            exit 0
-          fi
-
-          tag_object="$(gh api "repos/$GH_REPO/git/tags" \
-            -f tag="$tag" \
-            -f object="$EXPECTED_SOURCE_SHA" \
-            -f type=commit \
-            -f message="$tag
+          tag() {
+            local tag="$1" existing tag_object
+            existing="$(tagged_commit "$tag")"
+            if [ -n "$existing" ]; then
+              check_existing "$tag" "$existing"
+              return 0
+            fi
+            tag_object="$(gh api "repos/$GH_REPO/git/tags" \
+              -f tag="$tag" \
+              -f object="$GITHUB_SHA" \
+              -f type=commit \
+              -f message="$tag
 
           Published to npm with provenance by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            --jq .sha)"
-          if ! gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" --silent; then
-            # Lost a race with another writer: the tag it made must agree.
-            existing="$(tagged_commit)"
-            [ -n "$existing" ] || exit 1
-            check_existing "$existing"
-            exit 0
-          fi
-          echo "tagged $tag at $EXPECTED_SOURCE_SHA"
+              --jq .sha)"
+            if ! gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$tag_object" --silent; then
+              # Lost a race with another writer: the tag it made must agree.
+              existing="$(tagged_commit "$tag")"
+              [ -n "$existing" ] || exit 1
+              check_existing "$tag" "$existing"
+              return 0
+            fi
+            echo "tagged $tag at $GITHUB_SHA"
+          }
 
-      - name: publish the changelog section as a GitHub release
-        run: |
-          if gh api "repos/$GH_REPO/releases/tags/$TAG" --silent 2>/dev/null; then
-            echo "$TAG already has a GitHub release"
-            exit 0
-          fi
-          changelog="${PACKAGE_DIR#./}/CHANGELOG.md"
-          [ "$PACKAGE_DIR" = . ] && changelog=CHANGELOG.md
-          if ! gh api "repos/$GH_REPO/contents/$changelog?ref=$EXPECTED_SOURCE_SHA" \
-            -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/CHANGELOG.md" 2>/dev/null; then
-            echo "$changelog does not exist at $EXPECTED_SOURCE_SHA; no GitHub release"
-            exit 0
-          fi
-          # The section whose heading is `## <version>` or `## [<version>] …`,
-          # up to the next `## ` heading.
-          node -e '
-            const [file, version] = process.argv.slice(1);
-            const lines = require("fs").readFileSync(file, "utf8").split("\n");
-            const heading = (line) => line.match(/^## \[?([^\]\s]+)/)?.[1];
-            const start = lines.findIndex((line) => heading(line) === version);
-            if (start === -1) process.exit(0);
-            let end = lines.findIndex((line, i) => i > start && line.startsWith("## "));
-            if (end === -1) end = lines.length;
-            process.stdout.write(lines.slice(start + 1, end).join("\n").trim());
-          ' "$RUNNER_TEMP/CHANGELOG.md" "$VERSION" > "$RUNNER_TEMP/notes.md"
-          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
-            echo "$changelog has no section for $VERSION; no GitHub release"
-            exit 0
-          fi
-          prerelease=false
-          case "$VERSION" in *-*) prerelease=true ;; esac
-          make_latest=false
-          [ "$DIST_TAG" = latest ] && make_latest=true
-          gh api "repos/$GH_REPO/releases" \
-            -f tag_name="$TAG" \
-            -f name="$PACKAGE_NAME $VERSION" \
-            -F body=@"$RUNNER_TEMP/notes.md" \
-            -F prerelease="$prerelease" \
-            -f make_latest="$make_latest" \
-            --jq .html_url
+          # The package's CHANGELOG.md section `## <version>` or
+          # `## [<version>] …`, up to the next `## ` heading, as a GitHub release.
+          release_notes() {
+            local tag="$1" name="$2" version="$3" directory="$4" dist_tag="$5" changelog
+            if gh api "repos/$GH_REPO/releases/tags/$tag" --silent 2>/dev/null; then
+              echo "$tag already has a GitHub release"
+              return 0
+            fi
+            changelog="${directory#./}/CHANGELOG.md"
+            [ "$directory" = . ] && changelog=CHANGELOG.md
+            if ! gh api "repos/$GH_REPO/contents/$changelog?ref=$GITHUB_SHA" \
+              -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/CHANGELOG.md" 2>/dev/null; then
+              echo "$changelog does not exist at $GITHUB_SHA; no GitHub release"
+              return 0
+            fi
+            node -e '
+              const [file, version] = process.argv.slice(1);
+              const lines = require("fs").readFileSync(file, "utf8").split("\n");
+              const heading = (line) => line.match(/^## \[?([^\]\s]+)/)?.[1];
+              const start = lines.findIndex((line) => heading(line) === version);
+              if (start === -1) process.exit(0);
+              let end = lines.findIndex((line, i) => i > start && line.startsWith("## "));
+              if (end === -1) end = lines.length;
+              process.stdout.write(lines.slice(start + 1, end).join("\n").trim());
+            ' "$RUNNER_TEMP/CHANGELOG.md" "$version" > "$RUNNER_TEMP/notes.md"
+            if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+              echo "$changelog has no section for $version; no GitHub release"
+              return 0
+            fi
+            local prerelease=false make_latest=false
+            case "$version" in *-*) prerelease=true ;; esac
+            [ "$dist_tag" = latest ] && make_latest=true
+            gh api "repos/$GH_REPO/releases" \
+              -f tag_name="$tag" \
+              -f name="$name $version" \
+              -F body=@"$RUNNER_TEMP/notes.md" \
+              -F prerelease="$prerelease" \
+              -f make_latest="$make_latest" \
+              --jq .html_url
+          }
+
+          while read -r package; do
+            name="$(jq -r .name <<<"$package")"
+            version="$(jq -r .version <<<"$package")"
+            tag "$name@$version"
+            release_notes "$name@$version" "$name" "$version" \
+              "$(jq -r .directory <<<"$package")" "$(jq -r .tag <<<"$package")"
+          done < <(jq -c '.[]' <<<"$PUBLISHED")

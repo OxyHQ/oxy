@@ -19,9 +19,9 @@
  *
  * The oracle is `bun pm pack`, not `npm pack`, and that is not a preference:
  * `npm pack` leaves `workspace:*` and `catalog:` literals in the packed manifest
- * (measured on npm 10.9.8 / bun 1.3.14), which no consumer can resolve — the
- * failure `scripts/assert-bun-publish.mjs` exists to block. Verifying an npm
- * tarball would be verifying an artefact this repo must never publish.
+ * (measured on npm 10.9.8 / bun 1.3.14), which no consumer can resolve.
+ * Verifying an npm tarball would be verifying an artefact this repo must never
+ * publish.
  *
  * ## Re-entrancy
  *
@@ -117,8 +117,8 @@ const SOURCE_ASSET_DECLARATIONS = [
  *
  * Scope, stated because it is easy to overread: this script does its own
  * packing, so what it proves is that BUN still substitutes, not that the release
- * used bun. `scripts/assert-bun-publish.mjs` is what enforces the second, and
- * only on publish paths that run `prepublishOnly` at all.
+ * used bun. The release's own `release-package.mjs inspect` enforces the second,
+ * on the very tarball it publishes.
  */
 const UNRESOLVABLE_PROTOCOLS = ['workspace:', 'catalog:'];
 const MANIFEST_RANGE_FIELDS = ['dependencies', 'peerDependencies', 'optionalDependencies'];

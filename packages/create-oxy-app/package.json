@@ -40,8 +40,7 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "test": "bun test"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",

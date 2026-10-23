@@ -77,7 +77,6 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
     "generate:profile-colors": "node scripts/generate-profile-colors.mjs",
     "check:profile-colors": "node scripts/generate-profile-colors.mjs --check"
   },

@@ -19,8 +19,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "bun test tests",
-    "prepublishOnly": "bun run test"
+    "test": "bun test tests"
   },
   "publishConfig": {
     "access": "public"

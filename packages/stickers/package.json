@@ -65,8 +65,7 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest",
-    "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
+    "lint": "biome lint --error-on-warnings ./src"
   },
   "dependencies": {
     "@oxy.so/contracts": "workspace:^"

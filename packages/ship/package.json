@@ -26,8 +26,7 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test src",
-    "oxy-ship": "bun run src/cli.ts",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "oxy-ship": "bun run src/cli.ts"
   },
   "dependencies": {
     "@oxy.so/contracts": "workspace:*",

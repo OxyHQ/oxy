@@ -1275,6 +1275,22 @@ jobs:
         env:
           OXYDB_TEST_ADMIN_URL: postgres://oxy:oxy@127.0.0.1:5432/postgres
 
+      # Packages that need nothing built. These suites are what gate their
+      # releases: npm-release.yml publishes a commit once CI passed on it and
+      # runs no tests of its own.
+      - name: 'Telemetry Tests: typecheck, test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run typescript && bun run test
+        working-directory: ./packages/telemetry
+      - name: 'Utils Tests: typecheck, test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run typescript && bun run test
+        working-directory: ./packages/utils
+      - name: 'Doctor Tests: test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/doctor
+
       # Protocol package tests (Jest — build contracts first)
       - name: Build contracts
         id: build-contracts
@@ -1364,6 +1380,13 @@ jobs:
           path: .turbo/cache
           key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
           restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
+
+      # The Expo app preset (it peers on services) needs nothing built. Its
+      # suite is what gates its release: npm-release.yml runs no tests.
+      - name: 'App Preset Tests: test'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/app-preset
 
       - name: Build contracts, protocol, core
         id: build-core

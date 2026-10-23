@@ -155,9 +155,9 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "test:package": "node scripts/verify-package-formats.mjs",
+    "postbuild": "node scripts/verify-package-formats.mjs",
+    "verify:package": "node scripts/verify-package-formats.mjs",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build && bun run test:package",
     "generate:display-name-policy": "node scripts/generateDisplayNamePolicyRanges.mjs",
     "test:bun": "cd bun-tests && bun test"
   },

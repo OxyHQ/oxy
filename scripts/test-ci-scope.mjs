@@ -352,7 +352,7 @@ expectScope(
   'the-workspace-list-runs',
   (root) =>
     editJson(root, 'package.json', (m) => {
-      m.workspaces.packages = m.workspaces.packages.filter((d) => d !== 'packages/doctor');
+      m.workspaces.packages = m.workspaces.packages.filter((d) => d !== 'packages/test-app-expo');
     }),
   ALL_RUN,
   { apps: 'package.json changed outside the catalog' },
@@ -388,13 +388,13 @@ expectScope(
     // A step added for another package widens its suite with no edit here.
     const widened = realWorkflow.replace(
       "      - name: 'Federation Tests: build, lint, typecheck, test'\n",
-      "      - name: 'Doctor Tests: test'\n        run: bun run test\n        working-directory: ./packages/doctor\n      - name: 'Federation Tests: build, lint, typecheck, test'\n",
+      "      - name: 'Expo Test App: test'\n        run: bun run test\n        working-directory: ./packages/test-app-expo\n      - name: 'Federation Tests: build, lint, typecheck, test'\n",
     );
     if (widened === realWorkflow) {
       failures.push('suite-roots: the widening fixture matched nothing in ci.yml.');
-    } else if (!suiteRoots(widened, workspaces).platform.includes('packages/doctor')) {
+    } else if (!suiteRoots(widened, workspaces).platform.includes('packages/test-app-expo')) {
       failures.push(
-        'suite-roots: a platform step working in packages/doctor did not make doctor a platform root.',
+        'suite-roots: a platform step working in packages/test-app-expo did not make it a platform root.',
       );
     }
     // Anything unmappable throws, which the CLI turns into "run everything".

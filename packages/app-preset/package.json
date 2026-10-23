@@ -60,7 +60,6 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run test",
     "test": "node --test __tests__/*.test.js"
   },
   "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` requires `@oxy.so/services/plugins/withOxySharedPermissions` (services 11+, where it first exists, so the services floor is the major that ships it). Both peers retain a measured floor and are deliberately OPEN-ENDED above it: Oxy apps always run the latest Bloom and Services, so a new release of either must never need a preset release first. A release that breaks this package's file-path coupling is caught by its own tests and the apps' CI, not by a cap. Never replace either constraint with `*`.",
