@@ -1,3 +1,5 @@
+import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { isSupervised } from './supervisionPolicy.service';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
@@ -12,7 +14,7 @@ import {
   workloadBindingScopes,
   type ApplicationScope,
 } from '../utils/applicationScopes';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import { deploymentCredentialEnvironment } from '../utils/credentialEnvironment';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
@@ -24,7 +26,8 @@ export interface LiveAgencyServicePrincipal {
   readonly applicationId: string;
   readonly credentialId: string;
   readonly ownerAccountId: string;
-  readonly scopes: readonly string[];
+  readonly authority?: 'first_party' | 'external';
+  readonly scopes?: readonly string[];
   readonly capabilities: readonly string[];
 }
 
@@ -141,7 +144,8 @@ export async function resolveLiveAgencyServicePrincipal(
     if (
       binding === null ||
       binding.ownerAccountId !== token.ownerAccountId ||
-      token.environment !== workloadTokenEnvironment()
+      token.environment !== binding.environment ||
+      (token.authority === 'first_party' && !binding.environmentBound)
     )
       return null;
     return {
@@ -155,11 +159,17 @@ export async function resolveLiveAgencyServicePrincipal(
       // `token ∩ live`, the same composition the credential arm applies: an
       // hour-old token can never do more than a fresh mint would give it, and
       // never more than it already claimed.
-      scopes: intersectScopes(token.scopes, binding.scopes),
+      ...(token.authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : {
+            authority: 'external' as const,
+            scopes: intersectScopes(token.scopes ?? [], binding.scopes),
+          }),
       capabilities: binding.capabilities,
     };
   }
 
+  if (token.authority === 'first_party') return null;
   const loaded = await loadPrincipal(token.appId, token.credentialId);
   if (
     !loaded ||
@@ -172,7 +182,8 @@ export async function resolveLiveAgencyServicePrincipal(
     applicationId: row.applicationId,
     credentialId: row.credentialId,
     ownerAccountId: row.ownerAccountId,
-    scopes: intersectScopes(token.scopes, loaded.scopes),
+    authority: 'external',
+    scopes: intersectScopes(token.scopes ?? [], loaded.scopes),
     capabilities: row.capabilities,
   };
 }
@@ -195,15 +206,18 @@ export async function resolveLiveAgencyServicePrincipal(
 export async function resolveLiveAgencyCoordinator(
   applicationId: string,
   credentialId: string,
+  authority: 'first_party' | 'external' = 'external',
 ): Promise<LiveAgencyServicePrincipal | null> {
   if (isWorkloadAttestationHandle(credentialId)) {
     const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credentialId);
-    if (binding === null) return null;
+    if (binding === null || (authority === 'first_party' && !binding.environmentBound)) return null;
     return {
       applicationId: binding.applicationId,
       credentialId: binding.handle,
       ownerAccountId: binding.ownerAccountId,
-      scopes: binding.scopes,
+      ...(authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, scopes: binding.scopes }),
       capabilities: binding.capabilities,
     };
   }
@@ -230,6 +244,8 @@ export async function resolveLiveAgencyCoordinator(
  */
 export interface LiveAgencyWorkloadPrincipal {
   readonly applicationId: string;
+  readonly environment: 'development' | 'staging' | 'production';
+  readonly environmentBound: boolean;
   readonly provider: string;
   readonly subject: string;
   /** `wl_…` — what a token minted from this binding carries as `credentialId`. */
@@ -279,6 +295,7 @@ export async function resolveLiveAgencyWorkload(
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
   const [row] = await db
     .select({
+      bindingId: applicationWorkloadIdentities.id,
       applicationId: applications.id,
       ownerAccountId: applications.ownerAccountId,
       applicationStatus: applications.status,
@@ -288,6 +305,7 @@ export async function resolveLiveAgencyWorkload(
       applicationScopes: applications.scopes,
       capabilities: applications.capabilities,
       bindingScopes: applicationWorkloadIdentities.scopes,
+      environment: applicationWorkloadIdentities.environment,
       ownerAccountStatus: users.accountStatus,
       ownerClosureFence: accountClosureFences.accountId,
     })
@@ -311,6 +329,9 @@ export async function resolveLiveAgencyWorkload(
   if (
     !row ||
     row.applicationStatus !== 'active' ||
+    (row.environment === null &&
+      !isLegacyWorkloadCohort({ id: row.bindingId, applicationId, provider, subject })) ||
+    (row.environment ?? workloadTokenEnvironment()) !== deploymentCredentialEnvironment() ||
     !isTrustedApplication({
       type: row.applicationType,
       isOfficial: row.applicationIsOfficial,
@@ -326,6 +347,8 @@ export async function resolveLiveAgencyWorkload(
     applicationId: row.applicationId,
     provider,
     subject,
+    environment: row.environment ?? workloadTokenEnvironment(),
+    environmentBound: row.environment !== null,
     handle: workloadAttestationHandle(subject),
     ownerAccountId: row.ownerAccountId,
     scopes: workloadBindingScopes(row.bindingScopes, row.applicationScopes),

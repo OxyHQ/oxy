@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
 import recordingIngestRouter from './recordingIngest';
@@ -963,8 +964,7 @@ const SERVICE_LOOKUP_MAX_PER_MINUTE = 600;
 const USER_MEDIA_WRITE_SCOPE: ApplicationScope = 'files:user-media:write';
 
 function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(scope)) {
+  if (!hasServiceAuthority(req.serviceApp, scope)) {
     throw new ForbiddenError(`Missing required scope: ${scope}`);
   }
 }
@@ -1306,7 +1306,7 @@ router.post(
  * `x-owner-user-id` header, an existing LOCAL user.
  */
 async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
-  if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, USER_MEDIA_WRITE_SCOPE)) {
     requireServiceScope(req, 'files:write');
     requireServiceScope(req, 'federation:write');
   }
@@ -1314,6 +1314,13 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
   const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
   if (!ownerUserId) {
     throw new BadRequestError('x-owner-user-id must be a valid user id');
+  }
+
+  if (
+    req.serviceApp?.authority === 'first_party' &&
+    req.serviceRequester?.subjectAccountId !== ownerUserId
+  ) {
+    throw new ForbiddenError('User media requires the authenticated requester account.');
   }
 
   // Same reasoning as `/service/federation` above: a malformed id matches no
@@ -1509,8 +1516,7 @@ async function requireActiveApplication(
   req: ServiceAuthRequest,
   scopes: readonly ApplicationScope[],
 ): Promise<string> {
-  const granted = req.serviceApp?.scopes ?? [];
-  if (!scopes.some((scope) => granted.includes(scope))) {
+  if (!scopes.some((scope) => hasServiceAuthority(req.serviceApp, scope))) {
     throw new ForbiddenError(`Missing required scope: ${scopes.join(' or ')}`);
   }
   const appId = req.serviceApp?.appId;

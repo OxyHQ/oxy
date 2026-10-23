@@ -6,7 +6,10 @@ import {
 } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
-import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
+import {
+  SERVICE_TOKEN_AUDIENCES,
+  serviceAudienceApplicationId,
+} from '../config/serviceTokenAudiences';
 
 // POST /auth/register (public key). The username is REQUIRED: an account never
 // exists without one, so it is written in the same insert as the key.
@@ -182,14 +185,32 @@ export const serviceTokenSchema = z.object({
 // The attestation's SHAPE belongs to its provider and is validated by that
 // provider's verifier, so it is only constrained to "an object" here — a schema
 // that guessed at AWS's fields would have to change to admit the next provider.
-export const workloadServiceTokenSchema = z.object({
-  scopes: serviceTokenScopesSchema.optional(),
-  provider: z.enum(ATTESTATION_PROVIDERS),
-  nonce: z.string().trim().min(1).max(256),
-  attestation: z.record(z.string(), z.unknown()),
-  /** The resource server the token is for; `oxy-api` when omitted (Kaana ADR 0002). */
-  audience: z.enum(SERVICE_TOKEN_AUDIENCES).optional(),
-});
+export const workloadServiceTokenSchema = z
+  .object({
+    protocolVersion: z.literal(2).optional(),
+    scopes: serviceTokenScopesSchema.optional(),
+    provider: z.enum(ATTESTATION_PROVIDERS),
+    nonce: z.string().trim().min(1).max(256),
+    attestation: z.record(z.string(), z.unknown()),
+    audience: z
+      .string()
+      .refine(
+        (value) =>
+          (SERVICE_TOKEN_AUDIENCES as readonly string[]).includes(value) ||
+          serviceAudienceApplicationId(value) !== null,
+        'Unregistered audience format',
+      )
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.protocolVersion === 2 && value.scopes !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scopes'],
+        message: 'Workloads authenticate without scopes.',
+      });
+    }
+  });
 
 // POST /auth/oauth/authorize
 // Issued from the auth UI after the user clicks "Allow". Requires the user

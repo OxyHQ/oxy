@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * The BYOK control plane's HTTP surface (issue #972, workstream 10).
  *
@@ -338,7 +339,7 @@ async function authorizeAccount(
     if (!live) {
       throw new NotFoundError('No provider connection is available for that account');
     }
-    if (!live.scopes.includes(scope)) {
+    if (!hasServiceAuthority(live, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     refuseServiceWrite(permission);
@@ -369,7 +370,7 @@ async function authorizeApplication(
     if (!live) {
       throw new NotFoundError('No provider connection is available for that application');
     }
-    if (!live.scopes.includes(scope)) {
+    if (!hasServiceAuthority(live, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     // Same refusal as the account lane, and it has to be on both: an
@@ -450,7 +451,7 @@ async function authorizeKaanaValidation(
   if (!live) {
     throw new NotFoundError('No such provider connection');
   }
-  if (!live.scopes.includes('inference:byok:validate')) {
+  if (!hasServiceAuthority(live, 'inference:byok:validate')) {
     throw new ForbiddenError('This credential does not carry the inference:byok:validate scope');
   }
   if (!live.capabilities.includes(KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY)) {

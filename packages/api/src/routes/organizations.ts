@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
@@ -198,7 +199,8 @@ router.post(
     const token = (req as ServiceAuthRequest).serviceApp;
     const principal = token ? await resolveLiveAgencyServicePrincipal(token) : null;
     if (
-      !principal?.scopes.includes('organizations:import') ||
+      !hasServiceAuthority(principal, 'organizations:import') ||
+      !principal ||
       !principal.capabilities.includes(`organizations:import:${input.namespace}`)
     )
       throw new directory.OrganizationDirectoryError(

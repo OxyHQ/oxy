@@ -1,19 +1,27 @@
-import crypto from 'node:crypto';
 import { serviceTokenScopesSchema } from '@oxy.so/contracts';
+import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
+import { audienceRefusal } from '../config/serviceTokenAudiences';
+import { workloadBindingScopes } from '../utils/applicationScopes';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import crypto from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
+import { users } from '../db/schema/users';
+import { accountClosureFences } from '../db/schema/accountClosureFences';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { getRedisClient } from '../config/redis';
-import { workloadBindingScopes } from '../utils/applicationScopes';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import { deploymentCredentialEnvironment } from '../utils/credentialEnvironment';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
 import { isSupervised } from './supervisionPolicy.service';
 import {
-  audienceRefusal,
+  KAANA_CONTROL_AUDIENCE,
+  KAANA_CONTROL_APPLICATION_ID,
+  KAANA_PUBLIC_AUDIENCE,
+  serviceAudienceApplicationId,
   OXY_API_AUDIENCE,
   type ServiceTokenAudience,
 } from '../config/serviceTokenAudiences';
@@ -128,6 +136,7 @@ export async function exchangeWorkloadAttestation(input: {
   /** The resource server the token is for (Kaana ADR 0002); `oxy-api` when omitted. */
   audience?: ServiceTokenAudience;
   scopes?: string[];
+  protocolVersion?: 2;
 }): Promise<WorkloadTokenGrant> {
   const audience = input.audience ?? OXY_API_AUDIENCE;
   if (!(await spendChallenge(input.nonce))) {
@@ -168,9 +177,10 @@ export async function exchangeWorkloadAttestation(input: {
       applicationId: applicationWorkloadIdentities.applicationId,
       appName: applications.name,
       ownerAccountId: applications.ownerAccountId,
-      /** What this binding names, or empty for "names none" — see the scope block below. */
+      ownerStatus: users.accountStatus,
+      ownerClosure: accountClosureFences.accountId,
+      environment: applicationWorkloadIdentities.environment,
       bindingScopes: applicationWorkloadIdentities.scopes,
-      /** The ceiling. Nothing the binding names can exceed it.  */
       applicationScopes: applications.scopes,
       status: applications.status,
       type: applications.type,
@@ -179,6 +189,8 @@ export async function exchangeWorkloadAttestation(input: {
     })
     .from(applicationWorkloadIdentities)
     .innerJoin(applications, eq(applications.id, applicationWorkloadIdentities.applicationId))
+    .innerJoin(users, eq(users.id, applications.ownerAccountId))
+    .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
     .where(
       and(
         eq(applicationWorkloadIdentities.provider, attested.provider),
@@ -204,7 +216,11 @@ export async function exchangeWorkloadAttestation(input: {
     );
   }
 
-  if (binding.status !== 'active') {
+  if (
+    binding.status !== 'active' ||
+    binding.ownerStatus !== 'active' ||
+    binding.ownerClosure !== null
+  ) {
     throw new WorkloadIdentityError(403, 'application_inactive', 'That application is not active.');
   }
 
@@ -224,95 +240,101 @@ export async function exchangeWorkloadAttestation(input: {
     );
   }
 
-  /**
-   * Scopes, decided exactly as the credential path decides them.
-   *
-   * ## The rule that has not changed
-   *
-   * Privileged authority must be named on something a human granted
-   * deliberately. An attestation says WHAT is calling, never what it may do, so
-   * an attestation can never widen an application's authority — and the ceiling
-   * is still the application's own grants, so nothing here can exceed what a
-   * human granted the application.
-   *
-   * ## What that rule was being read to mean, and why it was wrong
-   *
-   * It was read as "a workload token can never carry a privileged scope", by
-   * filtering privileged scopes out of the APPLICATION's grants. That conflated
-   * two different things. The attestation is not the only deliberate human act
-   * on this path: the binding row is one too. A row in
-   * `application_workload_identities` is written by staff, names exactly one IAM
-   * role and exactly one application, carries a human-authored `description`,
-   * and is gated at creation by the same staff check that gates a credential's
-   * scopes (`services/workloadIdentityBinding.service.ts`). It is the
-   * attestation path's equivalent of an `ApplicationCredential` — so it names
-   * authority the same way one does, and the rule above is satisfied by it, not
-   * violated.
-   *
-   * The attestation still names nothing. It selects a binding; the binding
-   * names the scopes. A workload that proves what it is gains no say at all in
-   * what it may do.
-   *
-   * ## The rule, then
-   *
-   * Identical to `POST /auth/service-token`, deliberately — two ways to prove
-   * who you are must not be two authorities. It is `workloadBindingScopes`, one
-   * exported definition, because the live ceiling in
-   * `services/agencyServicePrincipal.service.ts` has to answer this same
-   * question about an hour-old token and must not answer it differently:
-   *
-   *   * The binding NAMES scopes → the intersection with the application's, so
-   *     a privileged scope survives only when BOTH the binding and the
-   *     application hold it. Either one losing it is enough to lose it here.
-   *   * The binding names NONE → the application's non-privileged grants, which
-   *     is what this path did before the column existed and what a scopeless
-   *     credential still receives. Every binding written before today reads as
-   *     this case, so nothing changed under an existing deployment.
-   *
-   * ## Why this had to change
-   *
-   * Because the old reading was not "privileged scopes are unreachable here",
-   * it was "a service holding one cannot migrate". Mention's credential named
-   * `federation:write`, `signals:write` and `catalogs:write`; taking the pair
-   * off its task definition took all three away and its federation worker
-   * failed every six minutes until the pair was restored. mention-mcp needs
-   * `catalogs:write` for its own post-deploy registration and Alia needs
-   * `capabilities:read` to build its tool catalogue — so the filter was not
-   * holding a line, it was making ADR 0026's clean cut impossible for exactly
-   * the services it was written for.
-   */
-  if (await isSupervised(binding.ownerAccountId))
-    throw new WorkloadIdentityError(
-      403,
-      'owner_restricted',
-      'This owner cannot authorize service credentials.',
-    );
-  const grantedScopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
-  const requestedScopes =
-    input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
-  const grantedScopeSet = new Set<string>(grantedScopes);
-  if (requestedScopes?.some((scope) => !grantedScopeSet.has(scope)))
-    throw new WorkloadIdentityError(
-      403,
-      'scope_not_granted',
-      'A requested service scope is not granted.',
-    );
-  const scopes = requestedScopes ?? grantedScopes;
-
-  // Kaana ADR 0002: the same audience rule as the credential mint. Checked
-  // before the attribution row is touched, so a refused audience writes nothing.
-  const audienceRefused = audienceRefusal(audience, binding.applicationId, scopes);
-  if (audienceRefused !== undefined) {
-    logger.warn('[WorkloadIdentity] audience refused', {
-      provider: attested.provider,
+  const firstParty = input.protocolVersion === 2;
+  if (
+    !firstParty &&
+    !isLegacyWorkloadCohort({
+      id: binding.bindingId,
       applicationId: binding.applicationId,
-      audience,
-      reason: audienceRefused,
-    });
+      provider: attested.provider,
+      subject: attested.subject,
+    })
+  ) {
+    throw new WorkloadIdentityError(
+      400,
+      'workload_protocol_upgrade_required',
+      'Upgrade the service SDK to workload protocol version 2.',
+    );
+  }
+  if (
+    firstParty &&
+    (binding.environment === null || binding.environment !== deploymentCredentialEnvironment())
+  ) {
     throw new WorkloadIdentityError(
       403,
-      audienceRefused,
-      'This application may not hold a service token for that audience.',
+      'workload_environment_unbound',
+      'The workload must be bound to this environment before it can mint.',
+    );
+  }
+  if (firstParty && input.scopes !== undefined) {
+    throw new WorkloadIdentityError(
+      400,
+      'workload_scopes_unsupported',
+      'First-party workloads authenticate without scopes.',
+    );
+  }
+  const environment = firstParty
+    ? binding.environment!
+    : (binding.environment ?? workloadTokenEnvironment());
+  if (environment !== deploymentCredentialEnvironment()) {
+    throw new WorkloadIdentityError(
+      403,
+      'workload_environment_unbound',
+      'The workload belongs to another environment.',
+    );
+  }
+  let legacyScopes: string[] | undefined;
+  if (!firstParty) {
+    const granted = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
+    legacyScopes =
+      input.scopes === undefined ? granted : serviceTokenScopesSchema.parse(input.scopes);
+    if (legacyScopes.some((scope) => !new Set<string>(granted).has(scope))) {
+      throw new WorkloadIdentityError(
+        403,
+        'scope_not_granted',
+        'A requested service scope is not granted.',
+      );
+    }
+    const refusal = audienceRefusal(audience, binding.applicationId, legacyScopes);
+    if (refusal || audience.startsWith('oxy-service:')) {
+      throw new WorkloadIdentityError(
+        403,
+        refusal ?? 'invalid_service_audience',
+        'Upgrade the service SDK for this audience.',
+      );
+    }
+  }
+  if (await isSupervised(binding.ownerAccountId)) {
+    throw new WorkloadIdentityError(403, 'owner_unavailable', 'The owning account cannot operate.');
+  }
+  const receiverId = serviceAudienceApplicationId(audience);
+  if (receiverId) {
+    const [receiver] = await getDb()
+      .select({
+        status: applications.status,
+        type: applications.type,
+        isOfficial: applications.isOfficial,
+        isInternal: applications.isInternal,
+      })
+      .from(applications)
+      .where(eq(applications.id, receiverId))
+      .limit(1);
+    if (!receiver || receiver.status !== 'active' || !isTrustedApplication(receiver)) {
+      throw new WorkloadIdentityError(
+        403,
+        'unregistered_service_audience',
+        'The receiving service is unavailable.',
+      );
+    }
+  } else if (
+    audience !== OXY_API_AUDIENCE &&
+    audience !== KAANA_PUBLIC_AUDIENCE &&
+    !(audience === KAANA_CONTROL_AUDIENCE && binding.applicationId === KAANA_CONTROL_APPLICATION_ID)
+  ) {
+    throw new WorkloadIdentityError(
+      403,
+      'invalid_service_audience',
+      'The receiving service is unavailable.',
     );
   }
 
@@ -376,16 +398,14 @@ export async function exchangeWorkloadAttestation(input: {
        */
       credentialId: attribution.credentialId,
       ownerAccountId: binding.ownerAccountId,
-      /**
-       * The environment is the DEPLOYMENT's, not the caller's — one definition,
-       * shared with the live re-read that meters and charges what this token
-       * goes on to do. See {@link workloadTokenEnvironment}.
-       */
-      environment: workloadTokenEnvironment(),
+      // Explicit staff-managed binding, checked against this deployment above.
+      environment,
       // Only a trusted application passes the gate above: a workload identity is
       // always one of Oxy's own.
       tier: 'internal',
-      scopes,
+      ...(firstParty
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, scopes: legacyScopes! }),
     },
     audience,
   );
@@ -402,10 +422,10 @@ export async function exchangeWorkloadAttestation(input: {
     attestationId: attribution.credentialId,
     /** `created` the first time this workload ever mints; otherwise `unchanged`. */
     attribution: attribution.state,
-    // The scopes, because the question an operator asks after a 403 is "what
-    // did that token actually carry?" and the binding is where the answer is
-    // now decided. Scope names are a bounded vocabulary, not caller data.
-    scopes,
+    authority: firstParty ? 'first_party' : 'external',
+    protocolVersion: firstParty ? 2 : 1,
+    environment,
+    audience,
   });
 
   return { token, expiresIn: SERVICE_TOKEN_EXPIRY, appName: binding.appName };

@@ -1,3 +1,8 @@
+import {
+  validateForegroundRequesterBearer,
+  type ForegroundRequesterBinding,
+} from '../services/foregroundCapabilityRequester.service';
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
@@ -297,6 +302,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
  */
 export interface ServiceAuthRequest extends Request {
   serviceApp?: ServiceTokenPayload;
+  serviceRequester?: ForegroundRequesterBinding;
 }
 
 /**
@@ -332,6 +338,19 @@ export const serviceAuthMiddleware = async (
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     try {
+      if (verification.payload.authority === 'first_party') {
+        const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
+        if (!principal) return res.status(401).json({ error: 'invalid_service_identity' });
+        const requesterToken = req.headers['x-oxy-requester-token'];
+        if (requesterToken !== undefined) {
+          const requester =
+            typeof requesterToken === 'string'
+              ? await validateForegroundRequesterBearer(requesterToken, principal)
+              : null;
+          if (!requester) return res.status(403).json({ error: 'invalid_requester_proof' });
+          req.serviceRequester = requester;
+        }
+      }
       if (
         (await isSupervised(verification.payload.ownerAccountId)) ||
         !(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId))
