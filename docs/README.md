@@ -54,6 +54,12 @@ and in any third-party verifier — using the exact same `@oxy.so/core` code.
 
 ---
 
+Own applications and external connections follow
+[First-party platform access](auth/first-party-platform-access.md) (ADR 0049).
+Own products do not request app scopes or consent; account and resource
+boundaries remain. Delivery is tracked separately in the
+[migration ledger](architecture/first-party-integration-migration.md).
+
 ## Table of contents (this doc set)
 
 | Doc | What it covers |
