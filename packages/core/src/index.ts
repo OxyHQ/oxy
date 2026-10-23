@@ -348,6 +348,7 @@ export type {
   FileDeleteResponse,
   RNFileDescriptor,
   AssetUploadInput,
+  AssetPublicUrlOptions,
   FileVisibility,
   AssetLink,
   AssetMetadata,
