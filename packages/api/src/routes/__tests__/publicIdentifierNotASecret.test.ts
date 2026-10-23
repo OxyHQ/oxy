@@ -243,7 +243,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockExchangeAuthCode.mockResolvedValue({
     ok: true,
-    code: { userId: '', deviceId: null, operatedByUserId: null, scopes: [] },
+    code: { authority: 'external', userId: '', deviceId: null, operatedByUserId: null, scopes: [] },
   });
   mockCreateSession.mockResolvedValue({
     sessionId: 'sess-1',
@@ -407,7 +407,13 @@ describe('lane 2 — POST /auth/oauth/token', () => {
     const [subject] = await getDb().insert(users).values({}).returning({ id: users.id });
     mockExchangeAuthCode.mockResolvedValue({
       ok: true,
-      code: { userId: subject.id, deviceId: null, operatedByUserId: null, scopes: [] },
+      code: {
+        authority: 'external',
+        userId: subject.id,
+        deviceId: null,
+        operatedByUserId: null,
+        scopes: [],
+      },
     });
 
     const res = await postOAuthToken({

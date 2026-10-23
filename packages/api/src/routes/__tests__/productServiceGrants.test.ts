@@ -1,9 +1,10 @@
 /** Real service JWT verification, consent, live credential/workload and product rows. */
 import { randomUUID } from 'node:crypto';
-import express from 'express';
+import express, { type Request } from 'express';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
+jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
 jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -15,6 +16,7 @@ import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import * as environment from '../../config/env';
 import {
   accountClosureFences,
+  accountMembers,
   appGrants,
   applications,
   applicationCredentials,
@@ -34,6 +36,7 @@ import { revokeServiceActingAs } from '../../services/serviceActingAs.service';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import router from '../productAccess';
+import sessionService from '../../services/session.service';
 
 const required = ['user:read', 'acting-as:offline'];
 const app = express();
@@ -208,7 +211,7 @@ it('uses the live workload binding, never a service key beside it', async () => 
       provider: 'aws-iam',
       subject,
       description: 'Synthetic local-only fixture',
-      scopes: required,
+      environment: 'production',
     })
     .returning();
   await ensureWorkloadAttributionIdentity({
@@ -216,26 +219,49 @@ it('uses the live workload binding, never a service key beside it', async () => 
     applicationId: f.app.id,
     subject,
   });
-  const token = f.token({ credentialId: workloadAttestationHandle(subject) });
+  const token = f.token({
+    credentialId: workloadAttestationHandle(subject),
+    authority: 'first_party',
+    tier: 'internal',
+    scopes: undefined,
+  });
+  await getDb()
+    .insert(accountMembers)
+    .values({ accountId: f.beneficiary, memberUserId: f.owner, role: 'admin', status: 'active' });
+  const session = await sessionService.createSession(f.beneficiary, { headers: {} } as Request, {
+    deviceId: randomUUID(),
+    operatedByUserId: f.owner,
+  });
+  const read = () => f.read(token).set('X-Oxy-Requester-Token', session.accessToken);
+  await getDb().delete(appGrants).where(eq(appGrants.id, f.grant.id));
+  await getDb().update(applications).set({ scopes: [] }).where(eq(applications.id, f.app.id));
   // Simulate only workload deployment classification; retain real test signing keys.
   const production = jest.spyOn(environment, 'isProduction').mockReturnValue(true);
+  const previousCredentialEnvironment = process.env.OXY_CREDENTIAL_ENVIRONMENT;
+  process.env.OXY_CREDENTIAL_ENVIRONMENT = 'production';
   try {
-    expect((await f.read(token)).status).toBe(200);
+    expect((await f.read(token)).status).toBe(404);
+    const ownRead = await read();
+    expect(ownRead.body).toHaveProperty('data');
+    expect(ownRead.status).toBe(200);
     await getDb()
       .update(applicationWorkloadIdentities)
-      .set({ scopes: ['user:read'] })
+      .set({ scopes: [] })
       .where(eq(applicationWorkloadIdentities.id, binding.id));
-    expect((await f.read(token)).status).toBe(404);
+    expect((await read()).status).toBe(200);
     await getDb()
       .update(applicationWorkloadIdentities)
-      .set({ scopes: required, expiresAt: new Date(Date.now() - 1000) })
+      .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(applicationWorkloadIdentities.id, binding.id));
-    expect((await f.read(token)).status).toBe(404);
+    expect((await read()).status).toBe(401);
     await getDb()
       .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.id, binding.id));
-    expect((await f.read(token)).status).toBe(404);
+    expect((await read()).status).toBe(401);
   } finally {
     production.mockRestore();
+    if (previousCredentialEnvironment === undefined)
+      Reflect.deleteProperty(process.env, 'OXY_CREDENTIAL_ENVIRONMENT');
+    else process.env.OXY_CREDENTIAL_ENVIRONMENT = previousCredentialEnvironment;
   }
 });
