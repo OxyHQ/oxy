@@ -57,6 +57,13 @@ older Expo apps when the adapter is off. Review/remove the adapter when Expo
 fixes the app/document render boundary upstream. The adapted Expo code retains
 its MIT license in `metro/static-hydration/EXPO-LICENSE`.
 
+Development uses the same boundary when starting Expo with
+`EXPO_WEB_DEV_HYDRATE=1`. Expo otherwise calls `createRoot`, replacing its server
+markup rather than hydrating it. In development the adapter also uses Expo's
+actual web `withDevTools` wrapper: its refresh indicator is initially invisible,
+but its sibling still changes React's `useId` paths. Production does not include
+that wrapper. Keep Fast Refresh enabled; do not compensate for IDs in app code.
+
 Verify production exports, not just Metro development: JavaScript-disabled
 screenshots must show real chrome, and hydration must retain the same workspace
 DOM node without recoverable React errors. The package tests exercise real

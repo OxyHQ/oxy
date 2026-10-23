@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.6.1
+
+- Match Expo's development web root when `staticHydrationBoundary` is enabled.
+  The server now uses Expo's actual development-tools wrapper, preserving React
+  IDs and existing DOM when `EXPO_WEB_DEV_HYDRATE=1` enables local hydration.
+  Production rendering and Fast Refresh retain their existing behavior.
+
 ## 3.6.0
 
 ### Added
