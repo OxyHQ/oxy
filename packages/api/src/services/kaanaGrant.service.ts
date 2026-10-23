@@ -114,6 +114,7 @@ import { usageReservations } from '../db/schema/usageReservations';
 import { readApplicationInferenceLimits } from './applicationInferenceLimits.service';
 import {
   type EdgePrincipal,
+  hasInferenceScope,
   PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER,
   PLATFORM_DEFAULT_ROUTING_POLICY,
   PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY,
@@ -157,7 +158,6 @@ import {
 } from './kaanaDeclaredCatalogue.service';
 import {
   currentDeploymentLiveness,
-  type PublishedRoute,
 } from './kaanaDeploymentPublication.service';
 import {
   type GrantLane,
@@ -724,7 +724,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       reason: 'grant-signing-not-configured',
     });
   }
-  if (!principal.scopes.includes('inference:invoke')) {
+  if (!hasInferenceScope(principal, 'inference:invoke')) {
     throw new GrantRefusal(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.',
@@ -1229,7 +1229,9 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       applicationId: principal.applicationId,
       credentialId: principal.credentialId,
       environment: principal.environment,
-      scopes: principal.scopes.filter(isInferenceScope),
+      ...(principal.authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, scopes: principal.scopes.filter(isInferenceScope) }),
       lane: principal.lane,
     },
     ...(delegatedUserId === undefined ? {} : { userId: delegatedUserId }),
