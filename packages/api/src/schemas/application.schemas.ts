@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 import {
   CREATABLE_APPLICATION_CREDENTIAL_TYPES,

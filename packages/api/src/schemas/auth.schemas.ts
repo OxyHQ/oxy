@@ -4,7 +4,7 @@ import {
   deviceProofSchema,
   usernameSchema,
 } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
 import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 

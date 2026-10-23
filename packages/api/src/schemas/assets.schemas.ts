@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { PLAY_SESSION_RENDITIONS } from '../db/schema/filePlaySessions';
 
 // Params with :id

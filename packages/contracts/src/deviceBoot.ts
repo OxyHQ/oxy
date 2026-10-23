@@ -23,7 +23,7 @@
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /* -------------------------------------------------------------------------- */
 /*  First-party login result (session arm)                                    */

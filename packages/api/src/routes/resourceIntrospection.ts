@@ -1,5 +1,5 @@
 import express from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   resourceDomainOwnershipRequestSchema,
   resourceDomainOwnershipResponseSchema,

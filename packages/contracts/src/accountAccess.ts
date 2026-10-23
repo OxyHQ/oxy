@@ -20,7 +20,7 @@
  * Platform-agnostic — zod only.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { accountKindSchema } from './accountGraph';
 
 /**

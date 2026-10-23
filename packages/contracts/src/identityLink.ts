@@ -23,7 +23,7 @@
  *
  * The server stores only the challenge's hash; the challenge travels in the QR.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { identityProofSchema } from './identityProof';
 import { reauthProofSchema } from './signIn';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);

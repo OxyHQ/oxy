@@ -42,7 +42,7 @@
  * Decided in: docs/adr/0014-account-billing-and-entitlements.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { oxyAccountIdSchema } from './identifiers';
 import { billingModeSchema } from './accountBilling';
 import { currencyCodeSchema, exactDecimalSchema } from './money';

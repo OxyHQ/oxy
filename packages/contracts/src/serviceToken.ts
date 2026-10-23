@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** Omitted means the existing grant; an explicit set only narrows that authority. */
 export const serviceTokenScopesSchema = z

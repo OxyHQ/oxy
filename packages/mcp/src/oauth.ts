@@ -1,6 +1,6 @@
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { randomUUID, sign as signBytes, verify as verifyBytes, type KeyObject } from 'node:crypto';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 const MCP_ACCESS_TOKEN_ALGORITHM = 'EdDSA';
 const MCP_ACCESS_TOKEN_TYPE = 'at+jwt';

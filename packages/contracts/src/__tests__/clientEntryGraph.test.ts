@@ -4,7 +4,7 @@
  * The point of the client entry is that an app importing it ships no Zod. This
  * walks the STATIC value-import graph from `src/client/index.ts` — the graph
  * every bundler, Metro without tree shaking included, must load — and asserts
- * no module on it imports `zod`. Type-only imports (the checks name their
+ * no module on it imports a Zod runtime. Type-only imports (the checks name their
  * contract types with `import type`) are erased and are not edges.
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -103,6 +103,6 @@ describe('@oxy.so/contracts/client entry graph', () => {
   });
 
   it('the root entry does reach Zod (the control that proves the walk sees an import)', () => {
-    expect(walk(join(SRC, 'index.ts')).externals.has('zod')).toBe(true);
+    expect(walk(join(SRC, 'index.ts')).externals.has('@oxy.so/zod3')).toBe(true);
   });
 });

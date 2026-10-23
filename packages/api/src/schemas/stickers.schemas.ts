@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { stickerPackSlugSchema } from '@oxy.so/contracts';
 
 const id = z.string().trim().min(1).max(64);

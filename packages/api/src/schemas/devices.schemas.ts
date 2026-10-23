@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // DELETE /devices/:deviceId
 export const deviceIdParams = z.object({

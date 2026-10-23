@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { createHash } from 'node:crypto';
 import { uuidv7 } from '@oxy.so/db';
 import type { BillingTaxQuote } from '@peable.to/sdk';

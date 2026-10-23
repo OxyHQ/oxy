@@ -24,7 +24,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
-import { z } from "zod";
+import { z } from "@oxy.so/zod3";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry carries the whole policy.
 import { ACCOUNT_TITLE_MAX_LENGTH, isPlainTextTitle } from './client/accountName';

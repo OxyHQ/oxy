@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /**
  * Characters a one-line name may not carry into an email: C0/C1 controls (a

@@ -1,6 +1,6 @@
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { eq } from 'drizzle-orm';
 import {
   organizationSchema,

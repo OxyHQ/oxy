@@ -2,7 +2,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { canonicalCapabilityJson } from '@oxy.so/contracts';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { oxyProfileCapabilityCatalog } from '../capabilities/oxy-profile.catalog';
 import { getDb } from '../config/postgres';
 import { accountClosureFences } from '../db/schema/accountClosureFences';

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { getRedisClient } from '../config/redis';
 import type { FileRecord } from '../types/file.types';
 import { logger } from './logger';

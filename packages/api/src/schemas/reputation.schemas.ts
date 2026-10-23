@@ -9,7 +9,7 @@
  * `@oxy.so/core` exposes are one definition. Import those directly from
  * `@oxy.so/contracts`; do not re-declare them here.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { reputationInfluenceContextSchema } from '@oxy.so/contracts';
 
 /** Route params with :userId (ObjectId or publicKey accepted by the route). */

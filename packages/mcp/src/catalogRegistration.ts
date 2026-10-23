@@ -6,7 +6,7 @@ import {
   type AppCapabilityCatalog,
   type CapabilityCatalogBinding,
 } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { postOxyServiceJson, type OxyMcpServiceRequestOptions } from './serviceRequest';
 
 const registrationResponseSchema = z

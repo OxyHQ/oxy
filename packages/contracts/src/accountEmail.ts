@@ -12,7 +12,7 @@
  * Signing in by email (`signin`) and re-verifying before a sensitive change
  * (`reauth`) use the same code, through their own routes (`signIn.ts`).
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import { EMAIL_CODE_LENGTH } from './client/accountEmail';

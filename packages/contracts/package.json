@@ -81,7 +81,7 @@
     "check:profile-colors": "node scripts/generate-profile-colors.mjs --check"
   },
   "dependencies": {
-    "zod": "^3.25.64"
+    "@oxy.so/zod3": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

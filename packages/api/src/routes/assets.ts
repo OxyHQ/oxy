@@ -38,7 +38,7 @@ import {
   ValidationError,
   ConflictError,
 } from '../utils/error';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import type {
   FileReferenceRecord,
   FileRecord,

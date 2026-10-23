@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
 
 // POST /email/mailboxes

@@ -14,7 +14,7 @@
  * the auth-app-specific schemas (login, signup, lookup, token, refresh, OAuth
  * state) live locally.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   currentUserResponseSchema,
   deviceLinkedSessionsResponseSchema,

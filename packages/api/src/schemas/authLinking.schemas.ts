@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { identityProofSchema } from '@oxy.so/contracts';
 
 // POST /auth/link — a root proof for an account whose root is this key

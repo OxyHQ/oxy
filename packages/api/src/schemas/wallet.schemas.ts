@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // GET /wallet/:userId
 export const walletUserIdParams = z.object({

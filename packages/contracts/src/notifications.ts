@@ -11,7 +11,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 export const OXY_NOTIFICATION_TYPES = [
   'like',

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { reauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 

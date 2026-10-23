@@ -32,7 +32,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 workstream 6.
  */
 
-import { z } from "zod";
+import { z } from "@oxy.so/zod3";
 import {
   deploymentIdSchema,
   inferenceProviderSlugSchema,

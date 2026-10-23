@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // Params with :id (privacy settings)
 export const privacyUserIdParams = z.object({

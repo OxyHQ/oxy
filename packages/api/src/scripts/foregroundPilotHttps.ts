@@ -1,6 +1,6 @@
 import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 /** Only the canonical Oxy origin receives the ephemeral registrar credential. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { tracedFetch } from '../utils/tracedFetch';
 
 const ORIGIN = 'https://api.oxy.so';

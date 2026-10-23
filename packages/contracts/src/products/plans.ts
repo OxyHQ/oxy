@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { productBenefitSchema } from './access';
 
 /** Approved display terms never identify or activate a billing-provider price. */

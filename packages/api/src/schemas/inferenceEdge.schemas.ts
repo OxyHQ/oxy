@@ -32,7 +32,7 @@ import { meteredGenerationSchema } from '@oxy.so/contracts';
  * that quietly ignored half of what they asked for.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   inferenceContentPartSchema,
   inferenceFinishReasonSchema,

@@ -42,7 +42,7 @@
  * docs/adr/0009-usage-reservation-and-settlement.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { oxyAccountIdSchema } from './identifiers';
 import { currencyCodeSchema, exactDecimalSchema } from './money';
 

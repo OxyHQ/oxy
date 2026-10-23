@@ -14,7 +14,7 @@
  * The compile-time half — each check produces exactly its contract type — is
  * `exact<T>()` in `client/check.ts`, checked by `tsc`.
  */
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod3';
 import * as client from '../client';
 import type { Check } from '../client/check';
 import * as contracts from '../index';

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // Params with :sessionId
 export const sessionIdParams = z.object({

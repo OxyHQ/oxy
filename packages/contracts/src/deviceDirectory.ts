@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { accountKindSchema } from './accountGraph';
 import { activeTokenSchema, deviceSessionStateSchema } from './deviceSession';
 import { userNameSchema } from './userResponse';

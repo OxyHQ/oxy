@@ -1,5 +1,5 @@
 /** Approved P1 integer policy; provider evidence validation happens separately. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { ConflictError } from '../utils/error';
 
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);

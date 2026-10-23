@@ -9,7 +9,7 @@
  * and no query parameters at all. Nothing about the shapes changed in the move.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { modelIdSchema } from '@oxy.so/contracts';
 import {
   BALANCED_ROUTING_SCORE_SOURCES,

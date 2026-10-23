@@ -27,7 +27,7 @@
  * UNKNOWN cost is reported as unknown — counted, never summed as zero.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { costCenterSchema } from './entitlement';
 import {
   currencyCodeSchema,

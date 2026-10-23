@@ -15,7 +15,7 @@ import {
 } from '@oxy.so/contracts';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 /** Generic internal writer. No HTTP grant lane, checkout or provider call. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { type DatabaseOrTransaction, type Transaction, getDb } from '../config/postgres';
 import {
   accessGrants,

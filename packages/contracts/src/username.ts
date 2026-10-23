@@ -99,7 +99,7 @@
  * knows what is taken, and it must not pretend to.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 import type { AccountKind } from './accountGraph';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);

@@ -21,7 +21,7 @@
  * Decided in: docs/adr/0010-public-api-compatibility.md, docs/adr/0008-catalogue-concept-separation.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   deploymentIdSchema,
   generationIdSchema,

@@ -28,7 +28,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo, ESM-safe.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { exportAttestationSchema, type ExportAttestation } from './identity';
 
 /* -------------------------------------------------------------------------- */

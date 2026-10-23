@@ -1,4 +1,4 @@
-import { type output, type ZodSchema, type ZodTypeAny, ZodError } from 'zod';
+import { type output, type ZodSchema, type ZodTypeAny, ZodError } from '@oxy.so/zod3';
 import type { Request, Response, NextFunction } from 'express';
 import { BadRequestError } from '../utils/error';
 

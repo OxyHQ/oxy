@@ -14,7 +14,7 @@
  */
 
 import express from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';

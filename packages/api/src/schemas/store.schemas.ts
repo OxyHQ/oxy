@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { APP_SCREENSHOT_PLATFORMS } from '../db/schema/appListingScreenshots';
 
 /** A store URL segment: the listing's own `slug`, never an application id. */

@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import sessionService from '../services/session.service';
 
