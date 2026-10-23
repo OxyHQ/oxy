@@ -1,5 +1,5 @@
 /** Approved P2: declarations are versioned code; the initial registry is empty. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { ConflictError } from '../utils/error';
 const id = z.string().min(1).max(160);
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);

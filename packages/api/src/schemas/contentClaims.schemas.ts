@@ -3,7 +3,7 @@
  * body is `contentClaimSubmissionSchema` in `@oxy.so/contracts`, shared with
  * the Oxy website's form.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { CONTENT_CLAIM_KINDS, CONTENT_CLAIM_STATES } from '@oxy.so/contracts';
 
 const NOTE_MAX = 5000;

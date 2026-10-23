@@ -47,7 +47,7 @@ import {
   emailMailboxSchema,
   emailMessageSchema,
 } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { messages } from '../../db/schema/messages';

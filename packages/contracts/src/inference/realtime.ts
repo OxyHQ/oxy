@@ -84,7 +84,7 @@
  * Decided in: OxyHQ/Kaana#90.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { inferenceAttributionSchema } from './attribution';
 import { realtimeSessionKindSchema, realtimeSessionTransportSchema } from './catalogue';
 import { inferenceErrorSchema } from './errors';

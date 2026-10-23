@@ -26,7 +26,7 @@
  * Decided in: docs/adr/0007-canonical-request-attribution.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   delegatedUserIdSchema,
   generationIdSchema,

@@ -15,7 +15,7 @@
  * caller hashes `canonicalJson(payload)` with SHA-256 using its platform's
  * primitive and passes the hex digest in).
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import {

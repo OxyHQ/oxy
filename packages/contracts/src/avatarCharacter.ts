@@ -18,7 +18,7 @@
  * the ids and falls back on a default look for one it cannot draw.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** The flat shape of Bloom's `AvatarCharacter`; every field is optional (a preset supplies the rest). */
 export interface AvatarCharacter {

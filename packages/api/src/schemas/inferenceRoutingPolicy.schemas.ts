@@ -32,7 +32,7 @@
  * `tsc` where the parsed body is passed in.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { MAX_APPLICATION_INFERENCE_LIMIT } from '../db/schema/applicationInferenceLimits';
 import {
   currencyCodeSchema,

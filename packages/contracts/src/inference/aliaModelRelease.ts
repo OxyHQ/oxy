@@ -82,7 +82,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 §12.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { modelLicenseSchema, modelProvenanceSchema, modelRevisionSchema } from './catalogue';
 import {
   inferenceTimestampSchema,

@@ -55,7 +55,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { getDb } from '../config/postgres';
 import { isCataloguePublished, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema';

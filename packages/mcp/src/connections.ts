@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { mcpConnectionStateSchema, type McpConnectionState } from './oauth';
 import { postOxyServiceJson, type OxyMcpServiceRequestOptions } from './serviceRequest';
 

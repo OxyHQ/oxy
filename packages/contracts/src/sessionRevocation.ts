@@ -35,7 +35,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** The Socket.IO namespace on oxy-api that carries service events. */
 export const OXY_SERVICE_EVENTS_NAMESPACE = '/service-events';

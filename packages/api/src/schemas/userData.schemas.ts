@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { APP_DATA_IDENTIFIER_PATTERN } from '../db/schema/userAppData';
 
 /**

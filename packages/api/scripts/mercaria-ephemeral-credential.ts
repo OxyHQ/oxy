@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync } from 'node:fs';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import {
   inspectSchema,

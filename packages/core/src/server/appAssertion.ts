@@ -22,7 +22,7 @@ import {
   OXY_APP_ASSERTION_TYPE,
   type AppAssertionPlatform,
 } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { createOxyJwksKeyResolver } from './jwks';
 
 export const OXY_APP_ASSERTION_DEFAULT_ISSUER = 'https://api.oxy.so';

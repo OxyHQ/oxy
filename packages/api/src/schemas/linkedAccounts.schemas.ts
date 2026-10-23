@@ -3,7 +3,7 @@
  * bodies are the shared contracts in `@oxy.so/contracts` (`linkedAccounts.ts`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { linkedAccountNetworkSchema } from '@oxy.so/contracts';
 
 export const linkedAccountNetworkParams = z.object({ network: linkedAccountNetworkSchema });

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // GET /profiles/username/:username
 export const usernameParams = z.object({

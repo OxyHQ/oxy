@@ -24,7 +24,7 @@
  * Decided in: issue #972 workstream 10.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   deploymentIdSchema,
   inferenceEnvironmentSchema,

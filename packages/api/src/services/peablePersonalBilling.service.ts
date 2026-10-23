@@ -1,5 +1,5 @@
 import { Peable, type PeableConfig } from '@peable.to/sdk';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
 /** Peable is the payment platform; downstream card processing is not an Oxy provider. */

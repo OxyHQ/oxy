@@ -29,7 +29,7 @@
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 import { avatarCharacterSchema } from './avatarCharacter';

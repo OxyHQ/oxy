@@ -30,7 +30,7 @@ import {
   oxyApplicationIdSchema,
   providerConnectionSchema,
 } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
 const idParam = z.string().min(1).max(128);

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { mcpAccessTokenClaimsSchema, type McpAccessTokenClaims } from './oauth';
 import { validateOxyEndpoint } from './serviceRequest';
 

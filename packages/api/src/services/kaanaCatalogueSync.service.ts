@@ -53,7 +53,7 @@
  */
 
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { isDeepStrictEqual } from 'node:util';
 import {
   deploymentIdSchema,

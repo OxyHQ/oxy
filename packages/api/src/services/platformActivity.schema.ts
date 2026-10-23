@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 const region = z.string().regex(/^(?:edge-[a-z]{3}|[a-z]{2}(?:-[a-z]+)+-\d|[a-z]{3}\d|unknown)$/);
 const service = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);

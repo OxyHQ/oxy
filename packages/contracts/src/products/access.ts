@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { oxyAccountIdSchema, oxyApplicationIdSchema } from '../inference/identifiers';
 
 const identifier = z.string().min(1).max(160);

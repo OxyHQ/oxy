@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { productSubscriptionCancellationResultSchema } from '@oxy.so/contracts';
 
 // POST /billing/checkout/credits

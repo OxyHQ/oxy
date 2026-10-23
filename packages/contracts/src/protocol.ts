@@ -38,7 +38,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo, ESM-safe.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from './identity';
 
 /* -------------------------------------------------------------------------- */

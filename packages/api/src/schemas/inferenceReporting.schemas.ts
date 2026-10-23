@@ -42,7 +42,7 @@
  * asserts it rather than assuming it.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   currencyCodeSchema,
   exactDecimalSchema,

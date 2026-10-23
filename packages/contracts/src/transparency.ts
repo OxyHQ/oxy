@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /**
  * Transparency log — the public wire contract of the checkpoint surface.

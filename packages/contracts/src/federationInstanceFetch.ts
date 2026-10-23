@@ -17,7 +17,7 @@
  * Platform-agnostic — zod only.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** The longest URL Oxy will sign (the same cap as its own safe fetch). */
 export const INSTANCE_FETCH_MAX_URL_LENGTH = 2048;

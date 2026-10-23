@@ -14,7 +14,7 @@
  * Platform-agnostic — zod only. ESM-safe (no `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /* -------------------------------------------------------------------------- */
 /*  Limits                                                                    */

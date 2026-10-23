@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { accountActorChainSchema } from './accountSubject';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // its vocabularies are re-exported here so the root entry is unchanged.

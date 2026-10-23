@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 // POST /notifications
 export const createNotificationSchema = z.object({

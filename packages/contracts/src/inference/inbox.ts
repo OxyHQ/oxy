@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { inferenceErrorSchema } from './errors';
 
 const inboxTextSchema = z.string().trim().min(1).max(20_000);

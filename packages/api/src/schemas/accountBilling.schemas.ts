@@ -16,7 +16,7 @@
  * is broken, and it would be broken silently.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   billingInvoiceSchema,
   billingModeSchema,

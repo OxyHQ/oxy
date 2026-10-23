@@ -2,7 +2,7 @@ import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 /** Subscription-credit accounting, separate from monetary account_balances. */
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import type { DatabaseOrTransaction, Transaction } from '../config/postgres';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import {

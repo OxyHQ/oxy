@@ -17,7 +17,7 @@
 
 import type { InboxDailyBriefResponse, InboxDailyBriefSection } from '@oxy.so/contracts';
 import { and, desc, eq, exists, gte, lt, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { getDb } from '../config/postgres';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments } from '../db/schema/messageAttachments';

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { Peable } from '@peable.to/sdk';
 import {
   billingNamespaceSchema,

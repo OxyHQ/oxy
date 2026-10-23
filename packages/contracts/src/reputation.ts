@@ -39,7 +39,7 @@
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { type UserNameResponse, userNameSchema } from './userResponse';
 import {
   type ReputationConduct,

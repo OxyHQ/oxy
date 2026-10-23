@@ -11,7 +11,7 @@
  * / expo, ESM-safe).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { avatarCharacterSchema } from './avatarCharacter';
 import { userNameSchema } from './userResponse';
 

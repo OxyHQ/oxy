@@ -23,7 +23,7 @@
  * Decided in: docs/adr/0010-public-api-compatibility.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { inferenceProviderSlugSchema, requestIdSchema } from './identifiers';
 
 /**

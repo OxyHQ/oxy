@@ -72,7 +72,7 @@
  * Decided in: docs/adr/0008-catalogue-concept-separation.md, issue #972 §12.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { aliaModelReleaseManifestSchema } from './aliaModelRelease';
 import {
   modelCapabilitiesSchema,

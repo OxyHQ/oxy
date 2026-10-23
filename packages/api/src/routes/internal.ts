@@ -71,7 +71,7 @@ import {
 } from '../services/platformActivity.schema';
 import { publishPlatformActivity } from '../services/platformActivity.service';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import { type AccountAccessVerdict, isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';

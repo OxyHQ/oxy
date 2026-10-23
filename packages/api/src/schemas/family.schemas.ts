@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 
 /** Route params with :id (the family id). */
 export const familyIdRouteParams = z.object({

@@ -6,7 +6,7 @@ import type {
   ServerNotification,
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { jsonObjectSchemaToZod } from './jsonSchema';
 import {
   mcpPrincipalFromAuthInfo,

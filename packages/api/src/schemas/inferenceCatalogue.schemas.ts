@@ -19,7 +19,7 @@
  * The generator reads the same identifier from the route's `@response` tag.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod3';
 import {
   modelCatalogueEntrySchema,
   modelDocumentationSchema,
