@@ -9,6 +9,10 @@ import {
   type AgentAvailability,
   capabilityTicketRequestSchema,
   foregroundExecutionAuthorizationInputSchema,
+  firstPartyExecutionAuthorizationInputSchema,
+  firstPartyTaskInputSchema,
+  type FirstPartyTaskInput,
+  type FirstPartyExecutionAuthorizationInput,
   type ForegroundExecutionAuthorizationInput,
   type ActorRef,
   type AppCapabilityCatalog,
@@ -74,7 +78,11 @@ import {
 import { NotificationsApi } from '../api/notifications';
 import { OxyApiError } from '../OxyServices.errors';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
-import { AgencyApi, type CapabilityExecutionAuthorization } from '../api/agency';
+import {
+  AgencyApi,
+  type CapabilityExecutionAuthorization,
+  type FirstPartyTask,
+} from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { AppsApi } from '../api/apps';
 import { AccountsApi } from '../api/accounts';
@@ -251,6 +259,23 @@ function uniqueIds(ids: string[]): string[] {
 }
 
 export class ServerAssetsApi extends AssetsApi {
+  /** Isolated requester context for uploads, imports, recordings and reads. */
+  withRequester(
+    proof: { requesterToken: string; taskId?: never } | { taskId: string; requesterToken?: never },
+  ): ServerAssetsApi {
+    const value = proof.requesterToken ?? proof.taskId;
+    if (!value || /\s/.test(value) || (proof.requesterToken && proof.taskId))
+      throw new Error('One requester proof is required');
+    const original = lane(this.ctx);
+    const fixed = { ...proof };
+    const service: ServiceLane = {
+      available: original.available,
+      request: (method, url, data, options) =>
+        original.request(method, url, data, { ...options, ...fixed }),
+    };
+    return new ServerAssetsApi({ ...this.ctx, service });
+  }
+
   /**
    * The calling application's own uses of files (`file_references`, ADR 0043
    * D4; scope `files:references:write`). The application is always the service
@@ -1443,9 +1468,57 @@ export class ServerAgencyApi extends AgencyApi {
     );
   }
 
+  async createTask(
+    input: FirstPartyTaskInput,
+    options: { requesterToken: string; signal?: AbortSignal },
+  ): Promise<FirstPartyTask> {
+    if (
+      !options.requesterToken ||
+      options.requesterToken.length > 16_384 ||
+      /\s/.test(options.requesterToken)
+    )
+      throw new Error('A requester bearer is required');
+    const result = await lane(this.ctx).request<{ task: FirstPartyTask }>(
+      'POST',
+      '/capabilities/tasks',
+      { ...firstPartyTaskInputSchema.parse(input), subjectToken: options.requesterToken },
+      agencyAuthorityOptions(options.signal),
+    );
+    return result.task;
+  }
+
+  async createTaskExecutionAuthorization(
+    taskId: string,
+    input: FirstPartyExecutionAuthorizationInput,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<CapabilityExecutionAuthorization> {
+    if (!taskId || taskId.length > 128 || /\s/.test(taskId))
+      throw new Error('A task id is required');
+    const result = await lane(this.ctx).request<{
+      authorization: CapabilityExecutionAuthorization;
+    }>(
+      'POST',
+      `/capabilities/tasks/${encodeURIComponent(taskId)}/execution-authorizations`,
+      firstPartyExecutionAuthorizationInputSchema.parse(input),
+      agencyAuthorityOptions(options.signal),
+    );
+    return result.authorization;
+  }
+
+  async revokeTask(taskId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+    if (!taskId || taskId.length > 128 || /\s/.test(taskId))
+      throw new Error('A task id is required');
+    await lane(this.ctx).request<void>(
+      'DELETE',
+      `/capabilities/tasks/${encodeURIComponent(taskId)}`,
+      undefined,
+      agencyAuthorityOptions(options.signal),
+    );
+  }
+
   /** Independent service proof plus present requester bearer, sent only to Oxy. */
   async createForegroundExecutionAuthorization(
-    input: ForegroundExecutionAuthorizationInput,
+    input: ForegroundExecutionAuthorizationInput | FirstPartyExecutionAuthorizationInput,
     options: { requesterToken: string; signal?: AbortSignal },
   ): Promise<CapabilityExecutionAuthorization> {
     if (
@@ -1460,7 +1533,10 @@ export class ServerAgencyApi extends AgencyApi {
       'POST',
       '/capabilities/foreground-execution-authorizations',
       {
-        ...foregroundExecutionAuthorizationInputSchema.parse(input),
+        ...('authority' in input
+          ? firstPartyExecutionAuthorizationInputSchema
+          : foregroundExecutionAuthorizationInputSchema
+        ).parse(input),
         subjectToken: options.requesterToken,
       },
       agencyAuthorityOptions(options.signal),

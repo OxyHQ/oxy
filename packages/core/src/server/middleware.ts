@@ -350,6 +350,7 @@ export interface OxyMiddlewareHost {
       ownerAccountId?: string;
       environment?: string;
       requesterToken?: string;
+      taskId?: string;
     },
   ): Promise<ServiceActingAsVerification | null>;
   introspectServiceToken?(token: string): Promise<ServiceIntrospection>;
@@ -822,6 +823,9 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               credentialId: decoded.credentialId as string,
               ownerAccountId: decoded.ownerAccountId as string,
               environment: decoded.environment as string,
+              taskId: isExactNonEmptyServiceClaim(req.headers['x-oxy-task-id'])
+                ? req.headers['x-oxy-task-id']
+                : undefined,
               requesterToken: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-token'])
                 ? req.headers['x-oxy-requester-token']
                 : undefined,

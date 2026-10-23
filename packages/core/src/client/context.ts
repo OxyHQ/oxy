@@ -27,6 +27,7 @@ export interface ServiceLane {
     options?: RequestOptions & {
       actAs?: string;
       requesterToken?: string;
+      taskId?: string;
       serviceTokenScopes?: string[];
     },
   ): Promise<ResponsePayload<T>>;
