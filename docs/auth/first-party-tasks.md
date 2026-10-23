@@ -66,6 +66,12 @@ ID.
 `oxy.agency.revokeTask(taskId)` cancels the root. The next derivation, ticket
 introspection, file operation or account verification refuses it. Account-switch
 operations additionally check the original task target and live membership.
+The shared hourly expiry sweep removes roots thirty days after expiry or
+revocation, whichever comes first, in bounded batches. Their derived execution
+authorizations are deleted with them. Capability audit events, idempotency
+receipts and the originating product's goals, sessions and history remain.
+Expiry and revocation deny access immediately, independently of housekeeping.
+
 Legacy jobs without verifiable provenance need a new authorized start; they
 cannot fall back to a bot owner or application owner.
 
