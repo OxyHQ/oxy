@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { trimTrailingSlashes } from '../utils/slashes';
+import { awaitRequestSignal } from '../utils/requestSignal';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -235,7 +236,35 @@ async function exchangeWorkloadServiceToken(
   protocolVersion: 1 | 2,
 ): Promise<WorkloadServiceToken> {
   if ('scopes' in options) throw new Error('First-party workloads do not request scopes');
+  // Bound the shared exchange independently of any one consumer's deadline.
+  // A cancelled consumer must not cancel another caller's in-flight mint.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   const fetchImpl = options.fetch ?? fetch;
+  const boundedFetch: typeof fetch = (input, init) => {
+    if (controller.signal.aborted) return Promise.reject(new Error('Workload exchange timed out'));
+    return fetchImpl(input, {
+      ...init,
+      signal: controller.signal,
+      redirect: 'error',
+      credentials: 'omit',
+    });
+  };
+  try {
+    return await awaitRequestSignal(
+      completeWorkloadExchange(options, protocolVersion, boundedFetch),
+      controller.signal,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function completeWorkloadExchange(
+  options: WorkloadServiceTokenOptions,
+  protocolVersion: 1 | 2,
+  fetchImpl: typeof fetch,
+): Promise<WorkloadServiceToken> {
   const base = trimTrailingSlashes(options.baseUrl);
 
   const challengeResponse = await fetchImpl(`${base}/auth/service-token/workload/challenge`, {

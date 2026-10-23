@@ -197,3 +197,31 @@ it('can attest a temporary development role without a container endpoint', async
   expect(body).not.toHaveProperty('scopes');
   expect(body.attestation.headers['x-amz-security-token']).toBe(CREDENTIALS.Token);
 });
+
+it('bounds a stalled credential provider and never submits its late attestation', async () => {
+  jest.useFakeTimers();
+  let release!: (value: typeof CREDENTIALS) => void;
+  const credentials = new Promise<typeof CREDENTIALS>((resolve) => {
+    release = resolve;
+  });
+  const { calls, fetchImpl } = harness();
+  try {
+    const pending = requestWorkloadServiceToken({
+      baseUrl: 'https://api.oxy.so',
+      fetch: fetchImpl,
+      credentials: () => credentials,
+    });
+    const rejected = expect(pending).rejects.toBeDefined();
+    await jest.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    release(CREDENTIALS);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(calls.map((call) => call.url)).toEqual([
+      'https://api.oxy.so/auth/service-token/workload/challenge',
+    ]);
+    expect(calls[0].init).toMatchObject({ redirect: 'error', credentials: 'omit' });
+    expect(calls[0].init?.signal?.aborted).toBe(true);
+  } finally {
+    jest.useRealTimers();
+  }
+});

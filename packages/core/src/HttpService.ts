@@ -16,6 +16,7 @@
 import { TTLCache, registerCacheForCleanup, unregisterCacheFromCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
+import { awaitRequestSignal } from './utils/requestSignal';
 import {
   createCancelledError,
   ErrorCodes,
@@ -41,6 +42,9 @@ const REQUESTER_PROOF_HEADERS = new Set([
   'x-oxy-task-id',
   'x-oxy-capability-ticket',
   'x-oxy-mcp-media-token',
+  'x-oxy-requester-context',
+  'x-oxy-presented-requester-context',
+  'x-oxy-presented-service-token',
 ]);
 
 export type AuthRefreshReason = 'preflight' | 'response-401';
@@ -82,21 +86,6 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     'appId',
     'authMethodId',
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
-}
-
-/** Cancel this wait only; the shared mint continues for other callers. */
-function awaitRequestSignal<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return pending;
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      reject(createCancelledError());
-    };
-    if (signal.aborted) onAbort();
-    else signal.addEventListener('abort', onAbort, { once: true });
-    // Both handlers remain attached even after cancellation, so a late shared
-    // failure is observed without reviving this request or becoming unhandled.
-    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-  });
 }
 
 /** A trusted platform transport, for example Expo's streaming fetch. */
