@@ -69,6 +69,14 @@ export const SAFETY_POLICY_VERSION = '2' as const;
 export const SUPERVISION_CONSENT_VERSION = '1' as const;
 export const SUPERVISION_STATUSES = ['active', 'orphaned', 'ended'] as const;
 export const SUPERVISION_INVITATION_STATUSES = ['pending', 'accepted', 'cancelled'] as const;
+/**
+ * Token-free Socket.IO signal emitted to room `user:<accountId>` whenever that
+ * account's supervision state (`GET /safety/supervision`) changes: an invitation
+ * is created, cancelled or accepted, or supervision is transferred or ended. It
+ * carries no payload; a client refetches its own state. The state it refreshes
+ * is advisory: the server enforces supervision on every request regardless.
+ */
+export const SUPERVISION_CHANGED_EVENT = 'supervision_changed';
 export const PURCHASE_APPROVAL_STATUSES = [
   'pending',
   'approved',

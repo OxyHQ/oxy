@@ -14,6 +14,7 @@ jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/socket', () => ({
   broadcastDeviceState: jest.fn(),
   broadcastSessionAccountsChanged: jest.fn(),
+  broadcastSupervisionChanged: jest.fn(),
 }));
 jest.mock('../securityActivityService', () => ({
   __esModule: true,
@@ -23,7 +24,8 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users, sessions, accountMembers } from '../../db/schema';
 import { accountService } from '../account.service';
 import sessionService from '../session.service';
-import { inviteGuardian, acceptInvitation } from '../supervision.service';
+import { inviteGuardian, acceptInvitation, cancelInvitation } from '../supervision.service';
+import { broadcastSupervisionChanged } from '../../utils/socket';
 import sessionCache from '../../utils/sessionCache';
 import { SessionController } from '../../controllers/session.controller';
 const request = (): Request =>
@@ -78,6 +80,20 @@ it('requires actual bearer signatures and invalidates warmed pre-enrollment sess
     }),
   ).toBeNull();
   sessionCache.clear();
+});
+it('signals both participants each time their supervision state changes', async () => {
+  const child = await person(),
+    guardian = await person();
+  const signal = jest.mocked(broadcastSupervisionChanged);
+  signal.mockClear();
+  await cancelInvitation((await inviteGuardian(child, guardian)).id, child);
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  expect(signal.mock.calls).toEqual([
+    [[child, guardian]],
+    [[child, guardian]],
+    [[child, guardian]],
+    [[child, guardian]],
+  ]);
 });
 it('header validation refuses an invented bearer with a real adult session ID', async () => {
   const adult = await person();

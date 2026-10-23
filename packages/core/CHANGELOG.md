@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 6.15.2
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 5.8.0. No code change.
+
 ## 6.15.1
 
 ### Fixed

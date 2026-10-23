@@ -11,6 +11,7 @@ jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/socket', () => ({
   broadcastDeviceState: jest.fn(),
   broadcastSessionAccountsChanged: jest.fn(),
+  broadcastSupervisionChanged: jest.fn(),
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,

@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.8.0
+
+### Added
+
+- `SUPERVISION_CHANGED_EVENT` (`supervision_changed`), from the root and
+  `@oxy.so/contracts/client`: the token-free Socket.IO signal the API emits to
+  `user:<accountId>` when that account's supervision state changes. It carries
+  no payload; a client refetches `GET /safety/supervision`.
+
 ## 5.7.0
 
 ### Changed

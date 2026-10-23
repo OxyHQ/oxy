@@ -24,6 +24,7 @@ import { LanguageBridge } from './LanguageBridge';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
+import { SupervisionStateObserver } from '../hooks/queries/useSupervision';
 
 /** Hydrate owner preferences after the bearer is ready, including on cold boot. */
 function AccountProfileObserver() {
@@ -283,6 +284,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
         onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
       >
         <AccountProfileObserver />
+        <SupervisionStateObserver />
         {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
         {language ? <LanguageBridge {...language} /> : null}
         <BloomLocaleBridge>
