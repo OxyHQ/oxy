@@ -83,11 +83,13 @@ import { authCodes } from '../../db/schema/authCodes';
 import { authSessions } from '../../db/schema/authSessions';
 import { serviceActingAsRevocations } from '../../db/schema/serviceActingAsRevocations';
 import { users } from '../../db/schema/users';
+import { sessions } from '../../db/schema/sessions';
 import { errorHandler } from '../../middleware/errorHandler';
 import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { exchangeAuthCode } from '../../services/oauthCode.service';
 import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
+import { isTrustedApplication } from '../../utils/trustedApplication';
 import { USER_CONSENT_REQUIRED_SCOPES } from '../../utils/applicationScopes';
 
 interface JsonResponse {
@@ -206,6 +208,10 @@ async function approvedRequest(
 ): Promise<{ sessionToken: string; id: string; verifier: string }> {
   const { verifier, challenge } = pkce();
   const sessionToken = `st-${randomUUID()}`;
+  const [application] = await getDb()
+    .select()
+    .from(applications)
+    .where(eq(applications.id, app.applicationId));
   const [row] = await getDb()
     .insert(authSessions)
     .values({
@@ -220,6 +226,7 @@ async function approvedRequest(
       oauthCodeChallenge: challenge,
       oauthCodeChallengeMethod: 'S256',
       oauthScopes: scopes,
+      oauthAuthority: isTrustedApplication(application) ? 'first_party' : 'external',
       status: 'authorized',
       authorizedUserId: userId,
     })
@@ -371,11 +378,11 @@ describe('both entries leave the same state for the same request', () => {
       name: 'first-party app, ordinary scope — authorized natively, no grant',
       app: { type: 'first_party', scopes: ['user:read', 'files:read'] },
       scope: 'user:read',
-      expected: { grantScopes: null, revoked: false, codeScopes: [['user:read']], actingAs: false },
+      expected: { grantScopes: null, revoked: false, codeScopes: [[]], actingAs: false },
     },
     {
-      name: 'first-party app, consent-required scope — a revocable grant',
-      app: { type: 'first_party', scopes: ['user:read', 'acting-as:offline'] },
+      name: 'third-party app, consent-required scope — a revocable grant',
+      app: { type: 'third_party', scopes: ['user:read', 'acting-as:offline'] },
       scope: 'user:read acting-as:offline',
       expected: {
         grantScopes: ['user:read', 'acting-as:offline'],
@@ -409,6 +416,34 @@ describe('both entries leave the same state for the same request', () => {
     }
     expect(states[0]).toEqual(expected);
     expect(states[1]).toEqual(states[0]);
+  });
+});
+
+describe('OAuth authority provenance', () => {
+  it('refuses an isolated external bearer approving an own sign-in', async () => {
+    const external = await client();
+    const own = await client({ type: 'first_party' });
+    const userId = await account();
+    await getDb()
+      .update(sessions)
+      .set({ applicationId: external.applicationId, clientId: external.clientId })
+      .where(eq(sessions.sessionId, bearerSessionIds.get(userId)!));
+    const result = await viaAuthorize(userId, own, 'user:read');
+    expect(result.status).toBe(403);
+    expect((await stateOf(userId, own.applicationId)).codeScopes).toEqual([]);
+  });
+
+  it('refuses a pending external request after the application becomes own', async () => {
+    const app = await client();
+    const userId = await account();
+    const request = await approvedRequest(userId, app, ['user:read']);
+    await getDb()
+      .update(applications)
+      .set({ type: 'first_party' })
+      .where(eq(applications.id, app.applicationId));
+    const result = await post(`/auth/session/finalize/${request.sessionToken}`, {});
+    expect(result.status).not.toBe(200);
+    expect((await stateOf(userId, app.applicationId)).codeScopes).toEqual([]);
   });
 });
 
@@ -448,25 +483,28 @@ describe('a revocation survives a first-party sign-in on either entry', () => {
     expect(await stateOf(userId, app.applicationId)).toEqual({
       grantScopes: null,
       revoked: true,
-      codeScopes: [['user:read']],
+      codeScopes: [[]],
       actingAs: false,
     });
   });
 
-  it.each(ENTRIES)('%s: an explicit acting-as:offline authorization restores it', async (entry) => {
-    const app = await client(ACTING_APP);
-    const userId = await account();
-    await revoke(userId, app.applicationId);
+  it.each(ENTRIES)(
+    '%s: an explicit third-party acting-as:offline authorization restores it',
+    async (entry) => {
+      const app = await client({ ...ACTING_APP, type: 'third_party' });
+      const userId = await account();
+      await revoke(userId, app.applicationId);
 
-    const result = await finalizeWith(entry)(userId, app, 'user:read acting-as:offline');
+      const result = await finalizeWith(entry)(userId, app, 'user:read acting-as:offline');
 
-    expect(result.status).toBe(200);
-    expect(await stateOf(userId, app.applicationId)).toMatchObject({
-      grantScopes: ['user:read', 'acting-as:offline'],
-      revoked: false,
-      actingAs: true,
-    });
-  });
+      expect(result.status).toBe(200);
+      expect(await stateOf(userId, app.applicationId)).toMatchObject({
+        grantScopes: ['user:read', 'acting-as:offline'],
+        revoked: false,
+        actingAs: true,
+      });
+    },
+  );
 
   it('finalize: naming acting-as:offline for an app NOT registered for it restores nothing', async () => {
     // The code is intersected with the registered set, so the scope is dropped —
@@ -549,7 +587,7 @@ describe('a request cannot exceed the scopes the application is registered for',
       expect(await stateOf(userId, app.applicationId)).toEqual({
         grantScopes: null,
         revoked: false,
-        codeScopes: [['user:read']],
+        codeScopes: [[]],
         actingAs: false,
       });
     },
@@ -746,7 +784,7 @@ describe('replay and concurrency', () => {
   });
 });
 
-// Approved policy: trusted fallback is ordinary-only; third parties name scopes.
+// Own sign-ins carry no OAuth scopes; external applications name scopes.
 describe('explicit consent and restricted empty-scope fallback', () => {
   it.each([
     ['first_party', false, false],
@@ -771,11 +809,12 @@ describe('explicit consent and restricted empty-scope fallback', () => {
       expect(result.status).toBe(denied ? 400 : 200);
       if (denied) expect(result.error).toBe('invalid_scope');
       const state = await stateOf(userId, app.applicationId);
-      const codeScopes = explicit ? ['user:read', 'acting-as:offline'] : ['user:read'];
+      const codeScopes = type === 'first_party' ? [] : ['user:read', 'acting-as:offline'];
+      const externalConsent = type === 'third_party' && explicit;
       expect(state.codeScopes).toEqual(denied ? [] : [codeScopes]);
-      expect(state.revoked).toBe(revoked && !explicit);
-      expect(state.grantScopes).toEqual(explicit ? codeScopes : null);
-      expect(state.actingAs).toBe(explicit);
+      expect(state.revoked).toBe(revoked && !externalConsent);
+      expect(state.grantScopes).toEqual(externalConsent ? codeScopes : null);
+      expect(state.actingAs).toBe(externalConsent);
     }
   });
 });
@@ -801,7 +840,7 @@ describe('empty scopes cannot silently consent at any OAuth entry', () => {
     expect(await stateOf(userId, app.applicationId)).toEqual({
       grantScopes: null,
       revoked: false,
-      codeScopes: [['user:read']],
+      codeScopes: [[]],
       actingAs: false,
     });
   });
