@@ -536,7 +536,9 @@ export class OxyServer extends OxyServices {
     }
     if (!key || !secret) {
       throw new Error(
-        'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
+        key || secret
+          ? 'External service authentication requires both apiKey and apiSecret.'
+          : 'No workload identity is available. Configure temporary workload credentials for first-party services, or explicit serviceAuth for an external application.',
       );
     }
 
