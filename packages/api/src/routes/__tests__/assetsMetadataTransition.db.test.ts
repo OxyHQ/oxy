@@ -13,6 +13,7 @@ import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
 import {
   applicationCredentials,
@@ -30,8 +31,28 @@ const server = express().use(express.json()).use('/assets', assetsRouter).use(er
 const assetId = '64c0000000000000000000aa';
 const assetOwner = '64c0000000000000000000bb';
 jest.setTimeout(60_000);
-beforeAll(connectPostgres);
-afterAll(closePostgres);
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let fixtureDatabaseUrl: string | undefined;
+beforeAll(async () => {
+  // The inventoried application id may have receipts in the worker database.
+  // Exercise the exact cohort in our own database without altering other suites.
+  await closePostgres();
+  fixtureDatabaseUrl = await createTestDatabase();
+  process.env.DATABASE_URL = fixtureDatabaseUrl;
+  await connectPostgres();
+});
+afterAll(async () => {
+  try {
+    await closePostgres();
+  } finally {
+    try {
+      if (fixtureDatabaseUrl) await dropTestDatabase(fixtureDatabaseUrl);
+    } finally {
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+  }
+});
 beforeEach(() => {
   mockGetFilesByIds.mockResolvedValue([
     {
