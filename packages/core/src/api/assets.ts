@@ -1006,8 +1006,8 @@ export class AssetsApi {
     const url = await this.resolveUrl(fileId, variant);
     if (!url) throw new Error('No download URL returned for asset');
     const response = await fetch(url, {
-      // Cookies only to the API's own origin — never to a caller-supplied host.
-      credentials: isSameOrigin(url, this.ctx.oxy.baseURL) ? 'include' : 'omit',
+      // The resolved media URL carries its own bounded authority.
+      credentials: 'omit',
     });
     if (!response?.ok) {
       throw new Error(`Failed to fetch asset content (status ${response?.status})`);
@@ -1080,12 +1080,4 @@ function dedupeFileAccessRequests(
     );
   }
   return out;
-}
-
-function isSameOrigin(url: string, baseURL: string): boolean {
-  try {
-    return new URL(url).origin === new URL(baseURL).origin;
-  } catch {
-    return false;
-  }
 }
