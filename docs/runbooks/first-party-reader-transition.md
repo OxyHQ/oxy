@@ -3,6 +3,10 @@
 This is a finite deployment sequence for ADR 0049. It does not introduce an
 application permission switch. Complete the workload environment preflight and
 review workloads outside its recorded inventory before deploying this API.
+The [2026-10-23 production receipt](../architecture/first-party-integration-migration.md#verified-deployment-checkpoint-oxy-environment-preflight-2026-10-23)
+confirms the immutable `0215` migration, exact 27-binding provision and second
+readback, with zero outside-cohort workloads at that checkpoint. It satisfies
+the environment prerequisite; the remaining reader/issuer rollout is pending.
 
 ## Protocol sequence
 

@@ -62,3 +62,18 @@ If the script fails, stop the subsequent issuer rollout and inspect the reported
 identity drift. Keep the additive column and old API live; no destructive rollback
 is required. Do not mass-default unknown workloads to production or widen the
 reviewed inventory without examining their provenance.
+
+
+## Recorded production completion — 2026-10-23
+
+The [migration ledger](../architecture/first-party-integration-migration.md#verified-deployment-checkpoint-oxy-environment-preflight-2026-10-23)
+records PR #1937, the deployed image and the verified immutable `0215` ledger
+hash. The exact-cohort dry run found 27 unbound environments; compare-and-set
+provisioned 27; a separate read found 27 unchanged and zero outside-cohort
+workloads. The diagnostic task definition was deregistered. The operator
+receipt is
+`/home/nate/Oxy/.scratch/first-party-root/oxy-environment-preflight-20261023.json`.
+
+The reader-first release may proceed after its own source and release checks.
+This receipt covers environment provisioning only; repeat inventory review
+before the finite legacy bridge is removed and do not infer fleet readiness.
