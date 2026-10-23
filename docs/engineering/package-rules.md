@@ -66,8 +66,9 @@ calls THE release workflow, `.github/workflows/npm-release.yml` here (other repo
 `OxyHQ/oxy/.github/workflows/npm-release.yml@main`, passing `ci_workflow` when their CI file is not
 `ci.yml`). A run releases what the pushed commit holds that the registry does not: every public
 package (any package.json that is not `private`, the root included) whose version is not on npm
-yet, dependencies first, from exactly that commit. There is no dispatch, no typed commit, no
-`dry_run` and no `dist_tag` input.
+yet, dependencies first, from exactly that commit. There is no typed commit, no `dry_run` and no
+`dist_tag` input; Actions → Release packages → Run workflow (no inputs) runs the same release for
+`main`'s current head.
 
 - `plan` (`actions: read`) reads every package.json and asks the registry which public versions are
   missing (`release-package.mjs plan`). Nothing missing ends the run; that is most pushes. A
@@ -100,8 +101,10 @@ yet, dependencies first, from exactly that commit. There is no dispatch, no type
 
 The caller grants `actions: read`, `contents: write` and `id-token: write` on its calling job,
 nothing at the workflow level, and queues its runs (`concurrency` with `queue: max`): none is ever
-cancelled, and a run whose versions an earlier run already published has nothing to do. A failed
-run is re-run as it is; the next push to `main` also retries whatever is still unpublished.
+cancelled, and a run whose versions an earlier run already published has nothing to do. A run that
+failed for a transient reason is re-run as it is. A re-run keeps the shared workflow's commit it
+started with, so after a fix to `npm-release.yml` or `release-package.mjs`, run the workflow from
+`main` instead (or let the next push retry whatever is still unpublished).
 
 Each package needs its trusted publisher configured once on npmjs.com
 (`https://www.npmjs.com/package/<name>/access` → Trusted Publisher → GitHub Actions): organization

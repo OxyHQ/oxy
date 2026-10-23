@@ -6,8 +6,9 @@ name: npm release
 # pushed commit holds that the registry does not: every public package whose
 # version is not on npm yet, dependencies first, from exactly that commit, with
 # npm trusted publishing (OIDC) and provenance. A version bump merged to the
-# default branch IS the release; there is no dispatch, no typed commit and no
-# rehearsal. There is no NPM_TOKEN anywhere. docs/engineering/package-rules.md#publishing.
+# default branch IS the release; there is no typed commit and no rehearsal. A
+# caller's input-less `workflow_dispatch` runs the same release for the default
+# branch's current head. There is no NPM_TOKEN anywhere. docs/engineering/package-rules.md#publishing.
 #
 # npm checks the trusted publisher against the CALLING workflow, so every
 # package's trusted publisher on npmjs.com is: organization `OxyHQ`, its
