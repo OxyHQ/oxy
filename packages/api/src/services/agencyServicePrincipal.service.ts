@@ -85,55 +85,11 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
 }
 
 /**
- * Re-resolves mutable app, credential, scope and capability authority on every
- * control-plane call — whichever proof the token was minted from.
- *
- * ## Why this needed a second arm
- *
- * It looked `token.credentialId` up in `application_credentials` and nowhere
- * else. An ADR 0026 attested token carries a `wl_…` attestation handle there, so
- * every route that re-reads its caller through this function refused an attested
- * first-party service. Measured against production from the same AWS account
- * minutes apart, `GET /capabilities/service-identity` answered `200` with Kaana's
- * key pair and `401 service_principal_no_longer_active` with a token attested
- * from `oxy-kaana-task` — and `authorizeKaanaValidation`
- * (`routes/inferenceProviderConnections.ts`), the gate on the BYOK validation
- * callback Kaana actually makes, is one of those routes. So Kaana could not give
- * its key pair up, and Mention — credential-free already and holding
- * `signals:write` — had the same defect latent behind
- * `req.serviceApp.credentialId` in `reputation.routes.ts` and `capabilities.ts`.
- *
- * `resolveServiceTokenPrincipal` (`services/attribution.service.ts`) fixed the
- * same shape of bug one resolver over. This is a second CALLER of the helper that
- * one added, {@link resolveLiveAgencyWorkloadByHandle}, not a second mechanism:
- * "what is a live binding" has exactly one definition and both hops ask it.
- *
- * ## The attested arm is not the weaker one
- *
- * {@link resolveLiveAgencyWorkloadByHandle} re-reads the binding on every call,
- * so deleting it — how a compromised workload is cut off — takes effect as fast
- * as revoking a credential does, and an expiry, a re-point, a suspended or
- * demoted application, a suspended owner, a closure fence and a scope the binding
- * no longer names all refuse there. It asks MORE than the credential arm does:
- * the credential arm does not care whether the application is still trusted
- * first-party, and this one does, because that is the gate the mint applies.
- *
- * The two claims checked HERE rather than there are the ones that are about this
- * token rather than about the binding, and they mirror the credential arm exactly:
- *
- *   * the owner account the token names must be the one the application has now,
- *     so a token cannot outlive a transfer;
- *   * the environment must be this deployment's. A binding has none — a workload
- *     proves what it is, never which environment it means — so
- *     `workloadTokenEnvironment()` is the whole answer, and it is the same single
- *     definition the mint wrote the claim from. A staging-minted token presented
- *     here is refused, which is what the credential arm's environment comparison
- *     buys on its side.
- *
- * Every refusal is still one `null`, and the callers still answer one
- * `service_principal_no_longer_active` — so an attested caller cannot probe
- * whether a binding exists, exactly as a credential caller cannot probe a
- * credential's lifecycle.
+ * Re-resolve live app, workload/credential and owner before every service call.
+ * Own workloads require a provisioned environment, active binding and trusted
+ * registry identity; their authority contains no scopes. External credentials
+ * and the finite legacy workload cohort retain their live scope intersection.
+ * Token owner/environment claims must match this current administrative binding.
  */
 export async function resolveLiveAgencyServicePrincipal(
   token: ServiceTokenPayload,
@@ -221,6 +177,7 @@ export async function resolveLiveAgencyCoordinator(
       capabilities: binding.capabilities,
     };
   }
+  if (authority === 'first_party') return null;
   const loaded = await loadPrincipal(applicationId, credentialId);
   if (!loaded) return null;
   return {
@@ -243,6 +200,7 @@ export async function resolveLiveAgencyCoordinator(
  * ceiling. `resolveLiveAgencyCoordinator` routes a handle here instead.
  */
 export interface LiveAgencyWorkloadPrincipal {
+  readonly bindingId: string;
   readonly applicationId: string;
   readonly environment: 'development' | 'staging' | 'production';
   readonly environmentBound: boolean;
@@ -344,6 +302,7 @@ export async function resolveLiveAgencyWorkload(
 
   if (await isSupervised(row.ownerAccountId)) return null;
   return {
+    bindingId: row.bindingId,
     applicationId: row.applicationId,
     provider,
     subject,
@@ -445,5 +404,7 @@ export function principalHasCatalogCapability(
   principal: LiveAgencyServicePrincipal,
   appSlug: string,
 ): boolean {
-  return principal.capabilities.includes(`catalog:${appSlug}`);
+  return (
+    principal.authority === 'first_party' || principal.capabilities.includes(`catalog:${appSlug}`)
+  );
 }

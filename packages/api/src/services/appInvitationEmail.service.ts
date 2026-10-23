@@ -1,3 +1,6 @@
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ForegroundRequesterBinding } from './foregroundCapabilityRequester.service';
+import { resolveLiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 /**
  * Invitation emails an application has Oxy send (`POST /apps/invitations/email`,
  * scope `invitations:email`).
@@ -259,9 +262,25 @@ function retryAfterSeconds(oldest: Date | null, windowMs: number): number {
  */
 export async function acceptAppInvitationEmail(
   request: AppInvitationEmailRequest,
+  context?: { principal: ServiceTokenPayload; requester?: ForegroundRequesterBinding },
 ): Promise<AcceptedAppInvitationEmail> {
   if (!isOutboundRelayConfigured()) throw missingRelayError();
 
+  const live =
+    context?.principal.appId === request.applicationId
+      ? await resolveLiveAgencyServicePrincipal(context.principal)
+      : null;
+  if (context && !live) throw new ForbiddenError('The sending application is no longer active.');
+  const firstParty = live?.authority === 'first_party';
+  if (
+    context?.principal.authority === 'first_party' &&
+    (!firstParty ||
+      ![context.requester?.principalAccountId, context.requester?.subjectAccountId].includes(
+        request.inviterUserId,
+      ))
+  ) {
+    throw new ForbiddenError('An authenticated inviter is required.');
+  }
   const [application] = await getDb()
     .select({
       status: applications.status,
@@ -271,11 +290,11 @@ export async function acceptAppInvitationEmail(
     .from(applications)
     .where(eq(applications.id, request.applicationId))
     .limit(1);
-  // The token's scopes were the ceiling when it was minted, up to five minutes
-  // ago; the application's own row is the ceiling now.
+  // External credentials retain the application's current scope ceiling.
+  // Own workloads were resolved live above and must name the verified inviter.
   if (
     application?.status !== 'active' ||
-    !application.scopes.includes(APP_INVITATION_EMAIL_SCOPE)
+    (!firstParty && !application.scopes.includes(APP_INVITATION_EMAIL_SCOPE))
   ) {
     throw new ForbiddenError('This application may not send invitation emails');
   }

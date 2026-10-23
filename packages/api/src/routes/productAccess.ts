@@ -90,7 +90,11 @@ router.get(
       productId: req.params.productId,
       subjectAccountId: req.params.subjectAccountId,
     });
-    const data = await readServiceAuthorizedSubjectProductGrantSnapshot(req.serviceApp, query);
+    const data = await readServiceAuthorizedSubjectProductGrantSnapshot(
+      req.serviceApp,
+      query,
+      req.serviceRequester,
+    );
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }),

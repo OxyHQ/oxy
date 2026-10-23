@@ -106,6 +106,7 @@ async function persistCapabilityCatalog(input: {
 
 /** An application registers its own catalogue with its `catalogs:write` credential. */
 export function registerCapabilityCatalog(input: {
+  authority?: 'first_party' | 'external';
   catalog: unknown;
   applicationId: string;
   credentialId: string;
@@ -114,11 +115,14 @@ export function registerCapabilityCatalog(input: {
   return persistCapabilityCatalog({
     catalog: input.catalog,
     deployedAt: input.deployedAt,
-    authority: {
-      source: 'credential',
-      applicationId: input.applicationId,
-      credentialId: input.credentialId,
-    },
+    authority:
+      input.authority === 'first_party'
+        ? { source: 'first_party', applicationId: input.applicationId }
+        : {
+            source: 'credential',
+            applicationId: input.applicationId,
+            credentialId: input.credentialId,
+          },
   });
 }
 

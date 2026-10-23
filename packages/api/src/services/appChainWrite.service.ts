@@ -26,16 +26,16 @@
  *
  * ## What authorizes the write
  *
- * A service credential proves which APP is calling. It does not prove the person
- * asked for anything, and nothing here pretends otherwise. Three independent gates
- * stand between a credential and someone's chain:
+ * Own workloads use verified requester session/task context for the exact
+ * account. External credentials retain the following scope and grant checks:
+ *
  *
  *  1. the `chains:write` scope on the service token,
  *  2. the subject's revocable OAuth grant of `chains:write` to the app, and
  *  3. the collection falling under one of the application's own
  *     `chainNamespaces` prefixes.
  *
- * The third is the namespace boundary: it is what stops an app with a valid
+ * All callers retain the namespace boundary: it is what stops an app with a valid
  * credential writing `app.someoneelse.*` records into every account it can name.
  * An application with no granted namespace can write nothing — the empty list
  * authorizes nothing rather than everything.
@@ -136,6 +136,8 @@ export async function appendAppRecord(args: {
   collection: string;
   rkey: string;
   record: Record<string, unknown>;
+  /** Identity derived by serviceAuthMiddleware, never caller-controlled body fields. */
+  requester?: { authority: 'first_party'; applicationId: string; accountId: string };
 }): Promise<AppChainWriteResult> {
   const privateKey = process.env.OXY_PRIVATE_KEY;
   const publicKey = process.env.OXY_PUBLIC_KEY;
@@ -151,13 +153,21 @@ export async function appendAppRecord(args: {
     return { ok: false, reason: 'namespace_forbidden', detail: args.collection };
   }
 
-  const [grant] = await getDb()
-    .select({ scopes: appGrants.scopes })
-    .from(appGrants)
-    .where(and(eq(appGrants.applicationId, args.appId), eq(appGrants.userId, args.oxyUserId)))
-    .limit(1);
-  if (!grant?.scopes.includes(CHAINS_WRITE_SCOPE)) {
-    return { ok: false, reason: 'subject_forbidden' };
+  if (args.requester) {
+    if (
+      args.requester.authority !== 'first_party' ||
+      args.requester.applicationId !== args.appId ||
+      args.requester.accountId !== args.oxyUserId
+    )
+      return { ok: false, reason: 'subject_forbidden' };
+  } else {
+    const [grant] = await getDb()
+      .select({ scopes: appGrants.scopes })
+      .from(appGrants)
+      .where(and(eq(appGrants.applicationId, args.appId), eq(appGrants.userId, args.oxyUserId)))
+      .limit(1);
+    if (!grant?.scopes.includes(CHAINS_WRITE_SCOPE))
+      return { ok: false, reason: 'subject_forbidden' };
   }
 
   const subject = buildUserDid(args.oxyUserId);

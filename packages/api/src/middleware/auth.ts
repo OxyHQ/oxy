@@ -1,7 +1,6 @@
-import {
-  validateForegroundRequesterBearer,
-  type ForegroundRequesterBinding,
-} from '../services/foregroundCapabilityRequester.service';
+import { ForbiddenError } from '../utils/error';
+import { resolveServiceRequester } from '../services/serviceRequester.service';
+import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
@@ -297,7 +296,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
 /**
  * Request augmented by `serviceAuthMiddleware` with the verified service
- * principal. Routes can read `req.serviceApp.scopes` to gate sensitive
+ * principal. Routes use verified authority and resource ownership to gate sensitive
  * actions.
  */
 export interface ServiceAuthRequest extends Request {
@@ -308,13 +307,12 @@ export interface ServiceAuthRequest extends Request {
 /**
  * Service token authentication middleware
  *
- * Validates OAuth2 client-credentials service JWTs (type: 'service').
- * Only accepts tokens issued via POST /auth/service-token — rejects regular
- * user session tokens. Used to protect internal endpoints that should only
- * be called by other Oxy ecosystem services.
+ * Validates workload and external credential service JWTs (type: 'service').
+ * User sessions use the separate session middleware. Workload registry identity
+ * and requester session/task context are resolved live before reaching a route.
  *
- * Attaches the decoded service payload (including granted `scopes`) to
- * `req.serviceApp` so routes can do scope-level authorisation.
+ * Attaches the live service principal to `req.serviceApp`. First-party workloads
+ * use identity and requester session/task proof; external credentials keep scopes.
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -341,15 +339,7 @@ export const serviceAuthMiddleware = async (
       if (verification.payload.authority === 'first_party') {
         const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
         if (!principal) return res.status(401).json({ error: 'invalid_service_identity' });
-        const requesterToken = req.headers['x-oxy-requester-token'];
-        if (requesterToken !== undefined) {
-          const requester =
-            typeof requesterToken === 'string'
-              ? await validateForegroundRequesterBearer(requesterToken, principal)
-              : null;
-          if (!requester) return res.status(403).json({ error: 'invalid_requester_proof' });
-          req.serviceRequester = requester;
-        }
+        req.serviceRequester = await resolveServiceRequester(principal, req.headers);
       }
       if (
         (await isSupervised(verification.payload.ownerAccountId)) ||
@@ -359,7 +349,9 @@ export const serviceAuthMiddleware = async (
           error: 'Forbidden',
           message: 'The owning account has no operating authority',
         });
-    } catch {
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        return sendAuthFailure(res, 403, { error: 'Forbidden', message: error.message });
       return sendAuthFailure(res, 503, {
         error: 'Unavailable',
         message: 'Account authority could not be verified',

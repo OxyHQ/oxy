@@ -1295,15 +1295,11 @@ router.post(
  * authority check — shared by the upload and the import (ADR 0043 D7), so the
  * two can never disagree on who may attribute a file to a person.
  *
- * Attributing a file to a user is cross-tenant act-as authority, not ordinary
- * application-owned file access, so it always needs a staff-granted scope. Two
- * grants carry it:
- *  - `files:user-media:write` — exactly this authority and nothing else (Oxy
- *    Move imports a user's media with it);
- *  - `files:write` + `federation:write` — the original pair, kept unchanged for
- *    Mention's MCP intent-media.
- * `files:write` alone is self-grantable and never enough. The owner is the
- * `x-owner-user-id` header, an existing LOCAL user.
+ * Own workloads use a verified requester session/task account; the explicit
+ * owner must match it. A task may select only its root account or exact self bot
+ * with live operator membership. External credentials retain files:user-media:write
+ * or the legacy files:write + federation:write pair. An owner header alone is
+ * never requester proof for an own workload.
  */
 async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
   if (!hasServiceAuthority(req.serviceApp, USER_MEDIA_WRITE_SCOPE)) {
@@ -3544,13 +3540,13 @@ router.post(
     // fallback to the progressive original, once per video per play. Measured in
     // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     // `ownerUserId` is the one exception to "no owner ids", and it is granted
-    // only to Oxy's OWN applications (`tier: 'internal'`, i.e. trusted
-    // first-party). A first-party service that is handed an asset id by a user
+    // only to verified first-party workload authority. Branding an external
+    // credential as internal never reveals ownership. A first-party service that is handed an asset id by a user
     // (Mention ingesting a post from Oxy Move) must be able to check the asset is
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner = req.serviceApp?.tier === 'internal';
+    const revealOwner = req.serviceApp?.authority === 'first_party';
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
@@ -3750,10 +3746,28 @@ router.post(
 
     const files = await assetService.getFilesByIds(ids);
 
+    const requesterAccount =
+      req.serviceApp?.authority === 'first_party'
+        ? req.serviceRequester?.subjectAccountId
+        : undefined;
+    const readable = await Promise.all(
+      files.map(async (file) => {
+        if (!isServableStatus(file)) return null;
+        if (mayApplicationRead(file, appId)) return file;
+        // Account authority comes from the separately verified requester proof,
+        // never from the file owner or an arbitrary account header.
+        if (
+          requesterAccount &&
+          !file.ownerApplicationId &&
+          (await assetService.canUserAccessFile(file, requesterAccount))
+        )
+          return file;
+        return null;
+      }),
+    );
     const data = await Promise.all(
-      files
-        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
-        .filter((file) => isServableStatus(file) && mayApplicationRead(file, appId))
+      readable
+        .filter((file): file is NonNullable<typeof file> => file !== null)
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
