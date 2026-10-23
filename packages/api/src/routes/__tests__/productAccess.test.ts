@@ -4,7 +4,7 @@ import express from 'express';
 import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
-import { accountMembers, applicationCredentials, sessions } from '../../db/schema';
+import { accountMembers, applicationCredentials, applications, sessions } from '../../db/schema';
 import type { AccessTokenIdentity } from '../../utils/sessionUtils';
 import {
   productAccessFixture,
@@ -143,16 +143,21 @@ it('another product application and malformed parameters fail closed', async () 
   expect((await f.read(f.beneficiary, 'x'.repeat(161))).status).toBe(400);
   expect((await f.read(f.beneficiary, 'missing-product')).status).toBe(503);
 });
-it('an unbound shared session has no implicit application audience', async () => {
+it('shared own sessions read their account product rights without scopes; external products remain isolated', async () => {
   const f = await fixture();
   await getDb()
     .update(sessions)
-    .set({ applicationId: null, clientId: null })
+    .set({ applicationId: null, clientId: null, scopes: [] })
     .where(eq(sessions.sessionId, f.sessionId));
   identity.applicationId = null;
   identity.clientId = null;
-  expect((await f.read()).status).toBe(403);
+  identity.scopes = [];
+  expect((await f.read()).status).toBe(404);
+  await getDb().update(applications).set({ isOfficial: true }).where(eq(applications.id, f.app.id));
+  expect((await f.read()).status).toBe(200);
+  expect((await f.read(f.operator)).status).toBe(404);
 });
+
 it('personal and managed beneficiaries use the same product rights resolver', async () => {
   const f = await fixture();
   const source = f.input();

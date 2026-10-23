@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * App-signal ingest routes (`/app-signals`).
  *
@@ -34,8 +35,7 @@ const ingestLimiter = rateLimit({
 
 /** Assert the requesting credential carries the signals:write scope. */
 function assertSignalsScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, REQUIRED_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE}`);
   }
 }
