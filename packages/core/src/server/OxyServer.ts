@@ -1053,21 +1053,17 @@ export class OxyServer extends OxyServices {
           startedAt + (verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS),
         );
       return verified;
-    } catch (error) {
+    } catch {
       if (this.actingAsGenerations.get(pair) === generation && serial >= generation.completed) {
         generation.completed = serial;
         this.clearActingAsPair(appId, userId);
       }
-      logger.warn(
-        '[oxy.auth] verifyActingAs lookup failed — not cached',
-        {
-          component: 'auth',
-          method: 'verifyActingAs',
-          appId,
-          userId,
-        },
-        error,
-      );
+      logger.warn('[oxy.auth] verifyActingAs lookup failed — not cached', {
+        component: 'auth',
+        method: 'verifyActingAs',
+        appId,
+        userId,
+      });
       return null;
     }
   }
