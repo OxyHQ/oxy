@@ -1,5 +1,7 @@
 # Runbooks
 
+- [Deploy first-party readers before producers](./first-party-reader-transition.md)
+
 - [Bootstrap the Kaana catalogue reviewer](./bootstrap-catalogue-reviewer.md)
 - [Cut over the exact-ID Kaana request v2](./kaana-request-v2-cutover.md)
 - [Renew the reviewed Kaana routing scores](./kaana-routing-score-renewal.md)

@@ -43,3 +43,46 @@ describe('first-party service authority', () => {
     expect(serviceIntrospectionSchema.parse({ active: false })).toEqual({ active: false });
   });
 });
+
+it('distinguishes human, key and service resource principals without invented claims', async () => {
+  const { resourceIntrospectionSchema, serviceIntrospectionSchema } = await import(
+    '../serviceToken'
+  );
+  const person = {
+    active: true,
+    kind: 'session',
+    permissions: [],
+    authority: 'first_party',
+    accountId: 'org',
+    effectiveAccountId: 'org',
+    requesterAccountId: 'human',
+    applicationId: null,
+    expiresAt: '2026-10-23T12:00:00.000Z',
+  };
+  expect(resourceIntrospectionSchema.parse(person)).toEqual(person);
+  expect(serviceIntrospectionSchema.safeParse(person).success).toBe(false);
+  expect(resourceIntrospectionSchema.safeParse({ ...person, scopes: [] }).success).toBe(false);
+  const key = {
+    active: true,
+    kind: 'key',
+    permissions: [],
+    authority: 'external',
+    accountId: 'owner',
+    applicationId: 'app',
+    credentialId: 'key',
+    environment: 'production',
+    scopes: ['clarity:search'],
+  };
+  expect(resourceIntrospectionSchema.parse(key)).toEqual(key);
+  expect(resourceIntrospectionSchema.safeParse({ ...key, authority: 'first_party' }).success).toBe(
+    false,
+  );
+  expect(
+    resourceIntrospectionSchema.safeParse({
+      ...person,
+      authority: 'external',
+      applicationId: 'app',
+      scopes: [],
+    }).success,
+  ).toBe(true);
+});

@@ -1,3 +1,11 @@
+jest.mock('../workloadIdentity', () => ({
+  canAttestWorkloadIdentity: () => true,
+  requestWorkloadServiceToken: jest.fn(async () => ({
+    token: 'workload',
+    expiresIn: 300,
+    appName: 'test',
+  })),
+}));
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServer } from '../OxyServer';
@@ -47,7 +55,6 @@ it('routes inherited Files reads through each fixed proof and checks revocation 
   baseURL = await listen(server);
   const oxy = new OxyServer({ baseURL, enableRetry: false });
   oxy.http.setTokens('unrelated-shared-session');
-  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('workload');
   const actualFetch = globalThis.fetch;
   const fetch = jest
     .spyOn(globalThis, 'fetch')

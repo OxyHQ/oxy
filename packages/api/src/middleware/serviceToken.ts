@@ -257,7 +257,8 @@ export function verifyServiceToken(
       environment: decoded.environment,
       tier: decoded.tier === 'internal' ? 'internal' : 'external',
       authority: firstParty ? 'first_party' : 'external',
-      audience,
+      // Preserve exact audience provenance; an accepted legacy audience array is not an exact recipient.
+      audience: typeof decoded.aud === 'string' ? decoded.aud : undefined,
       ...(firstParty ? {} : { scopes: decoded.scopes as string[] }),
       iat: decoded.iat,
       exp: decoded.exp,

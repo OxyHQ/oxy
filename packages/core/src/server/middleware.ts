@@ -694,7 +694,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           const credentialId = decoded.credentialId;
           const ownerAccountId = decoded.ownerAccountId;
           const environment = decoded.environment;
-          const firstParty = decoded.authority === 'first_party';
+          let firstParty = decoded.authority === 'first_party';
           const validAuthority =
             decoded.authority === undefined || decoded.authority === 'external' || firstParty;
           const validScopes = firstParty
@@ -750,7 +750,15 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
-          if (firstParty) {
+          // Temporary reader-first bridge: a legacy workload is only a candidate.
+          // Oxy must verify its exact finite cohort and live identity centrally.
+          const legacyCandidate =
+            !firstParty &&
+            expectedAudience.startsWith('oxy-service:') &&
+            decoded.aud === OXY_JWT_AUDIENCE &&
+            credentialId.startsWith('wl_');
+          let effectiveScopes = decoded.scopes as string[];
+          if (firstParty || legacyCandidate) {
             let live: ServiceIntrospection | undefined;
             try {
               live = await host.introspectServiceToken?.(token);
@@ -763,21 +771,25 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (!live) return res.status(503).json({ code: 'SERVICE_AUTHORITY_UNAVAILABLE' });
             if (
               !live.active ||
-              live.authority !== 'first_party' ||
+              (firstParty && live.authority !== 'first_party') ||
               live.applicationId !== appId ||
               live.credentialId !== credentialId ||
               live.accountId !== ownerAccountId ||
               live.environment !== environment ||
-              live.audience !== expectedAudience ||
+              live.audience !== (legacyCandidate ? OXY_JWT_AUDIENCE : expectedAudience) ||
+              Date.parse(live.expiresAt) !== (decoded.exp as number) * 1000 ||
               Date.parse(live.expiresAt) <= Date.now()
             ) {
               return res
                 .status(401)
                 .json({ code: 'INVALID_SERVICE_TOKEN', message: 'Service identity is inactive' });
             }
+            firstParty = live.authority === 'first_party';
+            if (live.authority === 'external') effectiveScopes = live.scopes;
           }
 
-          const tier: ServiceApp['tier'] = decoded.tier === 'internal' ? 'internal' : 'external';
+          // Branding in a legacy/customer JWT never implies own authority.
+          const tier: ServiceApp['tier'] = firstParty ? 'internal' : 'external';
 
           // Read delegated user ID from header
           const oxyUserIdRaw = req.headers['x-oxy-user-id'];
@@ -877,7 +889,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               ? { authority: 'first_party' as const }
               : {
                   ...(decoded.authority === 'external' ? { authority: 'external' as const } : {}),
-                  scopes: decoded.scopes as string[],
+                  scopes: effectiveScopes,
                 }),
             environment,
             tier,

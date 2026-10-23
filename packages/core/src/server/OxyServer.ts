@@ -1,6 +1,8 @@
 import {
   type OxySessionRevocationEvent,
   serviceIntrospectionSchema,
+  resourceIntrospectionSchema,
+  type ResourceIntrospection,
   type ServiceIntrospection,
   serviceTokenOptionsSchema,
   type ServiceTokenOptions,
@@ -63,6 +65,7 @@ import { logger } from '../logger';
 import {
   canAttestWorkloadIdentity,
   requestWorkloadServiceToken,
+  requestLegacyWorkloadServiceToken,
   type WorkloadCredentialProvider,
 } from './workloadIdentity';
 import {
@@ -360,9 +363,9 @@ export class OxyServer extends OxyServices {
         !!(requester.token && requester.taskId))
     )
       throw new Error('A requester requires an account id and session proof');
-    const mint = () => this.workloadServiceToken(options.audience);
+    const mint = () => this.workloadServiceToken(options.audience, 2);
     client.setAuthRefreshHandler(async () => {
-      this.serviceTokens.delete(audienceCacheKey(options.audience, WORKLOAD_CACHE_KEY));
+      this.serviceTokens.delete(audienceCacheKey(options.audience, `${WORKLOAD_CACHE_KEY}:2`));
       return mint();
     });
     const fetch = createAuthenticatedFetch(client, options.baseURL, {
@@ -395,9 +398,19 @@ export class OxyServer extends OxyServices {
     };
   }
 
-  /** Live authority read by the receiving product; never cached. */
+  /** Live service authority; human sessions and keys have a separate resource contract. */
   async introspectServiceToken(token: string): Promise<ServiceIntrospection> {
-    const bearer = await this.serviceToken();
+    return serviceIntrospectionSchema.parse(await this.introspectResource(token));
+  }
+
+  /** Live resource authority for a product receiving services, keys or human sessions. */
+  async introspectResourceToken(token: string): Promise<ResourceIntrospection> {
+    return resourceIntrospectionSchema.parse(await this.introspectResource(token));
+  }
+
+  /** Live authority read by the receiving product; never cached. */
+  private async introspectResource(token: string): Promise<unknown> {
+    const bearer = await this.platformServiceToken();
     const result = await this.request<unknown>(
       'POST',
       '/auth/resources/introspect',
@@ -409,7 +422,7 @@ export class OxyServer extends OxyServices {
         headers: { Authorization: `Bearer ${bearer}` },
       },
     );
-    return serviceIntrospectionSchema.parse(result);
+    return result;
   }
 
   // ── Server-side namespaces ───────────────────────────────────────────────
@@ -526,13 +539,37 @@ export class OxyServer extends OxyServices {
     apiSecret?: string,
     options: ServiceTokenOptions = {},
   ): Promise<string> {
+    return this.serviceTokenForProtocol(1, audience, apiKey, apiSecret, options);
+  }
+
+  private platformServiceToken(options: ServiceTokenOptions = {}): Promise<string> {
+    // Explicit external credential configuration keeps the public credential lane.
+    if (this.serviceApiKey || this.serviceApiSecret)
+      return this.serviceToken(undefined, undefined, options);
+    return this.serviceTokenForProtocol(
+      2,
+      DEFAULT_SERVICE_TOKEN_AUDIENCE,
+      undefined,
+      undefined,
+      options,
+    );
+  }
+
+  /** Temporary reader-first rollout: manual tokens stay v1 until receivers migrate. */
+  private async serviceTokenForProtocol(
+    protocolVersion: 1 | 2,
+    audience: ServiceTokenAudience = DEFAULT_SERVICE_TOKEN_AUDIENCE,
+    apiKey?: string,
+    apiSecret?: string,
+    options: ServiceTokenOptions = {},
+  ): Promise<string> {
     const { scopes } = serviceTokenOptionsSchema.parse(options);
     const key = apiKey || this.serviceApiKey;
     const secret = apiSecret || this.serviceApiSecret;
 
     if (!key && !secret && (this.workloadCredentials || canAttestWorkloadIdentity())) {
       if (scopes !== undefined) throw new Error('First-party workloads do not request scopes');
-      return this.workloadServiceToken(audience);
+      return this.workloadServiceToken(audience, protocolVersion);
     }
     if (!key || !secret) {
       throw new Error(
@@ -690,7 +727,7 @@ export class OxyServer extends OxyServices {
       throw new Error('Service requests must target the configured API origin');
     }
     const { actAs, requesterToken, taskId, headers, serviceTokenScopes, ...rest } = options;
-    const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
+    const token = await this.platformServiceToken({ scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     if (requesterToken && taskId) throw new Error('Provide one requester proof');
@@ -952,8 +989,11 @@ export class OxyServer extends OxyServices {
   }
 
   /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
-  private async workloadServiceToken(audience: ServiceTokenAudience): Promise<string> {
-    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY);
+  private async workloadServiceToken(
+    audience: ServiceTokenAudience,
+    protocolVersion: 1 | 2,
+  ): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:${protocolVersion}`);
     const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
@@ -973,7 +1013,9 @@ export class OxyServer extends OxyServices {
     this.serviceTokens.set(cacheKey, seeded);
 
     const pending = (async () => {
-      const granted = await requestWorkloadServiceToken({
+      const mint =
+        protocolVersion === 2 ? requestWorkloadServiceToken : requestLegacyWorkloadServiceToken;
+      const granted = await mint({
         baseUrl: this.baseURL,
         ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
         ...(this.workloadCredentials ? { credentials: this.workloadCredentials } : {}),

@@ -1,3 +1,12 @@
+jest.mock('../workloadIdentity', () => ({
+  canAttestWorkloadIdentity: () => true,
+  requestWorkloadServiceToken: jest.fn(async () => ({
+    token: 'service-credential',
+    expiresIn: 300,
+    appName: 'test',
+  })),
+}));
+import { requestWorkloadServiceToken } from '../workloadIdentity';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { HttpService } from '../../HttpService';
@@ -18,7 +27,8 @@ afterEach(() => jest.restoreAllMocks());
 
 it('rejects foreign service URLs before minting credentials', async () => {
   const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-  const mint = jest.spyOn(oxy, 'serviceToken');
+  const mint = requestWorkloadServiceToken as jest.Mock;
+  mint.mockClear();
   try {
     await expect(
       oxy.serviceRequest(
@@ -73,7 +83,6 @@ it.each([302, 307])(
     });
     const baseURL = await listen(origin);
     const oxy = new OxyServer({ baseURL });
-    jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-credential');
     try {
       await expect(
         oxy.serviceRequest(
@@ -113,7 +122,6 @@ it('keeps concurrent requester responses separate and reads revocation on every 
     }, 20);
   });
   const oxy = new OxyServer({ baseURL: await listen(server) });
-  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-credential');
   const read = (subject: string) =>
     oxy.serviceRequest<{ subject: string }>('GET', '/private', undefined, {
       actAs: subject,

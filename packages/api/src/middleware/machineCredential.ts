@@ -125,6 +125,8 @@ export interface MachineCredentialPrincipal {
   environment: ApplicationCredentialEnvironment;
   /** Credential scopes ∩ application scopes — never the credential's alone. */
   scopes: ApplicationScope[];
+  /** Present only for a bounded credential; no synthetic token lifetime. */
+  expiresAt?: string;
 }
 
 /** A request the machine lane has authenticated. */
@@ -283,6 +285,7 @@ export async function resolveMachineCredential(
       // application's full grant by default would be the wrong default for an
       // external API key.
       scopes: intersectScopes(credential.scopes, application.scopes),
+      ...(credential.expiresAt ? { expiresAt: credential.expiresAt.toISOString() } : {}),
     },
   };
 }
