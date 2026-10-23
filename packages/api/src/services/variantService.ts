@@ -570,6 +570,13 @@ export class VariantService {
         throw new Error('File not found');
       }
 
+      const isVideo = file.mime.startsWith('video/');
+      if (isVideo && file.status !== 'active') return;
+      if (isVideo && !reencode && hasCurrentVideoRenditions(file)) {
+        await this.shareVariantsWithTwins(file, { variantless: false, outdatedVideosOnly: true });
+        return;
+      }
+
       logger.info('Starting variant generation', {
         fileId,
         mime: file.mime,
@@ -581,7 +588,12 @@ export class VariantService {
       // row's visibility needs gives them to this row without re-encoding.
       const existingFile = reencode
         ? null
-        : await findVariantTwin(file.sha256, file.id, spellingOf(file));
+        : await findVariantTwin(
+            file.sha256,
+            file.id,
+            spellingOf(file),
+            isVideo ? VIDEO_RENDITION_PROFILE : undefined,
+          );
 
       if (
         existingFile &&
@@ -591,6 +603,8 @@ export class VariantService {
         sameRenditionProfile(file, existingFile)
       ) {
         await this.copyVariantSet(existingFile, file);
+        if (isVideo)
+          await this.shareVariantsWithTwins(file, { variantless: false, outdatedVideosOnly: true });
         logger.info('Reused existing variants for duplicate content', {
           fileId,
           sourceFileId: existingFile.id,
@@ -633,7 +647,10 @@ export class VariantService {
         variantCount: file.variants.length,
       });
 
-      await this.shareVariantsWithTwins(file, { variantless: !reencode });
+      await this.shareVariantsWithTwins(file, {
+        variantless: !reencode && !isVideo,
+        outdatedVideosOnly: isVideo && !reencode,
+      });
     } catch (error) {
       logger.error('Error generating variants:', error);
       throw error;
@@ -696,13 +713,14 @@ export class VariantService {
    * Hand a freshly generated rendition set to the other live rows for the same
    * bytes that need the same spelling. After an upload (`variantless`) that is
    * the owners who uploaded the same content while this generation was running
-   * and have none yet, whose own queued jobs then find the set already there;
-   * after a re-encode it is every such twin (see `generateVariants`).
+   * and have none yet, whose own queued jobs then find the set already there.
+   * Video jobs also upgrade legacy twins; current twins remain untouched unless
+   * an explicit re-encode replaces every such twin (see `generateVariants`).
    * Best-effort: a twin that misses out generates (or copies) on its own job.
    */
   private async shareVariantsWithTwins(
     file: FileRecord,
-    twins: { variantless: boolean },
+    twins: { variantless: boolean; outdatedVideosOnly?: boolean },
   ): Promise<void> {
     if (file.variants.length === 0) return;
     try {
@@ -713,6 +731,7 @@ export class VariantService {
         twins,
       )) {
         if (!sameRenditionProfile(twin, file)) continue;
+        if (twins.outdatedVideosOnly && hasCurrentVideoRenditions(twin)) continue;
         await this.copyVariantSet(file, twin);
       }
     } catch (error) {

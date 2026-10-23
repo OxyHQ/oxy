@@ -179,6 +179,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applications, users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
+import { readyVariantRevision } from '../utils/assetRenditionRevision';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
@@ -3552,16 +3553,14 @@ router.post(
         // variant (`assetService`/`variantService`): a row exists AND it has
         // been stamped ready. A row without `readyAt` is a transcode that was
         // started, not one that finished.
-        const hlsMaster = file.variants?.find(
-          (variant) => variant.type === 'hls_master' && variant.readyAt,
-        );
+        const hlsReadyAt = readyVariantRevision(file, 'hls_master');
         return {
           id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
           status: file.status,
-          ...(hlsMaster?.readyAt ? { hlsReadyAt: new Date(hlsMaster.readyAt).toISOString() } : {}),
+          ...(hlsReadyAt ? { hlsReadyAt } : {}),
           ...(media.width !== undefined ? { width: media.width } : {}),
           ...(media.height !== undefined ? { height: media.height } : {}),
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),

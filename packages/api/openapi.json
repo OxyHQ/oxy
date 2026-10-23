@@ -20190,6 +20190,16 @@
               "type": "string"
             },
             "description": "Optional variant (e.g. `thumb`, `w320`); omitted = original."
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Canonical UTC ready timestamp for the requested variant. HLS uses service metadata hlsReadyAt. A stale revision resolves the current public rendition without caching; malformed revisions return 400.\n"
           }
         ],
         "responses": {

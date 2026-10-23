@@ -23,6 +23,7 @@ import express from 'express';
 import http from 'http';
 import type { Readable } from 'stream';
 import type { AddressInfo } from 'net';
+import { OxyServices } from '@oxy.so/core';
 
 const CACHE_FILE_ID = '64c0000000000000000000ff';
 const USER_FILE_ID = '64c0000000000000000000aa';
@@ -53,6 +54,7 @@ const mockUploadFileDirect = jest.fn();
 const mockGetDeletionSummary = jest.fn();
 const mockDeleteFile = jest.fn();
 const mockGetFilesByIds = jest.fn();
+const mockGetFile = jest.fn();
 const mockFindActiveFilesBySha256 = jest.fn();
 const mockGetPublicCdnUrl = jest.fn();
 
@@ -104,6 +106,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
     getDeletionSummary: (...args: unknown[]) => mockGetDeletionSummary(...args),
     deleteFile: (...args: unknown[]) => mockDeleteFile(...args),
     getFilesByIds: (...args: unknown[]) => mockGetFilesByIds(...args),
+    getFile: (...args: unknown[]) => mockGetFile(...args),
     findActiveFilesBySha256: (...args: unknown[]) => mockFindActiveFilesBySha256(...args),
     getPublicCdnUrl: (...args: unknown[]) => mockGetPublicCdnUrl(...args),
   },
@@ -113,6 +116,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema';
 import assetsRouter from '../assets';
+import cdnRouter from '../cdn';
 import { errorHandler } from '../../middleware/errorHandler';
 
 interface AssetMetadata {
@@ -134,6 +138,7 @@ interface AssetMetadataBySha {
 
 interface JsonResponse {
   status: number;
+  headers: http.IncomingHttpHeaders;
   body: {
     data?:
       | { file?: { id?: string; sha256?: string }; message?: string }
@@ -163,7 +168,7 @@ async function requestRaw(
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-            resolve({ status: res.statusCode ?? 0, body: parsed });
+            resolve({ status: res.statusCode ?? 0, headers: res.headers, body: parsed });
           } catch (err) {
             reject(err);
           }
@@ -212,6 +217,7 @@ beforeAll((done) => {
     isCacheUploadRequest(req) ? next() : urlencodedParser(req, res, next),
   );
   app.use('/assets', assetsRouter);
+  app.use('/cdn', cdnRouter);
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
@@ -836,6 +842,62 @@ describe('POST /assets/service/by-ids', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data[0].hlsReadyAt).toBe(readyAt.toISOString());
+  });
+
+  it('uses the metadata timestamp unchanged through the SDK and CDN revision contract', async () => {
+    const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+    const file = {
+      id: CACHE_FILE_ID,
+      sha256: 'c'.repeat(64),
+      mime: 'video/mp4',
+      size: 4242,
+      status: 'active',
+      visibility: 'public',
+      // This processing stamp is deliberately DIFFERENT from the ready master.
+      metadata: { video: { transcodedAt: '2026-10-23T10:14:15.120Z' } },
+      variants: [
+        {
+          type: 'hls_master',
+          key: 'generation-one',
+          readyAt: new Date('2026-10-23T10:14:15.123Z'),
+        },
+      ],
+    };
+    mockGetFile.mockResolvedValue(file);
+    let previousUrl: URL | undefined;
+    for (const readyAt of ['2026-10-23T10:14:15.123Z', '2026-10-23T10:15:16.456Z']) {
+      file.variants[0].readyAt = new Date(readyAt);
+      grantFilesReadOnce();
+      mockGetFilesByIds.mockResolvedValueOnce([file]);
+      const metadata = await postByIds([file.id]);
+      expect(metadata.status).toBe(200);
+      const hlsReadyAt = metadata.body.data[0].hlsReadyAt;
+      expect(hlsReadyAt).toBe(readyAt);
+      const url = new URL(
+        oxy.assets.publicUrl(file.id, 'hls_master', undefined, { revision: hlsReadyAt }),
+      );
+      const target = `https://cloud.oxy.so/variants/${readyAt}/hls_master.m3u8`;
+      mockGetPublicCdnUrl.mockResolvedValue(target);
+      const response = await requestRaw(server, 'GET', `/cdn${url.pathname}${url.search}`, {});
+      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe(target);
+      expect(response.headers['cache-control']).toBe(
+        'public, max-age=3600, stale-while-revalidate=86400',
+      );
+      if (previousUrl) {
+        expect(url.href).not.toBe(previousUrl.href);
+        const stale = await requestRaw(
+          server,
+          'GET',
+          `/cdn${previousUrl.pathname}${previousUrl.search}`,
+          {},
+        );
+        expect(stale.status).toBe(302);
+        expect(stale.headers.location).toBe(target);
+        expect(stale.headers['cache-control']).toBe('no-store');
+      }
+      previousUrl = url;
+    }
   });
 
   it('omits hlsReadyAt for a ladder that was started but never finished', async () => {

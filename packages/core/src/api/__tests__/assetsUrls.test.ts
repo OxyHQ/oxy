@@ -78,6 +78,41 @@ describe('oxy.assets.publicUrl', () => {
         'https://cloud.oxy.so/a%2Fb%20c?variant=large%20size',
       );
     });
+
+    it('identifies a rendition by its normalized ready timestamp', () => {
+      const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+      const url = oxy.assets.publicUrl('video', 'hls_master', undefined, {
+        revision: '2026-10-23T13:14:15.123+03:00',
+      });
+      expect(url).toBe(
+        'https://cloud.oxy.so/video?variant=hls_master&revision=2026-10-23T10%3A14%3A15.123Z',
+      );
+      expect(
+        oxy.assets.publicUrl('video', 'hls_master', undefined, {
+          revision: '2026-10-23T10:14:15.123Z',
+        }),
+      ).toBe(url);
+      expect(
+        oxy.assets.publicUrl('video', 'hls_master', undefined, {
+          revision: '2026-10-23T10:14:15.124Z',
+        }),
+      ).not.toBe(url);
+    });
+
+    it('rejects invalid revisions and revisions on non-CDN or original URLs', () => {
+      const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+      expect(() =>
+        oxy.assets.publicUrl('video', 'hls_master', undefined, { revision: 'random' }),
+      ).toThrow(TypeError);
+      expect(() =>
+        oxy.assets.publicUrl('video', 'hls_master', undefined, {
+          revision: '+010000-01-01T00:00:00.000Z',
+        }),
+      ).toThrow(TypeError);
+      const options = { revision: '2026-10-23T10:14:15.123Z' };
+      expect(() => oxy.assets.publicUrl('video', undefined, undefined, options)).toThrow(TypeError);
+      expect(() => oxy.assets.publicUrl('video', 'hls_master', 60, options)).toThrow(TypeError);
+    });
   });
 
   describe('token-safe URL generation', () => {

@@ -318,3 +318,72 @@ it('invalidates cached records after recording a storage root, including repeat 
     invalidate.mockRestore();
   }
 });
+
+it('skips a completed video encode and upgrades only outdated twins in the same spelling', async () => {
+  const source = await file();
+  const staleTwin = await file(source.sha256);
+  const currentTwin = await file(source.sha256);
+  const publicTwin = await file(source.sha256, 'public');
+  await upsertVariantSet(source.id, [currentMaster()]);
+  await upsertVariantSet(staleTwin.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  await upsertVariantSet(currentTwin.id, [currentMaster()]);
+  await upsertVariantSet(publicTwin.id, [{ type: 'hls_master', key: 'public/legacy/master.m3u8' }]);
+  const beforeSource = await findFileById(source.id);
+  const beforeCurrent = await findFileById(currentTwin.id);
+  const beforePublic = await findFileById(publicTwin.id);
+  const { service, mp4, hls } = encoder();
+  await service.generateVariants(source.id);
+  expect(mp4).not.toHaveBeenCalled();
+  expect(hls).not.toHaveBeenCalled();
+  expect((await findFileById(source.id))?.variants).toEqual(beforeSource?.variants);
+  expect(hasCurrentVideoRenditions((await findFileById(staleTwin.id)) ?? { variants: [] })).toBe(
+    true,
+  );
+  expect((await findFileById(currentTwin.id))?.variants).toEqual(beforeCurrent?.variants);
+  expect((await findFileById(publicTwin.id))?.variants).toEqual(beforePublic?.variants);
+});
+
+it('upgrades legacy twins after a normal queued video job and makes its replay a no-op', async () => {
+  const source = await file();
+  const twin = await file(source.sha256);
+  for (const row of [source, twin])
+    await upsertVariantSet(row.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  const { service, mp4 } = encoder();
+  await service.generateVariants(source.id);
+  expect(mp4).toHaveBeenCalledTimes(1);
+  expect(hasCurrentVideoRenditions((await findFileById(twin.id)) ?? { variants: [] })).toBe(true);
+  await service.generateVariants(source.id);
+  await service.generateVariants(twin.id);
+  expect(mp4).toHaveBeenCalledTimes(1);
+});
+
+it('honors an explicit re-encode even when the video profile is already current', async () => {
+  const source = await file();
+  await upsertVariantSet(source.id, [currentMaster()]);
+  const { service, mp4 } = encoder();
+  await service.generateVariants(source.id, { reencode: true });
+  expect(mp4).toHaveBeenCalledTimes(1);
+});
+
+it('does not render a video that left the active state while its request waited', async () => {
+  const source = await file();
+  const { updateFile } = await import('../fileRepository');
+  await updateFile(source.id, { status: 'trash' });
+  const { service, mp4 } = encoder();
+  await service.generateVariants(source.id);
+  expect(mp4).not.toHaveBeenCalled();
+});
+
+it('finds a complete current twin beyond older legacy owners without re-encoding', async () => {
+  const target = await file();
+  for (let i = 0; i < 6; i++) {
+    const legacy = await file(target.sha256);
+    await upsertVariantSet(legacy.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  }
+  const current = await file(target.sha256);
+  await upsertVariantSet(current.id, [currentMaster()]);
+  const { service, mp4 } = encoder();
+  await service.generateVariants(target.id);
+  expect(mp4).not.toHaveBeenCalled();
+  expect(hasCurrentVideoRenditions((await findFileById(target.id)) ?? { variants: [] })).toBe(true);
+});
