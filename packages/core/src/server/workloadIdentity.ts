@@ -69,11 +69,11 @@ export interface WorkloadCredentials {
 export type WorkloadCredentialProvider = () => Promise<WorkloadCredentials>;
 
 /**
- * Whether this process can attest at all.
+ * Whether the default ECS credential source is available.
  *
- * The relative URI is set by ECS on every task and by nothing else, so its
- * presence is the honest test for "we can prove what we are here". A local
- * checkout has no attestation to offer and must fall back to a credential.
+ * This does not inspect an explicitly configured workload provider. Local
+ * development can use temporary IAM role credentials through the optional
+ * @oxy.so/core/server/aws provider and a registered development binding.
  */
 export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
