@@ -89,10 +89,17 @@ it('refreshes a 401 once without buffering the returned stream', async () => {
 it('binds task context and strips any caller-injected requester bearer', async () => {
   const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
   const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-  const client = oxy.createServiceClient({ baseURL: 'https://api.alia.onl', audience: 'oxy-service:alia', requester: { accountId: 'person', taskId: 'task' } });
-  await client.fetch('/v1', { headers: { 'X-Oxy-Requester-Token': 'forged', 'X-Oxy-Task-Id': 'other' } });
+  const client = oxy.createServiceClient({
+    baseURL: 'https://api.alia.onl',
+    audience: 'oxy-service:alia',
+    requester: { accountId: 'person', taskId: 'task' },
+  });
+  await client.fetch('/v1', {
+    headers: { 'X-Oxy-Requester-Token': 'forged', 'X-Oxy-Task-Id': 'other' },
+  });
   const headers = new Headers(fetch.mock.calls[0][1]?.headers);
   expect(headers.get('x-oxy-task-id')).toBe('task');
   expect(headers.has('x-oxy-requester-token')).toBe(false);
-  client.dispose(); oxy.dispose();
+  client.dispose();
+  oxy.dispose();
 });
