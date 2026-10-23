@@ -251,3 +251,59 @@ response allows one hour of freshness and up to one day of stale revalidation.
 Validate both a cold client and a resolver that has expired/revalidated; do not
 report instant convergence for clients still holding an earlier redirect.
 The repair adds no hydration request and no random query parameter.
+
+### Durable application-scoped backfill
+
+For a corpus, use the same workflow with `mode=backlog`. This task only inserts
+requests into the existing `file_rendition_requests` table. It does not download
+originals or run encoders. The normal worker fleet processes these requests
+after the seeder exits, with its existing leases, deduplicated job IDs, three
+attempts with backoff, and bounded Redis window. No new queue or schema is needed.
+Deploy the idempotent video worker before seeding: ordinary video jobs skip an
+already complete current generation and copy it to outdated same-spelling twins.
+An explicit `reencode` still rebuilds from the original.
+
+An application ID is required. Candidates must be active videos owned by that
+application or named by an actual `file_references` row for it; old descriptive
+`metadata.serviceAppId` alone is insufficient. Each content/visibility group
+gets one representative request. Existing pending requests keep their timestamps
+and leases. Portrait groups are seeded first, using ordinary request timestamps,
+then the other shapes. Finished current masters are excluded.
+
+For Mention, start with a dry run using:
+
+```bash
+gh workflow run run-video-rendition-repair.yml --repo OxyHQ/oxy --ref main \
+  -f mode=backlog -f dry_run=true \
+  -f application_id=6a2f851751b784a86fd0e916 -f limit=1000 -f max_groups=100000
+```
+
+Review the scope and counts, then use `dry_run=false` for the intended seed.
+`limit` bounds each database page (maximum 1,000); `max_groups` bounds the whole
+invocation (maximum 100,000). One image build can seed the full intended corpus.
+Each page logs considered/inserted counts and an `after` cursor of the form
+`0:<sha256>:public` (portrait) or `1:<sha256>:public` (other). Resume an interrupted
+seed with that cursor, or rerun from the beginning: existing requests are left
+alone and finished videos are skipped. Never pass a sample-encode cursor to a
+backlog run, or a backlog cursor to an encode run.
+
+Requests use the existing scheduler priority 10; directly admitted uploads have
+priority 0. This deliberately preserves upload precedence, and means a saturated
+worker fleet can delay the backfill. Inspect `Oxy/Queues` `QueueDepth`,
+`PendingRenditionRequests`, `OldestWaitingJobAgeSeconds` and
+`PermanentJobFailures` before promising completion time. The scheduler only adds
+backlog work when Redis depth is below 1,000. Capacity and the existing backlog
+must be considered; seeding requests is not evidence that videos are repaired.
+
+Cancellation of the seeding workflow stops further inserts, but requests already
+committed continue through the worker fleet. A fleet stop is the existing
+operational stop for encoding and affects all rendition work; there is no
+independent per-backfill cancel mechanism. Do not delete requests shared with
+normal uploads to simulate cancellation. Failed jobs log file IDs and settle
+after their final attempt; unresolved videos still lack the current marker and
+can be selected again for an explicit retry. Compare the remaining scoped
+candidate count and recorded failures with the initial count to monitor progress.
+
+After completed generations publish, consumers that persist rendition metadata
+must reconcile the new `hls_master.readyAt` value. Oxy's original is unchanged,
+and completing a rendition does not currently emit an application file event.
