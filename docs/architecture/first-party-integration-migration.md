@@ -19,6 +19,7 @@ revocation and operation binding remain mandatory.
 | Area | Source state | Required acceptance |
 |---|---|---|
 | Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
+| Oxy workload environment preflight | Deployed and provisioned; evidence below | Nullable DDL, exact 27-binding CAS and live readback; no v2 cutover yet |
 | Oxy core/contracts service authority | Implemented source (`5bb379b80`, `dc2896083`, `ad2ebca18`, `aa6a10695`); combined release pending | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | Implemented source (`43a9c810d`); migration/combined release pending | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
@@ -32,7 +33,7 @@ Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. Oxy and Alia remain source-only at this checkpoint; Kaana has
+caller is updated. The Oxy authority runtime and Alia remain source-only at this checkpoint; Oxy's environment-only preflight and Kaana have
 the separately verified deployment recorded below.
 
 ## Audited runtime graph
@@ -209,3 +210,29 @@ and catalogue re-registration/readback, and the controlled channel conversion.
 App-owned Files artifacts/reference reconciliation remain service-domain data;
 personal Files access uses the requester facade. The remaining ecosystem rows
 above are pending until their own caller→receiver changes and canaries are proven.
+
+
+## Verified deployment checkpoint: Oxy environment preflight (2026-10-23)
+
+[PR #1937](https://github.com/OxyHQ/oxy/pull/1937) merged as
+`be619762b9a074346c701cc8d9527cf73c3720e9`. PR CI `40000148446`, merge-queue CI
+`40001383156` and image build `40001383322` passed.
+[Deploy run 40002409285](https://github.com/OxyHQ/oxy/actions/runs/40002409285)
+succeeded. Live readback found three running API tasks on `oxy-oxy-api:1034`,
+all using image digest
+`sha256:ce2f52077a88690414646cbf4ef223a9abaa192fbab3da589046e66fed831696`.
+
+The production migration ledger contains the exact immutable `0215` hash
+`ba0bb2e1381911bc19c0bd564245150ba6f6ae23573a6fe6af6b0ef8dd1cddac`.
+The reviewed inventory dry run reported 27 bindings needing provisioning; the
+compare-and-set run provisioned exactly those 27; the independent second read
+reported all 27 unchanged. Every report had zero workloads outside the cohort.
+The temporary database diagnostic task definition was deregistered afterward.
+The detailed operator receipt is
+`/home/nate/Oxy/.scratch/first-party-root/oxy-environment-preflight-20261023.json`.
+
+This completes the environment prerequisite for the reader-first API/SDK
+release. It does not establish product-receiver adoption, v2 issuer rollout,
+removal of legacy bridges, or fleet readiness. Follow the
+[reader transition](../runbooks/first-party-reader-transition.md) and retain the
+subsequent runtime receipts before marking those stages complete.
