@@ -2,15 +2,19 @@ import type { ServiceLane } from '../client/context';
 
 /** One original requester proof, kept transient and isolated per operation. */
 export type RequesterProof = (
-  | { requesterToken: string; taskId?: never; capabilityTicket?: never }
-  | { taskId: string; requesterToken?: never; capabilityTicket?: never }
-  | { capabilityTicket: string; requesterToken?: never; taskId?: never }
+  | { requesterToken: string; taskId?: never; capabilityTicket?: never; requesterContext?: never }
+  | { taskId: string; requesterToken?: never; capabilityTicket?: never; requesterContext?: never }
+  | { capabilityTicket: string; requesterToken?: never; taskId?: never; requesterContext?: never }
+  | { requesterContext: string; requesterToken?: never; taskId?: never; capabilityTicket?: never }
 ) & { accountId?: string };
 
 export function bindRequesterLane(original: ServiceLane, proof: RequesterProof): ServiceLane {
-  const values = [proof.requesterToken, proof.taskId, proof.capabilityTicket].filter(
-    (value) => value !== undefined,
-  );
+  const values = [
+    proof.requesterToken,
+    proof.taskId,
+    proof.capabilityTicket,
+    proof.requesterContext,
+  ].filter((value) => value !== undefined);
   if (
     values.length !== 1 ||
     !values[0] ||
@@ -23,6 +27,7 @@ export function bindRequesterLane(original: ServiceLane, proof: RequesterProof):
     requesterToken: proof.requesterToken,
     taskId: proof.taskId,
     capabilityTicket: proof.capabilityTicket,
+    requesterContext: proof.requesterContext,
     actAs: proof.accountId,
   };
   return {
@@ -38,6 +43,9 @@ export function bindRequesterLane(original: ServiceLane, proof: RequesterProof):
             'x-oxy-task-id',
             'x-oxy-requester-token',
             'x-oxy-capability-ticket',
+            'x-oxy-requester-context',
+            'x-oxy-presented-requester-context',
+            'x-oxy-presented-service-token',
             'x-oxy-mcp-media-token',
             'x-oxy-mcp-media-tool',
           ].includes(key.toLowerCase())

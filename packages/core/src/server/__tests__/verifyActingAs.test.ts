@@ -255,3 +255,43 @@ it('never logs requester proofs echoed in a failed transport error', async () =>
   expect(JSON.stringify(warning.mock.calls)).not.toContain(proof);
   jest.restoreAllMocks();
 });
+
+it('sends original service and requester proofs only as headers and never caches a derived own context', async () => {
+  const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('receiver-workload');
+  const calls = captureRequests(oxy, {
+    authorized: true,
+    authority: 'first_party',
+    epoch: '0',
+    requesterContext: 'derived-receiver-context',
+  });
+  const options = {
+    cache: true,
+    requesterContext: 'caller-context',
+    presentedServiceToken: 'caller-service-jwt',
+    credentialId: 'wl_caller',
+    ownerAccountId: 'owner',
+    environment: 'production',
+  };
+  try {
+    expect(await oxy.verifyActingAs(APP, USER, options)).toMatchObject({
+      authority: 'first_party',
+      requesterContext: 'derived-receiver-context',
+    });
+    await oxy.verifyActingAs(APP, USER, options);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[0].data)).not.toContain('caller-context');
+    expect(JSON.stringify(calls[0].data)).not.toContain('caller-service-jwt');
+    expect(calls[0].options?.headers).toMatchObject({
+      'X-Oxy-Presented-Requester-Context': 'caller-context',
+      'X-Oxy-Presented-Service-Token': 'caller-service-jwt',
+    });
+    jest
+      .mocked(oxy.request)
+      .mockResolvedValue({ authorized: true, authority: 'first_party', epoch: '0' } as never);
+    expect(await oxy.verifyActingAs(APP, USER, options)).toBeNull();
+  } finally {
+    oxy.dispose();
+    jest.restoreAllMocks();
+  }
+});

@@ -1,3 +1,4 @@
+import type { RequesterContextClaims } from './requesterContext.service';
 import type { CapabilityRequesterOperation } from './capabilityRequester.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Present-requester approval within the existing capability ticket family. */
@@ -25,6 +26,7 @@ export interface ForegroundRequesterBinding {
   digest: string;
   expiresAt: Date;
   operation?: CapabilityRequesterOperation;
+  forwardedContext?: RequesterContextClaims;
 }
 
 function sessionDigest(session: CachedSession): string {
