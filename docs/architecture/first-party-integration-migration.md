@@ -24,10 +24,10 @@ revocation and operation binding remain mandatory.
 | Oxy API files/inference/agency/introspection | Implemented source (`43a9c810d`); migration/combined release pending | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
 | Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Separate source workstream in progress | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Deployed 8.0.0; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Audited edges below; implementation pending | Caller→SDK→receiver tests for own and external identities |
-| Registry/workload migration and deploy | Pending | Reviewed readback, rollout order, actual task digests and live canaries |
+| Product receivers and SDK adopters | Clarity, Mention, CrowdSource, Peable and Mercaria source prepared with caller/receiver tests; remaining fleet adoption and production rollout pending | Caller→SDK→receiver tests for own and external identities |
+| Registry/workload migration and deploy | Environment preflight complete for the exact 27 bindings; authority runtime and product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
@@ -90,8 +90,10 @@ Authenticator uses Oxy provider/appData; its separate identity storage is
 intentional. Atlas consumes public store APIs and Alia without a backend.
 ActivityWallpaper uses public socket/PoP data: no credential migration follows
 from those reads. Astro's inspected Alia shell panel is informational, not a
-runtime API client. No Oxy API consumer was found in Eufesio. OxyOS runtime
-consumption is not established by this audit. GWJ explicitly excludes itself
+runtime API client. No Oxy API consumer was found in Eufesio. Fresh OxyOS source
+(`815c65f`) has an Alia panel using a legacy manual SSE client. Its migration
+requires the shared Alia SDK and an actual registered Oxy public client; the live
+registry lookup found no OxyOS registration, so activation remains pending. GWJ explicitly excludes itself
 from the Oxy ecosystem in its own instructions and is excluded from this change.
 Examples' Next/Vite/Expo third-party OAuth and website's external Claude MCP
 OAuth are intentional external paths and remain scoped. Use remote refs for
