@@ -105,3 +105,31 @@ it.each(['switch', 'logout', 'signin'] as const)(
     }
   },
 );
+
+it('disables the browser HTTP cache across anonymous and account-bound reads even when the caller requests caching', async () => {
+  const oxy = new OxyServices({ baseURL: origin });
+  const linked = oxy.createLinkedClient({ baseURL: origin });
+  const networkFetch = globalThis.fetch;
+  const policies: Array<RequestCache | undefined> = [];
+  const spy = jest.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    policies.push(init?.cache);
+    return networkFetch(input, init);
+  });
+  try {
+    await (await linked.fetchOptional('/public', { cache: 'force-cache' })).text();
+    oxy.session.setAccessToken(token('cache-account-A'));
+    await (await linked.fetch('/private', { cache: 'force-cache' })).text();
+    oxy.session.setAccessToken(token('cache-account-B'));
+    await (await linked.fetchOptional('/private', { cache: 'force-cache' })).text();
+    expect(policies).toEqual(['no-store', 'no-store', 'no-store']);
+    expect(seen.slice(-3).map(({ authorization }) => authorization)).toEqual([
+      undefined,
+      `Bearer ${token('cache-account-A')}`,
+      `Bearer ${token('cache-account-B')}`,
+    ]);
+  } finally {
+    spy.mockRestore();
+    linked.dispose();
+    oxy.dispose();
+  }
+});
