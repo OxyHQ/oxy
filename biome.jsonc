@@ -207,11 +207,28 @@
       }
     },
     {
-      // Console: import/no-commonjs and node/prefer-node-protocol were errors.
-      "includes": ["packages/console/**"],
+      // Console: import/no-commonjs and node/prefer-node-protocol were errors. The
+      // Expo/Metro/Babel/Jest config files and the export script are CommonJS by
+      // contract (same as packages/accounts), so only app source is held to it.
+      "includes": ["packages/console/**", "!packages/console/*.js", "!packages/console/scripts/**"],
       "linter": {
         "rules": {
-          "style": { "noCommonJs": "error", "useNodejsImportProtocol": "error" }
+          "style": {
+            "noCommonJs": "error",
+            "useNodejsImportProtocol": "error",
+            // Subpath imports only, as in Inbox and Mention: the icon barrel pulls every
+            // glyph into the bundle, and the services root drags the whole SDK graph.
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@oxy.so/bloom/icons": "Import the glyph: '@oxy.so/bloom/icons/RiXxxLine'.",
+                  "@oxy.so/services": "Use '@oxy.so/services/ui/client' (RequireOxyAuth and OxyProvider: '@oxy.so/services/ui').",
+                  "@expo/vector-icons": "Use a Bloom icon: '@oxy.so/bloom/icons/RiXxxLine'."
+                }
+              }
+            }
+          }
         }
       }
     },

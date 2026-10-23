@@ -120,13 +120,13 @@ function createFixture({ account = {}, application = {}, source = {} } = {}) {
   );
   write(
     root,
-    'packages/console/src/hooks/use-account.tsx',
+    'packages/console/hooks/use-account.tsx',
     account.text ??
       consoleUnionSource('AccountPermission', account.names ?? ACCOUNT_NAMES, account),
   );
   write(
     root,
-    'packages/console/src/hooks/use-applications.ts',
+    'packages/console/hooks/use-applications.ts',
     application.text ??
       consoleUnionSource(
         'ApplicationPermission',

@@ -88,13 +88,13 @@ const LANES = [
   {
     label: 'account',
     sourceExport: 'ACCOUNT_PERMISSIONS',
-    consoleFile: 'packages/console/src/hooks/use-account.tsx',
+    consoleFile: 'packages/console/hooks/use-account.tsx',
     consoleType: 'AccountPermission',
   },
   {
     label: 'application',
     sourceExport: 'APPLICATION_PERMISSIONS',
-    consoleFile: 'packages/console/src/hooks/use-applications.ts',
+    consoleFile: 'packages/console/hooks/use-applications.ts',
     consoleType: 'ApplicationPermission',
   },
 ];
