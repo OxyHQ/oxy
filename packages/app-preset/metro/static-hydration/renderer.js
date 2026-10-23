@@ -23,6 +23,18 @@ const { renderHydratableDocument } = require('./render-document');
 
 const h = React.createElement;
 
+function StaticApp({ headContext, loadedData, element }) {
+  return h(Head.Provider, { context: headContext }, h(InnerRoot, { loadedData }, element));
+}
+
+// Expo's web entry wraps the entire qualified app in development. Its sibling
+// DevLoadingView participates in React's useId tree even while it renders null.
+// Use the real wrapper on the server too, rather than compensating for its IDs.
+const StaticAppRoot =
+  process.env.NODE_ENV !== 'production'
+    ? require('expo/build/launch/withDevTools.web').withDevTools(StaticApp)
+    : StaticApp;
+
 function getStreamingContent(location, options) {
   if (options?.output !== 'static') return original.getStreamingContent(location, options);
   return fonts.withServerContext(async () => {
@@ -38,7 +50,7 @@ function getStreamingContent(location, options) {
     globalThis.__react_navigation__elements_contexts = new Map();
     const loaderKey = options.loader ? options.loader.key + location.search : null;
     const loadedData = loaderKey ? { [loaderKey]: options.loader.data ?? null } : null;
-    const app = h(Head.Provider, { context: headContext }, h(InnerRoot, { loadedData }, element));
+    const app = h(StaticAppRoot, { headContext, loadedData, element });
 
     const html = await renderHydratableDocument(
       app,

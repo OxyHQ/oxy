@@ -2,7 +2,11 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const path = require('node:path');
 const Module = require('node:module');
+const fs = require('node:fs');
 const React = require('react');
+// Load React DOM under the same environment as React before varying only the
+// adapter's branch below. Mixing React's development/prod runtimes is invalid.
+require('../metro/static-hydration/render-document');
 const { JSDOM } = require('jsdom');
 const { Helmet, HelmetProvider } = require(
   path.join(
@@ -84,13 +88,53 @@ const mocks = {
   '@expo/router-server/build/server/renderStreamingContent': original,
 };
 const load = Module._load;
-let renderer;
-try {
-  Module._load = (name, ...args) => mocks[name] ?? load(name, ...args);
-  renderer = require('../metro/static-hydration/renderer');
-} finally {
-  Module._load = load;
+
+// Exercise Expo's real web wrapper and loading view. Node does not perform
+// Metro's platform-extension resolution or transpile Expo's published ESM.
+const expoRoot = path.dirname(require.resolve('expo/package.json'));
+const expoRequire = Module.createRequire(path.join(expoRoot, 'package.json'));
+const babel = expoRequire('@babel/core');
+const commonjs = expoRequire.resolve('@babel/plugin-transform-modules-commonjs');
+const expoModules = new Map();
+function loadExpoWeb(filename) {
+  if (expoModules.has(filename)) return expoModules.get(filename).exports;
+  const mod = new Module(filename, module);
+  expoModules.set(filename, mod);
+  mod.filename = filename;
+  mod.require = (name) => {
+    if (!name.startsWith('.')) return require(name);
+    const resolved = path.resolve(path.dirname(filename), name);
+    const web = `${resolved}.web.js`;
+    return loadExpoWeb(fs.existsSync(web) ? web : `${resolved}.js`);
+  };
+  const transformed = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
+    filename,
+    configFile: false,
+    babelrc: false,
+    plugins: [commonjs],
+  });
+  mod._compile(transformed.code, filename);
+  return mod.exports;
 }
+const { withDevTools } = loadExpoWeb(path.join(expoRoot, 'build/launch/withDevTools.web.js'));
+function loadRenderer(environment) {
+  const previous = process.env.NODE_ENV;
+  const rendererPath = require.resolve('../metro/static-hydration/renderer');
+  delete require.cache[rendererPath];
+  try {
+    process.env.NODE_ENV = environment;
+    Module._load = (name, ...args) =>
+      name === 'expo/build/launch/withDevTools.web'
+        ? { withDevTools }
+        : (mocks[name] ?? load(name, ...args));
+    return require(rendererPath);
+  } finally {
+    Module._load = load;
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
+}
+const renderer = loadRenderer('production');
 
 test('static adapter preserves real Helmet route metadata, loaders and resources after app rendering', async () => {
   rendered = false;
@@ -145,3 +189,55 @@ test('nonstatic requests and metadata resolution retain the original Expo API', 
   assert.deepEqual(delegations, [[location, options]]);
   assert.equal(renderer.resolveMetadata, original.resolveMetadata);
 });
+
+for (const environment of ['development', 'production']) {
+  test(`${environment} app boundary hydrates through the actual Expo wrapper without replacing nodes`, async () => {
+    const adapter = loadRenderer(environment);
+    title = null;
+    const html = await adapter.getStreamingContent(new URL('https://example.test/inbox'), {
+      output: 'static',
+      hydrate: true,
+    });
+    const dom = new JSDOM(html, { url: 'https://example.test/' });
+    const previousWindow = global.window;
+    const previousDocument = global.document;
+    global.window = dom.window;
+    global.document = dom.window.document;
+    global.IS_REACT_ACT_ENVIRONMENT = true;
+    const before = document.querySelector('#mail');
+    const serverId = before.textContent;
+    const errors = [];
+    let root;
+    function ClientApp() {
+      return h(
+        HelmetProvider,
+        null,
+        h(mocks['expo-router/internal/static'].InnerRoot, null, h(App)),
+      );
+    }
+    const ClientRoot = environment === 'development' ? withDevTools(ClientApp) : ClientApp;
+    try {
+      await React.act(async () => {
+        root = require('react-dom/client').hydrateRoot(
+          document.querySelector('#root'),
+          h(ClientRoot),
+          {
+            onRecoverableError: (error) => errors.push(error),
+          },
+        );
+      });
+      assert.deepEqual(errors, []);
+      assert.equal(document.querySelector('#mail'), before);
+      assert.equal(before.textContent, serverId);
+      // The real development wrapper contributes a sibling fork even though
+      // its refresh indicator is absent from the server's DOM.
+      assert.equal(serverId, environment === 'development' ? '_R_1_' : '_R_0_');
+    } finally {
+      if (root) await React.act(async () => root.unmount());
+      global.window = previousWindow;
+      global.document = previousDocument;
+      delete global.IS_REACT_ACT_ENVIRONMENT;
+      dom.window.close();
+    }
+  });
+}
