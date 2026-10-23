@@ -24,6 +24,13 @@ Workload caches and in-flight exchanges are separated by audience AND protocol.
 The public low-level `requestWorkloadServiceToken()` also remains v2. There is no
 public protocol option.
 
+Product SDKs that authenticate a WebSocket use the same service transport's
+`getAccessToken(target, { signal })`. Core checks the HTTP/WebSocket origin
+against the configured destination before minting and rejects cancelled or
+disposed consumers. The product SDK owns its canonical URL and WebSocket
+protocol; applications do not copy token callbacks or extract a bearer from
+an artificial HTTP request.
+
 Shared transport cancellation covers identity preparation as well as the product
 request. Cancelling one consumer does not cancel another consumer's shared mint;
 the exchange has its own 15-second deadline, including temporary credential

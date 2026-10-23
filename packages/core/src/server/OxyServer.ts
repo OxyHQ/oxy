@@ -61,6 +61,8 @@ import { loadNodeCrypto } from '@oxy.so/protocol';
 import { OxyServices, type OxyConfig } from '../OxyServices';
 import { HttpService } from '../HttpService';
 import { createAuthenticatedFetch } from '../authenticatedFetch';
+import { awaitRequestSignal } from '../utils/requestSignal';
+import { createCancelledError } from '../utils/errorUtils';
 import type { HttpMethod, ServiceLane } from '../client/context';
 import type { RequestOptions, ResponsePayload } from '../HttpService';
 import { logger } from '../logger';
@@ -248,6 +250,8 @@ export interface ServiceClientOptions {
 }
 export interface ServiceHttpClient {
   fetch: typeof globalThis.fetch;
+  /** For product SDK protocols such as WebSocket; validates the destination before minting. */
+  getAccessToken(target: string | URL, options?: { signal?: AbortSignal }): Promise<string>;
   dispose(): void;
 }
 
@@ -370,9 +374,10 @@ export class OxyServer extends OxyServices {
         ).length !== 1)
     )
       throw new Error('A requester requires an account id and session proof');
-    const mint = () => this.workloadServiceToken(options.audience, 2);
+    const audience = options.audience;
+    const mint = () => this.workloadServiceToken(audience, 2);
     client.setAuthRefreshHandler(async () => {
-      this.serviceTokens.delete(audienceCacheKey(options.audience, `${WORKLOAD_CACHE_KEY}:2`));
+      this.serviceTokens.delete(audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:2`));
       return mint();
     });
     const fetch = createAuthenticatedFetch(client, options.baseURL, {
@@ -383,6 +388,25 @@ export class OxyServer extends OxyServices {
       },
     });
     return {
+      getAccessToken: async (target, requestOptions) => {
+        if (disposed) throw new Error('The authenticated transport has been disposed');
+        const recipient = new URL(String(target), origin);
+        if (recipient.protocol === 'ws:') recipient.protocol = 'http:';
+        else if (recipient.protocol === 'wss:') recipient.protocol = 'https:';
+        if (
+          !['http:', 'https:'].includes(recipient.protocol) ||
+          recipient.origin !== origin.origin ||
+          recipient.username ||
+          recipient.password
+        )
+          throw new Error('Service credentials must target the configured API origin');
+        const signal = requestOptions?.signal;
+        if (signal?.aborted) throw createCancelledError();
+        const token = await awaitRequestSignal(mint(), signal);
+        if (signal?.aborted) throw createCancelledError();
+        if (disposed) throw new Error('The authenticated transport has been disposed');
+        return token;
+      },
       fetch: (input, init) => {
         const headers = new Headers(
           init?.headers ?? (input instanceof Request ? input.headers : undefined),
