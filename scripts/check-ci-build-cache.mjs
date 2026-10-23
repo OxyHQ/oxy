@@ -38,8 +38,8 @@
  *       that silently never hits).
  *   ci-build-cache.yml
  *     - Triggers on `push` to `main` and nothing else.
- *     - `contents: read`, no restore (every entry is one commit's builds, from
- *       empty), exactly one save, of `.turbo/cache`.
+ *     - `contents: read`, no restore of `.turbo/cache` (every entry is one
+ *       commit's builds, from empty), and `.turbo/cache` saved exactly once.
  *     - Builds a superset of every workspace ci.yml asks Turbo to build, so the
  *       cache it writes covers what the jobs look for.
  *
@@ -49,6 +49,9 @@
  *     - Every `type=gha` scope ci.yml imports is one ci-build-cache.yml exports
  *       (`--cache-to type=gha,scope=<same>`): a scope nothing on main writes is
  *       a cache that silently never hits.
+ *
+ * A local composite action a job uses (`uses: ./.github/actions/<name>`) is
+ * checked as that job's own steps, so no write path hides inside one.
  *
  * Paths resolve from the working directory, so scripts/test-check-ci-build-cache.mjs
  * can run this against mutated copies. No install: YAML and JSON through Bun.
@@ -94,7 +97,12 @@ try {
   process.exit(1);
 }
 
-const steps = (job) => (Array.isArray(job?.steps) ? job.steps : []);
+const steps = (job) =>
+  (Array.isArray(job?.steps) ? job.steps : []).flatMap((step) =>
+    typeof step?.uses === 'string' && step.uses.startsWith('./')
+      ? steps(parseYaml(join(step.uses, 'action.yml'))?.runs)
+      : [step],
+  );
 const TURBO_RUN = /\bturbo\s+(?:run\s+)?([A-Za-z0-9:_-]+)((?:\s+[^\n&|;]*)?)/g;
 const FILTER = /--filter(?:=|\s+)['"]?([^\s'"]+)/g;
 const isRestore = (step) =>
@@ -269,18 +277,20 @@ if (
   );
 }
 const writerSteps = Object.values(writer?.jobs ?? {}).flatMap(steps);
-const saves = writerSteps.filter((step) => isSave(step) || isCache(step));
-if (writerSteps.some(isRestore) || writerSteps.some(isCache)) {
+const saves = writerSteps.filter(
+  (step) => (isSave(step) || isCache(step)) && String(step?.with?.path ?? '').trim() === CACHE_PATH,
+);
+const restoresTurbo = (step) =>
+  (isRestore(step) || isCache(step)) && String(step?.with?.path ?? '').includes('.turbo');
+if (writerSteps.some(restoresTurbo)) {
   fail(
     `${WRITER} restores a cache before building, so an entry could carry artifacts this commit did not produce. Build from empty.`,
   );
 }
-if (
-  saves.length !== 1 ||
-  !isSave(saves[0]) ||
-  String(saves[0]?.with?.path ?? '').trim() !== CACHE_PATH
-) {
-  fail(`${WRITER} must save exactly one cache, \`${CACHE_PATH}\`, with actions/cache/save.`);
+if (saves.length !== 1 || !isSave(saves[0])) {
+  fail(
+    `${WRITER} must save the Turbo cache, \`${CACHE_PATH}\`, exactly once, with actions/cache/save.`,
+  );
 } else if (restorePrefix !== null && !String(saves[0].with.key ?? '').startsWith(restorePrefix)) {
   fail(
     `${WRITER} saves under ${saves[0].with.key}, which ${CI}'s restore prefix ${restorePrefix} never matches.`,

@@ -1,0 +1,106 @@
+name: ffmpeg
+description: >-
+  Puts a checksum-pinned static ffmpeg + ffprobe on PATH and proves it encodes,
+  probes and decodes H.264 in MP4 and MPEG-TS.
+
+# The ONE definition of CI's ffmpeg. The API test shards (ci.yml) use it to
+# install; ci-build-cache.yml uses it on every push to main and saves the
+# archive under `cache-key`, so shards restore it from main's cache scope and
+# never touch the network. A miss (the entry was evicted, or a pull request
+# changes the pin) falls back to the download. A restored archive is verified
+# against the same digest as a downloaded one, so the cache can only ever
+# serve the pinned bytes.
+#
+# Not from apt: the runner image ships no ffmpeg, and an apt install per shard
+# made the Ubuntu mirror a dependency of every run (`apt-get could not install
+# ffmpeg after 2 attempts` failed 13 jobs in the 2 days to 2026-10-22).
+#
+# A BtbN month-end GPL build (includes libx264). The former eugeneware b6.0
+# binaries SIGSEGV while reading MPEG-TS, even for a minimal locally generated
+# segment; their MP4-only control missed it. Month-end releases are retained
+# for two years, unlike daily builds:
+# https://github.com/BtbN/FFmpeg-Builds#release-retention-policy
+# Refresh this pin before September 2028: update release, archive and digest
+# together (the digest is also the cache key), then run both format controls
+# and the real video rendition suite. Callers never pass these inputs.
+inputs:
+  release:
+    description: BtbN release tag.
+    default: autobuild-2026-09-30-13-08
+  archive:
+    description: Archive name, without `.tar.xz`.
+    default: ffmpeg-n8.1.3-9-g29e619e767-linux64-gpl-8.1
+  sha256:
+    description: SHA-256 of the archive.
+    default: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
+
+outputs:
+  archive:
+    description: Path of the verified archive (what ci-build-cache.yml saves).
+    value: ${{ steps.install.outputs.archive }}
+  cache-key:
+    description: Cache key of the archive, its digest.
+    value: ffmpeg-${{ inputs.sha256 }}
+  cache-hit:
+    description: Whether the archive came from the cache.
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the ffmpeg archive
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/ffmpeg.tar.xz
+        key: ffmpeg-${{ inputs.sha256 }}
+
+    - name: Download the ffmpeg archive
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        RELEASE: ${{ inputs.release }}
+        ARCHIVE: ${{ inputs.archive }}
+      run: |
+        set -euo pipefail
+        curl --fail --silent --show-error --location \
+          --retry 5 --retry-all-errors --retry-delay 5 --max-time 300 \
+          -o "$RUNNER_TEMP/ffmpeg.tar.xz" \
+          "https://github.com/BtbN/FFmpeg-Builds/releases/download/$RELEASE/$ARCHIVE.tar.xz"
+
+    - name: Verify, install and prove ffmpeg
+      id: install
+      shell: bash
+      env:
+        ARCHIVE: ${{ inputs.archive }}
+        SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        archive="$RUNNER_TEMP/ffmpeg.tar.xz"
+        echo "$SHA256  $archive" | sha256sum --check --strict -
+        echo "archive=$archive" >> "$GITHUB_OUTPUT"
+        bin="$RUNNER_TEMP/ffmpeg-bin"
+        mkdir -p "$bin"
+        tar -xJf "$archive" --strip-components=2 -C "$bin" \
+          "$ARCHIVE/bin/ffmpeg" "$ARCHIVE/bin/ffprobe"
+        echo "$bin" >> "$GITHUB_PATH"
+        export PATH="$bin:$PATH"
+        ffmpeg -version | head -1
+        ffprobe -version | head -1
+        # Prove encoding, probing AND decoding in the two containers used by
+        # production renditions. A binary crash fails installation, not a suite.
+        probe_dir=$(mktemp -d)
+        trap 'rm -rf "$probe_dir"' EXIT
+        for extension in mp4 ts; do
+          ffmpeg -hide_banner -loglevel error -f lavfi \
+            -i testsrc=size=64x64:rate=10:duration=1 \
+            -c:v libx264 -pix_fmt yuv420p -y "$probe_dir/probe.$extension"
+          codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
+            -of json "$probe_dir/probe.$extension" | jq -r '.streams[0].codec_name')
+          if [ "$codec" != h264 ]; then
+            echo "::error::ffmpeg encoded '$codec', not h264, in $extension"
+            exit 1
+          fi
+          ffmpeg -hide_banner -loglevel error -i "$probe_dir/probe.$extension" -f null -
+        done
+        echo "ffmpeg/ffprobe encode, probe and decode H.264 in MP4 and MPEG-TS"
