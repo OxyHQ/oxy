@@ -1,3 +1,4 @@
+import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
@@ -3559,13 +3560,17 @@ router.post(
     // fallback to the progressive original, once per video per play. Measured in
     // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     // `ownerUserId` is the one exception to "no owner ids", and it is granted
-    // only to verified first-party workload authority. Branding an external
-    // credential as internal never reveals ownership. A first-party service that is handed an asset id by a user
-    // (Mention ingesting a post from Oxy Move) must be able to check the asset is
+    // only to verified first-party workload authority, plus the exact live legacy
+    // workload cohort during reader-first rollout. The scope check above still
+    // requires the old token and live binding to retain files:read. Branding an
+    // external credential as internal never reveals ownership. A service handed
+    // an asset id by a user (Mention ingesting a post from Oxy Move) must be able to check the asset is
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner = req.serviceApp?.authority === 'first_party';
+    const revealOwner =
+      req.serviceApp?.authority === 'first_party' ||
+      Boolean(req.serviceApp && (await resolveLegacyResourceWorkload(req.serviceApp)));
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {

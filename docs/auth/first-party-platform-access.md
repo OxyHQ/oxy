@@ -86,3 +86,11 @@ revoked or expired sockets, and serializes outgoing batches so a heartbeat canno
 overtake a pending revocation. The SDK drops cached session validations when the
 feed disconnects or loses its heartbeat. Retire the legacy feed admission with
 the rest of the protocol-v1 cohort after consumer rollout.
+
+During the same finite transition, `/assets/service/by-ids` preserves owner
+metadata for the exact live legacy workload cohort, after its signed and live
+`files:read` intersection succeeds. Mention's existing importer needs this field
+to reject files owned by another account. This response-only bridge does not
+promote the caller's authority or grant access to file contents, and customer
+keys remain excluded even on official applications. Remove this projection
+bridge when these consumers use protocol v2.
