@@ -1,5 +1,9 @@
 # ADR 0026 — A first-party service proves what it IS, not what it knows
 
+> Internal scope lists are superseded by [ADR 0049](0049-first-party-platform-authority.md).
+> Workload proof and live identity remain required; see its migration tracker for rollout.
+
+
 - Status: accepted
 - Date: 2026-09-18
 - Amended: 2026-09-19 — a binding row may NAME scopes (see "A binding names the
