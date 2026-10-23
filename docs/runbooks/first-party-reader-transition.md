@@ -20,6 +20,11 @@ Workload caches and in-flight exchanges are separated by audience AND protocol.
 The public low-level `requestWorkloadServiceToken()` also remains v2. There is no
 public protocol option.
 
+Shared transport cancellation covers identity preparation as well as the product
+request. Cancelling one consumer does not cancel another consumer's shared mint;
+the exchange has its own 15-second deadline, including temporary credential
+resolution. Authority requests reject redirects and omit ambient cookies.
+
 The API's `legacyResourceWorkload.service.ts` projects a v1 workload as own only
 after signature verification for exact `oxy-api`, a live binding with explicit
 matching environment, active own application and owner, matching token identity,
