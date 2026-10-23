@@ -13,18 +13,16 @@ describe('General draft', () => {
     expect(isDraftDirty(application, draftFromApplication(application))).toBe(false);
   });
 
-  it('is dirty after a field, a redirect URI or a scope changes', () => {
+  it('is dirty after a field or a redirect URI changes', () => {
     const base = draftFromApplication(application);
     expect(isDraftDirty(application, { ...base, name: 'Atlas 2' })).toBe(true);
     expect(isDraftDirty(application, { ...base, redirectUris: [] })).toBe(true);
-    expect(isDraftDirty(application, { ...base, paymentsWrite: true })).toBe(true);
-    expect(isDraftDirty(application, { ...base, aliaMachineAccess: true })).toBe(true);
   });
 
   it('reads an unset optional column as the empty string', () => {
     const draft = draftFromApplication(application);
     expect(draft.websiteUrl).toBe('');
-    expect(draft.paymentsRead).toBe(true);
-    expect(draft.paymentsWrite).toBe(false);
+    expect(draft).not.toHaveProperty('paymentsRead');
+    expect(draft).not.toHaveProperty('aliaMachineAccess');
   });
 });

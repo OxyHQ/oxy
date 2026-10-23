@@ -190,14 +190,6 @@ const en: LocaleDict = {
       redirectBody:
         'Exact-match allowlist for OAuth redirects. Add each URI your application uses.',
       redirectRemove: 'Remove {{uri}}',
-      paymentsTitle: 'Payments permissions',
-      paymentsBody:
-        'Grant payments scopes before creating a service credential for payment integrations.',
-      aliaTitle: 'Alia chat and inference',
-      aliaBody:
-        'App-only Alia chat, billed to this application. Select both capabilities when creating an API key.',
-      aliaToggle: 'Alia chat and inference',
-      aliaToggleHint: 'Grant or remove both application capabilities',
       idTitle: 'Application ID',
       idBody: 'Reference this application by its ID.',
       idCopy: 'Copy application ID',
@@ -232,11 +224,11 @@ const en: LocaleDict = {
       typeHints: {
         public: 'Browser and mobile clients that cannot keep a secret.',
         confidential: 'Server-side clients that authenticate with a client secret.',
-        service: 'Server-to-server access, such as payments.',
+        service: 'External server-to-server access with explicitly selected scopes.',
         machine: 'A single bearer API key with the scopes you pick.',
       },
-      title: 'Credentials',
-      subtitle: 'Client IDs and secrets used to authenticate this application.',
+      title: 'API keys and OAuth clients',
+      subtitle: 'OAuth client registrations and scoped credentials for external API access.',
       create: 'Create credential',
       createTitle: 'Create credential',
       createBody: 'Generate a new client ID and secret for this application.',
@@ -248,17 +240,30 @@ const en: LocaleDict = {
       types: {
         public: 'Public',
         confidential: 'Confidential',
-        service: 'Service',
+        service: 'External service',
         machine: 'API key (machine)',
       },
       environment: 'Environment',
       environments: { development: 'Development', staging: 'Staging', production: 'Production' },
       scopes: 'Scopes',
-      enablePayments: 'Enable payments scopes under General before creating a service credential.',
-      thirdPartyPayments:
-        'Third-party applications must request payments-only scopes for service credentials.',
+      externalCredentialBody:
+        'Service credentials and API keys have external, scoped access, including keys issued for Oxy applications. Oxy backends use workload identity.',
+      explicitScopes: 'Select at least one scope. Only the selected scopes are included in this credential.',
       grantScopeFirst:
-        'Grant this application at least one scope under General before creating an API key.',
+        'Configure an eligible API product on this page before creating a credential. Third-party service credentials support payments and application files.',
+      workloadTitle: 'Oxy backend identity',
+      workloadBody:
+        'Oxy backends use registered workload identities bound to an environment, without API keys or scopes between Oxy applications. Role bindings are managed by deployment operators. These settings do not report whether a binding is active.',
+      workloadAudience: 'Standard Oxy service audience:',
+      accessTitle: 'External API products',
+      accessBody:
+        'These scopes limit API keys and external clients registered to this application. They do not control Oxy workload access. Each credential selects its own scopes within this limit; external OAuth clients also require user consent.',
+      paymentsTitle: 'Payments API',
+      aliaTitle: 'Alia chat and inference API',
+      aliaBody:
+        'Makes both scopes available for external API keys. Usage is billed to this application.',
+      saveAccess: 'Save external API products',
+      accessSaved: 'External API products updated',
       apiKeyHint:
         'An API key is a single bearer string. It is shown once on creation and once on each rotation, and can never be read back.',
       created: 'Credential created',
