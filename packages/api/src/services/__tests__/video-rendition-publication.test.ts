@@ -23,8 +23,7 @@ jest.mock('../cdnInvalidation', () => ({
 interface EncodingHarness {
   extractVideoMetadataFromUrl(): Promise<{ width: number; height: number; duration: number }>;
   generatePosterFrame(): Promise<NewFileVariant>;
-  generateVideoVariant(): Promise<NewFileVariant>;
-  generateHLSStream(): Promise<NewFileVariant[]>;
+  generateVideoRenditions(): Promise<NewFileVariant[]>;
 }
 
 const sha = () => randomBytes(32).toString('hex');
@@ -62,16 +61,14 @@ function encoder() {
   jest
     .spyOn(harness, 'generatePosterFrame')
     .mockResolvedValue({ type: 'poster', key: 'new/poster.jpg', readyAt: new Date() });
-  const mp4 = jest
-    .spyOn(harness, 'generateVideoVariant')
-    .mockResolvedValue({ type: '360p', key: 'new/360p.mp4', readyAt: new Date() });
-  const hls = jest
-    .spyOn(harness, 'generateHLSStream')
+  const renditions = jest
+    .spyOn(harness, 'generateVideoRenditions')
     .mockResolvedValue([
+      { type: '360p', key: 'new/360p.mp4', readyAt: new Date() },
       { type: 'hls_360p', key: 'new/hls_360p.m3u8', readyAt: new Date() },
       currentMaster(),
     ]);
-  return { service, hls, mp4, s3 };
+  return { service, renditions, s3 };
 }
 
 beforeAll(connectPostgres);
@@ -89,8 +86,8 @@ it('keeps the original, complete old ladder and metadata when a replacement fail
     { metadata: { media: { width: 180, height: 320 } } },
   );
   const before = await findFileById(original.id);
-  const { service, hls } = encoder();
-  hls.mockRejectedValue(new Error('segment upload failed'));
+  const { service, renditions } = encoder();
+  renditions.mockRejectedValue(new Error('segment upload failed'));
   await expect(service.generateVariants(original.id, { reencode: true })).rejects.toThrow(
     'segment upload failed',
   );
@@ -143,9 +140,9 @@ it('never reuses a legacy twin ladder for a new upload', async () => {
     readyAt: new Date(),
   });
   const fresh = await file(old.sha256);
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(fresh.id);
-  expect(mp4).toHaveBeenCalled();
+  expect(renditions).toHaveBeenCalled();
   expect(
     (await findFileById(fresh.id))?.variants.find((variant) => variant.type === 'hls_master')
       ?.metadata?.encodingProfile,
@@ -280,8 +277,8 @@ it('records historical roots across twin copying and visibility/deletion targets
 
 it('records first-generation ownership before encoding so failed new uploads can be purged', async () => {
   const original = await file(undefined, 'public');
-  const { service, hls } = encoder();
-  hls.mockRejectedValue(new Error('first HLS upload failed'));
+  const { service, renditions } = encoder();
+  renditions.mockRejectedValue(new Error('first HLS upload failed'));
   await expect(service.generateVariants(original.id)).rejects.toThrow('first HLS upload failed');
   const failed = await findFileById(original.id);
   if (!failed) throw new Error('File disappeared');
@@ -331,10 +328,9 @@ it('skips a completed video encode and upgrades only outdated twins in the same 
   const beforeSource = await findFileById(source.id);
   const beforeCurrent = await findFileById(currentTwin.id);
   const beforePublic = await findFileById(publicTwin.id);
-  const { service, mp4, hls } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(source.id);
-  expect(mp4).not.toHaveBeenCalled();
-  expect(hls).not.toHaveBeenCalled();
+  expect(renditions).not.toHaveBeenCalled();
   expect((await findFileById(source.id))?.variants).toEqual(beforeSource?.variants);
   expect(hasCurrentVideoRenditions((await findFileById(staleTwin.id)) ?? { variants: [] })).toBe(
     true,
@@ -348,30 +344,30 @@ it('upgrades legacy twins after a normal queued video job and makes its replay a
   const twin = await file(source.sha256);
   for (const row of [source, twin])
     await upsertVariantSet(row.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(source.id);
-  expect(mp4).toHaveBeenCalledTimes(1);
+  expect(renditions).toHaveBeenCalledTimes(1);
   expect(hasCurrentVideoRenditions((await findFileById(twin.id)) ?? { variants: [] })).toBe(true);
   await service.generateVariants(source.id);
   await service.generateVariants(twin.id);
-  expect(mp4).toHaveBeenCalledTimes(1);
+  expect(renditions).toHaveBeenCalledTimes(1);
 });
 
 it('honors an explicit re-encode even when the video profile is already current', async () => {
   const source = await file();
   await upsertVariantSet(source.id, [currentMaster()]);
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(source.id, { reencode: true });
-  expect(mp4).toHaveBeenCalledTimes(1);
+  expect(renditions).toHaveBeenCalledTimes(1);
 });
 
 it('does not render a video that left the active state while its request waited', async () => {
   const source = await file();
   const { updateFile } = await import('../fileRepository');
   await updateFile(source.id, { status: 'trash' });
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(source.id);
-  expect(mp4).not.toHaveBeenCalled();
+  expect(renditions).not.toHaveBeenCalled();
 });
 
 it('finds a complete current twin beyond older legacy owners without re-encoding', async () => {
@@ -382,8 +378,8 @@ it('finds a complete current twin beyond older legacy owners without re-encoding
   }
   const current = await file(target.sha256);
   await upsertVariantSet(current.id, [currentMaster()]);
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(target.id);
-  expect(mp4).not.toHaveBeenCalled();
+  expect(renditions).not.toHaveBeenCalled();
   expect(hasCurrentVideoRenditions((await findFileById(target.id)) ?? { variants: [] })).toBe(true);
 });

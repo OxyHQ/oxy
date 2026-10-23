@@ -207,6 +207,14 @@ one tier calculation; HLS has aligned two-second segments. MP4 stores its index
 at the beginning of the file. The HLS master advertises the encoded dimensions
 and measured segment bandwidth.
 
+Each tier is encoded once into a local faststart MP4 with closed GOPs and
+keyframes at two-second boundaries. HLS remuxes that same H.264/AAC stream
+without another decode or encode; the retained MP4 is removed after remuxing,
+and the generation's temporary directory is removed on success or failure.
+Lazy MP4 creation uses the same encoder without building HLS. This optimization
+preserves the `video-v2` playback contract: existing valid generations remain
+current and are not regenerated merely because the encoder does less work.
+
 A complete video set uses a `video-v2/<generation>` directory. Segments upload
 before rendition playlists; the master uploads last. Only after the whole set
 succeeds does one transaction replace the video rows and intrinsic metadata.
