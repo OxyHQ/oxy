@@ -1,5 +1,9 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased
+
+- Service transports expose `fetchReplayable(url, { bodyFactory, ...init })` for streaming uploads. The factory opens a fresh body after authentication, and reopens it only once after a 401 and successful credential refresh. Network errors, redirects, rate limits and server errors never trigger an upload replay. The transport preserves fixed requester identity, origin validation, cancellation and zero-cookie behavior without buffering the upload.
+
 ## 7.0.0
 
 ### Breaking

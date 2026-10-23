@@ -42,6 +42,19 @@ Public reads, person-bound calls and asynchronous operations are distinct:
 a worker retains the original account and operation binding, not a persistent
 copy of the user's bearer or a caller-supplied user ID.
 
+For streaming uploads, a product SDK can call the service transport's
+`fetchReplayable(url, { method: 'POST', bodyFactory, signal, headers })`.
+`bodyFactory` synchronously opens a fresh `BodyInit` (for example `Bun.file(path)`
+or a file-backed `ReadableStream`) after authentication succeeds. It must return
+the same logical content on each call. Core invokes it again only after one
+explicit 401 refusal and successful credential refresh; it cancels the refused
+response and preserves the original requester context. A network error, 429,
+5xx or redirect never triggers a replay. Ordinary `fetch` does not replay
+stream bodies. Keep the operation's idempotency header stable and provide its
+abort signal; the transport does not buffer files or create a separate timeout
+policy. Product code never handles bearer refresh or adds a retry around this
+transport.
+
 ## Authentication surfaces
 
 Own sign-in is the ordinary account dialog/Commons confirmation of a sign-in,
