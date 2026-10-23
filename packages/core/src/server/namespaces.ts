@@ -273,7 +273,7 @@ export class ServerAssetsApi extends AssetsApi {
       request: (method, url, data, options) =>
         original.request(method, url, data, { ...options, ...fixed }),
     };
-    return new ServerAssetsApi({ ...this.ctx, service });
+    return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
   }
 
   /**
