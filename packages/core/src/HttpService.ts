@@ -1695,6 +1695,40 @@ export class HttpService {
     return this.requestRawResponse(config, false);
   }
 
+  /** Fresh session bearer for an origin-bound non-HTTP handshake (for example a socket).
+   * Uses the same refresh and account/session fences as authenticated fetch.
+   * An anonymous provider can never substitute for the person's session.
+   */
+  async getAuthenticatedAccessToken(
+    url: string | URL,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<string> {
+    const base = new URL(this.baseURL);
+    const target = new URL(String(url), base);
+    if (target.protocol === 'wss:') target.protocol = 'https:';
+    else if (target.protocol === 'ws:') target.protocol = 'http:';
+    if (
+      target.origin !== base.origin ||
+      !['http:', 'https:'].includes(target.protocol) ||
+      target.username ||
+      target.password
+    )
+      throw new Error('Session credentials must target the configured API origin');
+    if (options.signal?.aborted) throw createCancelledError();
+    const contextToken = this.syncAccessTokenFromProvider();
+    if (!contextToken)
+      throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
+    const beforeAuthEpoch = this.sessionEpoch;
+    const authHeader = await awaitRequestSignal(this.getAuthHeader(), options.signal);
+    const currentToken = this.syncAccessTokenFromProvider();
+    if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, currentToken))
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    if (options.signal?.aborted) throw createCancelledError();
+    if (!authHeader?.startsWith('Bearer '))
+      throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
+    return authHeader.slice('Bearer '.length);
+  }
+
   private async requestRawResponse(
     config: ResponseRequest,
     requireAuth: boolean,
