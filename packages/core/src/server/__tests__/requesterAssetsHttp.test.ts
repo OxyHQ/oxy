@@ -191,3 +191,43 @@ it('keeps an external MCP media proof separate and confines it to its exact medi
     );
   }
 });
+
+it('keeps forwarded contexts isolated across namespace reads and strips a forged presented service token', async () => {
+  const seen: unknown[] = [];
+  let revoked = false;
+  const server = createServer((req, res) => {
+    const proof = req.headers['x-oxy-requester-context'];
+    seen.push(proof);
+    expect(req.headers['x-oxy-presented-service-token']).toBeUndefined();
+    expect(req.headers['x-oxy-presented-requester-context']).toBeUndefined();
+    res.writeHead(revoked ? 403 : 200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(revoked ? { error: 'revoked' } : { data: { proof } }));
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({ baseURL, enableRetry: false });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('workload');
+  try {
+    const a = oxy.withRequester({ requesterContext: 'context-A' }),
+      b = oxy.withRequester({ requesterContext: 'context-B' });
+    const answers = await Promise.all([
+      a.request('GET', '/users/me/graph', undefined, {
+        headers: {
+          'X-Oxy-Presented-Service-Token': 'forged',
+          'X-Oxy-Presented-Requester-Context': 'forged',
+        },
+      }),
+      b.request('GET', '/users/me/graph'),
+    ]);
+    expect(answers).toEqual([{ proof: 'context-A' }, { proof: 'context-B' }]);
+    revoked = true;
+    await expect(a.request('GET', '/users/me/graph')).rejects.toBeDefined();
+    expect(seen.slice(0, 2).sort()).toEqual(['context-A', 'context-B']);
+    expect(seen.slice(2)).toEqual(['context-A']);
+  } finally {
+    oxy.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});

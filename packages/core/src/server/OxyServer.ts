@@ -172,6 +172,8 @@ export interface ActingAsVerificationOptions {
   environment?: string;
   /** Original user-session bearer; never an arbitrary user id. */
   requesterToken?: string;
+  requesterContext?: string;
+  presentedServiceToken?: string;
   taskId?: string;
 }
 
@@ -236,8 +238,9 @@ export interface ServiceClientOptions {
   audience: ServiceTokenAudience;
   /** A verified user session, never an arbitrary user id without proof. */
   requester?: { accountId: string } & (
-    | { token: string; taskId?: never }
-    | { taskId: string; token?: never }
+    | { token: string; taskId?: never; requesterContext?: never }
+    | { taskId: string; token?: never; requesterContext?: never }
+    | { requesterContext: string; token?: never; taskId?: never }
   );
 }
 export interface ServiceHttpClient {
@@ -358,8 +361,10 @@ export class OxyServer extends OxyServices {
     if (
       requester &&
       (!requester.accountId.trim() ||
-        !(requester.token ?? requester.taskId)?.trim() ||
-        !!(requester.token && requester.taskId))
+        !(requester.token ?? requester.taskId ?? requester.requesterContext)?.trim() ||
+        [requester.token, requester.taskId, requester.requesterContext].filter(
+          (proof) => proof !== undefined,
+        ).length !== 1)
     )
       throw new Error('A requester requires an account id and session proof');
     const mint = () => this.workloadServiceToken(options.audience);
@@ -382,10 +387,18 @@ export class OxyServer extends OxyServices {
         headers.delete('X-Oxy-User-Id');
         headers.delete('X-Oxy-Requester-Token');
         headers.delete('X-Oxy-Task-Id');
+        headers.delete('X-Oxy-Requester-Context');
+        headers.delete('X-Oxy-Capability-Ticket');
+        headers.delete('X-Oxy-Mcp-Media-Token');
+        headers.delete('X-Oxy-Mcp-Media-Tool');
+        headers.delete('X-Oxy-Presented-Requester-Context');
+        headers.delete('X-Oxy-Presented-Service-Token');
         if (requester) {
           headers.set('X-Oxy-User-Id', requester.accountId);
           if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
           if (requester.taskId) headers.set('X-Oxy-Task-Id', requester.taskId);
+          if (requester.requesterContext)
+            headers.set('X-Oxy-Requester-Context', requester.requesterContext);
         }
         return fetch(input, { ...init, headers });
       },
@@ -683,6 +696,7 @@ export class OxyServer extends OxyServices {
       requesterToken?: string;
       taskId?: string;
       capabilityTicket?: string;
+      requesterContext?: string;
       serviceTokenScopes?: string[];
     } = {},
   ): Promise<ResponsePayload<T>> {
@@ -704,6 +718,7 @@ export class OxyServer extends OxyServices {
       requesterToken,
       taskId,
       capabilityTicket,
+      requesterContext,
       headers,
       serviceTokenScopes,
       ...rest
@@ -712,16 +727,21 @@ export class OxyServer extends OxyServices {
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     if (
-      [requesterToken, taskId, capabilityTicket].filter((proof) => proof !== undefined).length > 1
+      [requesterToken, taskId, capabilityTicket, requesterContext].filter(
+        (proof) => proof !== undefined,
+      ).length > 1
     )
       throw new Error('Provide one requester proof');
     if (requesterToken) merged['X-Oxy-Requester-Token'] = requesterToken;
     if (taskId) merged['X-Oxy-Task-Id'] = taskId;
     if (capabilityTicket) merged['X-Oxy-Capability-Ticket'] = capabilityTicket;
+    if (requesterContext) merged['X-Oxy-Requester-Context'] = requesterContext;
     return this.request<T>(method, target.href, data, {
       cache: false,
       ...rest,
-      ...([requesterToken, taskId, capabilityTicket].some((proof) => proof !== undefined)
+      ...([requesterToken, taskId, capabilityTicket, requesterContext].some(
+        (proof) => proof !== undefined,
+      )
         ? { cache: false, deduplicate: false, retry: false }
         : {}),
       headers: merged,
@@ -802,7 +822,13 @@ export class OxyServer extends OxyServices {
     userId: string,
     options: ActingAsVerificationOptions = {},
   ): Promise<ServiceActingAsVerification | null> {
-    if (options.requesterToken || options.taskId) options = { ...options, cache: false };
+    if (
+      options.requesterToken ||
+      options.taskId ||
+      options.requesterContext ||
+      options.presentedServiceToken
+    )
+      options = { ...options, cache: false };
     const pair = JSON.stringify([appId, userId]);
     const cacheKey = JSON.stringify([
       appId,
@@ -1062,6 +1088,12 @@ export class OxyServer extends OxyServices {
           headers: {
             Authorization: `Bearer ${serviceToken}`,
             ...(options.requesterToken ? { 'X-Oxy-Requester-Token': options.requesterToken } : {}),
+            ...(options.requesterContext
+              ? { 'X-Oxy-Presented-Requester-Context': options.requesterContext }
+              : {}),
+            ...(options.presentedServiceToken
+              ? { 'X-Oxy-Presented-Service-Token': options.presentedServiceToken }
+              : {}),
           },
         },
       );
@@ -1078,14 +1110,25 @@ export class OxyServer extends OxyServices {
       if (epoch > 9223372036854775807n) return null;
       if (result.authority === 'first_party') {
         if (
-          (!options.requesterToken && !options.taskId) ||
+          (!options.requesterToken && !options.taskId && !options.requesterContext) ||
+          (options.presentedServiceToken &&
+            (typeof result.requesterContext !== 'string' ||
+              !result.requesterContext ||
+              result.requesterContext.length > 16384)) ||
           result.authorized !== true ||
           result.scopes !== undefined ||
           epoch < generation.epoch
         )
           return null;
         generation.epoch = epoch;
-        return { authorized: true, authority: 'first_party', epoch: rawEpoch };
+        return {
+          authorized: true,
+          authority: 'first_party',
+          epoch: rawEpoch,
+          ...(typeof result.requesterContext === 'string'
+            ? { requesterContext: result.requesterContext }
+            : {}),
+        };
       }
       if (
         (result.authority !== undefined && result.authority !== 'external') ||
