@@ -761,7 +761,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             decoded.aud === OXY_JWT_AUDIENCE &&
             credentialId.startsWith('wl_');
           let effectiveScopes = decoded.scopes as string[];
-          if (firstParty || legacyCandidate) {
+          if (firstParty || expectedAudience.startsWith('oxy-service:')) {
             let live: ServiceIntrospection | undefined;
             try {
               live = await host.introspectServiceToken?.(token);
@@ -775,11 +775,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (
               !live.active ||
               (firstParty && live.authority !== 'first_party') ||
+              (!firstParty && !legacyCandidate && live.authority !== 'external') ||
               live.applicationId !== appId ||
               live.credentialId !== credentialId ||
               live.accountId !== ownerAccountId ||
               live.environment !== environment ||
-              live.audience !== (legacyCandidate ? OXY_JWT_AUDIENCE : expectedAudience) ||
+              live.audience !== decoded.aud ||
               Date.parse(live.expiresAt) !== (decoded.exp as number) * 1000 ||
               Date.parse(live.expiresAt) <= Date.now()
             ) {
@@ -788,7 +789,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                 .json({ code: 'INVALID_SERVICE_TOKEN', message: 'Service identity is inactive' });
             }
             firstParty = live.authority === 'first_party';
-            if (live.authority === 'external') effectiveScopes = live.scopes;
+            if (live.authority === 'external')
+              effectiveScopes = effectiveScopes.filter((scope) => live.scopes.includes(scope));
           }
 
           // Branding in a legacy/customer JWT never implies own authority.
