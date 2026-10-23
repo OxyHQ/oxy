@@ -36,6 +36,8 @@ import type { AddressInfo } from 'node:net';
 // session speaks as a managed account; a missing or unreadable session leaves
 // only the subject.
 jest.mock('../../middleware/auth', () => ({
+  serviceAuthMiddleware: (...args: unknown[]) =>
+    jest.requireActual('../../middleware/auth').serviceAuthMiddleware(...args),
   authMiddleware: (
     req: {
       user?: { _id: string; id: string; isStaff: boolean };
