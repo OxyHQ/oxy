@@ -101,6 +101,8 @@ export interface ResponseRequest {
   method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   body?: BodyInit;
+  /** Reopen a body per attempt; authorizes only the single rejected-auth (401) replay. */
+  bodyFactory?: () => BodyInit;
   headers?: HeadersInit;
   signal?: AbortSignal;
   /** Must honour the supplied URL, headers, signal and redirect policy. */
@@ -1712,6 +1714,13 @@ export class HttpService {
       throw new Error('Raw response requests must target the configured API origin');
     }
     if (config.signal?.aborted) throw createCancelledError();
+    if (
+      config.bodyFactory &&
+      (config.body !== undefined || ['GET', 'HEAD'].includes(config.method))
+    )
+      throw new TypeError(
+        'A replayable request requires a body factory and a body-carrying method',
+      );
     // Snapshot caller-owned options once, including headers, before any await.
     const request = { ...config, headers: new Headers(config.headers) };
     const contextToken = this.syncAccessTokenFromProvider();
@@ -1780,7 +1789,12 @@ export class HttpService {
     }
 
     try {
-      const body = config.method === 'GET' || config.method === 'HEAD' ? undefined : config.body;
+      const body =
+        config.method === 'GET' || config.method === 'HEAD'
+          ? undefined
+          : config.bodyFactory
+            ? config.bodyFactory()
+            : config.body;
       const init: RequestInit & { duplex?: 'half' } = {
         method: config.method,
         headers,
@@ -1799,7 +1813,8 @@ export class HttpService {
         await response.body?.cancel();
         throw error;
       }
-      const replayable = body === undefined || typeof body === 'string';
+      const replayable =
+        Boolean(config.bodyFactory) || body === undefined || typeof body === 'string';
       if (
         response.status === 401 &&
         !isAuthRetry &&

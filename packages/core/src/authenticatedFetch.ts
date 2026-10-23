@@ -9,6 +9,7 @@ export function createAuthenticatedFetch(
     prepare?: () => Promise<void>;
     disposed?: () => boolean;
     session?: 'required' | 'optional';
+    bodyFactory?: () => BodyInit;
   } = {},
 ): typeof globalThis.fetch {
   return async (input, init) => {
@@ -23,13 +24,16 @@ export function createAuthenticatedFetch(
     const signal = init?.signal === undefined ? request?.signal : (init.signal ?? undefined);
     if (signal?.aborted) throw signal.reason ?? new Error('Request aborted');
     const body = init?.body ?? request?.body ?? undefined;
-    if ((method === 'GET' || method === 'HEAD') && body !== undefined)
+    if ((method === 'GET' || method === 'HEAD') && (body !== undefined || options.bodyFactory))
       throw new TypeError('GET and HEAD requests cannot have a body');
+    if (options.bodyFactory && body !== undefined)
+      throw new TypeError('A replayable request cannot also supply a body');
     const config: ResponseRequest = {
       url: url.href,
       method: method as ResponseRequest['method'],
       headers: new Headers(init?.headers ?? request?.headers),
       body,
+      bodyFactory: options.bodyFactory,
       signal,
     };
     if (options.prepare) await awaitRequestSignal(options.prepare(), signal);

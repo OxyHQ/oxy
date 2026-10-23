@@ -259,10 +259,17 @@ export type ServiceClientOptions = { baseURL: string } & (
 );
 export interface ServiceHttpClient {
   fetch: typeof globalThis.fetch;
+  /** Streaming uploads: reopen only after one explicit authentication refusal, never a network failure. */
+  fetchReplayable(input: string | URL, init: ReplayableRequestInit): Promise<Response>;
   /** For product SDK protocols such as WebSocket; validates the destination before minting. */
   getAccessToken(target: string | URL, options?: { signal?: AbortSignal }): Promise<string>;
   dispose(): void;
 }
+
+export type ReplayableRequestInit = Omit<RequestInit, 'body'> & {
+  /** Called after authentication, once per attempt. Return a fresh body without buffering the file. */
+  bodyFactory: () => BodyInit;
+};
 
 /** What `serviceToken()` mints, and what Oxy assumes when no audience is sent. */
 export const DEFAULT_SERVICE_TOKEN_AUDIENCE: ServiceTokenAudience = 'oxy-api';
@@ -402,13 +409,40 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.delete(audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:2`));
       return mint();
     });
-    const fetch = createAuthenticatedFetch(client, options.baseURL, {
+    const fetchOptions = {
       disposed: () => disposed,
       prepare: async () => {
         const token = await mint();
         if (!disposed) client.setTokens(token);
       },
-    });
+    };
+    const fetch = createAuthenticatedFetch(client, options.baseURL, fetchOptions);
+    const authorityHeaders = (input: RequestInfo | URL, init?: RequestInit): Headers => {
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined),
+      );
+      for (const name of [
+        'X-Oxy-User-Id',
+        'X-Oxy-Requester-Token',
+        'X-Oxy-Task-Id',
+        'X-Oxy-Requester-Context',
+        'X-Oxy-Capability-Ticket',
+        'X-Oxy-Mcp-Media-Token',
+        'X-Oxy-Mcp-Media-Tool',
+        'X-Oxy-Presented-Requester-Context',
+        'X-Oxy-Presented-Service-Token',
+      ])
+        headers.delete(name);
+      if (attribution) headers.set('X-Oxy-User-Id', attribution);
+      if (requester) {
+        headers.set('X-Oxy-User-Id', requester.accountId);
+        if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
+        if (requester.taskId) headers.set('X-Oxy-Task-Id', requester.taskId);
+        if (requester.requesterContext)
+          headers.set('X-Oxy-Requester-Context', requester.requesterContext);
+      }
+      return headers;
+    };
     return {
       getAccessToken: async (target, requestOptions) => {
         if (disposed) throw new Error('The authenticated transport has been disposed');
@@ -430,27 +464,16 @@ export class OxyServer extends OxyServices {
         return token;
       },
       fetch: (input, init) => {
-        const headers = new Headers(
-          init?.headers ?? (input instanceof Request ? input.headers : undefined),
-        );
-        headers.delete('X-Oxy-User-Id');
-        headers.delete('X-Oxy-Requester-Token');
-        headers.delete('X-Oxy-Task-Id');
-        headers.delete('X-Oxy-Requester-Context');
-        headers.delete('X-Oxy-Capability-Ticket');
-        headers.delete('X-Oxy-Mcp-Media-Token');
-        headers.delete('X-Oxy-Mcp-Media-Tool');
-        headers.delete('X-Oxy-Presented-Requester-Context');
-        headers.delete('X-Oxy-Presented-Service-Token');
-        if (attribution) headers.set('X-Oxy-User-Id', attribution);
-        if (requester) {
-          headers.set('X-Oxy-User-Id', requester.accountId);
-          if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
-          if (requester.taskId) headers.set('X-Oxy-Task-Id', requester.taskId);
-          if (requester.requesterContext)
-            headers.set('X-Oxy-Requester-Context', requester.requesterContext);
-        }
-        return fetch(input, { ...init, headers });
+        return fetch(input, { ...init, headers: authorityHeaders(input, init) });
+      },
+      fetchReplayable: (input, init) => {
+        if (typeof init.bodyFactory !== 'function')
+          return Promise.reject(new TypeError('A replayable request requires a body factory'));
+        const { bodyFactory, ...requestInit } = init;
+        return createAuthenticatedFetch(client, options.baseURL, {
+          ...fetchOptions,
+          bodyFactory,
+        })(input, { ...requestInit, headers: authorityHeaders(input, requestInit) });
       },
       dispose: () => {
         disposed = true;
