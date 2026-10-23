@@ -133,6 +133,7 @@ const CONTROL_VALUE = 'SURVIVES-VERBATIM-5a1c';
 
 describe('the logger redacts credential-shaped field names', () => {
   it.each([
+    ['subjectToken'],
     ['requesterToken'],
     ['x-oxy-requester-token'],
     ['authorization'],
@@ -247,6 +248,22 @@ it('redacts requester proof headers in request and transport contexts', () => {
         requestId: CONTROL_VALUE,
       }),
     'requester proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
+
+it('redacts ephemeral task creation proof nested in a request body', () => {
+  const value = secret('task-subject-proof');
+  const lines = capture(
+    () =>
+      logger.info('task proof probe', {
+        req: { body: { subjectToken: value, requesterToken: value } },
+        body: { subjectToken: value, requesterToken: value },
+        requestId: CONTROL_VALUE,
+      }),
+    'task proof probe',
   );
   expect(lines).toHaveLength(1);
   expect(lines[0].raw).not.toContain(value);

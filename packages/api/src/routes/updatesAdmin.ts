@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Authenticated Oxy Updates publish/admin API (`/updates/v1/...`). Called by the
  * `oxy-ship` CLI (service token) and the console Updates tab (user bearer). No
@@ -95,8 +96,7 @@ function authenticatePrincipal(
  */
 async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string): Promise<void> {
   if (req.serviceApp) {
-    const scopes = req.serviceApp.scopes ?? [];
-    if (!scopes.includes('updates:publish')) {
+    if (!hasServiceAuthority(req.serviceApp, 'updates:publish')) {
       throw new ForbiddenError('Missing required scope: updates:publish');
     }
     if (req.serviceApp.appId !== applicationId) {
