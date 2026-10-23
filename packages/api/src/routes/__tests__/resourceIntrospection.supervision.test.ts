@@ -9,6 +9,7 @@ jest.mock('../../middleware/auth', () => ({
   serviceAuthMiddleware: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = {
       appId: CLARITY_BACKEND_APPLICATION_ID,
+      environment: 'production',
     };
     next();
   },

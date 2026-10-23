@@ -31,7 +31,7 @@ export interface LiveAgencyServicePrincipal {
   readonly capabilities: readonly string[];
 }
 
-async function loadPrincipal(applicationId: string, credentialId: string) {
+async function loadPrincipal(applicationId: string, credentialId: string, requireTrusted = true) {
   const [row] = await getDb()
     .select({
       applicationId: applications.id,
@@ -63,13 +63,13 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
     )
     .limit(1);
   if (
-    !row ||
-    row.applicationStatus !== 'active' ||
-    !isTrustedApplication({
-      type: row.applicationType,
-      isOfficial: row.applicationIsOfficial,
-      isInternal: row.applicationIsInternal,
-    }) ||
+    row?.applicationStatus !== 'active' ||
+    (requireTrusted &&
+      !isTrustedApplication({
+        type: row.applicationType,
+        isOfficial: row.applicationIsOfficial,
+        isInternal: row.applicationIsInternal,
+      })) ||
     row.ownerAccountStatus !== 'active' ||
     row.ownerClosureFence !== null ||
     row.credentialType !== 'service' ||
@@ -141,6 +141,32 @@ export async function resolveLiveAgencyServicePrincipal(
     authority: 'external',
     scopes: intersectScopes(token.scopes ?? [], loaded.scopes),
     capabilities: row.capabilities,
+  };
+}
+
+/** Signed external service authority for a registered resource receiver.
+ * Agency coordinator eligibility stays separate; branding cannot grant own authority.
+ */
+export async function resolveLiveExternalServicePrincipal(
+  token: ServiceTokenPayload,
+): Promise<LiveAgencyServicePrincipal | null> {
+  if (token.authority === 'first_party') return null;
+  if (isWorkloadAttestationHandle(token.credentialId))
+    return resolveLiveAgencyServicePrincipal(token);
+  const loaded = await loadPrincipal(token.appId, token.credentialId, false);
+  if (
+    !loaded ||
+    loaded.row.ownerAccountId !== token.ownerAccountId ||
+    loaded.row.credentialEnvironment !== token.environment
+  )
+    return null;
+  return {
+    applicationId: loaded.row.applicationId,
+    credentialId: loaded.row.credentialId,
+    ownerAccountId: loaded.row.ownerAccountId,
+    authority: 'external',
+    scopes: intersectScopes(token.scopes ?? [], loaded.scopes),
+    capabilities: [],
   };
 }
 
@@ -287,8 +313,7 @@ export async function resolveLiveAgencyWorkload(
     .limit(1);
 
   if (
-    !row ||
-    row.applicationStatus !== 'active' ||
+    row?.applicationStatus !== 'active' ||
     (row.environment === null &&
       !isLegacyWorkloadCohort({ id: row.bindingId, applicationId, provider, subject })) ||
     (row.environment ?? workloadTokenEnvironment()) !== deploymentCredentialEnvironment() ||
