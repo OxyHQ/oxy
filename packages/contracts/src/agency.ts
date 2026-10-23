@@ -123,7 +123,19 @@ export const firstPartyExecutionAuthorizationInputSchema = z
       .default([]),
     expiresAt: z.string().datetime(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (
+      input.kind === 'direct_request'
+        ? !input.runId || input.automationId !== undefined
+        : !input.automationId || input.runId !== undefined || input.stepId !== undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Bind either a direct run or an automation identity.',
+      });
+    }
+  });
 
 export const toolGrantOverrideSchema = z
   .object({
