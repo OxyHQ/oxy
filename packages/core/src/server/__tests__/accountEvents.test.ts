@@ -205,7 +205,10 @@ describe('listAccountEvents', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('reads the pull feed with the service token and passes the cursor', async () => {
-    const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
+    const oxy = new OxyServer({
+      baseURL: 'https://api.oxy.test',
+      serviceAuth: { apiKey: 'external-key', apiSecret: 'external-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-token');
     const page = { events: [], nextCursor: 'cursor-1' };
     const request = jest.spyOn(oxy, 'request').mockResolvedValue(page as never);

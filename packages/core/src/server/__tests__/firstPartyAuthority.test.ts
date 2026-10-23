@@ -126,3 +126,67 @@ it('requires requester proof and preserves the independent billing account', asy
     serviceActingAs: { authority: 'first_party' },
   });
 });
+
+it('promotes a legacy workload only after the central finite-cohort verdict, retaining the original tuple', async () => {
+  const token = signEdDSA(
+    { ...claims, authority: 'external', scopes: ['files:read'], aud: 'oxy-api' },
+    key,
+  );
+  const live = jest
+    .spyOn(oxy, 'introspectServiceToken')
+    .mockResolvedValue({ ...active, audience: 'oxy-api' });
+  const req = request(token);
+  const next = jest.fn();
+  await oxy.middleware.auth({ expectedAudience: audience })(req, response(), next);
+  expect(next).toHaveBeenCalledTimes(1);
+  expect(req).toMatchObject({
+    serviceApp: { authority: 'first_party', tier: 'internal', credentialId: 'wl_sender' },
+  });
+  expect((req as { serviceApp?: unknown }).serviceApp).not.toHaveProperty('scopes');
+  live.mockResolvedValue({ active: false });
+  const res = response();
+  await oxy.middleware.auth({ expectedAudience: audience })(request(token), res, next);
+  expect(res.statusCode).toBe(401);
+  expect(next).toHaveBeenCalledTimes(1);
+});
+it.each([
+  'accountId',
+  'applicationId',
+  'credentialId',
+  'environment',
+  'audience',
+  'expiresAt',
+] as const)(
+  'refuses central legacy projection whose %s differs from the verified token',
+  async (field) => {
+    const token = signEdDSA({ ...claims, authority: 'external', scopes: [], aud: 'oxy-api' }, key);
+    jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
+      ...active,
+      audience: 'oxy-api',
+      [field]: field === 'expiresAt' ? new Date((expiry + 1) * 1000).toISOString() : 'other',
+    } as typeof active);
+    const res = response();
+    const next = jest.fn();
+    await oxy.middleware.auth({ expectedAudience: audience })(request(token), res, next);
+    expect(res.statusCode).toBe(401);
+    expect(next).not.toHaveBeenCalled();
+  },
+);
+it('keeps non-cohort authority external, narrows its live scopes, and ignores legacy tier branding', async () => {
+  const token = signEdDSA(
+    { ...claims, authority: 'external', scopes: ['files:read'], aud: 'oxy-api' },
+    key,
+  );
+  jest
+    .spyOn(oxy, 'introspectServiceToken')
+    .mockResolvedValue({ ...active, authority: 'external', scopes: [], audience: 'oxy-api' });
+  const req = request(token);
+  const next = jest.fn();
+  const res = response();
+  await oxy.middleware.auth({ expectedAudience: audience })(req, res, next);
+  expect(req).toMatchObject({
+    serviceApp: { authority: 'external', tier: 'external', scopes: [] },
+  });
+  oxy.middleware.requireScope('files:read')(req, res, next);
+  expect(res.statusCode).toBe(403);
+});
