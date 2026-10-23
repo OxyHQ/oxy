@@ -68,7 +68,7 @@ describe('service token — workload fallback', () => {
   it('still says "no credentials" where nothing can be attested', async () => {
     process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '';
 
-    await expect(client().serviceToken()).rejects.toThrow(/Service credentials not provided/);
+    await expect(client().serviceToken()).rejects.toThrow(/No workload identity is available/);
     expect(attestations).not.toHaveBeenCalled();
   });
 });
