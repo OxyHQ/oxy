@@ -1,36 +1,4 @@
-/**
- * The credential-free mint, against a real Postgres.
- *
- * The verifier next door proves the attestation is genuine. This file is about
- * what happens AFTER that, which is where the authority decisions live:
- *
- *  1. **A challenge is spent exactly once.** Two exchanges of one attestation
- *     must not both succeed, or a captured attestation is a permanent
- *     impersonation and the nonce bought nothing.
- *  2. **An attested workload nobody bound is refused.** Proving what you are is
- *     not the same as being one of our applications; without this, any role in
- *     the account becomes an Oxy service.
- *  3. **The trust gate is re-applied here.** A binding row should only ever name
- *     an official application, but the mint checks rather than assuming — that
- *     is the difference between a rule and a hope.
- *  4. **An attestation cannot widen authority, and the BINDING is what names
- *     it.** The attestation selects a binding and says nothing else; the
- *     binding — a row staff wrote, naming one role and one application — names
- *     the scopes, exactly as a credential does on the other path. So the cases
- *     below are the credential path's cases: a binding that names none gets the
- *     application's non-privileged grants (what this path did before the column
- *     existed, and what every binding written before today still gets), a
- *     binding that names some gets the intersection with the application's, and
- *     a privileged scope survives only when BOTH hold it. The application's
- *     grants remain the ceiling; nothing a workload does can raise it.
- */
-
-/**
- * `jest.setup.cjs` mocks `jsonwebtoken` for the whole package, so a signed token
- * would be the string `mock-jwt-token`. This file is about what is IN the token
- * a workload receives, so it takes the real signer back — locally, and only
- * here.
- */
+/** Workload identity, environment and live authority against Postgres. */
 jest.unmock('jsonwebtoken');
 
 /**
@@ -145,24 +113,22 @@ async function applicationFixture(overrides: Partial<typeof applications.$inferI
 async function bind(
   applicationId: string,
   subject: string,
-  options: { expiresAt?: Date; scopes?: string[] } = {},
+  options: {
+    expiresAt?: Date;
+    scopes?: string[];
+    environment?: 'development' | 'staging' | 'production' | null;
+  } = {},
 ) {
   await getDb()
     .insert(applicationWorkloadIdentities)
     .values({
       applicationId,
+      environment: options.environment === undefined ? 'development' : options.environment,
       provider: 'aws-iam',
       subject,
       ...(options.scopes ? { scopes: options.scopes } : {}),
       ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
     });
-}
-
-/** The scopes a token actually carries, or a failure naming why there is none. */
-function scopesOf(token: string): string[] {
-  const verified = verifyServiceToken(token);
-  if (!verified.ok) throw new Error('the mint produced a token that does not verify');
-  return verified.payload.scopes;
 }
 
 /** The materialised attribution row for a handle, or `undefined`. */
@@ -179,6 +145,7 @@ async function exchange(subject: string) {
   const { nonce } = await issueWorkloadChallenge();
   return exchangeWorkloadAttestation({
     provider: 'aws-iam',
+    protocolVersion: 2,
     nonce,
     attestation: { subject, answersNonce: nonce },
   });
@@ -202,8 +169,10 @@ describe('workload-identity mint', () => {
       type: 'service',
       appId: application.id,
       ownerAccountId: application.ownerAccountId,
-      scopes: ['user:read'],
+      authority: 'first_party',
+      environment: 'development',
     });
+    expect(verified.payload).not.toHaveProperty('scopes');
     // A workload mint is attributable to the attestation, and is never mistaken
     // for a credential that somebody could try to revoke.
     expect(verified.payload.credentialId.startsWith('wl_')).toBe(true);
@@ -269,11 +238,11 @@ describe('workload-identity mint', () => {
     const attestation = { subject, answersNonce: nonce };
 
     await expect(
-      exchangeWorkloadAttestation({ provider: 'aws-iam', nonce, attestation }),
+      exchangeWorkloadAttestation({ provider: 'aws-iam', protocolVersion: 2, nonce, attestation }),
     ).resolves.toMatchObject({ appName: application.name });
 
     await expect(
-      exchangeWorkloadAttestation({ provider: 'aws-iam', nonce, attestation }),
+      exchangeWorkloadAttestation({ provider: 'aws-iam', protocolVersion: 2, nonce, attestation }),
     ).rejects.toMatchObject({ reason: 'unknown_challenge' });
   });
 
@@ -347,176 +316,167 @@ describe('workload-identity mint', () => {
     expect(row).toBeDefined();
   });
 
-  /**
-   * The scope rules, which are the credential path's rules.
-   *
-   * Every case here is measured against a real production failure: Mention's
-   * federation worker lost `federation:write` the moment its key pair came off
-   * the task definition and failed every six minutes until the pair was put
-   * back, because the mint filtered privileged scopes out of the application's
-   * grants rather than reading them off the binding.
-   */
-  describe('scopes', () => {
-    it("gives the application's non-privileged grants when the binding names none", async () => {
-      // The pre-existing behaviour, pinned. Every binding written before the
-      // scopes column reads as this case, so this is the assertion that says a
-      // deployment carrying old rows is unchanged by the column arriving.
-      const application = await applicationFixture({ scopes: ['user:read', 'federation:write'] });
-      const subject = `${SUBJECT}-names-none`;
-      await bind(application.id, subject);
-
-      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
-    });
-
-    it('carries exactly what a binding names, which may be LESS than the application holds', async () => {
-      // A binding names authority, it does not merely fail to remove it: an
-      // implementation that ignored the column and kept returning the app's
-      // grants would put `files:read` in this token too.
-      const application = await applicationFixture({ scopes: ['user:read', 'files:read'] });
-      const subject = `${SUBJECT}-narrower`;
-      await bind(application.id, subject, { scopes: ['user:read'] });
-
-      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
-    });
-
-    it('carries a privileged scope BOTH the binding and the application hold', async () => {
-      // The case the whole change exists for, in Mention's own shape. Under the
-      // old rule this token carried `user:read` alone and the federation worker
-      // got `Missing required scope: federation:write` every six minutes.
-      const application = await applicationFixture({
-        scopes: ['user:read', 'federation:write', 'signals:write', 'catalogs:write'],
-      });
-      const subject = `${SUBJECT}-privileged-both`;
-      await bind(application.id, subject, {
-        scopes: ['federation:write', 'signals:write', 'catalogs:write'],
-      });
-
-      expect(scopesOf((await exchange(subject)).token).sort()).toEqual([
-        'catalogs:write',
-        'federation:write',
-        'signals:write',
-      ]);
-    });
-
-    it('drops a scope the APPLICATION does not hold, however the binding was written', async () => {
-      // The ceiling, enforced at every mint and not only at the write. The
-      // binding writer refuses to store this (see the binding tests), so
-      // reaching the mint means the application LOST a scope it once had —
-      // which must take it away from the workload at the next mint, exactly as
-      // it does for a credential.
-      const application = await applicationFixture({ scopes: ['user:read'] });
-      const subject = `${SUBJECT}-above-ceiling`;
-      await getDb()
-        .insert(applicationWorkloadIdentities)
-        .values({
-          applicationId: application.id,
-          provider: 'aws-iam',
-          subject,
-          scopes: ['user:read', 'federation:write'],
-        });
-
-      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
-    });
-
-    it('drops a privileged scope the binding names once the application loses it', async () => {
-      // Stated separately from the case above because the direction that
-      // matters is the REVOCATION: taking a privileged scope off an
-      // application is a staff act, and it has to reach a workload token
-      // without anyone touching the binding row.
-      const application = await applicationFixture({ scopes: ['user:read', 'signals:write'] });
-      const subject = `${SUBJECT}-app-revoked`;
-      await bind(application.id, subject, { scopes: ['user:read', 'signals:write'] });
-
-      expect(scopesOf((await exchange(subject)).token).sort()).toEqual([
-        'signals:write',
-        'user:read',
-      ]);
-
-      await getDb()
-        .update(applications)
-        .set({ scopes: ['user:read'] })
-        .where(eq(applications.id, application.id));
-
-      expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
-    });
-  });
-});
-
-describe('workload-identity mint — audience (Kaana ADR 0002)', () => {
-  async function exchangeFor(subject: string, audience: ServiceTokenAudience) {
-    const { nonce } = await issueWorkloadChallenge();
-    return exchangeWorkloadAttestation({
-      provider: 'aws-iam',
-      nonce,
-      attestation: { subject, answersNonce: nonce },
-      audience,
-    });
-  }
-
-  it('mints a kaana.ai token when the binding grants inference:invoke', async () => {
-    const application = await applicationFixture({ scopes: ['user:read', 'inference:invoke'] });
-    const subject = `${SUBJECT}-kaana-public`;
+  it('ignores historical app and binding scope lists', async () => {
+    const application = await applicationFixture({ scopes: [] });
+    const subject = `${SUBJECT}-identity-only`;
     await bind(application.id, subject, { scopes: ['inference:invoke'] });
-
-    const grant = await exchangeFor(subject, KAANA_PUBLIC_AUDIENCE);
-
-    expect(verifyServiceToken(grant.token).ok).toBe(false);
-    const verified = verifyServiceToken(grant.token, KAANA_PUBLIC_AUDIENCE);
-    expect(verified.ok).toBe(true);
-    if (!verified.ok) return;
-    expect(verified.payload.scopes).toEqual(['inference:invoke']);
+    const grant = await exchange(subject);
+    const verified = verifyServiceToken(grant.token);
+    expect(verified).toMatchObject({ ok: true, payload: { authority: 'first_party' } });
+    if (verified.ok) expect(verified.payload).not.toHaveProperty('scopes');
   });
 
-  it('refuses kaana.ai when the minted scopes lack inference:invoke, writing nothing', async () => {
-    const application = await applicationFixture();
-    const subject = `${SUBJECT}-kaana-no-scope`;
-    await bind(application.id, subject);
+  it.each([null, 'production', 'staging'] as const)(
+    'rejects absent or mismatched environment %s',
+    async (environment) => {
+      const app = await applicationFixture();
+      const subject = `${SUBJECT}-${randomUUID()}`;
+      await bind(app.id, subject, { environment });
+      await expect(exchange(subject)).rejects.toMatchObject({
+        reason: 'workload_environment_unbound',
+      });
+    },
+  );
 
-    await expect(exchangeFor(subject, KAANA_PUBLIC_AUDIENCE)).rejects.toMatchObject({
-      status: 403,
-      reason: 'kaana_requires_inference_scope',
+  it('rejects requested scopes instead of manufacturing scope authority', async () => {
+    const app = await applicationFixture();
+    const subject = `${SUBJECT}-requested-scopes`;
+    await bind(app.id, subject);
+    const { nonce } = await issueWorkloadChallenge();
+    await expect(
+      exchangeWorkloadAttestation({
+        provider: 'aws-iam',
+        protocolVersion: 2,
+        nonce,
+        attestation: { subject, answersNonce: nonce },
+        scopes: ['user:read'],
+      }),
+    ).rejects.toMatchObject({ reason: 'workload_scopes_unsupported' });
+  });
+
+  it('refuses a suspended owner', async () => {
+    const app = await applicationFixture();
+    const subject = `${SUBJECT}-owner`;
+    await bind(app.id, subject);
+    await getDb()
+      .update(users)
+      .set({ accountStatus: 'archived' })
+      .where(eq(users.id, app.ownerAccountId));
+    await expect(exchange(subject)).rejects.toMatchObject({ reason: 'application_inactive' });
+  });
+});
+
+async function exchangeFor(subject: string, audience: ServiceTokenAudience) {
+  const { nonce } = await issueWorkloadChallenge();
+  return exchangeWorkloadAttestation({
+    provider: 'aws-iam',
+    protocolVersion: 2,
+    nonce,
+    audience,
+    attestation: { subject, answersNonce: nonce },
+  });
+}
+
+describe('registered receiver audiences', () => {
+  it('mints only for a registered live receiver, independently of scopes', async () => {
+    const caller = await applicationFixture({ scopes: [] });
+    const receiver = await applicationFixture({ scopes: [] });
+    const subject = `${SUBJECT}-receiver`;
+    await bind(caller.id, subject);
+    const audience = `oxy-service:${receiver.id}` as const;
+    const grant = await exchangeFor(subject, audience);
+    expect(verifyServiceToken(grant.token, audience)).toMatchObject({
+      ok: true,
+      payload: { authority: 'first_party', audience },
     });
-    expect(await readCredentialRow(workloadAttestationHandle(subject))).toBeUndefined();
+    expect(verifyServiceToken(grant.token)).toMatchObject({ ok: false });
+    await getDb()
+      .update(applications)
+      .set({ isOfficial: false, type: 'third_party' })
+      .where(eq(applications.id, receiver.id));
+    await expect(exchangeFor(subject, audience)).rejects.toMatchObject({
+      reason: 'unregistered_service_audience',
+    });
   });
 
-  it("refuses Kaana's control audience to an application that is not Kaana", async () => {
-    const application = await applicationFixture();
-    const subject = `${SUBJECT}-kaana-control`;
-    await bind(application.id, subject);
+  it('refuses an unknown receiver', async () => {
+    const app = await applicationFixture();
+    const subject = `${SUBJECT}-unknown-receiver`;
+    await bind(app.id, subject);
+    await expect(exchangeFor(subject, `oxy-service:${randomUUID()}`)).rejects.toMatchObject({
+      reason: 'unregistered_service_audience',
+    });
+  });
 
+  it('keeps Kaana control audience restricted to its registered identity', async () => {
+    const app = await applicationFixture({ scopes: [] });
+    const subject = `${SUBJECT}-kaana`;
+    await bind(app.id, subject);
+    const grant = await exchangeFor(subject, KAANA_PUBLIC_AUDIENCE);
+    expect(verifyServiceToken(grant.token, KAANA_PUBLIC_AUDIENCE)).toMatchObject({ ok: true });
     await expect(exchangeFor(subject, KAANA_CONTROL_AUDIENCE)).rejects.toMatchObject({
-      status: 403,
-      reason: 'kaana_control_reserved',
+      reason: 'invalid_service_audience',
     });
   });
 });
 
-it('narrows requested workload scopes without widening a binding or surviving its revocation', async () => {
-  const app = await applicationFixture({ scopes: ['user:read', 'files:read'] }),
-    subject = `${SUBJECT}-narrow`;
-  await bind(app.id, subject, { scopes: ['user:read', 'files:read'] });
-  const narrow = async (scopes: string[]) => {
+describe('finite protocol transition', () => {
+  it('rejects legacy minting for every newly registered workload', async () => {
+    const app = await applicationFixture();
+    const subject = `${SUBJECT}-legacy-denied`;
+    await bind(app.id, subject);
     const { nonce } = await issueWorkloadChallenge();
-    return exchangeWorkloadAttestation({
+    await expect(
+      exchangeWorkloadAttestation({
+        provider: 'aws-iam',
+        nonce,
+        attestation: { subject, answersNonce: nonce },
+      }),
+    ).rejects.toMatchObject({ reason: 'workload_protocol_upgrade_required' });
+  });
+
+  it('keeps only the observed cohort on bounded legacy scopes until its SDK upgrades', async () => {
+    const { LEGACY_WORKLOAD_BINDINGS } = await import('../../config/legacyWorkloadTransition');
+    const { resolveLiveAgencyServicePrincipal } = await import('../agencyServicePrincipal.service');
+    const expected = LEGACY_WORKLOAD_BINDINGS[0];
+    const app = await applicationFixture({
+      id: expected.applicationId,
+      scopes: ['user:read', 'inference:invoke'],
+    });
+    await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({ ...expected, environment: null, scopes: ['user:read'] });
+    const { nonce } = await issueWorkloadChallenge();
+    const grant = await exchangeWorkloadAttestation({
       provider: 'aws-iam',
       nonce,
-      attestation: { subject, answersNonce: nonce },
-      scopes,
+      attestation: { subject: expected.subject, answersNonce: nonce },
     });
-  };
-  expect(scopesOf((await narrow(['user:read'])).token)).toEqual(['user:read']);
-  await expect(narrow(['files:write'])).rejects.toMatchObject({
-    status: 403,
-    reason: 'scope_not_granted',
+    const verified = verifyServiceToken(grant.token);
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: { authority: 'external', scopes: ['user:read'] },
+    });
+    if (!verified.ok) throw new Error('No legacy token');
+    expect(await resolveLiveAgencyServicePrincipal(verified.payload)).toMatchObject({
+      authority: 'external',
+      scopes: ['user:read'],
+    });
+    await expect(exchange(expected.subject)).rejects.toMatchObject({
+      reason: 'workload_environment_unbound',
+    });
+    await getDb().update(applications).set({ scopes: [] }).where(eq(applications.id, app.id));
+    expect(await resolveLiveAgencyServicePrincipal(verified.payload)).toMatchObject({
+      authority: 'external',
+      scopes: [],
+    });
+    // A first-party marker on a signed token does not invent the missing environment binding.
+    expect(
+      await resolveLiveAgencyServicePrincipal({
+        ...verified.payload,
+        authority: 'first_party',
+        scopes: undefined,
+      }),
+    ).toBeNull();
   });
-  await getDb()
-    .update(applicationWorkloadIdentities)
-    .set({ scopes: ['user:read'] })
-    .where(eq(applicationWorkloadIdentities.applicationId, app.id));
-  await expect(narrow(['files:read'])).rejects.toMatchObject({ status: 403 });
-  await getDb()
-    .update(applications)
-    .set({ status: 'suspended' })
-    .where(eq(applications.id, app.id));
-  await expect(narrow(['user:read'])).rejects.toMatchObject({ status: 403 });
 });

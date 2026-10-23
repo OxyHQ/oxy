@@ -31,7 +31,9 @@ type Introspection = {
   delegatedUserId?: string;
   /** Internal (one of Oxy's own applications) or external; see `ServiceTier`. */
   tier?: ServiceTier;
-  scopes: string[];
+  authority?: 'first_party' | 'external';
+  audience?: string;
+  scopes?: string[];
   permissions: string[];
   expiresAt?: string;
 };
@@ -75,11 +77,45 @@ function requireCanonicalClarityBackend(
 router.post(
   '/introspect',
   serviceAuthMiddleware,
-  requireCanonicalClarityBackend,
+  (request: ServiceAuthRequest, response, next) => {
+    if (
+      request.serviceApp?.authority === 'first_party' ||
+      request.serviceApp?.appId === CLARITY_BACKEND_APPLICATION_ID
+    )
+      return next();
+    response.status(403).json({ error: 'resource_server_identity_required' });
+  },
   validate({ body: bodySchema }),
   async (request: ServiceAuthRequest, response, next) => {
     try {
       const token = request.body.token as string;
+      const receiver = request.serviceApp;
+      if (!receiver) return response.json(inactive());
+      const expectedAudience = `oxy-service:${receiver.appId}` as const;
+      const ownService = verifyServiceToken(token, expectedAudience);
+      if (ownService.ok && ownService.payload.authority === 'first_party') {
+        if (
+          receiver.authority !== 'first_party' ||
+          ownService.payload.environment !== receiver.environment
+        )
+          return response.json(inactive());
+        const principal = await resolveLiveAgencyServicePrincipal(ownService.payload);
+        if (!principal || principal.authority !== 'first_party') return response.json(inactive());
+        return response.json({
+          active: true,
+          authority: 'first_party',
+          audience: expectedAudience,
+          accountId: principal.ownerAccountId,
+          applicationId: principal.applicationId,
+          credentialId: principal.credentialId,
+          environment: ownService.payload.environment,
+          tier: 'internal',
+          permissions: [],
+          expiresAt: new Date((ownService.payload.exp as number) * 1000).toISOString(),
+        } satisfies Introspection);
+      }
+      // The legacy resource-key/session projection remains Clarity's external API.
+      if (receiver.appId !== CLARITY_BACKEND_APPLICATION_ID) return response.json(inactive());
       const machine = await resolveMachineCredential(token);
       if (machine.ok) {
         return response.json({
@@ -90,6 +126,7 @@ router.post(
           environment: machine.principal.environment,
           // A machine credential (`oxy_sk_`) is the third-party lane.
           tier: 'external',
+          authority: 'external',
           scopes: machine.principal.scopes,
           permissions: [],
         } satisfies Introspection);
@@ -97,7 +134,7 @@ router.post(
       if (token.startsWith('oxy_sk_')) return response.json(inactive());
 
       const service = verifyServiceToken(token);
-      if (service.ok) {
+      if (service.ok && service.payload.authority !== 'first_party') {
         const principal = await resolveLiveAgencyServicePrincipal(service.payload);
         if (!principal) return response.json(inactive());
         return response.json({
@@ -107,7 +144,8 @@ router.post(
           credentialId: principal.credentialId,
           environment: service.payload.environment,
           tier: service.payload.tier,
-          scopes: [...principal.scopes],
+          authority: 'external',
+          scopes: [...(principal.scopes ?? [])],
           permissions: [],
           expiresAt: service.payload.exp
             ? new Date(service.payload.exp * 1_000).toISOString()
@@ -130,6 +168,7 @@ router.post(
         applicationId: identity.applicationId,
         delegatedUserId: identity.principalUserId,
         tier: await applicationTier(identity.applicationId),
+        authority: 'external',
         scopes: [...identity.scopes],
         permissions: access?.permissions ?? [],
       } satisfies Introspection);

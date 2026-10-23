@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * `/linked-accounts` — a local Oxy user proves they own a Mastodon-API or
  * Bluesky account by OAuth, and Oxy records the link. Oxy keeps NO third-party
@@ -128,7 +129,7 @@ router.get(
   serviceReadLimiter,
   validate({ params: linkedAccountUserIdParams }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-    if (!req.serviceApp?.scopes.includes(LINKED_ACCOUNTS_READ_SCOPE)) {
+    if (!hasServiceAuthority(req.serviceApp, LINKED_ACCOUNTS_READ_SCOPE)) {
       throw new ForbiddenError(`Missing required scope: ${LINKED_ACCOUNTS_READ_SCOPE}`);
     }
     const { userId } = req.params as { userId: string };

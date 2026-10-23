@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { safetyOrganizationIdentities } from '../services/organization-directory.service';
 import {
   safetyProfileRequestSchema,
@@ -135,7 +136,7 @@ async function principal(req: ServiceAuthRequest): Promise<LiveAgencyServicePrin
       'A consumer service identity is required',
     );
   const live = await resolveLiveAgencyServicePrincipal(req.serviceApp);
-  if (!live || !live.scopes.includes('safety:decide'))
+  if (!live || !hasServiceAuthority(live, 'safety:decide'))
     throw new supervision.SafetyError(403, 'forbidden', 'Consumer authority is no longer active');
   return live;
 }

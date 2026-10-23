@@ -25,7 +25,7 @@ import type { ServiceTier } from '../middleware/serviceToken';
 /** Approved I03 lifetime; shared with both JWT verifiers. */
 export const SERVICE_TOKEN_EXPIRY = OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS;
 
-export interface ServiceTokenClaims {
+interface ServiceTokenIdentity {
   appId: string;
   appName: string;
   /**
@@ -39,8 +39,10 @@ export interface ServiceTokenClaims {
   environment: OxyServiceEnvironment;
   /** Internal (one of Oxy's own applications) or external; see `ServiceTier`. */
   tier: ServiceTier;
-  scopes: string[];
 }
+
+export type ServiceTokenClaims = ServiceTokenIdentity &
+  ({ authority: 'first_party'; scopes?: never } | { authority?: 'external'; scopes: string[] });
 
 /**
  * Signs the claims with the Ed25519 service-token key (ADR 0012). There is no
@@ -58,6 +60,7 @@ export function mintServiceToken(
   return signServiceTokenEd25519({
     type: 'service' as const,
     ...claims,
+    authority: claims.authority ?? 'external',
     iat: now,
     exp: now + SERVICE_TOKEN_EXPIRY,
     iss: 'oxy-auth',
