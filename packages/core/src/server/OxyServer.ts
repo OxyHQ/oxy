@@ -170,6 +170,7 @@ export interface ActingAsVerificationOptions {
   environment?: string;
   /** Original user-session bearer; never an arbitrary user id. */
   requesterToken?: string;
+  taskId?: string;
 }
 
 interface ActingAsGeneration {
@@ -232,7 +233,10 @@ export interface ServiceClientOptions {
   baseURL: string;
   audience: ServiceTokenAudience;
   /** A verified user session, never an arbitrary user id without proof. */
-  requester?: { accountId: string; token: string };
+  requester?: { accountId: string } & (
+    | { token: string; taskId?: never }
+    | { taskId: string; token?: never }
+  );
 }
 export interface ServiceHttpClient {
   fetch: typeof globalThis.fetch;
@@ -349,7 +353,12 @@ export class OxyServer extends OxyServices {
     const client = new HttpService({ baseURL: options.baseURL, enableCache: false });
     let disposed = false;
     const requester = options.requester ? { ...options.requester } : undefined;
-    if (requester && (!requester.accountId.trim() || !requester.token.trim()))
+    if (
+      requester &&
+      (!requester.accountId.trim() ||
+        !(requester.token ?? requester.taskId)?.trim() ||
+        !!(requester.token && requester.taskId))
+    )
       throw new Error('A requester requires an account id and session proof');
     const mint = () => this.workloadServiceToken(options.audience);
     client.setAuthRefreshHandler(async () => {
@@ -370,9 +379,11 @@ export class OxyServer extends OxyServices {
         );
         headers.delete('X-Oxy-User-Id');
         headers.delete('X-Oxy-Requester-Token');
+        headers.delete('X-Oxy-Task-Id');
         if (requester) {
           headers.set('X-Oxy-User-Id', requester.accountId);
-          headers.set('X-Oxy-Requester-Token', requester.token);
+          if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
+          if (requester.taskId) headers.set('X-Oxy-Task-Id', requester.taskId);
         }
         return fetch(input, { ...init, headers });
       },
@@ -659,14 +670,17 @@ export class OxyServer extends OxyServices {
     options: RequestOptions & {
       actAs?: string;
       requesterToken?: string;
+      taskId?: string;
       serviceTokenScopes?: string[];
     } = {},
   ): Promise<ResponsePayload<T>> {
-    const { actAs, requesterToken, headers, serviceTokenScopes, ...rest } = options;
+    const { actAs, requesterToken, taskId, headers, serviceTokenScopes, ...rest } = options;
     const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
+    if (requesterToken && taskId) throw new Error('Provide one requester proof');
     if (requesterToken) merged['X-Oxy-Requester-Token'] = requesterToken;
+    if (taskId) merged['X-Oxy-Task-Id'] = taskId;
     return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
   }
 
@@ -744,7 +758,7 @@ export class OxyServer extends OxyServices {
     userId: string,
     options: ActingAsVerificationOptions = {},
   ): Promise<ServiceActingAsVerification | null> {
-    if (options.requesterToken) options = { ...options, cache: false };
+    if (options.requesterToken || options.taskId) options = { ...options, cache: false };
     const pair = JSON.stringify([appId, userId]);
     const cacheKey = JSON.stringify([
       appId,
@@ -988,6 +1002,7 @@ export class OxyServer extends OxyServices {
         {
           appId,
           userId,
+          ...(options.taskId ? { taskId: options.taskId } : {}),
           ...(options.credentialId
             ? {
                 credentialId: options.credentialId,
@@ -1019,7 +1034,7 @@ export class OxyServer extends OxyServices {
       if (epoch > 9223372036854775807n) return null;
       if (result.authority === 'first_party') {
         if (
-          !options.requesterToken ||
+          (!options.requesterToken && !options.taskId) ||
           result.authorized !== true ||
           result.scopes !== undefined ||
           epoch < generation.epoch
