@@ -289,6 +289,7 @@ async function pendingApproval(f: Awaited<ReturnType<typeof fixture>>) {
       oauthCodeChallenge: pair.challenge,
       oauthCodeChallengeMethod: 'S256',
       oauthScopes: ['user:read'],
+      oauthAuthority: 'external',
       oauthSubjectAccountId: f.org.id,
     })
     .returning({ id: authSessions.id });
