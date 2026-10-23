@@ -40,6 +40,8 @@ process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
  */
 let currentUserId = '';
 jest.mock('../../middleware/auth', () => ({
+  serviceAuthMiddleware: (...args: unknown[]) =>
+    jest.requireActual('../../middleware/auth').serviceAuthMiddleware(...args),
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
@@ -966,8 +968,8 @@ describe('Kaana credential validation principal', () => {
       }),
       await validationBody(connection),
     );
-    // A dead workload cannot distinguish a connection from a missing resource.
-    expect(response.status).toBe(404);
+    // Authentication fails before resolving either an existing or absent resource.
+    expect(response.status).toBe(401);
     const [unchanged] = await getDb()
       .select({ status: inferenceProviderConnections.status })
       .from(inferenceProviderConnections)
@@ -1164,7 +1166,7 @@ describe('cross-account isolation', () => {
       }
 
       const response = await request('GET', `/inference/provider-connections/${connection}`, token);
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(401);
     },
   );
 

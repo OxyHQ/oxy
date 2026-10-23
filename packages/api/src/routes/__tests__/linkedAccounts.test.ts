@@ -1083,9 +1083,24 @@ describe('linked identities through real workload middleware', () => {
     );
     await revokeFirstPartyTask(task.id, presenter);
     expect((await read(person.id, { 'x-oxy-task-id': task.id })).status).toBe(403);
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['linked-accounts:read'] })
+      .where(eq(applications.id, app.id));
+    const [customerKey] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: app.id,
+        name: 'Official app customer key',
+        publicKey: randomUUID(),
+        type: 'service',
+        environment: 'development',
+        scopes: ['linked-accounts:read'],
+      })
+      .returning();
     const external = mintServiceToken({
       ...claims,
-      credentialId: randomUUID(),
+      credentialId: customerKey.id,
       authority: 'external',
       scopes: ['linked-accounts:read'],
     });
