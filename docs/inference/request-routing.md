@@ -10,7 +10,7 @@ be verified with the live Oxy and Kaana rollout gates.
 
 | System | Responsibility |
 |---|---|
-| **Oxy** | authenticates the caller; resolves account, application and delegated user; checks scopes and policy; resolves the target (exact model, power level or the app's default); chooses and orders the routes; reserves spend; signs the request; settles the receipt |
+| **Oxy** | authenticates the caller; resolves account, application and delegated user; checks external scopes and routing policy; resolves the target (exact model, power level or the app's default); chooses and orders the routes; reserves spend; signs the request; settles the receipt |
 | **Kaana** | executes the signed request; retries the same route on transient failures and fails over only along the signed routes, before the first output; adapts provider protocols; streams and cancels; measures technical usage and provider health |
 | **Alia** | runs assistants and agents; owns conversations, memory, tools, approvals and orchestration; offers users power levels, never model names (rolling out); invokes models through Oxy and Kaana, and never retries or fails over on its own |
 
@@ -27,6 +27,25 @@ ledger.
 Historical provider adapters and provider aliases that ran under Alia, plus the
 former inference service identity, are Kaana. **The Alia product itself remains
 Alia** because agent behavior is not provider execution.
+
+## First-party authority and external integrations
+
+Oxy products authenticate server calls with registered workload identity through
+`OxyServer.createServiceClient({ baseURL, audience })`. They do not request API
+keys or inference scopes. The live binding fixes the application, billing owner
+and environment; the token fixes its receiving audience. Revoking the binding
+stops new admissions. A foreground user remains separate from the billing owner
+and must be verified through the shared session or an operation authorization.
+
+Oxy signs `authority: 'first_party'` without `inferenceScopes` in envelopes and
+without `scopes` in Kaana grants. External OAuth and API credentials retain
+`authority: 'external'` and their scope limits. Historical signed records without
+the discriminator are external records; their scopes are still required. Never
+fill an own request with a wildcard or a synthetic list of permissions.
+
+This distinction does not bypass account isolation, route selection, billing,
+spend limits or cancellation. Deploy Kaana's compatible reader before enabling
+the new Oxy emitter, and publish its contract before updating consumers.
 
 ## Choose the path by product behavior
 
