@@ -11,7 +11,7 @@
 
 - Shared linked-client fetch, recipient-bound service clients, resource introspection for services, keys and sessions, and fixed requester proof clients for Files and other platform calls.
 - Optional server-only temporary IAM credential provider and workload-only ecosystem activity publishing.
-- Service transports expose destination-checked credentials for product SDK WebSocket protocols, sharing the HTTP transport's workload identity, cancellation and recipient cache.
+- Service transports expose destination-checked credentials for product SDK WebSocket protocols, sharing the HTTP transport's workload identity, cancellation and recipient cache. Kaana-only fixed account attribution remains separate from requester data authority.
 - Revocable requester context for multiple own-service hops and a separate external MCP media proof, preserving each original account and external grant.
 
 ### Fixed
