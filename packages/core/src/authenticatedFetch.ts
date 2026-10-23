@@ -5,7 +5,11 @@ import { awaitRequestSignal } from './utils/requestSignal';
 export function createAuthenticatedFetch(
   client: HttpService,
   baseURL: string,
-  options: { prepare?: () => Promise<void>; disposed?: () => boolean } = {},
+  options: {
+    prepare?: () => Promise<void>;
+    disposed?: () => boolean;
+    session?: 'required' | 'optional';
+  } = {},
 ): typeof globalThis.fetch {
   return async (input, init) => {
     if (options.disposed?.()) throw new Error('The authenticated transport has been disposed');
@@ -30,6 +34,8 @@ export function createAuthenticatedFetch(
     };
     if (options.prepare) await awaitRequestSignal(options.prepare(), signal);
     if (options.disposed?.()) throw new Error('The authenticated transport has been disposed');
-    return client.requestAuthenticatedResponse(config);
+    return options.session === 'optional'
+      ? client.requestResponse(config)
+      : client.requestAuthenticatedResponse(config);
   };
 }

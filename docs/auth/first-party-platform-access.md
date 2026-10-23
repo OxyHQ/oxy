@@ -17,6 +17,12 @@ for implementation and rollout state; this page is not a deployment claim.
 
 Use the receiving product's SDK. Frontend calls use the existing Oxy linked
 client so account switching, refresh and cancellation remain centralized.
+Use `linked.fetch` for authenticated endpoints. For an API that also serves
+public pages, `linked.fetchOptional` sends the current session when present and
+allows anonymous requests when absent. Both reject foreign origins and redirects,
+omit cookies, ignore supplied authority headers and reject responses after a
+session-context change. Private endpoints still enforce authentication server-side;
+applications do not implement token fallbacks or copy bearer headers.
 Backend calls use the shared `OxyServer` workload transport with the receiving
 application's audience; no customer API key or application-local token plumbing.
 For a registered `oxy-service:<applicationId>` receiver, shared middleware
