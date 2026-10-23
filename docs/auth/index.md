@@ -29,6 +29,7 @@ the five distinct meanings of "sign out":
 | Device session, device-first transport | [device-session.md](./device-session.md) | shipped |
 | Principals, contexts, the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
+| Own service requester context and durable tasks | [first-party-tasks.md](./first-party-tasks.md) | implemented; staged fleet cutover required |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
 | The IdP's own shape | [README.md](./README.md) | shipped |
 | The native cross-app device credential | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot | built, not verified on a device |

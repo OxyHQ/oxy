@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Civic / Commons Routes (Fase 1 — public DNI card; Fase 2 — real-life attestation)
  *
@@ -195,8 +196,7 @@ function throwForCredentialIssueReason(reason: CredentialIssueRejectionReason): 
 
 /** Assert the service credential can open reputation-mutating validation workflows. */
 function assertValidationScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_VALIDATION_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, REQUIRED_VALIDATION_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${REQUIRED_VALIDATION_SCOPE}`);
   }
 }

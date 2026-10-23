@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * User Routes
  *
@@ -1577,8 +1578,7 @@ router.put(
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     // Scope gate — only service tokens explicitly granted `federation:write`
     // may create or update federated/agent/automated users.
-    const scopes = req.serviceApp?.scopes ?? [];
-    if (!scopes.includes('federation:write')) {
+    if (!hasServiceAuthority(req.serviceApp, 'federation:write')) {
       throw new ForbiddenError('Missing required scope: federation:write');
     }
 
