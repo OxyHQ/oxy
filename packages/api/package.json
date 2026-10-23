@@ -64,7 +64,7 @@
     "@opentelemetry/instrumentation-socket.io": "^0.69.0",
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-node": "^0.222.0",
-    "@kaana.ai/contracts": "7.0.0",
+    "@kaana.ai/contracts": "8.0.0",
     "@levischuck/tiny-cbor": "^0.3.6",
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "workspace:*",
