@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 6.16.0
+
+### Added
+
+- `runSessionColdBoot({ requireServerVerdict })` skips the pure-local
+  `warm-token-plant` step, so the session is restored only by a server answer.
+  For a caller that already painted the session from its cache: a still-valid
+  persisted token says nothing about whether the session was revoked since.
+- `runSessionColdBoot({ onHolderRejected })` is called when the server answered
+  this holder's own device credential `invalid_device_secret` or
+  `no_active_session`, as opposed to a mint that could not reach it (offline,
+  transient, an unsaved secret).
+
 ## 6.15.2
 
 ### Changed

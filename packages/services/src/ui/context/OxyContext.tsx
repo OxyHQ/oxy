@@ -59,7 +59,8 @@ import {
   hasPersistedSessionCredential,
   loadPersistedDeviceCredential,
 } from '../utils/deviceCredential';
-import { createTokenLossRecovery } from '../session/tokenLossRecovery';
+import { createTokenLossRecovery, TOKEN_RECOVERY_BACKOFF_MS } from '../session/tokenLossRecovery';
+import { createCachedBootStore, type CachedBootStore } from '../session/cachedBoot';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
@@ -222,8 +223,19 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     clientId: string | undefined;
     services: OxyServices;
     lane: 'device' | 'oauth' | null;
+    /**
+     * `lane` is this device's cached verdict, standing in until the registry
+     * answers (a painted cold boot). A fresh lookup keeps it meanwhile.
+     */
+    provisional: boolean;
     pending: Promise<'device' | 'oauth'> | null;
-  }>({ clientId: clientIdProp, services: oxyServices, lane: null, pending: null });
+  }>({
+    clientId: clientIdProp,
+    services: oxyServices,
+    lane: null,
+    provisional: false,
+    pending: null,
+  });
   if (
     registeredLaneRef.current.clientId !== clientIdProp ||
     registeredLaneRef.current.services !== oxyServices
@@ -232,6 +244,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       clientId: clientIdProp,
       services: oxyServices,
       lane: null,
+      provisional: false,
       pending: null,
     };
   }
@@ -371,6 +384,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     storageReadyRef.current = buildStorageDeferred();
   }
   const storageReady = storageReadyRef.current;
+
+  // What a returning session's first paint needs (the app's classification and
+  // the account's profile), kept in the same storage as the account query cache.
+  const cachedBoot = useMemo(
+    () => (storage ? createCachedBootStore(storage, storageKeyPrefix) : null),
+    [storage, storageKeyPrefix],
+  );
+  const cachedBootRef = useRef<CachedBootStore | null>(cachedBoot);
+  cachedBootRef.current = cachedBoot;
 
   useEffect(() => {
     // `null` means the public provider owns initialization and has not resolved
@@ -535,11 +557,17 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     if (selected.clientId !== clientIdProp || selected.services !== oxyServices)
       throw new Error('Provider classification was superseded');
     if (selected.pending) return selected.pending;
-    selected.lane = null;
+    if (!selected.provisional) selected.lane = null;
     const pending = (async () => {
       const lane = await resolveApplicationSessionLane(oxyServices, clientIdProp);
       if (registeredLaneRef.current !== selected)
         throw new Error('Provider classification was superseded');
+      if (clientIdProp) void cachedBootRef.current?.saveLane(clientIdProp, lane);
+      if (selected.provisional) {
+        // The registry has answered: its verdict replaces the cached one now.
+        selected.provisional = false;
+        selected.lane = lane;
+      }
       if (lane === 'oauth' && !hasIsolatedOAuthSession(runtime)) {
         sessionClient.resetLocalState();
         sessionClientHost.setDeviceCredential(null);
@@ -1284,6 +1312,115 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     if (!accountDialogOpen) clearSignInFlows(accountDialogControllerRef.current);
   }, [accountDialogOpen]);
 
+  // ── Cached first paint ───────────────────────────────────────────────────
+  // Keep the profile the runtime holds for the signed-in account, so the next
+  // cold boot can paint it before the network answers. Only for a device-lane
+  // account session: an identity-bound client and an isolated OAuth session
+  // always boot through the network. A sign-out deletes it.
+  const cachedAccountJsonRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cachedBoot || identity) return;
+    if (user === null) {
+      if (cachedAccountJsonRef.current !== null) {
+        cachedAccountJsonRef.current = null;
+        void cachedBoot.clearAccount();
+      }
+      return;
+    }
+    if (registeredLaneRef.current.lane !== 'device' || hasIsolatedOAuthSession(runtime)) return;
+    const json = JSON.stringify(user);
+    if (json === cachedAccountJsonRef.current) return;
+    cachedAccountJsonRef.current = json;
+    void cachedBoot.saveAccount(user);
+  }, [cachedBoot, identity, user, runtime]);
+
+  // Paint the session saved on this device: the bearer it left (when still
+  // valid), the session mirror, the account from its cached profile, auth
+  // resolved. Local reads only; the boot checks it all in the background.
+  const paintCachedSession = useCallback(async (): Promise<boolean> => {
+    const cache = cachedBootRef.current;
+    if (identity || !clientIdProp || !cache) return false;
+    const cached = await cache.readSession(clientIdProp, authStore);
+    const selected = registeredLaneRef.current;
+    if (
+      !cached ||
+      selected.clientId !== clientIdProp ||
+      selected.services !== oxyServices ||
+      selected.lane === 'oauth'
+    ) {
+      return false;
+    }
+    if (selected.lane === null) {
+      // The cached verdict stands in for the registry until it answers, so the
+      // refresh handler, lost-token recovery and sign-in treat this app as the
+      // device lane it was on last run.
+      selected.lane = 'device';
+      selected.provisional = true;
+    }
+    if (cached.warmToken) oxyServices.session.setAccessToken(cached.warmToken);
+    await syncDeviceCredentialToHost();
+    const now = new Date();
+    runtime.batch(() => {
+      runtime.mergeSessions(
+        [
+          {
+            sessionId: cached.sessionId,
+            deviceId: cached.deviceId,
+            expiresAt: new Date(now.getTime() + DEFAULT_SESSION_VALIDITY_MS).toISOString(),
+            lastActive: now.toISOString(),
+            userId: cached.userId,
+            isCurrent: true,
+          },
+        ],
+        { merge: true },
+      );
+      runtime.setActiveSessionId(cached.sessionId);
+      runtime.setAccount(cached.user);
+    });
+    onAuthStateChangeRef.current?.(cached.user);
+    markAuthResolvedRef.current();
+    return true;
+  }, [identity, clientIdProp, authStore, oxyServices, runtime, syncDeviceCredentialToHost]);
+
+  // A painted session the server could not be asked about yet stays on screen
+  // and is asked again: on the lost-token backoff, and at once when the device
+  // comes back online. Signed out meanwhile, there is nothing left to ask.
+  const cachedSessionCheckRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    attempt: number;
+    runNow: (() => void) | null;
+  }>({ timer: null, attempt: 0, runNow: null });
+  const scheduleCachedSessionCheck = useCallback(
+    (retry: () => Promise<void>): void => {
+      const check = cachedSessionCheckRef.current;
+      if (check.timer !== null) clearTimeout(check.timer);
+      const run = (): void => {
+        if (check.timer !== null) clearTimeout(check.timer);
+        check.timer = null;
+        check.runNow = null;
+        if (runtime.getSnapshot().account === null) return;
+        retry().catch((retryError) => {
+          logger('Failed to check the cached session', retryError);
+        });
+      };
+      const delay =
+        TOKEN_RECOVERY_BACKOFF_MS[Math.min(check.attempt, TOKEN_RECOVERY_BACKOFF_MS.length - 1)];
+      check.attempt += 1;
+      check.runNow = run;
+      check.timer = setTimeout(run, delay);
+    },
+    [runtime, logger],
+  );
+  useEffect(
+    () => () => {
+      const check = cachedSessionCheckRef.current;
+      if (check.timer !== null) clearTimeout(check.timer);
+      check.timer = null;
+      check.runNow = null;
+    },
+    [],
+  );
+
   // ── Cold boot ────────────────────────────────────────────────────────────
   // Device-first session restore via `runProviderColdBoot` (see boot/runProviderColdBoot.ts).
   const runColdBoot = useCallback(async (): Promise<void> => {
@@ -1314,6 +1451,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       commitSession: (input, options) => commitSessionRef.current(input, options),
       markAuthResolved: () => markAuthResolvedRef.current(),
       setTokenReady,
+      paintCachedSession,
+      onCachedSessionRejected: () => clearSessionStateRef.current(),
+      onCachedSessionUnconfirmed: scheduleCachedSessionCheck,
     });
     // The boot may have (re-)established the identity session or cleared a pin
     // whose key no longer exists, so re-resolve rather than trusting the memo
@@ -1329,6 +1469,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     syncDeviceCredentialToHost,
     sessionClient,
     setTokenReady,
+    paintCachedSession,
+    scheduleCachedSessionCheck,
   ]);
 
   useEffect(() => {
@@ -1427,6 +1569,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       if (!online || !wasOffline) {
         return;
       }
+      cachedSessionCheckRef.current.runNow?.();
       void (async () => {
         if (hasIsolatedOAuthSession(runtime)) return;
         if (oxyServices.session.accessToken || !sessionClientHost.getDeviceCredential()) {
