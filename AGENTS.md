@@ -47,6 +47,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Align native-module versions UP and add them to `expo.install.exclude` — build-and-deploy.md#architecture
 
 **Identity, auth, privacy** — auth-and-identity.md#auth--session-contract
+- Own Oxy apps use shared sessions/workload authority, never app scopes, consent or agent per-app levels; retain account boundaries and external grants — docs/auth/first-party-platform-access.md
 - `displayName` is optional; the one fallback is the handle via `getNormalizedUserHandle` — #user-identity-contract
 - Zero cookies on every origin, `auth.oxy.so` included; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
 - The SDK never navigates the top-level window on its own; silent restore is deleted, not gated.
