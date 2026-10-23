@@ -142,6 +142,7 @@ export function AuditPage() {
         }
         accessibilityLabel={t('settingsPage.audit.tableLabel')}
         minWidth={820}
+        bordered={false}
       />
       {query.hasNextPage && (
         <View className="items-start">
