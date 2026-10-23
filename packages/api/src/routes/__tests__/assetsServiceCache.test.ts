@@ -759,7 +759,7 @@ describe('POST /assets/service/by-ids', () => {
    * video per play. `hlsReadyAt` is the answer to that question and nothing more:
    * one timestamp, never the variant list, which stays storage-private.
    */
-  it("names the owner only to Oxy's own (internal-tier) applications", async () => {
+  it('names the owner only to verified own authority, never external tier branding', async () => {
     const rows = [
       {
         id: CACHE_FILE_ID,
@@ -784,8 +784,8 @@ describe('POST /assets/service/by-ids', () => {
           type: 'service',
           appId: 'mention-app',
           appName: 'mention',
+          authority: 'first_party',
           tier: 'internal',
-          scopes: ['files:read'],
         };
         next();
       },
@@ -803,7 +803,8 @@ describe('POST /assets/service/by-ids', () => {
           type: 'service',
           appId: 'third-party',
           appName: 'x',
-          tier: 'external',
+          authority: 'external',
+          tier: 'internal',
           scopes: ['files:read'],
         };
         next();
