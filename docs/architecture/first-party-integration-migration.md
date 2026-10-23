@@ -33,8 +33,9 @@ Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. The Oxy authority runtime and Alia remain source-only at this checkpoint; Oxy's environment-only preflight and Kaana have
-the separately verified deployment recorded below.
+caller is updated. The Oxy authority runtime and Alia remain source-only at this
+checkpoint; Oxy's environment-only preflight and Kaana have the separately
+verified deployments recorded below.
 
 ## Audited runtime graph
 
