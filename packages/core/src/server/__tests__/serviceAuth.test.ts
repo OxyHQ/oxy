@@ -1256,18 +1256,16 @@ describe('registered product audience and external compatibility', () => {
       ...(firstParty ? { scopes: undefined } : { scopes: ['files:read'] }),
     });
     const token = signEdDSA(claims, SIGNING_KEY);
-    const introspect = jest
-      .spyOn(oxy, 'introspectServiceToken')
-      .mockResolvedValue({
-        active: true,
-        authority: 'first_party',
-        audience,
-        applicationId: 'app',
-        credentialId: 'wl_api',
-        accountId: 'owner-account-1',
-        environment: 'production',
-        expiresAt: new Date(Date.now() + 300_000).toISOString(),
-      });
+    const introspect = jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
+      active: true,
+      authority: 'first_party',
+      audience,
+      applicationId: 'app',
+      credentialId: 'wl_api',
+      accountId: 'owner-account-1',
+      environment: 'production',
+      expiresAt: new Date((claims.exp as number) * 1000).toISOString(),
+    });
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
     const next = jest.fn();
