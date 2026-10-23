@@ -82,3 +82,8 @@ the tokens signed under the retired key cannot be re-signed.
   set by their owner (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`);
   `.github/workflows/deploy-aws.yml` writes none, which
   `scripts/check-deploy-secrets-sync.mjs` enforces.
+
+## Workload authority rollout
+
+[Environment preflight](first-party-environment-preflight.md) documents the additive
+preparation and exact-cohort backfill that precede the new first-party issuer.

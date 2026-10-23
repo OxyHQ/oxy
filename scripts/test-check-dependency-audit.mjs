@@ -115,12 +115,15 @@ const firstCritical = criticals[0];
 
 const cases = [
   {
-    name: 'a new high advisory in exactly constrained braces fails',
+    name: 'a high advisory in formerly acknowledged braces fails',
     payload: {
       ...cleanPayload(),
       braces: [
-        ...cleanPayload().braces,
-        advisory('high', 'GHSA-new-braces-advisory', 'unreviewed high in an acknowledged package'),
+        advisory(
+          'high',
+          'GHSA-new-braces-advisory',
+          'a new high after the acknowledgement was removed',
+        ),
       ],
     },
     expectFailure: true,
