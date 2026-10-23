@@ -227,7 +227,7 @@ export const messages = pgTable(
      * per-user advisory lock.
      *
      * NOT NULL since the backfill assigned every row stored before the column
-     * existed (migrations 0197–0199); no DEFAULT, because a row that skipped
+     * existed (migrations 0212–0214); no DEFAULT, because a row that skipped
      * the thread assignment must fail loudly, not join a thread of one.
      */
     threadId: text().notNull(),
