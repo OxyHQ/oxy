@@ -317,8 +317,9 @@ export interface AuthMiddlewareOptions {
    */
   expectedIssuer?: string;
   /**
-   * Expected JWT audience. Defaults to `'oxy-api'`. Override only if your
-   * private fork mints tokens for a different audience.
+   * Own product receivers use their SDK's canonical `oxy-service:<appId>` audience.
+   * First-party tokens must name that recipient exactly. External scoped tokens
+   * also retain the legacy `oxy-api` audience. Other audience overrides remain exact.
    */
   expectedAudience?: string;
 }
@@ -1805,15 +1806,22 @@ function verifyServiceTokenClaims(
     );
   }
   const aud = decoded.aud;
-  if (Array.isArray(aud)) {
-    if (!aud.includes(expected.audience)) {
-      throw new ServiceTokenClaimError(
-        `Service token audience does not include '${expected.audience}'`,
-      );
-    }
-  } else if (aud !== expected.audience) {
+  // This branch runs only after signature verification. Legacy external tokens
+  // keep their scoped API audience; they never gain first-party authority.
+  const external = decoded.authority === undefined || decoded.authority === 'external';
+  const accepted =
+    external && expected.audience.startsWith('oxy-service:')
+      ? [expected.audience, OXY_JWT_AUDIENCE]
+      : [expected.audience];
+  const matches =
+    decoded.authority === 'first_party'
+      ? typeof aud === 'string' && aud === expected.audience
+      : Array.isArray(aud)
+        ? aud.some((value) => accepted.includes(value))
+        : accepted.includes(aud ?? '');
+  if (!matches) {
     throw new ServiceTokenClaimError(
-      `Service token audience mismatch: expected '${expected.audience}', got '${String(aud)}'`,
+      `Service token audience mismatch: expected '${expected.audience}'`,
     );
   }
 }
