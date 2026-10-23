@@ -13,6 +13,7 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 
 import { authRateLimiter, isServiceTokenMintPath, rateLimiter } from '../../middleware/security';
+import { rateLimit } from '../../middleware/rateLimiter';
 import { serviceTokenMintRateLimitKey } from '../../utils/serviceRateLimitKey';
 
 function post(server: http.Server, path: string): Promise<http.IncomingHttpHeaders> {
@@ -124,5 +125,65 @@ describe('serviceTokenMintRateLimitKey', () => {
     expect(missing.startsWith('addr:')).toBe(true);
     expect(serviceTokenMintRateLimitKey(requestFor(42, '10.0.0.1'))).toBe(missing);
     expect(serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.2'))).not.toBe(missing);
+  });
+});
+
+describe('failed mint accounting', () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.post(
+      '/auth/service-token',
+      rateLimit({
+        prefix: 'test:service-token-success-budget:',
+        windowMs: 60_000,
+        max: 1,
+        keyGenerator: serviceTokenMintRateLimitKey,
+        skipFailedRequests: true,
+      }),
+      (req, res) => {
+        if (req.body.apiSecret !== 'correct') {
+          res.status(401).json({ error: 'Invalid credentials' });
+          return;
+        }
+        res.json({ token: 'token' });
+      },
+    );
+    server = await listen(app);
+  });
+
+  afterAll(async () => {
+    await close(server);
+  });
+
+  const mint = (apiSecret: string): Promise<number> => {
+    const { port } = server.address() as AddressInfo;
+    return new Promise((resolve, reject) => {
+      const body = JSON.stringify({ apiKey: 'oxy_dk_target', apiSecret });
+      const req = http.request(
+        {
+          method: 'POST',
+          host: '127.0.0.1',
+          port,
+          path: '/auth/service-token',
+          headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+        },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode ?? 0));
+        },
+      );
+      req.on('error', reject);
+      req.end(body);
+    });
+  };
+
+  it('does not let invalid secrets consume the authenticated renewal budget', async () => {
+    expect(await mint('wrong')).toBe(401);
+    expect(await mint('wrong-again')).toBe(401);
+    expect(await mint('correct')).toBe(200);
+    expect(await mint('correct')).toBe(429);
   });
 });
