@@ -1,5 +1,9 @@
 # Changelog — `@oxy.so/core`
 
+## 6.17.1
+
+- Use the maintained, source-built Zod security backport to reject oversized constrained collections before traversing their elements, preserving the existing validation API.
+
 ## 6.17.0
 
 ### Added

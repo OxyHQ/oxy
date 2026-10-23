@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2020",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
@@ -9,7 +9,8 @@
     "declaration": true,
     "noEmit": false,
     "outDir": ".",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "useDefineForClassFields": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/tests/**", "src/**/*.test.ts", "src/**/*.bench.ts"]
