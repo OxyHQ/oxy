@@ -19,8 +19,15 @@ Use the receiving product's SDK. Frontend calls use the existing Oxy linked
 client so account switching, refresh and cancellation remain centralized.
 Backend calls use the shared `OxyServer` workload transport with the receiving
 application's audience; no customer API key or application-local token plumbing.
-The receiver verifies authentication through the shared SDK and then applies
-its own resource rules. A service identity is not a substitute for the identity
+For a registered `oxy-service:<applicationId>` receiver, shared middleware
+checks every service token against live central introspection. External service
+JWTs retain the intersection of signed scopes and current credential/application
+ceilings, with exact application, credential, billing owner, environment,
+audience and expiry. A legacy `oxy-api` external audience remains scoped during
+client migration. A changed brand flag cannot promote a customer key. Raw
+machine keys and external OAuth session introspection remain the existing
+Clarity resource API; accepting a signed service JWT does not open those lanes.
+The receiver then applies its own resource rules. A service identity is not a substitute for the identity
 of the person whose private resource is requested.
 
 Keep the original caller's authority when proxying external traffic. Never infer

@@ -8,7 +8,10 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
-import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
+import {
+  resolveLiveAgencyServicePrincipal,
+  resolveLiveExternalServicePrincipal,
+} from '../services/agencyServicePrincipal.service';
 import accountService from '../services/account.service';
 import { resolveExternalResourceSession } from '../services/resourceSessionAuthority.service';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
@@ -58,9 +61,9 @@ async function requireCanonicalClarityBackend(
 }
 
 /**
- * Resource-server token introspection for Clarity. The authenticated CALLER is
- * the canonical Clarity backend application; `body.token` is the independent
- * credential whose effective tenant identity Clarity needs to authorize.
+ * Registered resource receivers introspect signed service tokens and own sessions.
+ * External raw keys and OAuth sessions remain the canonical Clarity resource API.
+ * The receiver authenticates independently from the bearer being inspected.
  */
 router.post(
   '/introspect',
@@ -143,8 +146,9 @@ router.post(
       if (modernReceiver) {
         const human = await validateForegroundRequesterBearer(token, receiverPrincipal);
         if (human) {
+          const operatorId = human.principalAccountId;
           const access = await accountService.resolveEffectiveAccess(
-            human.principalAccountId,
+            operatorId,
             human.subjectAccountId,
             human.sessionId,
           );
@@ -163,6 +167,27 @@ router.post(
           } satisfies Introspection);
         }
       }
+      const service = ownService.ok ? ownService : legacyService;
+      if (service.ok && service.payload.authority !== 'first_party') {
+        if (service.payload.environment !== receiver.environment) return response.json(inactive());
+        const principal = await resolveLiveExternalServicePrincipal(service.payload);
+        if (!principal) return response.json(inactive());
+        return response.json({
+          active: true,
+          kind: 'service',
+          accountId: principal.ownerAccountId,
+          applicationId: principal.applicationId,
+          credentialId: principal.credentialId,
+          audience: ownService.ok ? expectedAudience : 'oxy-api',
+          environment: service.payload.environment,
+          tier: 'external',
+          authority: 'external',
+          scopes: [...(principal.scopes ?? [])],
+          permissions: [],
+          expiresAt: new Date((service.payload.exp as number) * 1_000).toISOString(),
+        } satisfies Introspection);
+      }
+
       // The legacy resource-key/session projection remains Clarity's external API.
       if (receiver.appId !== CLARITY_BACKEND_APPLICATION_ID) return response.json(inactive());
       const machine = await resolveMachineCredential(token);
@@ -184,30 +209,11 @@ router.post(
       }
       if (token.startsWith('oxy_sk_')) return response.json(inactive());
 
-      const service = ownService.ok ? ownService : legacyService;
-      if (service.ok && service.payload.authority !== 'first_party') {
-        const principal = await resolveLiveAgencyServicePrincipal(service.payload);
-        if (!principal) return response.json(inactive());
-        return response.json({
-          active: true,
-          kind: 'service',
-          accountId: principal.ownerAccountId,
-          applicationId: principal.applicationId,
-          credentialId: principal.credentialId,
-          audience: ownService.ok ? expectedAudience : 'oxy-api',
-          environment: service.payload.environment,
-          tier: 'external',
-          authority: 'external',
-          scopes: [...(principal.scopes ?? [])],
-          permissions: [],
-          expiresAt: new Date((service.payload.exp as number) * 1_000).toISOString(),
-        } satisfies Introspection);
-      }
-
       const session = await resolveExternalResourceSession(token);
       if (!session) return response.json(inactive());
+      const operatorId = session.requesterAccountId;
       const access = await accountService.resolveEffectiveAccess(
-        session.requesterAccountId,
+        operatorId,
         session.effectiveAccountId,
         session.sessionId,
       );
