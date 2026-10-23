@@ -1,3 +1,4 @@
+import { hasExternalMcpMediaProof } from '../services/externalMcpMediaRequester.service';
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
 import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
@@ -174,6 +175,8 @@ export async function optionalUserOrServiceAuth(
     if (token) {
       const verification = verifyServiceToken(token);
       if (verification.ok) {
+        if (hasExternalMcpMediaProof(req.headers))
+          throw new ForbiddenError('External media proof is restricted to its media operation.');
         if (verification.payload.authority === 'first_party') {
           const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
           if (!principal) {

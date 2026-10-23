@@ -1,3 +1,4 @@
+import { bindExternalMcpMediaLane, type ExternalMcpMediaProof } from './externalMediaRequester';
 /**
  * The server-side halves of the namespaces: what exists only with a service
  * credential. `OxyServer` returns these from its namespace getters, so
@@ -261,6 +262,18 @@ function uniqueIds(ids: string[]): string[] {
 
 export class ServerAssetsApi extends AssetsApi {
   /** Isolated requester context for uploads, imports, recordings and reads. */
+  /** Forward one externally granted MCP media action, keeping its original grant and account. */
+  withMcpMediaRequester(
+    proof: ExternalMcpMediaProof,
+  ): Pick<ServerAssetsApi, 'uploadUserMedia' | 'importUserMedia'> {
+    const service = bindExternalMcpMediaLane(lane(this.ctx), proof);
+    const assets = new ServerAssetsApi({ ...this.ctx, service, request: service.request });
+    return {
+      uploadUserMedia: assets.uploadUserMedia.bind(assets),
+      importUserMedia: assets.importUserMedia.bind(assets),
+    };
+  }
+
   withRequester(proof: RequesterProof): ServerAssetsApi {
     const service = bindRequesterLane(lane(this.ctx), proof);
     return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
