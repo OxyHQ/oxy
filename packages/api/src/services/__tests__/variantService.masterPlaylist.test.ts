@@ -36,7 +36,7 @@ interface MasterPlaylistHarness {
 const SHA = 'e80e2cc4c0d81707301d5d3064299cbaf2884eaf03fb1aa54803a70c956d957a';
 const MASTER_URL = `https://cloud.oxy.so/variants/2026/09/e8/${SHA}/hls_master.m3u8`;
 
-/** The shape `generateHLSStream` builds: `playlist` is the S3 key it uploaded. */
+/** The shape `generateVideoRenditions` builds: `playlist` is the S3 key it uploaded. */
 function rendition(type: string, resolution: string, bitrate: string) {
   return {
     resolution,

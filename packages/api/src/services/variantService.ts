@@ -1001,20 +1001,8 @@ export class VariantService {
         root,
       ),
     );
-    for (const rung of rungs) {
-      variants.push(
-        await this.generateVideoVariant(
-          videoUrl,
-          file.sha256,
-          rung,
-          spellingOf(file),
-          profile,
-          root,
-        ),
-      );
-    }
     variants.push(
-      ...(await this.generateHLSStream(
+      ...(await this.generateVideoRenditions(
         videoUrl,
         file.sha256,
         rungs,
@@ -1808,69 +1796,95 @@ export class VariantService {
   ): Promise<NewFileVariant> {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-video-'));
     try {
-      const outputPath = path.join(tempDir, 'video.mp4');
-      const run = await runFfmpeg(
-        ffmpegPath,
-        [
-          '-i',
-          videoUrl,
-          '-map',
-          '0:v:0',
-          '-map',
-          '0:a:0?',
-          '-c:v',
-          'libx264',
-          '-c:a',
-          'aac',
-          '-b:v',
-          rung.bitrate,
-          '-preset',
-          rung.preset,
-          '-crf',
-          '23',
-          '-pix_fmt',
-          'yuv420p',
-          '-vf',
-          videoScaleFilter(rung),
-          '-movflags',
-          '+faststart',
-          '-avoid_negative_ts',
-          'make_zero',
-          '-y',
-          outputPath,
-        ],
-        { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
+      return await this.encodeAndUploadVideoVariant(
+        videoUrl,
+        path.join(tempDir, 'video.mp4'),
+        sha256,
+        rung,
+        visibility,
+        profile,
+        root,
       );
-      if (run.code !== 0)
-        throw new Error(
-          `Video ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
-        );
-      const key = this.generateVariantKey(sha256, rung.type, 'mp4', visibility, profile, root);
-      await this.s3Service.uploadFile(key, outputPath, {
-        contentType: 'video/mp4',
-        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-      });
-      const stat = await fs.promises.stat(outputPath);
-      return {
-        type: rung.type,
-        key,
-        width: rung.width,
-        height: rung.height,
-        readyAt: new Date(),
-        size: stat.size,
-        metadata: {
-          bitrate: rung.bitrate,
-          format: 'mp4',
-          encodingProfile: VIDEO_RENDITION_PROFILE,
-        },
-      };
     } finally {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     }
   }
 
-  /** Encode sequentially to bound CPU; publish segments before playlists and master last. */
-  private async generateHLSStream(
+  /** Encode once; the caller owns the local MP4 until HLS remuxing or upload completes. */
+  private async encodeAndUploadVideoVariant(
+    videoUrl: string,
+    outputPath: string,
+    sha256: string,
+    rung: VideoRung,
+    visibility: FileVisibility,
+    profile: string,
+    root?: string,
+  ): Promise<NewFileVariant> {
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
+        '-i',
+        videoUrl,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        '-b:v',
+        rung.bitrate,
+        '-preset',
+        rung.preset,
+        '-crf',
+        '23',
+        '-pix_fmt',
+        'yuv420p',
+        '-vf',
+        videoScaleFilter(rung),
+        '-sc_threshold',
+        '0',
+        '-flags',
+        '+cgop',
+        '-force_key_frames',
+        `expr:gte(t,n_forced*${VIDEO_SEGMENT_SECONDS})`,
+        '-movflags',
+        '+faststart',
+        '-avoid_negative_ts',
+        'make_zero',
+        '-y',
+        outputPath,
+      ],
+      { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
+    );
+    if (run.code !== 0)
+      throw new Error(
+        `Video ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
+      );
+    const key = this.generateVariantKey(sha256, rung.type, 'mp4', visibility, profile, root);
+    await this.s3Service.uploadFile(key, outputPath, {
+      contentType: 'video/mp4',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    const stat = await fs.promises.stat(outputPath);
+    return {
+      type: rung.type,
+      key,
+      width: rung.width,
+      height: rung.height,
+      readyAt: new Date(),
+      size: stat.size,
+      metadata: {
+        bitrate: rung.bitrate,
+        format: 'mp4',
+        encodingProfile: VIDEO_RENDITION_PROFILE,
+      },
+    };
+  }
+
+  /** Encode each rung once, remux its MP4 to HLS, and publish the master last. */
+  private async generateVideoRenditions(
     videoUrl: string,
     sha256: string,
     rungs: VideoRung[],
@@ -1883,36 +1897,30 @@ export class VariantService {
     const masterRenditions: Array<{ resolution: string; bitrate: string; playlist: string }> = [];
     try {
       for (const rung of rungs) {
+        const encodedPath = path.join(tempDir, `video_${rung.type}.mp4`);
+        variants.push(
+          await this.encodeAndUploadVideoVariant(
+            videoUrl,
+            encodedPath,
+            sha256,
+            rung,
+            visibility,
+            profile,
+            root,
+          ),
+        );
         const outputPath = path.join(tempDir, `stream_${rung.type}.m3u8`);
         const run = await runFfmpeg(
           ffmpegPath,
           [
             '-i',
-            videoUrl,
+            encodedPath,
             '-map',
             '0:v:0',
             '-map',
             '0:a:0?',
-            '-c:v',
-            'libx264',
-            '-c:a',
-            'aac',
-            '-b:v',
-            rung.bitrate,
-            '-preset',
-            rung.preset,
-            '-crf',
-            '23',
-            '-pix_fmt',
-            'yuv420p',
-            '-vf',
-            videoScaleFilter(rung),
-            '-sc_threshold',
-            '0',
-            '-flags',
-            '+cgop',
-            '-force_key_frames',
-            `expr:gte(t,n_forced*${VIDEO_SEGMENT_SECONDS})`,
+            '-c',
+            'copy',
             '-f',
             'hls',
             '-hls_time',
@@ -1930,10 +1938,8 @@ export class VariantService {
           ],
           { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
         );
-        if (run.code !== 0)
-          throw new Error(
-            `Video HLS ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
-          );
+        if (run.code !== 0) throw new Error(`Video HLS ${rung.type} failed: ${run.stderrTail}`);
+        await fs.promises.unlink(encodedPath);
         const playlist = await fs.promises.readFile(outputPath);
         const key = this.generateVariantKey(
           sha256,
