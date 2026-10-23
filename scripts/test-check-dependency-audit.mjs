@@ -119,7 +119,11 @@ const cases = [
     payload: {
       ...cleanPayload(),
       braces: [
-        advisory('high', 'GHSA-new-braces-advisory', 'a new high after the acknowledgement was removed'),
+        advisory(
+          'high',
+          'GHSA-new-braces-advisory',
+          'a new high after the acknowledgement was removed',
+        ),
       ],
     },
     expectFailure: true,
