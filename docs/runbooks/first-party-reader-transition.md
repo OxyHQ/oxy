@@ -31,6 +31,13 @@ disposed consumers. The product SDK owns its canonical URL and WebSocket
 protocol; applications do not copy token callbacks or extract a bearer from
 an artificial HTTP request.
 
+For Kaana only, `attribution: { accountId }` fixes the user attribution at
+transport construction. It is mutually exclusive with requester proof and
+cannot be used with another audience. Core removes untrusted user/proof headers
+before adding this account. This does not authorize user data or make that
+account the payer; the authenticated workload retains its accounting authority.
+Kaana's SDK uses the same fixed account for its HTTP and WebSocket protocol.
+
 Shared transport cancellation covers identity preparation as well as the product
 request. Cancelling one consumer does not cancel another consumer's shared mint;
 the exchange has its own 15-second deadline, including temporary credential

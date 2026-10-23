@@ -238,16 +238,25 @@ export type ServiceTokenAudience =
   | 'oxy-api:kaana-control'
   | `oxy-service:${string}`;
 
-export interface ServiceClientOptions {
-  baseURL: string;
-  audience: ServiceTokenAudience;
-  /** A verified user session, never an arbitrary user id without proof. */
-  requester?: { accountId: string } & (
-    | { token: string; taskId?: never; requesterContext?: never }
-    | { taskId: string; token?: never; requesterContext?: never }
-    | { requesterContext: string; token?: never; taskId?: never }
-  );
-}
+type ServiceClientRequester = { accountId: string } & (
+  | { token: string; taskId?: never; requesterContext?: never }
+  | { taskId: string; token?: never; requesterContext?: never }
+  | { requesterContext: string; token?: never; taskId?: never }
+);
+export type ServiceClientOptions = { baseURL: string } & (
+  | {
+      audience: ServiceTokenAudience;
+      /** Verified requester authority for product data. */
+      requester?: ServiceClientRequester;
+      attribution?: never;
+    }
+  | {
+      audience: 'kaana.ai';
+      /** Inference attribution only; grants no user-data access or payer authority. */
+      attribution: Readonly<{ accountId: string }>;
+      requester?: never;
+    }
+);
 export interface ServiceHttpClient {
   fetch: typeof globalThis.fetch;
   /** For product SDK protocols such as WebSocket; validates the destination before minting. */
@@ -362,8 +371,6 @@ export class OxyServer extends OxyServices {
     const origin = new URL(options.baseURL);
     if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password)
       throw new Error('A service client requires an HTTP API origin');
-    const client = new HttpService({ baseURL: options.baseURL, enableCache: false });
-    let disposed = false;
     const requester = options.requester ? { ...options.requester } : undefined;
     if (
       requester &&
@@ -374,6 +381,21 @@ export class OxyServer extends OxyServices {
         ).length !== 1)
     )
       throw new Error('A requester requires an account id and session proof');
+    const attribution = options.attribution?.accountId;
+    if (
+      options.attribution !== undefined &&
+      (options.audience !== 'kaana.ai' ||
+        requester !== undefined ||
+        typeof attribution !== 'string' ||
+        !attribution ||
+        attribution.length > 128 ||
+        /\s/.test(attribution))
+    )
+      throw new Error(
+        'Inference attribution requires kaana.ai, one account and no requester proof',
+      );
+    const client = new HttpService({ baseURL: options.baseURL, enableCache: false });
+    let disposed = false;
     const audience = options.audience;
     const mint = () => this.workloadServiceToken(audience, 2);
     client.setAuthRefreshHandler(async () => {
@@ -420,6 +442,7 @@ export class OxyServer extends OxyServices {
         headers.delete('X-Oxy-Mcp-Media-Tool');
         headers.delete('X-Oxy-Presented-Requester-Context');
         headers.delete('X-Oxy-Presented-Service-Token');
+        if (attribution) headers.set('X-Oxy-User-Id', attribution);
         if (requester) {
           headers.set('X-Oxy-User-Id', requester.accountId);
           if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
