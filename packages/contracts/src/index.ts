@@ -1615,11 +1615,7 @@ export * from './organizations';
 
 export * from './safety';
 
-export {
-  serviceTokenScopesSchema,
-  serviceTokenOptionsSchema,
-  type ServiceTokenOptions,
-} from './serviceToken';
+export * from './serviceToken';
 
 export * from './applicationRoles';
 export * from './contentClaims';

@@ -24,7 +24,11 @@ export interface ServiceLane {
     method: HttpMethod,
     url: string,
     data?: unknown,
-    options?: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] },
+    options?: RequestOptions & {
+      actAs?: string;
+      requesterToken?: string;
+      serviceTokenScopes?: string[];
+    },
   ): Promise<ResponsePayload<T>>;
 }
 
