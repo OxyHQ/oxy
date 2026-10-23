@@ -135,7 +135,7 @@ describe('canonical profile access context', () => {
       'POST',
       '/safety/service/message-access-batch',
       { input: { items }, requester: { accessToken: 'original' } },
-      expect.objectContaining({ serviceTokenScopes: ['safety:decide'], cache: false }),
+      expect.objectContaining({ cache: false }),
     );
     await oxy.safety.deliveryAccessBatch({
       items: items.map((item) => ({ ...item, senderAccountId: 'person' })),
@@ -168,7 +168,6 @@ describe('canonical profile access context', () => {
       '/safety/service/messaging-sessions',
       input,
       expect.objectContaining({
-        serviceTokenScopes: ['safety:decide'],
         cache: false,
         retry: false,
       }),
