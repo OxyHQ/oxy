@@ -67,7 +67,9 @@ export interface ServiceTokenPayload {
   environment: OxyServiceEnvironment;
   /** See {@link ServiceTier}. */
   tier: ServiceTier;
-  scopes: string[];
+  authority?: 'first_party' | 'external';
+  scopes?: string[];
+  audience?: string;
   iat?: number;
   exp?: number;
 }
@@ -105,6 +107,7 @@ type UnverifiedServiceClaims = {
   ownerAccountId?: string;
   environment?: unknown;
   tier?: unknown;
+  authority?: unknown;
   scopes?: unknown;
   iss?: unknown;
   aud?: unknown;
@@ -220,17 +223,28 @@ export function verifyServiceToken(
     !isExactNonEmptyString(decoded.appName) ||
     !isExactNonEmptyString(decoded.credentialId) ||
     !isExactNonEmptyString(decoded.ownerAccountId) ||
-    !isOxyServiceEnvironment(decoded.environment) ||
-    !Array.isArray(decoded.scopes) ||
-    !decoded.scopes.every(
-      (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
-    ) ||
-    new Set(decoded.scopes).size !== decoded.scopes.length
+    !isOxyServiceEnvironment(decoded.environment)
   ) {
     return { ok: false, reason: 'not_service' };
   }
 
-  const scopes = decoded.scopes as string[];
+  const firstParty = decoded.authority === 'first_party';
+  if (firstParty) {
+    if (
+      decoded.scopes !== undefined ||
+      !/^wl_[a-f0-9]{24}$/.test(decoded.credentialId) ||
+      decoded.tier !== 'internal' ||
+      decoded.aud !== audience
+    ) {
+      return { ok: false, reason: 'invalid' };
+    }
+  } else if (
+    (decoded.authority !== undefined && decoded.authority !== 'external') ||
+    !Array.isArray(decoded.scopes) ||
+    !decoded.scopes.every((scope) => isExactNonEmptyString(scope)) ||
+    new Set(decoded.scopes).size !== decoded.scopes.length
+  )
+    return { ok: false, reason: 'invalid' };
 
   return {
     ok: true,
@@ -242,7 +256,9 @@ export function verifyServiceToken(
       ownerAccountId: decoded.ownerAccountId,
       environment: decoded.environment,
       tier: decoded.tier === 'internal' ? 'internal' : 'external',
-      scopes,
+      authority: firstParty ? 'first_party' : 'external',
+      audience,
+      ...(firstParty ? {} : { scopes: decoded.scopes as string[] }),
       iat: decoded.iat,
       exp: decoded.exp,
     },

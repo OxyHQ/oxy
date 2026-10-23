@@ -3919,12 +3919,12 @@ router.post(
   workloadTokenLimiter,
   validate({ body: workloadServiceTokenSchema }),
   asyncHandler(async (req, res) => {
-    const { provider, nonce, attestation, scopes } = req.body;
+    const { provider, nonce, attestation, scopes, protocolVersion } = req.body;
     const audience: ServiceTokenAudience = req.body.audience ?? OXY_API_AUDIENCE;
     try {
       sendSuccess(
         res,
-        await exchangeWorkloadAttestation({ provider, nonce, attestation, audience, scopes }),
+        await exchangeWorkloadAttestation({ provider, nonce, attestation, audience, scopes, protocolVersion }),
       );
     } catch (error: unknown) {
       throw asWorkloadHttpError(error);
