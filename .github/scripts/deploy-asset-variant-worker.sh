@@ -20,7 +20,7 @@
 # cost ~370s per deploy (run 36505794567: 01:29:10 -> 01:35:20).
 #
 # Never pass --desired-count: Application Auto Scaling owns the worker's count
-# (1..4), and a deploy that set it would fight the scaler.
+# (1..8), and a deploy that set it would fight the scaler.
 # scripts/check-asset-worker-rollout.mjs holds this file to that.
 set -euo pipefail
 
@@ -117,6 +117,9 @@ if [[ "$phase" == "start" ]]; then
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
+          # Match the oxy-infra sustained-encoding reservation. Carrying the old
+          # 256 shares forward hides CPU demand from EC2 capacity scaling.
+          | .cpu = 1024
           | .command = ["bun", "packages/api/dist/asset-variant-worker.js"]
           | .secrets = ((.secrets // [] | map(select(.name as $n | $secretNames | index($n) | not))) + $secrets)
           | .environment = ((.environment // [] | map(select(.name as $n | ($environmentNames + $retiredNames) | index($n) | not))) + $environment)
