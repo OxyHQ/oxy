@@ -1,14 +1,16 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { urlCheck, utf16MaxLength, utf16MinLength } from '../stringChecks';
 import { z } from 'zod';
 import { oxyAccountIdSchema } from '../inference/identifiers';
 export const personalPlanCheckoutRequestSchema = z
   .object({
     expectedSubjectAccountId: oxyAccountIdSchema,
-    offerId: z.string().min(1).max(160),
-    offerVersion: z.number().int().positive().safe(),
+    offerId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+    offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     idempotencyKey: z
       .string()
-      .min(8)
-      .max(160)
+      .check(utf16MinLength(8))
+      .check(utf16MaxLength(160))
       .regex(/^[a-zA-Z0-9_-]+$/),
   })
   .strict();
@@ -23,12 +25,22 @@ export const personalPlanCheckoutResultSchema = z.discriminatedUnion('state', [
   z
     .object({
       state: z.literal('pending'),
-      intentId: z.string().min(1).max(160),
-      checkoutUrl: z.string().url().startsWith('https://').optional(),
+      intentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+      checkoutUrl: z.string().check(urlCheck()).startsWith('https://').optional(),
     })
     .strict(),
-  z.object({ state: z.literal('closed'), intentId: z.string().min(1).max(160) }).strict(),
-  z.object({ state: z.literal('fulfilled'), intentId: z.string().min(1).max(160) }).strict(),
+  z
+    .object({
+      state: z.literal('closed'),
+      intentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal('fulfilled'),
+      intentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+    })
+    .strict(),
 ]);
 export type PersonalPlanCheckoutRequest = z.infer<typeof personalPlanCheckoutRequestSchema>;
 export type PersonalPlanCheckoutResult = z.infer<typeof personalPlanCheckoutResultSchema>;
@@ -36,7 +48,7 @@ export type PersonalPlanCheckoutResult = z.infer<typeof personalPlanCheckoutResu
 /** Explicit individual product offer; still owned and paid through Oxy. */
 export const productPlanCheckoutRequestSchema = personalPlanCheckoutRequestSchema
   .extend({
-    productId: z.string().min(1).max(160),
+    productId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
   })
   .strict();
 export type ProductPlanCheckoutRequest = z.infer<typeof productPlanCheckoutRequestSchema>;
@@ -44,7 +56,7 @@ export type ProductPlanCheckoutRequest = z.infer<typeof productPlanCheckoutReque
 export const productSubscriptionRenewalRequestSchema = z
   .object({
     expectedSubjectAccountId: oxyAccountIdSchema,
-    sourceId: z.string().min(1).max(160),
+    sourceId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
     idempotencyKey: personalPlanCheckoutRequestSchema.shape.idempotencyKey,
   })
   .strict();

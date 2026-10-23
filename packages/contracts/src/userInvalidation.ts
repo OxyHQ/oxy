@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MinLength } from './stringChecks';
 /**
  * Canonical contract for the Oxy user-invalidation broadcast.
  *
@@ -89,11 +91,11 @@ export function isPublishedOxyUserChangeReason(
  */
 export const oxyUserInvalidationEventSchema = z.object({
   /** The Oxy user whose record changed. */
-  userId: z.string().min(1),
+  userId: z.string().check(utf16MinLength(1)),
   /** Why it changed. Only broadcast reasons appear on the wire. */
   reason: z.enum(OXY_PUBLISHED_USER_CHANGE_REASONS),
   /** Publisher's epoch-ms timestamp. Diagnostic only. */
-  at: z.number().int().nonnegative(),
+  at: z.number().check(integerCheck()).nonnegative(),
 });
 
 export type OxyUserInvalidationEvent = z.infer<typeof oxyUserInvalidationEventSchema>;

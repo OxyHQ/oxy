@@ -12,6 +12,7 @@
 
 ### Changed
 
+- Require patched Zod 4.6.7 for collection validation.
 - Package against contracts 6.
 
 ## 1.3.1

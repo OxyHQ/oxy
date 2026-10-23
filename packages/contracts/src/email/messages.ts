@@ -1,3 +1,5 @@
+import { integerCheck } from '../numberChecks';
+import { isoDateTime } from '../stringChecks';
 /**
  * Wire contract for the Inbox read API (`/email/*` on oxy-api).
  *
@@ -23,7 +25,7 @@
 import { z } from 'zod';
 
 /** An ISO-8601 instant as `Date.prototype.toJSON` writes it. */
-const isoInstant = z.string().datetime();
+const isoInstant = z.string().check(isoDateTime());
 
 // ─── Vocabularies ───────────────────────────────────────────────────
 
@@ -167,8 +169,8 @@ export type EmailMessageHighlightWire = z.infer<typeof emailMessageHighlightSche
  */
 export const emailMessageDeliverySchema = z.object({
   state: z.enum(EMAIL_DELIVERY_STATES),
-  attempts: z.number().int(),
-  maxAttempts: z.number().int(),
+  attempts: z.number().check(integerCheck()),
+  maxAttempts: z.number().check(integerCheck()),
   nextAttemptAt: isoInstant.nullable(),
   error: z.string().nullable(),
   errorCode: z.enum(EMAIL_DELIVERY_ERROR_CODES).nullable().catch(null),
@@ -217,14 +219,14 @@ export const emailMessageSchema = z.object({
   receivedAt: isoInstant,
   createdAt: isoInstant,
   updatedAt: isoInstant,
-  draftRevision: z.number().int().min(1),
+  draftRevision: z.number().check(integerCheck()).min(1),
   /** Present only on the reads that return bodies (single message, thread). */
   text: z.string().nullable().optional(),
   html: z.string().nullable().optional(),
   headers: z.record(z.string(), z.string()).optional(),
   senderAvatarPath: z.string().nullable().optional(),
   /** Present only on list reads that walked the thread. */
-  threadCount: z.number().int().optional(),
+  threadCount: z.number().check(integerCheck()).optional(),
   threadParticipants: z.array(z.string()).optional(),
   /**
    * Present only on a message the user sent through Oxy since delivery was
@@ -244,9 +246,9 @@ export const emailMailboxSchema = z.object({
   name: z.string(),
   path: z.string(),
   specialUse: z.string().nullable(),
-  retentionDays: z.number().int().nullable(),
-  totalMessages: z.number().int(),
-  unseenMessages: z.number().int(),
+  retentionDays: z.number().check(integerCheck()).nullable(),
+  totalMessages: z.number().check(integerCheck()),
+  unseenMessages: z.number().check(integerCheck()),
   size: z.number(),
   createdAt: isoInstant,
   updatedAt: isoInstant,
@@ -260,7 +262,7 @@ export const emailUserLabelSchema = z.object({
   userId: z.string(),
   name: z.string(),
   color: z.string(),
-  order: z.number().int(),
+  order: z.number().check(integerCheck()),
   system: z.literal(false),
   createdAt: isoInstant,
   updatedAt: isoInstant,
@@ -272,7 +274,7 @@ export const emailSystemLabelSchema = z.object({
   _id: z.string(),
   name: z.string(),
   color: z.string(),
-  order: z.number().int(),
+  order: z.number().check(integerCheck()),
   system: z.literal(true),
 });
 export type EmailSystemLabelWire = z.infer<typeof emailSystemLabelSchema>;
@@ -306,7 +308,7 @@ export const emailFilterSchema = z.object({
   name: z.string(),
   enabled: z.boolean(),
   matchAll: z.boolean(),
-  order: z.number().int(),
+  order: z.number().check(integerCheck()),
   conditions: z.array(emailFilterConditionSchema),
   actions: z.array(emailFilterActionSchema),
   createdAt: isoInstant,
@@ -324,7 +326,7 @@ export const emailBundleSchema = z.object({
   matchLabels: z.array(z.string()),
   enabled: z.boolean(),
   collapsed: z.boolean(),
-  order: z.number().int(),
+  order: z.number().check(integerCheck()),
   createdAt: isoInstant,
   updatedAt: isoInstant,
 });
@@ -337,10 +339,10 @@ export const emailBundledInboxSchema = z.object({
     z.object({
       bundle: emailBundleSchema,
       messages: z.array(emailMessageSchema),
-      unreadCount: z.number().int(),
+      unreadCount: z.number().check(integerCheck()),
     }),
   ),
-  total: z.number().int(),
+  total: z.number().check(integerCheck()),
 });
 export type EmailBundledInboxWire = z.infer<typeof emailBundledInboxSchema>;
 
@@ -369,8 +371,8 @@ export const emailOutboxSchema = z.object({
   id: z.string(),
   messageId: z.string(),
   status: z.enum(EMAIL_OUTBOX_STATUSES),
-  attempts: z.number().int(),
-  maxAttempts: z.number().int(),
+  attempts: z.number().check(integerCheck()),
+  maxAttempts: z.number().check(integerCheck()),
   terminal: z.boolean(),
   nextAttemptAt: isoInstant,
   lastError: z.string().nullable(),

@@ -33,6 +33,7 @@
       "packages/test-app-vite"
     ],
     "catalog": {
+      "zod": "^4.6.7",
       "@alia.onl/sdk": "^21.5.0",
       "@hugeicons/core-free-icons": "^3.3.0",
       "@lottiefiles/dotlottie-react": "^0.19.9",

@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Application roles — the wire contract for permissions an APPLICATION declares
  * about its own users, and for the grants that give them to Oxy users.
@@ -83,7 +85,7 @@ export function isApplicationPermissionKey(value: unknown): value is string {
 
 export const applicationPermissionKeySchema = z
   .string()
-  .max(APPLICATION_PERMISSION_KEY_MAX_LENGTH)
+  .check(utf16MaxLength(APPLICATION_PERMISSION_KEY_MAX_LENGTH))
   .regex(
     APPLICATION_PERMISSION_KEY_PATTERN,
     'A permission key is 2-4 dot-separated lowercase segments, e.g. payments.operate',
@@ -94,8 +96,8 @@ function plainText(max: number) {
   return z
     .string()
     .trim()
-    .min(1)
-    .max(max)
+    .check(utf16MinLength(1))
+    .check(utf16MaxLength(max))
     .refine(
       (value) =>
         Array.from(value).every((character) => {
@@ -106,8 +108,8 @@ function plainText(max: number) {
     );
 }
 
-const id = z.string().min(1).max(128);
-const isoTimestamp = z.string().min(1);
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
+const isoTimestamp = z.string().check(utf16MinLength(1));
 const reasonSchema = plainText(APPLICATION_ROLE_REASON_MAX_LENGTH);
 
 /** One key as the application's owners declare it. */
@@ -169,7 +171,7 @@ export const declareApplicationPermissionsResponseSchema = applicationPermission
   /** Live keys whose description changed. */
   described: z.array(applicationPermissionKeySchema),
   /** Live grants revoked because their key was retired. */
-  revokedGrants: z.number().int().nonnegative(),
+  revokedGrants: z.number().check(integerCheck()).nonnegative(),
 });
 
 /** One grant of one key to one Oxy user. Revocation is a stamp, never a delete. */
@@ -198,7 +200,7 @@ export const applicationRoleGrantListSchema = z.object({
 export const createApplicationRoleGrantRequestSchema = z
   .object({
     userId: id.optional(),
-    username: z.string().trim().min(1).max(64).optional(),
+    username: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
     permission: applicationPermissionKeySchema,
     reason: reasonSchema.optional(),
   })
@@ -224,8 +226,13 @@ export const listApplicationRoleGrantsQuerySchema = z
       .enum(['true', 'false'])
       .transform((value) => value === 'true')
       .optional(),
-    limit: z.coerce.number().int().min(1).max(APPLICATION_ROLE_GRANTS_PAGE_MAX).optional(),
-    cursor: z.string().min(1).max(512).optional(),
+    limit: z.coerce
+      .number()
+      .check(integerCheck())
+      .min(1)
+      .max(APPLICATION_ROLE_GRANTS_PAGE_MAX)
+      .optional(),
+    cursor: z.string().check(utf16MinLength(1)).check(utf16MaxLength(512)).optional(),
   })
   .strict();
 

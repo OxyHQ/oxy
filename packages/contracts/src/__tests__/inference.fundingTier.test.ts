@@ -81,7 +81,7 @@ describe('funding tiers (ADR 0038)', () => {
     expect(
       normalizedUsageReportSchema.safeParse({ ...report, fundingTier: 'unstated' }).success,
     ).toBe(false);
-    const keys = Object.keys(normalizedUsageReportSchema.innerType().shape);
+    const keys = Object.keys(normalizedUsageReportSchema.shape);
     for (const identity of ['keyId', 'credentialId', 'fundingAccountId', 'keyLabel']) {
       expect(keys).not.toContain(identity);
     }

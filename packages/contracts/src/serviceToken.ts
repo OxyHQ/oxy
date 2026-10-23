@@ -1,8 +1,9 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 
 /** Omitted means the existing grant; an explicit set only narrows that authority. */
 export const serviceTokenScopesSchema = z
-  .array(z.string().trim().min(1).max(128))
+  .array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)))
   .min(1)
   .max(100)
   .refine((scopes) => new Set(scopes).size === scopes.length, 'Requested scopes must be unique')
@@ -18,12 +19,12 @@ export type ServiceAuthority = z.infer<typeof serviceAuthoritySchema>;
 
 const resourceIdentity = {
   active: z.literal(true),
-  accountId: z.string().min(1),
-  applicationId: z.string().min(1),
-  credentialId: z.string().min(1),
+  accountId: z.string().check(utf16MinLength(1)),
+  applicationId: z.string().check(utf16MinLength(1)),
+  credentialId: z.string().check(utf16MinLength(1)),
   environment: z.enum(['production', 'staging', 'development']),
-  audience: z.string().min(1),
-  expiresAt: z.string().datetime(),
+  audience: z.string().check(utf16MinLength(1)),
+  expiresAt: z.string().check(isoDateTime()),
 };
 
 /** No scope list exists in the internal authority variant. */
@@ -35,7 +36,7 @@ export const firstPartyServicePrincipalSchema = z.object({
 export const externalServicePrincipalSchema = z.object({
   ...resourceIdentity,
   authority: z.literal('external'),
-  scopes: z.array(z.string().min(1)),
+  scopes: z.array(z.string().check(utf16MinLength(1))),
 });
 export const servicePrincipalSchema = z.discriminatedUnion('authority', [
   firstPartyServicePrincipalSchema,
@@ -54,10 +55,10 @@ const sessionIdentity = {
   active: z.literal(true),
   kind: z.literal('session'),
   permissions: z.array(z.string()),
-  accountId: z.string().min(1),
-  requesterAccountId: z.string().min(1),
-  effectiveAccountId: z.string().min(1),
-  expiresAt: z.string().datetime(),
+  accountId: z.string().check(utf16MinLength(1)),
+  requesterAccountId: z.string().check(utf16MinLength(1)),
+  effectiveAccountId: z.string().check(utf16MinLength(1)),
+  expiresAt: z.string().check(isoDateTime()),
 };
 export const resourcePrincipalSchema = z.union([
   firstPartyServicePrincipalSchema.extend({
@@ -71,14 +72,14 @@ export const resourcePrincipalSchema = z.union([
   z.object({
     active: z.literal(true),
     kind: z.literal('key'),
-    expiresAt: z.string().datetime().optional(),
+    expiresAt: z.string().check(isoDateTime()).optional(),
     permissions: z.array(z.string()),
     authority: z.literal('external'),
-    accountId: z.string().min(1),
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
+    accountId: z.string().check(utf16MinLength(1)),
+    applicationId: z.string().check(utf16MinLength(1)),
+    credentialId: z.string().check(utf16MinLength(1)),
     environment: z.enum(['production', 'staging', 'development']),
-    scopes: z.array(z.string().min(1)),
+    scopes: z.array(z.string().check(utf16MinLength(1))),
   }),
   z.object({
     ...sessionIdentity,
@@ -89,8 +90,8 @@ export const resourcePrincipalSchema = z.union([
   z.object({
     ...sessionIdentity,
     authority: z.literal('external'),
-    applicationId: z.string().min(1),
-    scopes: z.array(z.string().min(1)),
+    applicationId: z.string().check(utf16MinLength(1)),
+    scopes: z.array(z.string().check(utf16MinLength(1))),
   }),
 ]);
 export const resourceIntrospectionSchema = z.union([
