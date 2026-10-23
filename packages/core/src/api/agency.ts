@@ -76,7 +76,21 @@ export interface PutAccountCapabilityPolicyInput {
   deniedCapabilities: string[];
 }
 
+export interface FirstPartyTask {
+  id: string;
+  origin: { kind: 'request' | 'goal' | 'automation'; id: string };
+  requesterAccountId: string;
+  effectiveAccountId: string;
+  coordinatorApplicationId: string;
+  actorType: 'alia' | 'agent' | 'requester';
+  actorAccountId: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
 export interface CapabilityExecutionAuthorization {
+  authority?: 'first_party' | 'external';
+  taskId?: string | null;
   id: string;
   kind: 'direct_request' | 'automation';
   requesterAccountId: string;
