@@ -207,7 +207,7 @@ describe('messages — the weighted text index', () => {
   it('is served by a GIN index', async () => {
     const [row] = await getDb().execute<{ indexdef: string }>(sql`
       select indexdef from pg_indexes
-      where schemaname = 'public' and indexname = 'messages_search_vector_idx'
+      where schemaname = 'public' and indexname = 'messages_user_id_search_vector_idx'
     `);
 
     expect(row.indexdef).toContain('USING gin');
