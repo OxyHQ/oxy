@@ -141,3 +141,50 @@ it('keeps concurrent requester responses separate and reads revocation on every 
     await close(server);
   }
 });
+
+it.each(['X-Oxy-Capability-Ticket', 'X-Oxy-Mcp-Media-Token'])(
+  'isolates %s authority and refuses foreign destinations before sending',
+  async (header) => {
+    let revoked = false;
+    const seen: string[] = [];
+    const server = createServer((req, res) => {
+      const proof = String(req.headers[header.toLowerCase()]);
+      seen.push(proof);
+      if (revoked) {
+        res.writeHead(403);
+        res.end('{}');
+        return;
+      }
+      setTimeout(() => {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ data: { proof } }));
+      }, 10);
+    });
+    const http = new HttpService({ baseURL: await listen(server), enableRetry: false });
+    const read = (proof: string) =>
+      http.request({
+        method: 'GET',
+        url: '/private',
+        headers: { [header]: proof },
+        cache: true,
+        deduplicate: true,
+      });
+    try {
+      expect(await Promise.all([read('A'), read('B')])).toEqual([{ proof: 'A' }, { proof: 'B' }]);
+      revoked = true;
+      await expect(read('A')).rejects.toBeDefined();
+      await expect(
+        http.request({
+          method: 'POST',
+          url: 'https://other.example/collect',
+          headers: { [header]: 'private-proof' },
+        }),
+      ).rejects.toThrow('configured API origin');
+      expect(seen.slice(0, 2).sort()).toEqual(['A', 'B']);
+      expect(seen.slice(2)).toEqual(['A']);
+    } finally {
+      http.dispose();
+      await close(server);
+    }
+  },
+);

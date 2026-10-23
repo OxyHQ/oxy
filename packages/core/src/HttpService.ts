@@ -35,6 +35,14 @@ import { getBrowserActivityIdHeader } from './utils/activityId';
 import { requiresCorsPreflight } from './utils/corsPreflight';
 import { trimLeadingSlashes, trimTrailingSlashes } from './utils/slashes';
 
+/** Secret proofs that must remain within the configured API origin. */
+const REQUESTER_PROOF_HEADERS = new Set([
+  'x-oxy-requester-token',
+  'x-oxy-task-id',
+  'x-oxy-capability-ticket',
+  'x-oxy-mcp-media-token',
+]);
+
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
@@ -690,17 +698,17 @@ export class HttpService {
     // Per-call authority is not represented by the instance's session cache
     // key. Never share or retain responses authenticated by explicit headers.
     if (
-      Object.keys(config.headers ?? {}).some((key) =>
-        ['authorization', 'x-oxy-user-id', 'x-oxy-requester-token', 'x-oxy-task-id'].includes(
-          key.toLowerCase(),
-        ),
+      Object.keys(config.headers ?? {}).some(
+        (key) =>
+          ['authorization', 'x-oxy-user-id'].includes(key.toLowerCase()) ||
+          REQUESTER_PROOF_HEADERS.has(key.toLowerCase()),
       )
     ) {
       config = { ...config, headers: { ...config.headers }, cache: false, deduplicate: false };
     }
     if (
       Object.keys(config.headers ?? {}).some((key) =>
-        ['x-oxy-requester-token', 'x-oxy-task-id'].includes(key.toLowerCase()),
+        REQUESTER_PROOF_HEADERS.has(key.toLowerCase()),
       )
     ) {
       const target = new URL(this.buildURL(config.url));
@@ -919,9 +927,7 @@ export class HttpService {
         // server fetch transports, where redirect:error is enforceable.
         if (
           useXhrForUpload &&
-          Object.keys(headers).some((key) =>
-            ['x-oxy-requester-token', 'x-oxy-task-id'].includes(key.toLowerCase()),
-          )
+          Object.keys(headers).some((key) => REQUESTER_PROOF_HEADERS.has(key.toLowerCase()))
         ) {
           throw new Error('Requester proofs require a transport that rejects redirects');
         }
