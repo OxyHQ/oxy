@@ -17,11 +17,7 @@ import type {
 } from '@/hooks/use-applications';
 import { useCreateCredential } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
-import {
-  availablePaymentsScopes,
-  isUntrustedThirdPartyApp,
-  PAYMENTS_SCOPES,
-} from '@/lib/application-scopes';
+import { availableCredentialScopes } from '@/lib/application-scopes';
 import { useTranslation } from '@/lib/i18n';
 
 const TYPES: ReadonlyArray<ApplicationCredentialType> = [
@@ -39,10 +35,8 @@ const ENVIRONMENTS: ReadonlyArray<ApplicationEnvironment> = [
 /**
  * Creates a credential and hands the one-time result to `onCreated`.
  *
- * Which scopes a type takes follows the API: a `service` credential of an
- * untrusted third-party application must name payments scopes, and a `machine`
- * (API key) credential must name at least one scope — the API refuses a
- * scopeless one rather than defaulting it to the application's whole grant.
+ * Both service credentials and API keys are external authority, even for an
+ * Oxy application. They require explicit scopes from the application's ceiling.
  */
 export function CreateCredentialDialog({
   application,
@@ -62,10 +56,11 @@ export function CreateCredentialDialog({
   const [environment, setEnvironment] = useState<ApplicationEnvironment>('development');
   const [scopes, setScopes] = useState<Array<string>>([]);
 
-  const paymentsScopes = availablePaymentsScopes(application.scopes);
-  const requiresPayments = type === 'service' && isUntrustedThirdPartyApp(application);
-  const isMachine = type === 'machine';
-  const blocked = !name.trim() || ((requiresPayments || isMachine) && scopes.length === 0);
+  const needsScopes = type === 'service' || type === 'machine';
+  const availableScopes = needsScopes ? availableCredentialScopes(application, type) : [];
+  // A concurrent ceiling change cannot leave a selected scope outside the current list.
+  const selectedScopes = scopes.filter((scope) => availableScopes.includes(scope));
+  const blocked = !name.trim() || (needsScopes && selectedScopes.length === 0);
 
   const close = () => {
     setName('');
@@ -77,7 +72,7 @@ export function CreateCredentialDialog({
 
   const chooseType = (next: ApplicationCredentialType) => {
     setType(next);
-    setScopes(next === 'service' ? paymentsScopes : []);
+    setScopes([]);
   };
 
   const toggle = (scope: string, enabled: boolean) =>
@@ -90,6 +85,7 @@ export function CreateCredentialDialog({
     );
 
   const handleCreate = async () => {
+    if (blocked || createCredential.isPending) return;
     try {
       const result = await createCredential.mutateAsync({
         appId: application._id,
@@ -97,7 +93,7 @@ export function CreateCredentialDialog({
           name: name.trim(),
           type,
           environment,
-          ...((type === 'service' || isMachine) && scopes.length > 0 ? { scopes } : {}),
+          ...(needsScopes ? { scopes: selectedScopes } : {}),
         },
       });
       close();
@@ -148,60 +144,34 @@ export function CreateCredentialDialog({
             }))}
           />
         </Field>
-        {type === 'service' ? (
-          paymentsScopes.length > 0 ? (
-            <GroupedSection
-              title={t('applications.credentials.scopes')}
-              footer={
-                requiresPayments ? t('applications.credentials.thirdPartyPayments') : undefined
-              }
-            >
-              {PAYMENTS_SCOPES.filter((scope) => paymentsScopes.includes(scope)).map((scope) => (
-                <GroupedSectionItem
-                  key={scope}
-                  title={scope}
-                  description={
-                    scope === 'payments:read'
-                      ? t('applications.scopes.paymentsRead')
-                      : t('applications.scopes.paymentsWrite')
-                  }
-                  rightElement={
-                    <Switch
-                      checked={scopes.includes(scope)}
-                      onCheckedChange={(checked) => toggle(scope, checked)}
-                      accessibilityLabel={scope}
-                    />
-                  }
-                />
-              ))}
-            </GroupedSection>
-          ) : (
-            <Admonition type="info">{t('applications.credentials.enablePayments')}</Admonition>
-          )
-        ) : null}
-        {isMachine ? (
-          application.scopes.length > 0 ? (
-            <GroupedSection
-              title={t('applications.credentials.scopes')}
-              footer={t('applications.credentials.apiKeyHint')}
-            >
-              {application.scopes.map((scope) => (
-                <GroupedSectionItem
-                  key={scope}
-                  title={scope}
-                  rightElement={
-                    <Switch
-                      checked={scopes.includes(scope)}
-                      onCheckedChange={(checked) => toggle(scope, checked)}
-                      accessibilityLabel={scope}
-                    />
-                  }
-                />
-              ))}
-            </GroupedSection>
-          ) : (
-            <Admonition type="info">{t('applications.credentials.grantScopeFirst')}</Admonition>
-          )
+        {needsScopes ? (
+          <>
+            <Admonition type="info">
+              {t('applications.credentials.externalCredentialBody')}
+            </Admonition>
+            {availableScopes.length > 0 ? (
+              <GroupedSection
+                title={t('applications.credentials.scopes')}
+                footer={t('applications.credentials.explicitScopes')}
+              >
+                {availableScopes.map((scope) => (
+                  <GroupedSectionItem
+                    key={scope}
+                    title={scope}
+                    rightElement={
+                      <Switch
+                        checked={selectedScopes.includes(scope)}
+                        onCheckedChange={(checked) => toggle(scope, checked)}
+                        accessibilityLabel={scope}
+                      />
+                    }
+                  />
+                ))}
+              </GroupedSection>
+            ) : (
+              <Admonition type="info">{t('applications.credentials.grantScopeFirst')}</Admonition>
+            )}
+          </>
         ) : null}
         <Field label={t('applications.credentials.environment')}>
           <RadioGroup
