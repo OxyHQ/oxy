@@ -687,6 +687,16 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    if (
+      Object.keys(config.headers ?? {}).some((key) =>
+        ['x-oxy-requester-token', 'x-oxy-task-id'].includes(key.toLowerCase()),
+      )
+    ) {
+      const target = new URL(this.buildURL(config.url));
+      if (target.origin !== new URL(this.baseURL).origin || target.username || target.password) {
+        throw new Error('Requester proofs must target the configured API origin');
+      }
+    }
     const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
     const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
     if (!cache && !deduplicate) {
@@ -894,6 +904,17 @@ export class HttpService {
         const useXhrForUpload =
           isFormData && isReactNative() && typeof XMLHttpRequest !== 'undefined';
 
+        // XHR cannot disable redirects. Delegated requester proofs belong to
+        // server fetch transports, where redirect:error is enforceable.
+        if (
+          useXhrForUpload &&
+          Object.keys(headers).some((key) =>
+            ['x-oxy-requester-token', 'x-oxy-task-id'].includes(key.toLowerCase()),
+          )
+        ) {
+          throw new Error('Requester proofs require a transport that rejects redirects');
+        }
+
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -902,14 +923,15 @@ export class HttpService {
               bodyValue as FormData,
               controller.signal,
               timeout,
-              this.shouldSendCredentials(fullUrl),
+              false,
             )
           : await fetch(fullUrl, {
               method,
               headers,
               body: bodyValue as BodyInit | null | undefined,
               signal: controller.signal,
-              credentials: this.getCredentialsMode(fullUrl),
+              credentials: 'omit',
+              redirect: 'error',
             });
 
         // Cleared as early as possible; the `finally` below is what GUARANTEES
@@ -1203,9 +1225,7 @@ export class HttpService {
     return new Promise<Response>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(method, url, true);
-      // Only send ambient cookies to the configured API origin. Absolute
-      // caller-supplied URLs can target arbitrary origins, so they must not
-      // receive credential-bearing requests by default.
+      // Oxy authenticates with explicit credentials, never ambient cookies.
       xhr.withCredentials = withCredentials;
 
       // Forward headers but skip Content-Type — XHR sets the multipart
@@ -1384,18 +1404,6 @@ export class HttpService {
 
     const queryString = searchParams.toString();
     return queryString ? `${base}${base.includes('?') ? '&' : '?'}${queryString}` : base;
-  }
-
-  private getCredentialsMode(url: string): RequestCredentials {
-    return this.shouldSendCredentials(url) ? 'include' : 'omit';
-  }
-
-  private shouldSendCredentials(url: string): boolean {
-    try {
-      return new URL(url).origin === new URL(this.baseURL).origin;
-    } catch {
-      return false;
-    }
   }
 
   /**
