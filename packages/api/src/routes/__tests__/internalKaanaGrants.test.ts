@@ -286,8 +286,8 @@ function settlementOf(options: SettlementOptions): Record<string, unknown> {
           credentialId: grant.principal.credentialId,
           environment: grant.principal.environment,
           ...(grant.principal.authority === 'first_party'
-            ? {authority: 'first_party'}
-            : {authority: 'external', inferenceScopes: grant.principal.scopes}),
+            ? { authority: 'first_party' }
+            : { authority: 'external', inferenceScopes: grant.principal.scopes }),
         },
         requestId: grant.requestId,
       },
@@ -383,8 +383,8 @@ function serviceToken(input: {
     ownerAccountId: input.ownerAccountId,
     environment: input.environment ?? 'production',
     ...(input.authority === 'first_party'
-      ? {authority: 'first_party', tier: 'internal'}
-      : {scopes: input.scopes ?? ['inference:invoke']}),
+      ? { authority: 'first_party', tier: 'internal' }
+      : { scopes: input.scopes ?? ['inference:invoke'] }),
     iss: 'oxy-auth',
     aud: input.audience,
     iat: issuedAt,
@@ -736,38 +736,94 @@ describe('the credential Kaana forwards', () => {
 
   it('issues a signed first-party grant without scopes and refuses the revoked binding', async () => {
     const customer = await textCustomer();
-    await getDb().update(applications).set({type: 'first_party', scopes: []})
+    await getDb()
+      .update(applications)
+      .set({ type: 'first_party', scopes: [] })
       .where(eq(applications.id, customer.applicationId));
     const subject = `arn:aws:iam::237343248947:role/oxy-grant-${tag()}`;
-    const [binding] = await getDb().insert(applicationWorkloadIdentities).values({
-      applicationId: customer.applicationId, provider: 'aws-iam', subject,
-      description: 'first-party grant fixture', environment: 'development', scopes: [],
-    }).returning({id: applicationWorkloadIdentities.id});
-    await ensureWorkloadAttributionIdentity({bindingId: binding.id, applicationId: customer.applicationId, subject});
-    const credential = serviceToken({applicationId: customer.applicationId,
-      credentialId: workloadAttestationHandle(subject), ownerAccountId: customer.accountId,
-      audience: KAANA_PUBLIC_AUDIENCE, environment: 'development', authority: 'first_party'});
-    const grant = verifiedGrant(await authorize(inferenceRequest({credential,
-      target: {kind: 'model', modelLine: customer.modelReference}})));
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: customer.applicationId,
+        provider: 'aws-iam',
+        subject,
+        description: 'first-party grant fixture',
+        environment: 'development',
+        scopes: [],
+      })
+      .returning({ id: applicationWorkloadIdentities.id });
+    await ensureWorkloadAttributionIdentity({
+      bindingId: binding.id,
+      applicationId: customer.applicationId,
+      subject,
+    });
+    const credential = serviceToken({
+      applicationId: customer.applicationId,
+      credentialId: workloadAttestationHandle(subject),
+      ownerAccountId: customer.accountId,
+      audience: KAANA_PUBLIC_AUDIENCE,
+      environment: 'development',
+      authority: 'first_party',
+    });
+    const grant = verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential,
+          target: { kind: 'model', modelLine: customer.modelReference },
+        }),
+      ),
+    );
     expect(grant.principal.authority).toBe('first_party');
     expect(grant.principal).not.toHaveProperty('scopes');
     expect(grant.principal.billingAccountId).toBe(customer.accountId);
     const generationId = `gen_${tag()}`;
-    expect((await settle(settlementOf({
-      grant, generationId, modelReference: customer.pinnedModelReference,
-      provider: customer.providers[0], deploymentId: customer.deploymentIds[0],
-    }))).status).toBe(200);
-    const read = await authorize({schemaVersion: 1, kind: 'receipt.read',
-      credential, requestId: `kreq_${tag()}`, generationId});
+    expect(
+      (
+        await settle(
+          settlementOf({
+            grant,
+            generationId,
+            modelReference: customer.pinnedModelReference,
+            provider: customer.providers[0],
+            deploymentId: customer.deploymentIds[0],
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    const read = await authorize({
+      schemaVersion: 1,
+      kind: 'receipt.read',
+      credential,
+      requestId: `kreq_${tag()}`,
+      generationId,
+    });
     expect(read.status).toBe(200);
-    expect(read.body).toMatchObject({kind: 'receipt.read', record: {requestId: grant.requestId}});
+    expect(read.body).toMatchObject({
+      kind: 'receipt.read',
+      record: { requestId: grant.requestId },
+    });
     const other = await textCustomer();
-    const otherRead = await authorize({schemaVersion: 1, kind: 'receipt.read',
-      credential: other.token, requestId: `kreq_${tag()}`, generationId});
+    const otherRead = await authorize({
+      schemaVersion: 1,
+      kind: 'receipt.read',
+      credential: other.token,
+      requestId: `kreq_${tag()}`,
+      generationId,
+    });
     expect(otherRead.status).toBe(404);
-    await getDb().delete(applicationWorkloadIdentities).where(eq(applicationWorkloadIdentities.id, binding.id));
-    expect((await authorize(inferenceRequest({credential,
-      target: {kind: 'model', modelLine: customer.modelReference}}))).status).toBe(401);
+    await getDb()
+      .delete(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.id, binding.id));
+    expect(
+      (
+        await authorize(
+          inferenceRequest({
+            credential,
+            target: { kind: 'model', modelLine: customer.modelReference },
+          }),
+        )
+      ).status,
+    ).toBe(401);
   });
 
   it('refuses a credential without inference:invoke', async () => {

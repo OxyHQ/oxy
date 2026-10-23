@@ -111,10 +111,15 @@ describe('OxyServer service-only namespace methods', () => {
 
     await oxy.linkedAccounts.forUser('user/1');
 
-    expect(request).toHaveBeenCalledWith('GET', 'http://test.invalid/linked-accounts/by-user/user%2F1', undefined, {
-      cache: false,
-      headers: { Authorization: 'Bearer svc-token' },
-    });
+    expect(request).toHaveBeenCalledWith(
+      'GET',
+      'http://test.invalid/linked-accounts/by-user/user%2F1',
+      undefined,
+      {
+        cache: false,
+        headers: { Authorization: 'Bearer svc-token' },
+      },
+    );
   });
 
   it('reputation.award posts with the service token and drops cached reputation reads', async () => {

@@ -22,14 +22,19 @@ it('discovers catalogues live on the service lane without cache, deduplication o
   ]);
   await oxy.agency.serviceCatalogs({ appId: 'app/1' });
   expect(request).toHaveBeenCalledTimes(2);
-  expect(request).toHaveBeenCalledWith('GET', 'http://test.invalid/capabilities/catalogs?appId=app%2F1', undefined, {
-    cache: false,
-    deduplicate: false,
-    retry: false,
-    skipAuth: true,
-    timeout: 5000,
-    headers: { Authorization: 'Bearer fixture-service-token' },
-  });
+  expect(request).toHaveBeenCalledWith(
+    'GET',
+    'http://test.invalid/capabilities/catalogs?appId=app%2F1',
+    undefined,
+    {
+      cache: false,
+      deduplicate: false,
+      retry: false,
+      skipAuth: true,
+      timeout: 5000,
+      headers: { Authorization: 'Bearer fixture-service-token' },
+    },
+  );
 });
 
 it('preserves the expected catalogue and forwards an abort signal on ticket issuance/introspection', async () => {
@@ -290,7 +295,9 @@ it('creates a durable own task with user proof, then derives tools and revokes u
     limits: [],
     expiresAt: '2026-12-01T00:00:00Z',
   });
-  expect(request.mock.calls[1][1]).toBe('http://test.invalid/capabilities/tasks/task-1/execution-authorizations');
+  expect(request.mock.calls[1][1]).toBe(
+    'http://test.invalid/capabilities/tasks/task-1/execution-authorizations',
+  );
   expect(JSON.stringify(request.mock.calls[1])).not.toContain('proof');
   expect(request.mock.calls[1][2]).not.toHaveProperty('maximumAutonomy');
   request.mockResolvedValue(undefined as never);

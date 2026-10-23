@@ -132,8 +132,10 @@ async function workloadAttribution(): Promise<InboxAttribution> {
 
   const binding = await resolveLiveAgencyWorkloadByHandle(INBOX_APPLICATION_ID, own.attestationId);
   if (
-    binding === null || !binding.environmentBound ||
-    binding.provider !== own.provider || binding.subject !== own.subject
+    binding === null ||
+    !binding.environmentBound ||
+    binding.provider !== own.provider ||
+    binding.subject !== own.subject
   ) {
     throw unavailable('Inbox inference identity is unavailable.');
   }
