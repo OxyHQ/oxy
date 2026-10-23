@@ -202,6 +202,33 @@ describe('runSessionColdBoot — warm-token-plant', () => {
   });
 });
 
+describe('runSessionColdBoot — requireServerVerdict', () => {
+  it('skips a still-valid warm token and reports the server ending the holder', async () => {
+    const { store, seed } = seedCredStore({
+      accessToken: 'warm-access',
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    await seed();
+    const mintFromDeviceSecret = jest.fn(async () => {
+      throw mint401('no_active_session');
+    });
+    const { oxy, setTokens } = makeOxy({ mintFromDeviceSecret });
+    const onHolderRejected = jest.fn();
+
+    const outcome = await runSessionColdBoot({
+      oxy,
+      store,
+      platform: WEB,
+      requireServerVerdict: true,
+      onHolderRejected,
+    });
+
+    expect(outcome).toEqual({ kind: 'unauthenticated' });
+    expect(setTokens).not.toHaveBeenCalledWith('warm-access');
+    expect(onHolderRejected).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('runSessionColdBoot — device-secret-mint', () => {
   it('wins FIRST via the mint, persisting nextDeviceSecret BEFORE planting the token', async () => {
     const { store, seed } = seedCredStore();

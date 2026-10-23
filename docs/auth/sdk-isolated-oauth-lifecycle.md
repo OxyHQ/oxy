@@ -77,10 +77,29 @@ Classification decides how a session is restored, not whether one exists. A web
 origin whose own store holds no warm token and no device secret, with no OAuth
 return (`code`/`error`) on the URL, ends signed out on either lane, so its boot
 marks auth resolved at once and lets the classification finish in the
-background; that check reads only whether the store holds anything. Every boot
-with something to restore, every native and identity-mode boot, and every later
-sign-in (`ensureDeviceSessionLane` shares the in-flight lookup) still waits for
-the verdict.
+background; that check reads only whether the store holds anything.
+
+A returning session paints from the device's cache. Owner decision, 2026-10-23:
+"With a session saved on the device, the app paints at once with the user's
+account and cached content. The app classification and the profile are verified
+in the background; if the server rejects the session, it is signed out at that
+moment." The provider's storage keeps the registry's last verdict for this
+clientId and the last profile the runtime held (`ui/session/cachedBoot.ts`). In
+account mode, with no OAuth return on the URL, when the last verdict was
+`device`, the auth store holds this app's own holder (`deviceId` +
+`deviceSecret`) with no recorded sign-out, and the cached profile is the account
+that session belongs to, the boot shows that account, plants a still-valid
+persisted token, and resolves auth before any network; the cached verdict stands
+in for the registry until it answers. In the background the classification is
+asked again and the holder mints (`requireServerVerdict` skips the warm token,
+which says nothing about revocation); the commit refreshes the profile. An
+`oauth` verdict, or the mint answering `invalid_device_secret` /
+`no_active_session` with no recovery lane restoring a session, signs out at that
+moment. No answer (offline, a timeout, a 5xx) keeps the cached session on screen
+and asks again on the lost-token backoff and on reconnect. Every first boot (no
+cache), every identity-mode boot, every OAuth return and every later sign-in
+(`ensureDeviceSessionLane` shares the in-flight lookup) still waits for the
+verdict.
 
 Classification has a 5-second bound before the existing device boot deadlines.
 Third-party clients complete an already pending OAuth callback or resolve signed
@@ -88,9 +107,9 @@ out; they never read a prior device secret, join the shared device or probe
 Commons. Identity pin work runs only after a valid device classification. Host,
 refresh/recovery, bridge, dialog and credential-provider side paths are gated as
 well. Metadata errors, inactive/unusable credentials, invalid metadata and a
-missing clientId fail closed; no privileged offline fallback exists. Consequently
-an offline initial mount cannot restore even a trusted device until registry
-classification succeeds. OAuth sessions remain ephemeral: a new process requires
+missing clientId fail closed on a first boot; apart from the cached returning
+session above, no privileged offline fallback exists, so an offline first boot
+cannot restore even a trusted device until registry classification succeeds. OAuth sessions remain ephemeral: a new process requires
 an explicit OAuth sign-in; no refresh token, shared device directory or local
 native-key recovery is invented.
 

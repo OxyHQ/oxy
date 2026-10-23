@@ -1,5 +1,31 @@
 # Changelog
 
+## [12.14.0] - 2026-10-23
+
+Needs `@oxy.so/core` 6.16.0.
+
+### Changed
+
+- A returning signed-in user's cold boot paints at once: with a session saved
+  on the device, the provider shows the account from its cached profile (and
+  the account's cached queries), plants a still-valid persisted token and
+  resolves `isAuthResolved` before any network. The app's classification and
+  the session are then checked in the background: a fresh registry lookup and
+  a mint with the app's own device credential, whose commit refreshes the
+  profile. If the registry now classifies the app OAuth-only, or the server
+  ends the session (`invalid_device_secret` / `no_active_session` with no
+  recovery lane restoring one), it signs out at that moment. If neither can be
+  asked (offline, a timeout, a 5xx), the cached session stays on screen and is
+  asked again on the lost-token backoff and on reconnect. The provider keeps
+  the registry's last verdict per clientId and the last profile it held, in
+  its own storage next to the account query cache; a sign-out deletes the
+  profile, and a profile only paints for the account the saved session belongs
+  to.
+- A first boot (nothing cached), an identity-bound provider
+  (`sessionMode: 'identity'`) and an OAuth return on the URL boot as before:
+  the classification and the session hand-off stay on the critical path, with
+  their deadlines.
+
 ## [12.13.0] - 2026-10-23
 
 Needs `@oxy.so/contracts` 5.8.0.
