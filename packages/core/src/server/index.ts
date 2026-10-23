@@ -325,4 +325,4 @@ export type { WorkloadCredentials, WorkloadCredentialProvider } from './workload
 export { OxyRequesterClient } from './requesterClient';
 export type { RequesterProof } from './requesterContext';
 
-export type { ExternalMcpMediaProof } from './externalMediaRequester';
+export type { ExternalMcpMediaProof, ExternalMcpDocumentProof } from './externalMediaRequester';

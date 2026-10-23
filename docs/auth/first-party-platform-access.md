@@ -86,3 +86,22 @@ revoked or expired sockets, and serializes outgoing batches so a heartbeat canno
 overtake a pending revocation. The SDK drops cached session validations when the
 feed disconnects or loses its heartbeat. Retire the legacy feed admission with
 the rest of the protocol-v1 cohort after consumer rollout.
+
+### External housing document tools
+
+Homiio's existing external MCP tools `uploadLeaseDocument`, `submitApplication`
+and `addApplicationDocuments` retain their OAuth grants. The SDK's
+`assets.withMcpDocumentRequester({connectionToken, tool, accountId})` forwards
+that connection to the multipart user-media upload lane. It never creates own
+requester authority or requires an additional global Files permission.
+
+Oxy resolves the live connection and active account at admission and every
+continuation. The registered Homiio receiver and current tool descriptor must
+match the existing housing permission. Uploads are private PDF/images up to
+10 MiB; imports, recordings, unrelated reads and reference creation are excluded.
+Server-owned upload metadata binds the original client, grant, tool, receiver and
+account, preventing another connection from continuing the operation. No bearer
+is persisted. Revocation prevents the next part URL or completion call.
+
+This additive contract follows the foundation release and must be deployed with
+its shared SDK before Homiio switches the document facade.
