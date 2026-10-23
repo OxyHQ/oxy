@@ -420,10 +420,20 @@ it with a funding ceiling (`authorizedRoutes[].maxFundingTier`, contract set
 `credit`. Phase 2 moves the cross-provider order described here into Kaana as
 well (ADR 0038, "Phase 2").
 
+### Score validity
+
+A reviewed scorecard is valid for 30 days (`KAANA_REVIEWED_SCORE_VALIDITY_DAYS`
+in `packages/api/src/config/kaanaInitialCatalogue.ts`): from its review when the
+bootstrap first writes it, and from the UTC day of each same-value renewal
+after that. The renewal derives both instants from the day it runs; no expiry
+date is written in source or in a workflow.
+
 Because one stale score refuses every route, score expiry is a scheduled
-production cliff. A daily read-only monitor requires seven days of validity and
-the same-value renewal is a dry-run-first workflow:
+production cliff. A daily read-only monitor requires seven days of validity
+(so it warns on day 23) and the same-value renewal is a dry-run-first workflow:
 [renew the reviewed Kaana routing scores](../runbooks/kaana-routing-score-renewal.md).
+When the monitor cannot run its check at all it says so, with the ECS stop
+reason, instead of reporting an expiry.
 
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing

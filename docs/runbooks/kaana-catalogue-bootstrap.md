@@ -176,7 +176,8 @@ operations (`model:x-ai/grok-voice-think-fast-2.0`, `revision:…@observed-<date
 
 The route is `platform_internal` like every reviewed route: first-party staff
 applications (Alia) can open sessions on it; nothing else can. Its scorecard
-carries the shared `KAANA_INITIAL_SCORE_VALID_UNTIL`; renew it with the others.
+is renewed with every other reviewed route
+([renewal](./kaana-routing-score-renewal.md)).
 Before announcing it, run the realtime signed canary against `<id>`
 ([kaana-signed-canary](../../.github/workflows/kaana-signed-canary.yml),
 `probe_mode: realtime`) and one push-to-talk session through `/v1/realtime`

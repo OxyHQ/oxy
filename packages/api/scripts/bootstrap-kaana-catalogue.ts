@@ -78,9 +78,8 @@ import {
   type KaanaInitialProvider,
   type KaanaReviewedCatalogueProjection,
   type KaanaReviewedModelCatalogue,
-  kaanaCurrentScorecardReview,
+  kaanaInitialScorecardReview,
   kaanaReviewedCatalogueProjection,
-  requireSingleKaanaBootstrapScoreEvent,
 } from "../src/config/kaanaInitialCatalogue";
 import {
   KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS,
@@ -111,7 +110,12 @@ import {
   kaanaBootstrapComparableDeployment,
   requireKaanaCatalogueBootstrapApplyAuthorization,
 } from "../src/scripts/kaanaCatalogueBootstrapPlan";
-import { kaanaReviewedScorecardFields } from "../src/scripts/kaanaScorecardRenewal";
+import {
+  kaanaReviewedScorecardFields,
+  kaanaReviewedScorecardValues,
+  kaanaScorecardRowState,
+  requireKaanaScorecardProvenanceEvent,
+} from "../src/scripts/kaanaScorecardRenewal";
 import { logger } from "../src/utils/logger";
 
 const APPLY = process.env.APPLY === "1";
@@ -662,18 +666,6 @@ async function ensureScorecard(
   priceVersionId: string,
   inserted: string[],
 ): Promise<void> {
-  // The scorecard's CURRENT review: after a same-value validity renewal this is
-  // the renewal's changedAt/reason/validUntil, never the original review. The
-  // bootstrap still never renews an existing row itself; a row left at the
-  // superseded state is drift here and is renewed only by
-  // scripts/renew-kaana-routing-scores.ts.
-  const review = kaanaCurrentScorecardReview(provider);
-  const validUntil = new Date(review.validUntil);
-  if (validUntil < routingScoreValidityThreshold(new Date())) {
-    throw new Error(
-      `${provider.deploymentId} reviewed scorecard no longer covers the configured minimum validity horizon`,
-    );
-  }
   const existingRows = await tx
     .select()
     .from(inferenceDeploymentRoutingScores)
@@ -685,64 +677,71 @@ async function ensureScorecard(
     `Scorecard deployment ID ${provider.deploymentId}`,
     existingRows,
   );
-  const expected = kaanaReviewedScorecardFields(provider, review, {
+  const bindings = {
     priceVersionId,
     reviewerUserId,
     existingFundingEvidenceRef: row?.fundingEvidenceRef,
-  });
+  };
+  const threshold = routingScoreValidityThreshold(new Date());
   if (row === undefined) {
+    const initial = kaanaReviewedScorecardFields(
+      provider,
+      kaanaInitialScorecardReview(provider),
+      bindings,
+    );
+    if (initial.balancedValidUntil < threshold) {
+      throw new Error(
+        `${provider.deploymentId} reviewed scorecard no longer covers the configured minimum validity horizon`,
+      );
+    }
     const createdRows = await tx
       .insert(inferenceDeploymentRoutingScores)
       .values({
-        ...expected,
+        ...initial,
         // Stated, not only spread: the reviewed economics travel with every
         // routing-score insert (routingScoreEconomicsCallsites.test.ts).
-        fundingClass: expected.fundingClass,
-        fundingState: expected.fundingState,
-        fundingEvidenceRef: expected.fundingEvidenceRef,
+        fundingClass: initial.fundingClass,
+        fundingState: initial.fundingState,
+        fundingEvidenceRef: initial.fundingEvidenceRef,
       })
       .returning();
     row = requireExactlyOne(
       `Scorecard deployment ID ${provider.deploymentId}`,
       createdRows,
     );
-    const { changedAt, ...eventValues } = expected;
+    const { changedAt, ...eventValues } = initial;
     await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
       ...eventValues,
-      fundingClass: expected.fundingClass,
-      fundingState: expected.fundingState,
-      fundingEvidenceRef: expected.fundingEvidenceRef,
+      fundingClass: initial.fundingClass,
+      fundingState: initial.fundingState,
+      fundingEvidenceRef: initial.fundingEvidenceRef,
       createdAt: changedAt,
     });
     inserted.push(`scorecard:${provider.deploymentId}`);
   }
-  assertFields(`scorecard:${provider.deploymentId}`, row, expected);
 
+  // The bootstrap never moves an existing row. Its reviewed values must equal
+  // the config; its validity is whatever the last audited write (this insert or
+  // scripts/renew-kaana-routing-scores.ts) set, and must still be current.
+  const values = kaanaReviewedScorecardValues(provider, bindings);
+  assertFields(`scorecard:${provider.deploymentId}`, row, values);
+  if (
+    row.latencyValidUntil < threshold ||
+    row.throughputValidUntil < threshold ||
+    row.balancedValidUntil < threshold
+  ) {
+    throw new Error(
+      `${provider.deploymentId} scorecard validity no longer covers the configured minimum validity horizon; renew it (docs/runbooks/kaana-routing-score-renewal.md)`,
+    );
+  }
   // A current row without its immutable provenance event is not "close
   // enough". Refuse the rerun rather than silently repairing history after the
   // fact; the operator must investigate how an audited write was bypassed.
-  const events = await tx
-    .select()
-    .from(inferenceDeploymentRoutingScoreEvents)
-    .where(
-      and(
-        eq(
-          inferenceDeploymentRoutingScoreEvents.deploymentId,
-          provider.deploymentId,
-        ),
-        eq(inferenceDeploymentRoutingScoreEvents.createdAt, expected.changedAt),
-      ),
-    )
-    .for("update");
-  const event = requireSingleKaanaBootstrapScoreEvent(
+  await requireKaanaScorecardProvenanceEvent(
+    tx,
     provider.deploymentId,
-    events,
+    kaanaScorecardRowState(values, row),
   );
-  const { changedAt: _currentRowOnly, ...eventExpected } = expected;
-  assertFields(`scorecard-event:${provider.deploymentId}`, event, {
-    ...eventExpected,
-    createdAt: expected.changedAt,
-  });
 }
 
 async function ensureProfiles(

@@ -19,35 +19,24 @@
  * Every URL below is a primary source reviewed on 2026-09-02. The bootstrap
  * command refuses existing rows whose values differ and never updates a
  * published price or immutable identity in place. The one exception is a
- * same-value scorecard validity renewal (`scoreRenewal`), applied only by
- * `scripts/renew-kaana-routing-scores.ts` and only over the exact superseded row.
+ * same-value scorecard validity renewal, applied only by
+ * `scripts/renew-kaana-routing-scores.ts`: it moves the three `validUntil`
+ * instants of a row whose reviewed values are unchanged and nothing else.
  */
 
 export const KAANA_INITIAL_REVIEWED_AT = '2026-09-02T00:00:00.000Z';
 /**
- * Current expiry of every reviewed scorecard below. Runtime refuses the WHOLE
- * route set once any selectable route's balanced score is stale, so this date
- * is a production cliff: renew it through
- * `.github/workflows/renew-kaana-routing-scores.yml` well before it passes.
+ * How long a reviewed scorecard stays valid: 30 days from its review, and 30
+ * days from the UTC day of each same-value renewal (docs/inference/routing.md,
+ * "Score validity"). Runtime refuses the WHOLE route set once any selectable
+ * route's score is stale, so the end of this window is a production cliff that
+ * the daily expiry monitor warns about seven days ahead.
  */
-export const KAANA_INITIAL_SCORE_VALID_UNTIL = '2026-11-01T00:00:00.000Z';
-/** The expiry the first bootstrap wrote for Cerebras and Groq. */
-export const KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL = '2026-10-02T00:00:00.000Z';
+export const KAANA_REVIEWED_SCORE_VALIDITY_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * One owner-approved, same-value validity renewal of the reviewed scorecards.
- *
- * Scores, sources, evidence references and measurement windows are NOT
- * re-reviewed here; only the validity horizon moves. The renewal is itself an
- * audited write: the current row is updated and one new append-only event is
- * recorded at exactly `reviewedAt`.
- */
-export const KAANA_SCORE_RENEWAL_2026_09_24 = {
-  reviewedAt: '2026-09-24T00:00:00.000Z',
-  validUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
-  reason:
-    'Owner-approved same-value validity renewal on 2026-09-24: scores, sources, evidence and measurement windows unchanged; validity extended to 2026-11-01.',
-} as const;
+/** The validity the first review of Cerebras and Groq wrote (2026-09-02 + 30 days). */
+export const KAANA_INITIAL_SCORE_VALID_UNTIL = '2026-10-02T00:00:00.000Z';
 export const KAANA_INITIAL_MODEL_ID = 'openai/gpt-oss-120b';
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /**
@@ -152,12 +141,6 @@ export interface KaanaScorecardReview {
   readonly reason: string;
 }
 
-export interface KaanaScoreRenewal {
-  readonly reviewedAt: string;
-  readonly reason: string;
-  readonly supersedes: KaanaScorecardReview;
-}
-
 export interface KaanaInitialProvider {
   readonly slug: 'groq' | 'cerebras' | 'openrouter' | 'xai' | 'xai-realtime';
   readonly displayName: string;
@@ -178,13 +161,6 @@ export interface KaanaInitialProvider {
   readonly priceEffectiveFrom?: string;
   readonly scorecardReason?: string;
   readonly permissionStateNote?: string;
-  /**
-   * The latest same-value validity renewal. When present, the current scorecard
-   * row carries `scoreRenewal.reviewedAt` as `changedAt` and
-   * `scoreRenewal.reason`, and `supersedes` is the exact prior state the renewal
-   * workflow is allowed to replace. Any other prior state is drift and refused.
-   */
-  readonly scoreRenewal?: KaanaScoreRenewal;
   readonly unitPrices: readonly KaanaInitialUnitPrice[];
   readonly scores: {
     readonly price: number;
@@ -225,15 +201,6 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
       'owner-review-2026-09-02:https://cloud.cerebras.ai/terms;https://openai.com/index/gpt-oss-model-card/',
     priceEvidenceRef: 'https://api.cerebras.ai/public/v1/models',
     performanceEvidenceRef: 'https://inference-docs.cerebras.ai/models/overview',
-    scoreRenewal: {
-      reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
-      reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
-      supersedes: {
-        changedAt: KAANA_INITIAL_REVIEWED_AT,
-        validUntil: KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL,
-        reason: KAANA_INITIAL_SCORECARD_REASON,
-      },
-    },
     unitPrices: [
       { unit: 'input_tokens', amount: '0.35', per: 1_000_000 },
       { unit: 'cached_input_tokens', amount: '0.35', per: 1_000_000 },
@@ -264,15 +231,6 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
       'owner-review-2026-09-02:https://console.groq.com/docs/legal/services-agreement;https://openai.com/index/gpt-oss-model-card/',
     priceEvidenceRef: 'https://console.groq.com/docs/model/openai/gpt-oss-120b',
     performanceEvidenceRef: 'https://console.groq.com/docs/model/openai/gpt-oss-120b',
-    scoreRenewal: {
-      reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
-      reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
-      supersedes: {
-        changedAt: KAANA_INITIAL_REVIEWED_AT,
-        validUntil: KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL,
-        reason: KAANA_INITIAL_SCORECARD_REASON,
-      },
-    },
     unitPrices: [
       { unit: 'input_tokens', amount: '0.15', per: 1_000_000 },
       { unit: 'cached_input_tokens', amount: '0.075', per: 1_000_000 },
@@ -304,18 +262,9 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
     priceEvidenceRef: 'https://openrouter.ai/openai/gpt-oss-120b',
     performanceEvidenceRef: 'not-measured:openrouter-exact-deployment-2026-09-11',
     reviewedAt: '2026-09-11T00:00:00.000Z',
-    scoreValidUntil: KAANA_SCORE_RENEWAL_2026_09_24.validUntil,
+    scoreValidUntil: '2026-10-11T00:00:00.000Z',
     priceEffectiveFrom: '2026-09-11T00:00:00.000Z',
     scorecardReason: KAANA_OPENROUTER_SCORECARD_REASON,
-    scoreRenewal: {
-      reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
-      reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
-      supersedes: {
-        changedAt: '2026-09-11T00:00:00.000Z',
-        validUntil: '2026-10-11T00:00:00.000Z',
-        reason: KAANA_OPENROUTER_SCORECARD_REASON,
-      },
-    },
     permissionStateNote:
       'Owner-approved internal Alia route; primary-source review 2026-09-11; not approved for API resale.',
     unitPrices: [
@@ -368,13 +317,34 @@ export function kaanaScoreMeasuredAt(provider: KaanaInitialProvider): string {
   return provider.reviewedAt ?? KAANA_INITIAL_REVIEWED_AT;
 }
 
-/** The scorecard state the database must hold for this provider now. */
-export function kaanaCurrentScorecardReview(provider: KaanaInitialProvider): KaanaScorecardReview {
+/**
+ * The scorecard validity the bootstrap writes when it first inserts the row.
+ * Once a row exists its validity belongs to the renewal workflow, so the
+ * bootstrap compares only the reviewed values of an existing row.
+ */
+export function kaanaInitialScorecardReview(provider: KaanaInitialProvider): KaanaScorecardReview {
   return {
-    changedAt: provider.scoreRenewal?.reviewedAt ?? kaanaScoreMeasuredAt(provider),
+    changedAt: kaanaScoreMeasuredAt(provider),
     validUntil: provider.scoreValidUntil ?? KAANA_INITIAL_SCORE_VALID_UNTIL,
-    reason:
-      provider.scoreRenewal?.reason ?? provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
+    reason: provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
+  };
+}
+
+/**
+ * The validity a same-value renewal performed at `now` writes: `changedAt` is
+ * the start of `now`'s UTC day and `validUntil` is
+ * {@link KAANA_REVIEWED_SCORE_VALIDITY_DAYS} later. Deriving both from the day,
+ * not the instant, gives a dry run and its apply on the same day the same plan.
+ */
+export function kaanaScorecardRenewalReview(now: Date): KaanaScorecardReview {
+  const day = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
+  if (!Number.isFinite(day)) throw new Error('renewal time is not a valid instant');
+  const changedAt = new Date(day).toISOString();
+  const validUntil = new Date(day + KAANA_REVIEWED_SCORE_VALIDITY_DAYS * DAY_MS).toISOString();
+  return {
+    changedAt,
+    validUntil,
+    reason: `Owner-approved same-value validity renewal on ${changedAt.slice(0, 10)}: scores, sources, evidence and measurement windows unchanged; validity extended to ${validUntil.slice(0, 10)}.`,
   };
 }
 
@@ -505,7 +475,8 @@ export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
     priceEvidenceRef: 'https://docs.x.ai/developers/pricing',
     performanceEvidenceRef: 'not-measured:xai-tts-exact-deployment-2026-09-24',
     reviewedAt: KAANA_SPEECH_REVIEWED_AT,
-    scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+    // The validity its first insert wrote, shared with the gpt-oss renewal then.
+    scoreValidUntil: '2026-11-01T00:00:00.000Z',
     priceEffectiveFrom: KAANA_SPEECH_REVIEWED_AT,
     scorecardReason: KAANA_SPEECH_SCORECARD_REASON,
     permissionStateNote:
@@ -717,7 +688,8 @@ export function kaanaVoiceCatalogue(
     priceEvidenceRef: 'https://docs.x.ai/developers/models/speech-to-speech',
     performanceEvidenceRef: 'not-measured:xai-realtime-exact-deployment-2026-09-30',
     reviewedAt: KAANA_VOICE_REVIEWED_AT,
-    scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
+    // The validity its first insert wrote, shared with the gpt-oss renewal then.
+    scoreValidUntil: '2026-11-01T00:00:00.000Z',
     priceEffectiveFrom: KAANA_VOICE_REVIEWED_AT,
     scorecardReason: KAANA_VOICE_SCORECARD_REASON,
     permissionStateNote:

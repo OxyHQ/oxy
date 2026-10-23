@@ -3,13 +3,15 @@ name: Renew reviewed Kaana routing scores
 # Manual, dry-run-first, same-value validity renewal of the reviewed Kaana
 # routing scorecards (packages/api/scripts/renew-kaana-routing-scores.ts). It
 # runs in the dedicated oxy-kaana-catalogue-bootstrap task, never the live
-# oxy-api task, and changes only rows that exactly equal the `supersedes` state
-# recorded in packages/api/src/config/kaanaInitialCatalogue.ts. Runtime refuses
-# the whole route set once a selectable score is stale, so run this well before
-# the date the scheduled expiry monitor warns about.
+# oxy-api task. Every reviewed route whose reviewed values are unchanged is
+# renewed to the run's UTC day plus the reviewed validity window
+# (kaanaScorecardRenewalReview); no date is written here or in source. Runtime
+# refuses the whole route set once a selectable score is stale, so run this when
+# the scheduled expiry monitor warns, a week before the cliff.
 #
 # Order: dispatch mode=dry-run, read the plan SHA-256 from the job summary,
-# then dispatch mode=apply with that exact SHA-256 and a reason.
+# then dispatch mode=apply with that exact SHA-256 and a reason, the same UTC
+# day (the plan names the day; a later day is a new plan to review).
 
 on:
   workflow_dispatch:
@@ -65,11 +67,6 @@ env:
   NETWORK_SERVICE: kaana-publisher
   LIVE_CONTAINER: oxy-api
   BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
-  CEREBRAS_DEPLOYMENT_ID: dep_cerebras_gpt_oss_120b_observed_2026_09_01
-  GROQ_DEPLOYMENT_ID: dep_groq_openai_gpt_oss_120b_observed_2026_09_01
-  OPENROUTER_DEPLOYMENT_ID: dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01
-  RENEWED_VALID_UNTIL: "2026-11-01T00:00:00.000Z"
-  RENEWED_CHANGED_AT: "2026-09-24T00:00:00.000Z"
   REVIEWER_USER_ID_EXPECTED: 6981c9178fcdefaf81988ffb
   # Post-apply proof: the same horizon the scheduled expiry monitor enforces.
   EXPIRY_WARNING_SECONDS: "604800"
@@ -221,39 +218,27 @@ jobs:
           LOG_PREFIX=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"]' <<<"$bootstrap_task_json")
           export LOG_GROUP LOG_PREFIX
 
-          allowed_operations=$(jq -nc \
-            --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
-            --arg groq "$GROQ_DEPLOYMENT_ID" \
-            --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" '
-              ["scorecard-renewal:" + $cerebras, "scorecard-renewal:" + $groq, "scorecard-renewal:" + $openrouter]
-            ')
-
-          # Exact result shape: only the three reviewed deployments, only the
-          # reviewed target validity, only allowlisted operations.
+          # Exact result shape. The deployments and the renewed validity come
+          # from the reviewed source at this commit, not from this file; every
+          # renewed row moves forward and the operations are exactly the renewals.
           validate_renewal_result() {
             local result="$1"
             local expected_applied="$2"
             jq -e \
-              --argjson expectedApplied "$expected_applied" \
-              --arg cerebras "$CEREBRAS_DEPLOYMENT_ID" \
-              --arg groq "$GROQ_DEPLOYMENT_ID" \
-              --arg openrouter "$OPENROUTER_DEPLOYMENT_ID" \
-              --arg validUntil "$RENEWED_VALID_UNTIL" \
-              --arg changedAt "$RENEWED_CHANGED_AT" \
-              --argjson allowed "$allowed_operations" '
+              --argjson expectedApplied "$expected_applied" '
+                def instant: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$");
                 (keys | sort) == ["applied","database","operations","outcomes","planSha256","schemaVersion"] and
                 .schemaVersion == 1 and
                 .database == {engine:"postgresql"} and
                 .applied == $expectedApplied and
                 (.planSha256 | test("^[a-f0-9]{64}$")) and
-                ([.outcomes[].deploymentId] == [$cerebras,$groq,$openrouter]) and
+                (.outcomes | type == "array" and length > 0) and
+                ([.outcomes[].deploymentId] | (all(type == "string" and test("^dep_[a-z0-9_]+$"))) and (unique | length) == length) and
                 (.outcomes | all(
-                  (.action == "renew" or .action == "current") and
-                  .toValidUntil == $validUntil and
-                  .toChangedAt == $changedAt
+                  (.fromValidUntil | instant) and (.toValidUntil | instant) and (.toChangedAt | instant) and
+                  ((.action == "renew" and .toValidUntil > .fromValidUntil) or
+                   (.action == "current" and .toValidUntil == .fromValidUntil))
                 )) and
-                (.operations | type == "array") and
-                ((.operations - $allowed) | length == 0) and
                 (.operations == [.outcomes[] | select(.action == "renew") | ("scorecard-renewal:" + .deploymentId)])
               ' <<<"$result" >/dev/null
           }
@@ -289,7 +274,7 @@ jobs:
             echo
             echo "- Dedicated task: \`$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN\`"
             echo "- Immutable image: \`$immutable_image\`"
-            echo "- Renewed validity: \`$RENEWED_VALID_UNTIL\` (changedAt \`$RENEWED_CHANGED_AT\`)"
+            echo "- Renewed validity: \`$(jq -r '[.outcomes[] | select(.action == "renew") | .toValidUntil] | unique | join(", ") | if . == "" then "none (every route already current)" else . end' <<<"$dry_result")\`"
             echo "- Plan SHA-256: \`$observed_plan\`"
             echo "- Planned renewals: \`$(jq -c '.operations' <<<"$dry_result")\`"
             echo '- PostgreSQL committed writes: 0 (transaction rolled back)'

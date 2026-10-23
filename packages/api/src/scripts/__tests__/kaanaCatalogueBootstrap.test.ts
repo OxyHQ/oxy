@@ -52,7 +52,7 @@ function suffix(): string {
 
 /**
  * The reviewed catalogue under fresh identities. Scorecard validity is moved
- * far out so the proof does not expire with the reviewed 2026-11-01 horizon;
+ * far out so the proof does not expire with the reviewed initial validity;
  * nothing else about the reviewed facts changes.
  */
 function synthetic(catalogue: KaanaReviewedModelCatalogue): KaanaReviewedModelCatalogue {

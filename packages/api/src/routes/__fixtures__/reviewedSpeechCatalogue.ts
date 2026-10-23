@@ -9,7 +9,7 @@ import {
   KAANA_SPEECH_PUBLISHER,
   KAANA_SPEECH_REVISION,
   KAANA_SPEECH_ROUTING_PROFILES,
-  kaanaCurrentScorecardReview,
+  kaanaInitialScorecardReview,
 } from '../../config/kaanaInitialCatalogue';
 import { getDb } from '../../config/postgres';
 import {
@@ -117,7 +117,7 @@ export async function seedReviewedSpeechCatalogue(reviewerUserId: string): Promi
     priceVersionId: price.id,
     internalRouteId: provider.deploymentId,
   });
-  const reviewed = kaanaReviewedScorecardFields(provider, kaanaCurrentScorecardReview(provider), {
+  const reviewed = kaanaReviewedScorecardFields(provider, kaanaInitialScorecardReview(provider), {
     priceVersionId: price.id,
     reviewerUserId,
   });

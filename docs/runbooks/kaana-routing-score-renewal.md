@@ -20,31 +20,37 @@ This path renews validity only, with the **same** scores, sources, evidence and
 measurement windows, after an owner approval. Changing a score is a new review,
 not a renewal.
 
+The renewed validity is derived, never written down: `changedAt` is the start of
+the run's UTC day and `validUntil` is `KAANA_REVIEWED_SCORE_VALIDITY_DAYS` (30)
+days later ([routing](../inference/routing.md#score-validity)). Every reviewed
+route (the three gpt-oss routes, xAI speech and xAI realtime voice) is renewed
+together. A route whose reviewed values differ from
+`packages/api/src/config/kaanaInitialCatalogue.ts`, or whose current state has
+no matching provenance event, is drift and refuses the whole run. No source edit
+or deploy is part of a renewal.
+
 ## Procedure
 
-1. In `packages/api/src/config/kaanaInitialCatalogue.ts`, set the new
-   `validUntil` and `reviewedAt` (a past instant, the approval date) and set each
-   provider's `scoreRenewal.supersedes` to the exact state now in production
-   (`changedAt`, `validUntil`, `reason`). Update the pinned target values in
-   `renew-kaana-routing-scores.yml` (`RENEWED_VALID_UNTIL`,
-   `RENEWED_CHANGED_AT`). Merge to `main` and deploy `oxy-api`.
-2. Re-register the dedicated task on that image: in `oxy-infra`, dispatch
-   `terraform-uswest2.yml` with `action=plan`, then `action=apply`, targeting
-   only `aws_ecs_task_definition.kaana_catalogue_bootstrap`. The plan must show
-   the deployed `oxy/oxy-api@sha256:` digest and nothing else.
-3. Read back the three exact inputs:
+1. Only if the dedicated task's image is not the live `oxy-api` digest (step 2
+   tells you): in `oxy-infra`, dispatch `terraform-uswest2.yml` with
+   `action=plan`, then `action=apply`, targeting
+   `terraform_data.kaana_catalogue_bootstrap_image_pin aws_ecs_task_definition.kaana_catalogue_bootstrap`.
+   The plan must show the deployed `oxy/oxy-api@sha256:` digest and nothing
+   else; the pin tags that digest `pinned-` so ECR never expires it while the
+   task names it.
+2. Read back the three exact inputs:
    `aws ecs describe-services --cluster oxy-cluster --services oxy-api` (the
    task-definition ARN and its image digest) and
    `aws ecs describe-task-definition --task-definition oxy-kaana-catalogue-bootstrap`
    (the new revision ARN; its image must equal the live digest).
-4. Dispatch `renew-kaana-routing-scores.yml` from `main` with `mode=dry-run`,
+3. Dispatch `renew-kaana-routing-scores.yml` from `main` with `mode=dry-run`,
    the three inputs and `reviewer_user_id=6981c9178fcdefaf81988ffb`. Read the
-   planned renewals and the plan SHA-256 from the job summary. Drift (any row
-   that is neither the superseded nor the renewed state) fails here and writes
-   nothing.
-5. Dispatch it again with `mode=apply`, the same inputs,
-   `expected_plan_sha256` from step 4 and a single-line `reason` naming the
-   owner approval.
+   planned renewals, the renewed validity and the plan SHA-256 from the job
+   summary. Drift fails here and writes nothing.
+4. The same UTC day, dispatch it again with `mode=apply`, the same inputs,
+   `expected_plan_sha256` from step 3 and a single-line `reason` naming the
+   owner approval. On a later day the plan names a later validity, so the apply
+   refuses; dry-run again.
 
 ## Verify
 
@@ -65,7 +71,7 @@ scorecard through the staff API.
 If the workflow path is unavailable before the cliff, a staff user holding
 `inference:catalogue:publish` can `PUT
 /inference/admin/kaana-deployments/:kaanaDeploymentId/routing-scorecard` with
-the complete scorecard and the new `validUntil`. That write is audited (one
-event per call) but stamps `changedAt` with the wall clock, so the reviewed
-config must then be updated to that exact instant before the next catalogue
-bootstrap, or the bootstrap will refuse the row as drift.
+the complete scorecard (the same reviewed values) and the new `validUntil`. That
+write is audited (one event per call, at its wall-clock `changedAt`), so the
+bootstrap and the next renewal accept it as long as the reviewed values are
+unchanged.
