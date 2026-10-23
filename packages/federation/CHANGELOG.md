@@ -1,5 +1,10 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.12.0
+
+### Changed
+
+- Accept core 7 and contracts 6 alongside the existing compatible runtime versions. Federation exports and wire formats are unchanged.
 
 ## 2.11.0
 

@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/ship",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "oxy-ship — publish Expo OTA updates to the Oxy Updates service",
   "repository": {
     "type": "git",

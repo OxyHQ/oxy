@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/stickers`
 
+## 0.2.2
+
+### Changed
+
+- Package against contracts 6. Sticker APIs and exported types are unchanged.
+
 ## 0.2.1
 
 ### Fixed

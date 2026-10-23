@@ -1,5 +1,19 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.4.0
+
+### Added
+
+- Inject the shared authenticated Oxy transport for catalogue registration, introspection, connections and audit requests. Authentication and refresh stay with core; explicit external credential callbacks remain supported.
+
+### Fixed
+
+- Reject redirects and omit ambient cookies on authority calls.
+
+### Changed
+
+- Package against contracts 6.
+
 ## 1.3.1
 
 ### Fixed
