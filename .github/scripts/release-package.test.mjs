@@ -6,10 +6,13 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  ciVerdict,
   consumerRanges,
   distTagProblem,
   manifestProblems,
-  resolveWorkspace,
+  plan,
+  publicPackages,
+  releaseTag,
   workspaceDependencies,
   workspacePackages,
   workspaceRangeProblems,
@@ -80,46 +83,31 @@ test('every range a consumer installs is checked on the registry, devDependencie
   ]);
 });
 
-test('every public workspace package is releasable, and nothing private is', () => {
-  const workspaces = workspacePackages(resolve('.'));
-  assert.equal(resolveWorkspace('@oxy.so/core', workspaces), 'packages/core');
-  assert.throws(
-    () => resolveWorkspace('@oxy.so/api', workspaces),
-    /not a public package of this repository/,
+test('a public package is released, and nothing private is', () => {
+  const names = publicPackages(workspacePackages(resolve('.'))).map(
+    ({ manifest }) => manifest.name,
   );
+  assert.ok(names.includes('@oxy.so/core'));
+  assert.ok(!names.includes('@oxy.so/api'));
 });
 
-test('every public package of this repository states its pre-flight in prepublishOnly', () => {
-  const workspaces = workspacePackages(resolve('.'));
-  for (const { manifest } of workspaces.filter(
-    (w) => w.manifest.name && w.manifest.private !== true,
-  ))
-    assert.doesNotThrow(() => resolveWorkspace(manifest.name, workspaces), manifest.name);
-});
-
-test('a repository whose root is the package, with `packages/*` workspaces, resolves both', () => {
+test('a repository whose root is the package, with `packages/*` workspaces, lists both', () => {
   const root = mkdtempSync(join(tmpdir(), 'release-package-'));
-  const scripts = { prepublishOnly: 'bun run build' };
   writeFileSync(
     join(root, 'package.json'),
-    JSON.stringify({ name: '@oxy.so/bloom', scripts, workspaces: ['packages/*'] }),
+    JSON.stringify({ name: '@oxy.so/bloom', workspaces: ['packages/*'] }),
   );
   for (const name of ['bloom-text', 'internal']) {
     mkdirSync(join(root, 'packages', name), { recursive: true });
     writeFileSync(
       join(root, 'packages', name, 'package.json'),
-      JSON.stringify({ name: `@oxy.so/${name}`, scripts, private: name === 'internal' }),
+      JSON.stringify({ name: `@oxy.so/${name}`, private: name === 'internal' }),
     );
   }
-  const workspaces = workspacePackages(root);
-  assert.equal(resolveWorkspace('@oxy.so/bloom', workspaces), '.');
-  assert.equal(resolveWorkspace('@oxy.so/bloom-text', workspaces), 'packages/bloom-text');
-  assert.throws(() => resolveWorkspace('@oxy.so/internal', workspaces), /not a public package/);
-});
-
-test('a public package without prepublishOnly is refused', () => {
-  const workspaces = [{ directory: 'packages/sdk', manifest: { name: '@example/sdk' } }];
-  assert.throws(() => resolveWorkspace('@example/sdk', workspaces), /declares no prepublishOnly/);
+  assert.deepEqual(
+    publicPackages(workspacePackages(root)).map(({ directory }) => directory),
+    ['.', 'packages/bloom-text'],
+  );
 });
 
 test('a workspace pattern other than `dir/*` or a literal directory is refused', () => {
@@ -135,6 +123,12 @@ test('latest never goes backwards and never names a prerelease', () => {
   assert.match(distTagProblem('2.0.0-next.1', 'latest', '1.0.0'), /is a prerelease/);
   assert.equal(distTagProblem('15.9.0', 'legacy', '18.1.0'), null);
   assert.equal(distTagProblem('2.0.0-next.1', 'next', '1.0.0'), null);
+});
+
+test('a release publishes as latest, a prerelease under the name of its line', () => {
+  assert.equal(releaseTag('15.9.0'), 'latest');
+  assert.equal(releaseTag('4.11.0-oxy-one.0'), 'oxy-one');
+  assert.throws(() => releaseTag('2.0.0-0'), /names no prerelease line/);
 });
 
 const workspace = (name, dependencies = {}, devDependencies = {}) => ({
@@ -165,6 +159,50 @@ test('a workspace cycle is refused', () => {
   assert.throws(() => workspaceDependencies('a', workspaces), /workspace cycle: a -> b -> a/);
 });
 
+test('a commit releases every unpublished public version, dependencies first', () => {
+  const at = (name, version, dependencies, extra = {}) => ({
+    directory: `packages/${name}`,
+    manifest: { name, version, dependencies, ...extra },
+  });
+  const workspaces = [
+    at('services', '2.0.0', { core: 'workspace:^' }),
+    at('core', '1.1.0', { contracts: 'workspace:^', internal: 'workspace:*' }),
+    at('internal', '0.0.0', {}, { private: true }),
+    at('contracts', '1.0.0', {}),
+  ];
+  const registry = {
+    published: (name) => name === 'contracts',
+    latest: () => '1.0.0',
+  };
+  assert.deepEqual(plan(workspaces, registry), {
+    release: [
+      { name: 'core', version: '1.1.0', directory: 'packages/core', tag: 'latest' },
+      { name: 'services', version: '2.0.0', directory: 'packages/services', tag: 'latest' },
+    ],
+    build: ['packages/contracts', 'packages/internal', 'packages/core', 'packages/services'],
+  });
+  assert.throws(
+    () => plan(workspaces, { ...registry, latest: () => '3.0.0' }),
+    /core@1\.1\.0 cannot be published as "latest": 1\.1\.0 is older than latest 3\.0\.0/,
+  );
+});
+
+test('a commit is released only once CI passed on it, from push or the merge queue', () => {
+  const sha = 'a'.repeat(40);
+  const run = (event, status, conclusion) => ({ head_sha: sha, event, status, conclusion });
+  assert.equal(ciVerdict([], sha), 'pending');
+  assert.equal(ciVerdict([run('merge_group', 'completed', 'success')], sha), 'passed');
+  assert.equal(ciVerdict([run('push', 'in_progress', null)], sha), 'pending');
+  assert.equal(ciVerdict([run('pull_request', 'completed', 'success')], sha), 'pending');
+  assert.equal(
+    ciVerdict(
+      [run('push', 'completed', 'cancelled'), run('merge_group', 'completed', 'failure')],
+      sha,
+    ),
+    'failed',
+  );
+});
+
 const tool = new URL('./release-package.mjs', import.meta.url).pathname;
 
 function packFixture(scripts) {
@@ -182,8 +220,8 @@ function packFixture(scripts) {
   return { destination, printed: printed.trim() };
 }
 
-test('pack writes the package one bun-packed tarball and prints only its path', () => {
-  const { destination, printed } = packFixture({});
+test('pack writes the package one bun-packed tarball, runs no lifecycle script, and prints only its path', () => {
+  const { destination, printed } = packFixture({ prepack: 'exit 1', prepare: 'exit 1' });
   assert.equal(printed, join(destination, 'example-pack-1.0.0.tgz'));
 });
 

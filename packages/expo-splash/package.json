@@ -66,8 +66,7 @@
     "build:types": "tsc -p tsconfig.types.json",
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
-    "test": "jest --passWithNoTests",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "test": "jest --passWithNoTests"
   },
   "dependencies": {
     "@expo/image-utils": ">=0.7.0",

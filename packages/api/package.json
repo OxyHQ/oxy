@@ -29,7 +29,6 @@
     "lint:fix": "biome check --write .",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "openapi:generate": "bun scripts/generate-openapi.ts",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts --phase=all",
     "bind:workload-identity": "bun run scripts/bind-workload-identity.ts",

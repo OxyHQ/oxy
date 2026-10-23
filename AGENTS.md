@@ -27,7 +27,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Shared versions live in `workspaces.catalog` as `"catalog:"`.
 - Pack with `bun pm pack`, never `npm pack`.
 - Anything that re-resolves passes `--minimum-release-age=0`.
-- Publish only through Actions → Release packages (shared `npm-release.yml`, OIDC); never from a laptop — #publishing
+- Publish by merging a version bump: Release packages runs on every push to main (shared `npm-release.yml`, OIDC) once CI passed on that SHA; never from a laptop — #publishing
 - TS strict; Biome formats and lints (`bun run lint`; SDK `src/` `--error-on-warnings`); commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
 **Package boundaries** — #package-boundaries

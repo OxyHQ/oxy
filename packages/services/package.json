@@ -147,8 +147,7 @@
     "copy-assets": "copyfiles -u 1 \"src/assets/**/*\" lib/commonjs/assets && copyfiles -u 1 \"src/assets/**/*\" lib/module/assets",
     "copy-dts": "copyfiles -u 1 \"src/**/*.d.ts\" lib/typescript",
     "delete-debug-view": "rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true",
-    "delete-dts.js": "find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
+    "delete-dts.js": "find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete"
   },
   "dependencies": {
     "@oxy.so/contracts": "workspace:^",

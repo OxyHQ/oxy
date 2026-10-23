@@ -75,8 +75,7 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
+    "lint": "biome lint --error-on-warnings ./src"
   },
   "dependencies": {
     "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || 4.11.0-oxy-one.0",

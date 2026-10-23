@@ -1,54 +1,34 @@
 name: Release packages
 
-# Publishes one public package of this repository (`@oxy.so/core`,
-# `create-oxy-app`, … — any package.json that is not `private`) to npm through
-# the shared `npm-release.yml`, with npm trusted publishing (OIDC) and
-# provenance. Every OxyHQ repository that publishes to npm has this same caller;
+# Publishes, on every push to main, each public package of this repository
+# (`@oxy.so/core`, `create-oxy-app`, … — any package.json that is not
+# `private`) whose version is not on npm yet, through the shared
+# `npm-release.yml`, with npm trusted publishing (OIDC) and provenance, once CI
+# has passed on that exact commit. Merging a version bump is the release.
+# Every OxyHQ repository that publishes to npm has this same caller;
 # docs/engineering/package-rules.md#publishing.
-#
-# Order matters when a release spans packages: publish a dependency (contracts,
-# then protocol/telemetry, then core, then services) before its dependents;
-# `inspect` refuses a dependent whose range does not resolve yet.
 
 on:
-  workflow_dispatch:
-    inputs:
-      package:
-        description: Package name to release, e.g. @oxy.so/core
-        required: true
-        type: string
-      expected_source_sha:
-        description: Exact protected commit to build and publish
-        required: true
-        type: string
-      dry_run:
-        description: Build, verify and preflight the registry without publishing
-        required: true
-        type: boolean
-        default: true
-      dist_tag:
-        description: npm dist-tag (latest only moves forward)
-        required: true
-        type: string
-        default: latest
+  push:
+    branches: [main]
 
 # Nothing at the workflow level: the calling job grants the shared workflow
-# exactly what its jobs need. Only its publish job keeps id-token, and only its
-# tag job (`<name>@<version>` at the released commit) writes contents.
+# exactly what its jobs need. Only its plan job reads Actions (the CI verdict),
+# only its publish job keeps id-token, and only its tag job
+# (`<name>@<version>` at the released commit) writes contents.
 permissions: {}
 
+# Every run waits its turn and none is ever cancelled: each releases what its
+# own commit holds that the registry does not.
 concurrency:
   group: release-packages
   cancel-in-progress: false
+  queue: max
 
 jobs:
   release:
     permissions:
+      actions: read
       contents: write
       id-token: write
     uses: ./.github/workflows/npm-release.yml
-    with:
-      package: ${{ inputs.package }}
-      expected_source_sha: ${{ inputs.expected_source_sha }}
-      dry_run: ${{ inputs.dry_run }}
-      dist_tag: ${{ inputs.dist_tag }}
