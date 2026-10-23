@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -279,5 +279,165 @@ test('a dependency that is not a workspace: spec is left to the other checks', (
       workspaces,
     ),
     [],
+  );
+});
+
+/** Run the real tarball inspector with a registry that contains no versions. */
+function inspectPlannedPeer(
+  t,
+  {
+    coreVersion = '6.17.0',
+    order = ['@oxy.so/core', '@oxy.so/services'],
+    dependencies = {},
+    peerRange = '^6.16.0',
+    registryError = 'E404',
+  } = {},
+) {
+  const root = mkdtempSync(join(tmpdir(), 'release-planned-peer-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const directory of ['packages/core', 'packages/services', 'staging/package', 'bin'])
+    mkdirSync(join(root, directory), { recursive: true });
+  const json = (path, value) => writeFileSync(join(root, path), JSON.stringify(value));
+  json('package.json', {
+    private: true,
+    workspaces: {
+      packages: ['packages/*'],
+      catalog: { '@oxy.so/core': '^6.16.0' },
+    },
+  });
+  json('packages/core/package.json', { name: '@oxy.so/core', version: coreVersion });
+  const services = {
+    name: '@oxy.so/services',
+    version: '12.14.0',
+    dependencies,
+    devDependencies: { '@oxy.so/core': 'workspace:*' },
+    peerDependencies: { '@oxy.so/core': 'catalog:' },
+  };
+  json('packages/services/package.json', services);
+  const planned = plan(workspacePackages(root), { published: () => false, latest: () => null });
+  assert.deepEqual(
+    planned.release.map(({ name }) => name),
+    ['@oxy.so/core', '@oxy.so/services'],
+  );
+  json('staging/package/package.json', {
+    ...services,
+    devDependencies: { '@oxy.so/core': coreVersion },
+    peerDependencies: { '@oxy.so/core': peerRange },
+  });
+  const tarball = join(root, 'services.tgz');
+  execFileSync('tar', ['-czf', tarball, '-C', join(root, 'staging'), 'package']);
+  const calls = join(root, 'registry-calls.jsonl');
+  writeFileSync(
+    join(root, 'bin/npm'),
+    `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+console.error(${JSON.stringify(registryError)});
+process.exit(1);
+`,
+    { mode: 0o755 },
+  );
+  const result = spawnSync('node', [tool, 'inspect', tarball, 'packages/services', ...order], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+  });
+  return {
+    ...result,
+    registryCalls: existsSync(calls)
+      ? readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse)
+      : [],
+  };
+}
+
+test('catalog peer ^6.16.0 accepts core 6.17.0 published earlier in the actual workspace release order', (t) => {
+  const result = inspectPlannedPeer(t);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /every check passed/);
+  assert.deepEqual(result.registryCalls, []);
+});
+
+test('a same-batch core version outside the peer range still fails an empty registry', (t) => {
+  const result = inspectPlannedPeer(t, { coreVersion: '7.0.0' });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /@oxy\.so\/core@\^6\.16\.0, which nothing on the registry satisfies/);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('a prerelease does not satisfy a stable peer range merely because it is planned first', (t) => {
+  const result = inspectPlannedPeer(t, { coreVersion: '6.17.0-beta.1' });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('a matching candidate planned later is not a published-first dependency', (t) => {
+  const result = inspectPlannedPeer(t, { order: ['@oxy.so/services', '@oxy.so/core'] });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('an inspected package absent from the ordered plan cannot exempt same-name candidates', (t) => {
+  const result = inspectPlannedPeer(t, { order: ['@oxy.so/core'] });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('unrelated missing external dependencies are still refused', (t) => {
+  const result = inspectPlannedPeer(t, { dependencies: { 'missing-external': '^1.0.0' } });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(
+    result.stderr,
+    /missing-external@\^1\.0\.0, which nothing on the registry satisfies/,
+  );
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('matching peer range does not exempt an incompatible dependency range of the same name', (t) => {
+  const result = inspectPlannedPeer(t, { dependencies: { '@oxy.so/core': '^7.0.0' } });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /@oxy\.so\/core@\^7\.0\.0, which nothing on the registry satisfies/);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('external registry errors fail closed rather than being accepted as a planned match', (t) => {
+  const result = inspectPlannedPeer(t, {
+    dependencies: { 'missing-external': '^1.0.0' },
+    registryError: 'E503',
+  });
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /npm view missing-external@\^1\.0\.0 version failed: E503/);
+});
+
+for (const peerRange of ['latest', 'bad range', 'npm:other@^1', 'file:../x']) {
+  test(`planned version cannot exempt non-semver spec ${peerRange} from registry validation`, (t) => {
+    const result = inspectPlannedPeer(t, { peerRange });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.registryCalls.length, 1);
+  });
+}
+
+test('plan and published remain usable from a sparse helper checkout without inspector dependencies', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'release-no-runtime-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sparseTool = join(root, 'release-package.mjs');
+  writeFileSync(sparseTool, readFileSync(tool));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ private: true }));
+  mkdirSync(join(root, 'bin'));
+  writeFileSync(
+    join(root, 'bin/npm'),
+    '#!/usr/bin/env node\nconsole.log(JSON.stringify("1.0.0"));\n',
+    { mode: 0o755 },
+  );
+  const options = {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+  };
+  assert.deepEqual(JSON.parse(execFileSync('node', [sparseTool, 'plan'], options)), {
+    release: [],
+    build: [],
+  });
+  assert.equal(
+    spawnSync('node', [sparseTool, 'published', '@example/package', '1.0.0'], options).status,
+    0,
   );
 });

@@ -78,6 +78,13 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
   commit — a `merge_group` run (the merge queue tested this very tree) or a `push` run — and fails
   closed when it did not, never ran, or GitHub cannot say. **The release runs no tests: CI already
   ran them on this SHA, so a package's gates belong in CI.**
+- The canonical tarball inspector owns its locked `semver` runtime under
+  `.github/scripts/release-runtime`; the build job installs it separately from
+  the caller's dependencies. A packed consumer range may skip a registry check
+  only when the exact workspace version satisfies it and the ordered release
+  publishes that package first. Catalog peers follow the same rule. Unknown,
+  incompatible or later candidates still require a registry answer; plan and
+  OIDC publish do not load the inspector runtime.
 - `build` holds no credential: frozen install, then ONE `build` of each released package and of
   each workspace it links, then the tarball packed from that tree with `bun pm pack
   --ignore-scripts` (no `prepack`/`prepare` rebuild), or the package's own `release:pack <dir>`
