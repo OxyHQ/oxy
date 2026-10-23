@@ -238,7 +238,9 @@ export function resolverCacheTag(pathname: string): string {
 
 /**
  * `cloud.oxy.so/<fileId>?variant=<v>` → oxy-api `GET /cdn/<fileId>?variant=<v>`.
- * Only `variant` is forwarded, and only `variant` keys the cache.
+ * Only `variant` and the rendition's authoritative ready timestamp (`revision`)
+ * are forwarded and key the cache. A new generation bypasses old browser and
+ * edge redirects without giving unrelated query parameters new cache entries.
  *
  * A redirect is kept in the Cache API for exactly as long as oxy-api's
  * Cache-Control says (an hour: the window in which a just-privatised file stays
@@ -254,8 +256,25 @@ export async function serveResolver(
   deps: Deps,
 ): Promise<Response> {
   const variant = url.searchParams.get('variant');
+  const revision = url.searchParams.get('revision');
+  if (revision !== null) {
+    const timestamp = new Date(revision);
+    if (
+      !variant ||
+      url.searchParams.getAll('revision').length !== 1 ||
+      revision.length !== 24 ||
+      !Number.isFinite(timestamp.getTime()) ||
+      timestamp.toISOString() !== revision
+    ) {
+      return finalize(
+        new Response(null, { status: 400, headers: { 'cache-control': 'no-store' } }),
+        null,
+      );
+    }
+  }
+  const revisionQs = revision === null ? '' : `&revision=${encodeURIComponent(revision)}`;
   const cacheKey = new Request(
-    `${url.origin}${url.pathname}${variant === null ? '' : `?variant=${encodeURIComponent(variant)}`}`,
+    `${url.origin}${url.pathname}${variant === null ? '' : `?variant=${encodeURIComponent(variant)}`}${revisionQs}`,
     { method: 'GET' },
   );
   const cached = await deps.cache.match(cacheKey);
@@ -267,6 +286,7 @@ export async function serveResolver(
 
   const target = new URL(`/cdn${url.pathname}`, env.API_ORIGIN);
   if (variant !== null) target.searchParams.set('variant', variant);
+  if (revision !== null) target.searchParams.set('revision', revision);
   const upstream = await deps.fetch(target.toString(), { method: 'GET', redirect: 'manual' });
   const headers = new Headers();
   for (const name of ['location', 'cache-control', 'content-type']) {

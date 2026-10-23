@@ -7,6 +7,27 @@
 - `queryFn` must be pure — never call `useAuthStore.setUser()` inside a `queryFn`.
 - Side effects on fresh query data belong in a `useEffect` on `query.data` outside the queryFn.
 
+## Public rendition URL identity (core)
+
+Build public video HLS URLs with
+`assets.publicUrl(id, 'hls_master', undefined, { revision: hlsReadyAt })`, using
+the authoritative `hlsReadyAt` returned by service asset metadata. Omit HLS
+entirely when that field is absent. Store and refresh this timestamp when a
+rendition is regenerated; do not use the current time or a random query value.
+
+The SDK normalizes the ready timestamp to UTC. The CDN resolver partitions its
+cache by file, variant and revision, while retaining the file cache tag for
+purges. Oxy's metadata response and resolver read the same variant `readyAt`:
+a matching generation keeps the normal one-hour redirect freshness. An older
+timestamp still resolves to the current public rendition with `no-store`, so
+older post snapshots keep playing. Malformed revisions return 400 without
+caching, and status/visibility checks still apply. Original URLs and calls
+without a revision retain their existing behavior.
+
+Deploy the API and CDN Worker support before publishing the SDK and updating
+consumers. Purging the edge does not invalidate redirects already stored in a
+browser; the semantic revision is what gives a repaired rendition a new URL.
+
 ## SDK Cache Sweep on Profile Writes (core)
 
 `oxyServices.users.updateMe()` invalidates, in one `http.invalidateCache` pass:
