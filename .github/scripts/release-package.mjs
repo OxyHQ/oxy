@@ -36,8 +36,8 @@
 //                         `bun.lock`, so a stale lockfile pins an old version),
 //                         and every range a consumer installs (dependencies,
 //                         peer, optional) already resolves on the registry, or
-//                         is a `workspace:` dependency this same release
-//                         publishes first
+//                         is satisfied by the exact version this same ordered
+//                         release publishes first
 //   published <name> <version>
 //                         exits 0 when that version is on the registry, 1 when
 //                         it is not, and 2 when the registry cannot say
@@ -50,6 +50,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const DEPENDENCY_FIELDS = [
   'dependencies',
@@ -206,15 +207,42 @@ export function workspaceRangeProblems(packed, source, workspaces) {
 
 /**
  * The ranges a consumer's install resolves (everything but devDependencies),
- * except the dependencies named in `publishedFirst`: workspaces this same
- * release publishes before this package, at the exact version
- * `workspaceRangeProblems` already holds the packed range to.
+ * except ranges satisfied by an exact version this release publishes first.
+ * Check each field separately: a matching dependency range must not exempt
+ * an incompatible peer range for the same package name.
  */
-export function consumerRanges(packed, publishedFirst = new Set()) {
+export function consumerRanges(packed, publishedFirst = new Map()) {
   return CONSUMER_FIELDS.flatMap((field) =>
     Object.entries(packed[field] ?? {})
-      .filter(([dependency]) => !publishedFirst.has(dependency))
+      .filter(([dependency, range]) => {
+        const version = publishedFirst.get(dependency);
+        return !version || !satisfiesRange(version, range);
+      })
       .map(([dependency, range]) => `${dependency}@${range}`),
+  );
+}
+
+/** Only inspect needs this locked helper package; plan/publish remain dependency-free. */
+function satisfiesRange(version, range) {
+  const requireRuntime = createRequire(new URL('./release-runtime/package.json', import.meta.url));
+  // Resolve only our installed package, never a caller's transitive dependency.
+  const semver = requireRuntime('./node_modules/semver');
+  return (
+    semver.valid(version) !== null &&
+    semver.validRange(range) !== null &&
+    semver.satisfies(version, range)
+  );
+}
+
+/** Membership alone is insufficient: only preceding entries will be published first. */
+export function plannedDependencyVersions(name, workspaces, releasing) {
+  const order = [...releasing];
+  const position = order.indexOf(name);
+  const preceding = new Set(position < 0 ? [] : order.slice(0, position));
+  return new Map(
+    publicPackages(workspaces)
+      .filter(({ manifest }) => preceding.has(manifest.name))
+      .map(({ manifest }) => [manifest.name, manifest.version]),
   );
 }
 
@@ -369,6 +397,7 @@ async function waitForCi(sha, workflow) {
 
 function inspect(tarball, directory, releasing) {
   const source = readManifest(directory);
+  const workspaces = workspacePackages(process.cwd());
   const packed = JSON.parse(
     execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' }),
   );
@@ -382,15 +411,9 @@ function inspect(tarball, directory, releasing) {
     .filter(Boolean);
   const problems = [
     ...manifestProblems(packed, source, entries),
-    ...workspaceRangeProblems(packed, source, workspacePackages(process.cwd())),
+    ...workspaceRangeProblems(packed, source, workspaces),
   ];
-  const publishedFirst = new Set(
-    CONSUMER_FIELDS.flatMap((field) =>
-      Object.entries(source[field] ?? {})
-        .filter(([dependency, spec]) => spec.startsWith('workspace:') && releasing.has(dependency))
-        .map(([dependency]) => dependency),
-    ),
-  );
+  const publishedFirst = plannedDependencyVersions(packed.name, workspaces, releasing);
   for (const spec of consumerRanges(packed, publishedFirst))
     if (!resolvesOnRegistry(spec))
       problems.push(`depends on ${spec}, which nothing on the registry satisfies yet`);

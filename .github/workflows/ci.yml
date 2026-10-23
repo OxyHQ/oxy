@@ -915,6 +915,7 @@ jobs:
           bash .github/scripts/test-smoke-inbox-mcp.sh
           bash .github/scripts/test-smoke-service-token-jwks.sh
           bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
+          npm ci --prefix .github/scripts/release-runtime --ignore-scripts --no-audit --fund=false --userconfig /dev/null
           node --test .github/scripts/release-package.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           bash .github/scripts/test-collect-external-identity-task.sh

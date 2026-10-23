@@ -148,7 +148,10 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           path: release-tools
-          sparse-checkout: .github/scripts/release-package.mjs
+          sparse-checkout: |
+            .github/scripts/release-package.mjs
+            .github/scripts/release-runtime/package.json
+            .github/scripts/release-runtime/package-lock.json
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -159,6 +162,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24.x'
+
+      - name: install the inspector's own locked runtime
+        run: npm ci --prefix "$(dirname "$RELEASE_PACKAGE")/release-runtime" --ignore-scripts --no-audit --fund=false --userconfig /dev/null
 
       - name: install the exact reviewed dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0

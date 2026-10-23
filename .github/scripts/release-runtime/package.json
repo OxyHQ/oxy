@@ -1,0 +1,9 @@
+{
+  "name": "@oxy-internal/release-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Locked dependencies of the canonical npm tarball inspector",
+  "dependencies": {
+    "semver": "7.7.4"
+  }
+}
