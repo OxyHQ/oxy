@@ -1,3 +1,7 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import { createFirstPartyTask, revokeFirstPartyTask } from '../services/firstPartyTasks.service';
+import { createFirstPartyTaskAuthorization } from '../services/firstPartyTaskAuthority.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -10,6 +14,8 @@ import {
   catalogToolAllowsActor,
   catalogToolActors,
   foregroundExecutionAuthorizationInputSchema,
+  firstPartyExecutionAuthorizationInputSchema,
+  firstPartyTaskInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
   capabilityPackageSchema,
@@ -81,19 +87,19 @@ const router = Router();
 const mutableGrantSchema = z
   .object({
     capabilityPackages: z.array(capabilityPackageSchema),
-    capabilities: z.array(z.string().min(1)),
+    capabilities: z.array(z.string().check(utf16MinLength(1))),
     toolOverrides: z.array(toolGrantOverrideSchema).default([]),
     limits: z.array(grantLimitSchema).default([]),
     maximumAutonomy: autonomyLevelSchema,
     canRedelegate: z.boolean().default(false),
-    expiresAt: z.string().datetime().nullable().default(null),
+    expiresAt: z.string().check(isoDateTime()).nullable().default(null),
   })
   .strict();
 
 const createGrantSchema = mutableGrantSchema
   .extend({
-    ownerAccountId: z.string().min(1),
-    actorAccountId: z.string().min(1),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
+    actorAccountId: z.string().check(utf16MinLength(1)),
     resource: resourceRefSchema,
   })
   .strict();
@@ -101,20 +107,20 @@ const createGrantSchema = mutableGrantSchema
 const executionAuthorizationSchema = z
   .object({
     kind: z.enum(['direct_request', 'automation']),
-    ownerAccountId: z.string().min(1),
-    coordinatorApplicationId: z.string().min(1),
-    coordinatorCredentialId: z.string().min(1),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
+    coordinatorApplicationId: z.string().check(utf16MinLength(1)),
+    coordinatorCredentialId: z.string().check(utf16MinLength(1)),
     actor: actorRefSchema,
     resource: resourceRefSchema,
-    tool: z.string().min(1),
-    runId: z.string().min(1).optional(),
-    stepId: z.string().min(1).optional(),
-    automationId: z.string().min(1).optional(),
+    tool: z.string().check(utf16MinLength(1)),
+    runId: z.string().check(utf16MinLength(1)).optional(),
+    stepId: z.string().check(utf16MinLength(1)).optional(),
+    automationId: z.string().check(utf16MinLength(1)).optional(),
     maximumAutonomy: autonomyLevelSchema,
     limits: z.array(grantLimitSchema).default([]),
     /** The owner's published ceiling that bounds an agent acting for the requester (ADR 0042). */
-    ceilingId: z.string().min(1).optional(),
-    expiresAt: z.string().datetime(),
+    ceilingId: z.string().check(utf16MinLength(1)).optional(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict()
   .superRefine((value, context) => {
@@ -170,9 +176,9 @@ const executionAuthorizationSchema = z
 
 const accountPolicyWriteSchema = z
   .object({
-    accountId: z.string().min(1),
+    accountId: z.string().check(utf16MinLength(1)),
     maximumAutonomy: autonomyLevelSchema,
-    deniedCapabilities: z.array(z.string().min(1)),
+    deniedCapabilities: z.array(z.string().check(utf16MinLength(1))),
   })
   .strict()
   .superRefine((value, context) => {
@@ -200,11 +206,15 @@ async function livePrincipal(
     response.status(401).json({ error: 'service_principal_no_longer_active' });
     return null;
   }
-  if (!principal.scopes.includes(scope)) {
+  if (!hasServiceAuthority(principal, scope)) {
     response.status(403).json({ error: 'insufficient_service_scope', requiredScope: scope });
     return null;
   }
-  if (capability && !principal.capabilities.includes(capability)) {
+  if (
+    capability &&
+    principal.authority !== 'first_party' &&
+    !principal.capabilities.includes(capability)
+  ) {
     response
       .status(403)
       .json({ error: 'missing_application_capability', requiredCapability: capability });
@@ -580,7 +590,10 @@ router.delete(
 );
 
 const agentCeilingParamsSchema = z
-  .object({ agentAccountId: z.string().min(1), appId: z.string().min(1) })
+  .object({
+    agentAccountId: z.string().check(utf16MinLength(1)),
+    appId: z.string().check(utf16MinLength(1)),
+  })
   .strict();
 
 /** Only a person who operates the bot publishes what it may do for others (ADR 0042). */
@@ -824,13 +837,90 @@ router.get(
   },
 );
 
+router.post(
+  '/tasks',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    const input = firstPartyTaskInputSchema
+      .extend({
+        subjectToken: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(16_384))
+          .regex(/^\S+$/),
+      })
+      .parse(req.body);
+    const { subjectToken, ...body } = input;
+    const task = await createFirstPartyTask(body, subjectToken, principal);
+    res.status(201).json({
+      task: {
+        id: task.id,
+        origin: { kind: task.originKind, id: task.originId },
+        requesterAccountId: task.requesterAccountId,
+        effectiveAccountId: task.effectiveAccountId,
+        coordinatorApplicationId: task.coordinatorApplicationId,
+        actorType: task.actorType,
+        actorAccountId: task.actorAccountId,
+        expiresAt: task.expiresAt,
+        revokedAt: task.revokedAt,
+      },
+    });
+  }),
+);
+router.post(
+  '/tasks/:taskId/execution-authorizations',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    const input = firstPartyExecutionAuthorizationInputSchema.parse(req.body);
+    const authorization = await createFirstPartyTaskAuthorization(
+      input,
+      '',
+      principal,
+      z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).parse(req.params.taskId),
+    );
+    res.status(201).json({ authorization });
+  }),
+);
+router.delete(
+  '/tasks/:taskId',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    await revokeFirstPartyTask(
+      z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).parse(req.params.taskId),
+      principal,
+    );
+    res.status(204).end();
+  }),
+);
+
 /**
  * @openapi
  * /capabilities/foreground-execution-authorizations:
  *   post:
  *     tags: [Capabilities]
- *     summary: Authorize one present requester read for a verified presenting service
- *     description: Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.
+ *     summary: Authorize a tool operation for a verified requester and presenting service
+ *     description: Separate service bearer and requester subjectToken. Own workloads use the first_party task contract with bound requester, actor, account and catalogue; external callers retain the restricted requester-read contract below.
  *     security: [{ serviceTokenAuth: [] }]
  *     requestBody:
  *       required: true
@@ -903,9 +993,42 @@ router.post(
       AGENCY_COORDINATE_CAPABILITY,
     );
     if (!presenter) return;
+    if (request.body?.authority === 'first_party') {
+      const proof = z
+        .object({
+          subjectToken: z
+            .string()
+            .check(utf16MinLength(1))
+            .check(utf16MaxLength(16_384))
+            .regex(/^\S+$/),
+        })
+        .passthrough()
+        .safeParse(request.body);
+      if (!proof.success) {
+        response.status(400).json({ error: 'invalid_first_party_requester_proof' });
+        return;
+      }
+      const { subjectToken, ...rawInput } = proof.data;
+      const parsedOwn = firstPartyExecutionAuthorizationInputSchema.safeParse(rawInput);
+      if (!parsedOwn.success) {
+        response.status(400).json({ error: 'invalid_first_party_task' });
+        return;
+      }
+      const authorization = await createFirstPartyTaskAuthorization(
+        parsedOwn.data,
+        subjectToken,
+        presenter,
+      );
+      response.status(201).json({ authorization });
+      return;
+    }
     const parsed = foregroundExecutionAuthorizationInputSchema
       .extend({
-        subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/),
+        subjectToken: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(16_384))
+          .regex(/^\S+$/),
       })
       .safeParse(request.body);
     if (!parsed.success) {
@@ -1019,7 +1142,7 @@ router.post(
     if (
       !coordinator ||
       !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY) ||
-      !coordinator.scopes.includes('capability-tickets:issue')
+      !hasServiceAuthority(coordinator, 'capability-tickets:issue')
     ) {
       response.status(400).json({ error: 'coordinator_not_active_or_authorized' });
       return;
@@ -1122,17 +1245,17 @@ router.post(
 
 const agentRunAuthorizationSchema = z
   .object({
-    actorAccountId: z.string().min(1),
-    ownerAccountId: z.string().min(1),
+    actorAccountId: z.string().check(utf16MinLength(1)),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
     sessionId: z
       .string()
-      .min(1)
-      .max(200)
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(200))
       .regex(/^[A-Za-z0-9_.:-]+$/),
     resource: resourceRefSchema,
-    tool: z.string().min(1),
+    tool: z.string().check(utf16MinLength(1)),
     maximumAutonomy: autonomyLevelSchema,
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -1320,7 +1443,7 @@ router.get(
   authMiddleware,
   async (request: AuthRequest, response: Response) => {
     const parsed = z
-      .object({ accountId: z.string().min(1) })
+      .object({ accountId: z.string().check(utf16MinLength(1)) })
       .strict()
       .safeParse(request.query);
     if (!parsed.success) {
@@ -1362,6 +1485,7 @@ router.post(
     }
     try {
       const registration = await registerCapabilityCatalog({
+        authority: principal.authority,
         catalog: request.body.catalog,
         applicationId: principal.applicationId,
         credentialId: principal.credentialId,
@@ -1400,9 +1524,9 @@ router.post(
       return;
     const parsed = z
       .object({
-        requesterAccountId: z.string().min(1),
-        ownerAccountId: z.string().min(1),
-        actorAccountId: z.string().min(1),
+        requesterAccountId: z.string().check(utf16MinLength(1)),
+        ownerAccountId: z.string().check(utf16MinLength(1)),
+        actorAccountId: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .safeParse(request.body);
@@ -1555,9 +1679,9 @@ router.post(
       return;
     const parsed = z
       .object({
-        requesterAccountId: z.string().min(1),
-        effectiveAccountId: z.string().min(1),
-        actorAccountId: z.string().min(1),
+        requesterAccountId: z.string().check(utf16MinLength(1)),
+        effectiveAccountId: z.string().check(utf16MinLength(1)),
+        actorAccountId: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .safeParse(request.body);
@@ -1712,6 +1836,7 @@ router.post(
     const result = await evaluateCapabilityAuthority(
       {
         executionAuthorizationId: parsed.data.executionAuthorizationId,
+        authority: principal.authority,
         coordinator: {
           applicationId: principal.applicationId,
           credentialId: principal.credentialId,
@@ -1744,7 +1869,7 @@ router.post(
     const principal = await livePrincipal(request, response, 'capabilities:read');
     if (!principal) return;
     const parsed = z
-      .object({ ticket: z.string().min(1) })
+      .object({ ticket: z.string().check(utf16MinLength(1)) })
       .strict()
       .safeParse(request.body);
     if (!parsed.success) {
@@ -1795,7 +1920,7 @@ router.post(
     if (!principal) return;
     const parsed = z
       .object({
-        ticket: z.string().min(1),
+        ticket: z.string().check(utf16MinLength(1)),
         result: auditResultSchema,
         rollback: z
           .object({
@@ -1804,7 +1929,7 @@ router.post(
             succeeded: z.boolean().optional(),
           })
           .strict(),
-        idempotencyKey: z.string().min(1).optional(),
+        idempotencyKey: z.string().check(utf16MinLength(1)).optional(),
         idempotencyKeyHash: z
           .string()
           .regex(/^[a-f0-9]{64}$/)

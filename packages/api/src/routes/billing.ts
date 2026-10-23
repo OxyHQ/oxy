@@ -1,3 +1,4 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import {
   productSubscriptionRenewalRequestSchema,
   productPlanCheckoutRequestSchema,
@@ -1310,7 +1311,12 @@ async function syncSubscriptionFromProvider(
     throw new Error('Provider lifecycle attribution or items differ');
   const processor = await subscriptionProcessorBinding(subscription.livemode, event?.account);
   const [, providerAccountRef, mode, environment] = z
-    .tuple([z.literal('stripe'), z.string().min(1), z.enum(['live', 'test']), z.string().min(1)])
+    .tuple([
+      z.literal('stripe'),
+      z.string().check(utf16MinLength(1)),
+      z.enum(['live', 'test']),
+      z.string().check(utf16MinLength(1)),
+    ])
     .parse(JSON.parse(processor));
   const productSources = await getDb()
     .select()

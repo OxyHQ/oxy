@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MinLength } from '@oxy.so/contracts';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
 import {
@@ -21,14 +22,14 @@ import {
 } from './peablePersonalBilling.service';
 export const peablePaidEvidenceSchema = z
   .object({
-    invoiceId: z.string().min(1),
-    lineId: z.string().min(1),
-    paymentIntentId: z.string().min(1),
-    providerSubscriptionId: z.string().min(1),
-    providerCustomerId: z.string().min(1),
-    providerPriceId: z.string().min(1),
-    storeId: z.string().min(1),
-    planId: z.string().min(1),
+    invoiceId: z.string().check(utf16MinLength(1)),
+    lineId: z.string().check(utf16MinLength(1)),
+    paymentIntentId: z.string().check(utf16MinLength(1)),
+    providerSubscriptionId: z.string().check(utf16MinLength(1)),
+    providerCustomerId: z.string().check(utf16MinLength(1)),
+    providerPriceId: z.string().check(utf16MinLength(1)),
+    storeId: z.string().check(utf16MinLength(1)),
+    planId: z.string().check(utf16MinLength(1)),
     livemode: z.boolean(),
     currency: z.literal('USD'),
     amountPaid: z.string().regex(/^[1-9][0-9]*$/),
@@ -40,10 +41,10 @@ export const peablePaidEvidenceSchema = z
       .string()
       .regex(/^(0|[1-9][0-9]*)$/)
       .nullable(),
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
-    paidAt: z.string().datetime(),
-    observedAt: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
+    periodEnd: z.string().check(isoDateTime()),
+    paidAt: z.string().check(isoDateTime()),
+    observedAt: z.string().check(isoDateTime()),
   })
   .strict();
 export interface PeableInvoiceSource {
@@ -340,7 +341,7 @@ export async function reconcilePeablePersonalInvoiceState(
   );
   const value = peablePaidEvidenceSchema
     .extend({
-      chargeId: z.string().min(1),
+      chargeId: z.string().check(utf16MinLength(1)),
       amountRefunded: z.string().regex(/^(0|[1-9][0-9]*)$/),
       state: z.enum(['paid', 'fully_refunded', 'partially_refunded']),
     })
@@ -446,19 +447,19 @@ export async function handlePeablePersonalObservation(
   if (Buffer.byteLength(rawBody) > 1_048_576) throw new Error('Peable observation body too large');
   const event = z
     .object({
-      id: z.string().min(1),
+      id: z.string().check(utf16MinLength(1)),
       object: z.literal('event'),
       type: z.literal('billing.observation.updated'),
-      created: z.string().datetime(),
+      created: z.string().check(isoDateTime()),
       data: z
         .object({
           object: z
             .object({
               object: z.literal('billing_observation'),
               resourceKind: z.enum(['subscription', 'invoice']),
-              resourceId: z.string().min(1),
-              revision: z.number().int().positive(),
-              observedAt: z.string().datetime(),
+              resourceId: z.string().check(utf16MinLength(1)),
+              revision: z.number().check(integerCheck()).positive(),
+              observedAt: z.string().check(isoDateTime()),
             })
             .strict(),
         })

@@ -1513,6 +1513,20 @@
       "when": 1792780896140,
       "tag": "0216_rendition_dispatch_lanes",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1792783212490,
+      "tag": "0217_first_party_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1792783240589,
+      "tag": "0218_validate_first_party_task_link",
+      "breakpoints": true
     }
   ]
 }

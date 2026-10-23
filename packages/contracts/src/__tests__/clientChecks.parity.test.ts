@@ -1061,6 +1061,11 @@ const REPLACEMENTS: unknown[] = [
   ' ',
   'x',
   'Mixed Case',
+  '😀',
+  'a😀',
+  '😀'.repeat(201),
+  '2026-10-24T12:00Z',
+  '2026-10-24T12:00:00Z',
   'a'.repeat(400),
   0,
   -1,
@@ -1068,6 +1073,7 @@ const REPLACEMENTS: unknown[] = [
   2 ** 60,
   Number.NaN,
   Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
   true,
   false,
   [],
@@ -1165,10 +1171,26 @@ function firstIssue(issue: {
 
 function viaZod(schema: z.ZodTypeAny, input: unknown): Outcome {
   try {
-    const result = schema.safeParse(input);
+    const result = schema.safeParse(input, { reportInput: true });
     if (result.success) return { ok: true, value: result.data };
     const [issue] = result.error.issues;
-    return { ok: false, issue: firstIssue(issue as Parameters<typeof firstIssue>[0]) };
+    const failedInput = (issue as { input?: unknown }).input;
+    const received =
+      'received' in issue
+        ? issue.received
+        : failedInput === null
+          ? 'null'
+          : Array.isArray(failedInput)
+            ? 'array'
+            : typeof failedInput === 'number' && Number.isNaN(failedInput)
+              ? 'NaN'
+              : typeof failedInput === 'number' && !Number.isFinite(failedInput)
+                ? String(failedInput)
+                : typeof failedInput;
+    return {
+      ok: false,
+      issue: firstIssue({ ...issue, received } as Parameters<typeof firstIssue>[0]),
+    };
   } catch (error) {
     // A refinement that throws on a value an earlier rule already rejected
     // (`BigInt(1.5)`); Zod surfaces the exception, the check reports a failure.

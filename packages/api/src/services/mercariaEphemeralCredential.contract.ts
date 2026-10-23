@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 export const target = {
   applicationId: '6a37d0cc5d4b5f15482a9340',
@@ -12,14 +13,14 @@ export const planSchema = z
         ownerAccountId: z.literal(target.ownerAccountId),
       })
       .strict(),
-    credentialId: z.string().uuid(),
+    credentialId: z.string().guid(),
     nonce: z.string().regex(/^[a-f0-9]{24}$/),
-    issuedAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    issuedAt: z.string().check(isoDateTime()),
+    expiresAt: z.string().check(isoDateTime()),
     before: z
       .object({
         version: z.string().regex(/^\d+$/),
-        updatedAt: z.string().min(1),
+        updatedAt: z.string().check(utf16MinLength(1)),
         scopes: z.array(z.string()),
       })
       .strict(),
@@ -28,14 +29,14 @@ export const planSchema = z
 export const stateSchema = z
   .object({
     version: z.string().regex(/^\d+$/),
-    updatedAt: z.string().min(1),
+    updatedAt: z.string().check(utf16MinLength(1)),
     status: z.literal('active'),
   })
   .strict();
 export const inspectSchema = z
   .object({
     plan: planSchema,
-    actor: z.string().min(1),
+    actor: z.string().check(utf16MinLength(1)),
     operation: z.literal('inspect'),
     state: stateSchema,
   })

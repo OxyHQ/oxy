@@ -1,18 +1,20 @@
+import { integerCheck } from './numberChecks';
+import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 import {
   catalogInvocationPathParameters,
   findOverlappingCatalogInvocations,
 } from './capabilityInvocation';
 
-const nonEmptyStringSchema = z.string().trim().min(1);
-const identifierSchema = z.string().trim().min(1).max(255);
+const nonEmptyStringSchema = z.string().trim().check(utf16MinLength(1));
+const identifierSchema = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(255));
 const limitKeySchema = z
   .string()
   .regex(
     /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$/,
     'limit keys must be dot-separated input property names',
   )
-  .max(255);
+  .check(utf16MaxLength(255));
 const auditCodeSchema = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
 const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const invocationPathSchema = z
@@ -74,7 +76,7 @@ export const foregroundExecutionAuthorizationInputSchema = z
       .strict(),
     runId: identifierSchema,
     stepId: identifierSchema.optional(),
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -86,6 +88,56 @@ export const resourceRefSchema = z
     resourceId: identifierSchema,
   })
   .strict();
+
+export const firstPartyTaskInputSchema = z
+  .object({
+    origin: z
+      .object({ kind: z.enum(['request', 'goal', 'automation']), id: identifierSchema })
+      .strict(),
+    actor: executionActorRefSchema,
+    effectiveAccountId: identifierSchema,
+    expiresAt: z.string().check(isoDateTime()),
+  })
+  .strict();
+
+/** Oxy-owned tools use the authenticated requester's task, never per-app grants. */
+export const firstPartyExecutionAuthorizationInputSchema = z
+  .object({
+    authority: z.literal('first_party'),
+    kind: z.enum(['direct_request', 'automation']).default('direct_request'),
+    actor: executionActorRefSchema,
+    resource: resourceRefSchema,
+    tool: identifierSchema,
+    expectedCatalog: foregroundExecutionAuthorizationInputSchema.shape.expectedCatalog,
+    runId: identifierSchema.optional(),
+    stepId: identifierSchema.optional(),
+    automationId: identifierSchema.optional(),
+    limits: z
+      .array(
+        z
+          .object({
+            tool: identifierSchema,
+            key: limitKeySchema,
+            value: z.union([z.number().finite(), z.boolean()]),
+          })
+          .strict(),
+      )
+      .default([]),
+    expiresAt: z.string().check(isoDateTime()),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (
+      input.kind === 'direct_request'
+        ? !input.runId || input.automationId !== undefined
+        : !input.automationId || input.runId !== undefined || input.stepId !== undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Bind either a direct run or an automation identity.',
+      });
+    }
+  });
 
 export const toolGrantOverrideSchema = z
   .object({
@@ -139,9 +191,9 @@ export const capabilityCoordinatorSchema = z
 /** Opt-in catalogue pin; legacy issuance omits expectedCatalog and its claim. */
 export const capabilityTicketRequestSchema = z
   .object({
-    executionAuthorizationId: z.string().min(1),
-    runId: z.string().min(1).optional(),
-    stepId: z.string().min(1).optional(),
+    executionAuthorizationId: z.string().check(utf16MinLength(1)),
+    runId: z.string().check(utf16MinLength(1)).optional(),
+    stepId: z.string().check(utf16MinLength(1)).optional(),
     expectedCatalog: capabilityCatalogBindingSchema.optional(),
   })
   .strict();
@@ -159,10 +211,10 @@ export const delegationGrantSchema = z
     limits: z.array(grantLimitSchema).default([]),
     maximumAutonomy: autonomyLevelSchema,
     canRedelegate: z.boolean().default(false),
-    expiresAt: z.string().datetime().nullable(),
-    revokedAt: z.string().datetime().nullable().default(null),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()).nullable(),
+    revokedAt: z.string().check(isoDateTime()).nullable().default(null),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -191,10 +243,10 @@ export const agentRequesterCeilingSchema = agentRequesterCeilingWriteSchema
     agentAccountId: identifierSchema,
     appId: identifierSchema,
     catalog: capabilityCatalogBindingSchema,
-    version: z.number().int().positive(),
-    revokedAt: z.string().datetime().nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    version: z.number().check(integerCheck()).positive(),
+    revokedAt: z.string().check(isoDateTime()).nullable(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -218,8 +270,8 @@ export const applicationAgentSchema = applicationAgentWriteSchema
     applicationId: identifierSchema,
     agentAccountId: identifierSchema,
     createdByUserId: identifierSchema.nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -273,14 +325,14 @@ export const automationDefinitionSchema = z
     objective: nonEmptyStringSchema,
     trigger: automationTriggerSchema,
     actorSelection: automationActorSelectionSchema,
-    inputs: z.record(z.unknown()),
+    inputs: z.record(z.string(), z.unknown()),
     resources: z.array(resourceRefSchema),
     dataFlow: automationDataFlowSchema,
     maximumAutonomy: autonomyLevelSchema,
     limits: z.array(grantLimitSchema).default([]),
     enabled: z.boolean(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -290,12 +342,14 @@ export const capabilityTicketClaimsSchema = z
     aud: identifierSchema,
     sub: identifierSchema,
     jti: identifierSchema,
-    iat: z.number().int().nonnegative(),
-    exp: z.number().int().positive(),
+    iat: z.number().check(integerCheck()).nonnegative(),
+    exp: z.number().check(integerCheck()).positive(),
     runId: identifierSchema,
     stepId: identifierSchema.optional(),
     automationId: identifierSchema.optional(),
     executionAuthorization: executionAuthorizationRefSchema,
+    authority: z.enum(['first_party', 'external']).optional(),
+    taskId: identifierSchema.optional(),
     coordinator: capabilityCoordinatorSchema,
     /** Signed only for callers that explicitly requested a pinned catalogue. */
     catalog: capabilityCatalogBindingSchema.optional(),
@@ -331,6 +385,7 @@ export const capabilityTicketClaimsSchema = z
     }
     if (
       claims.actor.type === 'requester' &&
+      claims.authority !== 'first_party' &&
       (claims.actor.accountId !== claims.requesterAccountId ||
         claims.executionAuthorization.kind !== 'direct_request' ||
         claims.autonomy !== 'read_only' ||
@@ -342,6 +397,16 @@ export const capabilityTicketClaimsSchema = z
         path: ['actor'],
         message:
           'requester actors require their exact principal and direct read-only authority without standing grants',
+      });
+    }
+    if (
+      claims.authority === 'first_party' &&
+      (claims.grantId !== undefined || claims.ceilingId !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Own tool tasks cannot carry external grants or ceilings',
+        path: ['authority'],
       });
     }
     if (claims.ceilingId !== undefined) {
@@ -408,7 +473,7 @@ export const invocationPrincipalSchema = z.discriminatedUnion('kind', [
       originAccountId: identifierSchema,
       activeAccountId: identifierSchema,
       scopes: z.array(identifierSchema),
-      resource: z.string().url(),
+      resource: z.string().check(urlCheck()),
     })
     .strict(),
   z
@@ -443,7 +508,7 @@ export const auditResultSchema = z
 export const auditEventSchema = z
   .object({
     eventId: identifierSchema,
-    occurredAt: z.string().datetime(),
+    occurredAt: z.string().check(isoDateTime()),
     requesterAccountId: identifierSchema,
     coordinator: capabilityCoordinatorSchema,
     executor: executionActorRefSchema,
@@ -496,8 +561,8 @@ export const catalogToolSchema = z
     name: identifierSchema,
     version: identifierSchema,
     description: nonEmptyStringSchema,
-    inputSchema: z.record(z.unknown()),
-    outputSchema: z.record(z.unknown()).optional(),
+    inputSchema: z.record(z.string(), z.unknown()),
+    outputSchema: z.record(z.string(), z.unknown()).optional(),
     capabilityPackage: capabilityPackageSchema,
     requiredCapabilities: z.array(identifierSchema).min(1),
     resourceTypes: z.array(identifierSchema).min(1),
@@ -690,7 +755,7 @@ export const catalogEventSchema = z
     type: identifierSchema,
     version: identifierSchema,
     description: nonEmptyStringSchema,
-    dataSchema: z.record(z.unknown()),
+    dataSchema: z.record(z.string(), z.unknown()),
     resourceTypes: z.array(identifierSchema).min(1),
   })
   .strict();
@@ -705,7 +770,7 @@ export const catalogFeatureSchema = z
     key: z
       .string()
       .regex(/^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*$/, 'feature keys are dot-separated slugs')
-      .max(128),
+      .check(utf16MaxLength(128)),
     description: nonEmptyStringSchema,
     checkTool: identifierSchema,
     consumeTool: identifierSchema.optional(),
@@ -724,7 +789,7 @@ export const appCapabilityCatalogSchema = z
     /** HTTPS origin that serves the catalog's internal invocation paths. */
     internalBaseUrl: z
       .string()
-      .url()
+      .check(urlCheck())
       .superRefine((value, context) => {
         const url = new URL(value);
         const localDevelopment = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
@@ -748,7 +813,7 @@ export const appCapabilityCatalogSchema = z
       .object({
         resource: z
           .string()
-          .url()
+          .check(urlCheck())
           .superRefine((value, context) => {
             const url = new URL(value);
             const localDevelopment =
@@ -869,7 +934,7 @@ export const catalogRegistrationSchema = z
     catalog: appCapabilityCatalogSchema,
     digest: z.string().regex(/^[a-f0-9]{64}$/),
     signature: nonEmptyStringSchema,
-    deployedAt: z.string().datetime(),
+    deployedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -880,8 +945,8 @@ export const normalizedAppEventSchema = z
     accountId: identifierSchema,
     resource: resourceRefSchema,
     type: identifierSchema,
-    occurredAt: z.string().datetime(),
-    data: z.record(z.unknown()),
+    occurredAt: z.string().check(isoDateTime()),
+    data: z.record(z.string(), z.unknown()),
   })
   .strict();
 
@@ -936,3 +1001,9 @@ export type ApplicationAgent = z.infer<typeof applicationAgentSchema>;
 export type AgentAvailability = z.infer<typeof agentAvailabilitySchema>;
 export type CatalogRegistration = z.infer<typeof catalogRegistrationSchema>;
 export type NormalizedAppEvent = z.infer<typeof normalizedAppEventSchema>;
+
+export type FirstPartyExecutionAuthorizationInput = z.infer<
+  typeof firstPartyExecutionAuthorizationInputSchema
+>;
+
+export type FirstPartyTaskInput = z.infer<typeof firstPartyTaskInputSchema>;

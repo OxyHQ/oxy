@@ -1230,3 +1230,59 @@ it('fences an in-flight narrow mint when every credential variant is invalidated
   expect(await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] })).toBe(replacement);
   expect(mint).toHaveBeenCalledTimes(2);
 });
+
+describe('registered product audience and external compatibility', () => {
+  const audience = 'oxy-service:0192f3a4-b5c6-7d8e-9f01-23456789abcd';
+  const otherAudience = 'oxy-service:0192f3a4-b5c6-7d8e-9f01-23456789abce';
+  it.each([
+    { authority: 'first_party', aud: audience, allowed: true },
+    { authority: 'first_party', aud: 'oxy-api', allowed: false },
+    { authority: 'first_party', aud: otherAudience, allowed: false },
+    { authority: 'first_party', aud: [audience, otherAudience], allowed: false },
+    { authority: 'external', aud: 'oxy-api', allowed: true },
+    { authority: undefined, aud: 'oxy-api', allowed: true },
+    { authority: 'external', aud: audience, allowed: true },
+    { authority: 'external', aud: otherAudience, allowed: false },
+  ])('checks signed $authority recipient $aud', async ({ authority, aud, allowed }) => {
+    const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
+    const firstParty = authority === 'first_party';
+    const claims = servicePayload({
+      authority,
+      aud,
+      appId: 'app',
+      appName: 'App',
+      credentialId: firstParty ? 'wl_api' : 'cred-1',
+      tier: firstParty ? 'internal' : 'external',
+      ...(firstParty ? { scopes: undefined } : { scopes: ['files:read'] }),
+    });
+    const token = signEdDSA(claims, SIGNING_KEY);
+    const introspect = jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
+      active: true,
+      authority: firstParty ? 'first_party' : 'external',
+      ...(!firstParty ? { scopes: ['files:read', 'files:write'] } : {}),
+      audience: typeof aud === 'string' ? aud : audience,
+      applicationId: 'app',
+      credentialId: firstParty ? 'wl_api' : 'cred-1',
+      accountId: 'owner-account-1',
+      environment: 'production',
+      expiresAt: new Date((claims.exp as number) * 1000).toISOString(),
+    });
+    const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
+    const res = makeRes();
+    const next = jest.fn();
+    await oxy.middleware.auth({ expectedAudience: audience })(req as never, res as never, next);
+    expect(next).toHaveBeenCalledTimes(allowed ? 1 : 0);
+    if (!allowed) expect(res.statusCode).toBe(401);
+    if (allowed && !firstParty) {
+      expect(introspect).toHaveBeenCalledWith(token);
+      const denied = makeRes();
+      const permitted = jest.fn();
+      oxy.middleware.requireScope('files:write')(req as never, denied as never, permitted);
+      expect(denied.statusCode).toBe(403);
+      expect(permitted).not.toHaveBeenCalled();
+      oxy.middleware.requireScope('files:read')(req as never, makeRes() as never, permitted);
+      expect(permitted).toHaveBeenCalledTimes(1);
+    }
+    oxy.dispose();
+  });
+});

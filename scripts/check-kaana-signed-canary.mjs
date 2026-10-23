@@ -106,7 +106,7 @@ requireExactEntries(
     ['schemaVersion', 'z.literal(1)'],
     ['type', "z.literal('start')"],
     ['requestId', 'requestIdSchema'],
-    ['sequence', 'z.number().int().nonnegative().safe()'],
+    ['sequence', 'z.number().check(integerCheck()).nonnegative().check(safeNumberCheck())'],
     ['generationId', 'generationIdSchema.optional()'],
     ['resolvedModelReference', 'modelReferenceSchema'],
     ['servingProvider', 'inferenceProviderSlugSchema'],
@@ -116,17 +116,17 @@ requireExactEntries(
 );
 requireMatch(
   identifiersContract,
-  /export const requestIdSchema = z\.string\(\)\.min\(1\)\.max\(128\);/,
+  /export const requestIdSchema = z\.string\(\)\.check\(utf16MinLength\(1\)\)\.check\(utf16MaxLength\(128\)\);/,
   'the canary request-id assumptions must remain pinned to the contract',
 );
 requireMatch(
   identifiersContract,
-  /export const generationIdSchema = z\.string\(\)\.min\(1\)\.max\(128\);/,
+  /export const generationIdSchema = z\.string\(\)\.check\(utf16MinLength\(1\)\)\.check\(utf16MaxLength\(128\)\);/,
   'the canary generation-id assumptions must remain pinned to the contract',
 );
 requireMatch(
   identifiersContract,
-  /export const inferenceTimestampSchema = z\.string\(\)\.datetime\(\);/,
+  /export const inferenceTimestampSchema = z\.string\(\)\.check\(isoDateTime\(\)\);/,
   'the canary timestamp assumptions must remain pinned to the UTC datetime contract',
 );
 requireMatch(

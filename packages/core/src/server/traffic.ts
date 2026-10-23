@@ -13,7 +13,7 @@ import { OxyServer } from './OxyServer';
 // `node:crypto` in eagerly there would cost every mobile bundle. This file is
 // server-only and the server barrel already exports `./workloadIdentity`, so
 // there is nothing here for a phone to load.
-import { canAttestWorkloadIdentity } from './workloadIdentity';
+import type { WorkloadCredentialProvider } from './workloadIdentity';
 import {
   createTrafficCollector,
   instrumentTrafficFetch,
@@ -28,7 +28,10 @@ export interface EcosystemTrafficOptions {
   service: string;
   region?: string;
   baseURL?: string;
+  /** Explicit legacy credential transport; the API still checks the caller's authority. */
   credential?: () => Promise<string>;
+  /** Optional temporary IAM credentials for local development or another Node host. */
+  workloadCredentials?: WorkloadCredentialProvider;
   resolveEndpoint?: (url: URL) => ServiceEndpoint | undefined;
   /**
    * Called ONCE when publishing starts failing (not on every failed attempt;
@@ -84,43 +87,10 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
 } {
   const region = options.region ?? process.env.AWS_REGION ?? 'unknown';
   const baseURL = options.baseURL ?? process.env.OXY_API_URL ?? 'https://api.oxy.so';
-  const activityKey = process.env.OXY_ACTIVITY_API_KEY;
-  const activitySecret = process.env.OXY_ACTIVITY_API_SECRET;
-  if (!options.credential && Boolean(activityKey) !== Boolean(activitySecret)) {
-    throw new Error(
-      'Ecosystem activity requires a complete OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair',
-    );
-  }
-  const apiKey = activityKey || process.env.OXY_SERVICE_API_KEY;
-  const apiSecret = activitySecret || process.env.OXY_SERVICE_API_SECRET;
-  /**
-   * Having no key pair is a legitimate configuration now — but only where this
-   * process can prove what it IS (ADR 0026).
-   *
-   * This used to throw on a missing pair, full stop. Every service in the fleet
-   * boots with `OXY_ECOSYSTEM_ACTIVITY_ENABLED=true`, so deleting
-   * `OXY_SERVICE_API_KEY` and `OXY_SERVICE_API_SECRET` from a task definition —
-   * which is the entire migration ADR 0026 asks for — killed the process at
-   * boot. The ECS circuit breaker then rolled the deploy back and reported the
-   * service stable, so the operator saw a rollback with nothing naming its
-   * cause. That is what one line cost, multiplied by fourteen services holding
-   * a secret they no longer need.
-   *
-   * What is still refused: nothing to authenticate with AND nothing to attest.
-   * That is a laptop or a CI box, where the container credentials endpoint is
-   * not going to turn up later, and the honest answer is to say so at boot
-   * rather than to fail on the first heartbeat.
-   */
-  if (!options.credential && (!apiKey || !apiSecret) && !canAttestWorkloadIdentity()) {
-    throw new Error(
-      'Ecosystem activity needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity this process can attest (ADR 0026).',
-    );
-  }
-  const oxy = new OxyServer({ baseURL });
-  // Left unconfigured when there is no pair on purpose: `serviceToken()`
-  // attests instead of being handed half a credential to fail on.
-  if (apiKey && apiSecret) oxy.configureServiceAuth(apiKey, apiSecret);
-  const credential = options.credential ?? (() => oxy.serviceToken());
+  const oxy = new OxyServer({ baseURL, workloadCredentials: options.workloadCredentials });
+  // Own publishers always use the shared workload lane. Ambient legacy API-key
+  // variables never change this process's intended authentication authority.
+  const credential = options.credential;
   const fetcher = globalThis.fetch.bind(globalThis);
   const instanceId = randomUUID();
   const location = options.location ?? infrastructureLocation(region);
@@ -129,9 +99,15 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
       'Ecosystem activity requires a known infrastructure region or explicit location',
     );
   const post = async (path: string, data: unknown) => {
+    if (!credential) {
+      await oxy.serviceRequest('POST', path, data, { timeout: 4_000, retry: false });
+      return;
+    }
     const token = await credential();
     const response = await fetcher(new URL(path, baseURL), {
       method: 'POST',
+      redirect: 'error',
+      credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
       signal: AbortSignal.timeout(4_000),
@@ -292,6 +268,7 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
       clearInterval(heartbeatTimer);
       await flush(true);
       await heartbeat(true);
+      oxy.dispose();
     },
   };
 }

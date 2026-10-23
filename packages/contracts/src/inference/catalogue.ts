@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * The canonical model catalogue.
  *
@@ -180,8 +182,8 @@ export const modelCapabilitiesSchema = z
     reasoningEfforts: z.array(reasoningEffortSchema).default([]),
     streaming: z.boolean(),
     promptCaching: z.boolean(),
-    maxContextTokens: z.number().int().positive().safe(),
-    maxOutputTokens: z.number().int().positive().safe(),
+    maxContextTokens: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    maxOutputTokens: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     /**
      * The request dialects a route to this model can EXECUTE. Modalities say
      * what a model consumes and produces; they do not say which request shape a
@@ -244,8 +246,8 @@ export const modelCapabilitiesSchema = z
 export const modelLicenseSchema = z
   .object({
     /** SPDX identifier where one exists, otherwise the publisher's own name. */
-    licenseId: z.string().min(1).max(128),
-    displayName: z.string().min(1).max(200),
+    licenseId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
     url: inferenceHttpsUrlSchema.optional(),
     commercialUseAllowed: z.boolean(),
     requiresAttribution: z.boolean(),
@@ -270,7 +272,7 @@ export const modelProvenanceSchema = z
     ]),
     /** The model this one was derived/fine-tuned from, where there is one. */
     baseModelId: modelIdSchema.optional(),
-    trainingOrganization: z.string().min(1).max(200).optional(),
+    trainingOrganization: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)).optional(),
   })
   .strict();
 
@@ -284,11 +286,13 @@ export const inferenceDataPolicySchema = z
   .object({
     retainsPayloads: z.boolean(),
     /** Zero when nothing is retained. */
-    retentionDays: z.number().int().nonnegative().max(3650),
+    retentionDays: z.number().check(integerCheck()).nonnegative().max(3650),
     trainsOnCustomerData: z.boolean(),
     zeroDataRetentionAvailable: z.boolean(),
     /** Named subprocessors a payload may pass through, for compliance review. */
-    subprocessors: z.array(z.string().min(1).max(200)).default([]),
+    subprocessors: z
+      .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)))
+      .default([]),
     policyUrl: inferenceHttpsUrlSchema.optional(),
   })
   .strict()
@@ -358,10 +362,10 @@ export const modelDeprecationSchema = z
 /** One published evaluation result for a revision. */
 export const modelEvaluationResultSchema = z
   .object({
-    suite: z.string().min(1).max(128),
-    metric: z.string().min(1).max(128),
+    suite: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    metric: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     /** Kept as a string: an eval score is published text, not arithmetic. */
-    score: z.string().min(1).max(64),
+    score: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     evaluatedAt: inferenceTimestampSchema.optional(),
     reportUrl: inferenceHttpsUrlSchema.optional(),
   })
@@ -375,7 +379,9 @@ export const modelSafetyMetadataSchema = z
   .object({
     safetyCardUrl: inferenceHttpsUrlSchema.optional(),
     contentFilteringDefault: z.enum(['none', 'provider_default', 'strict']),
-    knownLimitations: z.array(z.string().min(1).max(500)).default([]),
+    knownLimitations: z
+      .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(500)))
+      .default([]),
     /** Content-provenance marking the modality requires, where it requires one. */
     provenanceMarking: z.enum(['none', 'visible_watermark', 'invisible_watermark', 'c2pa']),
   })
@@ -389,10 +395,10 @@ export const modelSafetyMetadataSchema = z
 export const modelPublisherSchema = z.object({
   /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
   schemaVersion: z.literal(1),
-  publisherId: z.string().min(1).max(128),
+  publisherId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
   slug: publisherSlugSchema,
-  displayName: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
+  displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  description: z.string().check(utf16MaxLength(2000)).optional(),
   websiteUrl: inferenceHttpsUrlSchema.optional(),
 });
 
@@ -414,8 +420,8 @@ export const catalogueModelSchema = z
     modelId: modelIdSchema,
     publisher: publisherSlugSchema,
     slug: modelSlugSchema,
-    displayName: z.string().min(1).max(200),
-    description: z.string().max(4000).optional(),
+    displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+    description: z.string().check(utf16MaxLength(4000)).optional(),
     capabilities: modelCapabilitiesSchema,
     license: modelLicenseSchema,
     provenance: modelProvenanceSchema,
@@ -466,7 +472,7 @@ export const modelRevisionSchema = z
   .object({
     /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
     schemaVersion: z.literal(1),
-    revisionId: z.string().min(1).max(128),
+    revisionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     modelId: modelIdSchema,
     revision: modelRevisionLabelSchema,
     reference: modelReferenceSchema,
@@ -496,9 +502,9 @@ export const modelRevisionSchema = z
 export const inferenceProviderSchema = z.object({
   /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
   schemaVersion: z.literal(1),
-  providerId: z.string().min(1).max(128),
+  providerId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
   slug: inferenceProviderSlugSchema,
-  displayName: z.string().min(1).max(200),
+  displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
   /**
    * `customer_byok` means the customer's own upstream account is billed
    * directly by the provider and Oxy charges only its platform fee.
@@ -543,7 +549,7 @@ export const modelDeploymentSchema = z
     /** Reserved capacity for one enterprise account rather than shared. */
     dedicatedCapacity: z.boolean(),
     /** The price version customers are charged under on this route. */
-    priceVersionId: z.string().min(1).max(128).optional(),
+    priceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   })
   .superRefine((deployment, ctx) => {
     if (!deployment.modelReference.includes('@')) {
@@ -603,7 +609,7 @@ export const routingProfileCandidateSchema = z
   .object({
     modelReference: modelReferenceSchema,
     /** Lower sorts first. Ties are broken by the profile's optimisation target. */
-    priority: z.number().int().nonnegative().max(1000),
+    priority: z.number().check(integerCheck()).nonnegative().max(1000),
   })
   .strict();
 
@@ -620,8 +626,8 @@ export const routingProfileSchema = z.object({
   schemaVersion: z.literal(1),
   routingProfileId: routingProfileIdSchema,
   slug: routingProfileSlugSchema,
-  displayName: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
+  displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  description: z.string().check(utf16MaxLength(2000)).optional(),
   /** What the profile optimises for when several candidates qualify. */
   optimiseFor: z.enum(['price', 'latency', 'throughput', 'quality', 'balanced']),
   candidates: z.array(routingProfileCandidateSchema).min(1),
@@ -651,7 +657,7 @@ export const routingProfileSchema = z.object({
 export const cataloguePublisherSummarySchema = z
   .object({
     slug: publisherSlugSchema,
-    displayName: z.string().min(1).max(200),
+    displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
     websiteUrl: inferenceHttpsUrlSchema.optional(),
   })
   .strict();
@@ -666,7 +672,7 @@ export const cataloguePublisherSummarySchema = z
 export const catalogueServingProviderSummarySchema = z
   .object({
     slug: inferenceProviderSlugSchema,
-    displayName: z.string().min(1).max(200),
+    displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
     regions: z.array(inferenceRegionSchema).default([]),
     dataPolicy: inferenceDataPolicySchema,
   })
@@ -684,8 +690,8 @@ export const modelCatalogueEntrySchema = z.object({
   schemaVersion: z.literal(3),
   modelId: modelIdSchema,
   publisher: cataloguePublisherSummarySchema,
-  displayName: z.string().min(1).max(200),
-  description: z.string().max(4000).optional(),
+  displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  description: z.string().check(utf16MaxLength(4000)).optional(),
   currentRevision: modelRevisionLabelSchema,
   /** Revisions a customer may pin today, newest first. */
   availableRevisions: z.array(modelRevisionLabelSchema).min(1),

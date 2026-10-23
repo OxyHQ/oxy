@@ -1,0 +1,251 @@
+# First-party integration migration
+
+Decision: [ADR 0049](../adr/0049-first-party-platform-authority.md), 2026-10-23.
+This ledger distinguishes source implementation from production evidence. Only
+the explicit deployment records below establish a released runtime; source
+commits alone do not establish live acceptance.
+
+## Accepted contract
+
+Own products share account access without app-consent/scopes or agent app-level
+switches. Own services use attested workload identity, explicit environment and
+`authority: first_party`; customer credentials are `external`. Product service
+audiences are `oxy-service:<applicationId>`; Kaana's audience is `kaana.ai`.
+Correct requester/account/resource, external-grant restrictions, domain rules,
+revocation and operation binding remain mandatory.
+
+## Workstreams
+
+| Area | Source state | Required acceptance |
+|---|---|---|
+| Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
+| Oxy workload environment preflight | Deployed and provisioned; evidence below | Nullable DDL, exact 27-binding CAS and live readback; no v2 cutover yet |
+| Oxy core/contracts service authority | Implemented source (`5bb379b80`, `dc2896083`, `ad2ebca18`, `aa6a10695`); combined release pending | Workload proof, environment and audience; customer key stays external |
+| Oxy API files/inference/agency/introspection | Implemented source (`43a9c810d`); migration/combined release pending | Account/resource isolation without own scope/grant dependencies |
+| Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
+| Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Kaana inference own-service receiver | Deployed 8.0.0; evidence below | Retain requester/account, external scopes, audience and revocation |
+| Product receivers and SDK adopters | Clarity, Mention, CrowdSource, Peable and Mercaria source prepared with caller/receiver tests; remaining fleet adoption and production rollout pending | Caller→SDK→receiver tests for own and external identities |
+| Registry/workload migration and deploy | Environment preflight complete for the exact 27 bindings; authority runtime and product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
+
+Record tested commits and commands in each implementation PR; update this table
+only when that work is verified. SDK packages release through Actions/OIDC before
+consumer dependency/lockfile updates. Migrate receivers before producers require
+the new service audience, and retire compatibility only after every inventoried
+caller is updated. The Oxy authority runtime and Alia remain source-only at this
+checkpoint; Oxy's environment-only preflight and Kaana have the separately
+verified deployments recorded below.
+
+## Audited runtime graph
+
+The following edges were inspected at remote `origin/main` on 2026-10-23.
+A runtime code path is not evidence that the feature is enabled in production.
+
+| Caller → receiver | Transport and identity found | Remaining work |
+|---|---|---|
+| Mention, Clarity, Homiio, Inbox → Alia | Alia SDK; human session, linked client, app assertion | Adopt SDK; test account switching and own agent tools |
+| Mention → Clarity Experience | Clarity SDK; public read or linked human session | Preserve resource owner and session-switch protection |
+| Mention → Clarity jobs/places/indexing | Clarity SDK + Oxy service token | Workload recipient contract; remove own scope dependencies |
+| Alia → Clarity search/read | Clarity SDK + Oxy service token | Same service contract; retain external Clarity API restrictions |
+| Mention → Syra rooms/podcasts | Linked client or Syra SDK + viewer session | Test room/podcast actions without app connection |
+| Mention → Mercaria catalogue | Mercaria SDK, anonymous public reads | Preserve public response/cache semantics |
+| Clarity → Mercaria catalogue | Mercaria SDK + own service token; anonymous public fallback | Workload contract; no private data in public cache |
+| Mention → Kaana classification/translation/Jev | Kaana SDK + `kaana.ai` service token | Scope-less own authority; audience, receipts, idempotency |
+| Alia → Kaana voice/dictation | Kaana SDK + `kaana.ai` service token | Scope-less own authority; preserve attribution |
+| Clarity → Kaana embeddings | Kaana SDK + exact Clarity service identity | Remove exact scope tuple; retain workload identity and environment |
+| Alia → Mention/Clarity/Homiio/other own tools | Oxy catalogue + Capability ticket, internal MCP or declared HTTP route | Remove grant/ceiling enablement; retain effective account and operation |
+| Alia → Inbox/Oxy Files | Own catalogue tools served by Oxy | Own invoice/mail access; refuse other accounts' resources |
+| Alia → Syra shows | Syra SDK + human bearer; one-use ingest ticket for worker | Preserve requester/account and deferred operation; update obsolete scope docs |
+| Inbox → Oxy email AI → Kaana | `/email/ai/*`, human session | Remove own scope dependencies, retain per-message ownership |
+| Inbox → Clarity favicons | Public URL helper | Preserve public/anti-tracking behavior |
+| Nilo → Oxy inference | Client checks application `inference:invoke` before showing AI | Replace scope-based availability with product/runtime availability |
+| Syra/Nilo/Clarity/Homiio/Alia → Oxy Files | Shared server/client assets APIs | Remove own app-grants/scopes; preserve file ownership and references |
+| Own callers/external merchants → Peable | Shared Oxy service middleware + payments scopes | Distinguish proven own workload from bounded external credentials |
+
+## Remaining audited callers and explicit exclusions
+
+| Caller → receiver | Current seam | Required change / invariant |
+|---|---|---|
+| Schedio → Mention publishing | Mention SDK after central MCP OAuth registration/PKCE; persisted access/refresh | Replace own connection with workload/person operation context; preserve scheduled publications; Mastodon OAuth stays |
+| Move → Mention import/lookup/undo | Fetch + service token + user header; duplicated contract | Product SDK transport, verified requester and idempotent operation |
+| Mercaria → CrowdSource | Legacy `@oxy.so/crowdsource` service key | Current CrowdSource SDK own-service helper; no static key |
+| Allo/Moovo → CrowdSource | `crowdSourceForOxyService` | Adopt shared own authority; preserve tenant isolation |
+| Syra → CrowdSource | PostgreSQL outbox | Preserve durable/retry semantics while adopting service contract |
+| Own callers → CrowdSource | Receiver fabricates full scopes/local request context | Shared verifier and explicit principal, preserve tenant |
+| Mercaria → Clarity feeds; website → Clarity careers | Clarity SDK/token callback | Workload recipient identity |
+| Mercaria → Peable | SDK token provider for payments/billing | Preserve merchant and environment isolation |
+| Mercaria ↔ Moovo | Per-request bearer-bearing Oxy clients + linked transport | Shared person/service transport; no fabricated authority |
+| Allo ↔ Homiio | Frontend linked client; backend team client + operation capability | Preserve operation and membership, no OAuth connection |
+| Nilo → Alia webhook / Oxy events/invitations | Durable outbox with hand-written fetch/401 behavior | Shared SDK transport; preserve outbox and account |
+| Noted → Nilo notes | Frontend linked client | Preserve synchronization/revisions |
+| GoWay → Oxy Files | Separate outbox/reconciliation clients | Preserve intentionally different retry/timeout policies |
+| Moovo internal callers | `SERVICE_SECRET` synthesizes `system/serviceApp`; Telegram secret/user header | Replace fabricated identity with verified caller and actor; update all consumers |
+| TNP API/DNS/relay → Oxy | Workload/events | Shared identity; retain separate cryptographic network grants |
+| Allo/Syra → Alia | Ask SDK | Adopt SDK and own-account tests |
+| Nilo/Atlas/GoWay/Moovo/Schedio/Willo → Alia | ChatSheet SDK | Adopt SDK and own-account tests |
+| Noted/CrowdSource Console/website → Alia | Text SDK | Adopt SDK and own-account tests |
+
+Authenticator uses Oxy provider/appData; its separate identity storage is
+intentional. Atlas consumes public store APIs and Alia without a backend.
+ActivityWallpaper uses public socket/PoP data: no credential migration follows
+from those reads. Astro's inspected Alia shell panel is informational, not a
+runtime API client. No Oxy API consumer was found in Eufesio. Fresh OxyOS source
+(`815c65f`) has an Alia panel using a legacy manual SSE client. Its migration
+requires the shared Alia SDK and an actual registered Oxy public client; the live
+registry lookup found no OxyOS registration, so activation remains pending. GWJ explicitly excludes itself
+from the Oxy ecosystem in its own instructions and is excluded from this change.
+Examples' Next/Vite/Expo third-party OAuth and website's external Claude MCP
+OAuth are intentional external paths and remain scoped. Use remote refs for
+stale/diverged checkouts (especially Willo), and preserve Inbox's unrelated edits.
+
+## Acceptance and cutover
+
+- Run each changed package's own tests, types and build; exercise PostgreSQL
+  finalizers and external OAuth single-use/transactional failure cases.
+- Exercise each changed runtime edge through its product SDK and receiver, not
+  only an isolated middleware stub: own scope-less identity succeeds; external
+  missing scope, wrong audience, revoked workload and foreign account fail.
+- Exercise account change during a request, public-agent requester isolation,
+  bot self tools, scheduled work and nested agents.
+- Verify human flows across web/native, files and playback, inference streaming,
+  email tools, product catalogues and third-party consent/revocation.
+- Production acceptance requires live registry/binding readback, deployed image
+  digests and successful canaries. Preserve external grants and data throughout;
+  do not call the migration complete from merged source or green deploy jobs.
+
+## Read-only deployment census (2026-10-23)
+
+The root workstream inspected 41 running tasks across 28 task definitions,
+excluding GWJ. No `OXY_SERVICE_API_KEY`, `OXY_SERVICE_SECRET` or `ALIA_API_KEY`
+was present in those task definitions; code fallback removal is still required.
+Alia revision 601 contains `SERVICE_SECRET` and `INTEGRATIONS_SECRET`;
+integrations revision 182 contains `INTEGRATIONS_SECRET`. Those internal shared
+secrets need a coordinated workload producer/receiver cutover. Runtime image
+and task-definition evidence is retained in the root workstream's
+`runtime-inventory-20261023.json`; no production changes were performed.
+The workload readback found 27 bindings without explicit environment, so the
+new strict environment contract requires a reviewed migration before cutover.
+
+## Auth source acceptance
+
+The auth workstream verifies PostgreSQL authorization/finalization, grant
+revocation, OAuth code exchange and shared-device isolation, operated accounts,
+autonomous agents, request lifecycle and authority provenance. It rejects an
+external bearer approving a new own sign-in, legacy codes without provenance,
+and registry changes that would promote an external request/code. Services,
+Commons and web-auth tests cover own sign-in without permission text and
+external consent unchanged. Package type checks and the AGENTS budget gate are
+required alongside those suites. No generated migration number is a deployment
+commitment: regenerate the pending provenance migration on the combined
+upstream journal before integration because upstream concurrently added 0210.
+
+Legacy grants with no authority evidence remain visible and revocable; only an
+explicitly evidenced own cohort may be archived during migration. Registry
+flags alone must never hide an external historical connection.
+
+Auth implementation commit: `0447cdc9d` (provisional migration metadata to be
+regenerated during integration). Verified locally:
+
+- API PostgreSQL: OAuth finalizers/grants/token/shared-device/code, 5 suites /134
+  tests; autonomous/operated approval/info/authSession, 4 suites /107 tests;
+  app identity/device binding/migration guards, 4 suites /74 tests. Additional
+  session authorize/claim/status/schema suites passed in the lifecycle run.
+- Services: explicit consent + HTTP bearer commit, 2 suites /21 tests; shared
+  consent/sign-in surface, 18 tests. `bun run build` passes, including package
+  export verification; changed SDK files pass Biome with warnings as errors.
+- Commons ApprovalRequest: 21 tests. Web auth: full `bun run test`,149 tests.
+- API and web-auth `tsc --noEmit`, `validate:agents-md`, and diff whitespace checks
+  pass. API lint retains existing optional-chain/template-literal diagnostics.
+
+Commands use each package's `bun run test`; API uses the local PostgreSQL test
+URL and `--runInBand`. These are local checks, not live acceptance.
+
+## Console source verification (2026-10-23)
+
+`packages/console` separates own workload identity from external API products and
+credential creation. General saves no scopes; Credentials labels and edits only the
+external ceiling, including for official apps. Service and machine credentials
+require explicit nonempty scopes, respect current application ceilings, and never
+inherit own workload authority. External OAuth client registration and account RBAC
+are preserved. Existing deployment tooling owns workload bindings; Console does not
+claim a registration has an active binding.
+
+Verification on `feat/first-party-console`: Console Jest 289 tests / 31 suites,
+Console typecheck, lint and web export, and root AGENTS validation. Dependencies built locally
+in the isolated worktree (contracts → protocol → core → services). No manifest,
+version or lockfile changes; no package release or Console deployment performed.
+Release acceptance still needs the combined Oxy API/SDK rollout and a production
+Console own-app/external-credential smoke check. See the Console README and
+`credential-authority.test.tsx` for the tested boundary.
+
+## Verified deployment checkpoint: Kaana (2026-10-23)
+
+Parent rollout readback records Kaana PR #220 merged at `68b28c9`, deployment
+Actions run `39930461232` and release run `39930897427`, publishing version
+`8.0.0`. The live health endpoint reported version 8. Service task definition
+revision 147 and publisher revision 148 had three running tasks on image digest
+`sha256:599641f55a16e140c54fa18791850b3be9e9b19c729dc029d1ebbcb9283a8940`.
+The local evidence artifact is
+`/home/nate/Oxy/.scratch/first-party-root/kaana-rollout-20261023.json`.
+This verifies that Kaana checkpoint only; it does not close the Oxy, Alia or
+remaining product migration edges.
+
+## Alia source acceptance checkpoint
+
+Commits `fc0ef827b`, `c8c9fbfe5`, `bd8e64616` remove own service-key fallback,
+per-app settings and grant/ceiling readers; bind own catalogue tools and Files
+to verified requester/task proof; preserve managed effective accounts separately
+from the human requester; and retain the task id through background/nested work.
+Channel links store no new user bearer. The controlled legacy conversion validates
+original sessions, removes proven/expired legacy bearer data, retries transient
+outages and prevents concurrent relink from acquiring another person's root.
+Legacy inactive links resume automatically from an ordinary verified account
+session, without an internal consent/reconnect screen. Historical app-level data
+remains inert pending archival.
+
+Validation: full API 2,693 tests; PostgreSQL 43; focused task/managed-account and
+channel-renewal HTTP tests; affected app 85 tests; API/app types and API build.
+These used locally packed candidate core/contracts. No local package path is
+committed. Final acceptance still requires published core/contracts pins and
+lockfile, combined gateway/SDK receiver tests, reader-first deploy, live binding
+and catalogue re-registration/readback, and the controlled channel conversion.
+App-owned Files artifacts/reference reconciliation remain service-domain data;
+personal Files access uses the requester facade. The remaining ecosystem rows
+above are pending until their own caller→receiver changes and canaries are proven.
+
+
+## Verified deployment checkpoint: Oxy environment preflight (2026-10-23)
+
+[PR #1937](https://github.com/OxyHQ/oxy/pull/1937) merged as
+`be619762b9a074346c701cc8d9527cf73c3720e9`. PR CI `40000148446`, merge-queue CI
+`40001383156` and image build `40001383322` passed.
+[Deploy run 40002409285](https://github.com/OxyHQ/oxy/actions/runs/40002409285)
+succeeded. Live readback found three running API tasks on `oxy-oxy-api:1034`,
+all using image digest
+`sha256:ce2f52077a88690414646cbf4ef223a9abaa192fbab3da589046e66fed831696`.
+
+The production migration ledger contains the exact immutable `0215` hash
+`ba0bb2e1381911bc19c0bd564245150ba6f6ae23573a6fe6af6b0ef8dd1cddac`.
+The reviewed inventory dry run reported 27 bindings needing provisioning; the
+compare-and-set run provisioned exactly those 27; the independent second read
+reported all 27 unchanged. Every report had zero workloads outside the cohort.
+The temporary database diagnostic task definition was deregistered afterward.
+The detailed operator receipt is
+`/home/nate/Oxy/.scratch/first-party-root/oxy-environment-preflight-20261023.json`.
+
+This completes the environment prerequisite for the reader-first API/SDK
+release. It does not establish product-receiver adoption, v2 issuer rollout,
+removal of legacy bridges, or fleet readiness. Follow the
+[reader transition](../runbooks/first-party-reader-transition.md) and retain the
+subsequent runtime receipts before marking those stages complete.
+
+A subsequent read-only stage-two check against live API revision `1037` (source
+`57748c691`) again reported 27 unchanged bindings, zero workloads outside the
+cohort and `requiresInventoryReview: false`. Diagnostic task
+`0faaed0fdab84b6ebd2da1ad375f3a99` exited successfully and its temporary task
+definition was deregistered. Receipt:
+`/home/nate/Oxy/.scratch/first-party-root/oxy-stage-two-environment-readiness-20261023.json`.
+The pending authority migrations were regenerated after upstream's immutable
+`0216_rendition_dispatch_lanes`: additive authority is `0217`, followed by the
+separate task-link foreign-key validation in `0218`.

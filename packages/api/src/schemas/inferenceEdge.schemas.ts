@@ -1,3 +1,10 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { meteredGenerationSchema } from '@oxy.so/contracts';
 /**
  * The PUBLIC dialects of the Oxy inference edge, and their normalization into
@@ -76,7 +83,7 @@ import {
  * a team/feature/environment tag set, not a place to smuggle a payload.
  */
 const labelsSchema = z
-  .record(z.string().max(256))
+  .record(z.string(), z.string().check(utf16MaxLength(256)))
   .refine(
     (labels) => Object.keys(labels).length <= 16,
     'at most 16 labels may be attached to one request',
@@ -84,8 +91,8 @@ const labelsSchema = z
 
 /** `stop` in the OpenAI dialect: one sequence or a list of them. */
 const openAiStopSchema = z.union([
-  z.string().min(1).max(256),
-  z.array(z.string().min(1).max(256)).max(8),
+  z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+  z.array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(256))).max(8),
 ]);
 
 /* -------------------------------------------------------------------------- */
@@ -93,7 +100,10 @@ const openAiStopSchema = z.union([
 /* -------------------------------------------------------------------------- */
 
 /** The message-or-text input `/v1/responses` accepts. */
-const responsesInputSchema = z.union([z.string().min(1), z.array(inferenceMessageSchema).min(1)]);
+const responsesInputSchema = z.union([
+  z.string().check(utf16MinLength(1)),
+  z.array(inferenceMessageSchema).min(1),
+]);
 
 /**
  * `model` on the two chat dialects: a concrete model reference, or a power
@@ -135,15 +145,23 @@ export const responsesRequestSchema = z
     /** Exact opaque database identity; never trimmed, normalized, or resolved by slug. */
     routingProfileId: routingProfileIdSchema.optional(),
     input: responsesInputSchema,
-    maxOutputTokens: z.number().int().positive().safe().optional(),
+    maxOutputTokens: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
     stream: z.boolean().optional(),
     temperature: z.number().min(0).max(2).optional(),
     topP: z.number().min(0).max(1).optional(),
-    topK: z.number().int().positive().safe().optional(),
+    topK: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
     frequencyPenalty: z.number().min(-2).max(2).optional(),
     presencePenalty: z.number().min(-2).max(2).optional(),
-    seed: z.number().int().safe().optional(),
-    stopSequences: z.array(z.string().min(1).max(256)).max(8).optional(),
+    seed: z.number().check(integerCheck()).check(safeNumberCheck()).optional(),
+    stopSequences: z
+      .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)))
+      .max(8)
+      .optional(),
     tools: z.array(toolDefinitionSchema).max(128).optional(),
     toolChoice: toolChoiceSchema.optional(),
     responseFormat: responseFormatSchema.optional(),
@@ -155,7 +173,7 @@ export const responsesRequestSchema = z
     reasoning: inferenceReasoningSchema.optional(),
     labels: labelsSchema.optional(),
     /** The caller's own correlation id, echoed on the response. */
-    clientRequestId: z.string().min(1).max(128).optional(),
+    clientRequestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   })
   .strict()
   .superRefine((request, ctx) => {
@@ -191,17 +209,17 @@ const openAiMessageSchema = z
       .union([z.string(), z.array(inferenceContentPartSchema)])
       .nullable()
       .optional(),
-    name: z.string().max(128).optional(),
-    tool_call_id: z.string().min(1).max(128).optional(),
+    name: z.string().check(utf16MaxLength(128)).optional(),
+    tool_call_id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     tool_calls: z
       .array(
         z
           .object({
-            id: z.string().min(1).max(128),
+            id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
             type: z.literal('function'),
             function: z
               .object({
-                name: z.string().min(1).max(128),
+                name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
                 arguments: z.string(),
               })
               .strict(),
@@ -217,9 +235,9 @@ const openAiToolSchema = z
     type: z.literal('function'),
     function: z
       .object({
-        name: z.string().min(1).max(128),
-        description: z.string().max(2000).optional(),
-        parameters: z.record(z.unknown()),
+        name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+        description: z.string().check(utf16MaxLength(2000)).optional(),
+        parameters: z.record(z.string(), z.unknown()),
         strict: z.boolean().optional(),
       })
       .strict(),
@@ -231,7 +249,9 @@ const openAiToolChoiceSchema = z.union([
   z
     .object({
       type: z.literal('function'),
-      function: z.object({ name: z.string().min(1).max(128) }).strict(),
+      function: z
+        .object({ name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)) })
+        .strict(),
     })
     .strict(),
 ]);
@@ -246,7 +266,7 @@ const openAiToolChoiceSchema = z.union([
  */
 const openAiAudioOutputSchema = z
   .object({
-    voice: z.string().min(1).max(64),
+    voice: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     format: z.enum(['wav', 'mp3', 'flac', 'opus', 'pcm16']),
   })
   .strict();
@@ -258,8 +278,8 @@ const openAiResponseFormatSchema = z.union([
       type: z.literal('json_schema'),
       json_schema: z
         .object({
-          name: z.string().min(1).max(128),
-          schema: z.record(z.unknown()),
+          name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+          schema: z.record(z.string(), z.unknown()),
           strict: z.boolean().optional(),
         })
         .strict(),
@@ -279,13 +299,18 @@ export const chatCompletionsRequestSchema = z
      */
     model: modelOrRoutingProfileSchema,
     messages: z.array(openAiMessageSchema).min(1),
-    max_tokens: z.number().int().positive().safe().optional(),
-    max_completion_tokens: z.number().int().positive().safe().optional(),
+    max_tokens: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
+    max_completion_tokens: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
     temperature: z.number().min(0).max(2).optional(),
     top_p: z.number().min(0).max(1).optional(),
     frequency_penalty: z.number().min(-2).max(2).optional(),
     presence_penalty: z.number().min(-2).max(2).optional(),
-    seed: z.number().int().safe().optional(),
+    seed: z.number().check(integerCheck()).check(safeNumberCheck()).optional(),
     stop: openAiStopSchema.optional(),
     stream: z.boolean().optional(),
     tools: z.array(openAiToolSchema).max(128).optional(),
@@ -316,7 +341,7 @@ export const chatCompletionsRequestSchema = z
      * charged, and `X-Oxy-User-Id` wins when both are present, because the
      * header is the ecosystem's own delegation channel.
      */
-    user: z.string().min(1).max(64).optional(),
+    user: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
   })
   .strict()
   .superRefine((request, ctx) => {
@@ -422,11 +447,11 @@ export const speechRequestSchema = z
      * by one request; the edge's own `MAX_REQUEST_BYTES` is the outer bound and
      * this is the per-field one.
      */
-    input: z.string().min(1).max(100_000),
+    input: z.string().check(utf16MinLength(1)).check(utf16MaxLength(100_000)),
     voice: inferenceSpeechParametersSchema.shape.voice,
     response_format: inferenceSpeechParametersSchema.shape.responseFormat.optional(),
     speed: inferenceSpeechParametersSchema.shape.speed,
-    user: z.string().min(1).max(64).optional(),
+    user: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
   })
   .strict()
   .superRefine((request, ctx) => {
@@ -467,14 +492,14 @@ export type SpeechRequest = z.infer<typeof speechRequestSchema>;
 export const imageGenerationsRequestSchema = z
   .object({
     model: modelReferenceSchema,
-    prompt: z.string().min(1).max(32_000),
+    prompt: z.string().check(utf16MinLength(1)).check(utf16MaxLength(32_000)),
     /** OpenAI caps this at 10. Exact, declared, and the whole ceiling. */
-    n: z.number().int().min(1).max(10).optional(),
-    size: z.string().min(1).max(32).optional(),
-    quality: z.string().min(1).max(32).optional(),
-    style: z.string().min(1).max(32).optional(),
+    n: z.number().check(integerCheck()).min(1).max(10).optional(),
+    size: z.string().check(utf16MinLength(1)).check(utf16MaxLength(32)).optional(),
+    quality: z.string().check(utf16MinLength(1)).check(utf16MaxLength(32)).optional(),
+    style: z.string().check(utf16MinLength(1)).check(utf16MaxLength(32)).optional(),
     response_format: z.enum(['url', 'b64_json']).optional(),
-    user: z.string().min(1).max(64).optional(),
+    user: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
   })
   .strict();
 
@@ -518,7 +543,12 @@ export const MAX_REALTIME_TEXT_ITEMS = 10_000;
 export const realtimeOpenLimitsSchema = realtimeSessionLimitsSchema
   .partial()
   .extend({
-    maxTextItems: z.number().int().nonnegative().max(MAX_REALTIME_TEXT_ITEMS).optional(),
+    maxTextItems: z
+      .number()
+      .check(integerCheck())
+      .nonnegative()
+      .max(MAX_REALTIME_TEXT_ITEMS)
+      .optional(),
   })
   .strict();
 
@@ -531,7 +561,7 @@ export const realtimeOpenFrameSchema = z
     config: realtimeSessionConfigSchema,
     limits: realtimeOpenLimitsSchema.optional(),
     /** The caller's own correlation id, echoed into the signed request. */
-    clientSessionId: z.string().min(1).max(128).optional(),
+    clientSessionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     labels: labelsSchema.optional(),
   })
   .strict();
@@ -541,27 +571,29 @@ export type RealtimeOpenFrame = z.infer<typeof realtimeOpenFrameSchema>;
 const commercialGenerationReceiptSchema = z
   .object({
     schemaVersion: z.literal(1),
-    receiptId: z.string().min(1),
-    requestId: z.string().min(1),
-    generationId: z.string().min(1).optional(),
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
+    receiptId: z.string().check(utf16MinLength(1)),
+    requestId: z.string().check(utf16MinLength(1)),
+    generationId: z.string().check(utf16MinLength(1)).optional(),
+    applicationId: z.string().check(utf16MinLength(1)),
+    credentialId: z.string().check(utf16MinLength(1)),
     /** Attribution only. Never the billing identity (ADR 0007). */
-    delegatedUserId: z.string().min(1).optional(),
+    delegatedUserId: z.string().check(utf16MinLength(1)).optional(),
     environment: z.enum(['development', 'staging', 'production']),
     outcome: z.enum(['completed', 'partial', 'cancelled', 'failed']),
     usageSource: z.enum(['provider_reported', 'oxy_measured', 'estimated']),
-    units: z.array(z.object({ unit: z.string(), quantity: z.number().int().nonnegative() })),
-    resolvedModelReference: z.string().min(1),
-    servingProvider: z.string().min(1),
+    units: z.array(
+      z.object({ unit: z.string(), quantity: z.number().check(integerCheck()).nonnegative() }),
+    ),
+    resolvedModelReference: z.string().check(utf16MinLength(1)),
+    servingProvider: z.string().check(utf16MinLength(1)),
     priceSnapshot: z.object({
-      priceVersionId: z.string().min(1),
+      priceVersionId: z.string().check(utf16MinLength(1)),
       currency: z.string().regex(/^[A-Z]{3}$/),
       unitPrices: z.array(
         z.object({
           unit: z.string(),
           amount: z.string(),
-          per: z.number().int().positive(),
+          per: z.number().check(integerCheck()).positive(),
           currency: z.string().regex(/^[A-Z]{3}$/),
         }),
       ),
@@ -570,7 +602,7 @@ const commercialGenerationReceiptSchema = z
     currency: z.string().regex(/^[A-Z]{3}$/),
     /** A BYOK request: `billedAmount` is Oxy's fee, not the cost of the tokens. */
     platformFeeOnly: z.boolean(),
-    settledAt: z.string().datetime(),
+    settledAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -585,12 +617,12 @@ export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
 export const originalGenerationReceiptHeadersSchema = z.object({
   'Idempotency-Key': z
     .string()
-    .min(1)
-    .max(128)
+    .check(utf16MinLength(1))
+    .check(utf16MaxLength(128))
     .describe('The exact original admission key. Required; not a new request identity.'),
   'X-Oxy-User-Id': z
     .string()
-    .max(64)
+    .check(utf16MaxLength(64))
     .optional()
     .describe(
       'Optional original delegated attribution. Omission matches only an undelegated original record.',
@@ -642,12 +674,12 @@ export const generationReceiptResponseSchema = z.object({ data: generationReceip
 export const responsesResponseSchema = z
   .object({
     schemaVersion: z.literal(1),
-    requestId: z.string().min(1),
+    requestId: z.string().check(utf16MinLength(1)),
     /** Absent when the data plane reported no generation id for the request. */
-    generationId: z.string().min(1).optional(),
+    generationId: z.string().check(utf16MinLength(1)).optional(),
     /** The revision that actually served this request, which may differ from the ask. */
-    model: z.string().min(1),
-    servingProvider: z.string().min(1),
+    model: z.string().check(utf16MinLength(1)),
+    servingProvider: z.string().check(utf16MinLength(1)),
     finishReason: inferenceFinishReasonSchema,
     output: z.array(inferenceMessageSchema),
     usage: z.array(usageQuantitySchema),
@@ -657,7 +689,7 @@ export const responsesResponseSchema = z
      * trip a caller measures — see the route's own comment. A streamed request
      * reports none, and a streamed request does not use this schema.
      */
-    latencyMs: z.number().int().nonnegative(),
+    latencyMs: z.number().check(integerCheck()).nonnegative(),
   })
   .strict();
 
@@ -671,15 +703,15 @@ export const responsesResponseSchema = z
  */
 export const chatCompletionResponseSchema = z
   .object({
-    id: z.string().min(1),
+    id: z.string().check(utf16MinLength(1)),
     object: z.literal('chat.completion'),
     /** Unix seconds, as OpenAI's own field is. */
-    created: z.number().int().nonnegative(),
-    model: z.string().min(1),
+    created: z.number().check(integerCheck()).nonnegative(),
+    model: z.string().check(utf16MinLength(1)),
     choices: z.array(
       z
         .object({
-          index: z.number().int().nonnegative(),
+          index: z.number().check(integerCheck()).nonnegative(),
           message: z
             .object({
               role: z.literal('assistant'),
@@ -696,10 +728,10 @@ export const chatCompletionResponseSchema = z
                */
               audio: z
                 .object({
-                  id: z.string().min(1),
+                  id: z.string().check(utf16MinLength(1)),
                   data: z.string(),
                   transcript: z.string(),
-                  expires_at: z.number().int().nonnegative(),
+                  expires_at: z.number().check(integerCheck()).nonnegative(),
                 })
                 .strict()
                 .optional(),
@@ -707,10 +739,13 @@ export const chatCompletionResponseSchema = z
                 .array(
                   z
                     .object({
-                      id: z.string().min(1),
+                      id: z.string().check(utf16MinLength(1)),
                       type: z.literal('function'),
                       function: z
-                        .object({ name: z.string().min(1), arguments: z.string() })
+                        .object({
+                          name: z.string().check(utf16MinLength(1)),
+                          arguments: z.string(),
+                        })
                         .strict(),
                     })
                     .strict(),
@@ -723,15 +758,15 @@ export const chatCompletionResponseSchema = z
            * Both are reported as `stop` here and truthfully in
            * `X-Oxy-Finish-Reason` — see `openAiFinishReason`.
            */
-          finish_reason: z.string().min(1),
+          finish_reason: z.string().check(utf16MinLength(1)),
         })
         .strict(),
     ),
     usage: z
       .object({
-        prompt_tokens: z.number().int().nonnegative(),
-        completion_tokens: z.number().int().nonnegative(),
-        total_tokens: z.number().int().nonnegative(),
+        prompt_tokens: z.number().check(integerCheck()).nonnegative(),
+        completion_tokens: z.number().check(integerCheck()).nonnegative(),
+        total_tokens: z.number().check(integerCheck()).nonnegative(),
         /**
          * The audio members appear only when the request metered audio tokens
          * (an audio chat model), so a text completion's body is byte-for-byte
@@ -739,18 +774,18 @@ export const chatCompletionResponseSchema = z
          */
         prompt_tokens_details: z
           .object({
-            cached_tokens: z.number().int().nonnegative(),
-            audio_tokens: z.number().int().nonnegative().optional(),
+            cached_tokens: z.number().check(integerCheck()).nonnegative(),
+            audio_tokens: z.number().check(integerCheck()).nonnegative().optional(),
             cached_tokens_details: z
-              .object({ audio_tokens: z.number().int().nonnegative() })
+              .object({ audio_tokens: z.number().check(integerCheck()).nonnegative() })
               .strict()
               .optional(),
           })
           .strict(),
         completion_tokens_details: z
           .object({
-            reasoning_tokens: z.number().int().nonnegative(),
-            audio_tokens: z.number().int().nonnegative().optional(),
+            reasoning_tokens: z.number().check(integerCheck()).nonnegative(),
+            audio_tokens: z.number().check(integerCheck()).nonnegative().optional(),
           })
           .strict(),
       })
@@ -767,11 +802,11 @@ export const chatCompletionResponseSchema = z
  */
 export const imageGenerationsResponseSchema = z
   .object({
-    created: z.number().int().nonnegative(),
+    created: z.number().check(integerCheck()).nonnegative(),
     data: z.array(
       z.union([
-        z.object({ url: z.string().min(1) }).strict(),
-        z.object({ b64_json: z.string().min(1) }).strict(),
+        z.object({ url: z.string().check(utf16MinLength(1)) }).strict(),
+        z.object({ b64_json: z.string().check(utf16MinLength(1)) }).strict(),
       ]),
     ),
   })

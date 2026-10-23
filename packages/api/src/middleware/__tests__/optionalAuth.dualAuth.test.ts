@@ -46,6 +46,11 @@ import jwt from 'jsonwebtoken';
 import { v7 as uuidv7 } from 'uuid';
 import { signMediaToken } from '../../utils/mediaToken';
 
+// This viewer-resolution unit suite supplies live authority; revocation is
+// exercised by liveServiceAuthority.db.test.ts through the real middleware.
+jest.mock('../../services/liveServiceTokenAuthority.service', () => ({
+  resolveLiveServiceTokenAuthority: async (payload: unknown) => ({ principal: {}, payload }),
+}));
 const mockVerifyServiceToken = jest.fn();
 jest.mock('../serviceToken', () => ({
   __esModule: true,

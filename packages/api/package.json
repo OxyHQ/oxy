@@ -63,7 +63,7 @@
     "@opentelemetry/instrumentation-socket.io": "^0.69.0",
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-node": "^0.222.0",
-    "@kaana.ai/contracts": "7.0.0",
+    "@kaana.ai/contracts": "8.0.1",
     "@levischuck/tiny-cbor": "^0.3.6",
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "workspace:*",
@@ -118,7 +118,7 @@
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.1",
     "ws": "^8.21.3",
-    "zod": "^3.25.64"
+    "zod": "catalog:"
   },
   "optionalDependencies": {
     "ffmpeg-static": "^5.2.0",

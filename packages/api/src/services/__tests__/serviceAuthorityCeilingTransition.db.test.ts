@@ -28,7 +28,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-it('changes only the named workload ceiling while preserving consent and refusing other subjects/applications', async () => {
+it('refuses workload scope provisioning and preserves external grants without authorizing bare account IDs', async () => {
   const db = getDb();
   const [owner, subject, otherSubject] = await db.insert(users).values([{}, {}, {}]).returning();
   const [app, otherApp] = await db
@@ -56,7 +56,7 @@ it('changes only the named workload ceiling while preserving consent and refusin
   const first = await bindWorkloadIdentity({
     applicationId: app.id,
     subject: role,
-    scopes: originalScopes,
+    environment: workloadTokenEnvironment(),
     actor: staff,
   });
   const [grant] = await db
@@ -75,25 +75,18 @@ it('changes only the named workload ceiling while preserving consent and refusin
   const before = await resolveServiceActingAsGrant(app.id, subject.id, context);
   expect(before.authorized).toBe(false);
   expect(before.scopes).toEqual([]);
-  await expect(
-    bindWorkloadIdentity({
-      applicationId: app.id,
-      subject: role,
-      scopes: finalScopes,
-      actor: { isPlatformStaff: false, describedAs: 'unprivileged fixture' },
-    }),
-  ).rejects.toMatchObject({ reason: 'privileged_scope_requires_staff' });
-  const update = await bindWorkloadIdentity({
-    applicationId: app.id,
-    subject: role,
-    scopes: finalScopes,
-    actor: staff,
-  });
-  expect(update.binding.id).toBe(first.binding.id);
-  expect([...update.binding.scopes].sort()).toEqual([...finalScopes].sort());
-  const after = await resolveServiceActingAsGrant(app.id, subject.id, context);
-  expect(after.authorized).toBe(true);
-  expect([...after.scopes].sort()).toEqual(['acting-as:offline', 'inference:invoke']);
+  for (const actor of [staff, { isPlatformStaff: false, describedAs: 'unprivileged fixture' }]) {
+    await expect(
+      bindWorkloadIdentity({
+        applicationId: app.id,
+        subject: role,
+        scopes: finalScopes,
+        environment: workloadTokenEnvironment(),
+        actor,
+      }),
+    ).rejects.toMatchObject({ reason: 'workload_scopes_unsupported' });
+  }
+  expect((await resolveServiceActingAsGrant(app.id, subject.id, context)).authorized).toBe(false);
   expect((await resolveServiceActingAsGrant(app.id, otherSubject.id, context)).authorized).toBe(
     false,
   );
@@ -113,16 +106,10 @@ it('changes only the named workload ceiling while preserving consent and refusin
   const repeated = await bindWorkloadIdentity({
     applicationId: app.id,
     subject: role,
-    scopes: finalScopes,
+    environment: workloadTokenEnvironment(),
     actor: staff,
   });
   expect(repeated.state).toBe('unchanged');
-  await bindWorkloadIdentity({
-    applicationId: app.id,
-    subject: role,
-    scopes: originalScopes,
-    actor: staff,
-  });
   expect((await resolveServiceActingAsGrant(app.id, subject.id, context)).authorized).toBe(false);
   expect(await db.select().from(appGrants).where(eq(appGrants.id, grant.id))).toEqual([grant]);
 });

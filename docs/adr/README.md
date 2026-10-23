@@ -66,3 +66,5 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 
 - [`../architecture/inference-responsibility-matrix.md`](../architecture/inference-responsibility-matrix.md)
   — the committed per-table/event/API ownership record governed by the inference ADRs.
+
+- [0049 — Own platform authority; external connection scopes](0049-first-party-platform-authority.md) supersedes internal consent/scope and per-app agent enablement requirements.

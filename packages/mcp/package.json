@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/mcp",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "repository": {
     "type": "git",
@@ -47,12 +47,13 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@oxy.so/contracts": "workspace:^",
-    "zod": "^4.5.4"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@oxy.so/core": "workspace:^"
   }
 }

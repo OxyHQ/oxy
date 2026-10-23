@@ -1,3 +1,10 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { Peable, type PeableConfig } from '@peable.to/sdk';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
@@ -23,38 +30,38 @@ export const personalFinalInvoiceSchema = z
   .object({
     platform: z.literal('peable'),
     currency: z.literal('USD'),
-    grossMinorUnits: z.number().int().positive().safe(),
-    netMinorUnits: z.number().int().nonnegative().safe(),
-    taxMinorUnits: z.number().int().nonnegative().safe(),
+    grossMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    netMinorUnits: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+    taxMinorUnits: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
     merchantFeeMinorUnits: z.literal(0),
     taxTreatment: z.literal('inclusive'),
-    sellerId: z.string().min(1),
-    invoiceIssuerId: z.string().min(1),
-    taxQuoteId: z.string().min(1),
-    customerLocationEvidenceId: z.string().min(1),
-    taxRateEvidenceId: z.string().min(1),
+    sellerId: z.string().check(utf16MinLength(1)),
+    invoiceIssuerId: z.string().check(utf16MinLength(1)),
+    taxQuoteId: z.string().check(utf16MinLength(1)),
+    customerLocationEvidenceId: z.string().check(utf16MinLength(1)),
+    taxRateEvidenceId: z.string().check(utf16MinLength(1)),
     context: z
       .object({
-        payerAccountId: z.string().min(1),
-        beneficiaryAccountId: z.string().min(1),
-        providerSubscriptionId: z.string().min(1),
-        offerId: z.string().min(1),
-        offerVersion: z.number().int().positive(),
-        periodStart: z.string().datetime(),
-        periodEnd: z.string().datetime(),
+        payerAccountId: z.string().check(utf16MinLength(1)),
+        beneficiaryAccountId: z.string().check(utf16MinLength(1)),
+        providerSubscriptionId: z.string().check(utf16MinLength(1)),
+        offerId: z.string().check(utf16MinLength(1)),
+        offerVersion: z.number().check(integerCheck()).positive(),
+        periodStart: z.string().check(isoDateTime()),
+        periodEnd: z.string().check(isoDateTime()),
         mode: z.enum(['live', 'test']),
         environment: z.enum(['production', 'development', 'staging', 'test']),
       })
       .strict(),
-    issuedAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    issuedAt: z.string().check(isoDateTime()),
+    expiresAt: z.string().check(isoDateTime()),
     faircoinQuote: z
       .object({
-        id: z.string().min(1),
+        id: z.string().check(utf16MinLength(1)),
         amountBaseUnits: z.string().regex(/^[1-9][0-9]*$/),
-        quotedAt: z.string().datetime(),
-        expiresAt: z.string().datetime(),
-        roundingEvidenceId: z.string().min(1),
+        quotedAt: z.string().check(isoDateTime()),
+        expiresAt: z.string().check(isoDateTime()),
+        roundingEvidenceId: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .optional(),
@@ -94,8 +101,8 @@ export async function cancelOwnedPeableSubscription(
   actionId: string,
 ) {
   z.string()
-    .min(8)
-    .max(160)
+    .check(utf16MinLength(8))
+    .check(utf16MaxLength(160))
     .regex(/^[a-zA-Z0-9_-]+$/)
     .parse(actionId);
   if (accountId !== owned.payerAccountId) throw new Error('Peable payer differs');

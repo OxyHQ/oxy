@@ -149,7 +149,7 @@ requireMatch(
 );
 requireMatch(
   contract,
-  /startAt: inboxUtcTimestampSchema,\s*endAt: inboxUtcTimestampSchema,[\s\S]*?locale: z\.string\(\)\.regex\(\/\^\[A-Za-z\]\{2,3\}\(\?:-\[A-Za-z0-9\]\{2,8\}\)\*\$\/\)\.max\(35\)\.optional\(\),\s*\}\)\.strict\(\)/,
+  /startAt: inboxUtcTimestampSchema,\s*endAt: inboxUtcTimestampSchema,[\s\S]*?locale: z\.string\(\)\.regex\(\/\^\[A-Za-z\]\{2,3\}\(\?:-\[A-Za-z0-9\]\{2,8\}\)\*\$\/\)\.check\(utf16MaxLength\(35\)\)\.optional\(\),\s*\}\)\.strict\(\)/,
   'startAt and endAt must be required UTC timestamps and locale an optional bounded BCP 47 tag, nothing else',
 );
 requireMatch(

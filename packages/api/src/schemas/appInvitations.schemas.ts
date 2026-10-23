@@ -1,3 +1,10 @@
+import {
+  integerCheck,
+  isoDateTime,
+  urlCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 
 /**
@@ -29,25 +36,25 @@ export const APP_INVITATION_RESOURCE_NAME_MAX_LENGTH = 100;
  */
 export const appInvitationEmailSchema = z
   .object({
-    to: z.string().trim().toLowerCase().email().max(254),
-    inviterUserId: z.string().trim().min(1).max(128),
+    to: z.string().trim().toLowerCase().email().check(utf16MaxLength(254)),
+    inviterUserId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     resourceName: z
       .string()
       .transform((value) => value.replace(/\s+/g, ' ').trim())
       .pipe(
         z
           .string()
-          .min(1)
-          .max(APP_INVITATION_RESOURCE_NAME_MAX_LENGTH)
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(APP_INVITATION_RESOURCE_NAME_MAX_LENGTH))
           .refine((value) => !UNSAFE_TEXT.test(value), 'resourceName contains a control character')
           .refine((value) => !LINK_SHAPED.test(value), 'resourceName must not contain a link'),
       ),
-    acceptUrl: z.string().trim().url().max(2048),
+    acceptUrl: z.string().trim().check(urlCheck()).check(utf16MaxLength(2048)),
     /** A BCP 47 tag (`es`, `es-ES`). Its language picks the template; unknown is English. */
     locale: z
       .string()
       .trim()
-      .max(35)
+      .check(utf16MaxLength(35))
       .regex(/^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{1,8})*$/)
       .optional(),
   })
@@ -66,10 +73,10 @@ export const appInvitationEmailResponseSchema = z.object({
   data: z.object({
     id: z.string(),
     state: z.enum(['sending', 'retrying', 'sent', 'failed']),
-    attempts: z.number().int(),
-    maxAttempts: z.number().int(),
+    attempts: z.number().check(integerCheck()),
+    maxAttempts: z.number().check(integerCheck()),
     errorCode: z.string().nullable(),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
     /** True when this answers an earlier request with the same `Idempotency-Key`. */
     replayed: z.boolean(),
   }),

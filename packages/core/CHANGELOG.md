@@ -1,5 +1,27 @@
 # Changelog — `@oxy.so/core`
 
+## 7.0.0
+
+### Breaking
+
+- Server schema validation uses patched Zod 4 and contracts 6; client entry points remain Zod-free.
+- Own service authority is explicit and scope-free. Workload callers use shared service transports; external credential pairs retain scoped authority.
+- Own workload mint requests reject scope options. Reader-first deployment temporarily preserves v1 only for public manual token calls; internal SDK calls use v2.
+
+### Added
+
+- `createLinkedClient().fetchOptional` keeps the same origin and session fencing while allowing public endpoints to receive anonymous requests when no session exists. Strict `fetch` still requires a session.
+
+- Shared linked-client fetch, recipient-bound service clients, resource introspection for services, keys and sessions, and fixed requester proof clients for Files and other platform calls.
+- Optional server-only temporary IAM credential provider and workload-only ecosystem activity publishing.
+- Service transports expose destination-checked credentials for product SDK WebSocket protocols, sharing the HTTP transport's workload identity, cancellation and recipient cache. Kaana-only fixed account attribution remains separate from requester data authority.
+- Revocable requester context for multiple own-service hops and a separate external MCP media proof, preserving each original account and external grant.
+
+### Fixed
+
+- Prevent redirects, ambient cookies and shared response caches from leaking requester or operation authority across accounts.
+- Apply caller cancellation during workload preparation and bound the shared identity exchange, so an unavailable issuer cannot leave product requests waiting indefinitely.
+
 ## 6.17.0
 
 ### Added

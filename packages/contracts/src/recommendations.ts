@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Recommendation-engine API contracts.
  *
@@ -27,9 +29,12 @@ export type RecommendationExcludeType = z.infer<typeof recommendationExcludeType
  * gate — a boost cannot resurrect a private/restricted/ineligible account.
  */
 export const recommendationBoostSchema = z.object({
-  userIds: z.array(z.string().trim().min(1)).min(1).max(200),
+  userIds: z
+    .array(z.string().trim().check(utf16MinLength(1)))
+    .min(1)
+    .max(200),
   weight: z.number().min(-5).max(5),
-  reason: z.string().trim().max(120).optional(),
+  reason: z.string().trim().check(utf16MaxLength(120)).optional(),
 });
 
 export type RecommendationBoost = z.infer<typeof recommendationBoostSchema>;
@@ -63,11 +68,14 @@ export type RecommendationSignalWeights = z.infer<typeof recommendationSignalWei
  * ranking within server-enforced bounds.
  */
 export const recommendationRequestSchema = z.object({
-  clientId: z.string().trim().min(1).optional(),
-  limit: z.number().int().min(1).max(100).optional(),
-  offset: z.number().int().min(0).optional(),
+  clientId: z.string().trim().check(utf16MinLength(1)).optional(),
+  limit: z.number().check(integerCheck()).min(1).max(100).optional(),
+  offset: z.number().check(integerCheck()).min(0).optional(),
   excludeTypes: z.array(recommendationExcludeTypeSchema).optional(),
-  excludeIds: z.array(z.string().trim().min(1)).max(500).optional(),
+  excludeIds: z
+    .array(z.string().trim().check(utf16MinLength(1)))
+    .max(500)
+    .optional(),
   boosts: z.array(recommendationBoostSchema).max(50).optional(),
   signalWeights: recommendationSignalWeightsSchema.optional(),
 });
@@ -76,8 +84,8 @@ export type RecommendationRequest = z.infer<typeof recommendationRequestSchema>;
 
 /** Follower/following counts attached to a recommendation item. */
 export const recommendationCountSchema = z.object({
-  followers: z.number().int().nonnegative(),
-  following: z.number().int().nonnegative(),
+  followers: z.number().check(integerCheck()).nonnegative(),
+  following: z.number().check(integerCheck()).nonnegative(),
 });
 
 export type RecommendationCount = z.infer<typeof recommendationCountSchema>;
@@ -102,7 +110,7 @@ export const recommendationItemSchema = z
     description: z.string().nullable().optional(),
     verified: z.boolean().optional(),
     trustTier: z.string().optional(),
-    mutualCount: z.number().int().nonnegative(),
+    mutualCount: z.number().check(integerCheck()).nonnegative(),
     score: z.number().optional(),
     matchedSignals: z.array(z.string()).optional(),
     isFederated: z.boolean().optional(),
@@ -122,17 +130,17 @@ export type RecommendationResponse = z.infer<typeof recommendationResponseSchema
 
 /** One endorsement edge an app reports: `ownerId` endorses `memberId`. */
 export const appEndorsementInputSchema = z.object({
-  ownerId: z.string().trim().min(1),
-  memberId: z.string().trim().min(1),
+  ownerId: z.string().trim().check(utf16MinLength(1)),
+  memberId: z.string().trim().check(utf16MinLength(1)),
   op: z.enum(['add', 'remove']).default('add'),
-  sourceId: z.string().trim().min(1).optional(),
+  sourceId: z.string().trim().check(utf16MinLength(1)).optional(),
 });
 
 export type AppEndorsementInput = z.infer<typeof appEndorsementInputSchema>;
 
 /** One interest signal an app reports: how interested `userId` is in a topic. */
 export const appInterestInputSchema = z.object({
-  userId: z.string().trim().min(1),
+  userId: z.string().trim().check(utf16MinLength(1)),
   interestScore: z.number().min(0).max(1),
 });
 
@@ -185,12 +193,12 @@ export type AppAffinityEventType = z.infer<typeof appAffinityEventTypeSchema>;
  *   same application is folded at most once (bounded dedup window).
  */
 export const appAffinityEventSchema = z.object({
-  fromUserId: z.string().trim().min(1),
-  toUserId: z.string().trim().min(1),
+  fromUserId: z.string().trim().check(utf16MinLength(1)),
+  toUserId: z.string().trim().check(utf16MinLength(1)),
   type: appAffinityEventTypeSchema,
   weight: z.number().min(0).max(100).optional(),
-  occurredAt: z.string().datetime().optional(),
-  eventId: z.string().trim().min(1).max(200).optional(),
+  occurredAt: z.string().check(isoDateTime()).optional(),
+  eventId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)).optional(),
 });
 
 export type AppAffinityEvent = z.infer<typeof appAffinityEventSchema>;

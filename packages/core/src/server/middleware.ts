@@ -22,6 +22,7 @@ import {
   accountActorChainSchema,
   type AccountActorChain,
   type SupervisedAction,
+  type ServiceIntrospection,
 } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
@@ -55,30 +56,19 @@ interface JwtPayload {
 }
 
 /**
- * Result from the service-acting-as verification endpoint.
- * Confirms that a given service app holds an active delegation grant for
- * the supplied user, along with the explicit scope list the grant covers.
- *
- * The API side stores this as an ordinary `app_grants` row — the SAME revocable
- * record the OAuth consent screen writes and the "Connected apps" UI lists and
- * deletes — whose `scopes` name `acting-as:offline`. There is deliberately no
- * separate delegation table: a second store would be a second revocation
- * surface, and a user who disconnects an application in "Connected apps" means
- * it, so one revoke has to end everything.
- *
- * `scopes` is what THAT USER consented to, not what the application may do in
- * general. `requireScope` intersects it with the token's own app-wide scopes for
- * a delegated request, and the intersection is the effective authority.
- *
- * The SDK never inspects the grant directly — it round-trips through
- * `GET /internal/service-acting-as/verify?appId=...&userId=...` so the
- * authoritative store stays server-side.
+ * Live account attribution from Oxy's service-acting-as endpoint. First-party
+ * workloads present requester session/task proof and receive authority without
+ * scopes. External callers require a live OAuth delegation grant; its scope list
+ * intersects the external token. Neither lane accepts a user-id header as proof.
+ * Positive own responses are never cached, so task cancellation is immediate.
  */
 export interface ServiceActingAsVerification {
+  authority?: 'first_party' | 'external';
   /** Decimal durable generation, never lossy JS number. */
   epoch?: string;
   authorized: boolean;
-  scopes: string[];
+  scopes?: string[];
+  requesterContext?: string;
 }
 
 /** The SET `events` member Oxy uses for an account deletion. */
@@ -157,22 +147,22 @@ export class OxyAccountEventError extends Error {
  * its own. Together with `credentialId` and `ownerAccountId` it is the canonical
  * attribution tuple of ADR 0007 minus the delegated user.
  *
- * `scopes` are the EFFECTIVE scopes: the credential's own scopes intersected
+ * External `scopes` are the effective scopes: the credential's own scopes intersected
  * with the owning application's grant at mint time (the API's `intersectScopes`
  * is the single authority for that intersection — nothing re-intersects here).
- * Route-level checks narrow further via `requireScope()`.
+ * Route-level checks narrow external authority via `requireScope()`. Internal
+ * workloads carry no scopes; their live identity and account context authorize them.
  *
  * A delegated end user is NOT a field of this type, and must never become one.
  * It lives in `req.serviceActingAs` / `req.userId`, is authorised per request,
  * and is attribution only.
  */
-export interface ServiceApp {
+interface ServiceAppIdentity {
   appId: string;
   appName: string;
-  scopes: string[];
   /**
-   * Classification only. Both tiers obey scope ceilings and live offline
-   * delegation; neither a brand nor a header proves a user's authority.
+   * Classification only. Authority is a separate discriminant and is confirmed
+   * live for first-party workloads; a header never proves a user's authority.
    * Resource authorization remains with the receiving service. A missing
    * claim reads as external.
    */
@@ -188,6 +178,9 @@ export interface ServiceApp {
   /** Test/live isolation (F2.0): which `ApplicationCredential.environment` minted this token. */
   environment: OxyServiceEnvironment;
 }
+
+export type ServiceApp = ServiceAppIdentity &
+  ({ authority: 'first_party'; scopes?: never } | { authority?: 'external'; scopes: string[] });
 
 /**
  * Why a request's credential was refused, recorded on the request itself.
@@ -312,8 +305,10 @@ export interface AuthMiddlewareOptions {
    */
   expectedIssuer?: string;
   /**
-   * Expected JWT audience. Defaults to `'oxy-api'`. Override only if your
-   * private fork mints tokens for a different audience.
+   * Own product receivers use their SDK's canonical `oxy-service:<appId>` audience.
+   * First-party tokens must name that recipient exactly. External scoped tokens
+   * also retain the legacy `oxy-api` audience. Other audience overrides remain exact.
+   * Oxy API defaults to `oxy-api`.
    */
   expectedAudience?: string;
 }
@@ -344,8 +339,13 @@ export interface OxyMiddlewareHost {
       credentialId?: string;
       ownerAccountId?: string;
       environment?: string;
+      requesterToken?: string;
+      requesterContext?: string;
+      presentedServiceToken?: string;
+      taskId?: string;
     },
   ): Promise<ServiceActingAsVerification | null>;
+  introspectServiceToken?(token: string): Promise<ServiceIntrospection>;
   /** `OxyServer.appPermissionsFor` — what the person behind a request holds for this app. */
   appPermissionsFor(
     req: AppPermissionsRequest,
@@ -697,17 +697,26 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           const credentialId = decoded.credentialId;
           const ownerAccountId = decoded.ownerAccountId;
           const environment = decoded.environment;
+          let firstParty = decoded.authority === 'first_party';
+          const validAuthority =
+            decoded.authority === undefined || decoded.authority === 'external' || firstParty;
+          const validScopes = firstParty
+            ? decoded.scopes === undefined &&
+              credentialId?.toString().startsWith('wl_') &&
+              decoded.tier === 'internal'
+            : Array.isArray(decoded.scopes) &&
+              decoded.scopes.every(
+                (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
+              ) &&
+              new Set(decoded.scopes).size === decoded.scopes.length;
           if (
             !isExactNonEmptyServiceClaim(appId) ||
             !isExactNonEmptyServiceClaim(decoded.appName) ||
             !isExactNonEmptyServiceClaim(credentialId) ||
             !isExactNonEmptyServiceClaim(ownerAccountId) ||
             !isOxyServiceEnvironment(environment) ||
-            !Array.isArray(decoded.scopes) ||
-            !decoded.scopes.every(
-              (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
-            ) ||
-            new Set(decoded.scopes).size !== decoded.scopes.length
+            !validAuthority ||
+            !validScopes
           ) {
             recordRefusal(req, {
               code: 'INVALID_SERVICE_TOKEN',
@@ -744,7 +753,48 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
-          const tier: ServiceApp['tier'] = decoded.tier === 'internal' ? 'internal' : 'external';
+          // Temporary reader-first bridge: a legacy workload is only a candidate.
+          // Oxy must verify its exact finite cohort and live identity centrally.
+          const legacyCandidate =
+            !firstParty &&
+            expectedAudience.startsWith('oxy-service:') &&
+            decoded.aud === OXY_JWT_AUDIENCE &&
+            credentialId.startsWith('wl_');
+          let effectiveScopes = decoded.scopes as string[];
+          if (firstParty || expectedAudience.startsWith('oxy-service:')) {
+            let live: ServiceIntrospection | undefined;
+            try {
+              live = await host.introspectServiceToken?.(token);
+            } catch {
+              return res.status(503).json({
+                code: 'SERVICE_AUTHORITY_UNAVAILABLE',
+                message: 'Service identity is temporarily unavailable',
+              });
+            }
+            if (!live) return res.status(503).json({ code: 'SERVICE_AUTHORITY_UNAVAILABLE' });
+            if (
+              !live.active ||
+              (firstParty && live.authority !== 'first_party') ||
+              (!firstParty && !legacyCandidate && live.authority !== 'external') ||
+              live.applicationId !== appId ||
+              live.credentialId !== credentialId ||
+              live.accountId !== ownerAccountId ||
+              live.environment !== environment ||
+              live.audience !== decoded.aud ||
+              Date.parse(live.expiresAt) !== (decoded.exp as number) * 1000 ||
+              Date.parse(live.expiresAt) <= Date.now()
+            ) {
+              return res
+                .status(401)
+                .json({ code: 'INVALID_SERVICE_TOKEN', message: 'Service identity is inactive' });
+            }
+            firstParty = live.authority === 'first_party';
+            if (live.authority === 'external')
+              effectiveScopes = effectiveScopes.filter((scope) => live.scopes.includes(scope));
+          }
+
+          // Branding in a legacy/customer JWT never implies own authority.
+          const tier: ServiceApp['tier'] = firstParty ? 'internal' : 'external';
 
           // Read delegated user ID from header
           const oxyUserIdRaw = req.headers['x-oxy-user-id'];
@@ -779,6 +829,16 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               credentialId: decoded.credentialId as string,
               ownerAccountId: decoded.ownerAccountId as string,
               environment: decoded.environment as string,
+              presentedServiceToken: decoded.authority === 'first_party' ? token : undefined,
+              requesterContext: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-context'])
+                ? req.headers['x-oxy-requester-context']
+                : undefined,
+              taskId: isExactNonEmptyServiceClaim(req.headers['x-oxy-task-id'])
+                ? req.headers['x-oxy-task-id']
+                : undefined,
+              requesterToken: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-token'])
+                ? req.headers['x-oxy-requester-token']
+                : undefined,
             });
             if (!grant || !grant.authorized) {
               logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
@@ -814,7 +874,18 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             // return type a user id cannot satisfy (ADR 0007).
             req.userId = oxyUserId;
             req.user = { id: oxyUserId };
-            req.serviceActingAs = { userId: oxyUserId, scopes: grant.scopes };
+            req.serviceActingAs =
+              grant.authority === 'first_party'
+                ? {
+                    userId: oxyUserId,
+                    authority: 'first_party',
+                    ...(grant.requesterContext ? { requesterContext: grant.requesterContext } : {}),
+                  }
+                : {
+                    userId: oxyUserId,
+                    ...(grant.authority === 'external' ? { authority: 'external' as const } : {}),
+                    scopes: grant.scopes ?? [],
+                  };
           } else {
             // No X-Oxy-User-Id means the service is acting as itself.
             req.userId = null;
@@ -827,7 +898,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             appName: decoded.appName,
             credentialId,
             ownerAccountId,
-            scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
+            ...(firstParty
+              ? { authority: 'first_party' as const }
+              : {
+                  ...(decoded.authority === 'external' ? { authority: 'external' as const } : {}),
+                  scopes: effectiveScopes,
+                }),
             environment,
             tier,
           };
@@ -1387,7 +1463,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         return;
       }
 
-      const appHasScope = appScopes.includes(scope);
+      if (
+        req.serviceApp.authority === 'first_party' &&
+        (!req.serviceActingAs || req.serviceActingAs.authority === 'first_party')
+      ) {
+        next();
+        return;
+      }
+      const appHasScope = req.serviceApp.authority === 'first_party' || appScopes.includes(scope);
       const delegationHasScope = delegatedScopes.includes(scope);
       const hasRequiredScope = req.serviceActingAs
         ? appHasScope && delegationHasScope
@@ -1736,15 +1819,22 @@ function verifyServiceTokenClaims(
     );
   }
   const aud = decoded.aud;
-  if (Array.isArray(aud)) {
-    if (!aud.includes(expected.audience)) {
-      throw new ServiceTokenClaimError(
-        `Service token audience does not include '${expected.audience}'`,
-      );
-    }
-  } else if (aud !== expected.audience) {
+  // This branch runs only after signature verification. Legacy external tokens
+  // keep their scoped API audience; they never gain first-party authority.
+  const external = decoded.authority === undefined || decoded.authority === 'external';
+  const accepted =
+    external && expected.audience.startsWith('oxy-service:')
+      ? [expected.audience, OXY_JWT_AUDIENCE]
+      : [expected.audience];
+  const matches =
+    decoded.authority === 'first_party'
+      ? typeof aud === 'string' && aud === expected.audience
+      : Array.isArray(aud)
+        ? aud.some((value) => accepted.includes(value))
+        : accepted.includes(aud ?? '');
+  if (!matches) {
     throw new ServiceTokenClaimError(
-      `Service token audience mismatch: expected '${expected.audience}', got '${String(aud)}'`,
+      `Service token audience mismatch: expected '${expected.audience}'`,
     );
   }
 }
@@ -1781,7 +1871,9 @@ interface AuthReq {
   accessToken?: string;
   sessionId?: string | null;
   serviceApp?: ServiceApp;
-  serviceActingAs?: { userId: string; scopes: string[] };
+  serviceActingAs?:
+    | { userId: string; authority?: 'external'; scopes: string[] }
+    | { userId: string; authority: 'first_party'; scopes?: never; requesterContext?: string };
   oxyActor?: AccountActorChain | null;
   oxyAuthRefusal?: OxyAuthRefusal;
   oxyAppPermissions?: OxyAppPermissions;

@@ -1,3 +1,7 @@
+import type { ForegroundRequesterBinding } from './foregroundCapabilityRequester.service';
+import { applications } from '../db/schema/applications';
+import { isTrustedApplication } from '../utils/trustedApplication';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Live authority and product audience. Access is independent of billing read. */
 import { getDb } from '../config/postgres';
 import { accountClosureFences, applicationCredentials } from '../db/schema';
@@ -36,24 +40,22 @@ async function authorizeProductAccess(
   ) {
     throw new UnauthorizedError('Current session authority is unavailable');
   }
-  if (
-    !identity.applicationId ||
-    !identity.scopes.includes('user:read') ||
-    !current.session.scopes.includes('user:read')
-  ) {
-    throw new ForbiddenError('An application-bound user:read session is required');
-  }
-  const [credential] = await getDb()
-    .select()
-    .from(applicationCredentials)
-    .where(
-      and(
-        eq(applicationCredentials.publicKey, identity.clientId ?? ''),
-        eq(applicationCredentials.applicationId, identity.applicationId),
-      ),
-    );
-  if (!credential || !isCredentialUsable(credential) || credential.environment !== 'production') {
-    throw new ForbiddenError('A production application credential is required');
+  if (identity.applicationId !== null) {
+    if (!identity.scopes.includes('user:read') || !current.session.scopes.includes('user:read')) {
+      throw new ForbiddenError('An application-bound user:read session is required');
+    }
+    const [credential] = await getDb()
+      .select()
+      .from(applicationCredentials)
+      .where(
+        and(
+          eq(applicationCredentials.publicKey, identity.clientId ?? ''),
+          eq(applicationCredentials.applicationId, identity.applicationId),
+        ),
+      );
+    if (!credential || !isCredentialUsable(credential) || credential.environment !== 'production') {
+      throw new ForbiddenError('A production application credential is required');
+    }
   }
   const access = await resolveCallerAccountAccess(
     identity.principalUserId,
@@ -69,7 +71,15 @@ async function authorizeProductAccess(
     .where(eq(accountClosureFences.accountId, query.subjectAccountId));
   if (fence) throw new NotFoundError('Product access is unavailable');
   const product = await readRegisteredProduct(getDb(), query.productId);
-  if (product.applicationId !== identity.applicationId)
+  if (identity.applicationId === null) {
+    const [app] = await getDb()
+      .select()
+      .from(applications)
+      .where(eq(applications.id, product.applicationId))
+      .limit(1);
+    if (!app || app.status !== 'active' || !isTrustedApplication(app))
+      throw new NotFoundError('Product access is unavailable');
+  } else if (product.applicationId !== identity.applicationId)
     throw new NotFoundError('Product access is unavailable');
   return query;
 }
@@ -89,27 +99,33 @@ export async function readAuthorizedSubjectProductGrantSnapshot(
   return readSubjectProductGrantSnapshot(query.subjectAccountId, query.productId);
 }
 
-/** Offline reads retain the existing explicit account/application consent boundary.
- * A service token proves the application, never the requested beneficiary.
+/** Own reads require verified requester context for the beneficiary. External
+ * reads retain live offline consent. A service token alone proves no beneficiary.
  */
 export async function readServiceAuthorizedSubjectProductGrantSnapshot(
   identity: ServiceTokenPayload,
   input: SubjectProductAccessQuery,
+  requester?: ForegroundRequesterBinding,
 ) {
   const query = subjectProductAccessQuerySchema.parse(input);
   const required = ['user:read', SERVICE_ACTING_AS_SCOPE];
   if (
     identity.environment !== 'production' ||
-    required.some((scope) => !identity.scopes.includes(scope))
+    required.some((scope) => !hasServiceAuthority(identity, scope))
   )
     throw new ForbiddenError('Production offline product read authority is required');
-  const grant = await resolveServiceActingAsGrant(identity.appId, query.subjectAccountId, {
-    credentialId: identity.credentialId,
-    ownerAccountId: identity.ownerAccountId,
-    environment: identity.environment,
-  });
-  if (!grant.authorized || required.some((scope) => !grant.scopes.includes(scope)))
-    throw new NotFoundError('Product access is unavailable');
+  if (identity.authority === 'first_party') {
+    if (requester?.subjectAccountId !== query.subjectAccountId)
+      throw new NotFoundError('Product access is unavailable');
+  } else {
+    const grant = await resolveServiceActingAsGrant(identity.appId, query.subjectAccountId, {
+      credentialId: identity.credentialId,
+      ownerAccountId: identity.ownerAccountId,
+      environment: identity.environment,
+    });
+    if (!grant.authorized || required.some((scope) => !grant.scopes.includes(scope)))
+      throw new NotFoundError('Product access is unavailable');
+  }
   const product = await readRegisteredProduct(getDb(), query.productId);
   if (product.applicationId !== identity.appId)
     throw new NotFoundError('Product access is unavailable');

@@ -1,10 +1,12 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
 import { z } from 'zod';
 import { oxyAccountIdSchema } from '../inference/identifiers';
-const id = z.string().min(1).max(160);
-const name = z.string().min(1).max(100);
-const count = z.number().int().nonnegative().safe();
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
+const name = z.string().check(utf16MinLength(1)).check(utf16MaxLength(100));
+const count = z.number().check(integerCheck()).nonnegative().check(safeNumberCheck());
 const period = z
-  .object({ start: z.string().datetime(), end: z.string().datetime() })
+  .object({ start: z.string().check(isoDateTime()), end: z.string().check(isoDateTime()) })
   .strict()
   .refine(
     (value) => Date.parse(value.end) > Date.parse(value.start),
@@ -33,7 +35,7 @@ export const productSubscriptionSummarySchema = z
         .object({
           segmentId: id,
           offerId: id,
-          offerVersion: z.number().int().positive().safe(),
+          offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
           displayName: name,
           origin: z.enum(['individual', 'bundle']),
           period,
@@ -62,7 +64,7 @@ export const subscriptionCreditGrantSchema = z
     clawed: count,
     remaining: count,
     promotionId: id.nullable(),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict()
   .refine(
@@ -79,8 +81,8 @@ export const cancelProductSubscriptionSchema = z
     sourceId: id,
     actionId: z
       .string()
-      .min(8)
-      .max(160)
+      .check(utf16MinLength(8))
+      .check(utf16MaxLength(160))
       .regex(/^[a-zA-Z0-9_-]+$/)
       .optional(),
     expectedSubjectAccountId: oxyAccountIdSchema.optional(),

@@ -80,7 +80,7 @@ async function applicationFixture(
 async function bindingFixture(applicationId: string, subject: string): Promise<string> {
   const [binding] = await getDb()
     .insert(applicationWorkloadIdentities)
-    .values({ applicationId, provider: 'aws-iam', subject })
+    .values({ applicationId, provider: 'aws-iam', subject, environment: 'development' })
     .returning({ id: applicationWorkloadIdentities.id });
   return binding.id;
 }
@@ -200,6 +200,7 @@ describe('bindWorkloadIdentity materialises the row', () => {
       applicationId,
       subject,
       provider: 'aws-iam',
+      environment: 'development',
       actor: STAFF,
     });
     expect(result.state).toBe('created');
@@ -224,6 +225,7 @@ describe('bindWorkloadIdentity materialises the row', () => {
       applicationId,
       subject,
       provider: 'aws-iam',
+      environment: 'development',
       actor: STAFF,
     });
     // A re-run is not a create, and does not pretend to be one.
@@ -245,6 +247,7 @@ describe('bindWorkloadIdentity materialises the row', () => {
       applicationId: second,
       subject,
       provider: 'aws-iam',
+      environment: 'development',
       actor: STAFF,
     }).catch((caught: unknown) => caught);
 
@@ -301,7 +304,9 @@ describe('a workload row cannot authenticate as a credential', () => {
     // `loadPrincipal` requires `type = 'service'` and never sees the row: a
     // handle is routed to the live binding, the same arm that answered
     // `service-identity`, so the coordinator is exactly what the binding says.
-    await expect(resolveLiveAgencyCoordinator(applicationId, handle)).resolves.toMatchObject({
+    await expect(
+      resolveLiveAgencyCoordinator(applicationId, handle, 'first_party'),
+    ).resolves.toMatchObject({
       applicationId,
       credentialId: handle,
     });
@@ -312,6 +317,8 @@ describe('a workload row cannot authenticate as a credential', () => {
     await getDb()
       .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.applicationId, applicationId));
-    await expect(resolveLiveAgencyCoordinator(applicationId, handle)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyCoordinator(applicationId, handle, 'first_party'),
+    ).resolves.toBeNull();
   });
 });

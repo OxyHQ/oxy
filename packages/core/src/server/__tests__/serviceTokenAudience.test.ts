@@ -30,7 +30,7 @@ const tokenWith = (aud: string, scopes: string[] = defaultScopes, nonce = '') =>
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-  requestWorkloadServiceToken: jest.fn(
+  requestLegacyWorkloadServiceToken: jest.fn(
     async (options: { audience?: string; scopes?: string[] }) => ({
       token: tokenWith(options.audience ?? 'oxy-api', options.scopes),
       expiresIn: 300,
@@ -39,9 +39,9 @@ jest.mock('../workloadIdentity', () => ({
   ),
 }));
 
-import { requestWorkloadServiceToken } from '../workloadIdentity';
+import { requestLegacyWorkloadServiceToken } from '../workloadIdentity';
 
-const attestations = requestWorkloadServiceToken as unknown as jest.Mock;
+const attestations = requestLegacyWorkloadServiceToken as unknown as jest.Mock;
 
 function credentialClient() {
   const oxy = new OxyServer({
@@ -214,25 +214,18 @@ describe('service token audience — attested workload', () => {
 
     expect(attestations).toHaveBeenCalledTimes(2);
   });
-  it('keeps workload audience and scope variants independent and sends both requested dimensions', async () => {
+  it('caches registered product audiences independently without scopes', async () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-    for (const audience of ['oxy-api', 'kaana.ai'] as const) {
-      for (const scopes of [undefined, ['user:read'], ['inference:invoke', 'user:read']]) {
-        expect(await oxy.serviceTokenFor(audience, undefined, undefined, { scopes })).toBe(
-          tokenWith(audience, scopes),
-        );
-        await oxy.serviceTokenFor(audience, undefined, undefined, { scopes });
-      }
-    }
-    expect(attestations).toHaveBeenCalledTimes(6);
+    await oxy.serviceTokenFor('oxy-service:recipient');
+    await oxy.serviceTokenFor('oxy-service:recipient');
+    await oxy.serviceTokenFor('kaana.ai');
+    expect(attestations).toHaveBeenCalledTimes(2);
     expect(attestations).toHaveBeenCalledWith({
       baseUrl: 'https://api.oxy.so',
-      audience: 'kaana.ai',
-      scopes: ['user:read'],
+      audience: 'oxy-service:recipient',
     });
     oxy.invalidateServiceToken();
-    await oxy.serviceTokenFor('kaana.ai', undefined, undefined, { scopes: ['user:read'] });
-    await oxy.serviceToken();
-    expect(attestations).toHaveBeenCalledTimes(8);
+    await oxy.serviceTokenFor('oxy-service:recipient');
+    expect(attestations).toHaveBeenCalledTimes(3);
   });
 });

@@ -1,3 +1,4 @@
+import { integerCheck, utf16MinLength } from '@oxy.so/contracts';
 /**
  * `/reputation` route-plumbing schemas.
  *
@@ -14,23 +15,23 @@ import { reputationInfluenceContextSchema } from '@oxy.so/contracts';
 
 /** Route params with :userId (ObjectId or publicKey accepted by the route). */
 export const reputationUserIdParams = z.object({
-  userId: z.string().trim().min(1),
+  userId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :id (transaction id). */
 export const reputationTransactionIdParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :id (dispute id). */
 export const reputationDisputeIdParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Pagination query (?limit, ?offset). Coerced from string query values. */
 export const reputationPaginationQuery = z.object({
-  limit: z.coerce.number().int().min(1).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().check(integerCheck()).min(1).optional(),
+  offset: z.coerce.number().check(integerCheck()).min(0).optional(),
 });
 
 /** GET /reputation/:userId/influence — ?context= selects the weight axis. */
