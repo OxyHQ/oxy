@@ -1,3 +1,8 @@
+import {
+  hasExternalMcpMediaProof,
+  resolveExternalMcpMediaRequest,
+  type ExternalMcpMediaOperation,
+} from '../services/externalMcpMediaRequester.service';
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
 import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
@@ -302,6 +307,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 export interface ServiceAuthRequest extends Request {
   serviceApp?: ServiceTokenPayload;
   serviceRequester?: ForegroundRequesterBinding;
+  serviceExternalMedia?: ExternalMcpMediaOperation;
 }
 
 /**
@@ -336,14 +342,20 @@ export const serviceAuthMiddleware = async (
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     try {
+      const externalMedia = hasExternalMcpMediaProof(req.headers);
+      if (externalMedia && verification.payload.authority !== 'first_party')
+        throw new ForbiddenError('The registered resource workload is required.');
       if (verification.payload.authority === 'first_party') {
         const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
         if (!principal) return res.status(401).json({ error: 'invalid_service_identity' });
-        req.serviceRequester = await resolveServiceRequester(
-          principal,
-          req.headers,
-          ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
-        );
+        if (externalMedia)
+          req.serviceExternalMedia = await resolveExternalMcpMediaRequest(principal, req);
+        else
+          req.serviceRequester = await resolveServiceRequester(
+            principal,
+            req.headers,
+            ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
+          );
       }
       if (
         (await isSupervised(verification.payload.ownerAccountId)) ||
