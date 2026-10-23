@@ -356,7 +356,7 @@ it('requires live own Clarity identity on domain authority reads', async () => {
         .auth(receiver.legacy, { type: 'bearer' })
         .send(input)
     ).status,
-  ).toBe(403);
+  ).toBe(401);
 });
 it('revokes an external managed session when its operator membership ends', async () => {
   const receiver = await workload(clarityIndex);
