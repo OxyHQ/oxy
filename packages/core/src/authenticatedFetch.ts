@@ -15,13 +15,16 @@ export function createAuthenticatedFetch(
     const method = (init?.method ?? request?.method ?? 'GET').toUpperCase();
     if (!['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method))
       throw new Error('Unsupported authenticated request method');
-    const signal = init?.signal ?? request?.signal ?? undefined;
+    const signal = init?.signal === undefined ? request?.signal : (init.signal ?? undefined);
     if (signal?.aborted) throw signal.reason ?? new Error('Request aborted');
+    const body = init?.body ?? request?.body ?? undefined;
+    if ((method === 'GET' || method === 'HEAD') && body !== undefined)
+      throw new TypeError('GET and HEAD requests cannot have a body');
     const config: ResponseRequest = {
       url: url.href,
       method: method as ResponseRequest['method'],
       headers: new Headers(init?.headers ?? request?.headers),
-      body: init?.body === undefined ? (request?.body ?? undefined) : (init.body ?? undefined),
+      body,
       signal,
     };
     if (options.prepare) await options.prepare();
