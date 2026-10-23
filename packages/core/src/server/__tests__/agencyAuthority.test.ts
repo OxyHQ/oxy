@@ -255,3 +255,34 @@ describe('agentAvailability (ADR 0044)', () => {
     expect(request).not.toHaveBeenCalled();
   });
 });
+
+it('creates a durable own task with user proof, then derives tools and revokes using only its handle', async () => {
+  const { oxy, request } = fixture();
+  request.mockResolvedValue({ task: { id: 'task-1' } } as never);
+  const task = await oxy.agency.createTask({ origin: { kind: 'goal', id: 'goal-1' },
+    actor: { type: 'agent', accountId: 'bot' }, effectiveAccountId: 'person', expiresAt: '2026-12-01T00:00:00Z' }, { requesterToken: 'proof' });
+  expect(task.id).toBe('task-1');
+  expect(request.mock.calls[0][2]).toMatchObject({ subjectToken: 'proof', effectiveAccountId: 'person' });
+  request.mockResolvedValue({ authorization: { id: 'auth-1' } } as never);
+  await oxy.agency.createTaskExecutionAuthorization(task.id, { authority: 'first_party', kind: 'direct_request',
+    actor: { type: 'agent', accountId: 'child-bot' }, resource: { appId: 'inbox', effectiveAccountId: 'person', resourceType: 'account', resourceId: 'person' },
+    tool: 'read', expectedCatalog: pin, runId: 'run', limits: [], expiresAt: '2026-12-01T00:00:00Z' });
+  expect(request.mock.calls[1][1]).toBe('/capabilities/tasks/task-1/execution-authorizations');
+  expect(JSON.stringify(request.mock.calls[1])).not.toContain('proof');
+  expect(request.mock.calls[1][2]).not.toHaveProperty('maximumAutonomy');
+  request.mockResolvedValue(undefined as never);
+  await oxy.agency.revokeTask(task.id);
+  expect(request.mock.calls[2][1]).toBe('/capabilities/tasks/task-1');
+  oxy.dispose();
+});
+
+it('isolates requester proof across Files facades without mutating the shared client', async () => {
+  const { oxy, request } = fixture();
+  request.mockResolvedValue({ file: { id: 'file' } } as never);
+  const own = oxy.assets.withRequester({ taskId: 'task-file' });
+  await own.uploadUserMedia('person', new Uint8Array([1]), 'image/png');
+  expect(request.mock.calls[0][3]).toMatchObject({ headers: { 'X-Oxy-Task-Id': 'task-file', 'x-owner-user-id': 'person' } });
+  await oxy.assets.uploadUserMedia('person', new Uint8Array([1]), 'image/png');
+  expect((request.mock.calls[1][3] as { headers: object }).headers).not.toHaveProperty('X-Oxy-Task-Id');
+  oxy.dispose();
+});

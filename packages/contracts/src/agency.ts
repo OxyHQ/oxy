@@ -87,6 +87,44 @@ export const resourceRefSchema = z
   })
   .strict();
 
+export const firstPartyTaskInputSchema = z
+  .object({
+    origin: z
+      .object({ kind: z.enum(['request', 'goal', 'automation']), id: identifierSchema })
+      .strict(),
+    actor: executionActorRefSchema,
+    effectiveAccountId: identifierSchema,
+    expiresAt: z.string().datetime(),
+  })
+  .strict();
+
+/** Oxy-owned tools use the authenticated requester's task, never per-app grants. */
+export const firstPartyExecutionAuthorizationInputSchema = z
+  .object({
+    authority: z.literal('first_party'),
+    kind: z.enum(['direct_request', 'automation']).default('direct_request'),
+    actor: executionActorRefSchema,
+    resource: resourceRefSchema,
+    tool: identifierSchema,
+    expectedCatalog: foregroundExecutionAuthorizationInputSchema.shape.expectedCatalog,
+    runId: identifierSchema.optional(),
+    stepId: identifierSchema.optional(),
+    automationId: identifierSchema.optional(),
+    limits: z
+      .array(
+        z
+          .object({
+            tool: identifierSchema,
+            key: limitKeySchema,
+            value: z.union([z.number().finite(), z.boolean()]),
+          })
+          .strict(),
+      )
+      .default([]),
+    expiresAt: z.string().datetime(),
+  })
+  .strict();
+
 export const toolGrantOverrideSchema = z
   .object({
     tool: identifierSchema,
@@ -296,6 +334,8 @@ export const capabilityTicketClaimsSchema = z
     stepId: identifierSchema.optional(),
     automationId: identifierSchema.optional(),
     executionAuthorization: executionAuthorizationRefSchema,
+    authority: z.enum(['first_party', 'external']).optional(),
+    taskId: identifierSchema.optional(),
     coordinator: capabilityCoordinatorSchema,
     /** Signed only for callers that explicitly requested a pinned catalogue. */
     catalog: capabilityCatalogBindingSchema.optional(),
@@ -331,6 +371,7 @@ export const capabilityTicketClaimsSchema = z
     }
     if (
       claims.actor.type === 'requester' &&
+      claims.authority !== 'first_party' &&
       (claims.actor.accountId !== claims.requesterAccountId ||
         claims.executionAuthorization.kind !== 'direct_request' ||
         claims.autonomy !== 'read_only' ||
@@ -342,6 +383,16 @@ export const capabilityTicketClaimsSchema = z
         path: ['actor'],
         message:
           'requester actors require their exact principal and direct read-only authority without standing grants',
+      });
+    }
+    if (
+      claims.authority === 'first_party' &&
+      (claims.grantId !== undefined || claims.ceilingId !== undefined)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Own tool tasks cannot carry external grants or ceilings',
+        path: ['authority'],
       });
     }
     if (claims.ceilingId !== undefined) {
@@ -936,3 +987,9 @@ export type ApplicationAgent = z.infer<typeof applicationAgentSchema>;
 export type AgentAvailability = z.infer<typeof agentAvailabilitySchema>;
 export type CatalogRegistration = z.infer<typeof catalogRegistrationSchema>;
 export type NormalizedAppEvent = z.infer<typeof normalizedAppEventSchema>;
+
+export type FirstPartyExecutionAuthorizationInput = z.infer<
+  typeof firstPartyExecutionAuthorizationInputSchema
+>;
+
+export type FirstPartyTaskInput = z.infer<typeof firstPartyTaskInputSchema>;
