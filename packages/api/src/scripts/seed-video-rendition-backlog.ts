@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { connectPostgres, closePostgres } from '../config/postgres';
+import { closeRedis } from '../config/redis';
 import { seedVideoRenditionBacklog } from './video-rendition-backlog';
 import { logger } from '../utils/logger';
 
@@ -15,7 +16,11 @@ async function main() {
     });
     logger.info('Video rendition backlog seed complete', result);
   } finally {
-    await closePostgres();
+    try {
+      await closePostgres();
+    } finally {
+      await closeRedis();
+    }
   }
 }
 main().catch((error: unknown) => {
