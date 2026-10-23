@@ -120,7 +120,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/zod3 && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
