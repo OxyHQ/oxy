@@ -388,7 +388,7 @@ export class OxyServer extends OxyServices {
         requester !== undefined ||
         typeof attribution !== 'string' ||
         !attribution ||
-        attribution.length > 128 ||
+        attribution.length > 64 ||
         /\s/.test(attribution))
     )
       throw new Error(
