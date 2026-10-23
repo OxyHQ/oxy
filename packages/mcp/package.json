@@ -42,12 +42,14 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
+    "test:package": "node ../../scripts/check-mcp-package-closure.mjs",
     "lint": "biome lint --error-on-warnings ./src"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@oxy.so/contracts": "workspace:^",
-    "@oxy.so/zod4": "workspace:*"
+    "@oxy.so/zod4": "workspace:*",
+    "zod": "npm:@oxy.so/zod4@4.6.8"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
