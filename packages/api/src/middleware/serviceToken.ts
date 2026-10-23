@@ -26,29 +26,16 @@ import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
  */
 
 /**
- * Decoded payload for service-to-service JWTs minted via
- * `POST /auth/service-token`. Carries the `scopes` granted to the Application so
- * downstream middleware can do per-scope authorisation. The `appId` claim is the
- * Application `_id`.
+ * Signed service attribution: application, workload/credential, owning account,
+ * environment and audience. First-party workload authority has no scopes;
+ * external credentials carry bounded scopes. Signature verification alone does
+ * not establish live authority: receivers must resolve the registered principal.
  *
- * This is the whole canonical attribution tuple of ADR 0007 minus the delegated
- * user: application, credential and the OWNING ACCOUNT, all resolved server-side
- * at mint time from the presented credential. A verifier holding a valid token
- * can therefore name the financially responsible principal with no lookup.
- *
- * A delegated end user is deliberately ABSENT from this type. It arrives as the
- * `X-Oxy-User-Id` header, is authorised per request, and is attribution only —
- * see `resolveViewerId` in `middleware/optionalAuth.ts`. Nothing here may ever
- * hold it, because a field on this payload is exactly what code reaches for when
- * it wants "who is responsible for this request".
+ * A requester account is separate from billing attribution. A user-id header
+ * alone cannot establish it; session, task, capability or chained requester proof
+ * is validated per request before accessing personal resources (ADR 0049).
  */
-/**
- * Which side of the ecosystem boundary the calling application is on.
- *
- * `internal` and `external` classify the registered application; neither
- * bypasses scope ceilings or live offline delegation at a receiver. A token
- * minted before this claim existed reads as external.
- */
+/** Legacy wire metadata only. Never infer authority from tier or application branding. */
 export type ServiceTier = 'internal' | 'external';
 
 export interface ServiceTokenPayload {
