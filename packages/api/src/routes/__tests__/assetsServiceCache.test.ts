@@ -844,6 +844,38 @@ describe('POST /assets/service/by-ids', () => {
     expect(res.body.data[0].hlsReadyAt).toBe(readyAt.toISOString());
   });
 
+  it('rejects a malformed legacy generation without exposing storage or advertising HLS', async () => {
+    grantFilesReadOnce();
+    const readyAt = new Date('2026-10-01T12:34:56.789Z');
+    mockGetFilesByIds.mockResolvedValueOnce([
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'c'.repeat(64),
+        mime: 'video/mp4',
+        size: 4242,
+        status: 'active',
+        metadata: {
+          media: { width: 1080, height: 1920 },
+          video: { codec: 'h264', audioCodec: 'aac' },
+        },
+        variants: [
+          { type: 'hls_master', key: 'secret/master', readyAt },
+          { type: 'hls_360p', key: 'secret/tier', width: 640, height: 360, readyAt },
+        ],
+      },
+    ]);
+    const res = await postByIds([CACHE_FILE_ID]);
+    expect(res.status).toBe(200);
+    expect(res.body.data[0]).toMatchObject({
+      id: CACHE_FILE_ID,
+      hlsRejectedReadyAt: readyAt.toISOString(),
+    });
+    expect(res.body.data[0]).not.toHaveProperty('hlsReadyAt');
+    expect(res.body.data[0]).not.toHaveProperty('variants');
+    expect(res.body.data[0]).not.toHaveProperty('metadata');
+    expect(JSON.stringify(res.body)).not.toContain('secret');
+  });
+
   it('uses the metadata timestamp unchanged through the SDK and CDN revision contract', async () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     const file = {

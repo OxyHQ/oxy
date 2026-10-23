@@ -822,9 +822,10 @@ export interface ServiceAssetMetadata {
   /**
    * When the adaptive HLS ladder for this asset finished transcoding.
    *
-   * ABSENT when there is none. Transcoding runs after the upload call returns
-   * and per-rendition failures are swallowed, so a video may get its ladder
-   * minutes later or never. The `?variant=hls_master` URL is derivable from the
+   * ABSENT when there is none or hlsRejectedReadyAt rejects its geometry.
+   * Transcoding runs after the upload call returns, so a video may get its
+   * complete ladder minutes later or remain without one after a failed job.
+   * The `?variant=hls_master` URL is derivable from the
    * `id` alone, which is exactly the trap: a consumer that builds it without
    * this field hands the player a URL that 403s until the ladder exists, and
    * the player pays a failed request before falling back — once per video, per
@@ -834,6 +835,19 @@ export interface ServiceAssetMetadata {
    * browser cannot reuse a previous generation's resolver redirect.
    */
   hlsReadyAt?: string;
+  /**
+   * Exact ready timestamp of a legacy HLS generation whose encoded geometry
+   * disagrees with the original, when that original is known H.264 MP4 with
+   * AAC audio. Mutually exclusive with hlsReadyAt. Play the original URL;
+   * never send progressive bytes to an HLS decoder.
+   *
+   * A persisted consumer may clear ONLY this file's matching readiness stamp
+   * (or leave an absent stamp absent), guarded against concurrent replacement.
+   * Do not clear a different/newer generation. Absence of this field is not a
+   * rejection: unknown codecs/geometry and compatible legacy ladders retain
+   * their existing behavior. No variant storage details are disclosed.
+   */
+  hlsRejectedReadyAt?: string;
   /**
    * The Oxy user who owns the file (`null` for a system-owned file such as the
    * federated media cache). PRESENT ONLY for Oxy's own applications (service

@@ -63,6 +63,18 @@ describe('OxyServer.assets.metadataByIds', () => {
     expect(entry.hlsReadyAt).toBe(readyAt);
   });
 
+  it('preserves the typed rejected generation for a consumer to clear only that stamp', async () => {
+    const rejected: ServiceAssetMetadata = {
+      ...sampleEntry,
+      mime: 'video/mp4',
+      hlsRejectedReadyAt: '2026-10-01T12:34:56.789Z',
+    };
+    serviceRequestSpy.mockResolvedValueOnce([rejected]);
+    const [entry] = await oxy.assets.metadataByIds(['asset-1']);
+    expect(entry.hlsRejectedReadyAt).toBe(rejected.hlsRejectedReadyAt);
+    expect(entry).not.toHaveProperty('hlsReadyAt');
+  });
+
   // An asset with no ladder carries no such field, and "absent" is the signal —
   // a consumer must be able to tell it apart from a present-but-null value.
   it('leaves hlsReadyAt absent when the response omits it', async () => {

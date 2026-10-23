@@ -10581,7 +10581,12 @@
                           "hlsReadyAt": {
                             "type": "string",
                             "format": "date-time",
-                            "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none — transcoding is asynchronous and per-rendition failures are swallowed, so a video may never get one. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
+                            "description": "When the adaptive HLS ladder for this asset finished transcoding. ABSENT when there is none or an explicit hlsRejectedReadyAt rejects its geometry. Transcoding is asynchronous. Consumers must treat absence as \"no adaptive stream\" and play the progressive original: the `?variant=hls_master` URL is derivable from the id, and building it without this field is what made players fail on a 403 and fall back, once per video per play.\n"
+                          },
+                          "hlsRejectedReadyAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Exact ready generation rejected for incorrect legacy HLS geometry when the owned original is known H.264 MP4 with AAC audio. Mutually exclusive with hlsReadyAt. Play the original URL; clear a persisted readiness stamp only when it matches this timestamp and the file identity still matches. Unknown source codecs or geometry do not produce a rejection.\n"
                           },
                           "ownerUserId": {
                             "type": [
