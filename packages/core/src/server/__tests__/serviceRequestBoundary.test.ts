@@ -95,3 +95,40 @@ it.each([302, 307])(
     }
   },
 );
+
+it('keeps concurrent requester responses separate and reads revocation on every call', async () => {
+  const subjects: string[] = [];
+  let revoked = false;
+  const server = createServer((req, res) => {
+    const subject = req.headers['x-oxy-user-id'] as string;
+    subjects.push(subject);
+    if (revoked) {
+      res.writeHead(403);
+      res.end('{}');
+      return;
+    }
+    setTimeout(() => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: { subject } }));
+    }, 20);
+  });
+  const oxy = new OxyServer({ baseURL: await listen(server) });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-credential');
+  const read = (subject: string) =>
+    oxy.serviceRequest<{ subject: string }>('GET', '/private', undefined, {
+      actAs: subject,
+      taskId: `task-${subject}`,
+      cache: true,
+      deduplicate: true,
+      retry: false,
+    });
+  try {
+    expect(await Promise.all([read('A'), read('B')])).toEqual([{ subject: 'A' }, { subject: 'B' }]);
+    revoked = true;
+    await expect(read('A')).rejects.toBeDefined();
+    expect(subjects).toEqual(['A', 'B', 'A']);
+  } finally {
+    oxy.dispose();
+    await close(server);
+  }
+});
