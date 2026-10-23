@@ -50,7 +50,18 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
   if (!left || !right) return false;
   const a = decodeTokenClaims(left);
   const b = decodeTokenClaims(right);
-  if (!a || !b || !(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  if (!a || !b) return false;
+  if (a.type === 'service' || b.type === 'service') {
+    if (a.type !== 'service' || b.type !== 'service') return false;
+    return (
+      ['appId', 'credentialId', 'ownerAccountId', 'environment', 'aud', 'iss'].every(
+        (key) => typeof a[key] === 'string' && a[key] !== '' && a[key] === b[key],
+      ) &&
+      a.authority === b.authority &&
+      JSON.stringify(a.scopes) === JSON.stringify(b.scopes)
+    );
+  }
+  if (!(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
   // A refresh may rotate exp/iat/jti while preserving its account and session.
   // Opaque/malformed context fields cannot establish that equivalence.
   return [
@@ -90,7 +101,7 @@ export type ResponseTransport = (input: string, init: RequestInit) => Promise<Re
  * The caller owns response parsing and the AbortSignal for its full lifetime.
  */
 export interface ResponseRequest {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   body?: BodyInit;
   headers?: HeadersInit;
@@ -180,7 +191,7 @@ export interface RequestOptions {
 }
 
 interface RequestConfig extends RequestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   data?: unknown;
   params?: Record<string, unknown>;
@@ -1755,7 +1766,7 @@ export class HttpService {
     }
 
     try {
-      const body = config.method === 'GET' ? undefined : config.body;
+      const body = config.method === 'GET' || config.method === 'HEAD' ? undefined : config.body;
       const init: RequestInit & { duplex?: 'half' } = {
         method: config.method,
         headers,

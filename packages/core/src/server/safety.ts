@@ -55,9 +55,6 @@ import {
 } from '@oxy.so/contracts';
 import { SafetyApi } from '../api/safety';
 
-/** Every consumer-service safety call: one service token holding exactly this scope. */
-const SAFETY_SCOPES = ['safety:decide'];
-
 export class ServerSafetyApi extends SafetyApi {
   private service(path: string, input: unknown) {
     if (!this.ctx.service?.available)
@@ -65,7 +62,6 @@ export class ServerSafetyApi extends SafetyApi {
     return this.ctx.service.request('POST', `/safety/service/${path}`, input, {
       cache: false,
       retry: false,
-      serviceTokenScopes: SAFETY_SCOPES,
     });
   }
 
