@@ -5,18 +5,34 @@ import {
   type ForegroundRequesterBinding,
 } from './foregroundCapabilityRequester.service';
 import { resolveFirstPartyTask, taskAllowsEffectiveAccount } from './firstPartyTasks.service';
+import { resolveCapabilityRequester, requireRequesterEffect } from './capabilityRequester.service';
 import { ForbiddenError } from '../utils/error';
 
 /** Resolve a session or durable task into an account, independently of any user-id header. */
 export async function resolveServiceRequester(
   principal: LiveAgencyServicePrincipal,
   headers: IncomingHttpHeaders,
+  effect: 'read' | 'write' = 'read',
 ): Promise<ForegroundRequesterBinding | undefined> {
   const token = headers['x-oxy-requester-token'];
   const taskId = headers['x-oxy-task-id'];
-  if (token === undefined && taskId === undefined) return undefined;
-  if (principal.authority !== 'first_party' || (token !== undefined && taskId !== undefined))
+  const ticket = headers['x-oxy-capability-ticket'];
+  const proofs = [token, taskId, ticket].filter((proof) => proof !== undefined);
+  if (proofs.length === 0) return undefined;
+  if (principal.authority !== 'first_party' || proofs.length !== 1)
     throw new ForbiddenError('One first-party requester proof is required.');
+  if (ticket !== undefined) {
+    const requester =
+      typeof ticket === 'string' ? await resolveCapabilityRequester(ticket, principal) : null;
+    if (
+      !requester ||
+      (headers['x-oxy-user-id'] !== undefined &&
+        headers['x-oxy-user-id'] !== requester.subjectAccountId)
+    )
+      throw new ForbiddenError('The original operation does not authorize this requester.');
+    requireRequesterEffect(requester, effect);
+    return requester;
+  }
   if (token !== undefined) {
     const requester =
       typeof token === 'string' ? await validateForegroundRequesterBearer(token, principal) : null;

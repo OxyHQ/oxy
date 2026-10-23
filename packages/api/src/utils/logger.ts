@@ -36,6 +36,16 @@ const isDev = process.env.NODE_ENV === 'development';
  * `err.token` and friends.
  */
 const REDACTED_PATHS = [
+  'capabilityTicket',
+  '*.capabilityTicket',
+  'req.body.capabilityTicket',
+  'req.body.requester.capabilityTicket',
+  'body.requester.capabilityTicket',
+  '["x-oxy-capability-ticket"]',
+  '*["x-oxy-capability-ticket"]',
+  'req.headers["x-oxy-capability-ticket"]',
+  'headers["x-oxy-capability-ticket"]',
+  'headers["X-Oxy-Capability-Ticket"]',
   'subjectToken',
   '*.subjectToken',
   'req.body.subjectToken',

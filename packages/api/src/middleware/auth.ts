@@ -339,7 +339,11 @@ export const serviceAuthMiddleware = async (
       if (verification.payload.authority === 'first_party') {
         const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
         if (!principal) return res.status(401).json({ error: 'invalid_service_identity' });
-        req.serviceRequester = await resolveServiceRequester(principal, req.headers);
+        req.serviceRequester = await resolveServiceRequester(
+          principal,
+          req.headers,
+          ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
+        );
       }
       if (
         (await isSupervised(verification.payload.ownerAccountId)) ||

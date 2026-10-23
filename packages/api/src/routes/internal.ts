@@ -514,6 +514,8 @@ router.post(
       throw new ForbiddenError(`This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`);
     }
 
+    if (req.serviceRequester?.operation)
+      throw new ForbiddenError('Operation context cannot mint shared sessions.');
     const operator = serviceAccountSwitchOperator.safeParse(
       serviceApp.authority === 'first_party'
         ? req.serviceRequester?.principalAccountId

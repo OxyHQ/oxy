@@ -75,6 +75,29 @@ Expiry and revocation deny access immediately, independently of housekeeping.
 Legacy jobs without verifiable provenance need a new authorized start; they
 cannot fall back to a bot owner or application owner.
 
+## Nested calls from a tool recipient
+
+A service executing a verified own tool ticket may pass that **same transient
+signed ticket** to Oxy through `oxy.withRequester({ capabilityTicket })` or
+`oxy.assets.withRequester({ capabilityTicket, accountId })`. Safety accepts
+`{ capabilityTicket }` as its requester argument. Do not persist the ticket or
+copy the coordinator's root task ID into another service.
+
+Oxy verifies the recipient's live workload, its ownership of the pinned live
+catalogue, ticket signature/audience and the original execution/task authority
+on every call. Requester, actor, resource, account, operation limits and expiry
+remain those of the original operation. The optional account must equal the
+signed effective account. Revocation, expiry or another recipient denies the
+next call. This context cannot mint a shared session.
+
+The existing catalogue effect and ticket autonomy govern nested effects: a read
+tool cannot write Files or change privacy. Safety policy evaluation is a read
+even when its transport uses POST. No new application permission list or tool
+dependency catalogue is introduced. Existing file ownership and domain limits
+remain enforced by their operations. The bound SDK client snapshots its proof,
+strips conflicting caller headers and disables response cache, request coalescing
+and retries; the transport also rejects unrelated origins and redirects.
+
 ## Files and external callers
 
 Own requester context removes inter-application consent for the same account.

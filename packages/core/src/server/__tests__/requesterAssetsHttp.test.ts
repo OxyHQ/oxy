@@ -90,3 +90,56 @@ it('routes inherited Files reads through each fixed proof and checks revocation 
     );
   }
 });
+
+it('isolates operation clients across private graph and Files reads, ignores forged proof headers and never caches a revoked ticket', async () => {
+  const seen: string[] = [];
+  let revoked = false;
+  const server = createServer((req, res) => {
+    const proof = req.headers['x-oxy-capability-ticket'];
+    if (typeof proof === 'string') seen.push(proof);
+    expect(req.headers['x-oxy-task-id']).toBeUndefined();
+    expect(req.headers['x-oxy-requester-token']).toBeUndefined();
+    expect(req.headers.authorization).toBe('Bearer workload');
+    res.writeHead(revoked ? 403 : 200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(revoked ? { error: 'revoked' } : { data: { proof } }));
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({ baseURL, enableRetry: false });
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('workload');
+  const proof = { capabilityTicket: 'operation-A' };
+  const a = oxy.withRequester(proof);
+  const b = oxy.withRequester({ capabilityTicket: 'operation-B' });
+  proof.capabilityTicket = 'mutated';
+  try {
+    const [first, second] = await Promise.all([a.follows.viewerGraph(), b.follows.viewerGraph()]);
+    expect(first).toEqual({ proof: 'operation-A' });
+    expect(second).toEqual({ proof: 'operation-B' });
+    expect(
+      await a.request('GET', '/privacy/blocked', undefined, {
+        headers: {
+          'x-oxy-capability-ticket': 'forged',
+          'X-Oxy-Task-Id': 'forged',
+          'X-Oxy-Requester-Token': 'forged',
+        },
+        cache: true,
+        deduplicate: true,
+      }),
+    ).toEqual({ proof: 'operation-A' });
+    expect(await oxy.assets.withRequester({ capabilityTicket: 'operation-A' }).get('file')).toEqual(
+      { proof: 'operation-A' },
+    );
+    revoked = true;
+    await expect(a.follows.viewerGraph()).rejects.toBeDefined();
+    expect(seen).toHaveLength(5);
+    await expect(a.request('GET', 'https://unrelated.invalid/private')).rejects.toThrow(
+      'configured API origin',
+    );
+    expect(seen).toHaveLength(5);
+  } finally {
+    oxy.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});

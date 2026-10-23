@@ -1,3 +1,7 @@
+import {
+  resolveCapabilityRequester,
+  requireRequesterEffect,
+} from '../services/capabilityRequester.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { safetyOrganizationIdentities } from '../services/organization-directory.service';
 import {
@@ -166,7 +170,17 @@ async function serviceContext(req: ServiceAuthRequest, requireUser: boolean) {
   const live = await principal(req);
   const proof = safetyRequesterSchema.parse(req.body.requester);
   let user: string | null;
-  if ('connectionToken' in proof) {
+  if ('capabilityTicket' in proof) {
+    const resolved = await resolveCapabilityRequester(proof.capabilityTicket, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The original operation is no longer authorized',
+      );
+    requireRequesterEffect(resolved, req.path.startsWith('/service/purchases') ? 'write' : 'read');
+    user = resolved.subjectAccountId;
+  } else if ('connectionToken' in proof) {
     const resolved = await resolveLiveMcpAccessToken(proof.connectionToken, live.applicationId);
     if (!resolved)
       throw new supervision.SafetyError(

@@ -106,6 +106,13 @@ describe('supervised safety contracts', () => {
     expect(safetyRequesterSchema.safeParse({ connectionToken: 'verified-centrally' }).success).toBe(
       true,
     );
+    expect(safetyRequesterSchema.safeParse({ capabilityTicket: 'signed-operation' }).success).toBe(
+      true,
+    );
+    expect(
+      safetyRequesterSchema.safeParse({ capabilityTicket: 'signed-operation', accessToken: null })
+        .success,
+    ).toBe(false);
     expect(safetyRequesterSchema.safeParse({ viewerId: 'child' }).success).toBe(false);
     expect(safetyRequesterSchema.safeParse({ accessToken: null, viewerId: 'child' }).success).toBe(
       false,

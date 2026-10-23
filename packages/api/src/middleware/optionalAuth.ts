@@ -180,7 +180,11 @@ export async function optionalUserOrServiceAuth(
             res.status(401).json({ error: 'invalid_service_identity' });
             return;
           }
-          req.serviceRequester = await resolveServiceRequester(principal, req.headers);
+          req.serviceRequester = await resolveServiceRequester(
+            principal,
+            req.headers,
+            ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
+          );
         }
         // Valid service token → service principal. Do NOT also attempt user
         // session auth (a service token has no session).
