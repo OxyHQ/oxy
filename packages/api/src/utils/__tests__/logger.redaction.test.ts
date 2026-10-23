@@ -308,3 +308,27 @@ it('redacts the external MCP media header and nested connection proof', () => {
   expect(lines[0].raw).not.toContain(value);
   expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
 });
+
+it('redacts derived contexts and the presented caller service JWT at every transport boundary', () => {
+  const value = secret('forwarded-context');
+  const lines = capture(
+    () =>
+      logger.info('forwarded context probe', {
+        requesterContext: value,
+        presentedServiceToken: value,
+        req: {
+          headers: {
+            'x-oxy-requester-context': value,
+            'x-oxy-presented-requester-context': value,
+            'x-oxy-presented-service-token': value,
+          },
+          body: { requester: { requesterContext: value } },
+        },
+        requestId: CONTROL_VALUE,
+      }),
+    'forwarded context probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});

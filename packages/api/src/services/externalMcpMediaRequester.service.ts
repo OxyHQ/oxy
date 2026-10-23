@@ -45,9 +45,12 @@ export async function resolveExternalMcpMediaRequest(
     !token ||
     token.length > 16384 ||
     (toolName !== 'upload-media' && toolName !== 'upload-media-from-url') ||
-    ['x-oxy-requester-token', 'x-oxy-task-id', 'x-oxy-capability-ticket'].some(
-      (name) => req.headers[name] !== undefined,
-    )
+    [
+      'x-oxy-requester-token',
+      'x-oxy-task-id',
+      'x-oxy-capability-ticket',
+      'x-oxy-requester-context',
+    ].some((name) => req.headers[name] !== undefined)
   )
     throw deny();
   // This is deliberately not a generic requester proof. A token granting Mention

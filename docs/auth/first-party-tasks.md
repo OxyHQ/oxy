@@ -98,6 +98,35 @@ remain enforced by their operations. The bound SDK client snapshots its proof,
 strips conflicting caller headers and disables response cache, request coalescing
 and retries; the transport also rejects unrelated origins and redirects.
 
+## Ordinary service calls that continue through another product
+
+`createServiceClient({ requester: { accountId, taskId } })` or its live-session
+variant starts an ordinary own product call. The receiving shared middleware
+sends the original caller's signed service JWT and requester proof to Oxy. Oxy
+checks its exact recipient audience, identity, environment and the original
+requester before returning `req.serviceActingAs.requesterContext` on the own lane.
+A caller tuple or bare task ID is insufficient to mint this context.
+
+Use `oxy.withRequester({ requesterContext })`,
+`oxy.assets.withRequester({ requesterContext })`, or Safety's
+`{ requesterContext }` argument for the receiving product's downstream Oxy call.
+For another product hop use
+`createServiceClient({ requester: { accountId, requesterContext }, ... })`.
+The SDK carries the incoming service JWT and presented context in redacted
+headers to the verifier, never query parameters. The verifier derives a new
+context for the actual receiving workload. No product needs a tool catalogue
+just to call another own product API.
+
+Contexts last at most sixty seconds, are never stored, cached or used to create
+a session/task, and cannot select another account. Each hop retains the original
+requester, actor, task/session provenance and expiry. Every read verifies the
+live root/session and every workload in the bounded chain (at most eight
+identities); revoking an intermediate workload also invalidates the next call.
+Derivation never extends expiry. A new request after expiry starts from the
+original coordinator's current proof; a retained expired context is not a
+refresh credential. External keys, OAuth connections and tool permissions cannot
+be promoted into these own contexts.
+
 ## Files and external callers
 
 Own requester context removes inter-application consent for the same account.

@@ -68,6 +68,7 @@ export interface ServiceActingAsVerification {
   epoch?: string;
   authorized: boolean;
   scopes?: string[];
+  requesterContext?: string;
 }
 
 /** The SET `events` member Oxy uses for an account deletion. */
@@ -339,6 +340,8 @@ export interface OxyMiddlewareHost {
       ownerAccountId?: string;
       environment?: string;
       requesterToken?: string;
+      requesterContext?: string;
+      presentedServiceToken?: string;
       taskId?: string;
     },
   ): Promise<ServiceActingAsVerification | null>;
@@ -824,6 +827,10 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               credentialId: decoded.credentialId as string,
               ownerAccountId: decoded.ownerAccountId as string,
               environment: decoded.environment as string,
+              presentedServiceToken: decoded.authority === 'first_party' ? token : undefined,
+              requesterContext: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-context'])
+                ? req.headers['x-oxy-requester-context']
+                : undefined,
               taskId: isExactNonEmptyServiceClaim(req.headers['x-oxy-task-id'])
                 ? req.headers['x-oxy-task-id']
                 : undefined,
@@ -867,7 +874,11 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             req.user = { id: oxyUserId };
             req.serviceActingAs =
               grant.authority === 'first_party'
-                ? { userId: oxyUserId, authority: 'first_party' }
+                ? {
+                    userId: oxyUserId,
+                    authority: 'first_party',
+                    ...(grant.requesterContext ? { requesterContext: grant.requesterContext } : {}),
+                  }
                 : {
                     userId: oxyUserId,
                     ...(grant.authority === 'external' ? { authority: 'external' as const } : {}),
@@ -1860,7 +1871,7 @@ interface AuthReq {
   serviceApp?: ServiceApp;
   serviceActingAs?:
     | { userId: string; authority?: 'external'; scopes: string[] }
-    | { userId: string; authority: 'first_party'; scopes?: never };
+    | { userId: string; authority: 'first_party'; scopes?: never; requesterContext?: string };
   oxyActor?: AccountActorChain | null;
   oxyAuthRefusal?: OxyAuthRefusal;
   oxyAppPermissions?: OxyAppPermissions;
