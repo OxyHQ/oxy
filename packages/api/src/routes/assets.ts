@@ -3497,8 +3497,11 @@ router.post(
  *                           HLS geometry when the owned original is known H.264
  *                           MP4 with AAC audio. Mutually exclusive with
  *                           hlsReadyAt. Play the original URL; clear a persisted
- *                           readiness stamp only when it matches this timestamp
- *                           and the file identity still matches. Unknown source
+ *                           observed readiness stamp only when it is no newer
+ *                           than this timestamp, with file/row identity and
+ *                           observed-stamp equality guards against concurrent
+ *                           replacement. Older revision URLs resolve the current
+ *                           generation, not historical bytes. Unknown source
  *                           codecs or geometry do not produce a rejection.
  *                       ownerUserId:
  *                         type: [string, "null"]

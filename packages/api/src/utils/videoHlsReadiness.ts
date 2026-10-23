@@ -24,8 +24,9 @@ function dimensions(value: unknown): Dimensions | undefined {
 
 /**
  * A missing ladder and a rejected generation are different facts. Rejection
- * names the exact ready generation so a consumer can clear that stamp without
- * erasing a newer, concurrently published ladder. Storage and CDN URLs remain
+ * names the exact current generation so a consumer can clear an observed stamp
+ * no newer than it, with identity/stamp guards against concurrent replacement.
+ * A stale revision URL still resolves the current generation. Storage and CDN URLs remain
  * unchanged: an HLS URL must never redirect to progressive video bytes.
  */
 export function resolveVideoHlsReadiness(

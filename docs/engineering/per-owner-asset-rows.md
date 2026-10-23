@@ -233,8 +233,11 @@ compatible legacy geometry, and unknown original codecs or dimensions retain
 their existing readiness behavior. Original dimensions must come from source
 metadata, never from a rendition fallback.
 
-A consumer clears only the matching stored generation using file/row identity
-and readiness timestamp guards, then invalidates its hydrated post caches.
+A consumer clears an observed stored readiness stamp no newer than the rejected
+current generation, using file/row identity and equality with the observed
+stamp to guard the write, then invalidates its hydrated post caches. An older
+revision URL resolves the current generation, not historical bytes: retaining
+an older stamp would still select the rejected ladder.
 Missing responses and absent rejection fields never authorize clearing. A
 newer repaired generation must survive a delayed rejection response. Use the
 normal original URL directly (which supports byte ranges); do not redirect an

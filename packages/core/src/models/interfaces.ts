@@ -841,9 +841,12 @@ export interface ServiceAssetMetadata {
    * AAC audio. Mutually exclusive with hlsReadyAt. Play the original URL;
    * never send progressive bytes to an HLS decoder.
    *
-   * A persisted consumer may clear ONLY this file's matching readiness stamp
-   * (or leave an absent stamp absent), guarded against concurrent replacement.
-   * Do not clear a different/newer generation. Absence of this field is not a
+   * A persisted consumer may clear this file's observed readiness stamp when
+   * it is no newer than the rejected timestamp (or leave absence absent).
+   * Guard the write by file/row identity AND equality with the observed stamp;
+   * preserve newer generations and concurrent replacements. An older revision
+   * URL still resolves the current generation, not historical bytes.
+   * Absence of this field is not a
    * rejection: unknown codecs/geometry and compatible legacy ladders retain
    * their existing behavior. No variant storage details are disclosed.
    */

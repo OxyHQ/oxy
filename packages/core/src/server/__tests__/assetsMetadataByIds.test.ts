@@ -63,7 +63,7 @@ describe('OxyServer.assets.metadataByIds', () => {
     expect(entry.hlsReadyAt).toBe(readyAt);
   });
 
-  it('preserves the typed rejected generation for a consumer to clear only that stamp', async () => {
+  it('preserves the current rejected generation for guarded timestamp reconciliation', async () => {
     const rejected: ServiceAssetMetadata = {
       ...sampleEntry,
       mime: 'video/mp4',

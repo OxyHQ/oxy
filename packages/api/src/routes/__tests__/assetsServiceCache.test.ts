@@ -847,23 +847,23 @@ describe('POST /assets/service/by-ids', () => {
   it('rejects a malformed legacy generation without exposing storage or advertising HLS', async () => {
     grantFilesReadOnce();
     const readyAt = new Date('2026-10-01T12:34:56.789Z');
-    mockGetFilesByIds.mockResolvedValueOnce([
-      {
-        id: CACHE_FILE_ID,
-        sha256: 'c'.repeat(64),
-        mime: 'video/mp4',
-        size: 4242,
-        status: 'active',
-        metadata: {
-          media: { width: 1080, height: 1920 },
-          video: { codec: 'h264', audioCodec: 'aac' },
-        },
-        variants: [
-          { type: 'hls_master', key: 'secret/master', readyAt },
-          { type: 'hls_360p', key: 'secret/tier', width: 640, height: 360, readyAt },
-        ],
+    const file = {
+      id: CACHE_FILE_ID,
+      sha256: 'c'.repeat(64),
+      mime: 'video/mp4',
+      size: 4242,
+      status: 'active',
+      visibility: 'public',
+      metadata: {
+        media: { width: 1080, height: 1920 },
+        video: { codec: 'h264', audioCodec: 'aac' },
       },
-    ]);
+      variants: [
+        { type: 'hls_master', key: 'secret/master', readyAt },
+        { type: 'hls_360p', key: 'secret/tier', width: 640, height: 360, readyAt },
+      ],
+    };
+    mockGetFilesByIds.mockResolvedValueOnce([file]);
     const res = await postByIds([CACHE_FILE_ID]);
     expect(res.status).toBe(200);
     expect(res.body.data[0]).toMatchObject({
@@ -874,6 +874,21 @@ describe('POST /assets/service/by-ids', () => {
     expect(res.body.data[0]).not.toHaveProperty('variants');
     expect(res.body.data[0]).not.toHaveProperty('metadata');
     expect(JSON.stringify(res.body)).not.toContain('secret');
+
+    // A consumer's older T1 revision still resolves current rejected T2; it
+    // must be allowed to clear observed T1 <= T2 using a guarded write.
+    mockGetFile.mockResolvedValue(file);
+    const target = 'https://cloud.oxy.so/variants/current-malformed/hls_master.m3u8';
+    mockGetPublicCdnUrl.mockResolvedValue(target);
+    const stale = await requestRaw(
+      server,
+      'GET',
+      `/cdn/${file.id}?variant=hls_master&revision=2026-09-01T00%3A00%3A00.000Z`,
+      {},
+    );
+    expect(stale.status).toBe(302);
+    expect(stale.headers.location).toBe(target);
+    expect(stale.headers['cache-control']).toBe('no-store');
   });
 
   it('uses the metadata timestamp unchanged through the SDK and CDN revision contract', async () => {
