@@ -112,6 +112,10 @@ export function ApprovalRequest({
   const appName = application.name;
   const originHost = formatRequestOrigin(info.boundOrigin);
   const scopeLines = summarizeScopes(info.scopes);
+  const firstParty =
+    application.isOfficial ||
+    application.isInternal ||
+    ['first_party', 'internal', 'system'].includes(application.type);
   const subject = info.subjectAccount;
   // Anti-phishing: treat anything other than an explicit `true` as unverified
   // (false OR a missing field → warn). The reassuring "official Oxy app"
@@ -241,27 +245,29 @@ export function ApprovalRequest({
         </View>
       ) : null}
 
-      {/* WHAT THE APP RECEIVES — server-resolved scopes, nothing implied. */}
-      <View testID="approval-scopes" className="gap-2 px-5 pt-5">
-        <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
-          {t('signInApproval.approve.receivesTitle', { app: appName })}
-        </Text>
-        {scopeLines.length > 0 ? (
-          scopeLines.map((line) => (
-            <View key={line.scope} className="flex-row items-start gap-2">
+      {/* Permissions describe external connections, never an Oxy sign-in. */}
+      {!firstParty ? (
+        <View testID="approval-scopes" className="gap-2 px-5 pt-5">
+          <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
+            {t('signInApproval.approve.receivesTitle', { app: appName })}
+          </Text>
+          {scopeLines.length > 0 ? (
+            scopeLines.map((line) => (
+              <View key={line.scope} className="flex-row items-start gap-2">
+                <Icons.check size="sm" fill={colors.success} />
+                <Text style={[styles.scopeText, { color: colors.text }]}>{scopeText(line, t)}</Text>
+              </View>
+            ))
+          ) : (
+            <View className="flex-row items-start gap-2">
               <Icons.check size="sm" fill={colors.success} />
-              <Text style={[styles.scopeText, { color: colors.text }]}>{scopeText(line, t)}</Text>
+              <Text style={[styles.scopeText, { color: colors.text }]}>
+                {t('signInApproval.approve.receivesBasic')}
+              </Text>
             </View>
-          ))
-        ) : (
-          <View className="flex-row items-start gap-2">
-            <Icons.check size="sm" fill={colors.success} />
-            <Text style={[styles.scopeText, { color: colors.text }]}>
-              {t('signInApproval.approve.receivesBasic')}
-            </Text>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      ) : null}
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">

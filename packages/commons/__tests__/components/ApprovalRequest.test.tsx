@@ -63,17 +63,26 @@ describe('ApprovalRequest', () => {
     __resetOxyState();
   });
 
-  it('renders the request the SERVER resolved: app, origin, client and scopes', () => {
+  it('renders the own sign-in without a permissions list', () => {
     const { container } = renderRequest();
 
     expect(container.textContent).toContain('Sign in to Mention');
     expect(container.textContent).toContain('mention.earth');
     expect(container.textContent).toContain('Chrome on Windows');
     // Scope sentences come from the shared consent dictionary.
-    expect(container.textContent).toContain('Read your basic profile');
-    expect(container.textContent).toContain('Read your email address');
+    expect(container.textContent).not.toContain('Read your basic profile');
+    expect(container.textContent).not.toContain('Read your email address');
     // The logo is the server-resolved record's, not a payload-supplied URL.
     expect(container.querySelector('img')?.getAttribute('src')).toBe(APPLICATION.icon);
+  });
+
+  it('keeps the permissions list for an external OAuth request', () => {
+    const { getByTestId } = renderRequest({
+      application: { ...APPLICATION, type: 'third_party', isOfficial: false },
+      info: makeInfo({ purpose: 'oauth_authorization' }),
+    });
+    expect(getByTestId('approval-scopes').textContent).toContain('Read your basic profile');
+    expect(getByTestId('approval-scopes').textContent).toContain('Read your email address');
   });
 
   it('states who is asking, from where, and on what — in that order', () => {
@@ -237,14 +246,20 @@ describe('ApprovalRequest', () => {
   });
 
   it('states the baseline the app receives when the request carries no scopes', () => {
-    const { container } = renderRequest({ info: makeInfo({ scopes: [] }) });
+    const { container } = renderRequest({
+      application: { ...APPLICATION, type: 'third_party', isOfficial: false },
+      info: makeInfo({ scopes: [] }),
+    });
 
     expect(container.textContent).toContain('Mention will receive');
     expect(container.textContent).toContain('Your identity, name, and profile picture');
   });
 
   it('shows an unknown scope verbatim instead of dropping it', () => {
-    const { container } = renderRequest({ info: makeInfo({ scopes: ['ledger:write'] }) });
+    const { container } = renderRequest({
+      application: { ...APPLICATION, type: 'third_party', isOfficial: false },
+      info: makeInfo({ scopes: ['ledger:write'] }),
+    });
 
     expect(container.textContent).toContain('ledger:write');
   });
