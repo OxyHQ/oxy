@@ -1506,6 +1506,20 @@
       "when": 1792749137412,
       "tag": "0215_workload_environment_preflight",
       "breakpoints": true
+    },
+    {
+      "idx": 216,
+      "version": "7",
+      "when": 1792779879917,
+      "tag": "0216_first_party_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1792779956648,
+      "tag": "0217_validate_first_party_task_link",
+      "breakpoints": true
     }
   ]
 }
