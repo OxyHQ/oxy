@@ -3578,6 +3578,10 @@ const serviceTokenLimiter = rateLimit({
   // preserve 30 while rollout validates rolling overlap and retries.
   max: process.env.NODE_ENV === 'development' ? 100 : 30,
   keyGenerator: serviceTokenMintRateLimitKey,
+  // The key is public and is evaluated before authentication. Failed mints stay
+  // in the address abuse budget below, but cannot spend a credential's renewal
+  // capacity and starve replicas that possess its secret.
+  skipFailedRequests: true,
 });
 
 /**
