@@ -396,7 +396,7 @@ async function attestedTokenForApplication(input: {
         provider: 'aws-iam',
         subject: input.boundSubject ?? subject,
         description: `catalogue suite ${suffix()}`,
-        scopes: [],
+        environment: 'development',
         ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
       })
       .returning({ id: applicationWorkloadIdentities.id });
@@ -422,6 +422,7 @@ async function attestedTokenForApplication(input: {
       appId: application.id,
       ownerAccountId: account.id,
       credentialId: handle,
+      authority: 'first_party',
     }),
     handle,
     applicationId: application.id,
@@ -434,6 +435,7 @@ function signServiceToken(input: {
   ownerAccountId: string;
   credentialId?: string;
   forged?: boolean;
+  authority?: 'first_party' | 'external';
 }): string {
   const tokenIssuedAt = Math.floor(Date.now() / 1_000);
   const token = signServiceTokenEd25519({
@@ -442,8 +444,9 @@ function signServiceToken(input: {
     appName: 'Catalogue Fixture App',
     credentialId: input.credentialId ?? `cred-${suffix()}`,
     ownerAccountId: input.ownerAccountId,
-    environment: 'production',
-    scopes: ['inference:invoke'],
+    ...(input.authority === 'first_party'
+      ? { authority: 'first_party', tier: 'internal', environment: 'development' }
+      : { authority: 'external', environment: 'production', scopes: ['inference:invoke'] }),
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: tokenIssuedAt,

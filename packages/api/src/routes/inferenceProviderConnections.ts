@@ -22,10 +22,12 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  * inheriting `account:read`. Both narrowings are restorable per member through
  * `permission_grants`.
  *
- * A service token is authorised by `inference:providers:read` /
+ * An external service token is authorised by `inference:providers:read` /
  * `inference:providers:write` intersected with its application's own scopes at
  * mint time, and may only ever reach ITS OWN application's or owner account's
- * connections — and only to READ them. **There is no write lane for a service
+ * connections — and only to READ them. Own workloads use live registered
+ * identity without scopes and retain the same resource boundaries.
+ * **There is no write lane for a service
  * credential on this surface at all**; see {@link refuseServiceWrite} for the
  * escalation that closed it. `inference:providers:write` remains STAFF-GATED
  * (`PRIVILEGED_APPLICATION_SCOPES`) and still bounds what an application may be
@@ -35,9 +37,9 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  * and defines no third parsing path.
  *
  * `POST /:connectionId/validation` is a third, deliberately narrower case: only
- * a live trusted service principal holding BOTH `inference:byok:validate` and
- * the staff-controlled `kaana:provider-credential-validation` application
- * capability may report Kaana's verdict. It cannot create, rotate, disable,
+ * a live service principal with the registered
+ * `kaana:provider-credential-validation` role may report Kaana's verdict.
+ * External credentials additionally require `inference:byok:validate`. It cannot create, rotate, disable,
  * enable, reconcile or revoke a connection. An ordinary customer service token
  * remains inside the refusal above.
  *
@@ -436,9 +438,9 @@ async function authorizeConnection(
  *
  * This is intentionally not an arm of `authorizeConnection`: Kaana reports
  * across customer tenants, while every ordinary service read is owner/app
- * bounded and every ordinary service write is refused. The independent narrow
- * scope plus staff-controlled capability keep that authority from implying any
- * other provider-connection mutation.
+ * bounded and every ordinary service write is refused. The registered Kaana
+ * role and callback-specific operation keep this from authorizing any other
+ * provider-connection mutation. External credentials also retain their scope gate.
  */
 async function authorizeKaanaValidation(
   principal: ProviderPrincipal,
