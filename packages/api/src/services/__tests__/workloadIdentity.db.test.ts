@@ -36,6 +36,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { users } from '../../db/schema/users';
@@ -75,18 +76,32 @@ const stubVerifier: AttestationVerifier = {
   },
 };
 
-const createdApplicationIds: string[] = [];
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let fixtureDatabaseUrl: string | undefined;
+jest.setTimeout(60_000);
 
 beforeAll(async () => {
+  // The finite transition uses real inventoried application IDs. They may
+  // already have receipts or fixtures in the worker database, so this suite
+  // owns a separate database instead of deleting another suite's authority.
+  await closePostgres();
+  fixtureDatabaseUrl = await createTestDatabase();
+  process.env.DATABASE_URL = fixtureDatabaseUrl;
   await connectPostgres();
   registerAttestationVerifier(stubVerifier);
 });
 
 afterAll(async () => {
-  for (const id of createdApplicationIds) {
-    await getDb().delete(applications).where(eq(applications.id, id));
+  try {
+    await closePostgres();
+  } finally {
+    try {
+      if (fixtureDatabaseUrl) await dropTestDatabase(fixtureDatabaseUrl);
+    } finally {
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
   }
-  await closePostgres();
 });
 
 async function applicationFixture(overrides: Partial<typeof applications.$inferInsert> = {}) {
@@ -106,7 +121,6 @@ async function applicationFixture(overrides: Partial<typeof applications.$inferI
       name: applications.name,
       ownerAccountId: applications.ownerAccountId,
     });
-  createdApplicationIds.push(application.id);
   return application;
 }
 
