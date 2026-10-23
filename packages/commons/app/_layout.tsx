@@ -11,7 +11,6 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
@@ -228,69 +227,70 @@ export default function RootLayout() {
   // before fonts + the query cache were ready.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardProvider>
-        {/* OxyProvider does NOT wrap a BloomProvider — by design, to
-            avoid duplicate contexts when an app already ships its own (see
-            packages/services/src/ui/components/OxyProvider.tsx). The consumer
-            (this app) owns the BloomProvider.
+      {/* No KeyboardProvider here: OxyProvider mounts the one. A second one above it
+          took the native keyboard events, so every keyboard hook under OxyProvider read
+          a closed keyboard. */}
+      {/* OxyProvider does NOT wrap a BloomProvider — by design, to
+          avoid duplicate contexts when an app already ships its own (see
+          packages/services/src/ui/components/OxyProvider.tsx). The consumer
+          (this app) owns the BloomProvider.
 
-            No `persistKey`/`storage`: nothing in the app sets a theme, so a
-            persisted read could only ever return the default — and with both
-            set Bloom gates the whole tree on that async read. Add them together
-            with the first theme toggle (`useTheme().setMode`).
+          No `persistKey`/`storage`: nothing in the app sets a theme, so a
+          persisted read could only ever return the default — and with both
+          set Bloom gates the whole tree on that async read. Add them together
+          with the first theme toggle (`useTheme().setMode`).
 
-            `scrollAdapter` is what ARMS Bloom's automatic route scroll
-            restoration; without it the whole `@oxy.so/bloom/scroll` primitive is
-            inert, which is half of why this app had a hand-rolled ScrollProvider.
-            The adapter reference must stay stable, so it is the module-level
-            export, never an inline lambda. */}
-        <BloomProvider scrollAdapter={expoRouterScrollAdapter}>
-          {/* `sessionMode="identity"` — Commons IS the identity, so its session
-              is PINNED to the owner of this device's PRIMARY identity key for as
-              long as that key exists, not to whichever account the shared
-              `DeviceSession` is currently switched to. The SDK then:
-                - runs `identity-key-signin` at cold boot (getPublicKey →
-                  challenge → sign → verify) instead of the CROSS-APP
-                  shared-keychain lane, which may hold a different identity;
-                - binds every token mint / re-mint to the pinned account;
-                - never fetches the device account graph, rejects
-                  `switchToAccount` / `switchSession`, and keeps the account
-                  dialog inert — the vault has exactly one user, by construction.
-              This replaces the app-local boot auto-connect Commons used to run;
-              do NOT re-add an app-local session-restore path. */}
-          <ConnectionStatusToasts />
-          <OxyProvider
-            baseURL={API_URL}
-            clientId={OXY_CLIENT_ID}
-            sessionMode="identity"
-            backgroundSession
-            productAnalytics={productAnalytics}
-          >
-            {/* Bloom's ONE media chokepoint. It is mounted HERE, under
-                OxyProvider, and not as `BloomProvider`'s `imageResolver` prop,
-                because this app builds its services client from `baseURL`
-                inside the provider — there is no module-level singleton above
-                it to call. Every Bloom surface that takes a `source` (Avatar,
-                galleries, cards) now resolves a bare Oxy file id through
-                `assets.publicUrl`; nothing in the app builds a media URL of
-                its own. */}
-            <BloomImageResolver>
-              <LocaleProvider>
-                {/* Mounted exactly once, and the only Bloom outlet this app
-                    mounts. `SurfaceHost` and `ToastOutlet` are deliberately
-                    absent: OxyProvider already renders `SurfaceProvider` and
-                    `ToastOutlet` itself, and a second mount of either silently
-                    draws every surface and every toast twice. */}
-                <PortalProvider>
-                  <AppHead />
-                  <AppStackContent />
-                  <PortalOutlet />
-                </PortalProvider>
-              </LocaleProvider>
-            </BloomImageResolver>
-          </OxyProvider>
-        </BloomProvider>
-      </KeyboardProvider>
+          `scrollAdapter` is what ARMS Bloom's automatic route scroll
+          restoration; without it the whole `@oxy.so/bloom/scroll` primitive is
+          inert, which is half of why this app had a hand-rolled ScrollProvider.
+          The adapter reference must stay stable, so it is the module-level
+          export, never an inline lambda. */}
+      <BloomProvider scrollAdapter={expoRouterScrollAdapter}>
+        {/* `sessionMode="identity"` — Commons IS the identity, so its session
+            is PINNED to the owner of this device's PRIMARY identity key for as
+            long as that key exists, not to whichever account the shared
+            `DeviceSession` is currently switched to. The SDK then:
+              - runs `identity-key-signin` at cold boot (getPublicKey →
+                challenge → sign → verify) instead of the CROSS-APP
+                shared-keychain lane, which may hold a different identity;
+              - binds every token mint / re-mint to the pinned account;
+              - never fetches the device account graph, rejects
+                `switchToAccount` / `switchSession`, and keeps the account
+                dialog inert — the vault has exactly one user, by construction.
+            This replaces the app-local boot auto-connect Commons used to run;
+            do NOT re-add an app-local session-restore path. */}
+        <ConnectionStatusToasts />
+        <OxyProvider
+          baseURL={API_URL}
+          clientId={OXY_CLIENT_ID}
+          sessionMode="identity"
+          backgroundSession
+          productAnalytics={productAnalytics}
+        >
+          {/* Bloom's ONE media chokepoint. It is mounted HERE, under
+              OxyProvider, and not as `BloomProvider`'s `imageResolver` prop,
+              because this app builds its services client from `baseURL`
+              inside the provider — there is no module-level singleton above
+              it to call. Every Bloom surface that takes a `source` (Avatar,
+              galleries, cards) now resolves a bare Oxy file id through
+              `assets.publicUrl`; nothing in the app builds a media URL of
+              its own. */}
+          <BloomImageResolver>
+            <LocaleProvider>
+              {/* Mounted exactly once, and the only Bloom outlet this app
+                  mounts. `SurfaceHost` and `ToastOutlet` are deliberately
+                  absent: OxyProvider already renders `SurfaceProvider` and
+                  `ToastOutlet` itself, and a second mount of either silently
+                  draws every surface and every toast twice. */}
+              <PortalProvider>
+                <AppHead />
+                <AppStackContent />
+                <PortalOutlet />
+              </PortalProvider>
+            </LocaleProvider>
+          </BloomImageResolver>
+        </OxyProvider>
+      </BloomProvider>
     </GestureHandlerRootView>
   );
 }
