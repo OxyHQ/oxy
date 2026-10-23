@@ -91,12 +91,20 @@ beforeEach(() => {
   delete process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
   delete process.env.INBOX_INFERENCE_ROUTING_PROFILE_ID;
   mockOwnWorkloadIdentity.mockResolvedValue({
-    provider: 'aws-iam', subject: 'inbox-task', attestationId: 'wl_000000000000000000000001',
+    provider: 'aws-iam',
+    subject: 'inbox-task',
+    attestationId: 'wl_000000000000000000000001',
   });
   mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
-    applicationId: INBOX_APPLICATION_ID, provider: 'aws-iam', subject: 'inbox-task',
-    handle: 'wl_000000000000000000000001', ownerAccountId: 'account_1',
-    environment: 'production', environmentBound: true, scopes: [], capabilities: [],
+    applicationId: INBOX_APPLICATION_ID,
+    provider: 'aws-iam',
+    subject: 'inbox-task',
+    handle: 'wl_000000000000000000000001',
+    ownerAccountId: 'account_1',
+    environment: 'production',
+    environmentBound: true,
+    scopes: [],
+    capabilities: [],
   });
   mockExecuteInferenceRequest.mockResolvedValue({
     status: 'completed',
@@ -167,15 +175,22 @@ describe('Inbox point inference identity', () => {
     await executeInboxPointInference(input());
     expect(mockResolveCredentialAttribution).not.toHaveBeenCalled();
     const context = mockExecuteInferenceRequest.mock.calls[0][0];
-    expect(context.principal).toMatchObject({authority: 'first_party', credentialId: 'wl_000000000000000000000001'});
+    expect(context.principal).toMatchObject({
+      authority: 'first_party',
+      credentialId: 'wl_000000000000000000000001',
+    });
     expect(context.principal).not.toHaveProperty('scopes');
   });
 
   it('refuses an unbound deployment environment', async () => {
     mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
-      provider: 'aws-iam', subject: 'inbox-task', environmentBound: false,
+      provider: 'aws-iam',
+      subject: 'inbox-task',
+      environmentBound: false,
     });
-    await expect(executeInboxPointInference(input())).rejects.toMatchObject({code: 'INBOX_INFERENCE_UNAVAILABLE'});
+    await expect(executeInboxPointInference(input())).rejects.toMatchObject({
+      code: 'INBOX_INFERENCE_UNAVAILABLE',
+    });
     expect(mockExecuteInferenceRequest).not.toHaveBeenCalled();
   });
 
