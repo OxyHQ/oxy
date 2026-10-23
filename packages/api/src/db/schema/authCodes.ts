@@ -85,6 +85,8 @@ export const authCodes = pgTable(
      * VALUE here ("no scopes"), not an absence.
      */
     scopes: text().array().notNull().default([]),
+    /** Issuance lane; NULL legacy codes must restart, never infer trust at exchange. */
+    authority: text({ enum: ['first_party', 'external'] }),
     /** Threads the exchange onto the originating device. Not a row id. */
     deviceId: text(),
     /**
@@ -111,6 +113,7 @@ export const authCodes = pgTable(
     index('auth_codes_auth_method_id_idx')
       .on(t.authMethodId)
       .where(sql`${t.authMethodId} is not null`),
+    check('auth_codes_authority_check', sql`${t.authority} in ('first_party', 'external')`),
     unique('auth_codes_code_hash_key').on(t.codeHash),
     index('auth_codes_user_id_idx').on(t.userId),
     index('auth_codes_application_id_idx').on(t.applicationId),

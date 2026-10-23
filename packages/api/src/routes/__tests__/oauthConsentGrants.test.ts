@@ -511,78 +511,50 @@ describe('DELETE /auth/grants/:applicationId', () => {
  */
 const FOLLOW_APP_SCOPES = ['user:read', 'files:read', 'follows:read', 'follows:write'];
 
-describe('follow scopes are never auto-approved, for anybody', () => {
-  it('asks a TRUSTED app for consent, and names the scope that forced it', async () => {
-    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
+describe('scopes are only an external connection concern', () => {
+  it.each(['first_party', 'internal', 'system'] as const)(
+    '%s never asks or stores a grant',
+    async (type) => {
+      const { clientId, applicationId } = await client({ type, scopes: FOLLOW_APP_SCOPES });
+      const res = await send('GET', consentUrl(clientId, 'user:read follows:write'));
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ consentRequired: false, reason: 'trusted' });
+      await send('POST', '/auth/oauth/authorize', {
+        clientId,
+        redirectUri: REDIRECT,
+        scope: 'user:read follows:write',
+      });
+      expect(await storedGrant(authenticatedUser?._id ?? '', applicationId)).toBeUndefined();
+      expect(mockIssueAuthCode).toHaveBeenLastCalledWith(expect.objectContaining({ scopes: [] }));
+    },
+  );
 
-    const res = await send('GET', consentUrl(clientId, 'user:read follows:write'));
-
-    expect(res.status).toBe(200);
+  it('keeps explicit consent for an external application', async () => {
+    const { clientId } = await client({ scopes: FOLLOW_APP_SCOPES });
+    const res = await send('GET', consentUrl(clientId, 'follows:read'));
     expect(res.body.data).toEqual({
       consentRequired: true,
       reason: 'new',
-      userConsentScopes: ['follows:write'],
+      userConsentScopes: ['follows:read'],
     });
   });
 
-  it('still auto-approves that same trusted app for everything else', async () => {
-    // The bypass is narrowed, not removed: an app reading its own files should
-    // not start prompting because an unrelated scope family was added.
-    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
-
-    const res = await send('GET', consentUrl(clientId, 'user:read files:read'));
-
-    expect(res.body.data).toEqual({ consentRequired: false, reason: 'trusted' });
-  });
-
-  it('gives an official and a third-party app the SAME answer for the same scopes', async () => {
-    const official = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
-    const thirdParty = await client({ scopes: FOLLOW_APP_SCOPES });
-
-    const officialRes = await send('GET', consentUrl(official.clientId, 'follows:read'));
-    const thirdPartyRes = await send('GET', consentUrl(thirdParty.clientId, 'follows:read'));
-
-    expect(officialRes.body.data).toEqual(thirdPartyRes.body.data);
-    expect(officialRes.body.data.consentRequired).toBe(true);
-  });
-
-  it('lets the USER\u2019s grant do the authorizing, for a trusted app too', async () => {
-    // Once consented, the returning-user path applies as it does for anyone —
-    // the grant is what authorizes, which is the whole claim being made here.
-    const { clientId, applicationId } = await client({
-      isOfficial: true,
-      scopes: FOLLOW_APP_SCOPES,
-    });
+  it('keeps historical grant revocation reachable when application trust changes', async () => {
+    const own = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
+    const external = await client({ scopes: FOLLOW_APP_SCOPES });
     await getDb()
       .insert(appGrants)
-      .values({
-        userId: authenticatedUser?._id ?? '',
-        applicationId,
-        scopes: ['follows:read'],
-      });
-
-    const res = await send('GET', consentUrl(clientId, 'follows:read'));
-
-    expect(res.body.data).toEqual({ consentRequired: false, reason: 'granted' });
-  });
-
-  it('records a REVOCABLE grant when a trusted app is consented a follow scope', async () => {
-    // A trusted app normally records none, because it never prompted. Here it
-    // did prompt, and a permission the user granted but cannot find or withdraw
-    // would be worse than one they were never asked for.
-    const { clientId, applicationId } = await client({
-      isOfficial: true,
-      scopes: FOLLOW_APP_SCOPES,
-    });
-
-    await send('POST', '/auth/oauth/authorize', {
-      clientId,
-      redirectUri: REDIRECT,
-      scope: 'user:read follows:write',
-    });
-
-    const grant = await storedGrant(authenticatedUser?._id ?? '', applicationId);
-    expect(grant?.scopes).toEqual(['user:read', 'follows:write']);
+      .values(
+        [own, external].map(({ applicationId }) => ({
+          applicationId,
+          userId: authenticatedUser?._id ?? '',
+          scopes: ['follows:read'],
+        })),
+      );
+    const result = await send('GET', '/auth/grants');
+    expect(result.body.data.map((entry: { applicationId: string }) => entry.applicationId)).toEqual(
+      expect.arrayContaining([own.applicationId, external.applicationId]),
+    );
   });
 });
 
@@ -595,10 +567,10 @@ describe('follow scopes are never auto-approved, for anybody', () => {
  * tests assert against `resolveServiceActingAsGrant`, not storage alone.
  */
 describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
-  it('revokes an explicit FIRST-PARTY grant and writes a refusal marker', async () => {
+  it('revokes an explicit external grant and writes a refusal marker', async () => {
     const userId = authenticatedUser?._id ?? '';
     const { applicationId } = await client({
-      type: 'first_party',
+      type: 'third_party',
       scopes: ['user:read', 'acting-as:offline'],
     });
     await getDb()
@@ -630,7 +602,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
   it('revokes for the caller only, leaving another user of the same app acting', async () => {
     const userId = authenticatedUser?._id ?? '';
     const { applicationId } = await client({
-      type: 'first_party',
+      type: 'third_party',
       scopes: ['user:read', 'acting-as:offline'],
     });
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
@@ -653,7 +625,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
 
   it('is idempotent — revoking twice refreshes the marker rather than failing', async () => {
     const userId = authenticatedUser?._id ?? '';
-    const { applicationId } = await client({ type: 'first_party' });
+    const { applicationId } = await client({ type: 'third_party' });
 
     const first = await send('DELETE', `/auth/grants/${applicationId}`);
     const second = await send('DELETE', `/auth/grants/${applicationId}`);
@@ -700,7 +672,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     // IS reached, and the condition is the only thing stopping it running.
     const userId = authenticatedUser?._id ?? '';
     const { clientId, applicationId } = await client({
-      type: 'first_party',
+      type: 'third_party',
       scopes: ['user:read', 'follows:write'],
     });
     await send('DELETE', `/auth/grants/${applicationId}`);
@@ -757,7 +729,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     // saw a consent screen and approved — the explicit decision the clear needs.
     const userId = authenticatedUser?._id ?? '';
     const { clientId, applicationId } = await client({
-      type: 'first_party',
+      type: 'third_party',
       scopes: ['user:read', 'acting-as:offline'],
     });
     await send('DELETE', `/auth/grants/${applicationId}`);
@@ -778,7 +750,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
 
   it('does not clear ANOTHER user revocation of the same application', async () => {
     const { clientId, applicationId } = await client({
-      type: 'first_party',
+      type: 'third_party',
       scopes: ['user:read', 'acting-as:offline'],
     });
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });

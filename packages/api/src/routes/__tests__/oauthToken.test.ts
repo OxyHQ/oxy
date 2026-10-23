@@ -262,6 +262,7 @@ function grant(overrides: Record<string, unknown> = {}) {
   return {
     ok: true,
     code: {
+      authority: 'external',
       userId: defaultSubjectId,
       deviceId: null,
       operatedByUserId: null,
@@ -400,7 +401,12 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
       .insert(accountMembers)
       .values({ accountId: org, memberUserId: operator, role: 'admin', status: 'active' });
     mockExchangeAuthCode.mockResolvedValueOnce(
-      grant({ userId: org, deviceId: '  dev-shared  ', operatedByUserId: operator }),
+      grant({
+        authority: 'first_party',
+        userId: org,
+        deviceId: '  dev-shared  ',
+        operatedByUserId: operator,
+      }),
     );
 
     await requestForm(pkceParams({ client_id: clientId }));
@@ -410,6 +416,42 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
       expect.anything(),
       expect.objectContaining({ deviceId: 'dev-shared', operatedByUserId: operator }),
     );
+  });
+
+  it('keeps an external code isolated after its application becomes official', async () => {
+    const { clientId } = await client({}, OFFICIAL_APP);
+    mockExchangeAuthCode.mockResolvedValueOnce(
+      grant({ authority: 'external', deviceId: 'shared-device', scopes: ['user:read'] }),
+    );
+    const res = await requestForm(pkceParams({ client_id: clientId }));
+    expect(res.status).toBe(200);
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      defaultSubjectId,
+      expect.anything(),
+      expect.objectContaining({
+        stableDeviceKey: `oauth:${clientId}`,
+        application: expect.objectContaining({ scopes: ['user:read'] }),
+      }),
+    );
+    expect(res.body.deviceSecret).toBeUndefined();
+  });
+
+  it.each([null, undefined])(
+    'rejects a legacy code with missing authority (%s)',
+    async (authority) => {
+      mockExchangeAuthCode.mockResolvedValueOnce(grant({ authority }));
+      const res = await requestForm(pkceParams());
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_grant');
+      expect(mockCreateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a first-party code after its application loses own status', async () => {
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ authority: 'first_party' }));
+    const res = await requestForm(pkceParams());
+    expect(res.status).toBe(400);
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it('never serializes a protected user column into the token response', async () => {
@@ -713,6 +755,7 @@ describe('POST /auth/oauth/token — security properties', () => {
     // Only an application that actually joins the device mints one, so the
     // subject of this case has to be a trusted client.
     const { clientId } = await client({}, OFFICIAL_APP);
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ authority: 'first_party' }));
     mockFinalizeDeviceLogin.mockResolvedValueOnce({});
 
     const res = await requestForm(pkceParams({ client_id: clientId }));
@@ -801,6 +844,7 @@ describe('POST /auth/oauth/token — third-party isolation', () => {
     // The contrast case. Without it, "no deviceSecret" would pass just as well
     // against a route that stopped minting one for anybody.
     const { clientId } = await client({}, OFFICIAL_APP);
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ authority: 'first_party' }));
 
     const res = await requestForm(pkceParams({ client_id: clientId }));
 
@@ -813,6 +857,7 @@ describe('POST /auth/oauth/token — third-party isolation', () => {
     // An official app joins the SHARED device session, which belongs to no one
     // application — so it gets no `azp`, and the device lane keeps serving it.
     const { clientId } = await client({}, OFFICIAL_APP);
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ authority: 'first_party' }));
 
     await requestForm(pkceParams({ client_id: clientId }));
 

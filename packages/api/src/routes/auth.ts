@@ -879,6 +879,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
       oauthCodeChallenge: oauthContext ? oauthContext.codeChallenge : null,
       oauthCodeChallengeMethod: oauthContext ? oauthContext.codeChallengeMethod : null,
       oauthScopes: oauthContext ? oauthContext.scopes : null,
+      oauthAuthority: oauthContext ? (isTrustedApplication(resolvedApp) ? 'first_party' : 'external') : null,
       oauthSubjectAccountId: oauthContext?.subjectAccountId ?? null,
     })
     .onConflictDoNothing({ target: authSessions.sessionToken })
@@ -1693,10 +1694,10 @@ router.get(
       // What the app will ACTUALLY receive if this is approved. For an OAuth
       // request that is the requested set narrowed to the app's registered
       // scopes (an app can never receive more than it is registered for); a
-      // device sign-in has no per-request scope set, so it is the app's own.
+      // own Oxy device sign-in has no per-application permission set.
       const resolvedScopes = oauthContext
         ? resolveOAuthScopes(app, oauthContext.scopes, appScopes)
-        : appScopes;
+        : isTrustedApplication(app) ? [] : appScopes;
       if (resolvedScopes === null) throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
       scopes = resolvedScopes;
     }
@@ -2633,6 +2634,7 @@ router.post(
         ...(operator.operatedByUserId ? { operatedByUserId: operator.operatedByUserId } : {}),
         ...(operator.authMethod ? { authMethod: operator.authMethod } : {}),
         appId: app.id,
+        authority: isTrustedApplication(app) ? 'first_party' : 'external',
         redirectUri,
         codeChallenge,
         codeChallengeMethod: codeChallenge ? 'S256' : undefined,
@@ -2740,11 +2742,7 @@ router.get(
     // offers a permission the platform did not give this application.
     const grantableScopes = resolveOAuthScopes(app, requestedScopes, app.scopes);
     if (grantableScopes === null) throw new ApiError(400, 'Scopes must be explicit', 'invalid_scope');
-    // Scopes over the USER's own data — the follow graph — are never decided on
-    // the user's behalf. They are the one thing platform trust does not answer
-    // for: the relationships belong to the user, the people on the other end can
-    // see them, and being first-party is not a reason to be handed them without
-    // being asked. Everything else keeps the "Google with its own apps" model.
+    // Only external connections ask permission over the person's data.
     const mustAsk = userConsentRequiredScopes(grantableScopes);
 
     // Each arm builds a `const dto: OauthConsentDecision` and parses it on the
@@ -2755,8 +2753,8 @@ router.get(
     const decide = (dto: OauthConsentDecision) =>
       sendSuccess(res, oauthConsentDecisionSchema.parse(dto));
 
-    // Trusted apps are auto-approved for the rest, regardless of scope.
-    if (isTrustedApplication(app) && mustAsk.length === 0) {
+    // Own applications sign in without any OAuth permission grant.
+    if (isTrustedApplication(app)) {
       decide({ consentRequired: false, reason: 'trusted' });
       return;
     }
@@ -2861,7 +2859,8 @@ router.get(
     const data: ConnectedAppSummary[] = [];
     for (const grant of grants) {
       const app = appById.get(grant.applicationId);
-      // Skip grants whose application no longer exists — effectively revoked.
+      // Historical grants have no authority provenance. Keep their revocation
+      // reachable even if the application's current registry classification changes.
       if (!app) continue;
       data.push({
         applicationId: grant.applicationId,
@@ -3210,7 +3209,14 @@ router.post(
       if (!delegation.ok) throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
     }
 
-    const grantedScopes = Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
+    // Classification is bound at issuance. Registry changes cannot promote an
+    // external code, and legacy codes without provenance must start again.
+    if (exchange.code.authority !== 'first_party' && exchange.code.authority !== 'external') {
+      throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
+    }
+    const trusted = exchange.code.authority === 'first_party';
+    if (trusted && !isTrustedApplication(app)) throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
+    const grantedScopes = trusted ? [] : Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
 
     // A THIRD-PARTY exchange gets an ISOLATED session, not a share of the
     // device (issue #937, Phase 6). Three things follow from that one decision,
@@ -3230,11 +3236,8 @@ router.post(
     //      bearers for every other account on the device and change what every
     //      official Oxy app there is signed in as.
     //
-    // A TRUSTED application is an official Oxy app joining the shared device
-    // session, so it keeps all three unchanged. Trust is the registry's
-    // `isTrustedApplication`, never the hostname or the credential type.
-    const trusted = isTrustedApplication(app);
-
+    // Only an own application whose code was issued on the own lane may join
+    // the shared device. Current registry trust can revoke, never promote it.
     const session = await sessionService.createSession(
       userId,
       req,
