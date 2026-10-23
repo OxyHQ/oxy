@@ -26,23 +26,11 @@ import { lockLiveAgentKeyForAuthorization } from './agentKeyAuthority.service';
  *
  * ## The decision
  *
- * A grant is recorded when the application is NOT trusted (every third-party
- * authorization is a revocable "Connected apps" entry), or when the request
- * EXPLICITLY named a consent-required scope that the code actually carries
- * (`USER_CONSENT_REQUIRED_SCOPES`): a trusted application is auto-approved for
- * everything else, but those scopes always reach a consent screen, and a
- * permission a person granted but cannot find or withdraw is worse than one they
- * were never asked for. No grant is written for an ordinary first-party
- * sign-in — that path is authorized natively by trust, and a redundant grant
- * would only clutter the revocable surface.
- *
- * Only explicit, carried `acting-as:offline` clears its revocation. Empty
- * requests from third parties fail with `invalid_scope`. Trusted applications
- * may fall back to their registered ordinary scopes, excluding every
- * consent-required scope. Trust never supplies explicit user consent.
- *
- * All entries use {@link resolveOAuthScopes} before making this decision, so
- * the consent screen, finalizers and code share the same registered ceiling.
+ * OAuth scopes and standing grants belong to external applications only.
+ * A registered Oxy application joins the shared account session without scopes
+ * or a consent grant, even when an older client explicitly sends scopes.
+ * External applications must name scopes; their registered ceiling, consent,
+ * revocation and transactional code issuance remain unchanged.
  *
  * ## The transition
  *
@@ -63,11 +51,7 @@ import { lockLiveAgentKeyForAuthorization } from './agentKeyAuthority.service';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
-import {
-  intersectScopes,
-  isUserConsentRequiredScope,
-  userConsentRequiredScopes,
-} from '../utils/applicationScopes';
+import { intersectScopes, userConsentRequiredScopes } from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   issueAuthCode,
@@ -90,11 +74,9 @@ export function resolveOAuthScopes(
   requestedScopes: readonly string[],
   registeredScopes: readonly string[],
 ): string[] | null {
-  if (requestedScopes.length > 0) return intersectScopes(requestedScopes, registeredScopes);
-  if (!isTrustedApplication(application)) return null;
-  return intersectScopes(registeredScopes, registeredScopes).filter(
-    (scope) => !isUserConsentRequiredScope(scope),
-  );
+  if (isTrustedApplication(application)) return [];
+  if (requestedScopes.length === 0) return null;
+  return intersectScopes(requestedScopes, registeredScopes);
 }
 
 export interface OAuthConsentInput {
@@ -104,7 +86,7 @@ export interface OAuthConsentInput {
   /**
    * The scopes the CODE will carry — what the authorization actually grants:
    * the request narrowed to the application's registered scopes
-   * (`intersectScopes`), or the trusted ordinary fallback when none were named.
+   * (`intersectScopes`); empty for a first-party sign-in.
    */
   grantedScopes: readonly string[];
 }
@@ -130,10 +112,18 @@ function distinct(scopes: readonly string[]): string[] {
  * finalizers can be shown to agree on every input.
  */
 export function decideOAuthConsent(input: OAuthConsentInput): OAuthConsentDecision {
+  if (isTrustedApplication(input.application)) {
+    return {
+      recordGrant: false,
+      grantScopes: [],
+      consentedScopes: [],
+      clearsActingAsRevocation: false,
+    };
+  }
   const granted = new Set(input.grantedScopes);
   const explicitlyGranted = distinct(input.requestedScopes).filter((scope) => granted.has(scope));
   const consentedScopes = userConsentRequiredScopes(explicitlyGranted);
-  const recordGrant = !isTrustedApplication(input.application) || consentedScopes.length > 0;
+  const recordGrant = true;
   return {
     recordGrant,
     grantScopes: distinct(input.grantedScopes),
