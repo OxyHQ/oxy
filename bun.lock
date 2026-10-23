@@ -135,7 +135,7 @@
         "@aws-sdk/client-s3": "^3.1087.0",
         "@aws-sdk/lib-storage": "3.1076.0",
         "@aws-sdk/s3-request-presigner": "^3.1087.0",
-        "@kaana.ai/contracts": "7.0.0",
+        "@kaana.ai/contracts": "8.0.0",
         "@levischuck/tiny-cbor": "^0.3.6",
         "@lottiefiles/dotlottie-web": "0.80.0",
         "@opentelemetry/api": "^1.9.1",
@@ -1908,7 +1908,7 @@
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
-    "@kaana.ai/contracts": ["@kaana.ai/contracts@7.0.0", "", { "dependencies": { "zod": ">=4.4.3 <4.5.0" } }, "sha512-n0WXMmVm5TCj4AaQmrqha0HKlUBJsMK9AAPIJMGOIPVZWgEGzNHBAwh45H9PftlhB1G4FoDIuvRFwCCnefA9tQ=="],
+    "@kaana.ai/contracts": ["@kaana.ai/contracts@8.0.0", "", { "dependencies": { "zod": ">=4.4.3 <4.5.0" } }, "sha512-Qfl7N6WXd+hnHBAyL4C+CIVxDbeTGrylwI8gRA7QnDSCHd8R9IDQe+gxgXSkx/hNO4EbpRd4uelUbhyx2S3wHg=="],
 
     "@levischuck/tiny-cbor": ["@levischuck/tiny-cbor@0.3.6", "", {}, "sha512-uh1K62xhRZbEbnXEPUJ1WHd7uJTAKg65EX/7S/DDX3u2lexCvSjqrOOR3rb+5TDhCyGVHflu/HEtFjuEQ6y+qw=="],
 
