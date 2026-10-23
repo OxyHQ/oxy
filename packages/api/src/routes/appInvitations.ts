@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Invitation emails an application has Oxy send for it (`invitations:email`).
  *
@@ -30,7 +31,7 @@ const router = express.Router();
  * The service reads the application's live ceiling again; this is the token's.
  */
 function requireInvitationEmailScope(req: ServiceAuthRequest, res: Response, next: NextFunction) {
-  if (!req.serviceApp?.scopes.includes(APP_INVITATION_EMAIL_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, APP_INVITATION_EMAIL_SCOPE)) {
     return res.status(403).json({
       error: 'FORBIDDEN',
       message: `Missing required scope: ${APP_INVITATION_EMAIL_SCOPE}`,

@@ -491,6 +491,8 @@ export async function authenticateInferenceBearer(
     return { ok: false, reason: `service_principal_${resolution.status}` };
   }
   const resolved = resolution.principal;
+  // The inference envelope is upgraded with the Kaana contract before this lane is enabled.
+  if (resolved.scopes === undefined) return { ok: false, reason: 'first_party_inference_contract_required' };
 
   /**
    * An attested caller reaches the ledger from here, and `credentialId` is the

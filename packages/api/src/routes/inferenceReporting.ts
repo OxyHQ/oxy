@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * The customer-visible usage, spend and budget surface (issue #972, workstream 8).
  *
@@ -288,7 +289,7 @@ async function authorizeApplication(
   permission: ApplicationPermission,
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes('inference:usage:read')) {
+    if (!hasServiceAuthority(principal.service, 'inference:usage:read')) {
       throw new ForbiddenError('This credential does not carry the inference:usage:read scope');
     }
     // A service token reaches only its OWN application. Without this, any

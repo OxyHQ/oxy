@@ -1,3 +1,4 @@
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 /**
  * Optional Authentication Middleware
@@ -169,6 +170,13 @@ export async function optionalUserOrServiceAuth(
     if (token) {
       const verification = verifyServiceToken(token);
       if (verification.ok) {
+        if (
+          verification.payload.authority === 'first_party' &&
+          !(await resolveLiveAgencyServicePrincipal(verification.payload))
+        ) {
+          res.status(401).json({ error: 'invalid_service_identity' });
+          return;
+        }
         // Valid service token → service principal. Do NOT also attempt user
         // session auth (a service token has no session).
         req.serviceApp = verification.payload;
@@ -263,7 +271,10 @@ export function resolveViewerId(req: OptionalUserOrServiceRequest): string | und
     return undefined;
   }
 
-  if (!serviceApp.scopes.includes(VIEWER_DELEGATION_SCOPE)) {
+  if (
+    serviceApp.authority === 'first_party' ||
+    !serviceApp.scopes?.includes(VIEWER_DELEGATION_SCOPE)
+  ) {
     logger.debug('resolveViewerId: service lacks viewer-delegation scope', {
       appId: serviceApp.appId,
     });
