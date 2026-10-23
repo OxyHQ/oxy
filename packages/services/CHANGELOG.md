@@ -1,5 +1,12 @@
 # Changelog
 
+## 13.0.0
+
+### Breaking
+
+- Own application sign-in and account use no longer expose internal app scope or consent controls. External OAuth connections retain consent and scoped access.
+- Require core 7 and contracts 6 for the shared authority contract.
+
 ## [12.14.0] - 2026-10-23
 
 Needs `@oxy.so/core` 6.16.0.
