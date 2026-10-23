@@ -793,6 +793,16 @@ export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
  */
 export type AssetStatus = AssetLiveStatus | 'lost';
 
+export interface AssetPublicUrlOptions {
+  /**
+   * The requested rendition's authoritative ready timestamp (for HLS,
+   * ServiceAssetMetadata.hlsReadyAt). Identifies a completed generation across
+   * browser and CDN caches. Never supply the current time or a random value.
+   * Requires a variant and the public CDN form (no expiresIn).
+   */
+  revision?: string;
+}
+
 export interface ServiceAssetMetadata {
   id: string;
   sha256: string;
@@ -819,6 +829,9 @@ export interface ServiceAssetMetadata {
    * this field hands the player a URL that 403s until the ladder exists, and
    * the player pays a failed request before falling back — once per video, per
    * play. Treat absence as "no adaptive stream, play the progressive original".
+   * Pass a present value to `assets.publicUrl(id, 'hls_master', undefined,
+   * { revision: hlsReadyAt })`: regeneration changes this timestamp, so a
+   * browser cannot reuse a previous generation's resolver redirect.
    */
   hlsReadyAt?: string;
   /**

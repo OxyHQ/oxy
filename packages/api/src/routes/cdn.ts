@@ -25,6 +25,7 @@ import { CDN_REDIRECT_CACHE_CONTROL, isServableStatus } from '../config/cdn';
 import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
 import { singleQueryValue } from '../utils/queryString';
+import { isRenditionRevision, readyVariantRevision } from '../utils/assetRenditionRevision';
 
 const router = express.Router();
 
@@ -49,6 +50,14 @@ const router = express.Router();
  *         required: false
  *         schema: { type: string }
  *         description: Optional variant (e.g. `thumb`, `w320`); omitted = original.
+ *       - in: query
+ *         name: revision
+ *         required: false
+ *         schema: { type: string, format: date-time }
+ *         description: >
+ *           Canonical UTC ready timestamp for the requested variant. HLS uses
+ *           service metadata hlsReadyAt. A stale revision resolves the current
+ *           public rendition without caching; malformed revisions return 400.
  *     responses:
  *       302:
  *         description: Redirect to the public cloud.oxy.so CDN URL.
@@ -61,6 +70,13 @@ router.get(
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const { id: fileId } = req.params;
     const variant = singleQueryValue(req.query.variant);
+    const revision = req.query.revision;
+    if (revision !== undefined && (!variant || !isRenditionRevision(revision))) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res
+        .status(400)
+        .json({ error: 'INVALID_REVISION', message: 'Invalid rendition revision' });
+    }
 
     const file = await assetService.getFile(fileId);
     if (!file) {
@@ -92,7 +108,12 @@ router.get(
     }
 
     // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
-    res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+    // Older post snapshots still play the current rendition, but an obsolete
+    // timestamp must never cache today's target as that earlier generation.
+    const matchesRevision =
+      revision === undefined ||
+      (variant !== undefined && readyVariantRevision(file, variant) === revision);
+    res.setHeader('Cache-Control', matchesRevision ? CDN_REDIRECT_CACHE_CONTROL : 'no-store');
     return sendAssetRedirect(res, cdnUrl);
   }),
 );

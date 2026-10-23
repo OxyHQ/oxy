@@ -25,6 +25,7 @@ import type {
   AssetDeleteSummary,
   AssetLink,
   AssetMetadata,
+  AssetPublicUrlOptions,
   AssetUploadInput,
   BatchFileAccessResponse,
   FileApplicationAccess,
@@ -856,11 +857,35 @@ export class AssetsApi {
    * attributes, network panels, caches and logs). With `expiresIn` it builds
    * the API-origin stream form, still credential-less: there is no synchronous
    * private-asset path.
+   *
+   * Pass `options.revision` from the rendition's ready timestamp (HLS:
+   * `hlsReadyAt`) so a repaired generation has its own browser/cache identity.
+   * This option is only available on public CDN variant URLs.
    */
-  publicUrl(fileId: string, variant?: string, expiresIn?: number): string {
+  publicUrl(
+    fileId: string,
+    variant?: string,
+    expiresIn?: number,
+    options?: AssetPublicUrlOptions,
+  ): string {
+    let revision: string | undefined;
+    if (options?.revision !== undefined) {
+      if (!variant || expiresIn) {
+        throw new TypeError('A rendition revision requires a public CDN variant URL');
+      }
+      const timestamp = new Date(options.revision);
+      if (!Number.isFinite(timestamp.getTime())) {
+        throw new TypeError('A rendition revision must be its ready timestamp');
+      }
+      revision = timestamp.toISOString();
+      if (revision.length !== 24) {
+        throw new TypeError('A rendition revision must use a four-digit UTC year');
+      }
+    }
     if (!expiresIn) {
       const variantQs = variant ? `?variant=${encodeURIComponent(variant)}` : '';
-      return `${this.ctx.oxy.cloudURL}/${enc(fileId)}${variantQs}`;
+      const revisionQs = revision ? `&revision=${encodeURIComponent(revision)}` : '';
+      return `${this.ctx.oxy.cloudURL}/${enc(fileId)}${variantQs}${revisionQs}`;
     }
     const params = new URLSearchParams();
     if (variant) params.set('variant', variant);

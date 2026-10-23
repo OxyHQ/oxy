@@ -110,6 +110,85 @@ beforeEach(() => {
 });
 
 describe('GET /cdn/:id — public CDN origin resolver', () => {
+  describe('rendition revisions', () => {
+    const readyAt = new Date('2026-10-23T10:14:15.123Z');
+    const path = (revision: string) =>
+      `/cdn/${PUBLIC_FILE_ID}?variant=hls_master&revision=${encodeURIComponent(revision)}`;
+
+    beforeEach(() => {
+      mockGetFile.mockResolvedValue({
+        id: PUBLIC_FILE_ID,
+        status: 'active',
+        visibility: 'public',
+        variants: [{ type: 'hls_master', readyAt }],
+      });
+      mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
+    });
+
+    it('caches the canonical ready generation with the existing visibility window', async () => {
+      const res = await requestNoFollow(server, path(readyAt.toISOString()));
+      expect(res.status).toBe(302);
+      expect(res.cacheControl).toBe('public, max-age=3600, stale-while-revalidate=86400');
+      expect(res.location).toBe(THUMB_CDN_URL);
+      expect(res.body).toBe('');
+    });
+
+    it('serves the current target without caching an obsolete revision', async () => {
+      const res = await requestNoFollow(server, path('2026-10-22T10:14:15.123Z'));
+      expect(res.status).toBe(302);
+      expect(res.location).toBe(THUMB_CDN_URL);
+      expect(res.cacheControl).toBe('no-store');
+    });
+
+    it('does not cache a revision when the requested variant was not ready', async () => {
+      mockGetFile.mockResolvedValue({
+        id: PUBLIC_FILE_ID,
+        status: 'active',
+        visibility: 'public',
+        variants: [{ type: 'hls_master' }],
+      });
+      const res = await requestNoFollow(server, path(readyAt.toISOString()));
+      expect(res.status).toBe(302);
+      expect(res.cacheControl).toBe('no-store');
+    });
+
+    it.each(['', 'random', '2026-02-30T10:14:15.123Z', '2026-10-23T10:14:15Z', 'x'.repeat(256)])(
+      'rejects malformed revision %s without probing the asset',
+      async (revision) => {
+        const res = await requestNoFollow(server, path(revision));
+        expect(res.status).toBe(400);
+        expect(res.cacheControl).toBe('no-store');
+        expect(mockGetFile).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects repeated revisions and revisions without a variant', async () => {
+      for (const requestPath of [
+        `${path(readyAt.toISOString())}&revision=${encodeURIComponent(readyAt.toISOString())}`,
+        `/cdn/${PUBLIC_FILE_ID}?revision=${encodeURIComponent(readyAt.toISOString())}`,
+      ]) {
+        const res = await requestNoFollow(server, requestPath);
+        expect(res.status).toBe(400);
+        expect(res.cacheControl).toBe('no-store');
+      }
+      expect(mockGetFile).not.toHaveBeenCalled();
+    });
+
+    it('does not make a private file reachable through a valid revision', async () => {
+      mockGetFile.mockResolvedValue({
+        id: PRIVATE_FILE_ID,
+        status: 'active',
+        visibility: 'private',
+        variants: [{ type: 'hls_master', readyAt }],
+      });
+      mockGetPublicCdnUrl.mockResolvedValue(null);
+      const res = await requestNoFollow(server, path(readyAt.toISOString()));
+      expect(res.status).toBe(404);
+      expect(res.location).toBeUndefined();
+      expect(res.cacheControl ?? '').not.toContain('public');
+    });
+  });
+
   it('carries no body and declares that ranges do not apply', async () => {
     // The redirect is cached at the edge for an hour, and CloudFront answered
     // RANGED requests out of that cached redirect BODY:
