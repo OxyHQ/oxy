@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/core",
   "version": "6.15.1",
-  "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
+  "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -24,6 +24,9 @@
       ],
       "civic": [
         "dist/types/civic/index.d.ts"
+      ],
+      "server/aws": [
+        "dist/types/aws/index.d.ts"
       ]
     }
   },
@@ -119,7 +122,17 @@
       },
       "default": "./dist/esm/civic/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./server/aws": {
+      "import": {
+        "types": "./dist/types/aws/index.d.ts",
+        "default": "./dist/esm/aws/index.js"
+      },
+      "require": {
+        "types": "./dist/types/aws/index.d.ts",
+        "default": "./dist/cjs/aws/index.js"
+      }
+    }
   },
   "files": [
     "NOTICE",
@@ -181,7 +194,8 @@
     "@react-native-async-storage/async-storage": "<3.0.0",
     "expo-crypto": "<59.0.0",
     "expo-secure-store": "<59.0.0",
-    "express": "^4.0.0"
+    "express": "^4.0.0",
+    "@aws-sdk/credential-provider-node": ">=3.972.83 <4"
   },
   "peerDependenciesMeta": {
     "@react-native-async-storage/async-storage": {
@@ -194,6 +208,9 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "@aws-sdk/credential-provider-node": {
       "optional": true
     }
   },
@@ -210,6 +227,7 @@
     "regexpu-core": "^6.4.0",
     "typescript": "^5.9.2",
     "helmet": "catalog:",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "@aws-sdk/credential-provider-node": "catalog:"
   }
 }

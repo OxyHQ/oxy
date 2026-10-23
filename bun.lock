@@ -505,6 +505,7 @@
         "zod": "^3.25.64",
       },
       "devDependencies": {
+        "@aws-sdk/credential-provider-node": "catalog:",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@types/express": "catalog:",
         "@types/invariant": "^2.2.34",
@@ -520,12 +521,14 @@
         "typescript": "^5.9.2",
       },
       "peerDependencies": {
+        "@aws-sdk/credential-provider-node": ">=3.972.83 <4",
         "@react-native-async-storage/async-storage": "<3.0.0",
         "expo-crypto": "<59.0.0",
         "expo-secure-store": "<59.0.0",
         "express": "^4.0.0",
       },
       "optionalPeers": [
+        "@aws-sdk/credential-provider-node",
         "@react-native-async-storage/async-storage",
         "expo-crypto",
         "expo-secure-store",
@@ -1014,6 +1017,7 @@
   },
   "catalog": {
     "@alia.onl/sdk": "^21.5.0",
+    "@aws-sdk/credential-provider-node": "3.972.83",
     "@expo/app-integrity": "~58.0.2",
     "@expo/router-server": "58.0.14",
     "@hugeicons/core-free-icons": "^3.3.0",

@@ -318,3 +318,6 @@ export {
 } from './serviceTokenLifetime';
 export { signInAgentAccount } from './agentAccount';
 export type { AgentAccountSigner } from './agentAccount';
+
+export type { ServiceClientOptions, ServiceHttpClient } from './OxyServer';
+export type { WorkloadCredentials, WorkloadCredentialProvider } from './workloadIdentity';
