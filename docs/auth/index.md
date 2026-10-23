@@ -9,6 +9,14 @@ written before the thing they planned existed. Some promised sign-in-once
 behaviour while others documented, correctly, that a new origin starts signed
 out. This page exists so there is one place that is answerable for being right.
 
+## Own products and external connections
+
+[First-party platform access](./first-party-platform-access.md) is the canonical
+integration rule: own Oxy apps do not request scopes, consent or per-app agent
+access levels. External account connections remain OAuth-scoped and revocable.
+[ADR 0049](../adr/0049-first-party-platform-authority.md) and its migration
+tracker distinguish the accepted contract from deployed behavior.
+
 ## The model in five nouns
 
 An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)); an account without a key has no identity root and signs in by email ([ADR 0030](../adr/0030-email-code-password-authenticator.md)).
