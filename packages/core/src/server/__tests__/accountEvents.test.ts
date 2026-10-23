@@ -213,7 +213,7 @@ describe('listAccountEvents', () => {
     await expect(oxy.accountEvents.list({ after: 'cursor-1', limit: 50 })).resolves.toEqual(page);
     expect(request).toHaveBeenCalledWith(
       'GET',
-      '/account-events',
+      'https://api.oxy.test/account-events',
       { after: 'cursor-1', limit: '50' },
       expect.objectContaining({ cache: false, headers: { Authorization: 'Bearer service-token' } }),
     );
