@@ -30,6 +30,19 @@ import {
   OXY_PROFILE_REGISTRAR_APPLICATION_ID,
 } from '../seedOxyApplicationsSpecs';
 
+/** Snapshot of the historical pilot; new workload provisioning rejects scopes. */
+async function legacyBindingFixture(input: Parameters<typeof bindWorkloadIdentity>[0]) {
+  const { scopes, ...identity } = input;
+  const result = await bindWorkloadIdentity({ ...identity, environment: 'production' });
+  if (scopes !== undefined) {
+    await getDb()
+      .update(applicationWorkloadIdentities)
+      .set({ scopes })
+      .where(eq(applicationWorkloadIdentities.id, result.binding.id));
+  }
+  return result;
+}
+
 const originalDatabaseUrl = process.env.DATABASE_URL;
 let ownDatabaseUrl: string | undefined;
 jest.setTimeout(60_000);
@@ -190,7 +203,7 @@ it('applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
     // Exercise the real attribution writer's production namespace on this owned fixture DB.
     process.env.NODE_ENV = 'production';
     for (const subject of [MENTION_BACKEND_ROLE, MENTION_MCP_ROLE]) {
-      await bindWorkloadIdentity({
+      await legacyBindingFixture({
         applicationId: MENTION_APPLICATION_ID,
         provider: 'aws-iam',
         subject,
@@ -559,7 +572,7 @@ async function baselineFixture(
   try {
     process.env.NODE_ENV = 'production';
     for (const subject of [MENTION_BACKEND_ROLE, MENTION_MCP_ROLE])
-      await bindWorkloadIdentity({
+      await legacyBindingFixture({
         applicationId: MENTION_APPLICATION_ID,
         provider: 'aws-iam',
         subject,

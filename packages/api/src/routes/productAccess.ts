@@ -77,7 +77,7 @@ router.get(
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }),
 );
-/** No impersonation header: the exact path subject must hold live offline consent. */
+/** Exact beneficiary context: own requester proof or external live offline consent. */
 router.get(
   '/:productId/access/:subjectAccountId/service-grants',
   serviceAuthMiddleware,

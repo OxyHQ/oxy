@@ -57,32 +57,14 @@ export function deploymentCredentialEnvironment(): ApplicationCredentialEnvironm
 }
 
 /**
- * The environment an ATTESTED service token is minted into, and re-read with.
+ * Historical v1 workload token environment and inert attribution-row default.
  *
- * A credential carries an environment because a human chose one when they
- * issued it. An attestation carries none — a workload proves what it IS, never
- * which environment it means — so the only honest answer is where this API is
- * running, and taking it from the request would let a caller mint itself a
- * production token from staging.
- *
- * ## Why this is not {@link deploymentCredentialEnvironment}
- *
- * That function answers a different question: which environment a presented
- * CREDENTIAL must declare to authenticate here, and it honours
- * `OXY_CREDENTIAL_ENVIRONMENT` so a staging deployment can accept `staging`
- * keys. There are no `staging` workload tokens to accept: `exchangeWorkloadAttestation`
- * has always written one of two values, and widening that here would change
- * what a minted token says. The two rules are kept apart deliberately rather
- * than merged into one that is right for neither.
- *
- * It lives beside that rule, with the same read-per-call discipline, because it
- * has TWO readers that must agree exactly: the mint
- * (`services/workloadIdentity.service.ts`), which decides what an attested
- * token carries, and `resolveServiceTokenPrincipal`
- * (`services/attribution.service.ts`), which decides what environment an
- * attested request is metered and charged in. Two copies would agree the day
- * they were written; the drift would be a receipt filed under an environment
- * the token never named.
+ * The finite legacy protocol used only production/development. Its readers must
+ * continue agreeing while the inventoried cohort migrates. This helper does not
+ * authorize a first-party workload: v2 mint and live verification use the
+ * administratively provisioned binding.environment and compare it with
+ * deploymentCredentialEnvironment(), including explicitly bound staging.
+ * Callers cannot select the binding environment through an attestation request.
  */
 export function workloadTokenEnvironment(): ApplicationCredentialEnvironment {
   return isProduction() ? 'production' : 'development';

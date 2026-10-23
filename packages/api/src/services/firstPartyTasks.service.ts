@@ -36,7 +36,7 @@ export async function createFirstPartyTask(
     throw new ForbiddenError('Assistant identity does not match.');
   if (input.actor.type === 'agent') {
     const [actor] = await getDb()
-      .select()
+      .select({ kind: users.kind, accountStatus: users.accountStatus })
       .from(users)
       .where(eq(users.id, input.actor.accountId))
       .limit(1);

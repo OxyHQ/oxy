@@ -109,12 +109,12 @@ describe('the accepted shape', () => {
 
   it('rejects non-string entries in scopes rather than weakening authority', () => {
     const result = verifyServiceToken(signToken({ scopes: ['user:read', 7, null, {}] }));
-    expect(result).toEqual({ ok: false, reason: 'not_service' });
+    expect(result).toEqual({ ok: false, reason: 'invalid' });
   });
 
   it('rejects a non-array scope claim', () => {
     const result = verifyServiceToken(signToken({ scopes: 'user:read' }));
-    expect(result).toEqual({ ok: false, reason: 'not_service' });
+    expect(result).toEqual({ ok: false, reason: 'invalid' });
   });
 });
 
