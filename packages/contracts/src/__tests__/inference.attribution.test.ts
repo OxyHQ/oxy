@@ -113,7 +113,13 @@ it('separates own-service authority from historical and external scope lists', (
   const { inferenceScopes: _scopes, ...withoutScopes } = internal;
   expect(authenticatedPrincipalSchema.parse(withoutScopes)).toEqual(withoutScopes);
   expect(authenticatedPrincipalSchema.safeParse(internal).success).toBe(false);
-  expect(authenticatedPrincipalSchema.safeParse({ ...withoutScopes, inferenceScopes: [] }).success).toBe(false);
-  expect(authenticatedPrincipalSchema.safeParse({ ...withoutScopes, authority: 'external' }).success).toBe(false);
-  expect(authenticatedPrincipalSchema.safeParse({ ...principal, authority: 'external' }).success).toBe(true);
+  expect(
+    authenticatedPrincipalSchema.safeParse({ ...withoutScopes, inferenceScopes: [] }).success,
+  ).toBe(false);
+  expect(
+    authenticatedPrincipalSchema.safeParse({ ...withoutScopes, authority: 'external' }).success,
+  ).toBe(false);
+  expect(
+    authenticatedPrincipalSchema.safeParse({ ...principal, authority: 'external' }).success,
+  ).toBe(true);
 });
