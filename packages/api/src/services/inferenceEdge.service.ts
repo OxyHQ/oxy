@@ -362,26 +362,32 @@ const REASONING_EFFORT_ORDER = ['low', 'medium', 'high'] as const;
 /*  Authentication                                                            */
 /* -------------------------------------------------------------------------- */
 
-/**
- * A caller the edge has authenticated, in the ONE shape both lanes produce.
- *
- * `scopes` is current database authority, never an unverified token claim. For
- * machine/service callers it is `credential ∩ application`. For the private
- * product-session lane, the human session is the authorization and scopes are
- * the pinned application's current grants; its exact credential is a revocable
- * attribution anchor only.
- */
-export interface EdgePrincipal {
-  readonly lane: 'machine_credential' | 'service_token' | 'product_session';
+/** Live authenticated identity. Only external integrations carry delegated scopes. */
+interface EdgePrincipalIdentity {
   readonly applicationId: string;
   readonly credentialId: string;
-  /** `applications.owner_account_id` — the billing principal (ADR 0007). */
   readonly ownerAccountId: string;
   readonly environment: InferenceEnvironment;
-  readonly scopes: readonly ApplicationScope[];
-  /** What the catalogue audience is derived from. Never customer-facing. */
   readonly applicationType: string | null;
   readonly applicationIsInternal: boolean | null;
+}
+
+export type EdgePrincipal = EdgePrincipalIdentity & (
+  | {
+      readonly authority: 'first_party';
+      readonly lane: 'service_token' | 'product_session';
+      readonly scopes?: never;
+    }
+  | {
+      readonly authority?: 'external';
+      readonly lane: 'machine_credential' | 'service_token' | 'product_session';
+      readonly scopes: readonly ApplicationScope[];
+    }
+);
+
+/** Scope checks apply to external integrations, never authenticated own workloads. */
+export function hasInferenceScope(principal: EdgePrincipal, scope: ApplicationScope): boolean {
+  return principal.authority === 'first_party' || principal.scopes.includes(scope);
 }
 
 export type EdgeAuthentication =
@@ -457,6 +463,7 @@ export async function authenticateInferenceBearer(
       machinePrincipal: machine.principal,
       principal: {
         lane: 'machine_credential',
+        authority: 'external',
         applicationId: machine.principal.applicationId,
         credentialId: machine.principal.credentialId,
         ownerAccountId: machine.principal.ownerAccountId,
@@ -491,8 +498,14 @@ export async function authenticateInferenceBearer(
     return { ok: false, reason: `service_principal_${resolution.status}` };
   }
   const resolved = resolution.principal;
-  // The inference envelope is upgraded with the Kaana contract before this lane is enabled.
-  if (resolved.scopes === undefined) return { ok: false, reason: 'first_party_inference_contract_required' };
+  const authority = resolved.authority === 'first_party'
+    ? { authority: 'first_party' as const }
+    : resolved.scopes === undefined
+      ? null
+      : { authority: 'external' as const, scopes: resolved.scopes };
+  if (authority === null) {
+    return { ok: false, reason: 'service_principal_invalid_external_authority' };
+  }
 
   /**
    * An attested caller reaches the ledger from here, and `credentialId` is the
@@ -527,7 +540,7 @@ export async function authenticateInferenceBearer(
       credentialId: resolved.credentialId,
       ownerAccountId: resolved.ownerAccountId,
       environment: resolved.environment,
-      scopes: resolved.scopes,
+      ...authority,
       applicationType: application?.type ?? null,
       applicationIsInternal: application?.isInternal ?? null,
     },
@@ -946,9 +959,9 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
 
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
 
-  // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
-  //    is why it is checked before anything is resolved or reserved.
-  if (!principal.scopes.includes('inference:invoke')) {
+  // External integrations need an invoke grant before any spend is reserved.
+  // First-party workloads were authorized by their live registry binding.
+  if (!hasInferenceScope(principal, 'inference:invoke')) {
     return refuse(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.'
@@ -3595,7 +3608,9 @@ export function attributionFor(
       applicationId: principal.applicationId,
       credentialId: principal.credentialId,
       environment: principal.environment,
-      inferenceScopes: principal.scopes.filter(isInferenceScope),
+      ...(principal.authority === 'first_party'
+        ? { authority: 'first_party' as const }
+        : { authority: 'external' as const, inferenceScopes: principal.scopes.filter(isInferenceScope) }),
     },
     ...(context.delegatedUserId === undefined ? {} : { userId: context.delegatedUserId }),
     requestId: context.requestId,
@@ -4241,7 +4256,7 @@ export async function readGenerationReceiptByIdempotencyKey(
   key: string,
   delegatedUserId?: string
 ): Promise<GenerationReceiptLookup> {
-  if (!principal.scopes.includes('inference:usage:read') || key.length === 0
+  if (!hasInferenceScope(principal, 'inference:usage:read') || key.length === 0
     || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) return { status: 'not-found' };
   const [original] = await getDb().select()
     .from(inferenceMeteredUsage).where(and(
@@ -4294,7 +4309,7 @@ export async function readGenerationReceipt(
   id: string,
   delegatedUserId?: string
 ): Promise<GenerationReceiptLookup> {
-  if (!principal.scopes.includes('inference:usage:read')) {
+  if (!hasInferenceScope(principal, 'inference:usage:read')) {
     return { status: 'not-found' };
   }
 
