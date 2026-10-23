@@ -1115,3 +1115,72 @@ describe('linked identities through real workload middleware', () => {
     expect((await read(person.id, {}, legacy)).status).toBe(403);
   });
 });
+
+describe('atproto parser budgets on state and session restores', () => {
+  it('rejects old oversized serialized DPoP state before the upstream JWK parser', async () => {
+    const { assertLinkedAccountStateBudget, LinkedAccountJsonBudgetError } = await import(
+      '../../services/linkedAccounts/http'
+    );
+    const largeJwk = JSON.stringify({ keys: Array(10_000).fill(0) });
+    expect(() => assertLinkedAccountStateBudget({ dpopJwk: largeJwk })).toThrow(
+      LinkedAccountJsonBudgetError,
+    );
+    expect(() =>
+      assertLinkedAccountStateBudget({
+        dpopJwk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'd' },
+      }),
+    ).not.toThrow();
+    await expect(
+      atprotoStoresForTesting.sessionStore.set('oversized-session', { dpopJwk: largeJwk }),
+    ).rejects.toThrow(LinkedAccountJsonBudgetError);
+    atprotoSessionsInFlight.set('oversized-session', { dpopJwk: largeJwk });
+    try {
+      await expect(atprotoStoresForTesting.sessionStore.get('oversized-session')).rejects.toThrow(
+        LinkedAccountJsonBudgetError,
+      );
+      await expect(
+        atprotoStoresForTesting.stateStore.set('unbound-state', {
+          appState: 'not-a-challenge',
+          dpopJwk: largeJwk,
+        }),
+      ).rejects.toThrow(LinkedAccountJsonBudgetError);
+    } finally {
+      atprotoSessionsInFlight.delete('oversized-session');
+    }
+  });
+});
+
+it('consumes and clears an oversized legacy OAuth state without restoring its JWK', async () => {
+  const { mintChallenge, bindProviderState } = await import(
+    '../../services/linkedAccounts/challenges'
+  );
+  const { LinkedAccountJsonBudgetError } = await import('../../services/linkedAccounts/http');
+  const userId = await newUser();
+  const [credential] = await getDb()
+    .select()
+    .from(applicationCredentials)
+    .where(eq(applicationCredentials.publicKey, client));
+  const challenge = await mintChallenge({
+    userId,
+    network: 'atproto',
+    clientApplicationId: credential.applicationId,
+    returnTo: RETURN_TO,
+  });
+  const state = `legacy-budget-${randomUUID()}`;
+  await bindProviderState(
+    challenge.id,
+    state,
+    { dpopJwk: JSON.stringify({ keys: Array(10_000).fill(0) }) },
+    'identity.example',
+  );
+  await expect(atprotoStoresForTesting.stateStore.get(state)).rejects.toThrow(
+    LinkedAccountJsonBudgetError,
+  );
+  const [stored] = await getDb()
+    .select()
+    .from(linkedAccountOauthChallenges)
+    .where(eq(linkedAccountOauthChallenges.id, challenge.id));
+  expect(stored.providerState).toBeNull();
+  expect(stored.usedAt).not.toBeNull();
+  await expect(atprotoStoresForTesting.stateStore.get(state)).resolves.toBeUndefined();
+});

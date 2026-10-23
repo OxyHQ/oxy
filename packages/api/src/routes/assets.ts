@@ -1,3 +1,4 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
@@ -372,16 +373,16 @@ const initUploadSchema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, 'SHA256 must be 64 hexadecimal characters')
     .transform((value) => value.toLowerCase()),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
 });
 
 const completeUploadSchema = z.object({
-  fileId: z.string().min(1, 'File ID is required'),
-  originalName: z.string().min(1, 'Original name is required'),
+  fileId: z.string().check(utf16MinLength(1, 'File ID is required')),
+  originalName: z.string().check(utf16MinLength(1, 'Original name is required')),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**
@@ -611,7 +612,7 @@ router.post(
       validatedData = initUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -714,7 +715,7 @@ router.post(
       validatedData = completeUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -4451,7 +4452,7 @@ router.post(
       validatedData = linkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -4536,7 +4537,7 @@ router.delete(
       validatedData = unlinkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }

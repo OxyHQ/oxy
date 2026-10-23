@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `signed_records` — the append-only, per-subject hash chain.
  *
@@ -75,9 +76,9 @@ import { users } from './users';
  * proves the reverse, so widening the contract fails THIS file's typecheck
  * rather than silently producing a value the CHECK rejects.
  */
-export const OXY_SIGNED_RECORD_TYPES = [
-  ...oxySignedRecordTypeSchema.options,
-] as const satisfies readonly OxySignedRecordType[];
+export const OXY_SIGNED_RECORD_TYPES = enumValues(
+  oxySignedRecordTypeSchema.options,
+) satisfies readonly OxySignedRecordType[];
 
 /** `never` while `OXY_SIGNED_RECORD_TYPES` covers the contract union. */
 export type OxySignedRecordTypeGap = Exclude<

@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import {
   safetyRequesterSchema,
@@ -23,9 +24,11 @@ export const safetyPublicationRequestSchema = request(z.object({}).strict());
 export const safetyPurchaseRequestSchema = z
   .object({
     input: purchaseEffectsSchema,
-    requester: z.object({ accessToken: z.string().min(1).max(16384) }).strict(),
+    requester: z
+      .object({ accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
+      .strict(),
   })
   .strict();
 export const safetyPurchaseListQuerySchema = z
-  .object({ cursor: z.string().min(1).max(128).optional() })
+  .object({ cursor: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional() })
   .strict();

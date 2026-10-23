@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `usage_reservations` — the hold placed before a request enters the data plane.
  *
@@ -73,10 +74,10 @@ import {
 import { users } from './users';
 
 /** `held | settled | released | expired`, from the wire contract's own enum. */
-export const USAGE_RESERVATION_STATUSES = usageReservationStatusSchema.options;
+export const USAGE_RESERVATION_STATUSES = enumValues(usageReservationStatusSchema.options);
 
 /** `development | staging | production` — the credential's environment. */
-export const INFERENCE_ENVIRONMENTS = inferenceEnvironmentSchema.options;
+export const INFERENCE_ENVIRONMENTS = enumValues(inferenceEnvironmentSchema.options);
 
 /**
  * How often `expireReservations` looks for past-deadline holds.

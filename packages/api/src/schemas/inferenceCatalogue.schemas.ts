@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime } from '@oxy.so/contracts';
 /**
  * The request and RESPONSE shapes of the public model catalogue, mounted at both
  * `/v1/models` and `/models`.
@@ -42,7 +43,7 @@ export const documentationQuery = z
 export const catalogueListResponse = z
   .object({
     data: z.array(modelCatalogueEntrySchema),
-    count: z.number().int().nonnegative(),
+    count: z.number().check(integerCheck()).nonnegative(),
   })
   .strict();
 
@@ -57,8 +58,8 @@ export const catalogueListResponse = z
 export const catalogueStatsResponse = z
   .object({
     models: z.array(modelCatalogueEntrySchema),
-    count: z.number().int().nonnegative(),
-    timestamp: z.string().datetime(),
+    count: z.number().check(integerCheck()).nonnegative(),
+    timestamp: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -66,7 +67,7 @@ export const catalogueStatsResponse = z
 export const routingProfileListResponse = z
   .object({
     data: z.array(routingProfileSchema),
-    count: z.number().int().nonnegative(),
+    count: z.number().check(integerCheck()).nonnegative(),
   })
   .strict();
 

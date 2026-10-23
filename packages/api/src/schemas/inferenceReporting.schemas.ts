@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * The customer-visible usage and spend read surface (issue #972, workstream 8).
  *
@@ -88,7 +89,7 @@ export const LEDGER_AUTHORITATIVE_NOTE =
 /*  Shared leaves                                                             */
 /* -------------------------------------------------------------------------- */
 
-const identifier = z.string().min(1).max(128);
+const identifier = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 
 /**
  * The eleven metered quantities, spelled out.
@@ -101,22 +102,22 @@ const identifier = z.string().min(1).max(128);
  */
 export const usageUnitTotalsSchema = z
   .object({
-    input_tokens: z.number().int().nonnegative(),
-    cached_input_tokens: z.number().int().nonnegative(),
-    output_tokens: z.number().int().nonnegative(),
-    reasoning_tokens: z.number().int().nonnegative(),
-    requests: z.number().int().nonnegative(),
-    images: z.number().int().nonnegative(),
-    audio_input_milliseconds: z.number().int().nonnegative(),
-    audio_output_milliseconds: z.number().int().nonnegative(),
-    video_milliseconds: z.number().int().nonnegative(),
-    characters: z.number().int().nonnegative(),
-    embeddings: z.number().int().nonnegative(),
-    audio_input_tokens: z.number().int().nonnegative(),
-    cached_audio_input_tokens: z.number().int().nonnegative(),
-    audio_output_tokens: z.number().int().nonnegative(),
-    session_milliseconds: z.number().int().nonnegative(),
-    input_transcription_milliseconds: z.number().int().nonnegative(),
+    input_tokens: z.number().check(integerCheck()).nonnegative(),
+    cached_input_tokens: z.number().check(integerCheck()).nonnegative(),
+    output_tokens: z.number().check(integerCheck()).nonnegative(),
+    reasoning_tokens: z.number().check(integerCheck()).nonnegative(),
+    requests: z.number().check(integerCheck()).nonnegative(),
+    images: z.number().check(integerCheck()).nonnegative(),
+    audio_input_milliseconds: z.number().check(integerCheck()).nonnegative(),
+    audio_output_milliseconds: z.number().check(integerCheck()).nonnegative(),
+    video_milliseconds: z.number().check(integerCheck()).nonnegative(),
+    characters: z.number().check(integerCheck()).nonnegative(),
+    embeddings: z.number().check(integerCheck()).nonnegative(),
+    audio_input_tokens: z.number().check(integerCheck()).nonnegative(),
+    cached_audio_input_tokens: z.number().check(integerCheck()).nonnegative(),
+    audio_output_tokens: z.number().check(integerCheck()).nonnegative(),
+    session_milliseconds: z.number().check(integerCheck()).nonnegative(),
+    input_transcription_milliseconds: z.number().check(integerCheck()).nonnegative(),
   })
   .strict();
 
@@ -314,7 +315,7 @@ export const applicationSpendReportQuery = z
 
 export const reservationListQuery = z
   .object({
-    limit: z.coerce.number().int().min(1).max(MAX_REPORTING_ROWS).default(100),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(MAX_REPORTING_ROWS).default(100),
     includeDescendants: booleanFlag,
   })
   .strict();
@@ -322,7 +323,7 @@ export const reservationListQuery = z
 export const chargeListQuery = z
   .object({
     ...rangeFields,
-    limit: z.coerce.number().int().min(1).max(MAX_REPORTING_ROWS).default(100),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(MAX_REPORTING_ROWS).default(100),
     applicationId: identifier.optional(),
     applicationCredentialId: identifier.optional(),
     includeDescendants: booleanFlag,
@@ -334,7 +335,7 @@ export const chargeListQuery = z
 export const chargeExportQuery = z
   .object({
     ...rangeFields,
-    limit: z.coerce.number().int().min(1).max(MAX_EXPORT_ROWS).default(10_000),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(MAX_EXPORT_ROWS).default(10_000),
     applicationId: identifier.optional(),
     includeDescendants: booleanFlag,
   })
@@ -348,7 +349,7 @@ export const chargeExportQuery = z
 /** One of the closed threshold set the column's own CHECK admits. */
 const alertThresholdBps = z
   .number()
-  .int()
+  .check(integerCheck())
   .refine((bps) => (SPENDING_ALERT_THRESHOLDS_BPS as readonly number[]).includes(bps), {
     message: `must be one of ${SPENDING_ALERT_THRESHOLDS_BPS.join(', ')}`,
   });
@@ -451,12 +452,12 @@ export const usageAggregateRowSchema = z
     applicationId: identifier.optional(),
     applicationCredentialId: identifier.optional(),
     environment: inferenceEnvironmentSchema.optional(),
-    requestedModelReference: z.string().min(1).optional(),
-    servingProvider: z.string().min(1).optional(),
+    requestedModelReference: z.string().check(utf16MinLength(1)).optional(),
+    servingProvider: z.string().check(utf16MinLength(1)).optional(),
     outcome: inferenceRequestOutcomeSchema.optional(),
-    requestCount: z.number().int().nonnegative(),
+    requestCount: z.number().check(integerCheck()).nonnegative(),
     /** Requests whose HTTP status was >= 400. A subset of `requestCount`. */
-    errorCount: z.number().int().nonnegative(),
+    errorCount: z.number().check(integerCheck()).nonnegative(),
     units: usageUnitTotalsSchema,
   })
   .strict();
@@ -490,11 +491,11 @@ export const spendAggregateRowSchema = z
     applicationId: identifier.optional(),
     applicationCredentialId: identifier.optional(),
     environment: inferenceEnvironmentSchema.optional(),
-    resolvedModelReference: z.string().min(1).optional(),
-    servingProvider: z.string().min(1).optional(),
+    resolvedModelReference: z.string().check(utf16MinLength(1)).optional(),
+    servingProvider: z.string().check(utf16MinLength(1)).optional(),
     outcome: inferenceRequestOutcomeSchema.optional(),
     currency: currencyCodeSchema,
-    receiptCount: z.number().int().nonnegative(),
+    receiptCount: z.number().check(integerCheck()).nonnegative(),
     /** Settled, before reversals. */
     billedAmount: exactDecimalSchema,
     /** Reversed by a compensating refund. Settled history is never edited. */
@@ -509,7 +510,7 @@ export type SpendAggregateRowDto = z.input<typeof spendAggregateRowSchema>;
 export const spendTotalSchema = z
   .object({
     currency: currencyCodeSchema,
-    receiptCount: z.number().int().nonnegative(),
+    receiptCount: z.number().check(integerCheck()).nonnegative(),
     billedAmount: exactDecimalSchema,
     refundedAmount: exactDecimalSchema,
     netAmount: exactDecimalSchema,
@@ -553,17 +554,17 @@ export const spendReportSchema = z
  */
 /** How many crossings one page returns. */
 export const spendingLimitAlertsQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50) })
   .strict();
 
 export const spendingLimitAlertRowSchema = z
   .object({
     alertId: identifier,
     spendingLimitId: identifier,
-    periodStart: z.string().datetime(),
-    thresholdBps: z.number().int().positive(),
+    periodStart: z.string().check(isoDateTime()),
+    thresholdBps: z.number().check(integerCheck()).positive(),
     spendAmount: exactDecimalSchema,
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -651,14 +652,14 @@ export type AccountBalanceDto = z.input<typeof accountBalanceSchema>;
 export const pendingReservationSchema = z
   .object({
     reservationId: identifier,
-    requestId: z.string().min(1),
+    requestId: z.string().check(utf16MinLength(1)),
     applicationId: identifier,
     applicationCredentialId: identifier,
     environment: inferenceEnvironmentSchema,
     reservedAmount: exactDecimalSchema,
     currency: currencyCodeSchema,
-    createdAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -680,7 +681,7 @@ export const pendingReservationsSchema = z
       z
         .object({
           currency: currencyCodeSchema,
-          reservationCount: z.number().int().nonnegative(),
+          reservationCount: z.number().check(integerCheck()).nonnegative(),
           heldAmount: exactDecimalSchema,
         })
         .strict(),
@@ -696,8 +697,8 @@ export type PendingReservationsDto = z.input<typeof pendingReservationsSchema>;
 export const settledChargeSchema = z
   .object({
     receiptId: identifier,
-    requestId: z.string().min(1),
-    generationId: z.string().min(1).optional(),
+    requestId: z.string().check(utf16MinLength(1)),
+    generationId: z.string().check(utf16MinLength(1)).optional(),
     /** The hold this settled against, when there was one. */
     reservationId: identifier.optional(),
     /** A supplementary receipt correcting an earlier one upward. */
@@ -707,15 +708,15 @@ export const settledChargeSchema = z
     environment: inferenceEnvironmentSchema,
     outcome: inferenceRequestOutcomeSchema,
     usageSource: usageSourceSchema,
-    resolvedModelReference: z.string().min(1),
-    servingProvider: z.string().min(1),
+    resolvedModelReference: z.string().check(utf16MinLength(1)),
+    servingProvider: z.string().check(utf16MinLength(1)),
     /** A BYOK request: `billedAmount` is Oxy's fee, not the cost of the tokens. */
     platformFeeOnly: z.boolean(),
     billedAmount: exactDecimalSchema,
     refundedAmount: exactDecimalSchema,
     netAmount: exactDecimalSchema,
     currency: currencyCodeSchema,
-    settledAt: z.string().datetime(),
+    settledAt: z.string().check(isoDateTime()),
     units: usageUnitTotalsSchema,
   })
   .strict();
@@ -758,17 +759,17 @@ export const spendingLimitViewSchema = z
     limitAmount: exactDecimalSchema,
     currency: currencyCodeSchema,
     enforcement: z.enum(SPENDING_LIMIT_ENFORCEMENTS),
-    alertThresholdBps: z.array(z.number().int().positive()),
+    alertThresholdBps: z.array(z.number().check(integerCheck()).positive()),
     status: z.enum(SPENDING_LIMIT_STATUSES),
     /** Start of the window `currentSpend` is measured over. */
-    periodStart: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
     /** Settled spend plus money currently held, less reversals. */
     currentSpend: exactDecimalSchema,
     remaining: exactDecimalSchema,
     /** Basis points of the limit consumed, clamped at 10000. */
-    utilizationBps: z.number().int().nonnegative().max(10_000),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    utilizationBps: z.number().check(integerCheck()).nonnegative().max(10_000),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 

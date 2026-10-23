@@ -19,6 +19,71 @@ import { assertSafePublicUrl, readResponseBody, safeFetch } from '@oxy.so/core/s
 /** Largest response body the flow will buffer. Identity documents are small. */
 const LINKED_ACCOUNT_MAX_RESPONSE_BYTES = 1024 * 1024;
 
+/** Identity/OAuth documents only: limit parser work independently of wire bytes.
+ * Applied before atproto's transitive Zod 3 receives any JSON response.
+ */
+export const LINKED_ACCOUNT_JSON_LIMITS = {
+  nodes: 16_384,
+  collection: 2_048,
+  depth: 64,
+} as const;
+
+export class LinkedAccountJsonBudgetError extends Error {
+  constructor() {
+    super('Identity provider JSON exceeds the linked-accounts complexity limit');
+    this.name = 'LinkedAccountJsonBudgetError';
+  }
+}
+
+function assertJsonBudget(payload: Uint8Array): void {
+  let parsed: unknown;
+  try {
+    // WHATWG Response.json() accepts a UTF-8 BOM, regardless of Content-Type.
+    // Decode identically so neither a BOM nor a misleading header skips the guard.
+    parsed = JSON.parse(new TextDecoder().decode(payload));
+  } catch {
+    // Preserve non-JSON bodies and their existing downstream error behaviour.
+    return;
+  }
+  assertJsonValueBudget(parsed);
+}
+
+function assertJsonValueBudget(parsed: unknown): void {
+  let nodes = 1;
+  const pending: Array<{ value: unknown; depth: number }> = [{ value: parsed, depth: 0 }];
+  while (pending.length) {
+    const entry = pending.pop();
+    if (!entry) break;
+    const { value, depth } = entry;
+    if (depth > LINKED_ACCOUNT_JSON_LIMITS.depth) throw new LinkedAccountJsonBudgetError();
+    if (value === null || typeof value !== 'object') continue;
+    const children = Array.isArray(value) ? value : Object.keys(value);
+    if (children.length > LINKED_ACCOUNT_JSON_LIMITS.collection)
+      throw new LinkedAccountJsonBudgetError();
+    nodes += children.length;
+    if (nodes > LINKED_ACCOUNT_JSON_LIMITS.nodes) throw new LinkedAccountJsonBudgetError();
+    for (const child of children)
+      pending.push({
+        value: Array.isArray(value) ? child : (value as Record<string, unknown>)[child as string],
+        depth: depth + 1,
+      });
+  }
+}
+
+/** Recheck OAuth store restores before the upstream DPoP JWK parser runs.
+ * Current state contains locally generated keys; this also fences older rows.
+ */
+export function assertLinkedAccountStateBudget(value: unknown): void {
+  assertJsonValueBudget(value);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return;
+  const jwk = (value as Record<string, unknown>).dpopJwk;
+  if (typeof jwk === 'string') {
+    const bytes = Buffer.from(jwk);
+    if (bytes.length > LINKED_ACCOUNT_MAX_RESPONSE_BYTES) throw new LinkedAccountJsonBudgetError();
+    assertJsonBudget(bytes);
+  }
+}
+
 /** Socket inactivity limit while waiting for response headers or body bytes. */
 const HEADERS_TIMEOUT_MS = 8_000;
 
@@ -99,6 +164,7 @@ const safeWhatwgFetch: typeof fetch = async (input, init) => {
     clearTimeout(timeout);
     request.signal.removeEventListener('abort', abort);
   }
+  assertJsonBudget(payload);
   const responseHeaders = new Headers();
   for (const [key, value] of Object.entries(result.headers)) {
     if (Array.isArray(value)) for (const item of value) responseHeaders.append(key, item);
