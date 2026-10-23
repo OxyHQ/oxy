@@ -11,8 +11,6 @@ import sessionService from '../services/session.service';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { resolveMachineCredential } from '../middleware/machineCredential';
 import { verifyServiceToken, type ServiceTier } from '../middleware/serviceToken';
-import { applications } from '../db/schema/applications';
-import { isTrustedApplication } from '../utils/trustedApplication';
 import { validate } from '../middleware/validate';
 import { CLARITY_BACKEND_APPLICATION_ID } from '../config/firstPartyApplications';
 import { getDb } from '../config/postgres';
@@ -39,20 +37,6 @@ type Introspection = {
 };
 
 const inactive = (): Introspection => ({ active: false, scopes: [], permissions: [] });
-
-/** A session's application, as the boundary sees it: one of Oxy's own, or not. */
-async function applicationTier(applicationId: string): Promise<ServiceTier> {
-  const [app] = await getDb()
-    .select({
-      isOfficial: applications.isOfficial,
-      isInternal: applications.isInternal,
-      type: applications.type,
-    })
-    .from(applications)
-    .where(and(eq(applications.id, applicationId), eq(applications.status, 'active')))
-    .limit(1);
-  return app && isTrustedApplication(app) ? 'internal' : 'external';
-}
 
 function requireCanonicalClarityBackend(
   request: ServiceAuthRequest,
@@ -143,7 +127,7 @@ router.post(
           applicationId: principal.applicationId,
           credentialId: principal.credentialId,
           environment: service.payload.environment,
-          tier: service.payload.tier,
+          tier: 'external',
           authority: 'external',
           scopes: [...(principal.scopes ?? [])],
           permissions: [],
@@ -167,7 +151,7 @@ router.post(
         accountId: identity.subjectAccountId,
         applicationId: identity.applicationId,
         delegatedUserId: identity.principalUserId,
-        tier: await applicationTier(identity.applicationId),
+        tier: 'external',
         authority: 'external',
         scopes: [...identity.scopes],
         permissions: access?.permissions ?? [],
