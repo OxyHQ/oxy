@@ -6,7 +6,10 @@ import { getDb } from '../config/postgres';
 import { blocks } from '../db/schema/blocks';
 import { restrictions } from '../db/schema/restrictions';
 import { users } from '../db/schema/users';
-import { authMiddleware } from '../middleware/auth';
+import {
+  requesterAuthMiddleware,
+  authenticatedRequesterAccountId,
+} from '../middleware/requesterAuth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, NotFoundError, ConflictError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId } from '../utils/validation';
@@ -23,26 +26,20 @@ import {
 import { accountNameParts, formatUserNameResponse } from '../utils/displayName';
 import { accountNameColumns } from '../utils/publicUserProjection';
 
-interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-  };
-}
-
 const router = express.Router();
-router.use(authMiddleware);
+router.use(requesterAuthMiddleware);
 
 // Get privacy settings (own settings only)
 const getPrivacySettings = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const authUser = (req as AuthenticatedRequest).user;
+  const authUserId = authenticatedRequesterAccountId(req);
 
-  if (!authUser?.id) {
+  if (!authUserId) {
     throw new UnauthorizedError('Authentication required');
   }
 
   const objectId = await resolveUserIdToObjectId(id);
-  const authUserObjectId = await resolveUserIdToObjectId(authUser.id);
+  const authUserObjectId = await resolveUserIdToObjectId(authUserId);
 
   if (authUserObjectId !== objectId) {
     throw new BadRequestError('Not authorized to view these settings');
@@ -59,14 +56,14 @@ const getPrivacySettings = asyncHandler(async (req: Request, res: Response) => {
 const updatePrivacySettings = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const settings = privacySettingsSchema.parse(req.body);
-  const authUser = (req as AuthenticatedRequest).user;
+  const authUserId = authenticatedRequesterAccountId(req);
 
-  if (!authUser?.id) {
+  if (!authUserId) {
     throw new UnauthorizedError('Authentication required');
   }
 
   const objectId = await resolveUserIdToObjectId(id);
-  const authUserObjectId = await resolveUserIdToObjectId(authUser.id);
+  const authUserObjectId = await resolveUserIdToObjectId(authUserId);
 
   if (authUserObjectId !== objectId) {
     throw new BadRequestError('Not authorized to update these settings');
@@ -120,8 +117,8 @@ const RESTRICT_RELATION: UserRelation = {
  */
 const createUserListHandler = (relation: UserRelation) =>
   asyncHandler(async (req: Request, res: Response) => {
-    const authUser = (req as AuthenticatedRequest).user;
-    if (!authUser?.id) {
+    const authUserId = authenticatedRequesterAccountId(req);
+    if (!authUserId) {
       throw new UnauthorizedError('Authentication required');
     }
 
@@ -137,7 +134,7 @@ const createUserListHandler = (relation: UserRelation) =>
       })
       .from(relation.table)
       .innerJoin(users, eq(users.id, relation.counterparty))
-      .where(inArray(relation.owner, await getEquivalentUserIds(authUser.id)));
+      .where(inArray(relation.owner, await getEquivalentUserIds(authUserId)));
 
     res.json(
       rows.map((row) => ({
@@ -183,9 +180,9 @@ const createUserListHandler = (relation: UserRelation) =>
 const createUserActionHandler = (relation: UserRelation, actionName: string) =>
   asyncHandler(async (req: Request, res: Response) => {
     const { targetId } = req.params;
-    const authUser = (req as AuthenticatedRequest).user;
+    const authUserId = authenticatedRequesterAccountId(req);
 
-    if (!authUser?.id || authUser.id === targetId) {
+    if (!authUserId || authUserId === targetId) {
       throw new BadRequestError(`Invalid ${actionName} request`);
     }
 
@@ -194,7 +191,7 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
     // opposite of the truth — they hold MORE authority over this account than a
     // stranger does, not less. Naming the reason leaks nothing, since being told
     // you operate an account you operate tells you what you already knew.
-    if (await accountService.operatesAccount(authUser.id, targetId)) {
+    if (await accountService.operatesAccount(authUserId, targetId)) {
       throw new BadRequestError(`You cannot ${actionName} an account you operate`);
     }
 
@@ -202,7 +199,7 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
     // duplicate returns no row rather than racing a read-then-write.
     const inserted = await getDb()
       .insert(relation.table)
-      .values({ userId: authUser.id, [relation.responseKey]: targetId })
+      .values({ userId: authUserId, [relation.responseKey]: targetId })
       .onConflictDoNothing()
       .returning({ id: relation.table.id });
 
@@ -217,21 +214,21 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
     // otherwise a just-blocked user keeps seeing the blocker's media until the
     // TTL lapses.
     if (relation.responseKey === 'blockedId') {
-      blockCache.invalidate(authUser.id, targetId);
-      blockCache.invalidate(targetId, authUser.id);
+      blockCache.invalidate(authUserId, targetId);
+      blockCache.invalidate(targetId, authUserId);
 
       // The block changed the blocker's cached `blockedIds`; invalidate both
       // sides' viewer graph (symmetric, like the blockCache busts above) so the
       // next `GET /users/me/graph` recomputes fresh truth.
-      await Promise.all([graphCache.invalidate(authUser.id), graphCache.invalidate(targetId)]);
+      await Promise.all([graphCache.invalidate(authUserId), graphCache.invalidate(targetId)]);
     } else {
       // Restrict is asymmetric: only the restricter's media is hidden from the
       // restricted user, so bust the single (owner, viewer) cache key.
-      restrictCache.invalidate(authUser.id, targetId);
+      restrictCache.invalidate(authUserId, targetId);
 
       // The restriction changed the restricter's cached `restrictedIds`. Only
       // their own graph carries it (asymmetric), so bust just that one.
-      await graphCache.invalidate(authUser.id);
+      await graphCache.invalidate(authUserId);
     }
 
     res.json({ message: `User ${actionName === 'block' ? 'blocked' : 'restricted'} successfully` });
@@ -240,9 +237,9 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
 const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
   asyncHandler(async (req: Request, res: Response) => {
     const { targetId } = req.params;
-    const authUser = (req as AuthenticatedRequest).user;
+    const authUserId = authenticatedRequesterAccountId(req);
 
-    if (!authUser?.id) {
+    if (!authUserId) {
       throw new UnauthorizedError('Authentication required');
     }
 
@@ -250,7 +247,7 @@ const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
       .delete(relation.table)
       .where(
         and(
-          inArray(relation.owner, await getEquivalentUserIds(authUser.id)),
+          inArray(relation.owner, await getEquivalentUserIds(authUserId)),
           inArray(relation.counterparty, await getEquivalentUserIds(targetId)),
         ),
       )
@@ -264,15 +261,15 @@ const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
     // regains access to the formerly-blocking user's media immediately instead
     // of waiting out the blockCache TTL.
     if (relation.responseKey === 'blockedId') {
-      blockCache.invalidate(authUser.id, targetId);
-      blockCache.invalidate(targetId, authUser.id);
+      blockCache.invalidate(authUserId, targetId);
+      blockCache.invalidate(targetId, authUserId);
 
       // Symmetric to blockUser: the unblock changed the blocker's cached
       // `blockedIds`, so invalidate both sides' viewer graph.
-      await Promise.all([graphCache.invalidate(authUser.id), graphCache.invalidate(targetId)]);
+      await Promise.all([graphCache.invalidate(authUserId), graphCache.invalidate(targetId)]);
     } else {
-      restrictCache.invalidate(authUser.id, targetId);
-      await graphCache.invalidate(authUser.id);
+      restrictCache.invalidate(authUserId, targetId);
+      await graphCache.invalidate(authUserId);
     }
 
     res.json({

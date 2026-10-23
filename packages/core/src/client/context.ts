@@ -28,6 +28,7 @@ export interface ServiceLane {
       actAs?: string;
       requesterToken?: string;
       taskId?: string;
+      capabilityTicket?: string;
       serviceTokenScopes?: string[];
     },
   ): Promise<ResponsePayload<T>>;

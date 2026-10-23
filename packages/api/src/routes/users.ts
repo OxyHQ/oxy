@@ -780,11 +780,12 @@ router.get(
   '/me/graph',
   optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    // This endpoint returns private relationship data (blocks/restrictions), so
-    // only a user session may select its viewer. Service delegation is limited
-    // to public personalization and must not turn X-Oxy-User-Id into access to
-    // another user's private graph.
-    const viewerId = req.serviceApp ? undefined : resolveViewerId(req);
+    // Personal sessions and verified own requester context select their exact
+    // account. An external service header never selects a private graph.
+    const viewerId =
+      req.serviceApp && req.serviceApp.authority !== 'first_party'
+        ? undefined
+        : resolveViewerId(req);
 
     // Anonymous / no-user-context callers have no graph. Short-circuit with the
     // empty graph and never touch the cache (its keys are strictly per-viewer).

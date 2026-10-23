@@ -1,3 +1,5 @@
+import { OxyRequesterClient } from './requesterClient';
+import type { RequesterProof } from './requesterContext';
 import {
   type OxySessionRevocationEvent,
   serviceIntrospectionSchema,
@@ -425,6 +427,13 @@ export class OxyServer extends OxyServices {
     return result;
   }
 
+  /** An isolated Oxy client carrying the original session, task or operation proof. */
+  withRequester(proof: RequesterProof): OxyRequesterClient {
+    const service = this.context.service;
+    if (!service) throw new Error('Requester context requires an authenticated service');
+    return new OxyRequesterClient(this.baseURL, this.cloudURL, service, proof);
+  }
+
   // ── Server-side namespaces ───────────────────────────────────────────────
 
   private _serverAccounts?: ServerAccountsApi;
@@ -710,6 +719,7 @@ export class OxyServer extends OxyServices {
       actAs?: string;
       requesterToken?: string;
       taskId?: string;
+      capabilityTicket?: string;
       serviceTokenScopes?: string[];
     } = {},
   ): Promise<ResponsePayload<T>> {
@@ -726,14 +736,33 @@ export class OxyServer extends OxyServices {
     ) {
       throw new Error('Service requests must target the configured API origin');
     }
-    const { actAs, requesterToken, taskId, headers, serviceTokenScopes, ...rest } = options;
+    const {
+      actAs,
+      requesterToken,
+      taskId,
+      capabilityTicket,
+      headers,
+      serviceTokenScopes,
+      ...rest
+    } = options;
     const token = await this.platformServiceToken({ scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
-    if (requesterToken && taskId) throw new Error('Provide one requester proof');
+    if (
+      [requesterToken, taskId, capabilityTicket].filter((proof) => proof !== undefined).length > 1
+    )
+      throw new Error('Provide one requester proof');
     if (requesterToken) merged['X-Oxy-Requester-Token'] = requesterToken;
     if (taskId) merged['X-Oxy-Task-Id'] = taskId;
-    return this.request<T>(method, target.href, data, { cache: false, ...rest, headers: merged });
+    if (capabilityTicket) merged['X-Oxy-Capability-Ticket'] = capabilityTicket;
+    return this.request<T>(method, target.href, data, {
+      cache: false,
+      ...rest,
+      ...([requesterToken, taskId, capabilityTicket].some((proof) => proof !== undefined)
+        ? { cache: false, deduplicate: false, retry: false }
+        : {}),
+      headers: merged,
+    });
   }
 
   // ── Application roles ────────────────────────────────────────────────────
