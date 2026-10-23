@@ -11,7 +11,7 @@
  * the person present, and only when that person's own execution authorization
  * names it.
  */
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type {
   AgentRequesterCeiling,
   AgentRequesterCeilingWrite,
@@ -110,7 +110,7 @@ export async function writeAgentRequesterCeiling(input: {
   };
   const { row, created } = await getDb().transaction(async (tx) => {
     const [live] = await tx
-      .select({ id: agentRequesterCeilings.id })
+      .select({ id: agentRequesterCeilings.id, version: agentRequesterCeilings.version })
       .from(agentRequesterCeilings)
       .where(
         and(
@@ -122,13 +122,26 @@ export async function writeAgentRequesterCeiling(input: {
       .for('update')
       .limit(1);
     if (live) {
-      const [updated] = await tx
+      const revokedAt = new Date();
+      const [revoked] = await tx
         .update(agentRequesterCeilings)
-        .set({ ...values, version: sql`${agentRequesterCeilings.version} + 1` })
+        .set({ revokedAt, updatedByUserId: input.operatorAccountId })
         .where(eq(agentRequesterCeilings.id, live.id))
+        .returning({ id: agentRequesterCeilings.id });
+      if (!revoked) throw new Error('Agent requester ceiling was not revoked');
+
+      const [replacement] = await tx
+        .insert(agentRequesterCeilings)
+        .values({
+          ...values,
+          agentAccountId: input.agentAccountId,
+          appSlug: input.appId,
+          version: live.version + 1,
+          createdByUserId: input.operatorAccountId,
+        })
         .returning();
-      if (!updated) throw new Error('Agent requester ceiling was not updated');
-      return { row: updated, created: false };
+      if (!replacement) throw new Error('Agent requester ceiling replacement was not persisted');
+      return { row: replacement, created: false };
     }
     const [inserted] = await tx
       .insert(agentRequesterCeilings)
