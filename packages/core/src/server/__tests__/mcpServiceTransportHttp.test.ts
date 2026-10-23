@@ -171,3 +171,59 @@ it('shares core workload mint, origin, refresh and fixed requester transport acr
     }
   }
 });
+
+it('cancels MCP during workload preparation without cancelling another consumer or sending the abandoned operation', async () => {
+  let challengeArrived!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    challengeArrived = resolve;
+  });
+  let releaseChallenge!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseChallenge = resolve;
+  });
+  const operations: string[] = [];
+  let exchanges = 0;
+  const server = createServer(async (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url?.endsWith('/challenge')) {
+      challengeArrived();
+      await release;
+      return res.end('{"nonce":"nonce"}');
+    }
+    if (req.url?.endsWith('/workload')) {
+      exchanges++;
+      const token = `e30.${Buffer.from(JSON.stringify({ sub: 'workload', exp: Math.floor(Date.now() / 1000) + 300 })).toString('base64url')}.sig`;
+      return res.end(JSON.stringify({ token, expiresIn: 300 }));
+    }
+    operations.push(req.url ?? '');
+    res.end('{"ok":true}');
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({
+    baseURL,
+    workloadCredentials: async () => ({ AccessKeyId: 'ASIATEST', SecretAccessKey: 'test' }),
+  });
+  const transport = oxy.createServiceClient({ baseURL, audience: 'oxy-api' });
+  try {
+    const cancelled = postOxyServiceJson(
+      {},
+      { endpoint: `${baseURL}/abandoned`, transport, timeoutMs: 50 },
+    );
+    // Install the handler before triggering cancellation, including under CI load.
+    const rejected = expect(cancelled).rejects.toBeDefined();
+    await waiting;
+    const survivor = postOxyServiceJson({}, { endpoint: `${baseURL}/survivor`, transport });
+    await rejected;
+    expect(operations).toEqual([]);
+    releaseChallenge();
+    expect(await survivor).toEqual({ ok: true });
+    expect(exchanges).toBe(1);
+    expect(operations).toEqual(['/survivor']);
+  } finally {
+    releaseChallenge();
+    transport.dispose();
+    oxy.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
