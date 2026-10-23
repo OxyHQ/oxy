@@ -1471,6 +1471,13 @@
       "when": 1792742407493,
       "tag": "0210_drop_unscoped_search_labels_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1792743670231,
+      "tag": "0211_drop_remaining_unscoped_messages_indexes",
+      "breakpoints": true
     }
   ]
 }

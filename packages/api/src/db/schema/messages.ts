@@ -280,20 +280,12 @@ export const messages = pgTable(
   },
   (t) => [
     // ---- indexes ------------------------------------------------------------
-    // (1) The primary listing read. EVERY list sorts pinned-then-date
+    // (1) The primary listing read. EVERY list sorts pinned-then-date-then-id
     // (`email.service.ts`), so `pinned` sits in the middle: the same index
-    // answers the filter AND the sort; nothing orders by `date` alone.
-    index('messages_user_id_mailbox_id_pinned_date_idx').on(
-      t.userId,
-      t.mailboxId,
-      t.pinned.desc(),
-      t.date.desc(),
-    ),
-    // (1b) The same read with its tie-breaker. Every page is ordered
-    // `pinned, date, id` and the cursor compares all three, so an index without
-    // `id` has to fetch and sort every row sharing the boundary date. This one
-    // supersedes (1); (1) is dropped in a later `post` migration, once
-    // `pg_stat_user_indexes` shows nothing reading it.
+    // answers the filter AND the sort; nothing orders by `date` alone. Every
+    // page is ordered `pinned, date, id` and the cursor compares all three, so
+    // an index without `id` has to fetch and sort every row sharing the
+    // boundary date.
     index('messages_user_id_mailbox_id_pinned_date_id_idx').on(
       t.userId,
       t.mailboxId,
@@ -312,13 +304,11 @@ export const messages = pgTable(
     index('messages_user_id_relay_message_id_idx')
       .on(t.userId, t.relayMessageId)
       .where(sql`${t.relayMessageId} is not null`),
-    index('messages_references_idx').using('gin', t.references),
-    // (4c) The `References` arm of the thread adjacency, scoped to the owner.
+    // The `References` arm of the thread adjacency, scoped to the owner.
     // `emailThreading.ts` probes one key at a time (`references @> array[key]`
-    // AND `user_id = …`); with only (4) the planner ANDs it with a bitmap of
+    // AND `user_id = …`); an unscoped GIN would AND it with a bitmap of
     // every row the user owns — 200k entries per probe on a large mailbox.
-    // `btree_gin` makes it one GIN scan. Supersedes (4); a later `post`
-    // migration drops (4) once `pg_stat_user_indexes` shows it idle.
+    // `btree_gin` makes it one GIN scan.
     // `fastupdate = off`: a thread write probes this index once per key, and
     // GIN's pending list (fastupdate's default) is scanned linearly by every
     // probe until vacuum merges it — measured 2.4 ms per probe instead of

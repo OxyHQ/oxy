@@ -171,7 +171,7 @@ type EmailPageCursor =
  * the id as the tiebreak a keyset cursor needs.
  *
  * Spelled `desc nulls last` because that is how the listing indexes are built
- * (0004, `messages_user_id_mailbox_id_pinned_date_idx`). Drizzle's `desc()`
+ * (`messages_user_id_mailbox_id_pinned_date_id_idx`). Drizzle's `desc()`
  * renders a bare `desc`, which Postgres reads as `desc nulls FIRST`: no index
  * here matches it, so the planner fetched and sorted every row of the folder
  * before applying the LIMIT. Matched, the index gives `(pinned, date)` and

@@ -1,0 +1,34 @@
+-- oxy:deploy-phase=post
+--
+-- Drop the last two unscoped indexes on `messages` that owner-scoped ones replaced:
+--
+--  * messages_user_id_mailbox_id_pinned_date_idx → messages_user_id_mailbox_id_pinned_date_id_idx
+--    (same keys plus the `id` tie-breaker, 0201)
+--  * messages_references_idx                     → messages_user_id_references_idx (0204)
+--
+-- Why now, with idx_scan still moving at the second pg_stat sample
+-- (production, 2026-10-22 14:00 → 2026-10-23 07:17 UTC):
+--
+--  * pinned_date_idx rose 189,336 → 190,850: the planner picks it over its
+--    replacement only because it is the smaller index (376 kB vs 592 kB) for
+--    the same leading keys. Dropped, the replacement serves the same reads.
+--  * references_idx rose 7,667,142 → 7,667,146: its 7.6 M scans are the
+--    thread-id backfill and repair walks, which are finished (2,375 of 2,375
+--    rows stored, 0 drift); the 4 since are one-off verification queries.
+--    Every service query on `references` also names `user_id`.
+--
+-- ## LOCKS
+--
+-- DROP INDEX takes ACCESS EXCLUSIVE on `messages` until the transaction ends,
+-- queued behind every running read of the table. Drop them OUT OF BAND first,
+-- from a one-shot task, outside any transaction (runbook:
+-- docs/engineering/per-owner-asset-rows.md, "Rollout order") — SHARE UPDATE
+-- EXCLUSIVE only, reads and writes continue —
+--
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_user_id_mailbox_id_pinned_date_idx;
+--   DROP INDEX CONCURRENTLY IF EXISTS messages_references_idx;
+--
+-- after which every statement below is a catalogue lookup. `IF EXISTS` is
+-- load-bearing for that route. Nothing else shares this file.
+DROP INDEX IF EXISTS "messages_user_id_mailbox_id_pinned_date_idx";--> statement-breakpoint
+DROP INDEX IF EXISTS "messages_references_idx";

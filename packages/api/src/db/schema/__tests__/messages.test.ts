@@ -672,7 +672,7 @@ describe('messages — the partial indexes that replaced boolean-wide ones', () 
     expect(byName.get('messages_snoozed_until_idx')).toContain('IS NOT NULL');
     expect(byName.get('messages_scheduled_at_idx')).toContain('IS NOT NULL');
     // The listing index carries the sort every list actually issues.
-    expect(byName.get('messages_user_id_mailbox_id_pinned_date_idx')).toContain('pinned');
+    expect(byName.get('messages_user_id_mailbox_id_pinned_date_id_idx')).toContain('pinned');
     // Vacuity floor. A missing index makes `get` return `undefined`, which
     // `toContain` rejects outright — but a broken catalogue query would return
     // nothing at all and this is what catches that.
