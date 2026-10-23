@@ -126,7 +126,8 @@ it('keeps concurrent requester responses separate and reads revocation on every 
     expect(await Promise.all([read('A'), read('B')])).toEqual([{ subject: 'A' }, { subject: 'B' }]);
     revoked = true;
     await expect(read('A')).rejects.toBeDefined();
-    expect(subjects).toEqual(['A', 'B', 'A']);
+    expect(subjects.slice(0, 2).sort()).toEqual(['A', 'B']);
+    expect(subjects.slice(2)).toEqual(['A']);
   } finally {
     oxy.dispose();
     await close(server);
