@@ -10,7 +10,8 @@
     "noEmit": false,
     "outDir": ".",
     "rootDir": "./src",
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    "types": ["node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/tests/**", "src/**/*.test.ts", "src/**/*.bench.ts"]
