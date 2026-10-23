@@ -13,6 +13,14 @@ jest.mock('../../middleware/auth', () => ({
     next();
   },
 }));
+jest.mock('../../services/legacyResourceWorkload.service', () => ({
+  // This suite isolates subject revocation; receiver signature/live binding is
+  // exercised without mocks by resourceIntrospection.transition.db.test.ts.
+  resolveLegacyResourceWorkload: async (token: { appId: string }) =>
+    token.appId === CLARITY_BACKEND_APPLICATION_ID
+      ? { authority: 'first_party', applicationId: CLARITY_BACKEND_APPLICATION_ID }
+      : null,
+}));
 import router from '../resourceIntrospection';
 import { errorHandler } from '../../middleware/errorHandler';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';

@@ -222,6 +222,18 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
+  return exchangeWorkloadServiceToken(options, 2);
+}
+
+/** @internal Finite reader-first rollout bridge; not exported by the package. */
+export function requestLegacyWorkloadServiceToken(options: WorkloadServiceTokenOptions) {
+  return exchangeWorkloadServiceToken(options, 1);
+}
+
+async function exchangeWorkloadServiceToken(
+  options: WorkloadServiceTokenOptions,
+  protocolVersion: 1 | 2,
+): Promise<WorkloadServiceToken> {
   if ('scopes' in options) throw new Error('First-party workloads do not request scopes');
   const fetchImpl = options.fetch ?? fetch;
   const base = trimTrailingSlashes(options.baseUrl);
@@ -247,7 +259,7 @@ export async function requestWorkloadServiceToken(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       provider: 'aws-iam',
-      protocolVersion: 2,
+      ...(protocolVersion === 2 ? { protocolVersion: 2 } : {}),
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),
