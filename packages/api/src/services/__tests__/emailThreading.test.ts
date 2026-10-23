@@ -43,7 +43,6 @@ jest.mock('../../utils/logger', () => ({
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
@@ -511,10 +510,7 @@ describe('reads by the stored key', () => {
 
   /** Every thread-bearing read the client makes, serialized as the wire would carry it. */
   async function reads(userId: string): Promise<string> {
-    const folders = await getDb()
-      .select({ id: mailboxes.id })
-      .from(mailboxes)
-      .where(eq(mailboxes.userId, userId));
+    const folders = await emailService.listMailboxes(userId);
     const lists = [];
     for (const folder of [...folders.map((row) => row.id), null]) {
       lists.push(await emailService.listMessages(userId, folder, { limit: 50 }));

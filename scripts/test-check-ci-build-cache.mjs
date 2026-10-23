@@ -24,6 +24,7 @@ const checkScript = join(repoRoot, 'scripts', 'check-ci-build-cache.mjs');
 const CI = join('.github', 'workflows', 'ci.yml');
 const WRITER = join('.github', 'workflows', 'ci-build-cache.yml');
 const TURBO = 'turbo.json';
+const FFMPEG = join('.github', 'actions', 'ffmpeg', 'action.yml');
 
 const failures = [];
 const fixtures = [];
@@ -36,6 +37,7 @@ function createFixture() {
   for (const path of [
     CI,
     WRITER,
+    FFMPEG,
     TURBO,
     'package.json',
     ...manifest.workspaces.packages.map((dir) => join(dir, 'package.json')),
@@ -196,6 +198,12 @@ expectCheck(
   'which SAVES a cache',
 );
 expectCheck(
+  'a-save-inside-a-local-action-ci-uses-fails',
+  [[FFMPEG, (y) => y.replace('actions/cache/restore@', 'actions/cache/save@')]],
+  1,
+  'which SAVES a cache',
+);
+expectCheck(
   'a-remote-cache-in-ci-fails',
   [
     ci((y) =>
@@ -257,7 +265,7 @@ expectCheck(
   'the-writer-saving-something-else-fails',
   [writer((y) => y.replace('          path: .turbo/cache\n', '          path: node_modules\n'))],
   1,
-  'must save exactly one cache, `.turbo/cache`',
+  'must save the Turbo cache, `.turbo/cache`, exactly once',
 );
 
 // ── Wiring: a cache that would silently never hit ──────────────────────────
