@@ -1,8 +1,9 @@
 # First-party integration migration
 
 Decision: [ADR 0049](../adr/0049-first-party-platform-authority.md), 2026-10-23.
-This is a delivery ledger, not production evidence. No release, deployment,
-credential change or live acceptance is implied by source implementation.
+This ledger distinguishes source implementation from production evidence. Only
+the explicit deployment records below establish a released runtime; source
+commits alone do not establish live acceptance.
 
 ## Accepted contract
 
@@ -18,10 +19,12 @@ revocation and operation binding remain mandatory.
 | Area | Source state | Required acceptance |
 |---|---|---|
 | Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
-| Oxy core/contracts service authority | In progress, separate workstream | Workload proof, environment and audience; customer key stays external |
-| Oxy API files/inference/agency/introspection | In progress, separate workstream | Account/resource isolation without own scope/grant dependencies |
+| Oxy core/contracts service authority | Implemented source (`5bb379b80`, `dc2896083`, `ad2ebca18`, `aa6a10695`); combined release pending | Workload proof, environment and audience; customer key stays external |
+| Oxy API files/inference/agency/introspection | Implemented source (`43a9c810d`); migration/combined release pending | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Audited; implementation pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Separate source workstream in progress | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Kaana inference own-service receiver | Deployed 8.0.0; evidence below | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Audited edges below; implementation pending | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
@@ -29,8 +32,8 @@ Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. No version bump or production rollout has occurred in this
-workstream.
+caller is updated. Oxy and Alia remain source-only at this checkpoint; Kaana has
+the separately verified deployment recorded below.
 
 ## Audited runtime graph
 
@@ -171,3 +174,38 @@ version or lockfile changes; no package release or Console deployment performed.
 Release acceptance still needs the combined Oxy API/SDK rollout and a production
 Console own-app/external-credential smoke check. See the Console README and
 `credential-authority.test.tsx` for the tested boundary.
+
+## Verified deployment checkpoint: Kaana (2026-10-23)
+
+Parent rollout readback records Kaana PR #220 merged at `68b28c9`, deployment
+Actions run `39930461232` and release run `39930897427`, publishing version
+`8.0.0`. The live health endpoint reported version 8. Service task definition
+revision 147 and publisher revision 148 had three running tasks on image digest
+`sha256:599641f55a16e140c54fa18791850b3be9e9b19c729dc029d1ebbcb9283a8940`.
+The local evidence artifact is
+`/home/nate/Oxy/.scratch/first-party-root/kaana-rollout-20261023.json`.
+This verifies that Kaana checkpoint only; it does not close the Oxy, Alia or
+remaining product migration edges.
+
+## Alia source acceptance checkpoint
+
+Commits `fc0ef827b`, `c8c9fbfe5`, `bd8e64616` remove own service-key fallback,
+per-app settings and grant/ceiling readers; bind own catalogue tools and Files
+to verified requester/task proof; preserve managed effective accounts separately
+from the human requester; and retain the task id through background/nested work.
+Channel links store no new user bearer. The controlled legacy conversion validates
+original sessions, removes proven/expired legacy bearer data, retries transient
+outages and prevents concurrent relink from acquiring another person's root.
+Legacy inactive links resume automatically from an ordinary verified account
+session, without an internal consent/reconnect screen. Historical app-level data
+remains inert pending archival.
+
+Validation: full API 2,693 tests; PostgreSQL 43; focused task/managed-account and
+channel-renewal HTTP tests; affected app 85 tests; API/app types and API build.
+These used locally packed candidate core/contracts. No local package path is
+committed. Final acceptance still requires published core/contracts pins and
+lockfile, combined gateway/SDK receiver tests, reader-first deploy, live binding
+and catalogue re-registration/readback, and the controlled channel conversion.
+App-owned Files artifacts/reference reconciliation remain service-domain data;
+personal Files access uses the requester facade. The remaining ecosystem rows
+above are pending until their own caller→receiver changes and canaries are proven.
