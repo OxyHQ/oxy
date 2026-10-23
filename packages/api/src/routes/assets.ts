@@ -1313,7 +1313,8 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
 
   if (
     req.serviceApp?.authority === 'first_party' &&
-    req.serviceRequester?.subjectAccountId !== ownerUserId
+    (req.serviceExternalMedia?.effectiveAccountId ?? req.serviceRequester?.subjectAccountId) !==
+      ownerUserId
   ) {
     throw new ForbiddenError('User media requires the authenticated requester account.');
   }
@@ -2056,6 +2057,10 @@ router.post(
     if (typeof appId !== 'string' || appId.length === 0) {
       throw new ForbiddenError('Service token carries no application id');
     }
+    if (body.reference && req.serviceExternalMedia)
+      throw new ForbiddenError(
+        'External media creation does not authorize application references.',
+      );
     if (body.reference) await requireActiveApplication(req, ['files:references:write']);
 
     const result = await fileImportService.importFromUrl(
