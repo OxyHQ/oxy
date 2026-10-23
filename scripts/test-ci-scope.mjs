@@ -278,6 +278,18 @@ expectScope(
   { api: 'is in packages/core', platform: 'is in packages/core', apps: 'is in packages/core' },
 );
 expectScope(
+  'zod3-only-source-fix-runs-every-dependent-suite',
+  (root) => write(root, 'packages/zod3/patches/oversized-collections.patch', 'changed\n'),
+  ALL_RUN,
+  { api: 'is in packages/zod3', platform: 'is in packages/zod3', apps: 'is in packages/zod3' },
+);
+expectScope(
+  'zod4-only-source-fix-runs-api-and-platform',
+  (root) => write(root, 'packages/zod4/patches/oversized-collections.patch', 'changed\n'),
+  { api: true, platform: true, apps: false },
+  { api: 'is in packages/zod4', platform: 'is in packages/zod4' },
+);
+expectScope(
   'a-transitive-workspace-dependency-runs-its-dependents',
   // telemetry is a root of no suite; core (a root of all three) depends on it.
   (root) => write(root, 'packages/telemetry/src/index.ts', 'export {};\n'),
