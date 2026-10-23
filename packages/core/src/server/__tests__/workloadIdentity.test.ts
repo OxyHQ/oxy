@@ -95,6 +95,7 @@ describe('workload identity client', () => {
     };
 
     expect(body.provider).toBe('aws-iam');
+    expect(body).toHaveProperty('protocolVersion', 2);
     expect(body.nonce).toBe('nonce-from-oxy');
     expect(body.attestation.headers['x-oxy-attestation-nonce']).toBe('nonce-from-oxy');
     expect(body.attestation.headers.host).toBe('sts.amazonaws.com');
