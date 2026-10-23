@@ -77,6 +77,9 @@ export const applicationWorkloadIdentities = pgTable(
      */
     subject: text().notNull(),
 
+    /** Administratively bound environment; unprovisioned bindings cannot mint. */
+    environment: text({ enum: ['development', 'staging', 'production'] }),
+
     /** Free text for whoever reads this table a year from now. */
     description: text(),
 
@@ -134,6 +137,10 @@ export const applicationWorkloadIdentities = pgTable(
       table.subject,
     ),
     index('application_workload_identities_application_idx').on(table.applicationId),
+    check(
+      'application_workload_identities_environment_check',
+      sql`${table.environment} in ('development', 'staging', 'production')`,
+    ),
     /**
      * Only real scopes, mirroring `application_credentials_scopes_check`.
      *
