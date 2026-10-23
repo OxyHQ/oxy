@@ -1,5 +1,15 @@
 # Changelog: `create-oxy-app`
 
+## 0.8.2
+
+### Fixed
+
+- A generated app no longer mounts its own `KeyboardProvider` above
+  `OxyProvider`, which mounts react-native-keyboard-controller's one root
+  provider. The second provider took the native keyboard events, so every
+  `KeyboardAvoidingView`, `KeyboardStickyView` and keyboard hook under
+  `OxyProvider` read a closed keyboard.
+
 ## 0.8.1
 
 ### Changed
