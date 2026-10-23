@@ -31,6 +31,7 @@
 import { and, eq, inArray, notExists, or, sql } from 'drizzle-orm';
 import type { Transaction } from '../config/postgres';
 import { stripPublicPrefix } from '../config/cdn';
+import { variantStorageRoot, videoStorageRoots } from '../utils/variant-storage-roots';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { applications } from '../db/schema/applications';
 import { files } from '../db/schema/files';
@@ -44,9 +45,6 @@ import {
 
 /** Rows per statement: large accounts are recorded in bounded chunks. */
 const CHUNK_SIZE = 500;
-
-/** `variants/<yyyy>/<mm>/<pp>/<sha256>/`, the directory `variantService.generateVariantKey` writes into. */
-const VARIANT_DIRECTORY = /^variants\/\d{4}\/\d{2}\/[0-9a-f]{2}\/([0-9a-f]{64})\/$/;
 
 export interface StorageDeletionTarget {
   kind: StorageObjectDeletionKind;
@@ -75,7 +73,7 @@ function chunks<T>(values: readonly T[], size: number): T[][] {
  * so a directory is only ever deleted when it provably belongs to this content.
  */
 export function storageTargetsForAsset(
-  asset: { sha256: string; storageKey: string },
+  asset: { sha256: string; storageKey: string; metadata?: Record<string, unknown> | null },
   variantKeys: readonly string[],
 ): StorageDeletionTarget[] {
   const targets = new Map<string, StorageDeletionTarget>();
@@ -86,14 +84,14 @@ export function storageTargetsForAsset(
   add('object', stripPublicPrefix(asset.storageKey));
   for (const key of variantKeys) {
     const base = stripPublicPrefix(key);
-    const directory = base.slice(0, base.lastIndexOf('/') + 1);
-    const match = VARIANT_DIRECTORY.exec(directory);
-    if (match && match[1] === asset.sha256) {
-      add('prefix', directory);
+    const root = variantStorageRoot(base, asset.sha256);
+    if (root) {
+      add('prefix', root);
     } else {
       add('object', base);
     }
   }
+  for (const root of videoStorageRoots(asset)) add('prefix', root);
   return [...targets.values()];
 }
 
@@ -118,6 +116,7 @@ export async function recordFileStorageDeletion(
   tx: Transaction,
   asset: {
     sha256: string;
+    metadata?: Record<string, unknown> | null;
     storageKey: string;
     ownerUserId: string | null;
     systemOwner: string | null;
@@ -143,6 +142,7 @@ export async function recordFilesStorageDeletion(
   tx: Transaction,
   assets: ReadonlyArray<{
     sha256: string;
+    metadata?: Record<string, unknown> | null;
     storageKey: string;
     ownerUserId: string | null;
     systemOwner: string | null;
@@ -171,27 +171,31 @@ export async function recordFilesStorageDeletion(
 /**
  * Record the keys ONE asset stopped using when a visibility change copied its
  * objects to the other spelling (`public/` or not), inside the transaction that
- * repointed the row. Each old key is an OBJECT target — never its directory:
- * the directory also holds HLS segments, which the relocation copies but never
- * deletes, and other owners' renditions. The worker then deletes each spelling no live row uses,
- * so a key another owner's row shares is kept.
+ * repointed the row. Keys are object targets; videos also owe every recorded
+ * generation root so superseded public copies and unlisted segments cannot
+ * outlive a visibility downgrade. The worker's content lock and per-spelling
+ * live-owner check preserve roots another public/private owner still needs.
  */
 export async function recordFileStorageRelocation(
   tx: Transaction,
   asset: {
     sha256: string;
+    metadata?: Record<string, unknown> | null;
     ownerUserId: string | null;
     systemOwner: string | null;
     ownerApplicationId: string | null;
   },
   oldKeys: readonly string[],
 ): Promise<string[]> {
-  if (oldKeys.length === 0) return [];
+  const roots = videoStorageRoots(asset);
+  if (oldKeys.length === 0 && roots.length === 0) return [];
   const targets = new Map<string, StorageDeletionTarget>();
   for (const key of oldKeys) {
     const target = stripPublicPrefix(key);
     targets.set(target, { kind: 'object', target, sha256: asset.sha256 });
   }
+  for (const root of roots)
+    targets.set(`prefix:${root}`, { kind: 'prefix', target: root, sha256: asset.sha256 });
   return armStorageTargets(tx, 'file.relocated', assetAccountId(asset), [...targets.values()]);
 }
 
@@ -252,6 +256,7 @@ export async function recordAccountStorageDeletion(
       id: files.id,
       sha256: files.sha256,
       storageKey: files.storageKey,
+      metadata: files.metadata,
       ownerUserId: files.ownerUserId,
       ownerApplicationId: files.ownerApplicationId,
       status: files.status,

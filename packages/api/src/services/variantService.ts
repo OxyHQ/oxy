@@ -35,6 +35,7 @@ import {
   findSameSpellingTwins,
   findVariantTwin,
   upsertVariantSet,
+  rememberVideoStorageRoot,
   updateFile,
   upsertVariant,
 } from './fileRepository';
@@ -42,6 +43,18 @@ import { playlistSiblingKey } from './hlsPlaylist';
 import { isSvgType } from '../utils/svgSanitizer';
 import { isIconContainer, largestIconFrame } from '../utils/icoImage';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { variantStorageRoot, videoStorageRoots } from '../utils/variant-storage-roots';
+import { getCdnInvalidationQueue } from './cdnInvalidation';
+import {
+  hasCurrentVideoRenditions,
+  videoDisplayDimensions,
+  videoRungs,
+  videoScaleFilter,
+  VIDEO_RENDITION_PROFILE,
+  VIDEO_SEGMENT_SECONDS,
+  type VideoRung,
+} from './video-renditions';
 import {
   audioFfmpegTimeoutMs,
   audioMasterPlaylist,
@@ -75,9 +88,11 @@ const INTRINSIC_METADATA_KEYS: ReadonlySet<string> = new Set(['media', 'image', 
 
 /** Cap on a preview clip's bytes buffered from ffmpeg (30 s of AAC is ~0.5 MiB). */
 const AUDIO_PREVIEW_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+const VIDEO_TRANSCODE_TIMEOUT_MS = 60 * 60_000;
 
-/** Whether `twin`'s rendition set may stand for `file`'s: always, unless both are audio processed differently. */
+/** Reuse only the current video encoder profile, or the same requested audio profile. */
 function sameRenditionProfile(file: FileRecord, twin: FileRecord): boolean {
+  if (file.mime.startsWith('video/')) return hasCurrentVideoRenditions(twin);
   if (!file.mime.startsWith('audio/')) return true;
   return sameAudioProfile(audioProfileOf(file), audioProfileOf(twin));
 }
@@ -90,6 +105,9 @@ interface FFprobeStream {
   height?: number;
   r_frame_rate?: string;
   sample_rate?: string;
+  sample_aspect_ratio?: string;
+  tags?: { rotate?: string };
+  side_data_list?: Array<{ rotation?: number }>;
   channels?: number;
   bit_rate?: string;
 }
@@ -321,16 +339,6 @@ export interface VariantConfigWithType extends VariantConfig {
   type: string;
 }
 
-export interface VideoVariantConfig {
-  type: string;
-  width?: number;
-  height?: number;
-  bitrate?: string; // e.g., '500k', '1M', '2M'
-  videoCodec?: string;
-  audioCodec?: string;
-  preset?: string; // FFmpeg preset (ultrafast, fast, medium, slow)
-}
-
 /**
  * The spelling a file's renditions are written in: under `public/` only while
  * the file is SERVED publicly (public AND `active`, `config/cdn.isServedPublicly`),
@@ -437,36 +445,6 @@ export class VariantService {
     format: IMAGE_VARIANT_FORMAT,
   }));
 
-  private readonly videoVariants: VideoVariantConfig[] = [
-    {
-      type: '360p',
-      width: 640,
-      height: 360,
-      bitrate: '500k',
-      videoCodec: 'libx264',
-      audioCodec: 'aac',
-      preset: 'fast',
-    },
-    {
-      type: '720p',
-      width: 1280,
-      height: 720,
-      bitrate: '1M',
-      videoCodec: 'libx264',
-      audioCodec: 'aac',
-      preset: 'fast',
-    },
-    {
-      type: '1080p',
-      width: 1920,
-      height: 1080,
-      bitrate: '2M',
-      videoCodec: 'libx264',
-      audioCodec: 'aac',
-      preset: 'medium',
-    },
-  ];
-
   constructor(private s3Service: S3Service) {}
 
   /**
@@ -478,17 +456,34 @@ export class VariantService {
    * the whole previous set or the whole new one.
    *
    * The in-memory `file.variants` is merged by type to match what the
-   * transaction did — rows of types this batch did not write are preserved, so
-   * the record does not appear to have lost variants that are still there.
+   * transaction did. A complete video replacement retires obsolete video tiers;
+   * unrelated lazy image renditions remain available.
    */
-  private async commitVariants(file: FileRecord, variants: NewFileVariant[]): Promise<void> {
+  private async commitVariants(
+    file: FileRecord,
+    variants: NewFileVariant[],
+    replaceVideoSet = false,
+  ): Promise<void> {
     const rows = await upsertVariantSet(
       file.id,
       variants,
       file.metadata === undefined ? undefined : { metadata: file.metadata },
+      { replaceVideoSet },
     );
     const written = new Set(rows.map((row) => row.type));
-    file.variants = [...file.variants.filter((v) => !written.has(v.type)), ...rows];
+    file.variants = [
+      ...file.variants.filter(
+        (v) =>
+          !written.has(v.type) &&
+          !(
+            replaceVideoSet &&
+            (v.type.startsWith('hls_') || /^(360p|720p|1080p|source)$/.test(v.type))
+          ),
+      ),
+      ...rows,
+    ];
+    if (replaceVideoSet && isServedPublicly(file))
+      getCdnInvalidationQueue().enqueuePath(`/${file.id}`);
   }
 
   private async getUsableReadyVariant(
@@ -657,11 +652,30 @@ export class VariantService {
    * delete authority over this row.
    */
   private async copyVariantSet(source: FileRecord, target: FileRecord): Promise<void> {
+    const storageRoots = source.mime.startsWith('video/')
+      ? [
+          ...new Set([
+            ...videoStorageRoots(
+              source,
+              source.variants.map((variant) => variant.key),
+            ),
+            ...videoStorageRoots(
+              target,
+              target.variants.map((variant) => variant.key),
+            ),
+          ]),
+        ]
+      : [];
     const intrinsic = Object.fromEntries(
       Object.entries(source.metadata ?? {}).filter(([key]) => INTRINSIC_METADATA_KEYS.has(key)),
     );
     if (Object.keys(intrinsic).length > 0) {
       target.metadata = { ...(target.metadata ?? {}), ...intrinsic };
+      if (storageRoots.length > 0)
+        target.metadata.video = {
+          ...(source.metadata?.video as Record<string, unknown>),
+          storageRoots,
+        };
     }
     await this.commitVariants(
       target,
@@ -674,6 +688,7 @@ export class VariantService {
         size: variant.size,
         metadata: variant.metadata,
       })),
+      source.mime.startsWith('video/') && hasCurrentVideoRenditions(source),
     );
   }
 
@@ -929,131 +944,88 @@ export class VariantService {
    */
   private async generateVideoVariants(file: FileRecord): Promise<void> {
     await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'generateVideoVariants');
-    try {
-      logger.info('Generating video variants with FFmpeg', { fileId: file.id });
-
-      // Get S3 presigned URL - FFmpeg can read directly from HTTP URLs
-      const videoUrl = await this.s3Service.getPresignedDownloadUrl(
-        file.storageKey,
-        MEDIA_SOURCE_URL_TTL_SECONDS,
+    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+      file.storageKey,
+      MEDIA_SOURCE_URL_TTL_SECONDS,
+    );
+    const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
+    if (!metadata.width || !metadata.height) throw new Error(`Cannot probe video ${file.id}`);
+    const rungs = videoRungs({ width: metadata.width, height: metadata.height });
+    // A generation never overwrites playable objects, even when a retry fails halfway.
+    const profile = `${VIDEO_RENDITION_PROFILE}/${randomUUID()}`;
+    const storageRoots = videoStorageRoots(
+      file,
+      file.variants.map((variant) => variant.key),
+    );
+    const root =
+      storageRoots[0] ??
+      variantStorageRoot(
+        this.generateVariantKey(file.sha256, 'hls_master', 'm3u8', spellingOf(file), profile),
+        file.sha256,
       );
-
-      // Extract video metadata using S3 presigned URL (no download needed)
-      const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
-
-      const variants: NewFileVariant[] = [];
-
-      // Generate poster frame at 1 second (or 10% of duration, whichever is smaller)
-      const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
-      const posterVariant = await this.generatePosterFrame(
-        file.storageKey, // Use S3 storage key directly - no temp files
+    if (!root) throw new Error(`Cannot resolve video storage root for ${file.id}`);
+    if (storageRoots.length === 0) {
+      // Even an upload that fails before publication must follow deletion/visibility policy.
+      await rememberVideoStorageRoot(file.id, root);
+      storageRoots.push(root);
+    }
+    const variants: NewFileVariant[] = [];
+    const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
+    variants.push(
+      await this.generatePosterFrame(
+        file.storageKey,
         file.sha256,
         posterTime,
         spellingOf(file),
-        metadata, // Pass metadata to preserve exact aspect ratio
-      );
-      variants.push(posterVariant);
-
-      // Generate multiple bitrate variants.
-      //
-      // `generateVideoVariant` resolves `null` on an ffmpeg failure rather than
-      // rejecting, so ONE rendition failing does not cost the poster and the
-      // renditions that did encode. Total loss is a different thing and must not
-      // be silent: a video whose every attempted rendition failed used to reach
-      // the end of this method, log "generated successfully", and be
-      // indistinguishable from a healthy upload from outside (issue #759).
-      // Counting attempts separately from successes is what tells the two apart
-      // — a source smaller than every target legitimately attempts nothing.
-      let renditionsAttempted = 0;
-      let renditionsSucceeded = 0;
-      for (const config of this.videoVariants) {
-        // Skip if source resolution is smaller than target
-        if (metadata.width && metadata.height) {
-          if (config.width && config.width > metadata.width) {
-            logger.debug('Skipping variant larger than source', {
-              type: config.type,
-              sourceWidth: metadata.width,
-              targetWidth: config.width,
-            });
-            continue;
-          }
-        }
-
-        renditionsAttempted += 1;
-        const variant = await this.generateVideoVariant(
-          videoUrl, // Use S3 presigned URL directly - no temp files
+        metadata,
+        profile,
+        root,
+      ),
+    );
+    for (const rung of rungs) {
+      variants.push(
+        await this.generateVideoVariant(
+          videoUrl,
           file.sha256,
-          config,
+          rung,
           spellingOf(file),
-        );
-        if (variant) {
-          renditionsSucceeded += 1;
-          variants.push(variant);
-        }
-      }
-
-      // Generate HLS stream (adaptive streaming)
-      const hlsVariants = await this.generateHLSStream(
-        videoUrl, // Use S3 presigned URL directly - no temp files
-        file.sha256,
-        metadata,
-        spellingOf(file),
+          profile,
+          root,
+        ),
       );
-      variants.push(...hlsVariants);
-
-      // Store original video metadata
-      file.metadata = {
-        ...file.metadata,
-        video: {
-          duration: metadata.duration,
-          width: metadata.width,
-          height: metadata.height,
-          bitrate: metadata.bitrate,
-          fps: metadata.fps,
-          codec: metadata.codec,
-          audioCodec: metadata.audioCodec,
-        },
-      };
-      applyCanonicalMediaMetadata(file, {
-        width: metadata.width,
-        height: metadata.height,
-        durationSec: metadata.duration,
-      });
-
-      await this.commitVariants(file, variants);
-
-      // Raised AFTER the commit, deliberately. Everything that did encode — the
-      // poster above all, which is the one video rendition with real consumers
-      // (`ensureVideoPoster`) — is already persisted and is not thrown away by
-      // reporting the failure. The throw is what marks the queue job failed so
-      // the loss is visible and retried; swallowing it is what made a video with
-      // no renditions look exactly like a healthy upload (issue #759).
-      if (renditionsAttempted > 0 && renditionsSucceeded === 0) {
-        throw new Error(
-          `All ${renditionsAttempted} video rendition(s) failed to encode for file ${file.id}`,
-        );
-      }
-
-      if (renditionsAttempted > renditionsSucceeded) {
-        logger.warn('Some video mp4 renditions failed to encode', {
-          fileId: file.id,
-          renditionsAttempted,
-          renditionsSucceeded,
-          renditionsFailed: renditionsAttempted - renditionsSucceeded,
-        });
-      }
-
-      logger.info('Video variants generated successfully', {
-        fileId: file.id,
-        variantCount: variants.length,
-        renditionsAttempted,
-        renditionsSucceeded,
-        metadata,
-      });
-    } catch (error) {
-      logger.error('Error generating video variants:', error);
-      throw error;
     }
+    variants.push(
+      ...(await this.generateHLSStream(
+        videoUrl,
+        file.sha256,
+        rungs,
+        spellingOf(file),
+        profile,
+        root,
+      )),
+    );
+    file.metadata = {
+      ...file.metadata,
+      video: {
+        ...metadata,
+        storageRoots: videoStorageRoots(file, [
+          ...storageRoots,
+          ...variants.map((variant) => variant.key),
+        ]),
+      },
+    };
+    applyCanonicalMediaMetadata(file, {
+      width: metadata.width,
+      height: metadata.height,
+      durationSec: metadata.duration,
+    });
+    // Nothing is visible until every rendition, segment and playlist is uploaded.
+    await this.commitVariants(file, variants, true);
+    logger.info('Video rendition set generated', {
+      fileId: file.id,
+      profile,
+      variantCount: variants.length,
+    });
   }
 
   /**
@@ -1554,8 +1526,10 @@ export class VariantService {
     timeSeconds: number,
     visibility: FileVisibility,
     metadata?: { width?: number; height?: number },
+    profile?: string,
+    root?: string,
   ): Promise<NewFileVariant> {
-    const posterKey = this.generateVariantKey(sha256, 'poster', 'jpg', visibility);
+    const posterKey = this.generateVariantKey(sha256, 'poster', 'jpg', visibility, profile, root);
 
     // Get S3 presigned URL for the video (FFmpeg supports HTTP input)
     const videoUrl = await this.s3Service.getPresignedDownloadUrl(
@@ -1564,25 +1538,18 @@ export class VariantService {
     );
 
     // Extract metadata if not provided (using S3 URL)
-    if (!metadata || !metadata.width || !metadata.height) {
+    if (!metadata?.width || !metadata.height) {
       metadata = await this.extractVideoMetadataFromUrl(videoUrl);
     }
 
     const videoWidth = metadata.width || 1920;
     const videoHeight = metadata.height || 1080;
     const aspectRatio = videoWidth / videoHeight;
-
-    // Use FFmpeg's built-in aspect ratio preservation
-    // Scale to max 1920px while maintaining exact aspect ratio (no stretching)
-    let scaleFilter: string;
-
-    if (videoWidth >= videoHeight) {
-      // Landscape or square: constrain width to 1920, let FFmpeg calculate height to preserve aspect ratio
-      scaleFilter = 'scale=1920:-1:force_original_aspect_ratio=decrease';
-    } else {
-      // Vertical/portrait: constrain height to 1920, let FFmpeg calculate width to preserve aspect ratio
-      scaleFilter = 'scale=-1:1920:force_original_aspect_ratio=decrease';
-    }
+    const scale = Math.min(1, 1920 / videoWidth, 1920 / videoHeight);
+    const scaleFilter = videoScaleFilter({
+      width: Math.max(1, Math.round(videoWidth * scale)),
+      height: Math.max(1, Math.round(videoHeight * scale)),
+    });
 
     return new Promise((resolve, reject) => {
       // Generate poster with scaling to max 1920px while maintaining exact aspect ratio
@@ -1765,7 +1732,10 @@ export class VariantService {
 
         ffprobeProcess.on('close', (code) => {
           if (code !== 0) {
-            logger.warn('FFprobe failed from URL', { code, stderr });
+            logger.warn('FFprobe failed from URL', {
+              code,
+              stderr: stderr.replaceAll(videoUrl, '[source]'),
+            });
             resolve({});
             return;
           }
@@ -1780,8 +1750,7 @@ export class VariantService {
               duration: metadata.format?.duration
                 ? Number.parseFloat(metadata.format.duration)
                 : undefined,
-              width: videoStream?.width,
-              height: videoStream?.height,
+              ...videoDisplayDimensions(videoStream ?? {}),
               bitrate: metadata.format?.bit_rate
                 ? Number.parseInt(metadata.format.bit_rate)
                 : undefined,
@@ -1790,7 +1759,7 @@ export class VariantService {
               audioCodec: audioStream?.codec_name,
             });
           } catch (error) {
-            logger.warn('Error parsing FFprobe output from URL', { error, stdout });
+            logger.warn('Error parsing FFprobe output from URL', { error });
             resolve({});
           }
         });
@@ -1808,380 +1777,213 @@ export class VariantService {
 
   /**
    * Generate a video variant with specific encoding settings
-   * Uses S3 presigned URL directly - streams output to memory, no temp files
+   * Writes a seekable temporary MP4 so faststart can place its index first, then streams the upload.
    */
   private async generateVideoVariant(
     videoUrl: string,
     sha256: string,
-    config: VideoVariantConfig,
+    rung: VideoRung,
     visibility: FileVisibility,
-  ): Promise<NewFileVariant | null> {
-    const variantKey = this.generateVariantKey(sha256, config.type, 'mp4', visibility);
-
-    return new Promise((resolve) => {
-      const args = [
-        '-i',
-        videoUrl, // Use S3 presigned URL directly
-        '-c:v',
-        config.videoCodec || 'libx264',
-        '-c:a',
-        config.audioCodec || 'aac',
-        '-b:v',
-        config.bitrate || '1M',
-        // `+faststart` needs to seek back and rewrite the header once encoding
-        // finishes — impossible on `pipe:1`, so the mp4 muxer refused to write
-        // ANY output at all ("muxer does not support non seekable output"),
-        // failing every video variant outright. `frag_keyframe+empty_moov`
-        // (fragmented mp4) is the streaming-safe equivalent: no seek required,
-        // and still progressively playable. Reproduced and confirmed fixed
-        // locally against this exact ffmpeg invocation before changing it.
-        '-movflags',
-        'frag_keyframe+empty_moov',
-        '-preset',
-        config.preset || 'fast',
-        '-crf',
-        '23', // Constant rate factor for quality
-        '-pix_fmt',
-        'yuv420p', // Compatibility
-        '-avoid_negative_ts',
-        'make_zero',
-        '-f',
-        'mp4', // Output format
-        'pipe:1', // Output to stdout (memory)
-      ];
-
-      // Set resolution if specified
-      if (config.width && config.height) {
-        args.push(
-          '-vf',
-          `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`,
-        );
-      }
-
-      // Only verify absolute paths — a bare `ffmpeg` command is resolved via PATH at spawn time.
-      if (path.isAbsolute(ffmpegPath) && !fs.existsSync(ffmpegPath)) {
-        logger.error('FFmpeg binary not found', { path: ffmpegPath, variant: config.type });
-        resolve(null);
-        return;
-      }
-
-      logger.debug('FFmpeg command for variant', {
-        variant: config.type,
-        videoUrl: videoUrl.substring(0, 50) + '...',
-      });
-
-      const ffmpegProcess = spawn(ffmpegPath, args);
-
-      let stderr = '';
-      const stdoutChunks: Buffer[] = [];
-      let _lastProgress = '';
-
-      ffmpegProcess.stderr.on('data', (data) => {
-        const output = data.toString();
-        stderr += output;
-
-        // Parse progress from ffmpeg output
-        const timeMatch = output.match(/time=(\d+):(\d+):(\d+\.\d+)/);
-        if (timeMatch) {
-          const hours = Number.parseInt(timeMatch[1]);
-          const minutes = Number.parseInt(timeMatch[2]);
-          const seconds = Number.parseFloat(timeMatch[3]);
-          const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-          _lastProgress = totalSeconds.toString();
-        }
-      });
-
-      ffmpegProcess.stdout.on('data', (data) => {
-        stdoutChunks.push(data);
-      });
-
-      ffmpegProcess.on('close', async (code) => {
-        if (code !== 0) {
-          // The LAST bytes, not the first — see the poster-generation error
-          // handler above for why: the banner, not the fatal error, was all
-          // that ever reached these logs.
-          logger.error('Video variant generation failed', {
-            variant: config.type,
-            code,
-            error: stderr.slice(-500),
-          });
-          resolve(null); // Don't fail entire process if one variant fails
-          return;
-        }
-
-        try {
-          // Get variant from stdout (no temp file needed)
-          const variantBuffer = Buffer.concat(stdoutChunks);
-
-          // Upload to S3
-          await this.s3Service.uploadBuffer(variantKey, variantBuffer, {
-            contentType: 'video/mp4',
-            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-          });
-
-          resolve({
-            type: config.type,
-            key: variantKey,
-            width: config.width,
-            height: config.height,
-            readyAt: new Date(),
-            size: variantBuffer.length,
-            metadata: {
-              bitrate: config.bitrate,
-              codec: config.videoCodec,
-              audioCodec: config.audioCodec,
-              preset: config.preset,
-              format: 'mp4',
-            },
-          });
-        } catch (error) {
-          logger.error('Error processing video variant', { variant: config.type, error });
-          resolve(null);
-        }
-      });
-
-      ffmpegProcess.on('error', (err) => {
-        logger.error('FFmpeg process error', { variant: config.type, error: err });
-        resolve(null);
-      });
-    });
-  }
-
-  /**
-   * Generate HLS (HTTP Live Streaming) streams with adaptive bitrate
-   * Uses S3 presigned URL directly - segments are uploaded to S3 immediately and temp files cleaned up
-   * Note: HLS requires temp files for segment generation, but they're deleted immediately after upload to S3
-   */
-  private async generateHLSStream(
-    videoUrl: string,
-    sha256: string,
-    metadata: { width?: number; height?: number; duration?: number },
-    visibility: FileVisibility,
-  ): Promise<NewFileVariant[]> {
-    // Use /tmp for HLS segments (ephemeral, OS cleans up automatically)
-    // FFmpeg needs to write multiple segment files for HLS
-    const tempDir = path.join('/tmp', 'oxy-hls', sha256.substring(0, 8));
-    const hlsDir = path.join(tempDir, 'hls');
-    let cleanupTemp = false;
-
-    return new Promise((resolve, reject) => {
-      try {
-        // Create HLS output directory (temporary, for segment generation)
-        fs.mkdirSync(hlsDir, { recursive: true });
-        cleanupTemp = true;
-      } catch (error) {
-        reject(new Error(`Failed to create HLS temp directory: ${error}`));
-        return;
-      }
-
-      const variants: NewFileVariant[] = [];
-
-      // Generate HLS variants for each quality
-      const hlsVariants: Array<{ resolution: string; bitrate: string; playlist: string }> = [];
-      const availableVariants = this.videoVariants.filter((v) => {
-        // Only include variants that are smaller or equal to source
-        return !v.width || !metadata.width || v.width <= metadata.width;
-      });
-
-      if (availableVariants.length === 0) {
-        // Fallback to original resolution
-        availableVariants.push({
-          type: 'source',
-          width: metadata.width,
-          height: metadata.height,
-          bitrate: '2M',
-          videoCodec: 'libx264',
-          audioCodec: 'aac',
-          preset: 'fast',
-        });
-      }
-
-      let processedCount = 0;
-      const totalVariants = availableVariants.length;
-
-      availableVariants.forEach((config) => {
-        const playlistName = `stream_${config.type}.m3u8`;
-        const outputPath = path.join(hlsDir, playlistName);
-        const segmentPattern = path.join(hlsDir, `segment_${config.type}_%03d.ts`);
-
-        const args = [
+    profile: string,
+    root?: string,
+  ): Promise<NewFileVariant> {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-video-'));
+    try {
+      const outputPath = path.join(tempDir, 'video.mp4');
+      const run = await runFfmpeg(
+        ffmpegPath,
+        [
           '-i',
-          videoUrl, // Use S3 presigned URL directly
+          videoUrl,
+          '-map',
+          '0:v:0',
+          '-map',
+          '0:a:0?',
           '-c:v',
-          config.videoCodec || 'libx264',
+          'libx264',
           '-c:a',
-          config.audioCodec || 'aac',
+          'aac',
           '-b:v',
-          config.bitrate || '1M',
-          '-f',
-          'hls',
-          '-hls_time',
-          '10', // 10 second segments
-          '-hls_list_size',
-          '0', // Keep all segments in playlist
-          '-hls_segment_filename',
-          segmentPattern,
-          '-hls_flags',
-          'independent_segments',
+          rung.bitrate,
           '-preset',
-          config.preset || 'fast',
+          rung.preset,
           '-crf',
           '23',
           '-pix_fmt',
           'yuv420p',
-          '-sc_threshold',
-          '0',
-          '-g',
-          '48',
-          '-keyint_min',
-          '48',
-        ];
-
-        if (config.width && config.height) {
-          args.push(
-            '-vf',
-            `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`,
-          );
-        }
-
-        args.push('-y', outputPath); // Overwrite output file
-
-        const ffmpegProcess = spawn(ffmpegPath, args);
-
-        let stderr = '';
-
-        ffmpegProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        ffmpegProcess.on('close', async (code) => {
-          if (code !== 0) {
-            logger.error('HLS variant generation failed', {
-              variant: config.type,
-              code,
-              error: stderr,
-            });
-            processedCount++;
-            if (processedCount === totalVariants) {
-              resolve(variants);
-            }
-            return;
-          }
-
-          try {
-            // Upload HLS playlist and segments
-            const playlistBuffer = fs.readFileSync(outputPath);
-            const playlistKey = this.generateVariantKey(
-              sha256,
-              `hls_${config.type}`,
-              'm3u8',
-              visibility,
-            );
-            await this.s3Service.uploadBuffer(playlistKey, playlistBuffer, {
-              contentType: 'application/vnd.apple.mpegurl',
-              cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-            });
-
-            // Upload all segment files and delete immediately after upload
-            const segments = fs
-              .readdirSync(hlsDir)
-              .filter((f) => f.startsWith(`segment_${config.type}_`));
-            for (const segment of segments) {
-              const segmentPath = path.join(hlsDir, segment);
-              const segmentBuffer = fs.readFileSync(segmentPath);
-              // The playlist lists each segment by this exact file name, and its
-              // URIs resolve against its own URL: the segment is its sibling.
-              const segmentKey = playlistSiblingKey(playlistKey, segment);
-              await this.s3Service.uploadBuffer(segmentKey, segmentBuffer, {
-                contentType: 'video/mp2t',
-                cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-              });
-              // Delete segment immediately after upload (no temp file accumulation)
-              try {
-                fs.unlinkSync(segmentPath);
-              } catch {
-                // Ignore deletion errors
-              }
-            }
-
-            // Delete playlist file after upload
-            try {
-              fs.unlinkSync(outputPath);
-            } catch {
-              // Ignore deletion errors
-            }
-
-            hlsVariants.push({
-              resolution:
-                config.width && config.height ? `${config.width}x${config.height}` : 'source',
-              bitrate: config.bitrate || '1M',
-              playlist: playlistKey,
-            });
-
-            variants.push({
-              type: `hls_${config.type}`,
-              key: playlistKey,
-              width: config.width,
-              height: config.height,
-              readyAt: new Date(),
-              metadata: {
-                format: 'hls',
-                bitrate: config.bitrate,
-                segments: segments.length,
-              },
-            });
-
-            processedCount++;
-            if (processedCount === totalVariants) {
-              // Generate master playlist
-              const masterPlaylist = this.generateMasterPlaylist(hlsVariants);
-              const masterKey = this.generateVariantKey(sha256, 'hls_master', 'm3u8', visibility);
-              await this.s3Service.uploadBuffer(masterKey, Buffer.from(masterPlaylist), {
-                contentType: 'application/vnd.apple.mpegurl',
-                cacheControl: HLS_MASTER_PLAYLIST_CACHE_CONTROL,
-              });
-
-              variants.push({
-                type: 'hls_master',
-                key: masterKey,
-                readyAt: new Date(),
-                metadata: {
-                  format: 'hls',
-                  variantCount: hlsVariants.length,
-                  variants: hlsVariants.map((v) => v.resolution),
-                },
-              });
-
-              // Cleanup temp directory after all uploads (all segments uploaded to S3)
-              if (cleanupTemp && fs.existsSync(tempDir)) {
-                try {
-                  fs.rmSync(tempDir, { recursive: true, force: true });
-                  logger.debug('Cleaned up HLS temp directory after uploads', { tempDir });
-                } catch (cleanupError) {
-                  logger.warn('Error cleaning up HLS temp files', { tempDir, error: cleanupError });
-                }
-              }
-
-              resolve(variants);
-            }
-          } catch (error) {
-            logger.error('Error processing HLS variant', { variant: config.type, error });
-            processedCount++;
-            if (processedCount === totalVariants) {
-              resolve(variants);
-            }
-          }
-        });
-
-        ffmpegProcess.on('error', (err) => {
-          logger.error('FFmpeg process error for HLS', { variant: config.type, error: err });
-          processedCount++;
-          if (processedCount === totalVariants) {
-            resolve(variants);
-          }
-        });
+          '-vf',
+          videoScaleFilter(rung),
+          '-movflags',
+          '+faststart',
+          '-avoid_negative_ts',
+          'make_zero',
+          '-y',
+          outputPath,
+        ],
+        { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
+      );
+      if (run.code !== 0)
+        throw new Error(
+          `Video ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
+        );
+      const key = this.generateVariantKey(sha256, rung.type, 'mp4', visibility, profile, root);
+      await this.s3Service.uploadFile(key, outputPath, {
+        contentType: 'video/mp4',
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
       });
-    });
+      const stat = await fs.promises.stat(outputPath);
+      return {
+        type: rung.type,
+        key,
+        width: rung.width,
+        height: rung.height,
+        readyAt: new Date(),
+        size: stat.size,
+        metadata: {
+          bitrate: rung.bitrate,
+          format: 'mp4',
+          encodingProfile: VIDEO_RENDITION_PROFILE,
+        },
+      };
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  /** Encode sequentially to bound CPU; publish segments before playlists and master last. */
+  private async generateHLSStream(
+    videoUrl: string,
+    sha256: string,
+    rungs: VideoRung[],
+    visibility: FileVisibility,
+    profile: string,
+    root?: string,
+  ): Promise<NewFileVariant[]> {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-hls-'));
+    const variants: NewFileVariant[] = [];
+    const masterRenditions: Array<{ resolution: string; bitrate: string; playlist: string }> = [];
+    try {
+      for (const rung of rungs) {
+        const outputPath = path.join(tempDir, `stream_${rung.type}.m3u8`);
+        const run = await runFfmpeg(
+          ffmpegPath,
+          [
+            '-i',
+            videoUrl,
+            '-map',
+            '0:v:0',
+            '-map',
+            '0:a:0?',
+            '-c:v',
+            'libx264',
+            '-c:a',
+            'aac',
+            '-b:v',
+            rung.bitrate,
+            '-preset',
+            rung.preset,
+            '-crf',
+            '23',
+            '-pix_fmt',
+            'yuv420p',
+            '-vf',
+            videoScaleFilter(rung),
+            '-sc_threshold',
+            '0',
+            '-flags',
+            '+cgop',
+            '-force_key_frames',
+            `expr:gte(t,n_forced*${VIDEO_SEGMENT_SECONDS})`,
+            '-f',
+            'hls',
+            '-hls_time',
+            String(VIDEO_SEGMENT_SECONDS),
+            '-hls_playlist_type',
+            'vod',
+            '-hls_list_size',
+            '0',
+            '-hls_flags',
+            'independent_segments',
+            '-hls_segment_filename',
+            path.join(tempDir, `segment_${rung.type}_%03d.ts`),
+            '-y',
+            outputPath,
+          ],
+          { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
+        );
+        if (run.code !== 0)
+          throw new Error(
+            `Video HLS ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
+          );
+        const playlist = await fs.promises.readFile(outputPath);
+        const key = this.generateVariantKey(
+          sha256,
+          `hls_${rung.type}`,
+          'm3u8',
+          visibility,
+          profile,
+          root,
+        );
+        const segments = mediaPlaylistSegments(playlist.toString());
+        if (segments.length === 0) throw new Error(`Video HLS ${rung.type} has no segments`);
+        const segmentMetrics: Array<{ duration: number; bytes: number }> = [];
+        for (const segment of segments) {
+          const segmentPath = path.join(tempDir, segment.uri);
+          const stat = await fs.promises.stat(segmentPath);
+          segmentMetrics.push({ duration: segment.duration, bytes: stat.size });
+          await this.s3Service.uploadFile(playlistSiblingKey(key, segment.uri), segmentPath, {
+            contentType: 'video/mp2t',
+            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+          });
+          await fs.promises.unlink(segmentPath);
+        }
+        await this.s3Service.uploadBuffer(key, playlist, {
+          contentType: 'application/vnd.apple.mpegurl',
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+        });
+        variants.push({
+          type: `hls_${rung.type}`,
+          key,
+          width: rung.width,
+          height: rung.height,
+          readyAt: new Date(),
+          metadata: {
+            format: 'hls',
+            bitrate: rung.bitrate,
+            segments: segments.length,
+            encodingProfile: VIDEO_RENDITION_PROFILE,
+          },
+        });
+        const bandwidth = measureBandwidth(segmentMetrics, this.parseBitrate(rung.bitrate));
+        masterRenditions.push({
+          resolution: `${rung.width}x${rung.height}`,
+          bitrate: String(bandwidth.peak),
+          playlist: key,
+        });
+      }
+      const key = this.generateVariantKey(sha256, 'hls_master', 'm3u8', visibility, profile, root);
+      await this.s3Service.uploadBuffer(
+        key,
+        Buffer.from(this.generateMasterPlaylist(masterRenditions)),
+        {
+          contentType: 'application/vnd.apple.mpegurl',
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+        },
+      );
+      variants.push({
+        type: 'hls_master',
+        key,
+        readyAt: new Date(),
+        metadata: {
+          format: 'hls',
+          variantCount: rungs.length,
+          encodingProfile: VIDEO_RENDITION_PROFILE,
+        },
+      });
+      return variants;
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
   }
 
   /**
@@ -2283,6 +2085,7 @@ export class VariantService {
     format: string,
     visibility: FileVisibility,
     profile?: string,
+    root?: string,
   ): string {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -2295,7 +2098,10 @@ export class VariantService {
     // directory of its own, so two differently processed sets of the same
     // bytes never overwrite each other.
     const directory = profile ? `${sha256}/${profile}` : sha256;
-    const baseKey = `variants/${year}/${month}/${prefix}/${directory}/${variantType}.${format}`;
+    const baseKey =
+      root && profile
+        ? `${root}${profile}/${variantType}.${format}`
+        : `variants/${year}/${month}/${prefix}/${directory}/${variantType}.${format}`;
     return storageKeyForVisibility(baseKey, visibility);
   }
 
@@ -2356,15 +2162,14 @@ export class VariantService {
 
   /** Mp4 bitrate rendition names produced by upload-time `generateVideoVariants`. */
   isVideoMp4Rendition(variantType: string): boolean {
-    return this.videoVariants.some((v) => v.type === variantType);
+    return /^(360p|720p|1080p)$/.test(variantType);
   }
 
   /**
    * Ensure a specific mp4 bitrate rendition exists, generating via FFmpeg if missing.
    *
-   * Upload-time `generateVideoVariants` swallows per-rendition failures (`resolve(null)`),
-   * so a file can have `poster`/`hls_master` but no `360p`/`720p`/`1080p`. Lazy
-   * generation here lets those files self-heal on first request (#759).
+   * This explicit worker-side operation repairs a missing tier. Public media
+   * reads reject unavailable tiers rather than encoding on the request path.
    */
   async ensureVideoMp4Rendition(file: FileRecord, variantType: string): Promise<FileVariantRecord> {
     const existing = await this.getUsableReadyVariant(file, variantType);
@@ -2374,44 +2179,25 @@ export class VariantService {
 
     await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'video/HLS generation');
 
-    const config = this.videoVariants.find((v) => v.type === variantType);
-    if (!config) {
+    if (!this.isVideoMp4Rendition(variantType))
       throw new Error(`Unsupported video mp4 rendition: ${variantType}`);
-    }
-
     const videoUrl = await this.s3Service.getPresignedDownloadUrl(
       file.storageKey,
       MEDIA_SOURCE_URL_TTL_SECONDS,
     );
-    const storedVideo = file.metadata?.video as VideoProbeMetadata | undefined;
-    const hasStoredDimensions =
-      typeof storedVideo?.width === 'number' && typeof storedVideo?.height === 'number';
-    const probed = hasStoredDimensions
-      ? ({} as VideoProbeMetadata)
-      : await this.extractVideoMetadataFromUrl(videoUrl);
-    const metadata: VideoProbeMetadata = {
-      ...probed,
-      ...storedVideo,
-      width: storedVideo?.width ?? probed.width,
-      height: storedVideo?.height ?? probed.height,
-    };
-
-    if (metadata.width && config.width && config.width > metadata.width) {
-      throw new Error(
-        `Variant ${variantType} exceeds source resolution (${metadata.width}px wide)`,
-      );
-    }
-
+    const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
+    if (!metadata.width || !metadata.height) throw new Error(`Cannot probe video ${file.id}`);
+    const rung = videoRungs({ width: metadata.width, height: metadata.height }).find(
+      (candidate) => candidate.type === variantType,
+    );
+    if (!rung) throw new Error(`Variant ${variantType} exceeds source resolution`);
     const variant = await this.generateVideoVariant(
       videoUrl,
       file.sha256,
-      config,
+      rung,
       spellingOf(file),
+      `${VIDEO_RENDITION_PROFILE}/${randomUUID()}`,
     );
-    if (!variant) {
-      throw new Error(`Failed to generate video rendition: ${variantType}`);
-    }
-
     return await this.storeVariant(file, variant);
   }
 
