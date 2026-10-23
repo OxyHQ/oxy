@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { type Deps, type Env, handle, resolverCacheTag } from './index';
+import { type Deps, type Env, EDGE_CACHE_MAX_BYTES, handle, resolverCacheTag } from './index';
 import {
   DOWNLOAD_POLICY,
   IMMUTABLE_CACHE_CONTROL,
@@ -8,17 +8,23 @@ import {
   routeFor,
 } from './policy';
 
-type Stored = { body: string; contentType?: string; cacheControl?: string; disposition?: string };
+type Stored = {
+  body: string;
+  contentType?: string;
+  cacheControl?: string;
+  disposition?: string;
+  size?: number;
+};
 
 /** The slice of R2Bucket the Worker uses, over a map of keys. */
-function fakeBucket(objects: Record<string, Stored>) {
+function fakeBucket(objects: Record<string, Stored>, beforeFullRead?: () => Promise<void>) {
   const reads: string[] = [];
   const object = (key: string, stored: Stored, range?: { offset: number; length: number }) => {
     const bytes = new TextEncoder().encode(stored.body);
     const slice = range ? bytes.slice(range.offset, range.offset + range.length) : bytes;
     return {
       key,
-      size: bytes.length,
+      size: stored.size ?? bytes.length,
       httpEtag: '"etag"',
       uploaded: new Date('2026-10-01T00:00:00Z'),
       range,
@@ -38,12 +44,20 @@ function fakeBucket(objects: Record<string, Stored>) {
       const { body: _body, ...rest } = object(key, stored);
       return rest;
     },
-    async get(key: string, options?: { range?: Headers }) {
+    async get(key: string, options?: { range?: Headers; onlyIf?: Headers }) {
       reads.push(`get ${key}`);
       const stored = objects[key];
       if (!stored) return null;
+      if (!options?.range) await beforeFullRead?.();
+      if (options?.onlyIf?.get('if-none-match') === '"etag"') {
+        const { body: _body, ...rest } = object(key, stored);
+        return rest;
+      }
       const header = options?.range?.get('range');
       const match = header ? /^bytes=(\d+)-(\d+)$/.exec(header) : null;
+      if (header && (!match || Number(match[1]) >= (stored.size ?? stored.body.length))) {
+        throw new Error('The requested range is not satisfiable');
+      }
       const range = match
         ? { offset: Number(match[1]), length: Number(match[2]) - Number(match[1]) + 1 }
         : undefined;
@@ -59,7 +73,25 @@ function fakeCache() {
   const cache = {
     async match(request: Request) {
       const hit = entries.get(request.url);
-      return hit ? hit.clone() : undefined;
+      if (!hit) return undefined;
+      const ifNoneMatch = request.headers.get('if-none-match');
+      if (ifNoneMatch && ifNoneMatch === hit.headers.get('etag')) {
+        return new Response(null, { status: 304, headers: hit.headers });
+      }
+      const range = request.headers.get('range');
+      const match = range ? /^bytes=(\d+)-(\d+)$/.exec(range) : null;
+      if (!match) return hit.clone();
+      const body = await hit.clone().arrayBuffer();
+      const start = Number(match[1]);
+      const end = Math.min(Number(match[2]), body.byteLength - 1);
+      const headers = new Headers(hit.headers);
+      if (start >= body.byteLength) {
+        headers.set('content-range', `bytes */${body.byteLength}`);
+        return new Response(null, { status: 416, headers });
+      }
+      headers.set('content-range', `bytes ${start}-${end}/${body.byteLength}`);
+      headers.set('content-length', String(end - start + 1));
+      return new Response(body.slice(start, end + 1), { status: 206, headers });
     },
     async put(request: Request, response: Response) {
       entries.set(request.url, response.clone());
@@ -72,8 +104,9 @@ function harness(
   objects: Record<string, Stored>,
   upstream?: (url: string) => Response,
   websiteObjects: Record<string, Stored> = {},
+  beforeFullRead?: () => Promise<void>,
 ) {
-  const { bucket, reads } = fakeBucket(objects);
+  const { bucket, reads } = fakeBucket(objects, beforeFullRead);
   const website = fakeBucket(websiteObjects);
   const { cache, entries } = fakeCache();
   const pending: Promise<unknown>[] = [];
@@ -97,7 +130,7 @@ function harness(
     await Promise.all(pending);
     return response;
   };
-  return { get, reads, entries, fetched };
+  return { get, reads, entries, fetched, env, deps, pending };
 }
 
 describe('routing: the CloudFront behaviors, in order', () => {
@@ -210,8 +243,102 @@ describe('objects', () => {
       'public/content/v.mp4': { body: '0123456789', contentType: 'video/mp4' },
     });
     const response = await get('/content/v.mp4', { headers: { range: 'bytes=2-5' } });
-    expect([200, 206]).toContain(response.status);
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-range')).toBe('bytes 2-5/10');
+    expect(response.headers.get('content-length')).toBe('4');
+    expect(await response.text()).toBe('2345');
     expect(entries.has('https://cloud.oxy.so/content/v.mp4')).toBe(true);
+  });
+
+  it('serves cold ranges before the complete object arrives and fills only once', async () => {
+    let finishRead = () => {};
+    const fullRead = new Promise<void>((resolve) => {
+      finishRead = resolve;
+    });
+    let fullReads = 0;
+    const { env, deps, pending, entries } = harness(
+      { 'public/content/cold.mp4': { body: '0123456789', contentType: 'video/mp4' } },
+      undefined,
+      {},
+      () => {
+        fullReads++;
+        return fullRead;
+      },
+    );
+    try {
+      for (const range of ['bytes=0-1', 'bytes=2-3']) {
+        const response = await handle(
+          new Request('https://cloud.oxy.so/content/cold.mp4', { headers: { range } }),
+          env,
+          deps,
+        );
+        expect(response.status).toBe(206);
+        expect(await response.text()).toBe(range === 'bytes=0-1' ? '01' : '23');
+      }
+      expect(fullReads).toBe(1);
+      expect(pending).toHaveLength(1);
+      expect(entries.size).toBe(0);
+    } finally {
+      finishRead();
+      await Promise.all(pending);
+    }
+    expect(entries.has('https://cloud.oxy.so/content/cold.mp4')).toBe(true);
+  }, 1000);
+
+  it('answers a warm range from the complete cached object without another R2 read', async () => {
+    const { get, reads } = harness({
+      'public/content/warm.mp4': { body: '0123456789', contentType: 'video/mp4' },
+    });
+    await get('/content/warm.mp4');
+    const response = await get('/content/warm.mp4', { headers: { range: 'bytes=4-7' } });
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe('4567');
+    expect(reads).toEqual(['get public/content/warm.mp4']);
+  });
+
+  it('does not fill objects above the cache size limit', async () => {
+    let fullReads = 0;
+    const { get, pending } = harness(
+      {
+        'public/content/large.mp4': {
+          body: '0123456789',
+          contentType: 'video/mp4',
+          size: EDGE_CACHE_MAX_BYTES + 1,
+        },
+      },
+      undefined,
+      {},
+      async () => {
+        fullReads++;
+      },
+    );
+    const response = await get('/content/large.mp4', { headers: { range: 'bytes=0-1' } });
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe('01');
+    expect(fullReads).toBe(0);
+    expect(pending).toHaveLength(0);
+  });
+
+  it('preserves a ranged conditional response without downloading the complete object', async () => {
+    const { get, pending } = harness({
+      'public/content/conditional.mp4': { body: '0123456789', contentType: 'video/mp4' },
+    });
+    const response = await get('/content/conditional.mp4', {
+      headers: { range: 'bytes=0-1', 'if-none-match': '"etag"' },
+    });
+    expect(response.status).toBe(304);
+    expect(await response.text()).toBe('');
+    expect(pending).toHaveLength(0);
+  });
+
+  it('rejects an unsatisfiable range without filling the cache', async () => {
+    const { get, pending } = harness({
+      'public/content/invalid.mp4': { body: '0123456789', contentType: 'video/mp4' },
+    });
+    const response = await get('/content/invalid.mp4', { headers: { range: 'bytes=20-30' } });
+    expect(response.status).toBe(416);
+    expect(response.headers.get('content-range')).toBe('bytes */10');
+    expect(pending).toHaveLength(0);
   });
 
   it('caches by path alone, as S3 ignored the query string', async () => {
