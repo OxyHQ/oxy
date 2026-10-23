@@ -1,3 +1,4 @@
+import { createAuthenticatedFetch } from './authenticatedFetch';
 import { SafetyApi } from './api/safety';
 import { ContentClaimsApi } from './api/contentClaims';
 /**
@@ -63,6 +64,8 @@ export interface OxyConfig extends OxyConfigBase {
 /** An HTTP client for an app's own backend, bound to this client's session. */
 export interface LinkedHttpClient {
   client: HttpService;
+  /** Origin-bound fetch for a product SDK; session and refresh stay in Oxy. */
+  fetch: typeof globalThis.fetch;
   dispose(): void;
 }
 
@@ -173,9 +176,14 @@ export class OxyServices {
       return refreshed;
     });
 
+    let disposed = false;
     return {
       client,
+      fetch: createAuthenticatedFetch(client, config.baseURL ?? OXY_API_URL, {
+        disposed: () => disposed,
+      }),
       dispose: () => {
+        disposed = true;
         unsubscribe();
         client.setAuthRefreshHandler(null);
         client.setAccessTokenProvider(null);

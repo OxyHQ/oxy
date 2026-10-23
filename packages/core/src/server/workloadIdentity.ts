@@ -1,7 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { trimTrailingSlashes } from '../utils/slashes';
-import { assertRequestedServiceScopes } from './serviceTokenScopes';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -41,7 +39,8 @@ const STS_REGION = 'us-east-1';
 const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 
 export interface WorkloadServiceTokenOptions {
-  scopes?: string[];
+  /** Temporary infrastructure credentials, for example an assumed development role. */
+  credentials?: WorkloadCredentialProvider;
   /** Oxy's base URL, e.g. `https://api.oxy.so`. */
   baseUrl: string;
   /**
@@ -61,11 +60,13 @@ export interface WorkloadServiceToken {
 }
 
 /** Credentials as the ECS container credentials endpoint returns them. */
-interface ContainerCredentials {
+export interface WorkloadCredentials {
   AccessKeyId: string;
   SecretAccessKey: string;
   Token?: string;
 }
+
+export type WorkloadCredentialProvider = () => Promise<WorkloadCredentials>;
 
 /**
  * Whether this process can attest at all.
@@ -80,7 +81,7 @@ export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env):
   );
 }
 
-async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerCredentials> {
+async function containerCredentials(fetchImpl: typeof fetch): Promise<WorkloadCredentials> {
   const relative = process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
   const url = relative
     ? `http://169.254.170.2${relative}`
@@ -96,7 +97,7 @@ async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerC
   if (!response.ok) {
     throw new Error(`The container credentials endpoint answered ${response.status}.`);
   }
-  const credentials = (await response.json()) as ContainerCredentials;
+  const credentials = (await response.json()) as WorkloadCredentials;
   if (!credentials.AccessKeyId || !credentials.SecretAccessKey) {
     throw new Error('The container credentials endpoint answered without credentials.');
   }
@@ -119,7 +120,7 @@ function sha256Hex(value: string): string {
  * does not cover can be swapped by whoever captured the attestation.
  */
 function signGetCallerIdentity(
-  credentials: ContainerCredentials,
+  credentials: WorkloadCredentials,
   nonce: string,
   now: Date,
 ): Record<string, string> {
@@ -221,8 +222,7 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
-  const requestedScopes =
-    options.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(options.scopes);
+  if ('scopes' in options) throw new Error('First-party workloads do not request scopes');
   const fetchImpl = options.fetch ?? fetch;
   const base = trimTrailingSlashes(options.baseUrl);
 
@@ -238,7 +238,9 @@ export async function requestWorkloadServiceToken(
     throw new Error('Oxy issued a workload challenge with no nonce.');
   }
 
-  const attestation = await awsContainerAttestation(fetchImpl, challenge.nonce);
+  const attestation = options.credentials
+    ? { headers: signGetCallerIdentity(await options.credentials(), challenge.nonce, new Date()) }
+    : await awsContainerAttestation(fetchImpl, challenge.nonce);
 
   const tokenResponse = await fetchImpl(`${base}/auth/service-token/workload`, {
     method: 'POST',
@@ -248,7 +250,6 @@ export async function requestWorkloadServiceToken(
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),
-      ...(requestedScopes ? { scopes: requestedScopes } : {}),
     }),
   });
   if (!tokenResponse.ok) {
@@ -260,7 +261,6 @@ export async function requestWorkloadServiceToken(
   if (!granted?.token || typeof granted.expiresIn !== 'number') {
     throw new Error('Oxy answered the attestation without a usable token.');
   }
-  assertRequestedServiceScopes(granted.token, requestedScopes);
   return { token: granted.token, expiresIn: granted.expiresIn, appName: granted.appName ?? '' };
 }
 
