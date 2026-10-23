@@ -3,18 +3,34 @@ export const PAYMENTS_SCOPES = ['payments:read', 'payments:write'] as const;
 
 export type PaymentsScope = (typeof PAYMENTS_SCOPES)[number];
 
-/** True for self-service third-party apps that need the Peable carve-out. */
-export function isUntrustedThirdPartyApp(application: {
+/** Presentation only: registering an Oxy app never elevates an API credential. */
+export function isOxyApplication(application: {
   type: string;
   isOfficial: boolean;
   isInternal: boolean;
 }): boolean {
-  return application.type === 'third_party' && !application.isOfficial && !application.isInternal;
+  return (
+    application.isOfficial ||
+    application.isInternal ||
+    ['first_party', 'internal', 'system'].includes(application.type)
+  );
 }
 
-/** Payment scopes currently granted on the application. */
-export function availablePaymentsScopes(scopes: ReadonlyArray<string>): Array<PaymentsScope> {
-  return PAYMENTS_SCOPES.filter((scope) => scopes.includes(scope));
+/** Mirrors the API's self-service service-credential subset (not workload authority). */
+const SELF_SERVICE_SCOPES: ReadonlySet<string> = new Set([
+  ...PAYMENTS_SCOPES,
+  'files:app:write',
+  'files:app:delete',
+  'files:references:write',
+]);
+
+export function availableCredentialScopes(
+  application: { type: string; isOfficial: boolean; isInternal: boolean; scopes: Array<string> },
+  type: 'service' | 'machine',
+): Array<string> {
+  return application.scopes.filter((scope) =>
+    type === 'machine' || isOxyApplication(application) || SELF_SERVICE_SCOPES.has(scope),
+  );
 }
 
 /** Build the next application scope list after toggling payments scopes. */
@@ -22,6 +38,12 @@ export function mergePaymentsScopes(
   existingScopes: ReadonlyArray<string>,
   payments: { read: boolean; write: boolean },
 ): Array<string> {
+  if (
+    existingScopes.includes('payments:read') === payments.read &&
+    existingScopes.includes('payments:write') === payments.write
+  ) {
+    return [...existingScopes];
+  }
   const withoutPayments = existingScopes.filter(
     (scope) => !PAYMENTS_SCOPES.includes(scope as PaymentsScope),
   );
@@ -35,7 +57,7 @@ export function mergePaymentsScopes(
   return next;
 }
 
-/** Alia's app-only chat also needs the caller's hosted inference capability. */
+/** External Alia chat keys also need the caller's hosted inference scope. */
 export const ALIA_MACHINE_SCOPES = ['alia:chat', 'inference:invoke'] as const;
 
 export function hasAliaMachineScopes(scopes: ReadonlyArray<string>): boolean {
@@ -52,4 +74,15 @@ export function mergeAliaMachineScopes(
     (scope) => !ALIA_MACHINE_SCOPES.includes(scope as (typeof ALIA_MACHINE_SCOPES)[number]),
   );
   return enabled ? [...other, ...ALIA_MACHINE_SCOPES] : other;
+}
+
+/** External credential ceiling only; Oxy workloads never use this scope list. */
+export function nextApplicationScopes(
+  scopes: ReadonlyArray<string>,
+  choices: { paymentsRead: boolean; paymentsWrite: boolean; aliaMachineAccess: boolean | null },
+): Array<string> {
+  return mergeAliaMachineScopes(
+    mergePaymentsScopes(scopes, { read: choices.paymentsRead, write: choices.paymentsWrite }),
+    choices.aliaMachineAccess,
+  );
 }
