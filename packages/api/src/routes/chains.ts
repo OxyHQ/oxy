@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * `/chains` — the app-authored write to a person's signed chain.
  *
@@ -33,8 +34,7 @@ const router = Router();
 
 /** Assert the requesting credential carries the chain-write scope. */
 function assertChainsScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(CHAINS_WRITE_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, CHAINS_WRITE_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${CHAINS_WRITE_SCOPE}`);
   }
 }
@@ -42,8 +42,9 @@ function assertChainsScope(req: ServiceAuthRequest): void {
 /**
  * POST /chains/records — append a record to `oxyUserId`'s chain.
  *
- * Requires the `chains:write` scope, a matching user OAuth grant, AND that
- * `collection` falls under one of the calling application's `chainNamespaces`.
+ * Own workloads require verified requester context for the chain account.
+ * External credentials retain chains:write and matching OAuth consent. Every
+ * collection must remain under the calling application's chainNamespaces.
  * Oxy issues and signs the envelope
  * (`issuer = OXY_DID`); the application never holds a chain signing key.
  *
@@ -66,12 +67,26 @@ router.post(
     }
 
     const body = req.body as AppendChainRecordBody;
+    if (
+      req.serviceApp?.authority === 'first_party' &&
+      req.serviceRequester?.subjectAccountId !== body.oxyUserId
+    )
+      throw new ForbiddenError('The chain must belong to the verified requester account.');
     const result = await appendAppRecord({
       appId,
       oxyUserId: body.oxyUserId,
       collection: body.collection,
       rkey: body.rkey,
       record: body.record,
+      ...(req.serviceApp?.authority === 'first_party' && req.serviceRequester
+        ? {
+            requester: {
+              authority: 'first_party' as const,
+              applicationId: req.serviceApp.appId,
+              accountId: req.serviceRequester.subjectAccountId,
+            },
+          }
+        : {}),
     });
 
     if (!result.ok) {
@@ -127,8 +142,7 @@ router.get(
   serviceAuthMiddleware,
   validate({ query: readChainRecordsQuerySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-    const scopes = req.serviceApp?.scopes ?? [];
-    if (!scopes.includes(CHAINS_READ_SCOPE)) {
+    if (!hasServiceAuthority(req.serviceApp, CHAINS_READ_SCOPE)) {
       throw new ForbiddenError(`Missing required scope: ${CHAINS_READ_SCOPE}`);
     }
 

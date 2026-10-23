@@ -1,3 +1,5 @@
+import { createFirstPartyTask, revokeFirstPartyTask } from '../services/firstPartyTasks.service';
+import { createFirstPartyTaskAuthorization } from '../services/firstPartyTaskAuthority.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
@@ -11,6 +13,8 @@ import {
   catalogToolAllowsActor,
   catalogToolActors,
   foregroundExecutionAuthorizationInputSchema,
+  firstPartyExecutionAuthorizationInputSchema,
+  firstPartyTaskInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
   capabilityPackageSchema,
@@ -205,7 +209,11 @@ async function livePrincipal(
     response.status(403).json({ error: 'insufficient_service_scope', requiredScope: scope });
     return null;
   }
-  if (capability && !principal.capabilities.includes(capability)) {
+  if (
+    capability &&
+    principal.authority !== 'first_party' &&
+    !principal.capabilities.includes(capability)
+  ) {
     response
       .status(403)
       .json({ error: 'missing_application_capability', requiredCapability: capability });
@@ -825,13 +833,81 @@ router.get(
   },
 );
 
+router.post(
+  '/tasks',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    const input = firstPartyTaskInputSchema
+      .extend({ subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/) })
+      .parse(req.body);
+    const { subjectToken, ...body } = input;
+    const task = await createFirstPartyTask(body, subjectToken, principal);
+    res.status(201).json({
+      task: {
+        id: task.id,
+        origin: { kind: task.originKind, id: task.originId },
+        requesterAccountId: task.requesterAccountId,
+        effectiveAccountId: task.effectiveAccountId,
+        coordinatorApplicationId: task.coordinatorApplicationId,
+        actorType: task.actorType,
+        actorAccountId: task.actorAccountId,
+        expiresAt: task.expiresAt,
+        revokedAt: task.revokedAt,
+      },
+    });
+  }),
+);
+router.post(
+  '/tasks/:taskId/execution-authorizations',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    const input = firstPartyExecutionAuthorizationInputSchema.parse(req.body);
+    const authorization = await createFirstPartyTaskAuthorization(
+      input,
+      '',
+      principal,
+      z.string().min(1).max(128).parse(req.params.taskId),
+    );
+    res.status(201).json({ authorization });
+  }),
+);
+router.delete(
+  '/tasks/:taskId',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    await revokeFirstPartyTask(z.string().min(1).max(128).parse(req.params.taskId), principal);
+    res.status(204).end();
+  }),
+);
+
 /**
  * @openapi
  * /capabilities/foreground-execution-authorizations:
  *   post:
  *     tags: [Capabilities]
- *     summary: Authorize one present requester read for a verified presenting service
- *     description: Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.
+ *     summary: Authorize a tool operation for a verified requester and presenting service
+ *     description: Separate service bearer and requester subjectToken. Own workloads use the first_party task contract with bound requester, actor, account and catalogue; external callers retain the restricted requester-read contract below.
  *     security: [{ serviceTokenAuth: [] }]
  *     requestBody:
  *       required: true
@@ -904,6 +980,29 @@ router.post(
       AGENCY_COORDINATE_CAPABILITY,
     );
     if (!presenter) return;
+    if (request.body?.authority === 'first_party') {
+      const proof = z
+        .object({ subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/) })
+        .passthrough()
+        .safeParse(request.body);
+      if (!proof.success) {
+        response.status(400).json({ error: 'invalid_first_party_requester_proof' });
+        return;
+      }
+      const { subjectToken, ...rawInput } = proof.data;
+      const parsedOwn = firstPartyExecutionAuthorizationInputSchema.safeParse(rawInput);
+      if (!parsedOwn.success) {
+        response.status(400).json({ error: 'invalid_first_party_task' });
+        return;
+      }
+      const authorization = await createFirstPartyTaskAuthorization(
+        parsedOwn.data,
+        subjectToken,
+        presenter,
+      );
+      response.status(201).json({ authorization });
+      return;
+    }
     const parsed = foregroundExecutionAuthorizationInputSchema
       .extend({
         subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/),
@@ -1363,6 +1462,7 @@ router.post(
     }
     try {
       const registration = await registerCapabilityCatalog({
+        authority: principal.authority,
         catalog: request.body.catalog,
         applicationId: principal.applicationId,
         credentialId: principal.credentialId,
@@ -1713,6 +1813,7 @@ router.post(
     const result = await evaluateCapabilityAuthority(
       {
         executionAuthorizationId: parsed.data.executionAuthorizationId,
+        authority: principal.authority,
         coordinator: {
           applicationId: principal.applicationId,
           credentialId: principal.credentialId,

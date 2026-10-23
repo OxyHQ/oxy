@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { Router, type Response } from 'express';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
@@ -90,8 +91,10 @@ const REQUIRED_SCOPE = 'federation:write';
 const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve';
 
 function assertIdentityResolveScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
+  if (
+    !hasServiceAuthority(req.serviceApp, REQUIRED_SCOPE) &&
+    !hasServiceAuthority(req.serviceApp, IDENTITY_RESOLVE_SCOPE)
+  ) {
     throw new ForbiddenError(
       `Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`,
     );
@@ -263,8 +266,7 @@ async function getAllowedDomainsForRequest(req: ServiceAuthRequest): Promise<Set
 
 /** Assert the requesting credential carries the federation:write scope. */
 function assertFederationScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, REQUIRED_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE}`);
   }
 }
@@ -470,7 +472,7 @@ router.post(
   instanceFetchLimiter,
   validate({ body: instanceFetchSignRequestSchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-    if (!(req.serviceApp?.scopes ?? []).includes(INSTANCE_FETCH_SCOPE)) {
+    if (!hasServiceAuthority(req.serviceApp, INSTANCE_FETCH_SCOPE)) {
       throw new ForbiddenError(`Missing required scope: ${INSTANCE_FETCH_SCOPE}`);
     }
     const { url } = req.body as InstanceFetchSignRequest;

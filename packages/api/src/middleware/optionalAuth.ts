@@ -1,3 +1,6 @@
+import { ForbiddenError } from '../utils/error';
+import { resolveServiceRequester } from '../services/serviceRequester.service';
+import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 /**
@@ -142,6 +145,7 @@ const VIEWER_DELEGATION_SCOPE = 'user:read';
  */
 export interface OptionalUserOrServiceRequest extends AuthenticatedRequest {
   serviceApp?: ServiceTokenPayload;
+  serviceRequester?: ForegroundRequesterBinding;
 }
 
 /**
@@ -170,12 +174,13 @@ export async function optionalUserOrServiceAuth(
     if (token) {
       const verification = verifyServiceToken(token);
       if (verification.ok) {
-        if (
-          verification.payload.authority === 'first_party' &&
-          !(await resolveLiveAgencyServicePrincipal(verification.payload))
-        ) {
-          res.status(401).json({ error: 'invalid_service_identity' });
-          return;
+        if (verification.payload.authority === 'first_party') {
+          const principal = await resolveLiveAgencyServicePrincipal(verification.payload);
+          if (!principal) {
+            res.status(401).json({ error: 'invalid_service_identity' });
+            return;
+          }
+          req.serviceRequester = await resolveServiceRequester(principal, req.headers);
         }
         // Valid service token → service principal. Do NOT also attempt user
         // session auth (a service token has no session).
@@ -203,6 +208,10 @@ export async function optionalUserOrServiceAuth(
     }
     next();
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      res.status(403).json({ error: 'invalid_requester_proof' });
+      return;
+    }
     if (error instanceof OptionalAuthenticationPolicyError) {
       res.status(error.status).json({
         error: {
@@ -271,10 +280,8 @@ export function resolveViewerId(req: OptionalUserOrServiceRequest): string | und
     return undefined;
   }
 
-  if (
-    serviceApp.authority === 'first_party' ||
-    !serviceApp.scopes?.includes(VIEWER_DELEGATION_SCOPE)
-  ) {
+  if (serviceApp.authority === 'first_party') return req.serviceRequester?.subjectAccountId;
+  if (!serviceApp.scopes?.includes(VIEWER_DELEGATION_SCOPE)) {
     logger.debug('resolveViewerId: service lacks viewer-delegation scope', {
       appId: serviceApp.appId,
     });

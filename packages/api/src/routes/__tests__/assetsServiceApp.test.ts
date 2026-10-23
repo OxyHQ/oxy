@@ -155,6 +155,7 @@ function actAs(
   appId: string,
   scopes: string[] = ALL_SCOPES,
   tier: 'internal' | 'external' = 'internal',
+  authority: 'first_party' | 'external' = 'external',
 ): void {
   mockServiceAuthMiddleware.mockImplementation(
     (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
@@ -166,7 +167,8 @@ function actAs(
         ownerAccountId: 'acct-1',
         environment: 'production',
         tier,
-        scopes,
+        authority,
+        ...(authority === 'first_party' ? {} : { scopes }),
       };
       next();
     },
@@ -418,11 +420,12 @@ describe('a private application file is readable by its application only', () =>
     expect(other.body.data).toEqual([]);
   });
 
-  it('reveals ownerApplicationId on /service/by-ids to an internal-tier token only', async () => {
+  it('reveals ownerApplicationId only to verified own authority, never a branded external key', async () => {
     const appId = await application();
     actAs(appId);
     const id = String((await upload(png())).body.data?.file?.id);
 
+    actAs(appId, [], 'internal', 'first_party');
     const internal = await json('POST', '/assets/service/by-ids', { ids: [id] });
     expect((internal.body.data as unknown as Array<Record<string, unknown>>)[0]).toMatchObject({
       id,
@@ -430,7 +433,7 @@ describe('a private application file is readable by its application only', () =>
       ownerApplicationId: appId,
     });
 
-    actAs(appId, ALL_SCOPES, 'external');
+    actAs(appId, ALL_SCOPES, 'internal', 'external');
     const external = await json('POST', '/assets/service/by-ids', { ids: [id] });
     expect((external.body.data as unknown as Array<Record<string, unknown>>)[0]).not.toHaveProperty(
       'ownerApplicationId',

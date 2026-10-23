@@ -131,6 +131,7 @@ describe('live agency workload principal', () => {
       .values({
         applicationId: application.id,
         provider: 'aws-iam',
+        environment: workloadTokenEnvironment(),
         subject,
         description: 'test binding',
         scopes: overrides.bindingScopes ?? ['inference:invoke', 'acting-as:offline'],
@@ -310,6 +311,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       .values({
         applicationId: application.id,
         provider: 'aws-iam',
+        environment: workloadTokenEnvironment(),
         subject,
         description: 'handle test binding',
         scopes: overrides.bindingScopes ?? ['inference:invoke'],
@@ -353,11 +355,13 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
        * comparison untestable.
        */
       environment: workloadTokenEnvironment(),
-      scopes: ['inference:invoke'],
+      authority: 'first_party',
     };
     const credentialToken: ServiceTokenPayload = {
       ...attestedToken,
       credentialId: credential.id,
+      authority: 'external',
+      scopes: ['inference:invoke'],
       // The credential's own environment, which is the column the credential arm
       // compares against.
       environment: 'production',
@@ -402,7 +406,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       applicationId: fixture.application.id,
       credentialId: fixture.handle,
       ownerAccountId: fixture.owner.id,
-      scopes: ['inference:invoke'],
+      authority: 'first_party',
       capabilities: ['kaana:provider-credential-validation'],
     });
     // The credential of the same application is NOT what came back — the gate
@@ -417,6 +421,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       applicationId: fixture.application.id,
       credentialId: fixture.credential.id,
       ownerAccountId: fixture.owner.id,
+      authority: 'external',
       // `token ∩ credential ∩ application`, as before: the token asked for one.
       scopes: ['inference:invoke'],
       capabilities: ['catalog:alia'],
@@ -476,12 +481,11 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     await expect(resolveLiveAgencyServicePrincipal(demoted.attestedToken)).resolves.toBeNull();
   });
 
-  it('refuses an attested token whose binding names no route to the scope it asks for', async () => {
+  it('does not attach legacy binding scopes to own authority', async () => {
     const fixture = await bothFixture({ bindingScopes: ['user:read'] });
     const live = await resolveLiveAgencyServicePrincipal(fixture.attestedToken);
-    // Resolved, but with nothing the token asked for — so every scope gate above
-    // it refuses, and the refusal names the scope rather than the principal.
-    expect(live?.scopes).toEqual([]);
+    expect(live?.authority).toBe('first_party');
+    expect(live).not.toHaveProperty('scopes');
   });
 
   it('answers exactly what the subject addressing answers', async () => {
@@ -548,9 +552,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
         applicationId: fixture.application.id,
         ownerAccountId: fixture.owner.id,
         environment: workloadTokenEnvironment(),
-        // What the BINDING names, intersected with the application — not the
-        // credential's `acting-as:offline`, which is sitting right there.
-        scopes: ['inference:invoke'],
+        authority: 'first_party',
       },
     });
 

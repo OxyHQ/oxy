@@ -1,54 +1,16 @@
 import { isSupervised } from './supervisionPolicy.service';
 /**
- * Whether an application may act as a user from its own backend, with no
- * session of that user's anywhere in the request.
+ * External service delegation through a live user's OAuth grant.
  *
- * ## The question, and why it has exactly one answer here
+ * A token identifies an application; X-Oxy-User-Id alone proves no user
+ * authority. This resolver applies only to external/legacy scoped callers:
+ * their live app, credential and user grant intersect, and revocation wins.
+ * An official application using an external credential follows these same rules.
  *
- * A service token proves an APPLICATION. `X-Oxy-User-Id` is a header, and a
- * header is an input — so on its own it proves nothing at all, and attaching
- * `req.userId` from it would let any service holding any service token
- * impersonate any user by typing their id. `@oxy.so/core`'s `oxy.auth()` refuses
- * that by construction: it calls `GET /internal/service-acting-as/verify` on
- * every request carrying the header and rejects with 403 unless this function
- * says yes. There is no fail-open path there and none here.
- *
- * ## Platform trust is not user consent
- *
- * First-party and internal applications are trusted to hold a service
- * credential. That says who built the application; it says nothing about which
- * human authorized it to borrow their identity. Offline delegation therefore
- * always requires an `app_grants` row naming `acting-as:offline`, for trusted
- * applications exactly as for every other application.
- *
- * This is the boundary that keeps one leaked first-party credential from acting
- * as the entire user base. Its blast radius is the set of people who explicitly
- * consented, and each person's grant scopes narrow the token independently.
- *
- * ## Revocation is an explicit, persisted fact
- *
- * `service_acting_as_revocations` is the positive refusal record. The grant is
- * already required, but keeping the refusal explicit makes revoke win over a
- * stale or concurrently recreated grant and requires a fresh consent flow to
- * clear it.
- *
- * It is checked FIRST, before anything that could authorize, so no ordering
- * change can leave it consulted too late to matter.
- *
- * ## How scopes compose
- *
- * Two independent limits, and a delegated request must satisfy BOTH:
- *
- *   application ceiling  `applications.scopes`            staff / owner decide
- *          ∩ credential  `application_credentials.scopes` → the token's `scopes`
- *   this function                                         → what the USER allows
- *
- * `requireScope` in `@oxy.so/core` intersects them for a delegated request.
- *
- * A coherent live snapshot intersects the user's grant with the current
- * application and credential/workload ceilings. Removing acting-as:offline
- * from any ceiling denies delegation even while an older signed token exists.
- * The receiver also intersects this answer with that token's scopes.
+ * Verified first-party workloads instead present a live shared session or a
+ * durable task bound to its original requester and coordinator. The internal
+ * verify route resolves that proof and account authority separately, without
+ * an app grant or scopes. No raw header can select a different account.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
@@ -72,7 +34,7 @@ type Db = ReturnType<typeof getDb>;
 type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
- * The scope every application's grant must name before it may act for a user.
+ * The scope every external application's grant must name before it may act for a user.
  * Not merely one of the scopes a delegated call might need — it is the
  * permission to be delegated at all.
  *
@@ -83,7 +45,7 @@ type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 export const SERVICE_ACTING_AS_SCOPE = 'acting-as:offline';
 
 /**
- * The answer `GET /internal/service-acting-as/verify` returns, and the shape
+ * The external answer `GET /internal/service-acting-as/verify` returns, and the shape
  * `@oxy.so/core`'s `ServiceActingAsVerification` parses.
  *
  * `scopes` is `[]` whenever `authorized` is false, so a caller that ignores the
