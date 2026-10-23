@@ -191,3 +191,29 @@ it.each([
     await close(server);
   }
 });
+
+it('isolates linked-account requester facades and never caches revocable reads', async () => {
+  const received: Array<{ path: string; proof: string | undefined }> = [];
+  const server = createServer((req, res) => {
+    received.push({
+      path: req.url ?? '',
+      proof: req.headers['x-oxy-requester-token'] as string | undefined,
+    });
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ userId: req.url?.split('/').at(-1), linkedAccounts: [] }));
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({ baseURL });
+  try {
+    const a = oxy.linkedAccounts.withRequester({ requesterToken: 'proof-a' });
+    const b = oxy.linkedAccounts.withRequester({ requesterToken: 'proof-b' });
+    await Promise.all([a.forUser('person'), b.forUser('person')]);
+    await a.forUser('person');
+    expect(received).toHaveLength(3);
+    expect(received.map((entry) => entry.proof).sort()).toEqual(['proof-a', 'proof-a', 'proof-b']);
+    expect(received.every((entry) => entry.path === '/linked-accounts/by-user/person')).toBe(true);
+  } finally {
+    oxy.dispose();
+    await close(server);
+  }
+});
