@@ -111,6 +111,18 @@ execution grants/ceilings. External introspection always projects external tier
 and authority, even for historical tokens branded internal. Internal service
 hops must preserve external request authority instead of relabelling it as own.
 
+For the existing external Mention MCP media actions, use the separate
+`oxy.assets.withMcpMediaRequester({ connectionToken, tool, accountId })` facade.
+It exposes only `uploadUserMedia` and `importUserMedia`. The selected tool must be
+`upload-media` or `upload-media-from-url`, respectively. Oxy checks the registered
+recipient, live external client/token/origin grant, current connection member's
+grant, exact active account and the catalogue's existing `social.media.create`
+authority. Import polling repeats those checks. The original client and both
+grants remain attached to the external operation. It creates no new consent,
+Files grant, own requester context or session. Other tool actions, private APIs,
+application references and a changed account are refused. Revocation denies the
+next request, including a repeated URL import.
+
 ## Deployment order
 
 The workload environment binding is provisioned metadata, never inferred from a

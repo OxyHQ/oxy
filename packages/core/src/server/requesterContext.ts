@@ -38,6 +38,8 @@ export function bindRequesterLane(original: ServiceLane, proof: RequesterProof):
             'x-oxy-task-id',
             'x-oxy-requester-token',
             'x-oxy-capability-ticket',
+            'x-oxy-mcp-media-token',
+            'x-oxy-mcp-media-tool',
           ].includes(key.toLowerCase())
         )
           delete headers[key];

@@ -36,6 +36,16 @@ const isDev = process.env.NODE_ENV === 'development';
  * `err.token` and friends.
  */
 const REDACTED_PATHS = [
+  'connectionToken',
+  '*.connectionToken',
+  'req.body.connectionToken',
+  'req.body.requester.connectionToken',
+  'body.requester.connectionToken',
+  '["x-oxy-mcp-media-token"]',
+  '*["x-oxy-mcp-media-token"]',
+  'req.headers["x-oxy-mcp-media-token"]',
+  'headers["x-oxy-mcp-media-token"]',
+  'headers["X-Oxy-Mcp-Media-Token"]',
   'capabilityTicket',
   '*.capabilityTicket',
   'req.body.capabilityTicket',
