@@ -887,3 +887,13 @@ describe('the canonical official-application registry', () => {
     });
   });
 });
+
+it('registers the native Authenticator client without backend or external app permissions', () => {
+  const spec = specNamed('Authenticator by Oxy');
+  expect(requiresPublicSeedCredential(spec)).toBe(true);
+  expect(spec.redirectUris).toEqual(['oxyauthenticator://']);
+  expect(spec.webOrigins ?? []).toEqual([]);
+  expect(spec.scopes).toEqual([]);
+  expect(spec.capabilities ?? []).toEqual([]);
+  expect(spec.type).toBe('first_party');
+});
