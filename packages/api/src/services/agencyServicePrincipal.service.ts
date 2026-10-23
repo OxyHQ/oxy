@@ -227,7 +227,7 @@ export interface LiveAgencyWorkloadPrincipal {
 }
 
 /**
- * The live ceiling for an attested caller, looked up by the ROLE it attested.
+ * The live registered identity for an attested caller, looked up by its subject.
  *
  * Every refusal below is a live revocation taking effect on the next call,
  * which is the property this exists for — an attested token lives an hour, and
@@ -240,9 +240,11 @@ export interface LiveAgencyWorkloadPrincipal {
  *   * the application is no longer `active`, or is no longer trusted
  *     first-party — the same gate `exchangeWorkloadAttestation` applies at mint;
  *   * the owner account was suspended or is behind a closure fence;
- *   * the scopes the binding names no longer reach `inference:invoke`, decided
- *     by the same `workloadBindingScopes` the mint used, so what an hour-old
- *     token may still do can never exceed what a fresh one would be given.
+ *   * the administratively bound environment differs from this deployment.
+ *
+ * Scopes are projected only for the finite legacy workload protocol. They do
+ * not authorize first-party callers; the caller's explicit authority chooses
+ * that lane only after this live identity check.
  */
 export async function resolveLiveAgencyWorkload(
   applicationId: string,
@@ -316,7 +318,7 @@ export async function resolveLiveAgencyWorkload(
 }
 
 /**
- * The same live ceiling, addressed by the HANDLE a minted token carries.
+ * The same live registered identity, addressed by the minted token handle.
  *
  * {@link resolveLiveAgencyWorkload} takes the role, for a caller that declared
  * the ARN it admits. A consumer of an attested token has only what the token

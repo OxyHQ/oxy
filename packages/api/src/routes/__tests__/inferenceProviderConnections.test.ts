@@ -840,17 +840,19 @@ describe('Kaana credential validation principal', () => {
    * nothing and this endpoint answered `404` to Kaana while answering `200` to the
    * very same service holding a secret. Measured in production minutes apart.
    *
-   * The binding names `inference:byok:validate` deliberately: the authority is
-   * still on a row staff wrote, and the attestation still names nothing.
+   * Own authority comes from the live environment-bound workload. Kaana's
+   * registered validation role remains required, without scope provisioning.
    */
-  async function bindKaanaWorkload(
-    applicationId: string,
-    scopes: string[] = ['inference:byok:validate'],
-  ): Promise<string> {
+  async function bindKaanaWorkload(applicationId: string): Promise<string> {
     const subject = `arn:aws:iam::237343248947:role/oxy-kaana-${suffix()}-task`;
     const [binding] = await getDb()
       .insert(applicationWorkloadIdentities)
-      .values({ applicationId, provider: 'aws-iam', subject, scopes })
+      .values({
+        applicationId,
+        provider: 'aws-iam',
+        subject,
+        environment: workloadTokenEnvironment(),
+      })
       .returning({ id: applicationWorkloadIdentities.id });
     const { credentialId } = await ensureWorkloadAttributionIdentity({
       bindingId: binding.id,
@@ -860,12 +862,7 @@ describe('Kaana credential validation principal', () => {
     return credentialId;
   }
 
-  function attestedToken(input: {
-    appId: string;
-    ownerAccountId: string;
-    handle: string;
-    scopes: string[];
-  }): string {
+  function attestedToken(input: { appId: string; ownerAccountId: string; handle: string }): string {
     const issuedAt = Math.floor(Date.now() / 1_000);
     return signServiceTokenEd25519({
       type: 'service',
@@ -875,7 +872,8 @@ describe('Kaana credential validation principal', () => {
       ownerAccountId: input.ownerAccountId,
       // What this deployment's mint writes; the live re-read compares it.
       environment: workloadTokenEnvironment(),
-      scopes: input.scopes,
+      authority: 'first_party',
+      tier: 'internal',
       iss: 'oxy-auth',
       aud: 'oxy-api',
       iat: issuedAt,
@@ -891,8 +889,7 @@ describe('Kaana credential validation principal', () => {
      * In the environment an ATTESTED token is minted into.
      *
      * `authorizeKaanaValidation` matches the connection's environment against the
-     * token's, and a workload token's is always `workloadTokenEnvironment()` — a
-     * binding has none to choose from. A `production` fixture would therefore 404
+     * token's administratively bound environment. A `production` fixture would therefore 404
      * on the environment rather than on anything about the principal, which is the
      * wrong reason to be green or red.
      */
@@ -902,7 +899,6 @@ describe('Kaana credential validation principal', () => {
     await getDb()
       .update(applications)
       .set({
-        scopes: ['inference:byok:validate'],
         capabilities: ['kaana:provider-credential-validation'],
       })
       .where(eq(applications.id, application));
@@ -918,7 +914,6 @@ describe('Kaana credential validation principal', () => {
         appId: application,
         ownerAccountId: account,
         handle,
-        scopes: ['inference:byok:validate'],
       }),
       await validationBody(connection),
     );
@@ -942,8 +937,7 @@ describe('Kaana credential validation principal', () => {
      * In the environment an ATTESTED token is minted into.
      *
      * `authorizeKaanaValidation` matches the connection's environment against the
-     * token's, and a workload token's is always `workloadTokenEnvironment()` — a
-     * binding has none to choose from. A `production` fixture would therefore 404
+     * token's administratively bound environment. A `production` fixture would therefore 404
      * on the environment rather than on anything about the principal, which is the
      * wrong reason to be green or red.
      */
@@ -953,7 +947,6 @@ describe('Kaana credential validation principal', () => {
     await getDb()
       .update(applications)
       .set({
-        scopes: ['inference:byok:validate'],
         capabilities: ['kaana:provider-credential-validation'],
       })
       .where(eq(applications.id, application));
@@ -970,12 +963,10 @@ describe('Kaana credential validation principal', () => {
         appId: application,
         ownerAccountId: account,
         handle,
-        scopes: ['inference:byok:validate'],
       }),
       await validationBody(connection),
     );
-    // The same `404 No such provider connection` an unresolvable credential gets,
-    // so an attested caller cannot probe whether a binding exists.
+    // A dead workload cannot distinguish a connection from a missing resource.
     expect(response.status).toBe(404);
     const [unchanged] = await getDb()
       .select({ status: inferenceProviderConnections.status })
@@ -984,7 +975,7 @@ describe('Kaana credential validation principal', () => {
     expect(unchanged.status).toBe('pending_validation');
   });
 
-  it('refuses an attested Kaana whose BINDING does not name the validate scope', async () => {
+  it('refuses an own workload without the registered Kaana validation role', async () => {
     const account = await insertAccount();
     const application = await insertApplication(account);
     const provider = await insertProvider();
@@ -994,12 +985,10 @@ describe('Kaana credential validation principal', () => {
     await getDb()
       .update(applications)
       .set({
-        scopes: ['inference:byok:validate'],
-        capabilities: ['kaana:provider-credential-validation'],
+        capabilities: [],
       })
       .where(eq(applications.id, application));
-    // The application still holds it; the binding does not. Both have to.
-    const handle = await bindKaanaWorkload(application, ['user:read']);
+    const handle = await bindKaanaWorkload(application);
 
     const response = await request(
       'POST',
@@ -1008,12 +997,11 @@ describe('Kaana credential validation principal', () => {
         appId: application,
         ownerAccountId: account,
         handle,
-        scopes: ['inference:byok:validate'],
       }),
       await validationBody(connection),
     );
     expect(response.status).toBe(403);
-    expect(response.body.message).toContain('inference:byok:validate');
+    expect(response.body.message).toContain('not Kaana credential validation');
   });
 
   it('refuses a scope-and-capability pair once the application is no longer trusted', async () => {
