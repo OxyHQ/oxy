@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { isSupervised } from './supervisionPolicy.service';
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
@@ -310,7 +311,7 @@ export async function evaluateCapabilityAuthority(
   if (
     !coordinator ||
     !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY) ||
-    !coordinator.scopes.includes('capability-tickets:issue')
+    !hasServiceAuthority(coordinator, 'capability-tickets:issue')
   ) {
     return denied('coordinator_no_longer_authorized');
   }
