@@ -1,0 +1,4 @@
+Oxy-maintained source fork of zod@4.6.7, Copyright Colin McDonnell and contributors (MIT).
+This package is not an official upstream Zod release. The pinned upstream archive, SHA512, source commit and security advisory are recorded in upstream/provenance.json.
+Changes: fail oversized constrained collections before parsing elements. Unbounded collections retain upstream semantics.
+The complete reviewed source changes are shipped in patches/.

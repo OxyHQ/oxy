@@ -1,0 +1,22 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/build-zod-fork.mjs",
+        "$TURBO_ROOT$/scripts/check-zod-forks.mjs"
+      ],
+      "outputs": [
+        "index.*",
+        "compile.*",
+        "src/**",
+        "v3/**",
+        "v4/**",
+        "v4-mini/**",
+        "mini/**",
+        "locales/**"
+      ]
+    }
+  }
+}

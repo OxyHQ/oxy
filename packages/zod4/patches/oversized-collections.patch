@@ -1,0 +1,31 @@
+--- a/src/v3/types.ts
++++ b/src/v3/types.ts
+@@ -2265,6 +2265,8 @@
+           exact: true,
+           message: def.exactLength.message,
+         });
++        // Never walk an input that already exceeds its declared upper bound.
++        if (tooBig) return INVALID;
+         status.dirty();
+       }
+     }
+@@ -2293,7 +2295,8 @@
+           exact: false,
+           message: def.maxLength.message,
+         });
+-        status.dirty();
++        // The raw elements have not been parsed; do not run later refinements.
++        return INVALID;
+       }
+     }
+ 
+@@ -3727,7 +3730,8 @@
+           exact: false,
+           message: def.maxSize.message,
+         });
+-        status.dirty();
++        // The raw elements have not been parsed; do not run later refinements.
++        return INVALID;
+       }
+     }
+ 
