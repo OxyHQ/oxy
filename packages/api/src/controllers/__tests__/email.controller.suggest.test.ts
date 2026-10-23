@@ -32,10 +32,10 @@ import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messageRecipients } from '../../db/schema/messageRecipients';
-import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../../services/email.service';
 import { suggestContacts } from '../email.controller';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -87,9 +87,8 @@ async function store(
   } = {},
   date = new Date(),
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -98,8 +97,8 @@ async function store(
       subject: '',
       size: 10,
       date,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
 
   const rows = (['to', 'cc'] as const).flatMap((kind) =>
     (recipients[kind] ?? []).map((address, ord) => ({

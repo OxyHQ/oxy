@@ -34,6 +34,7 @@ import { mailboxes } from '../../db/schema/mailboxes';
 import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 interface LoadedService {
   extractAndUpdate: (userId: string, messageId: string) => Promise<void>;
@@ -97,9 +98,8 @@ async function insertUser(): Promise<string> {
 async function insertMessage(
   options: { userId?: string; text?: string | null; subject?: string; date?: Date } = {},
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId: options.userId ?? USER_ID,
       mailboxId: MAILBOX_ID,
       messageId: `<${randomUUID()}@oxy.so>`,
@@ -110,8 +110,8 @@ async function insertMessage(
         options.text === undefined ? 'Booking reference ABC123, departing 10:00.' : options.text,
       size: 512,
       date: options.date ?? new Date('2026-03-04T05:06:07.000Z'),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

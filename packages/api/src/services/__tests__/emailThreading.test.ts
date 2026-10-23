@@ -4,8 +4,9 @@
  *
  * The invariant `services/emailThreading.ts` keeps: the rows sharing a
  * `thread_id` are exactly one connected component of the Message-ID adjacency
- * the `WITH RECURSIVE` walk follows. The oracle here is that walk, run the way
- * `getThread` runs it, and the comparison is made after EVERY write:
+ * a `WITH RECURSIVE` walk follows. The oracle here is that walk — the one the
+ * reads ran before the key was stored — and the comparison is made after EVERY
+ * write:
  *
  * - a randomized run (seeded, so a failure replays) over every path that
  *   creates, deletes or re-keys a message: inbound in any order (a reply before
@@ -13,8 +14,8 @@
  *   removed once sent, a relay id recorded after a reply already named it, and
  *   permanent deletes — any of which can be the bridge between two threads;
  * - the cases a random run could miss by chance, pinned one by one: a merge, a
- *   split, a child before its parent, a conversation stored before threads
- *   were, and the per-user lock under a forced interleaving.
+ *   split, a child before its parent, and the per-user lock under a forced
+ *   interleaving.
  */
 
 jest.mock('../senderAvatar.service', () => ({
@@ -57,29 +58,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await closePostgres();
 });
-
-/** A row inserted directly, without a thread — as every row stored before the column existed. */
-async function legacyRow(
-  userId: string,
-  mailboxId: string,
-  headers: { messageId: string; inReplyTo?: string; references?: string[] },
-): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
-      userId,
-      mailboxId,
-      messageId: headers.messageId,
-      fromAddress: 'sender@example.com',
-      subject: '',
-      size: 10,
-      inReplyTo: headers.inReplyTo,
-      references: headers.references ?? [],
-      date: new Date(),
-    })
-    .returning({ id: messages.id });
-  return row.id;
-}
 
 /** A user every write path accepts: a username, and the system mailboxes. */
 async function mailUser(): Promise<{ id: string; username: string; address: string }> {
@@ -425,39 +403,6 @@ describe('stored thread ids — the cases the random run must not miss by chance
     expect(threads.get(child.id)).toBe(threads.get(parent.id));
   });
 
-  it('assigns a whole conversation stored before threads were, on its next message', async () => {
-    // Rows inserted without a thread, as every row stored before the column
-    // existed is. A reply to them stamps the component it joins.
-    const user = await mailUser();
-    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
-    if (!inbox) throw new Error('no Inbox');
-    const root = `<legacy-${unique()}@example.com>`;
-    const legacyRoot = await legacyRow(user.id, inbox.id, { messageId: root });
-    const legacyReply = await legacyRow(user.id, inbox.id, {
-      messageId: `<legacy-reply-${unique()}@example.com>`,
-      inReplyTo: root,
-    });
-    const unrelated = await legacyRow(user.id, inbox.id, { messageId: `<other-${unique()}@x>` });
-
-    const reply = await emailService.storeIncomingMessage({
-      recipientUsername: user.username,
-      from: { address: 'peer@example.com' },
-      to: [{ address: user.address }],
-      subject: 's',
-      messageId: `<new-${unique()}@example.com>`,
-      references: [root],
-      date: new Date(),
-      headers: {},
-      rawSize: 10,
-    });
-    const threads = await threadOf(user.id);
-    expect(threads.get(reply.id)).toEqual(expect.any(String));
-    expect(threads.get(legacyRoot)).toBe(threads.get(reply.id));
-    expect(threads.get(legacyReply)).toBe(threads.get(reply.id));
-    // Untouched: not part of the conversation, still waiting for the backfill.
-    expect(threads.get(unrelated)).toBeNull();
-  });
-
   it('holds the per-user lock, so a concurrent writer`s thread is seen, not raced', async () => {
     // Forced interleaving, not Promise.all: the holder takes the lock, the
     // insert is started and PROVEN to be waiting on it (pg_locks, scoped to the
@@ -512,7 +457,7 @@ describe('stored thread ids — the cases the random run must not miss by chance
   }, 20_000);
 });
 
-describe('reads by the stored key — byte-identical to the walk they replace', () => {
+describe('reads by the stored key', () => {
   /** A mailbox of every thread shape a read can meet, written through the real paths. */
   async function conversations() {
     const user = await mailUser();
@@ -584,35 +529,20 @@ describe('reads by the stored key — byte-identical to the walk they replace', 
     return JSON.stringify({ lists, threads, singles });
   }
 
-  it('answers every list, thread and message read exactly as the walk did', async () => {
+  it('counts each page message`s own thread, transitively, without the self-copy', async () => {
     const user = await conversations();
-    // Non-vacuous: the stored path really is the one answering here.
-    expect((await storedThreads(user.id)).every((row) => row.threadId !== null)).toBe(true);
-    const stored = await reads(user.id);
+    const all = await reads(user.id);
     // The three-message thread plus the draft answering it, and the send with
     // its answer (the self-copy is not counted).
-    expect(stored).toContain('"threadCount":4');
-    expect(stored).toContain('"threadCount":2');
-
-    // Raw SQL: drizzle's update() would also bump updated_at, which is on the wire.
-    await getDb().execute(sql`update messages set thread_id = null where user_id = ${user.id}`);
-    const walked = await reads(user.id);
-    expect(stored).toBe(walked);
-  });
-
-  it('serves a page that mixes assigned and unassigned threads the same way', async () => {
-    const user = await conversations();
-    const walkedLater = await reads(user.id);
-    const rows = await storedThreads(user.id);
-    const half = rows.filter((_, index) => index % 2 === 0).map((row) => row.threadId);
-    // Unassign whole threads (never part of one, which the writes never leave).
-    for (const threadId of new Set(half)) {
-      if (threadId === null) continue;
-      await getDb().execute(
-        sql`update messages set thread_id = null where thread_id = ${threadId}`,
-      );
-    }
-    expect(await reads(user.id)).toBe(walkedLater);
+    expect(all).toContain('"threadCount":4');
+    expect(all).toContain('"threadCount":2');
+    // The orphan reply is a thread of one: no count, its own id as threadId.
+    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
+    if (!inbox) throw new Error('no Inbox');
+    const page = await emailService.listMessages(user.id, inbox.id, { limit: 50 });
+    const orphan = page.data.find((message) => message.messageId.startsWith('<orphan-'));
+    expect(orphan?.threadCount).toBeUndefined();
+    expect(orphan?.threadId).toBe(orphan?.id);
   });
 
   it('follows the stored key, not the walk, once a thread has one', async () => {

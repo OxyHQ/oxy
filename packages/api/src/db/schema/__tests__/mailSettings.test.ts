@@ -32,6 +32,7 @@ import { messages } from '../messages';
 import { reminders } from '../reminders';
 import { senderAvatarIsFresh, senderAvatars } from '../senderAvatars';
 import { users } from '../users';
+import { insertMessageRows } from '../../../../test-support/messageRows';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -167,9 +168,8 @@ describe('bundles — case-insensitive unique, like its siblings', () => {
     await getDb()
       .insert(bundles)
       .values({ userId, name: `Promos-${unique()}`, matchLabels: [label] });
-    const [message] = await getDb()
-      .insert(messages)
-      .values({
+    const [message] = await insertMessageRows([
+      {
         userId,
         mailboxId: mailbox.id,
         messageId: `<${unique()}@oxy.so>`,
@@ -178,8 +178,8 @@ describe('bundles — case-insensitive unique, like its siblings', () => {
         size: 10,
         date: new Date(),
         labels: [label],
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
 
     const matched = await getDb()
       .select({ id: messages.id })
@@ -427,9 +427,8 @@ describe('reminders', () => {
       .insert(mailboxes)
       .values({ userId, name: 'Inbox', path: `INBOX-${unique()}` })
       .returning({ id: mailboxes.id });
-    const [message] = await getDb()
-      .insert(messages)
-      .values({
+    const [message] = await insertMessageRows([
+      {
         userId,
         mailboxId: mailbox.id,
         messageId: `<${unique()}@oxy.so>`,
@@ -437,8 +436,8 @@ describe('reminders', () => {
         subject: '',
         size: 1,
         date: new Date(),
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
     const [reminder] = await getDb()
       .insert(reminders)
       .values({

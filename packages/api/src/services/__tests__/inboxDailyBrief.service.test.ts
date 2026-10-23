@@ -12,7 +12,6 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema/files';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messageAttachments } from '../../db/schema/messageAttachments';
-import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import {
   briefFromModel,
@@ -22,6 +21,7 @@ import {
   dailyBriefUserPrompt,
   getInboxDailyBriefDigest,
 } from '../inboxDailyBrief.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const START = new Date('2026-09-02T00:00:00.000Z');
 const END = new Date('2026-09-03T00:00:00.000Z');
@@ -82,27 +82,23 @@ describe('getInboxDailyBriefDigest', () => {
     const subject = await owner();
     const stranger = await owner();
 
-    await getDb()
-      .insert(messages)
-      .values(
-        Array.from({ length: DAILY_BRIEF_MAX_MESSAGES + 5 }, (_, index) =>
-          messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + index * 1000), {
-            seen: index % 2 !== 0,
-            starred: index % 3 === 0,
-          }),
-        ),
-      );
-    await getDb()
-      .insert(messages)
-      .values([
-        // The interval is half-open: START is in, END is out.
-        messageValue(subject.userId, subject.inboxId, START, { seen: true }),
-        messageValue(subject.userId, subject.inboxId, END, { seen: true }),
-        // Not news: already archived, a draft, another owner's mail.
-        messageValue(subject.userId, subject.archiveId, NOON, { seen: false }),
-        messageValue(subject.userId, subject.inboxId, NOON, { seen: false, draft: true }),
-        messageValue(stranger.userId, stranger.inboxId, NOON, { seen: false }),
-      ]);
+    await insertMessageRows(
+      Array.from({ length: DAILY_BRIEF_MAX_MESSAGES + 5 }, (_, index) =>
+        messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + index * 1000), {
+          seen: index % 2 !== 0,
+          starred: index % 3 === 0,
+        }),
+      ),
+    );
+    await insertMessageRows([
+      // The interval is half-open: START is in, END is out.
+      messageValue(subject.userId, subject.inboxId, START, { seen: true }),
+      messageValue(subject.userId, subject.inboxId, END, { seen: true }),
+      // Not news: already archived, a draft, another owner's mail.
+      messageValue(subject.userId, subject.archiveId, NOON, { seen: false }),
+      messageValue(subject.userId, subject.inboxId, NOON, { seen: false, draft: true }),
+      messageValue(stranger.userId, stranger.inboxId, NOON, { seen: false }),
+    ]);
 
     const digest = await getInboxDailyBriefDigest(subject.userId, START, END);
 
@@ -123,22 +119,20 @@ describe('getInboxDailyBriefDigest', () => {
 
   it('lists unread mail from before the day, newest first, with its exact total', async () => {
     const subject = await owner();
-    await getDb()
-      .insert(messages)
-      .values([
-        messageValue(subject.userId, subject.inboxId, new Date(START.getTime() - 1), {
-          seen: false,
-          subject: 'Contract to sign',
-        }),
-        messageValue(subject.userId, subject.inboxId, new Date('2026-08-20T09:00:00.000Z'), {
-          seen: false,
-          subject: 'Older',
-        }),
-        // Read earlier mail is not waiting on anyone.
-        messageValue(subject.userId, subject.inboxId, new Date('2026-08-30T09:00:00.000Z'), {
-          seen: true,
-        }),
-      ]);
+    await insertMessageRows([
+      messageValue(subject.userId, subject.inboxId, new Date(START.getTime() - 1), {
+        seen: false,
+        subject: 'Contract to sign',
+      }),
+      messageValue(subject.userId, subject.inboxId, new Date('2026-08-20T09:00:00.000Z'), {
+        seen: false,
+        subject: 'Older',
+      }),
+      // Read earlier mail is not waiting on anyone.
+      messageValue(subject.userId, subject.inboxId, new Date('2026-08-30T09:00:00.000Z'), {
+        seen: true,
+      }),
+    ]);
 
     const digest = await getInboxDailyBriefDigest(subject.userId, START, END);
 
@@ -152,20 +146,17 @@ describe('getInboxDailyBriefDigest', () => {
 
   it('never excerpts an encrypted body or one carrying an account secret', async () => {
     const subject = await owner();
-    const [withAttachment] = await getDb()
-      .insert(messages)
-      .values([
-        messageValue(subject.userId, subject.inboxId, NOON, { text: 'Invoice attached.' }),
-        messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 1000), {
-          subject: 'Your sign-in code',
-          text: '482913 is your verification code.',
-        }),
-        messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 2000), {
-          text: 'ciphertext that is not readable',
-          encrypted: true,
-        }),
-      ])
-      .returning({ id: messages.id });
+    const [withAttachment] = await insertMessageRows([
+      messageValue(subject.userId, subject.inboxId, NOON, { text: 'Invoice attached.' }),
+      messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 1000), {
+        subject: 'Your sign-in code',
+        text: '482913 is your verification code.',
+      }),
+      messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 2000), {
+        text: 'ciphertext that is not readable',
+        encrypted: true,
+      }),
+    ]);
     const attachmentFiles = await getDb()
       .insert(files)
       .values(

@@ -36,6 +36,7 @@ import { labels as labelsTable } from '../../db/schema/labels';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 /** Milliseconds a queue assertion waits before giving up. */
 const QUEUE_DEADLINE_MS = 5000;
@@ -142,9 +143,8 @@ async function insertUser(): Promise<string> {
 async function insertMessage(
   options: { userId?: string; labels?: string[]; text?: string; subject?: string } = {},
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId: options.userId ?? USER_ID,
       mailboxId: MAILBOX_ID,
       messageId: `<${randomUUID()}@oxy.so>`,
@@ -155,8 +155,8 @@ async function insertMessage(
       size: 512,
       date: new Date(),
       labels: options.labels ?? [],
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

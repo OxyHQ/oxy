@@ -9,6 +9,7 @@ import { messageRecipients } from '../../db/schema/messageRecipients';
 import { renderWelcomeEmail } from '../../services/welcomeEmail';
 import { backfillWelcomeEmails } from '../backfillWelcomeEmails';
 import previousWelcome from '../fixtures/welcome-v1.json';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 let userId: string;
 let mailboxId: string;
@@ -35,9 +36,8 @@ afterEach(async () => {
 });
 
 async function seed(overrides: Partial<typeof messages.$inferInsert> = {}) {
-  const [message] = await getDb()
-    .insert(messages)
-    .values({
+  const [message] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<welcome-${userId}-${randomUUID()}@${EMAIL_DOMAIN}>`,
@@ -54,8 +54,8 @@ async function seed(overrides: Partial<typeof messages.$inferInsert> = {}) {
       starred: true,
       labels: ['keep'],
       ...overrides,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   await getDb()
     .insert(messageRecipients)
     .values({ messageId: message.id, kind: 'to', ord: 0, name: 'Ana', address });

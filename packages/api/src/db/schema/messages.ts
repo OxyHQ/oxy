@@ -226,11 +226,11 @@ export const messages = pgTable(
      * only writer and keeps that true on insert, delete and key change, under a
      * per-user advisory lock.
      *
-     * NULL means "not assigned yet": rows stored before the column existed,
-     * until `src/scripts/backfill-message-threads.ts` has run. Reads fall back to
-     * the walk for them.
+     * NOT NULL since the backfill assigned every row stored before the column
+     * existed (migrations 0212–0214); no DEFAULT, because a row that skipped
+     * the thread assignment must fail loudly, not join a thread of one.
      */
-    threadId: text(),
+    threadId: text().notNull(),
     /**
      * For received mail that is the sender's OWN outbound message coming back
      * (they addressed themselves, or were on the recipient list): the Sent row
@@ -375,6 +375,7 @@ export const messages = pgTable(
     // A size is never negative.
     check('messages_size_check', sql`${t.size} >= 0`),
     check('messages_draft_revision_check', sql`${t.draftRevision} >= 1`),
+
     // `replyTo` was a whole sub-document: it had an address or it did not exist.
     check(
       'messages_reply_to_complete_check',

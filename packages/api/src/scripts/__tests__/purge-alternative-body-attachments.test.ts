@@ -19,6 +19,7 @@ import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { purgeAlternativeBodyAttachments } from '../purge-alternative-body-attachments';
 import { INBOX_APPLICATION_ID } from '../../config/inboxInference';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -40,9 +41,8 @@ async function fixture() {
     .insert(mailboxes)
     .values({ userId: user.id, name: 'INBOX', path: 'INBOX', specialUse: '\\Inbox' })
     .returning();
-  const [message] = await db
-    .insert(messages)
-    .values({
+  const [message] = await insertMessageRows([
+    {
       userId: user.id,
       mailboxId: mailbox.id,
       messageId: `<m-${unique()}@ramp.com>`,
@@ -50,8 +50,8 @@ async function fixture() {
       subject: 'code',
       size: 1000 + 300 + 50,
       date: new Date(),
-    })
-    .returning();
+    },
+  ]);
 
   const file = async (name: string, mime: string, size: number) => {
     const [row] = await db

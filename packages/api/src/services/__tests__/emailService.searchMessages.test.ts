@@ -34,9 +34,10 @@ import { files } from '../../db/schema/files';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messageRecipients } from '../../db/schema/messageRecipients';
-import { messages } from '../../db/schema/messages';
+import type { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -59,9 +60,8 @@ async function store(
   values: Partial<typeof messages.$inferInsert> & { to?: string[] } = {},
 ): Promise<string> {
   const { to, ...columns } = values;
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -70,8 +70,8 @@ async function store(
       size: 10,
       date: new Date(),
       ...columns,
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
 
   if (to?.length) {
     await getDb()

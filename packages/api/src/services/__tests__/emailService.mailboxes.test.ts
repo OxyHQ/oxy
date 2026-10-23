@@ -42,6 +42,7 @@ import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 import { renderWelcomeEmail } from '../welcomeEmail';
 import { DEFAULT_MAILBOXES } from '../../config/email.config';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -55,9 +56,8 @@ async function store(
   mailboxId: string,
   values: { size: number; seen?: boolean },
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(messages)
-    .values({
+  const [row] = await insertMessageRows([
+    {
       userId,
       mailboxId,
       messageId: `<${unique()}@example.com>`,
@@ -66,8 +66,8 @@ async function store(
       size: values.size,
       seen: values.seen ?? false,
       date: new Date(),
-    })
-    .returning({ id: messages.id });
+    },
+  ]);
   return row.id;
 }
 

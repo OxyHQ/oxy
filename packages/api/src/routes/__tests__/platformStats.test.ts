@@ -67,6 +67,7 @@ import { transactions } from '../../db/schema/transactions';
 import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
 import platformStatsRouter from '../platform-stats';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -173,7 +174,7 @@ beforeAll(async () => {
     .values({ userId: owner, name: 'Inbox', path: `Inbox-${randomUUID()}` })
     .returning({ id: mailboxes.id });
 
-  await db.insert(messages).values(
+  await insertMessageRows(
     Array.from({ length: 3 }, () => ({
       userId: owner,
       mailboxId: mailbox.id,

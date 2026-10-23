@@ -42,10 +42,13 @@ function message(
   mailboxId: string,
   values: { seen?: boolean; size?: number } = {},
 ): typeof messages.$inferInsert {
+  const key = unique();
   return {
     userId,
     mailboxId,
-    messageId: `<${unique()}@example.com>`,
+    messageId: `<${key}@example.com>`,
+    // Not about threads: every row is a thread of its own (the column is NOT NULL).
+    threadId: key,
     fromAddress: 'sender@example.com',
     subject: '',
     size: values.size ?? 100,

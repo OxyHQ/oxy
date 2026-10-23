@@ -32,6 +32,7 @@ import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService, MESSAGE_LIST_ORDER, messageListAfter } from '../email.service';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -56,21 +57,18 @@ async function seed(): Promise<Seeded> {
     .values({ userId: user.id, name: 'Inbox', path: `Inbox-${unique()}` })
     .returning({ id: mailboxes.id });
 
-  const rows = await getDb()
-    .insert(messages)
-    .values(
-      Array.from({ length: ROWS }, (_, i) => ({
-        userId: user.id,
-        mailboxId: mailbox.id,
-        messageId: `<${unique()}@example.com>`,
-        fromAddress: 'sender@example.com',
-        subject: `m${i}`,
-        size: 10,
-        pinned: i % 12 === 0,
-        date: DATES[i % DATES.length],
-      })),
-    )
-    .returning({ id: messages.id, pinned: messages.pinned, date: messages.date });
+  const rows = await insertMessageRows(
+    Array.from({ length: ROWS }, (_, i) => ({
+      userId: user.id,
+      mailboxId: mailbox.id,
+      messageId: `<${unique()}@example.com>`,
+      fromAddress: 'sender@example.com',
+      subject: `m${i}`,
+      size: 10,
+      pinned: i % 12 === 0,
+      date: DATES[i % DATES.length],
+    })),
+  );
 
   const expected = [...rows]
     .sort(

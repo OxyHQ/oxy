@@ -13,7 +13,6 @@ import { files } from '../../db/schema/files';
 import { fileVariants } from '../../db/schema/fileVariants';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messageAttachments } from '../../db/schema/messageAttachments';
-import { messages } from '../../db/schema/messages';
 import { storageObjectDeletions } from '../../db/schema/storageObjectDeletions';
 import { users } from '../../db/schema/users';
 import { accountService } from '../account.service';
@@ -29,6 +28,7 @@ import {
   storageDeletionBackoffMs,
   type StorageDeletionStore,
 } from '../accountStorageDeletion.worker';
+import { insertMessageRows } from '../../../test-support/messageRows';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -240,9 +240,8 @@ describe('recordAccountStorageDeletion', () => {
       .insert(mailboxes)
       .values({ userId: recipient, name: 'Inbox', path: `Inbox-${randomUUID()}` })
       .returning({ id: mailboxes.id });
-    const [message] = await getDb()
-      .insert(messages)
-      .values({
+    const [message] = await insertMessageRows([
+      {
         userId: recipient,
         mailboxId: mailbox!.id,
         messageId: `<${randomUUID()}@example.test>`,
@@ -250,8 +249,8 @@ describe('recordAccountStorageDeletion', () => {
         subject: 'A file for you',
         size: 10,
         date: new Date(),
-      })
-      .returning({ id: messages.id });
+      },
+    ]);
     await getDb().insert(messageAttachments).values({
       messageId: message!.id,
       ord: 0,
