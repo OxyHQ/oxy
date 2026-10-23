@@ -1,5 +1,7 @@
 import {
   type OxySessionRevocationEvent,
+  serviceIntrospectionSchema,
+  type ServiceIntrospection,
   serviceTokenOptionsSchema,
   type ServiceTokenOptions,
   subjectProductAccessQuerySchema,
@@ -15,12 +17,11 @@ import {
  *
  * const oxy = new OxyServer({
  *   baseURL: 'https://api.oxy.so',
- *   serviceAuth: { apiKey: process.env.OXY_SERVICE_API_KEY!, apiSecret: process.env.OXY_SERVICE_API_SECRET! },
  * });
  *
  * app.use('/api', oxy.middleware.auth());
  * io.use(oxy.middleware.socket());
- * app.use('/internal', oxy.middleware.service(), oxy.middleware.requireScope('files:read'));
+ * app.use('/internal', oxy.middleware.service());
  *
  * const people = await oxy.users.getMany(ids);           // service lane when available
  * const meta = await oxy.assets.metadataByIds(fileIds);  // service-only
@@ -54,10 +55,16 @@ function reusableServiceToken(token: string): boolean {
 
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { OxyServices, type OxyConfig } from '../OxyServices';
+import { HttpService } from '../HttpService';
+import { createAuthenticatedFetch } from '../authenticatedFetch';
 import type { HttpMethod, ServiceLane } from '../client/context';
 import type { RequestOptions, ResponsePayload } from '../HttpService';
 import { logger } from '../logger';
-import { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
+import {
+  canAttestWorkloadIdentity,
+  requestWorkloadServiceToken,
+  type WorkloadCredentialProvider,
+} from './workloadIdentity';
 import {
   createOxyMiddleware,
   OXY_ACCOUNT_DELETED_EVENT_URI,
@@ -95,7 +102,9 @@ import { OxyServiceEventFeed } from './serviceEvents';
 import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
 
 export interface OxyServerConfig extends OxyConfig {
-  /** This service's application credential. Omit to use workload identity (ADR 0026). */
+  /** Server-only temporary infrastructure credentials. Defaults to the ECS task role. */
+  workloadCredentials?: WorkloadCredentialProvider;
+  /** Explicit external credential. Own services omit this and use workload identity. */
   serviceAuth?: { apiKey: string; apiSecret: string };
   /**
    * How this backend identifies itself on requests that carry no user session.
@@ -159,6 +168,8 @@ export interface ActingAsVerificationOptions {
   credentialId?: string;
   ownerAccountId?: string;
   environment?: string;
+  /** Original user-session bearer; never an arbitrary user id. */
+  requesterToken?: string;
 }
 
 interface ActingAsGeneration {
@@ -211,7 +222,22 @@ const WORKLOAD_CACHE_KEY = 'workload-identity';
  * accepted by its own audience: Oxy's API refuses a `kaana.ai` token and
  * https://kaana.ai/v1 refuses an `oxy-api` one (Kaana ADR 0002 decision 6).
  */
-export type ServiceTokenAudience = 'oxy-api' | 'kaana.ai' | 'oxy-api:kaana-control';
+export type ServiceTokenAudience =
+  | 'oxy-api'
+  | 'kaana.ai'
+  | 'oxy-api:kaana-control'
+  | `oxy-service:${string}`;
+
+export interface ServiceClientOptions {
+  baseURL: string;
+  audience: ServiceTokenAudience;
+  /** A verified user session, never an arbitrary user id without proof. */
+  requester?: { accountId: string; token: string };
+}
+export interface ServiceHttpClient {
+  fetch: typeof globalThis.fetch;
+  dispose(): void;
+}
 
 /** What `serviceToken()` mints, and what Oxy assumes when no audience is sent. */
 export const DEFAULT_SERVICE_TOKEN_AUDIENCE: ServiceTokenAudience = 'oxy-api';
@@ -231,6 +257,7 @@ const ACTING_AS_GRANT_TTL_MS = 60_000;
 const ACTING_AS_DENIAL_TTL_MS = 10_000;
 
 export class OxyServer extends OxyServices {
+  private readonly workloadCredentials?: WorkloadCredentialProvider;
   private readonly serviceTokens = new Map<string, ServiceTokenCacheEntry>();
   private serviceApiKey: string | null = null;
   private serviceApiSecret: string | null = null;
@@ -272,6 +299,7 @@ export class OxyServer extends OxyServices {
 
   constructor(config: OxyServerConfig) {
     super(config);
+    this.workloadCredentials = config.workloadCredentials;
     if (config.serviceAuth) {
       this.configureServiceAuth(config.serviceAuth.apiKey, config.serviceAuth.apiSecret);
     }
@@ -308,8 +336,69 @@ export class OxyServer extends OxyServices {
       jwksCache: this.jwksCache,
       validateSession: (sessionId, options) => this.session.validate(sessionId, options),
       verifyActingAs: (appId, userId, options) => this.verifyActingAs(appId, userId, options),
+      introspectServiceToken: (token) => this.introspectServiceToken(token),
       appPermissionsFor: (req, options) => this.appPermissionsFor(req, options),
     });
+  }
+
+  /** A product SDK transport authenticated only by this process's workload. */
+  createServiceClient(options: ServiceClientOptions): ServiceHttpClient {
+    const origin = new URL(options.baseURL);
+    if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password)
+      throw new Error('A service client requires an HTTP API origin');
+    const client = new HttpService({ baseURL: options.baseURL, enableCache: false });
+    let disposed = false;
+    const requester = options.requester ? { ...options.requester } : undefined;
+    if (requester && (!requester.accountId.trim() || !requester.token.trim()))
+      throw new Error('A requester requires an account id and session proof');
+    const mint = () => this.workloadServiceToken(options.audience);
+    client.setAuthRefreshHandler(async () => {
+      this.serviceTokens.delete(audienceCacheKey(options.audience, WORKLOAD_CACHE_KEY));
+      return mint();
+    });
+    const fetch = createAuthenticatedFetch(client, options.baseURL, {
+      disposed: () => disposed,
+      prepare: async () => {
+        const token = await mint();
+        if (!disposed) client.setTokens(token);
+      },
+    });
+    return {
+      fetch: (input, init) => {
+        const headers = new Headers(
+          init?.headers ?? (input instanceof Request ? input.headers : undefined),
+        );
+        headers.delete('X-Oxy-User-Id');
+        headers.delete('X-Oxy-Requester-Token');
+        if (requester) {
+          headers.set('X-Oxy-User-Id', requester.accountId);
+          headers.set('X-Oxy-Requester-Token', requester.token);
+        }
+        return fetch(input, { ...init, headers });
+      },
+      dispose: () => {
+        disposed = true;
+        client.setAuthRefreshHandler(null);
+        client.dispose();
+      },
+    };
+  }
+
+  /** Live authority read by the receiving product; never cached. */
+  async introspectServiceToken(token: string): Promise<ServiceIntrospection> {
+    const bearer = await this.serviceToken();
+    const result = await this.request<unknown>(
+      'POST',
+      '/auth/resources/introspect',
+      { token },
+      {
+        cache: false,
+        retry: false,
+        timeout: 5000,
+        headers: { Authorization: `Bearer ${bearer}` },
+      },
+    );
+    return serviceIntrospectionSchema.parse(result);
   }
 
   // ── Server-side namespaces ───────────────────────────────────────────────
@@ -430,12 +519,11 @@ export class OxyServer extends OxyServices {
     const key = apiKey || this.serviceApiKey;
     const secret = apiSecret || this.serviceApiSecret;
 
+    if (!key && !secret && (this.workloadCredentials || canAttestWorkloadIdentity())) {
+      if (scopes !== undefined) throw new Error('First-party workloads do not request scopes');
+      return this.workloadServiceToken(audience);
+    }
     if (!key || !secret) {
-      // No credential — prove what this process IS instead. The fallback, not the
-      // preference: a deployment that still has a credential keeps using it.
-      if (canAttestWorkloadIdentity()) {
-        return this.workloadServiceToken(audience, scopes);
-      }
       throw new Error(
         'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
       );
@@ -568,12 +656,17 @@ export class OxyServer extends OxyServices {
     method: HttpMethod,
     url: string,
     data?: unknown,
-    options: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] } = {},
+    options: RequestOptions & {
+      actAs?: string;
+      requesterToken?: string;
+      serviceTokenScopes?: string[];
+    } = {},
   ): Promise<ResponsePayload<T>> {
-    const { actAs, headers, serviceTokenScopes, ...rest } = options;
+    const { actAs, requesterToken, headers, serviceTokenScopes, ...rest } = options;
     const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
+    if (requesterToken) merged['X-Oxy-Requester-Token'] = requesterToken;
     return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
   }
 
@@ -651,6 +744,7 @@ export class OxyServer extends OxyServices {
     userId: string,
     options: ActingAsVerificationOptions = {},
   ): Promise<ServiceActingAsVerification | null> {
+    if (options.requesterToken) options = { ...options, cache: false };
     const pair = JSON.stringify([appId, userId]);
     const cacheKey = JSON.stringify([
       appId,
@@ -790,7 +884,11 @@ export class OxyServer extends OxyServices {
   }
 
   private canMintServiceToken(): boolean {
-    return Boolean(this.serviceApiKey && this.serviceApiSecret) || canAttestWorkloadIdentity();
+    return (
+      Boolean(this.serviceApiKey && this.serviceApiSecret) ||
+      Boolean(this.workloadCredentials) ||
+      canAttestWorkloadIdentity()
+    );
   }
 
   private async mintServiceToken(
@@ -825,11 +923,8 @@ export class OxyServer extends OxyServices {
   }
 
   /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
-  private async workloadServiceToken(
-    audience: ServiceTokenAudience,
-    scopes?: string[],
-  ): Promise<string> {
-    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY, scopes);
+  private async workloadServiceToken(audience: ServiceTokenAudience): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY);
     const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
@@ -852,9 +947,8 @@ export class OxyServer extends OxyServices {
       const granted = await requestWorkloadServiceToken({
         baseUrl: this.baseURL,
         ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
-        ...(scopes ? { scopes } : {}),
+        ...(this.workloadCredentials ? { credentials: this.workloadCredentials } : {}),
       });
-      assertRequestedServiceScopes(granted.token, scopes);
       const current = this.serviceTokens.get(cacheKey);
       if (current === seeded) {
         current.token = granted.token;
@@ -906,7 +1000,10 @@ export class OxyServer extends OxyServices {
           cache: false,
           retry: false,
           timeout: 5000,
-          headers: { Authorization: `Bearer ${serviceToken}` },
+          headers: {
+            Authorization: `Bearer ${serviceToken}`,
+            ...(options.requesterToken ? { 'X-Oxy-Requester-Token': options.requesterToken } : {}),
+          },
         },
       );
       // A deadline bounds how long an already old response can authorize. It
@@ -920,7 +1017,19 @@ export class OxyServer extends OxyServices {
       if (typeof rawEpoch !== 'string' || !/^(?:0|[1-9][0-9]{0,18})$/.test(rawEpoch)) return null;
       const epoch = BigInt(rawEpoch);
       if (epoch > 9223372036854775807n) return null;
+      if (result.authority === 'first_party') {
+        if (
+          !options.requesterToken ||
+          result.authorized !== true ||
+          result.scopes !== undefined ||
+          epoch < generation.epoch
+        )
+          return null;
+        generation.epoch = epoch;
+        return { authorized: true, authority: 'first_party', epoch: rawEpoch };
+      }
       if (
+        (result.authority !== undefined && result.authority !== 'external') ||
         typeof result.authorized !== 'boolean' ||
         !Array.isArray(result.scopes) ||
         !result.scopes.every(

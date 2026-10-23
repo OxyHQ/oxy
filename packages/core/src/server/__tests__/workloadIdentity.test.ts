@@ -180,3 +180,19 @@ describe('workload identity client', () => {
     ).rejects.toThrow(/cannot attest its identity/);
   });
 });
+
+it('can attest a temporary development role without a container endpoint', async () => {
+  const { calls, fetchImpl } = harness();
+  const credentials = jest.fn(async () => CREDENTIALS);
+  await requestWorkloadServiceToken({
+    baseUrl: 'https://api.oxy.so',
+    fetch: fetchImpl,
+    credentials,
+  });
+  expect(credentials).toHaveBeenCalledTimes(1);
+  expect(calls.some((call) => call.url.includes('169.254.170.2'))).toBe(false);
+  const exchange = calls.find((call) => call.url.endsWith('/auth/service-token/workload'));
+  const body = JSON.parse(String(exchange?.init?.body));
+  expect(body).not.toHaveProperty('scopes');
+  expect(body.attestation.headers['x-amz-security-token']).toBe(CREDENTIALS.Token);
+});
