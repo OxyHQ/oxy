@@ -156,7 +156,9 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
   const create = openPostgresClient(maintenanceUrl(baseUrl), { client: { max: 1 } });
   let created = false;
   try {
-    await create.unsafe(`create database "${name}"`);
+    // template1 can include extensions or application tables on a developer's
+    // server. Start pristine so sandbox provenance is checked before migrations.
+    await create.unsafe(`create database "${name}" template template0`);
     created = true;
     const owner = `${OWNER_LABEL}${hostname()}/${process.pid}`.replace(/'/g, "''");
     await create.unsafe(`comment on database "${name}" is '${owner}'`);
