@@ -1273,10 +1273,13 @@ export class ServerNotificationsApi extends NotificationsApi {
 }
 
 export class ServerLinkedAccountsApi extends LinkedAccountsApi {
-  /**
-   * A user's live linked accounts, each with the federated shadow user Oxy holds
-   * for it (`federatedUserId`). Needs the privileged `linked-accounts:read`.
-   */
+  /** An isolated session, task or forwarded context for account-specific reads. */
+  withRequester(proof: RequesterProof): ServerLinkedAccountsApi {
+    const service = bindRequesterLane(lane(this.ctx), proof);
+    return new ServerLinkedAccountsApi({ ...this.ctx, request: service.request, service });
+  }
+
+  /** Live linked identities for the account verified by withRequester(). */
   async forUser(userId: string): Promise<ServiceLinkedAccountListResponse> {
     return lane(this.ctx).request<ServiceLinkedAccountListResponse>(
       'GET',

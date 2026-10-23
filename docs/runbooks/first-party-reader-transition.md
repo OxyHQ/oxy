@@ -99,3 +99,13 @@ the canonical Clarity workload's live own identity.
 Do not deploy regenerated combined migrations over an unmigrated preflight.
 Preserve the upstream preflight journal/snapshot and regenerate subsequent
 first-party DDL from it; never rewrite an already applied migration.
+
+### Linked-account reader retirement
+
+`GET /linked-accounts/by-user/:userId` requires an exact verified requester for
+v2 workloads. The pre-migration v1 cohort alone retains the existing privileged
+read behavior while Move's consumers are upgraded; central live binding and
+scope intersection are mandatory. No customer key enters this bridge. Remove
+the legacy branch in `routes/linkedAccounts.ts` with the finite cohort retirement,
+after Move foreground and durable import jobs use `linkedAccounts.withRequester`.
+This is a deployment compatibility reader, not an own permission configuration.

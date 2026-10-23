@@ -137,10 +137,18 @@ All routes are under `/linked-accounts`.
    account is someone else's live link). Repeating it within the five minutes
    returns the same link. An unknown, expired or burned code is 404.
 5. **`GET /`** lists the user's live links. **`DELETE /:id`** revokes one.
-6. **`GET /by-user/:userId`** is for first-party services. It needs a service
-   token whose application holds the privileged `linked-accounts:read` scope
-   (staff-granted; the Oxy Move seed carries it). It returns the live links,
-   each with `federatedUserId`.
+6. **`GET /by-user/:userId`** is for registered first-party workloads acting
+   for that exact account. Use
+   `oxy.linkedAccounts.withRequester({ requesterToken }).forUser(userId)` for
+   a live shared session, or `{ taskId }` for a durable job. Forwarded
+   `{ requesterContext }` is also supported. Oxy verifies the proof and account
+   on every read; a service identity or raw user-id header alone is insufficient.
+   It returns live links, each with `federatedUserId`. Customer keys cannot use
+   this private migration endpoint, even when issued by an official application.
+   The finite pre-migration workload cohort temporarily retains its old
+   `linked-accounts:read` lane, with live binding/environment and the intersection
+   of original token and live scopes. This bridge is removed when Move's readers
+   and queued jobs adopt requester proofs (see the reader transition runbook).
 7. **`GET /atproto/client-metadata.json`** is public. Its URL is Oxy's atproto
    `client_id`. Oxy is a public client (`token_endpoint_auth_method: none`,
    DPoP-bound tokens), so there is no long-lived client key to look after. When
