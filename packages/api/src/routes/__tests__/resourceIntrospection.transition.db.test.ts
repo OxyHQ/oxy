@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { resourceIntrospectionSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
 import { CLARITY_BACKEND_APPLICATION_ID } from '../../config/firstPartyApplications';
 import {
@@ -31,16 +32,29 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import router from '../resourceIntrospection';
 import { errorHandler } from '../../middleware/errorHandler';
 const server = express().use(express.json()).use(router).use(errorHandler);
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+jest.setTimeout(60_000);
 beforeAll(async () => {
+  await closePostgres();
+  ownDatabaseUrl = await createTestDatabase();
+  process.env.DATABASE_URL = ownDatabaseUrl;
   process.env.ACCESS_TOKEN_SECRET ??= 'resource-test-secret';
   process.env.REFRESH_TOKEN_SECRET ??= 'resource-refresh-secret';
   process.env.DEVICE_ID_SALT ??= 'd'.repeat(48);
   await connectPostgres();
 });
 afterAll(async () => {
-  for (const tuple of LEGACY_WORKLOAD_BINDINGS)
-    await getDb().delete(applications).where(eq(applications.id, tuple.applicationId));
-  await closePostgres();
+  try {
+    await closePostgres();
+  } finally {
+    try {
+      if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    } finally {
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+  }
 });
 async function workload(index: number) {
   const tuple = LEGACY_WORKLOAD_BINDINGS[index];

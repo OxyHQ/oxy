@@ -1,5 +1,5 @@
 import express from 'express';
-import http from 'node:http';
+import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -141,7 +141,10 @@ afterAll(async () => {
 });
 
 function resourceClient() {
-  const oxy = new OxyServer({ baseURL: origin });
+  const oxy = new OxyServer({
+    baseURL: origin,
+    serviceAuth: { apiKey: 'receiver-test-key', apiSecret: 'receiver-test-secret' },
+  });
   jest.spyOn(oxy, 'serviceToken').mockResolvedValue(receiverToken());
   return oxy;
 }
