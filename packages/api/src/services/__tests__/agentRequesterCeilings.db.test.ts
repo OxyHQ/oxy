@@ -330,7 +330,7 @@ function evaluate(w: World, executionAuthorizationId: string, runId?: string) {
 }
 
 describe('publishing a ceiling', () => {
-  it('is for whoever operates the bot, replaces in place and is validated like a grant', async () => {
+  it('is for whoever operates the bot, replaces immutably and is validated like a grant', async () => {
     const w = await world();
     const first = await w.as(w.ownerId).put(ceilingPath(w), VER);
     expect(first.status).toBe(201);
@@ -343,7 +343,8 @@ describe('publishing a ceiling', () => {
     });
     const second = await w.as(w.ownerId).put(ceilingPath(w), VER_Y_ACTUAR);
     expect(second.status).toBe(200);
-    expect(second.body.ceiling).toMatchObject({ id: first.body.ceiling.id, version: 2 });
+    expect(second.body.ceiling).toMatchObject({ version: 2 });
+    expect(second.body.ceiling.id).not.toBe(first.body.ceiling.id);
 
     expect((await w.as(w.personId).put(ceilingPath(w), VER)).status).toBe(403);
     expect(
@@ -459,6 +460,40 @@ describe('a person using somebody else’s agent', () => {
     const result = await evaluate(w, created.body.authorization.id);
     expect(result.decision.allowed).toBe(true);
     expect(result.claims?.limits).toEqual([{ tool: 'payRent', key: 'amount', value: 1200 }]);
+  });
+
+  it('requires fresh requester authorization after an owner broadens a ceiling', async () => {
+    const w = await world();
+    const original = await publish(w, {
+      capabilityPackages: ['read'],
+      capabilities: ['payments.send'],
+      limits: [{ tool: 'payRent', key: 'amount', value: 1200 }],
+      maximumAutonomy: 'autonomous',
+    });
+    const authorized = await authorizeAs(w, w.personId, {
+      ceilingId: original.id,
+      tool: 'payRent',
+    });
+
+    const replacement = await publish(w, {
+      capabilityPackages: ['read'],
+      capabilities: ['payments.send'],
+      limits: [{ tool: 'payRent', key: 'amount', value: 5000 }],
+      maximumAutonomy: 'autonomous',
+    });
+    expect(replacement.id).not.toBe(original.id);
+    expect((await evaluate(w, authorized.body.authorization.id)).decision).toEqual({
+      allowed: false,
+      reason: 'agent_ceiling_not_active',
+    });
+
+    const reauthorized = await authorizeAs(w, w.personId, {
+      ceilingId: replacement.id,
+      tool: 'payRent',
+    });
+    expect((await evaluate(w, reauthorized.body.authorization.id)).claims?.limits).toEqual([
+      { tool: 'payRent', key: 'amount', value: 5000 },
+    ]);
   });
 
   it('never reaches an account the person does not operate, nor the agent owner’s', async () => {
