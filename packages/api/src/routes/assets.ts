@@ -179,7 +179,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applications, users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
-import { readyVariantRevision } from '../utils/assetRenditionRevision';
+import { resolveVideoHlsReadiness } from '../utils/videoHlsReadiness';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
@@ -3481,14 +3481,28 @@ router.post(
  *                         format: date-time
  *                         description: >
  *                           When the adaptive HLS ladder for this asset finished
- *                           transcoding. ABSENT when there is none — transcoding
- *                           is asynchronous and per-rendition failures are
- *                           swallowed, so a video may never get one. Consumers
+ *                           transcoding. ABSENT when there is none or an
+ *                           explicit hlsRejectedReadyAt rejects its geometry.
+ *                           Transcoding is asynchronous. Consumers
  *                           must treat absence as "no adaptive stream" and play
  *                           the progressive original: the `?variant=hls_master`
  *                           URL is derivable from the id, and building it without
  *                           this field is what made players fail on a 403 and
  *                           fall back, once per video per play.
+ *                       hlsRejectedReadyAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: >
+ *                           Exact ready generation rejected for incorrect legacy
+ *                           HLS geometry when the owned original is known H.264
+ *                           MP4 with AAC audio. Mutually exclusive with
+ *                           hlsReadyAt. Play the original URL; clear a persisted
+ *                           observed readiness stamp only when it is no newer
+ *                           than this timestamp, with file/row identity and
+ *                           observed-stamp equality guards against concurrent
+ *                           replacement. Older revision URLs resolve the current
+ *                           generation, not historical bytes. Unknown source
+ *                           codecs or geometry do not produce a rejection.
  *                       ownerUserId:
  *                         type: [string, "null"]
  *                         description: >
@@ -3549,18 +3563,17 @@ router.post(
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
         const media = resolveFileMediaMetadata(file);
-        // The same readiness test the service itself uses before serving a
-        // variant (`assetService`/`variantService`): a row exists AND it has
-        // been stamped ready. A row without `readyAt` is a transcode that was
-        // started, not one that finished.
-        const hlsReadyAt = readyVariantRevision(file, 'hls_master');
+        // Report completed ladders, or an explicit generation-specific rejection
+        // when persisted geometry proves the legacy ladder is malformed and
+        // the original has a known progressive playback format.
+        const hlsReadiness = resolveVideoHlsReadiness(file);
         return {
           id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
           status: file.status,
-          ...(hlsReadyAt ? { hlsReadyAt } : {}),
+          ...hlsReadiness,
           ...(media.width !== undefined ? { width: media.width } : {}),
           ...(media.height !== undefined ? { height: media.height } : {}),
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),

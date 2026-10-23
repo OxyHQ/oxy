@@ -223,6 +223,27 @@ Old playable objects and the original remain untouched. A finished master’s
 satisfy it. The same completed set is shared only with live twins of the same
 visibility spelling, and each public file resolver is purged.
 
+Service metadata does not advertise a legacy HLS ladder whose ready tiers
+have a different aspect ratio from the persisted original (allowing even-pixel
+rounding), when the original is known MP4/M4V with H.264 and AAC audio.
+Instead, `hlsRejectedReadyAt` names that exact master generation; `hlsReadyAt`
+is absent. This is an authoritative playback selection fact, not deletion:
+objects and HLS resolver semantics remain intact. Current `video-v2` sets,
+compatible legacy geometry, and unknown original codecs or dimensions retain
+their existing readiness behavior. Original dimensions must come from source
+metadata, never from a rendition fallback.
+
+A consumer clears an observed stored readiness stamp no newer than the rejected
+current generation, using file/row identity and equality with the observed
+stamp to guard the write, then invalidates its hydrated post caches. An older
+revision URL resolves the current generation, not historical bytes: retaining
+an older stamp would still select the rejected ladder.
+Missing responses and absent rejection fields never authorize clearing. A
+newer repaired generation must survive a delayed rejection response. Use the
+normal original URL directly (which supports byte ranges); do not redirect an
+HLS URL to MP4 bytes. The original may be larger or lack a faststart index, so
+this restores correct framing while background repair supplies efficient HLS.
+
 The file’s intrinsic `metadata.video.storageRoots` retains validated SHA roots
 from previous generations and twins. Subsequent generations reuse a known root
 instead of changing it with the calendar. File/account/application deletion and

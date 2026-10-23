@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 6.17.0
+
+### Added
+
+- `ServiceAssetMetadata.hlsRejectedReadyAt` identifies an incorrectly framed
+  legacy HLS generation when the original is known H.264 MP4 with AAC
+  audio. Consumers can clear an observed readiness stamp no newer than the
+  rejected generation, guarded against concurrent replacement, and select the
+  original without confusing a missing lookup with an authoritative rejection.
+
 ## 6.16.0
 
 ### Added

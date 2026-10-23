@@ -20,6 +20,9 @@ const code = script
 if (/--desired-count\b/.test(code)) {
   throw new Error('worker deploy must not fight Application Auto Scaling');
 }
+if (!/\| \.cpu = 1024\b/.test(code)) {
+  throw new Error('worker deploy must preserve the one-vCPU infrastructure reservation');
+}
 if (!/\$service\.desiredCount > 0/.test(code)) {
   throw new Error('worker rollout must require positive autoscaled capacity');
 }
