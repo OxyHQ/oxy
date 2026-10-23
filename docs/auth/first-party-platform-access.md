@@ -77,3 +77,12 @@ principal. External scopes are the intersection of the original signed scopes
 and the live credential/application ceiling; official branding never changes
 that authority. Invalidated service identities fail authentication before a
 resource is resolved. Domain and tenant checks still run after authentication.
+
+The `/service-events` revocation feed admits only live registered own workloads;
+legacy admission is restricted to the same finite inventoried workload cohort.
+An official application's customer credential never receives this global feed.
+The server rechecks authority before event delivery and each heartbeat, closes
+revoked or expired sockets, and serializes outgoing batches so a heartbeat cannot
+overtake a pending revocation. The SDK drops cached session validations when the
+feed disconnects or loses its heartbeat. Retire the legacy feed admission with
+the rest of the protocol-v1 cohort after consumer rollout.
