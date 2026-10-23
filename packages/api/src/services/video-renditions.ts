@@ -1,6 +1,6 @@
 import type { FileRecord } from '../types/file.types';
 
-/** Changes whenever encoded bytes or their interpretation change. */
+/** Advance when playback compatibility requires regenerating existing renditions. */
 export const VIDEO_RENDITION_PROFILE = 'video-v2';
 export const VIDEO_SEGMENT_SECONDS = 2;
 

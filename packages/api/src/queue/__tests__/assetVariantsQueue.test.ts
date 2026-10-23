@@ -78,6 +78,13 @@ jest.mock('bullmq', () => {
       MockQueue.dataCalls.push(data);
       return Promise.resolve();
     }
+    async addBulk(jobs: Array<{ name: string; data: JobData; opts: AddCall }>): Promise<void> {
+      await Promise.all(jobs.map((job) => this.add(job.name, job.data, job.opts)));
+    }
+    async getJob(jobId: string) {
+      const index = MockQueue.addCalls.findIndex((options) => options.jobId === jobId);
+      return index < 0 ? undefined : { data: MockQueue.dataCalls[index] };
+    }
     getJobCounts(): Promise<{ waiting: number }> {
       return Promise.resolve({ waiting: MockQueue.waiting });
     }
@@ -99,6 +106,7 @@ const mockGenerateVariants = jest.fn(() => Promise.resolve());
 
 const REQUESTED_AT = '2026-10-20T10:00:00.000Z';
 const mockRecord = jest.fn();
+let mockDue: Array<{ fileId: string; requestedAt: Date }> = [];
 const mockRelease = jest.fn();
 const mockSettle = jest.fn();
 const mockCount = jest.fn();
@@ -109,8 +117,16 @@ jest.mock('../../services/renditionRequests', () => ({
   settleRenditionRequest: (...args: unknown[]) => mockSettle(...args),
   countRenditionRequests: () => mockCount(),
   oldestRenditionRequestAt: () => mockOldest(),
-  claimDueRenditionRequests: () => Promise.resolve([]),
+  claimDueRenditionRequests: (limit: number) =>
+    Promise.resolve(mockDue.splice(0, Math.max(0, limit))),
+  RENDITION_DISPATCH_ROUND: Array(16).fill('fresh'),
   adoptRenditionRequests: () => Promise.resolve(0),
+}));
+
+jest.mock('../../config/postgres', () => ({
+  getDb: () => ({
+    transaction: (fn: (tx: unknown) => unknown) => fn({ execute: async () => [{ locked: true }] }),
+  }),
 }));
 
 jest.mock('../connection', () => ({
@@ -122,9 +138,6 @@ jest.mock('../connection', () => ({
 jest.mock('../../services/s3ServiceSingleton', () => ({ s3Service: {} }));
 jest.mock('../../services/variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) {
-      /* no-op */
-    }
     generateVariants = (...args: unknown[]) => mockGenerateVariants(...args);
   },
 }));
@@ -132,8 +145,7 @@ jest.mock('../../services/variantService', () => ({
 import { Queue, Worker } from 'bullmq';
 import { logger } from '../../utils/logger';
 import {
-  ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH,
-  ASSET_VARIANT_REQUEST_LEASE_MS,
+  ASSET_VARIANT_QUEUE_TARGET_DEPTH,
   ASSET_VARIANT_WORKER_CONCURRENCY,
   assetVariantsJobId,
   backOffOnWorkerErrors,
@@ -173,9 +185,12 @@ beforeEach(() => {
   MockQueue.failAdd = false;
   MockQueue.oldestTimestamp = undefined;
   mockRecord.mockReset();
-  mockRecord.mockImplementation((fileId: string) =>
-    Promise.resolve({ fileId, requestedAt: new Date(REQUESTED_AT) }),
-  );
+  mockDue = [];
+  mockRecord.mockImplementation((fileId: string) => {
+    const request = { fileId, requestedAt: new Date(REQUESTED_AT) };
+    mockDue.push(request);
+    return Promise.resolve(request);
+  });
   mockRelease.mockReset();
   mockRelease.mockImplementation(() => Promise.resolve());
   mockSettle.mockReset();
@@ -421,6 +436,7 @@ describe('queue activity metadata', () => {
       await startAssetVariantProducer();
       process.env.AWS_REGION = 'eu-west-1';
       enqueueAssetVariantGeneration('private-file');
+      await settle();
       process.env.AWS_REGION = 'private-host/path';
       enqueueAssetVariantGeneration('legacy-file');
       await settle();
@@ -450,15 +466,15 @@ describe('queue activity metadata', () => {
 });
 
 describe('the bounded window', () => {
-  it('records the request with a lease and adds the job when the queue has room', async () => {
+  it('records a due request and wakes the unified dispatcher immediately when idle', async () => {
     process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantProducer();
-    MockQueue.waiting = ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH - 1;
+    MockQueue.waiting = 0;
 
     enqueueAssetVariantGeneration('file-abc');
     await settle();
 
-    expect(mockRecord).toHaveBeenCalledWith('file-abc', ASSET_VARIANT_REQUEST_LEASE_MS);
+    expect(mockRecord).toHaveBeenCalledWith('file-abc', null);
     expect(MockQueue.addCalls).toHaveLength(1);
     expect(MockQueue.addCalls[0]).toMatchObject({
       jobId: assetVariantsJobId('file-abc'),
@@ -472,7 +488,7 @@ describe('the bounded window', () => {
   it('leaves the request to the scheduler when the queue is at its bound', async () => {
     process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantProducer();
-    MockQueue.waiting = ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH;
+    MockQueue.waiting = ASSET_VARIANT_QUEUE_TARGET_DEPTH;
 
     enqueueAssetVariantGeneration('file-abc');
     await settle();
@@ -489,10 +505,9 @@ describe('the bounded window', () => {
     enqueueAssetVariantGeneration('file-abc');
     await settle();
 
-    expect(mockRelease).toHaveBeenCalledWith({
-      fileId: 'file-abc',
-      requestedAt: new Date(REQUESTED_AT),
-    });
+    expect(mockRecord).toHaveBeenCalledWith('file-abc', null);
+    expect(mockRelease).not.toHaveBeenCalled();
+    expect(MockQueue.addCalls).toHaveLength(0); // DB rollback is covered with real Postgres.
   });
 
   it('still adds the job when the request cannot be recorded', async () => {

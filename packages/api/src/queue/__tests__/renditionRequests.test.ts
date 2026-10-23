@@ -38,8 +38,7 @@ import {
   settleRenditionRequest,
 } from '../../services/renditionRequests';
 import {
-  ASSET_VARIANT_BACKLOG_PRIORITY,
-  ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH,
+  ASSET_VARIANT_JOB_PRIORITY,
   ASSET_VARIANT_QUEUE_TARGET_DEPTH,
   assetVariantsJobId,
   runAssetVariantSchedulerPass,
@@ -98,6 +97,7 @@ async function requestInOrder(ids: readonly string[]): Promise<void> {
 interface FakeJob {
   data: { fileId: string; requestedAt?: string };
   timestamp: number;
+  attemptsMade: number;
   removed: boolean;
   remove(): Promise<void>;
 }
@@ -112,6 +112,7 @@ function fakeQueue(options: { waiting?: FakeJob[]; depth?: number; failAdd?: boo
   const waiting = options.waiting ?? [];
   return {
     added,
+    getJob: async (jobId: string) => added.find((job) => job.opts.jobId === jobId),
     getJobCounts: (...types: string[]) =>
       Promise.resolve(
         Object.fromEntries(
@@ -121,8 +122,12 @@ function fakeQueue(options: { waiting?: FakeJob[]; depth?: number; failAdd?: boo
           ]),
         ),
       ),
-    getJobs: (_types: string[], start: number, end: number) =>
-      Promise.resolve(waiting.filter((job) => !job.removed).slice(start, end + 1)),
+    getJobs: (types: string[], start: number, end: number) =>
+      Promise.resolve(
+        types.includes('waiting')
+          ? waiting.filter((job) => !job.removed).slice(start, end + 1)
+          : [],
+      ),
     addBulk: (jobs: typeof added) => {
       if (options.failAdd) return Promise.reject(new Error('OOM command not allowed'));
       added.push(...jobs);
@@ -135,6 +140,7 @@ function fakeJob(fileId: string, timestamp: number): FakeJob {
   const job: FakeJob = {
     data: { fileId },
     timestamp,
+    attemptsMade: 0,
     removed: false,
     remove: () => {
       job.removed = true;
@@ -239,7 +245,7 @@ describe('the scheduler pass', () => {
   it('takes jobs beyond the direct bound back into the table before removing them', async () => {
     const ids = await fileIds(3);
     const base = Date.now() - 10_000;
-    const kept = Array.from({ length: ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH }, (_, i) =>
+    const kept = Array.from({ length: ASSET_VARIANT_QUEUE_TARGET_DEPTH }, (_, i) =>
       fakeJob(`kept-${i}`, base),
     );
     const excess = ids.map((fileId, i) => fakeJob(fileId, base + i));
@@ -268,14 +274,14 @@ describe('the scheduler pass', () => {
     for (const job of queue.added) {
       expect(job.opts).toMatchObject({
         jobId: assetVariantsJobId(job.data.fileId),
-        priority: ASSET_VARIANT_BACKLOG_PRIORITY,
+        priority: ASSET_VARIANT_JOB_PRIORITY,
         removeOnComplete: true,
         removeOnFail: true,
       });
       expect(typeof job.data.requestedAt).toBe('string');
     }
     expect((await requestsOf(ids)).every((row) => row.enqueuedUntil !== null)).toBe(true);
-    expect(ASSET_VARIANT_QUEUE_TARGET_DEPTH).toBeLessThan(ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH);
+    expect(ASSET_VARIANT_QUEUE_TARGET_DEPTH).toBe(32);
   });
 
   it('leaves the requests due when the queue refuses the add', async () => {
@@ -304,4 +310,24 @@ describe('the scheduler pass', () => {
     expect(pass).toEqual({ skipped: true, adopted: 0, enqueued: 0 });
     expect(queue.added).toEqual([]);
   });
+});
+
+it('ignores only the legacy normalization race where a completed job no longer exists', async () => {
+  const [id] = await fileIds(1);
+  await requestInOrder([id]);
+  const queue = fakeQueue();
+  const getJobs = queue.getJobs;
+  queue.getJobs = async (types, start, end) =>
+    types.includes('prioritized')
+      ? ([
+          {
+            priority: 10,
+            changePriority: async () => {
+              throw Object.assign(new Error('job completed'), { code: -1 });
+            },
+          },
+        ] as never)
+      : getJobs(types, start, end);
+  expect((await runAssetVariantSchedulerPass(queue as unknown as SchedulerQueue)).enqueued).toBe(1);
+  await getDb().delete(fileRenditionRequests);
 });

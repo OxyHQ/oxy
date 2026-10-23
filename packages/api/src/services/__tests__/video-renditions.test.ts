@@ -10,6 +10,8 @@ import {
   type VideoRung,
 } from '../video-renditions';
 import { VariantService } from '../variantService';
+import * as audioRenditions from '../audioRenditions';
+import { access } from 'node:fs/promises';
 import type { S3Service } from '../s3Service';
 import type { FileVisibility, NewFileVariant } from '../../types/file.types';
 
@@ -22,7 +24,7 @@ interface Encoder {
     visibility: FileVisibility,
     profile: string,
   ): Promise<NewFileVariant>;
-  generateHLSStream(
+  generateVideoRenditions(
     url: string,
     sha: string,
     rungs: VideoRung[],
@@ -35,16 +37,39 @@ let directory: string;
 beforeAll(async () => {
   directory = await mkdtemp(path.join(tmpdir(), 'oxy-video-test-'));
 });
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
 function probe(file: string) {
   return JSON.parse(
-    execFileSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', file], {
-      encoding: 'utf8',
-    }),
-  ) as { streams: Array<{ width: number; height: number; sample_aspect_ratio: string }> };
+    execFileSync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        ...(file.endsWith('.ts') ? ['-f', 'mpegts'] : []),
+        '-show_streams',
+        '-of',
+        'json',
+        file,
+      ],
+      {
+        encoding: 'utf8',
+      },
+    ),
+  ) as {
+    streams: Array<{
+      width: number;
+      height: number;
+      sample_aspect_ratio: string;
+      codec_type: string;
+      codec_name: string;
+    }>;
+  };
 }
 
 describe('video display geometry', () => {
@@ -87,9 +112,11 @@ it.each([
   { name: 'anamorphic', width: 180, height: 180, sar: '2', rotation: 0 },
   { name: 'rotated', width: 320, height: 180, sar: '1', rotation: 90 },
   { name: 'multiple-tiers', width: 400, height: 712, sar: '1', rotation: 0 },
+  { name: 'audio', width: 180, height: 320, sar: '1', rotation: 0, audio: true },
 ])(
   'encodes $name MP4 and HLS with real dimensions and no added black borders',
-  async ({ name, width, height, sar, rotation }) => {
+  async ({ name, width, height, sar, rotation, audio }) => {
+    const run = jest.spyOn(audioRenditions, 'runFfmpeg');
     const source = path.join(directory, `${name}.mp4`);
     // RGB input permits odd dimensions; the actual production output is yuv420p.
     execFileSync('ffmpeg', [
@@ -99,6 +126,9 @@ it.each([
       'lavfi',
       '-i',
       `color=red:s=${width}x${height}:r=10,format=yuv444p`,
+      ...(audio
+        ? ['-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-c:a', 'aac']
+        : []),
       '-vf',
       `setsar=${sar}`,
       '-t',
@@ -153,11 +183,25 @@ it.each([
     expect(dimensions.width).toBe(display.width);
     expect(dimensions.height).toBe(display.height);
     const profile = `${VIDEO_RENDITION_PROFILE}/${name}`;
-    const mp4 = await encoder.generateVideoVariant(input, 'abcd', rung, 'private', profile);
-    const hls = await encoder.generateHLSStream(input, 'abcd', rungs, 'private', profile);
+    const all = await encoder.generateVideoRenditions(input, 'abcd', rungs, 'private', profile);
+    const mp4 = all.find((variant) => variant.type === rung.type);
+    if (!mp4) throw new Error('Missing MP4 rendition');
+    const hls = all.filter((variant) => variant.type.startsWith('hls_'));
+    const encodes = run.mock.calls.filter(([, args]) => args.includes('libx264'));
+    const remuxes = run.mock.calls.filter(([, args]) => args.includes('copy'));
+    expect(encodes).toHaveLength(rungs.length);
+    expect(remuxes).toHaveLength(rungs.length);
+    for (let index = 0; index < rungs.length; index++) {
+      const encodedPath = encodes[index][1].at(-1);
+      expect(remuxes[index][1][1]).toBe(encodedPath);
+      expect(remuxes[index][1]).not.toContain('-vf');
+      expect(encodedPath).toBeDefined();
+      await expect(access(String(encodedPath))).rejects.toThrow();
+    }
+
     expect(mp4.key).toContain(`/${profile}/`);
     expect(mp4.key).not.toMatch(/^public\//);
-    for (const variant of [mp4, ...hls.filter((variant) => variant.type !== 'hls_master')]) {
+    for (const variant of all.filter((variant) => variant.type !== 'hls_master')) {
       const object = uploads.get(variant.key);
       expect(object).toBeDefined();
       const key = variant.type.startsWith('hls_')
@@ -198,6 +242,57 @@ it.each([
       expect(pixel[0]).toBeGreaterThan(200);
       expect(pixel[1]).toBeLessThan(30);
     }
+    // Every segment must start with a keyframe and decode in isolation, including
+    // segments after the first. No previous decoder/GOP state is available here.
+    for (const [key, bytes] of uploads) {
+      if (!key.endsWith('.ts')) continue;
+      const segmentFile = path.join(directory, `${name}-${path.basename(key)}`);
+      await writeFile(segmentFile, bytes);
+      const streams = probe(segmentFile).streams;
+      expect(streams.some((stream) => stream.codec_type === 'audio')).toBe(Boolean(audio));
+      if (audio)
+        expect(streams.find((stream) => stream.codec_type === 'audio')?.codec_name).toBe('aac');
+      const frames = JSON.parse(
+        execFileSync(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-f',
+            'mpegts',
+            '-select_streams',
+            'v:0',
+            '-show_frames',
+            '-show_entries',
+            'frame=key_frame',
+            '-of',
+            'json',
+            segmentFile,
+          ],
+          { encoding: 'utf8' },
+        ),
+      ).frames;
+      expect(frames[0].key_frame).toBe(1);
+      expect(frames.length).toBeGreaterThan(0);
+      execFileSync('ffmpeg', [
+        '-v',
+        'error',
+        '-xerror',
+        '-f',
+        'mpegts',
+        '-i',
+        segmentFile,
+        '-f',
+        'null',
+        '-',
+      ]);
+    }
+    // Faststart is a real MP4 property, not merely a command-line option.
+    const mp4Bytes = uploads.get(mp4.key);
+    expect(mp4Bytes?.indexOf(Buffer.from('moov'))).toBeGreaterThan(0);
+    expect(mp4Bytes?.indexOf(Buffer.from('moov'))).toBeLessThan(
+      mp4Bytes?.indexOf(Buffer.from('mdat')) ?? 0,
+    );
     const manifest = uploads.get(hls[0].key)?.toString() ?? '';
     expect(manifest).toContain('#EXTINF:2.000000');
     const master = hls.find((variant) => variant.type === 'hls_master');
@@ -216,4 +311,95 @@ it.each([
     for (const timeline of timelines) expect(timeline).toEqual(timelines[0]);
   },
   30_000,
+);
+
+async function tinySource(name: string): Promise<string> {
+  const source = path.join(directory, `${name}.mp4`);
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'color=red:s=64x96:r=10',
+    '-t',
+    '0.4',
+    '-c:v',
+    'libx264',
+    '-y',
+    source,
+  ]);
+  return source;
+}
+
+it('keeps lazy MP4 generation independent of HLS and removes its local file after upload', async () => {
+  const source = await tinySource('lazy');
+  const run = jest.spyOn(audioRenditions, 'runFfmpeg');
+  const upload = jest.fn(async (_key: string, filename: string) => {
+    expect(probe(filename).streams[0]).toMatchObject({ width: 64, height: 96 });
+  });
+  const service = new VariantService({
+    uploadFile: upload,
+  } as unknown as S3Service) as unknown as Encoder;
+  const result = await service.generateVideoVariant(
+    source,
+    'abcd',
+    videoRungs({ width: 64, height: 96 })[0],
+    'private',
+    `${VIDEO_RENDITION_PROFILE}/lazy`,
+  );
+  expect(result).toMatchObject({ type: '360p', width: 64, height: 96 });
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(upload).toHaveBeenCalledTimes(1);
+  await expect(access(upload.mock.calls[0][1])).rejects.toThrow();
+});
+
+it.each(['mp4', 'remux', 'segment', 'playlist'] as const)(
+  'cleans the retained MP4 and partial HLS files when %s fails, without publishing a master',
+  async (failure) => {
+    const source = await tinySource(`failure-${failure}`);
+    const actualRun = audioRenditions.runFfmpeg;
+    const run = jest
+      .spyOn(audioRenditions, 'runFfmpeg')
+      .mockImplementation((binary, args, options) => {
+        expect(options.timeoutMs).toBe(60 * 60_000);
+        if (failure === 'remux' && args.includes('copy'))
+          return Promise.resolve({
+            code: null,
+            signal: 'SIGKILL',
+            timedOut: true,
+            overflowed: false,
+            stderrTail: 'timed out',
+          });
+        return actualRun(binary, args, options);
+      });
+    const published: string[] = [];
+    const store = {
+      uploadFile: jest.fn(async (key: string) => {
+        if (
+          (failure === 'mp4' && key.endsWith('.mp4')) ||
+          (failure === 'segment' && key.endsWith('.ts'))
+        )
+          throw new Error('upload failed');
+        published.push(key);
+      }),
+      uploadBuffer: jest.fn(async (key: string) => {
+        if (failure === 'playlist') throw new Error('upload failed');
+        published.push(key);
+      }),
+    } as unknown as S3Service;
+    const encoder = new VariantService(store) as unknown as Encoder;
+    await expect(
+      encoder.generateVideoRenditions(
+        source,
+        'abcd',
+        videoRungs({ width: 64, height: 96 }),
+        'private',
+        `${VIDEO_RENDITION_PROFILE}/failure`,
+      ),
+    ).rejects.toThrow();
+    expect(published.some((key) => key.endsWith('hls_master.m3u8'))).toBe(false);
+    const encodedPath = String(run.mock.calls[0][1].at(-1));
+    await expect(access(path.dirname(encodedPath))).rejects.toThrow();
+  },
 );
