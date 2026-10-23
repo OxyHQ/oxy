@@ -107,20 +107,6 @@ const GATED_SEVERITIES = new Set(['high', 'critical']);
  */
 const ACKNOWLEDGED_PACKAGES = [
   {
-    package: 'braces',
-    advisories: ['GHSA-vfj7-8cjw-p6xm'],
-    reachedBy:
-      '@oxy.so/api -> @oxy.so/protocol -> expo-modules-core -> react-native -> Metro -> micromatch; also development tooling',
-    reason:
-      'GHSA-vfj7-8cjw-p6xm has no patched release. Native peers materialize Metro/micromatch ' +
-      'in the production closure, so this is not a dev-only dependency. The inspected protocol ' +
-      'Node export selects platform/crypto.ts (node:crypto), not its native entry; no inspected ' +
-      'API/core/contracts/protocol runtime source imports Metro/micromatch/braces. Tooling ' +
-      'patterns come from repository inputs. This is reachability evidence, not a complete ' +
-      'transitive request-path proof; reject untrusted nested tooling patterns and revisit ' +
-      'on any graph/entrypoint change or upstream fix. See docs/security/issuer-braces-review-2026-10-03.md.',
-  },
-  {
     package: 'undici',
     reachedBy: 'release-it (dev)',
     reason:
