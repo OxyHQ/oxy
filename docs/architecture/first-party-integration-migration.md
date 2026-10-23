@@ -237,3 +237,13 @@ release. It does not establish product-receiver adoption, v2 issuer rollout,
 removal of legacy bridges, or fleet readiness. Follow the
 [reader transition](../runbooks/first-party-reader-transition.md) and retain the
 subsequent runtime receipts before marking those stages complete.
+
+A subsequent read-only stage-two check against live API revision `1037` (source
+`57748c691`) again reported 27 unchanged bindings, zero workloads outside the
+cohort and `requiresInventoryReview: false`. Diagnostic task
+`0faaed0fdab84b6ebd2da1ad375f3a99` exited successfully and its temporary task
+definition was deregistered. Receipt:
+`/home/nate/Oxy/.scratch/first-party-root/oxy-stage-two-environment-readiness-20261023.json`.
+The pending authority migrations were regenerated after upstream's immutable
+`0216_rendition_dispatch_lanes`: additive authority is `0217`, followed by the
+separate task-link foreign-key validation in `0218`.
