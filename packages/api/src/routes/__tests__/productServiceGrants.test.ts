@@ -114,7 +114,7 @@ it('requires both token scopes and the live consent intersection', async () => {
   const f = await fixture();
   for (const scopes of [['user:read'], ['acting-as:offline'], []])
     expect((await f.read(f.token({ scopes }))).status).toBe(403);
-  expect((await f.read(f.token({ environment: 'development' }))).status).toBe(403);
+  expect((await f.read(f.token({ environment: 'development' }))).status).toBe(401);
   await getDb()
     .update(appGrants)
     .set({ scopes: ['acting-as:offline'] })
@@ -184,7 +184,14 @@ it.each([
   const response = await f.read(
     change === 'ownerClaim' ? f.token({ ownerAccountId: await accessAccount() }) : token,
   );
-  expect(response.status).toBe(404);
+  const status =
+    change === 'subject' || change === 'subjectFence'
+      ? 404
+      : change === 'keyScopes' || change === 'appScopes'
+        ? 403
+        : 401;
+  expect(response.status).toBe(status);
+  expect(response.body.data).toBeUndefined();
 });
 it('filters canceled source grants from a still-authorized read', async () => {
   const f = await fixture();

@@ -306,7 +306,8 @@ describe('who may send', () => {
     const inviter = await person();
     const res = await post(await invitation(inviter.id), { as: stale });
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/may not send invitation emails/);
+    expect(res.body.message).toBe('Missing required scope: invitations:email');
+    expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   it('refuses a session-shaped bearer outright', async () => {
