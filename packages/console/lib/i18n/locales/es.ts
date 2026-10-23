@@ -189,14 +189,6 @@ const es: LocaleDict = {
       redirectBody:
         'Lista de permitidos de coincidencia exacta para redirecciones OAuth. Añade cada URI que use tu aplicación.',
       redirectRemove: 'Quitar {{uri}}',
-      paymentsTitle: 'Permisos de pagos',
-      paymentsBody:
-        'Concede los permisos de pagos antes de crear una credencial de servicio para integraciones de pagos.',
-      aliaTitle: 'Chat e inferencia de Alia',
-      aliaBody:
-        'Chat de Alia solo para la aplicación, facturado a esta aplicación. Selecciona ambas capacidades al crear una clave de API.',
-      aliaToggle: 'Chat e inferencia de Alia',
-      aliaToggleHint: 'Conceder o quitar ambas capacidades de la aplicación',
       idTitle: 'ID de la aplicación',
       idBody: 'Referencia esta aplicación por su ID.',
       idCopy: 'Copiar ID de la aplicación',
@@ -232,11 +224,11 @@ const es: LocaleDict = {
       typeHints: {
         public: 'Clientes de navegador y móvil que no pueden guardar un secreto.',
         confidential: 'Clientes de servidor que se autentican con un secreto de cliente.',
-        service: 'Acceso de servidor a servidor, como pagos.',
+        service: 'Acceso externo entre servidores con scopes seleccionados explícitamente.',
         machine: 'Una única clave de API bearer con los permisos que elijas.',
       },
-      title: 'Credenciales',
-      subtitle: 'ID de cliente y secretos usados para autenticar esta aplicación.',
+      title: 'Claves de API y clientes OAuth',
+      subtitle: 'Registros de clientes OAuth y credenciales limitadas para acceso externo a las API.',
       create: 'Crear credencial',
       createTitle: 'Crear credencial',
       createBody: 'Genera un nuevo ID de cliente y secreto para esta aplicación.',
@@ -248,7 +240,7 @@ const es: LocaleDict = {
       types: {
         public: 'Pública',
         confidential: 'Confidencial',
-        service: 'Servicio',
+        service: 'Servicio externo',
         machine: 'Clave de API (máquina)',
       },
       environment: 'Entorno',
@@ -258,12 +250,24 @@ const es: LocaleDict = {
         production: 'Producción',
       },
       scopes: 'Permisos',
-      enablePayments:
-        'Activa los permisos de pagos en General antes de crear una credencial de servicio.',
-      thirdPartyPayments:
-        'Las aplicaciones de terceros deben solicitar solo permisos de pagos para las credenciales de servicio.',
+      externalCredentialBody:
+        'Las credenciales de servicio y las claves de API tienen acceso externo limitado por scopes, también las emitidas para aplicaciones de Oxy. Los backends de Oxy usan identidad de workload.',
+      explicitScopes: 'Selecciona al menos un scope. La credencial solo incluirá los seleccionados.',
       grantScopeFirst:
-        'Concede a esta aplicación al menos un permiso en General antes de crear una clave de API.',
+        'Configura un producto de API compatible en esta página antes de crear una credencial. Las credenciales de servicio de terceros admiten pagos y archivos de la aplicación.',
+      workloadTitle: 'Identidad del backend de Oxy',
+      workloadBody:
+        'Los backends de Oxy usan identidades de workload registradas y vinculadas a un entorno, sin claves de API ni scopes entre aplicaciones de Oxy. Los operadores de despliegue gestionan los vínculos de roles. Esta pantalla no indica si un vínculo está activo.',
+      workloadAudience: 'Audiencia estándar de servicios de Oxy:',
+      accessTitle: 'Productos de API externos',
+      accessBody:
+        'Estos scopes limitan las claves de API y los clientes externos registrados en esta aplicación. No controlan el acceso de los workloads de Oxy. Cada credencial selecciona sus scopes dentro de este límite; los clientes OAuth externos también requieren consentimiento del usuario.',
+      paymentsTitle: 'API de pagos',
+      aliaTitle: 'API de chat e inferencia de Alia',
+      aliaBody:
+        'Habilita ambos scopes para claves de API externas. El uso se factura a esta aplicación.',
+      saveAccess: 'Guardar productos de API externos',
+      accessSaved: 'Productos de API externos actualizados',
       apiKeyHint:
         'Una clave de API es una única cadena bearer. Se muestra una vez al crearla y una vez en cada rotación, y nunca se puede volver a leer.',
       created: 'Credencial creada',

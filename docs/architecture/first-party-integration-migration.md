@@ -20,7 +20,7 @@ revocation and operation binding remain mandatory.
 | Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
 | Oxy core/contracts service authority | In progress, separate workstream | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | In progress, separate workstream | Account/resource isolation without own scope/grant dependencies |
-| Oxy Console application settings/credentials | Pending | Own workload configuration separate from external customer scopes/keys; current General/Credentials UI |
+| Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
 | Alia own-app levels and tool admission | Audited; implementation pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Product receivers and SDK adopters | Audited edges below; implementation pending | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Pending | Reviewed readback, rollout order, actual task digests and live canaries |
@@ -153,3 +153,21 @@ regenerated during integration). Verified locally:
 
 Commands use each package's `bun run test`; API uses the local PostgreSQL test
 URL and `--runInBand`. These are local checks, not live acceptance.
+
+## Console source verification (2026-10-23)
+
+`packages/console` separates own workload identity from external API products and
+credential creation. General saves no scopes; Credentials labels and edits only the
+external ceiling, including for official apps. Service and machine credentials
+require explicit nonempty scopes, respect current application ceilings, and never
+inherit own workload authority. External OAuth client registration and account RBAC
+are preserved. Existing deployment tooling owns workload bindings; Console does not
+claim a registration has an active binding.
+
+Verification on `feat/first-party-console`: Console Jest 289 tests / 31 suites,
+Console typecheck, lint and web export, and root AGENTS validation. Dependencies built locally
+in the isolated worktree (contracts → protocol → core → services). No manifest,
+version or lockfile changes; no package release or Console deployment performed.
+Release acceptance still needs the combined Oxy API/SDK rollout and a production
+Console own-app/external-credential smoke check. See the Console README and
+`credential-authority.test.tsx` for the tested boundary.
