@@ -153,6 +153,7 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "zshy": "catalog:"
+    "zshy": "catalog:",
+    "@types/node": "catalog:"
   }
 }

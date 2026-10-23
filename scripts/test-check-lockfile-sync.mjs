@@ -177,6 +177,37 @@ const overrideFixture = createFixture();
 writeManifest(overrideFixture, '.', rootManifest({ overrides: { beta: 'workspace:*' } }));
 expectVerdict('override-added', overrideFixture, 1, 'override beta is');
 
+// Version-scoped overrides use Bun's single-dot lock representation.
+const scopedOverrideFixture = createFixture();
+writeManifest(
+  scopedOverrideFixture,
+  '.',
+  rootManifest({ overrides: { 'beta@^2': 'npm:beta@2.0.0' } }),
+);
+const scopedInstall = runCommand('bun', ['install', '--ignore-scripts'], scopedOverrideFixture);
+if (scopedInstall.code !== 0) throw new Error(scopedInstall.output);
+runCommand('git', ['add', 'bun.lock', 'package.json'], scopedOverrideFixture);
+runCommand(
+  'git',
+  [
+    '-c',
+    'user.email=fixture@example.invalid',
+    '-c',
+    'user.name=fixture',
+    'commit',
+    '-qm',
+    'scoped override',
+  ],
+  scopedOverrideFixture,
+);
+expectVerdict('scoped-override-equivalent', scopedOverrideFixture, 0, 'bun.lock is in sync');
+writeManifest(
+  scopedOverrideFixture,
+  '.',
+  rootManifest({ overrides: { 'beta@^2': 'npm:beta@2.0.1' } }),
+);
+expectVerdict('scoped-override-changed', scopedOverrideFixture, 1, 'override beta@^2 is');
+
 // trustedDependencies is recorded in a different ORDER than declared, so it must
 // be compared as a set — otherwise every run of this gate would cry wolf.
 const trustedFixture = createFixture();

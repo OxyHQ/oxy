@@ -292,7 +292,18 @@ function staleManifestRecords() {
   for (const name of [
     ...new Set([...Object.keys(declaredOverrides), ...Object.keys(recordedOverrides)]),
   ].sort()) {
-    if (declaredOverrides[name] !== recordedOverrides[name]) {
+    // Bun 1.4 records version-scoped replacement strings as { ".": value }.
+    // Only that exact single-key representation is equivalent; nested overrides
+    // must remain visible to this comparison.
+    const recorded = recordedOverrides[name];
+    const replacement =
+      recorded &&
+      typeof recorded === 'object' &&
+      Object.keys(recorded).length === 1 &&
+      typeof recorded['.'] === 'string'
+        ? recorded['.']
+        : recorded;
+    if (declaredOverrides[name] !== replacement) {
       findings.push(
         `override ${name} is ${JSON.stringify(declaredOverrides[name] ?? null)} in package.json ` +
           `but ${JSON.stringify(recordedOverrides[name] ?? null)} in ${LOCKFILE}.`,

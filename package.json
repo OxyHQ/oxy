@@ -123,7 +123,8 @@
       "parse5": "7.3.0",
       "@expo/router-server": "58.0.14",
       "zshy": "0.8.1",
-      "typescript": "^5.9.2"
+      "typescript": "^5.9.2",
+      "@types/node": "^20.19.43"
     }
   },
   "scripts": {
@@ -176,7 +177,8 @@
     "ts-jest": "^29.4.12",
     "typescript": "catalog:",
     "turbo": "^2.10.8",
-    "vite": "npm:rolldown-vite@^7.3.1"
+    "vite": "npm:rolldown-vite@^7.3.1",
+    "zod": "npm:@oxy.so/zod4@4.6.8"
   },
   "packageManager": "bun@1.4.3",
   "engines": {
@@ -231,5 +233,6 @@
     "expo-splash-screen": "~58.0.10",
     "is-arrayish": "^0.3.4",
     "react-native-worklets": "catalog:"
-  }
+  },
+  "//zod-development-peer": "bunfig disables automatic peers. This explicit maintained alias supplies zod-to-json-schema and other development consumers whose peer resolves from the isolated store. Published MCP declares its own alias; production installs preserve peers."
 }
