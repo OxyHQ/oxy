@@ -1258,10 +1258,11 @@ describe('registered product audience and external compatibility', () => {
     const token = signEdDSA(claims, SIGNING_KEY);
     const introspect = jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
       active: true,
-      authority: 'first_party',
-      audience,
+      authority: firstParty ? 'first_party' : 'external',
+      ...(!firstParty ? { scopes: ['files:read', 'files:write'] } : {}),
+      audience: typeof aud === 'string' ? aud : audience,
       applicationId: 'app',
-      credentialId: 'wl_api',
+      credentialId: firstParty ? 'wl_api' : 'cred-1',
       accountId: 'owner-account-1',
       environment: 'production',
       expiresAt: new Date((claims.exp as number) * 1000).toISOString(),
@@ -1273,7 +1274,7 @@ describe('registered product audience and external compatibility', () => {
     expect(next).toHaveBeenCalledTimes(allowed ? 1 : 0);
     if (!allowed) expect(res.statusCode).toBe(401);
     if (allowed && !firstParty) {
-      expect(introspect).not.toHaveBeenCalled();
+      expect(introspect).toHaveBeenCalledWith(token);
       const denied = makeRes();
       const permitted = jest.fn();
       oxy.middleware.requireScope('files:write')(req as never, denied as never, permitted);
