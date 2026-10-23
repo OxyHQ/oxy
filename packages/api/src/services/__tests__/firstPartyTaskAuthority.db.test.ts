@@ -383,3 +383,128 @@ it('binds self tools to the root bot and current operator membership, never a su
   await getDb().delete(accountMembers).where(eq(accountMembers.accountId, f.bot.id));
   expect((await reauthorizeCapabilityTicket(result.claims!)).allowed).toBe(false);
 });
+
+it('deleting a root removes derived authority instead of orphaning it or blocking account cleanup', async () => {
+  const { firstPartyTasks } = await import('../../db/schema/agency');
+  const { createFirstPartyTask } = await import('../firstPartyTasks.service');
+  const f = await fixture();
+  const task = await createFirstPartyTask(
+    {
+      origin: { kind: 'goal', id: randomUUID() },
+      actor: f.input.actor,
+      effectiveAccountId: f.user.id,
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    },
+    f.session.accessToken,
+    f.presenter,
+  );
+  const auth = await createFirstPartyTaskAuthorization(f.input, '', f.presenter, task.id);
+  expect((await issue(f, auth.id)).decision.allowed).toBe(true);
+  await getDb().delete(firstPartyTasks).where(eq(firstPartyTasks.id, task.id));
+  expect(
+    await getDb()
+      .select()
+      .from(capabilityExecutionAuthorizations)
+      .where(eq(capabilityExecutionAuthorizations.id, auth.id)),
+  ).toEqual([]);
+  expect((await issue(f, auth.id)).decision.allowed).toBe(false);
+});
+
+it('sweeps ended roots after thirty days, preserving live context, audit and effect receipts', async () => {
+  const { sweepAllExpiredRows } = await import('@oxy.so/db/expiry');
+  const { EXPIRY_SWEEP_TARGETS } = await import('../../db/expiry');
+  const { firstPartyTasks, capabilityAuditEvents, capabilityIdempotencyKeys } = await import(
+    '../../db/schema/agency'
+  );
+  const { createFirstPartyTask, resolveFirstPartyTask } = await import(
+    '../firstPartyTasks.service'
+  );
+  const { persistCapabilityAuditEvent, reserveCapabilityEffectFor } = await import(
+    '../capabilityRuntimeStore.service'
+  );
+  const f = await fixture();
+  const targets = EXPIRY_SWEEP_TARGETS.filter((target) => target.table === firstPartyTasks);
+  expect(targets).toHaveLength(2);
+  const roots = [];
+  for (const state of ['active', 'expired', 'revoked', 'recently_revoked'] as const) {
+    const task = await createFirstPartyTask(
+      {
+        origin: { kind: 'goal', id: randomUUID() },
+        actor: f.input.actor,
+        effectiveAccountId: f.user.id,
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      },
+      f.session.accessToken,
+      f.presenter,
+    );
+    const auth = await createFirstPartyTaskAuthorization(f.input, '', f.presenter, task.id);
+    const result = await issue(f, auth.id);
+    expect(result.decision.allowed).toBe(true);
+    roots.push({ task, auth, state });
+    if (state !== 'active') {
+      const endedAt = new Date(Date.now() - (state === 'recently_revoked' ? 29 : 31) * 86400_000);
+      await getDb()
+        .update(firstPartyTasks)
+        .set(state === 'expired' ? { expiresAt: endedAt } : { revokedAt: endedAt })
+        .where(eq(firstPartyTasks.id, task.id));
+    }
+  }
+  const eventId = randomUUID();
+  await persistCapabilityAuditEvent({
+    eventId,
+    occurredAt: new Date().toISOString(),
+    requesterAccountId: f.user.id,
+    coordinator: { applicationId: f.app.id, credentialId: f.presenter.credentialId },
+    executor: f.input.actor,
+    effectiveAccountId: f.user.id,
+    resource: f.input.resource,
+    appId: f.input.resource.appId,
+    tool: f.input.tool,
+    capabilities: [],
+    policyDecision: { allowed: true, reason: 'authorized' },
+    result: { status: 'succeeded' },
+    rollback: { supported: false, attempted: false },
+    correlation: { runId: f.input.runId },
+  });
+  const receiptKey = 'a'.repeat(64);
+  await reserveCapabilityEffectFor({
+    effectiveAccountId: f.user.id,
+    appSlug: f.input.resource.appId,
+    tool: f.input.tool,
+    keyHash: receiptKey,
+    authorizationId: randomUUID(),
+  });
+  await sweepAllExpiredRows(getDb(), targets, { batchSize: 1, maxBatches: 50 });
+  for (const { task, auth, state } of roots) {
+    const retained = state === 'active' || state === 'recently_revoked';
+    expect(
+      await getDb()
+        .select({ id: firstPartyTasks.id })
+        .from(firstPartyTasks)
+        .where(eq(firstPartyTasks.id, task.id)),
+    ).toHaveLength(retained ? 1 : 0);
+    expect(
+      await getDb()
+        .select({ id: capabilityExecutionAuthorizations.id })
+        .from(capabilityExecutionAuthorizations)
+        .where(eq(capabilityExecutionAuthorizations.id, auth.id)),
+    ).toHaveLength(retained ? 1 : 0);
+    expect((await resolveFirstPartyTask(task.id, f.presenter)) !== null).toBe(state === 'active');
+    expect((await issue(f, auth.id)).decision.allowed).toBe(state === 'active');
+  }
+  expect(
+    await getDb()
+      .select({ id: capabilityAuditEvents.id })
+      .from(capabilityAuditEvents)
+      .where(eq(capabilityAuditEvents.eventKey, eventId)),
+  ).toHaveLength(1);
+  expect(
+    await getDb()
+      .select({ id: capabilityIdempotencyKeys.id })
+      .from(capabilityIdempotencyKeys)
+      .where(eq(capabilityIdempotencyKeys.effectiveAccountId, f.user.id)),
+  ).toHaveLength(1);
+  expect(
+    (await sweepAllExpiredRows(getDb(), targets)).every((result) => result.deleted === 0),
+  ).toBe(true);
+});
