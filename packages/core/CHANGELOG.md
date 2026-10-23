@@ -1,8 +1,13 @@
 # Changelog — `@oxy.so/core`
 
-## Unreleased
+## 7.1.0
+
+### Added
 
 - Service transports expose `fetchReplayable(url, { bodyFactory, ...init })` for streaming uploads. The factory opens a fresh body after authentication, and reopens it only once after a 401 and successful credential refresh. Network errors, redirects, rate limits and server errors never trigger an upload replay. The transport preserves fixed requester identity, origin validation, cancellation and zero-cookie behavior without buffering the upload.
+
+- Linked clients expose `getAccessToken(target, { signal })` for product socket protocols. The shared session handles refresh, destination validation, cancellation and account-change fencing before returning the credential.
+- `assets.withMcpDocumentRequester` supports the existing external Homiio document tools through a separate, bounded document proof. Private uploads retain the original external account and live grant, enforce the document size/type limits, and recheck upload provenance on multipart completion.
 
 ## 7.0.0
 
