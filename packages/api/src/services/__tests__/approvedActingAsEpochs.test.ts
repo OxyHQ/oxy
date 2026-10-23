@@ -228,7 +228,7 @@ const { OxyServer } = require('@oxy.so/core/server');
 let server;
 process.on('message', async (message) => {
   try {
-    if (message.setup) { server = new OxyServer({baseURL:message.url}); server.serviceToken = async () => message.token; process.send({ready:true}); return; }
+    if (message.setup) { server = new OxyServer({baseURL:message.url, serviceAuth:{apiKey:'external-test-key',apiSecret:'external-test-secret'}}); server.serviceToken = async () => message.token; process.send({ready:true}); return; }
     const result = await server.verifyActingAs(message.app, message.user, { cache:message.cache, ...message.context });
     process.send({result});
   } catch (error) { process.send({error:String(error)}); }
