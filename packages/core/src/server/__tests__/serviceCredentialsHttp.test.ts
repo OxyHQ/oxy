@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { OxyServer } from '../OxyServer';
+import { OxyServer, type ServiceClientOptions } from '../OxyServer';
 
 it('shares v2 workload credentials across HTTP/WS and bounds destinations, cancellation and disposal before returning a token', async () => {
   let arrived!: () => void;
@@ -13,6 +13,8 @@ it('shares v2 workload credentials across HTTP/WS and bounds destinations, cance
   const mints: Array<{ protocolVersion: number; audience: string }> = [];
   let challenges = 0;
   let receivedAuthorization: string | undefined;
+  let receivedUser: string | undefined;
+  let receivedProof: string | undefined;
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
@@ -31,6 +33,8 @@ it('shares v2 workload credentials across HTTP/WS and bounds destinations, cance
       return res.end(JSON.stringify({ token, expiresIn: 300 }));
     }
     receivedAuthorization = req.headers.authorization;
+    receivedUser = req.headers['x-oxy-user-id'] as string | undefined;
+    receivedProof = req.headers['x-oxy-requester-token'] as string | undefined;
     res.end('{}');
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -45,6 +49,19 @@ it('shares v2 workload credentials across HTTP/WS and bounds destinations, cance
   const client = oxy.createServiceClient({ baseURL, audience: 'kaana.ai' });
   const disposedDuringMint = oxy.createServiceClient({ baseURL, audience: 'kaana.ai' });
   try {
+    for (const invalid of [
+      { baseURL, audience: 'oxy-api', attribution: { accountId: 'A' } },
+      {
+        baseURL,
+        audience: 'kaana.ai',
+        attribution: { accountId: 'A' },
+        requester: { accountId: 'A', token: 'proof' },
+      },
+      { baseURL, audience: 'kaana.ai', attribution: { accountId: ' ' } },
+    ])
+      expect(() => oxy.createServiceClient(invalid as unknown as ServiceClientOptions)).toThrow(
+        'Inference attribution',
+      );
     for (const target of [
       'https://foreign.test/v1',
       `wss://127.0.0.1:${address.port}/v1`,
@@ -79,6 +96,28 @@ it('shares v2 workload credentials across HTTP/WS and bounds destinations, cance
     expect(challenges).toBe(1);
     expect(mints).toHaveLength(1);
     expect(mints[0]).toMatchObject({ protocolVersion: 2, audience: 'kaana.ai' });
+    const attributionOptions = {
+      baseURL,
+      audience: 'kaana.ai' as const,
+      attribution: { accountId: 'A' },
+    };
+    const attributed = oxy.createServiceClient(attributionOptions);
+    try {
+      attributionOptions.attribution.accountId = 'B';
+      Object.assign(attributionOptions, { audience: 'oxy-api', baseURL: 'https://foreign.test' });
+      expect(
+        await attributed.getAccessToken(`${baseURL.replace('http:', 'ws:')}/v1/realtime`),
+      ).toBe(bearer);
+      await attributed.fetch('/read', {
+        headers: { 'X-Oxy-User-Id': 'forged', 'X-Oxy-Requester-Token': 'forged-proof' },
+      });
+      expect(receivedUser).toBe('A');
+      expect(receivedProof).toBeUndefined();
+      expect(receivedAuthorization).toBe(`Bearer ${bearer}`);
+      expect(mints).toHaveLength(1);
+    } finally {
+      attributed.dispose();
+    }
     client.dispose();
     await expect(client.getAccessToken(`${baseURL}/v1`)).rejects.toThrow('disposed');
     expect(challenges).toBe(1);
