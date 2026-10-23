@@ -22,7 +22,7 @@ it('discovers catalogues live on the service lane without cache, deduplication o
   ]);
   await oxy.agency.serviceCatalogs({ appId: 'app/1' });
   expect(request).toHaveBeenCalledTimes(2);
-  expect(request).toHaveBeenCalledWith('GET', '/capabilities/catalogs?appId=app%2F1', undefined, {
+  expect(request).toHaveBeenCalledWith('GET', 'http://test.invalid/capabilities/catalogs?appId=app%2F1', undefined, {
     cache: false,
     deduplicate: false,
     retry: false,
@@ -46,13 +46,13 @@ it('preserves the expected catalogue and forwards an abort signal on ticket issu
   await oxy.agency.introspectCapabilityTicket('fixture-ticket', { signal: abort.signal });
   expect(request.mock.calls[0]).toEqual([
     'POST',
-    '/capabilities/tickets',
+    'http://test.invalid/capabilities/tickets',
     { executionAuthorizationId: 'authorization-1', expectedCatalog: pin },
     expect.objectContaining({ cache: false, retry: false, skipAuth: true, signal: abort.signal }),
   ]);
   expect(request.mock.calls[1]).toEqual([
     'POST',
-    '/capabilities/tickets/introspect',
+    'http://test.invalid/capabilities/tickets/introspect',
     { ticket: 'fixture-ticket' },
     expect.objectContaining({ cache: false, retry: false, signal: abort.signal }),
   ]);
@@ -133,7 +133,7 @@ it('sends foreground requester proof only to the configured Oxy authority alongs
   expect(token).toHaveBeenCalledTimes(1);
   expect(request).toHaveBeenCalledWith(
     'POST',
-    '/capabilities/foreground-execution-authorizations',
+    'http://test.invalid/capabilities/foreground-execution-authorizations',
     { ...input, subjectToken: 'current-requester-token' },
     {
       cache: false,
@@ -217,7 +217,7 @@ describe('agentAvailability (ADR 0044)', () => {
     });
     expect(request).toHaveBeenCalledWith(
       'GET',
-      '/capabilities/agent-availability/bot%2F1',
+      'http://test.invalid/capabilities/agent-availability/bot%2F1',
       undefined,
       {
         cache: false,
@@ -267,12 +267,12 @@ it('creates a durable own task with user proof, then derives tools and revokes u
   await oxy.agency.createTaskExecutionAuthorization(task.id, { authority: 'first_party', kind: 'direct_request',
     actor: { type: 'agent', accountId: 'child-bot' }, resource: { appId: 'inbox', effectiveAccountId: 'person', resourceType: 'account', resourceId: 'person' },
     tool: 'read', expectedCatalog: pin, runId: 'run', limits: [], expiresAt: '2026-12-01T00:00:00Z' });
-  expect(request.mock.calls[1][1]).toBe('/capabilities/tasks/task-1/execution-authorizations');
+  expect(request.mock.calls[1][1]).toBe('http://test.invalid/capabilities/tasks/task-1/execution-authorizations');
   expect(JSON.stringify(request.mock.calls[1])).not.toContain('proof');
   expect(request.mock.calls[1][2]).not.toHaveProperty('maximumAutonomy');
   request.mockResolvedValue(undefined as never);
   await oxy.agency.revokeTask(task.id);
-  expect(request.mock.calls[2][1]).toBe('/capabilities/tasks/task-1');
+  expect(request.mock.calls[2][1]).toBe('http://test.invalid/capabilities/tasks/task-1');
   oxy.dispose();
 });
 

@@ -120,7 +120,7 @@ describe('Alia-only machine credential contract', () => {
     });
     expect(request).toHaveBeenCalledWith(
       'POST',
-      '/internal/alia/machine-credentials/introspect',
+      'https://api.oxy.invalid/internal/alia/machine-credentials/introspect',
       { token },
       {
         cache: false,
