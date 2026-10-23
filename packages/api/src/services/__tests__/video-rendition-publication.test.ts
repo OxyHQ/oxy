@@ -1,8 +1,15 @@
 import { randomBytes } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema';
-import { findFileById, insertFile, upsertVariant, upsertVariantSet } from '../fileRepository';
+import {
+  findFileById,
+  insertFile,
+  rememberVideoStorageRoot,
+  upsertVariant,
+  upsertVariantSet,
+} from '../fileRepository';
 import { VariantService } from '../variantService';
+import fileCache from '../../utils/fileCache';
 import { VIDEO_RENDITION_PROFILE, hasCurrentVideoRenditions } from '../video-renditions';
 import { repairVideoRenditions } from '../../scripts/video-rendition-repair';
 import type { S3Service } from '../s3Service';
@@ -286,4 +293,28 @@ it('records first-generation ownership before encoding so failed new uploads can
       (target) => target.kind === 'prefix' && target.target.includes(original.sha256),
     ),
   ).toBe(true);
+});
+
+it('invalidates cached records after recording a storage root, including repeat calls', async () => {
+  const original = await file();
+  const root = `variants/2026/10/${original.sha256.slice(0, 2)}/${original.sha256}/`;
+  const invalidate = jest.spyOn(fileCache, 'invalidate');
+  try {
+    fileCache.set(original.id, original);
+    await rememberVideoStorageRoot(original.id, root);
+    expect(invalidate).toHaveBeenCalledWith(original.id);
+    expect(fileCache.get(original.id)).toBeNull();
+    const saved = await findFileById(original.id);
+    expect(saved?.metadata?.video?.storageRoots).toEqual([root]);
+
+    // An idempotent call must still evict a stale copy from this or another task.
+    invalidate.mockClear();
+    fileCache.set(original.id, original);
+    await rememberVideoStorageRoot(original.id, root);
+    expect(invalidate).toHaveBeenCalledWith(original.id);
+    expect(fileCache.get(original.id)).toBeNull();
+    expect((await findFileById(original.id))?.metadata?.video?.storageRoots).toEqual([root]);
+  } finally {
+    invalidate.mockRestore();
+  }
 });
