@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `inference_route_switch_events` — the customer-visible record that an allowed
  * route switch happened, and under which policy version it was allowed.
@@ -80,7 +81,7 @@ export type RouteSwitchScope = (typeof ROUTE_SWITCH_SCOPES)[number];
  * rather than restated, so the persisted vocabulary cannot drift from the one
  * customers are streamed.
  */
-export const ROUTE_SWITCH_REASONS = inferenceRouteSwitchReasonSchema.options;
+export const ROUTE_SWITCH_REASONS = enumValues(inferenceRouteSwitchReasonSchema.options);
 
 export type RouteSwitchReason = (typeof ROUTE_SWITCH_REASONS)[number];
 

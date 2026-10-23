@@ -141,7 +141,7 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
   it('the SDK can express every field the schema accepts', () => {
     // The other direction: a capability added to the edge that no SDK caller
     // can reach parses fine and would be invisible to the cases above.
-    const schemaFields = Object.keys(responsesRequestSchema.innerType().shape).sort();
+    const schemaFields = Object.keys(responsesRequestSchema.shape).sort();
     const sdkFields = [
       ...new Set([
         ...Object.keys(exhaustiveRequest),

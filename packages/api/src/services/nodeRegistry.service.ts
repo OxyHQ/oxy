@@ -1,3 +1,4 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 /**
  * Node Registry Service (self-sovereign identity layer — F5a user nodes)
  *
@@ -171,13 +172,13 @@ export interface MaterializeNodeOptions {
  * internal (not a published `@oxy.so/contracts` schema) until F5 stabilises.
  */
 const nodeRecordSchema = z.object({
-  endpoint: z.string().trim().min(1),
+  endpoint: z.string().trim().check(utf16MinLength(1)),
   nodePublicKey: z
     .string()
     .trim()
     .regex(/^[0-9a-fA-F]{64,130}$/, 'nodePublicKey must be a secp256k1 hex key'),
   mode: z.enum(['pull', 'push']).optional(),
-  nodeDid: z.string().trim().min(1).optional(),
+  nodeDid: z.string().trim().check(utf16MinLength(1)).optional(),
 });
 
 /**

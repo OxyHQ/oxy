@@ -389,7 +389,7 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     sendSuccess(res, { notification }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new BadRequestError('Invalid notification data', { errors: error.errors });
+      throw new BadRequestError('Invalid notification data', { errors: error.issues });
     }
     if (error instanceof ConflictError || error instanceof BadRequestError) {
       throw error;

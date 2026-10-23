@@ -1,3 +1,4 @@
+import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import {
   serviceTokenScopesSchema,
   commonsDenyReasonSchema,
@@ -14,25 +15,25 @@ import {
 // POST /auth/register (public key). The username is REQUIRED: an account never
 // exists without one, so it is written in the same insert as the key.
 export const registerPublicKeySchema = z.object({
-  publicKey: z.string().trim().min(1),
-  signature: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
+  signature: z.string().trim().check(utf16MinLength(1)),
   timestamp: z.number(),
   username: usernameSchema,
   // Optional and unenforced for now — see the comment at the check site in
   // `SessionController.register` for why and what flips it to required.
-  powNonce: z.string().trim().min(1).max(64).optional(),
+  powNonce: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
 });
 
 // POST /auth/challenge
 export const challengeSchema = z.object({
-  publicKey: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /auth/verify
 export const verifyChallengeSchema = z.object({
-  publicKey: z.string().trim().min(1),
-  challenge: z.string().trim().min(1),
-  signature: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
+  challenge: z.string().trim().check(utf16MinLength(1)),
+  signature: z.string().trim().check(utf16MinLength(1)),
   timestamp: z.number(),
   deviceName: z.string().trim().optional(),
   deviceFingerprint: z.string().trim().optional(),
@@ -54,12 +55,12 @@ export const checkUsernameParams = z.object({
 
 // GET /auth/check-publickey/:publicKey
 export const checkPublicKeyParams = z.object({
-  publicKey: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
 });
 
 // GET /auth/user/:publicKey
 export const getUserByPublicKeyParams = z.object({
-  publicKey: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /auth/session/create
@@ -80,23 +81,23 @@ export const authSessionOAuthContextSchema = z.object({
    * OAuth-bound out-of-band sessions are restricted to confidential clients.
    * Public clients must use the ordinary browser authorization redirect flow.
    */
-  clientSecret: z.string().trim().min(1),
-  redirectUri: z.string().trim().url(),
+  clientSecret: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(urlCheck()),
   /** PKCE remains mandatory as defence in depth after client authentication. */
-  codeChallenge: z.string().trim().min(43).max(128),
+  codeChallenge: z.string().trim().check(utf16MinLength(43)).check(utf16MaxLength(128)),
   /** S256 only — `plain` is rejected outright, per current OAuth BCP. */
   codeChallengeMethod: z.literal('S256'),
   /** Space-separated, normalized exactly like `POST /auth/oauth/authorize`. */
-  scope: z.string().trim().max(512).optional(),
+  scope: z.string().trim().check(utf16MaxLength(512)).optional(),
   /** Delegated account the app will act AS; permission is verified server-side. */
-  subjectAccountId: z.string().trim().min(1).max(64).optional(),
+  subjectAccountId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
 });
 
 export const authSessionCreateSchema = z
   .object({
-    sessionToken: z.string().trim().min(1),
-    clientId: z.string().trim().min(1).optional(),
-    applicationId: z.string().trim().min(1).optional(),
+    sessionToken: z.string().trim().check(utf16MinLength(1)),
+    clientId: z.string().trim().check(utf16MinLength(1)).optional(),
+    applicationId: z.string().trim().check(utf16MinLength(1)).optional(),
     expiresAt: z.union([z.string(), z.number()]).optional(),
     oauth: authSessionOAuthContextSchema.optional(),
   })
@@ -115,7 +116,7 @@ export const authSessionCreateSchema = z
 // client. Shared by GET /auth/session/status, POST /auth/session/authorize,
 // POST /auth/session/cancel and POST /auth/session/finalize.
 export const authSessionTokenParams = z.object({
-  sessionToken: z.string().trim().min(1),
+  sessionToken: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /auth/session/authorize/:sessionToken
@@ -126,7 +127,7 @@ export const authorizeSessionBodySchema = z.object({
 
 // :authorizeCode path param — the public single-use approval handle from the QR.
 export const authorizeCodeParams = z.object({
-  authorizeCode: z.string().trim().min(1).max(256),
+  authorizeCode: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
 });
 
 // POST /auth/session/authorize-signed/:authorizeCode
@@ -134,9 +135,9 @@ export const authorizeCodeParams = z.object({
 // bearer token). The challenge/signature/timestamp prove control of `publicKey`;
 // the resolved signer becomes the authorizing user. Cookieless → no CSRF.
 export const authSessionAuthorizeSignedSchema = z.object({
-  publicKey: z.string().trim().min(1),
-  challenge: z.string().trim().min(1),
-  signature: z.string().trim().min(1),
+  publicKey: z.string().trim().check(utf16MinLength(1)),
+  challenge: z.string().trim().check(utf16MinLength(1)),
+  signature: z.string().trim().check(utf16MinLength(1)),
   timestamp: z.number(),
   deviceName: z.string().trim().optional(),
   deviceFingerprint: z.string().trim().optional(),
@@ -158,12 +159,12 @@ export const authSessionDenySchema = z.object({
 // No bearer header is required — the `sessionToken` IS the credential.
 // Single-use, time-bound, status-bound (must be 'authorized').
 export const authSessionClaimSchema = z.object({
-  sessionToken: z.string().trim().min(1).max(256),
+  sessionToken: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
   // Optional device fingerprint of the originating client. We don't
   // require it because RN/web SDKs may not have one, but when supplied
   // we record it on the new session so the device list shows the
   // correct device, not the authorizer's.
-  deviceFingerprint: z.string().trim().max(512).optional(),
+  deviceFingerprint: z.string().trim().check(utf16MaxLength(512)).optional(),
   // Proof of the browser's device (ADR 0029 D2): an official app that joined it
   // through the bridge claims onto THAT device, so every app holding it sees
   // the account. An invalid proof is ignored — the claim keeps its own device.
@@ -173,8 +174,8 @@ export const authSessionClaimSchema = z.object({
 // POST /auth/service-token
 export const serviceTokenSchema = z.object({
   scopes: serviceTokenScopesSchema.optional(),
-  apiKey: z.string().trim().min(1),
-  apiSecret: z.string().trim().min(1),
+  apiKey: z.string().trim().check(utf16MinLength(1)),
+  apiSecret: z.string().trim().check(utf16MinLength(1)),
   /** The resource server the token is for; `oxy-api` when omitted (Kaana ADR 0002). */
   audience: z.enum(SERVICE_TOKEN_AUDIENCES).optional(),
 });
@@ -190,7 +191,7 @@ export const workloadServiceTokenSchema = z
     protocolVersion: z.literal(2).optional(),
     scopes: serviceTokenScopesSchema.optional(),
     provider: z.enum(ATTESTATION_PROVIDERS),
-    nonce: z.string().trim().min(1).max(256),
+    nonce: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     attestation: z.record(z.string(), z.unknown()),
     audience: z
       .string()
@@ -217,13 +218,13 @@ export const workloadServiceTokenSchema = z
 // to be authenticated via Bearer token; the client passes the OAuth client
 // id and the registered redirect URI to bind into a single-use code.
 export const oauthAuthorizeSchema = z.object({
-  clientId: z.string().trim().min(1),
-  redirectUri: z.string().trim().url(),
-  state: z.string().trim().min(1).max(512).optional(),
+  clientId: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(urlCheck()),
+  state: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(512)).optional(),
   /** PKCE — required for public clients (no clientSecret). */
-  codeChallenge: z.string().trim().min(43).max(128).optional(),
+  codeChallenge: z.string().trim().check(utf16MinLength(43)).check(utf16MaxLength(128)).optional(),
   codeChallengeMethod: z.literal('S256').optional(),
-  scope: z.string().trim().max(512).optional(),
+  scope: z.string().trim().check(utf16MaxLength(512)).optional(),
 });
 
 // POST /auth/oauth/token — RFC 6749 §4.1.3 `authorization_code` grant.
@@ -241,17 +242,17 @@ export const oauthAuthorizeSchema = z.object({
 // Confidential clients pass `client_secret`. Public clients pass `code_verifier`
 // (PKCE); the route requires one of the two.
 export const oauthTokenSchema = z.object({
-  code: z.string().trim().min(1),
-  redirect_uri: z.string().trim().url(),
-  client_id: z.string().trim().min(1).optional(),
-  client_secret: z.string().trim().min(1).optional(),
-  code_verifier: z.string().trim().min(43).max(128).optional(),
+  code: z.string().trim().check(utf16MinLength(1)),
+  redirect_uri: z.string().trim().check(urlCheck()),
+  client_id: z.string().trim().check(utf16MinLength(1)).optional(),
+  client_secret: z.string().trim().check(utf16MinLength(1)).optional(),
+  code_verifier: z.string().trim().check(utf16MinLength(43)).check(utf16MaxLength(128)).optional(),
 });
 
 // GET /auth/oauth/client/:clientId
 // Public lookup of sanitized application metadata for the consent UI.
 export const oauthClientParams = z.object({
-  clientId: z.string().trim().min(1),
+  clientId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // GET /auth/oauth/consent
@@ -259,13 +260,13 @@ export const oauthClientParams = z.object({
 // (user, app, scopes). `clientId` + `redirectUri` are resolved/validated exactly
 // like POST /auth/oauth/authorize; `scope` is the optional space-separated set.
 export const oauthConsentQuerySchema = z.object({
-  clientId: z.string().trim().min(1),
-  redirectUri: z.string().trim().url(),
-  scope: z.string().trim().max(512).optional(),
+  clientId: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(urlCheck()),
+  scope: z.string().trim().check(utf16MaxLength(512)).optional(),
 });
 
 // DELETE /auth/grants/:applicationId
 // Revoke the user's OAuth grant for a connected third-party application.
 export const grantApplicationIdParams = z.object({
-  applicationId: z.string().trim().min(1),
+  applicationId: z.string().trim().check(utf16MinLength(1)),
 });

@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import {
   issueRequesterContext,
   resolveRequesterContext,
@@ -179,7 +180,9 @@ const aliaMachineIntrospectionLimiter = rateLimit({
   max: 300,
   keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId || 'unknown',
 });
-const aliaMachineIntrospectionBody = z.object({ token: z.string().min(1).max(2048) }).strict();
+const aliaMachineIntrospectionBody = z
+  .object({ token: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)) })
+  .strict();
 
 /** Only Alia's own authenticated resource server may resolve this audience. */
 router.post(
@@ -233,12 +236,12 @@ router.post('/activity', (req, res) => {
  * that admits only one of them would silently deny every user with the other.
  */
 const serviceActingAsVerifyQuery = z.object({
-  taskId: z.string().min(1).max(128).optional(),
-  credentialId: z.string().min(1).max(128).optional(),
-  ownerAccountId: z.string().min(1).max(128).optional(),
+  taskId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  credentialId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  ownerAccountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   environment: z.enum(OXY_SERVICE_ENVIRONMENTS).optional(),
-  appId: z.string().min(1).max(128),
-  userId: z.string().min(1).max(128),
+  appId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  userId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
 
 /**
@@ -416,8 +419,8 @@ const accountAccessLimiter = rateLimit({
  * live id shapes (legacy 24-hex and uuid v7), and nothing longer reaches a query.
  */
 const accountAccessParams = z.object({
-  accountId: z.string().trim().min(1).max(128),
-  userId: z.string().trim().min(1).max(128),
+  accountId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  userId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
 
 /**
@@ -537,7 +540,11 @@ const serviceAccountSwitchLimiter = rateLimit({
  * Express produces from a repeated header, rather than letting a comma-joined
  * value fall through to a lookup that would merely miss.
  */
-const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
+const serviceAccountSwitchOperator = z
+  .string()
+  .trim()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(128));
 
 /**
  * Mint a managed-account session for a verified own workload and original

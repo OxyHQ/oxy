@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { resolveRequesterContext } from '../services/requesterContext.service';
 import {
   resolveCapabilityRequester,
@@ -616,7 +617,7 @@ router.post(
     safetyPurchaseRequestSchema.parse(req.body);
     const live = await purchasing(req);
     const token = z
-      .object({ accessToken: z.string().min(1).max(16384) })
+      .object({ accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
       .strict()
       .parse(req.body.requester).accessToken;
     const child = await requester(token, live);

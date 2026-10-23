@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { monthlyQuotaWindows } from './productQuotaWindows';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
@@ -34,7 +35,7 @@ import { composeSubjectProductAccess } from './productAccess';
 
 export const productProviderBindingSchema = z
   .object({
-    providerAccountRef: z.string().min(1).max(160),
+    providerAccountRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
     mode: z.enum(['live', 'test']),
     environment: z.enum(['production', 'test', 'staging', 'development']),
   })

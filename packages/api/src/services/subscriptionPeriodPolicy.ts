@@ -1,12 +1,13 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Approved P1 integer policy; provider evidence validation happens separately. */
 import { z } from 'zod';
 import { ConflictError } from '../utils/error';
 
-const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const count = z.number().check(integerCheck()).nonnegative().max(Number.MAX_SAFE_INTEGER);
 const second = count.positive();
 const paidInvoice = z
   .object({
-    invoiceId: z.string().min(1).max(160),
+    invoiceId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
     paidAt: second,
     kind: z.enum(['base', 'change']),
     oldCredits: count,

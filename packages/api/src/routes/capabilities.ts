@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { createFirstPartyTask, revokeFirstPartyTask } from '../services/firstPartyTasks.service';
 import { createFirstPartyTaskAuthorization } from '../services/firstPartyTaskAuthority.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
@@ -86,19 +87,19 @@ const router = Router();
 const mutableGrantSchema = z
   .object({
     capabilityPackages: z.array(capabilityPackageSchema),
-    capabilities: z.array(z.string().min(1)),
+    capabilities: z.array(z.string().check(utf16MinLength(1))),
     toolOverrides: z.array(toolGrantOverrideSchema).default([]),
     limits: z.array(grantLimitSchema).default([]),
     maximumAutonomy: autonomyLevelSchema,
     canRedelegate: z.boolean().default(false),
-    expiresAt: z.string().datetime().nullable().default(null),
+    expiresAt: z.string().check(isoDateTime()).nullable().default(null),
   })
   .strict();
 
 const createGrantSchema = mutableGrantSchema
   .extend({
-    ownerAccountId: z.string().min(1),
-    actorAccountId: z.string().min(1),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
+    actorAccountId: z.string().check(utf16MinLength(1)),
     resource: resourceRefSchema,
   })
   .strict();
@@ -106,20 +107,20 @@ const createGrantSchema = mutableGrantSchema
 const executionAuthorizationSchema = z
   .object({
     kind: z.enum(['direct_request', 'automation']),
-    ownerAccountId: z.string().min(1),
-    coordinatorApplicationId: z.string().min(1),
-    coordinatorCredentialId: z.string().min(1),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
+    coordinatorApplicationId: z.string().check(utf16MinLength(1)),
+    coordinatorCredentialId: z.string().check(utf16MinLength(1)),
     actor: actorRefSchema,
     resource: resourceRefSchema,
-    tool: z.string().min(1),
-    runId: z.string().min(1).optional(),
-    stepId: z.string().min(1).optional(),
-    automationId: z.string().min(1).optional(),
+    tool: z.string().check(utf16MinLength(1)),
+    runId: z.string().check(utf16MinLength(1)).optional(),
+    stepId: z.string().check(utf16MinLength(1)).optional(),
+    automationId: z.string().check(utf16MinLength(1)).optional(),
     maximumAutonomy: autonomyLevelSchema,
     limits: z.array(grantLimitSchema).default([]),
     /** The owner's published ceiling that bounds an agent acting for the requester (ADR 0042). */
-    ceilingId: z.string().min(1).optional(),
-    expiresAt: z.string().datetime(),
+    ceilingId: z.string().check(utf16MinLength(1)).optional(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict()
   .superRefine((value, context) => {
@@ -175,9 +176,9 @@ const executionAuthorizationSchema = z
 
 const accountPolicyWriteSchema = z
   .object({
-    accountId: z.string().min(1),
+    accountId: z.string().check(utf16MinLength(1)),
     maximumAutonomy: autonomyLevelSchema,
-    deniedCapabilities: z.array(z.string().min(1)),
+    deniedCapabilities: z.array(z.string().check(utf16MinLength(1))),
   })
   .strict()
   .superRefine((value, context) => {
@@ -589,7 +590,10 @@ router.delete(
 );
 
 const agentCeilingParamsSchema = z
-  .object({ agentAccountId: z.string().min(1), appId: z.string().min(1) })
+  .object({
+    agentAccountId: z.string().check(utf16MinLength(1)),
+    appId: z.string().check(utf16MinLength(1)),
+  })
   .strict();
 
 /** Only a person who operates the bot publishes what it may do for others (ADR 0042). */
@@ -845,7 +849,13 @@ router.post(
     );
     if (!principal) return;
     const input = firstPartyTaskInputSchema
-      .extend({ subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/) })
+      .extend({
+        subjectToken: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(16_384))
+          .regex(/^\S+$/),
+      })
       .parse(req.body);
     const { subjectToken, ...body } = input;
     const task = await createFirstPartyTask(body, subjectToken, principal);
@@ -880,7 +890,7 @@ router.post(
       input,
       '',
       principal,
-      z.string().min(1).max(128).parse(req.params.taskId),
+      z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).parse(req.params.taskId),
     );
     res.status(201).json({ authorization });
   }),
@@ -896,7 +906,10 @@ router.delete(
       AGENCY_COORDINATE_CAPABILITY,
     );
     if (!principal) return;
-    await revokeFirstPartyTask(z.string().min(1).max(128).parse(req.params.taskId), principal);
+    await revokeFirstPartyTask(
+      z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).parse(req.params.taskId),
+      principal,
+    );
     res.status(204).end();
   }),
 );
@@ -982,7 +995,13 @@ router.post(
     if (!presenter) return;
     if (request.body?.authority === 'first_party') {
       const proof = z
-        .object({ subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/) })
+        .object({
+          subjectToken: z
+            .string()
+            .check(utf16MinLength(1))
+            .check(utf16MaxLength(16_384))
+            .regex(/^\S+$/),
+        })
         .passthrough()
         .safeParse(request.body);
       if (!proof.success) {
@@ -1005,7 +1024,11 @@ router.post(
     }
     const parsed = foregroundExecutionAuthorizationInputSchema
       .extend({
-        subjectToken: z.string().min(1).max(16_384).regex(/^\S+$/),
+        subjectToken: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(16_384))
+          .regex(/^\S+$/),
       })
       .safeParse(request.body);
     if (!parsed.success) {
@@ -1222,17 +1245,17 @@ router.post(
 
 const agentRunAuthorizationSchema = z
   .object({
-    actorAccountId: z.string().min(1),
-    ownerAccountId: z.string().min(1),
+    actorAccountId: z.string().check(utf16MinLength(1)),
+    ownerAccountId: z.string().check(utf16MinLength(1)),
     sessionId: z
       .string()
-      .min(1)
-      .max(200)
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(200))
       .regex(/^[A-Za-z0-9_.:-]+$/),
     resource: resourceRefSchema,
-    tool: z.string().min(1),
+    tool: z.string().check(utf16MinLength(1)),
     maximumAutonomy: autonomyLevelSchema,
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -1420,7 +1443,7 @@ router.get(
   authMiddleware,
   async (request: AuthRequest, response: Response) => {
     const parsed = z
-      .object({ accountId: z.string().min(1) })
+      .object({ accountId: z.string().check(utf16MinLength(1)) })
       .strict()
       .safeParse(request.query);
     if (!parsed.success) {
@@ -1501,9 +1524,9 @@ router.post(
       return;
     const parsed = z
       .object({
-        requesterAccountId: z.string().min(1),
-        ownerAccountId: z.string().min(1),
-        actorAccountId: z.string().min(1),
+        requesterAccountId: z.string().check(utf16MinLength(1)),
+        ownerAccountId: z.string().check(utf16MinLength(1)),
+        actorAccountId: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .safeParse(request.body);
@@ -1656,9 +1679,9 @@ router.post(
       return;
     const parsed = z
       .object({
-        requesterAccountId: z.string().min(1),
-        effectiveAccountId: z.string().min(1),
-        actorAccountId: z.string().min(1),
+        requesterAccountId: z.string().check(utf16MinLength(1)),
+        effectiveAccountId: z.string().check(utf16MinLength(1)),
+        actorAccountId: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .safeParse(request.body);
@@ -1846,7 +1869,7 @@ router.post(
     const principal = await livePrincipal(request, response, 'capabilities:read');
     if (!principal) return;
     const parsed = z
-      .object({ ticket: z.string().min(1) })
+      .object({ ticket: z.string().check(utf16MinLength(1)) })
       .strict()
       .safeParse(request.body);
     if (!parsed.success) {
@@ -1897,7 +1920,7 @@ router.post(
     if (!principal) return;
     const parsed = z
       .object({
-        ticket: z.string().min(1),
+        ticket: z.string().check(utf16MinLength(1)),
         result: auditResultSchema,
         rollback: z
           .object({
@@ -1906,7 +1929,7 @@ router.post(
             succeeded: z.boolean().optional(),
           })
           .strict(),
-        idempotencyKey: z.string().min(1).optional(),
+        idempotencyKey: z.string().check(utf16MinLength(1)).optional(),
         idempotencyKeyHash: z
           .string()
           .regex(/^[a-f0-9]{64}$/)

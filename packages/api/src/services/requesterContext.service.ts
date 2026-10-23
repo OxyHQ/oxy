@@ -1,3 +1,4 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Short-lived own request attribution across live, authenticated service hops. */
 import { randomUUID, sign, verify } from 'node:crypto';
 import { z } from 'zod';
@@ -12,7 +13,7 @@ import {
 } from './foregroundCapabilityRequester.service';
 import { resolveFirstPartyTask, taskAllowsEffectiveAccount } from './firstPartyTasks.service';
 
-const identifier = z.string().min(1).max(128);
+const identifier = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 const workload = z
   .object({
     applicationId: identifier,
@@ -30,7 +31,7 @@ const source = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('session'),
       sessionId: identifier,
-      digest: z.string().min(1).max(256),
+      digest: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     })
     .strict(),
 ]);
@@ -40,8 +41,8 @@ const claimsSchema = z
     type: z.literal('oxy_requester_context'),
     authority: z.literal('first_party'),
     jti: identifier,
-    iat: z.number().int(),
-    exp: z.number().int(),
+    iat: z.number().check(integerCheck()),
+    exp: z.number().check(integerCheck()),
     source,
     requesterAccountId: identifier,
     effectiveAccountId: identifier,

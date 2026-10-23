@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import express from 'express';
 import { z } from 'zod';
 import {
@@ -24,7 +25,9 @@ import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 
 const router = express.Router();
 
-const bodySchema = z.object({ token: z.string().min(1).max(16_384) }).strict();
+const bodySchema = z
+  .object({ token: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16_384)) })
+  .strict();
 
 type Introspection = ResourcePrincipal & {
   /** Removed with the legacy resource receiver projection at final cutover. */

@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MinLength } from '@oxy.so/contracts';
 /** Exact administrative I05 configuration. No user consent or offline authority is created. */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { canonicalCapabilityJson } from '@oxy.so/contracts';
@@ -28,10 +29,10 @@ const TICKET_SCOPE = 'capability-tickets:issue';
 const COORDINATE = 'agency:coordinate';
 const revision = z.string().regex(/^\d+$/);
 const strings = z
-  .array(z.string().min(1))
+  .array(z.string().check(utf16MinLength(1)))
   .refine((values) => new Set(values).size === values.length);
 const account = z.object({
-  id: z.string().min(1),
+  id: z.string().check(utf16MinLength(1)),
   account_status: z.literal('active'),
   row_revision: revision,
 });
@@ -42,7 +43,7 @@ const application = z
     status: z.literal('active'),
     is_official: z.literal(true),
     is_internal: z.literal(false),
-    owner_account_id: z.string().min(1),
+    owner_account_id: z.string().check(utf16MinLength(1)),
     scopes: strings,
     capabilities: strings,
     row_revision: revision,
@@ -50,7 +51,7 @@ const application = z
   .strict();
 const workload = z
   .object({
-    id: z.string().min(1),
+    id: z.string().check(utf16MinLength(1)),
     application_id: z.literal(MENTION_APPLICATION_ID),
     provider: z.literal('aws-iam'),
     subject: z.enum([MENTION_BACKEND_ROLE, MENTION_MCP_ROLE]),
@@ -68,7 +69,7 @@ const workloadCredential = z
     status: z.literal('active'),
     expires_at: z.null(),
     scopes: z.array(z.string()).length(0),
-    workload_identity_id: z.string().min(1),
+    workload_identity_id: z.string().check(utf16MinLength(1)),
     row_revision: revision,
   })
   .strict();
@@ -78,13 +79,13 @@ const retainedCredential = z
   .object({
     id: z
       .string()
-      .min(1)
+      .check(utf16MinLength(1))
       .refine((id) => !id.startsWith('wl_')),
     application_id: z.literal(MENTION_APPLICATION_ID),
     type: z.enum(['public', 'service']),
     environment: z.literal('production'),
     status: z.enum(['active', 'deprecated', 'revoked']),
-    expires_at: z.string().datetime().nullable(),
+    expires_at: z.string().check(isoDateTime()).nullable(),
     scopes: strings,
     workload_identity_id: z.null(),
     row_revision: revision,
@@ -100,7 +101,7 @@ const credentialCensus = z
 const table = z
   .object({
     status: z.literal('complete'),
-    count: z.number().int().nonnegative().max(20),
+    count: z.number().check(integerCheck()).nonnegative().max(20),
     rows: z.array(z.unknown()).max(20),
   })
   .strict()
@@ -177,7 +178,7 @@ const planSchema = z
     registrarOwner: rootAccount,
     afterScopes: strings,
     afterCapabilities: strings,
-    backendWorkloadId: z.string().min(1),
+    backendWorkloadId: z.string().check(utf16MinLength(1)),
     afterBackendScopes: strings,
   })
   .strict();

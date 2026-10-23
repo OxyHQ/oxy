@@ -1,3 +1,4 @@
+import { integerCheck, utf16MinLength } from '@oxy.so/contracts';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Authenticated Oxy Updates publish/admin API (`/updates/v1/...`). Called by the
@@ -115,7 +116,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success) {
-    throw new ValidationError('Invalid request data', { details: result.error.errors });
+    throw new ValidationError('Invalid request data', { details: result.error.issues });
   }
   return result.data;
 }
@@ -236,10 +237,10 @@ router.post(
 
 /** Shared query schema for the read endpoints — applicationId is required. */
 const readQuerySchema = z.object({
-  applicationId: z.string().min(1),
-  runtimeVersion: z.string().min(1).optional(),
+  applicationId: z.string().check(utf16MinLength(1)),
+  runtimeVersion: z.string().check(utf16MinLength(1)).optional(),
   platform: z.enum(['ios', 'android']).optional(),
-  limit: z.coerce.number().int().positive().max(200).optional(),
+  limit: z.coerce.number().check(integerCheck()).positive().max(200).optional(),
 });
 
 router.get(
