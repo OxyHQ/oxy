@@ -24,7 +24,6 @@ ALTER TABLE "capability_execution_authorizations" DROP CONSTRAINT "capability_ex
 ALTER TABLE "capability_execution_authorizations" DROP CONSTRAINT "capability_execution_requester_catalog_check";--> statement-breakpoint
 ALTER TABLE "capability_execution_authorizations" ADD COLUMN "authority" text;--> statement-breakpoint
 ALTER TABLE "capability_execution_authorizations" ADD COLUMN "task_id" text;--> statement-breakpoint
-ALTER TABLE "application_workload_identities" ADD COLUMN "environment" text;--> statement-breakpoint
 ALTER TABLE "auth_codes" ADD COLUMN "authority" text;--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD COLUMN "oauth_authority" text;--> statement-breakpoint
 ALTER TABLE "first_party_tasks" ADD CONSTRAINT "first_party_tasks_requester_account_id_users_id_fk" FOREIGN KEY ("requester_account_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -62,6 +61,5 @@ ALTER TABLE "capability_execution_authorizations" ADD CONSTRAINT "capability_exe
          and "capability_execution_authorizations"."requester_catalog_version" is null and "capability_execution_authorizations"."requester_catalog_digest" is null)))
       or ("capability_execution_authorizations"."actor_type" <> 'requester' and "capability_execution_authorizations"."requester_catalog_registration_id" is null
        and "capability_execution_authorizations"."requester_catalog_version" is null and "capability_execution_authorizations"."requester_catalog_digest" is null) end);--> statement-breakpoint
-ALTER TABLE "application_workload_identities" ADD CONSTRAINT "application_workload_identities_environment_check" CHECK ("application_workload_identities"."environment" in ('development', 'staging', 'production'));--> statement-breakpoint
 ALTER TABLE "auth_codes" ADD CONSTRAINT "auth_codes_authority_check" CHECK ("auth_codes"."authority" in ('first_party', 'external'));--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_oauth_authority_check" CHECK ("auth_sessions"."oauth_authority" in ('first_party', 'external'));
