@@ -33,6 +33,47 @@ function run({ mutateScript = (value) => value, mutateWorkflow = (value) => valu
 
 assert.equal(run().status, 0);
 assert.notEqual(
+  run({ mutateScript: (value) => value.replace('| .cpu = 1024', '| .cpu = 256') }).status,
+  0,
+);
+
+// Execute the actual render, starting from an old definition: the new CPU
+// reservation must reach registration without changing memory or sidecars.
+const render = script.slice(
+  script.indexOf('  rendered_task_definition="$(jq'),
+  script.indexOf('  new_task_definition="$(aws'),
+);
+for (const cpu of [undefined, 256, 1024]) {
+  const original = {
+    family: 'oxy-oxy-asset-variant-worker',
+    containerDefinitions: [
+      { name: 'oxy-asset-variant-worker', cpu, memory: 6144, memoryReservation: 2304 },
+      { name: 'sidecar', cpu: 64, memoryReservation: 128 },
+    ],
+  };
+  const result = spawnSync(
+    'bash',
+    ['-c', `set -euo pipefail\n${render}\nprintf '%s' "$rendered_task_definition"`],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        task_definition: JSON.stringify(original),
+        worker_container: 'oxy-asset-variant-worker',
+        IMAGE_URI: 'registry.example/oxy-api@sha256:test',
+        ssm: 'arn:aws:ssm:us-west-2:237343248947:parameter',
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const rendered = JSON.parse(result.stdout);
+  assert.equal(rendered.containerDefinitions[0].cpu, 1024);
+  assert.equal(rendered.containerDefinitions[0].memory, 6144);
+  assert.equal(rendered.containerDefinitions[0].memoryReservation, 2304);
+  assert.deepEqual(rendered.containerDefinitions[1], original.containerDefinitions[1]);
+  assert.equal(rendered.cpu, undefined, 'do not introduce a task CPU quota');
+}
+assert.notEqual(
   run({
     mutateScript: (value) =>
       value.replace(
