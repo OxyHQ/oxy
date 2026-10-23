@@ -687,6 +687,17 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    // Per-call authority is not represented by the instance's session cache
+    // key. Never share or retain responses authenticated by explicit headers.
+    if (
+      Object.keys(config.headers ?? {}).some((key) =>
+        ['authorization', 'x-oxy-user-id', 'x-oxy-requester-token', 'x-oxy-task-id'].includes(
+          key.toLowerCase(),
+        ),
+      )
+    ) {
+      config = { ...config, headers: { ...config.headers }, cache: false, deduplicate: false };
+    }
     if (
       Object.keys(config.headers ?? {}).some((key) =>
         ['x-oxy-requester-token', 'x-oxy-task-id'].includes(key.toLowerCase()),
