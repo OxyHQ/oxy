@@ -20,6 +20,7 @@ revocation and operation binding remain mandatory.
 | Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
 | Oxy core/contracts service authority | In progress, separate workstream | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | In progress, separate workstream | Account/resource isolation without own scope/grant dependencies |
+| Oxy Console application settings/credentials | Pending | Own workload configuration separate from external customer scopes/keys; current General/Credentials UI |
 | Alia own-app levels and tool admission | Audited; implementation pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Product receivers and SDK adopters | Audited edges below; implementation pending | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Pending | Reviewed readback, rollout order, actual task digests and live canaries |
