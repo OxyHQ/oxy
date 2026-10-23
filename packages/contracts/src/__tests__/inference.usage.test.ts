@@ -202,7 +202,7 @@ describe('normalizedUsageReportSchema', () => {
   });
 
   it('reports units and route, never money', () => {
-    const keys = Object.keys(normalizedUsageReportSchema.innerType().shape);
+    const keys = Object.keys(normalizedUsageReportSchema.shape);
     expect(keys).toContain('units');
     expect(keys).toContain('resolvedModelReference');
     for (const money of ['billedAmount', 'amount', 'currency', 'upstreamCost', 'priceSnapshot']) {

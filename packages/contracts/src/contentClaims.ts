@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Content claims (ADR 0043 D10): the public "Report content / rights claim"
  * intake, `POST /content-claims`, and the staff review of a claim.
@@ -76,7 +77,11 @@ function isHttpsUrl(value: string): boolean {
 }
 
 const httpsUrl = (message: ContentClaimValidationKey) =>
-  z.string().trim().max(CONTENT_CLAIM_LIMITS.maxUrlLength, message).refine(isHttpsUrl, message);
+  z
+    .string()
+    .trim()
+    .check(utf16MaxLength(CONTENT_CLAIM_LIMITS.maxUrlLength, message))
+    .refine(isHttpsUrl, message);
 
 /**
  * `POST /content-claims` — a claim, as the claimant sends it. Strict: an
@@ -94,8 +99,12 @@ export const contentClaimSubmissionSchema = z
     description: z
       .string({ message: 'contentClaim.errors.descriptionShort' })
       .trim()
-      .min(CONTENT_CLAIM_LIMITS.minDescription, 'contentClaim.errors.descriptionShort')
-      .max(CONTENT_CLAIM_LIMITS.maxDescription, 'contentClaim.errors.descriptionLong'),
+      .check(
+        utf16MinLength(CONTENT_CLAIM_LIMITS.minDescription, 'contentClaim.errors.descriptionShort'),
+      )
+      .check(
+        utf16MaxLength(CONTENT_CLAIM_LIMITS.maxDescription, 'contentClaim.errors.descriptionLong'),
+      ),
     originalWorkUrl: httpsUrl('contentClaim.errors.originalWorkUrl').optional(),
     claimant: z
       .object(
@@ -103,17 +112,22 @@ export const contentClaimSubmissionSchema = z
           name: z
             .string({ message: 'contentClaim.errors.name' })
             .trim()
-            .min(1, 'contentClaim.errors.name')
-            .max(CONTENT_CLAIM_LIMITS.maxName, 'contentClaim.errors.name'),
+            .check(utf16MinLength(1, 'contentClaim.errors.name'))
+            .check(utf16MaxLength(CONTENT_CLAIM_LIMITS.maxName, 'contentClaim.errors.name')),
           email: z
             .string({ message: 'contentClaim.errors.email' })
             .trim()
             .email('contentClaim.errors.email')
-            .max(CONTENT_CLAIM_LIMITS.maxEmail, 'contentClaim.errors.email'),
+            .check(utf16MaxLength(CONTENT_CLAIM_LIMITS.maxEmail, 'contentClaim.errors.email')),
           organization: z
             .string({ message: 'contentClaim.errors.organization' })
             .trim()
-            .max(CONTENT_CLAIM_LIMITS.maxOrganization, 'contentClaim.errors.organization')
+            .check(
+              utf16MaxLength(
+                CONTENT_CLAIM_LIMITS.maxOrganization,
+                'contentClaim.errors.organization',
+              ),
+            )
             .optional(),
           relationship: z.enum(CLAIMANT_RELATIONSHIPS, {
             message: 'contentClaim.errors.relationship',
@@ -126,10 +140,10 @@ export const contentClaimSubmissionSchema = z
       .object(
         {
           goodFaith: z.literal(true, {
-            errorMap: () => ({ message: 'contentClaim.errors.goodFaith' }),
+            error: () => ({ message: 'contentClaim.errors.goodFaith' }),
           }),
           accurate: z.literal(true, {
-            errorMap: () => ({ message: 'contentClaim.errors.accurate' }),
+            error: () => ({ message: 'contentClaim.errors.accurate' }),
           }),
         },
         { message: 'contentClaim.errors.goodFaith' },
@@ -138,8 +152,8 @@ export const contentClaimSubmissionSchema = z
     signature: z
       .string({ message: 'contentClaim.errors.signature' })
       .trim()
-      .min(1, 'contentClaim.errors.signature')
-      .max(CONTENT_CLAIM_LIMITS.maxName, 'contentClaim.errors.signature'),
+      .check(utf16MinLength(1, 'contentClaim.errors.signature'))
+      .check(utf16MaxLength(CONTENT_CLAIM_LIMITS.maxName, 'contentClaim.errors.signature')),
   })
   .strict();
 
@@ -310,10 +324,14 @@ export type ContentClaimCounterNoticeValidationKey =
 const N = CONTENT_CLAIM_COUNTER_NOTICE_LIMITS;
 
 const boundedText = (min: number, max: number, message: ContentClaimCounterNoticeValidationKey) =>
-  z.string({ message }).trim().min(min, message).max(max, message);
+  z
+    .string({ message })
+    .trim()
+    .check(utf16MinLength(min, message))
+    .check(utf16MaxLength(max, message));
 
 const affirmed = (message: ContentClaimCounterNoticeValidationKey) =>
-  z.literal(true, { errorMap: () => ({ message }) });
+  z.literal(true, { error: () => ({ message }) });
 
 /**
  * `POST /content-claims/counter-notices` — the owner of content a claim took
@@ -359,7 +377,7 @@ export const contentClaimCounterNoticeSchema = z
             .string({ message: 'contentClaim.counterNotice.errors.email' })
             .trim()
             .email('contentClaim.counterNotice.errors.email')
-            .max(N.maxEmail, 'contentClaim.counterNotice.errors.email'),
+            .check(utf16MaxLength(N.maxEmail, 'contentClaim.counterNotice.errors.email')),
         },
         { message: 'contentClaim.counterNotice.errors.name' },
       )

@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Oxy Console first-run onboarding — the wire contract.
  *
@@ -38,7 +39,7 @@ export type ConsoleOnboardingState = z.infer<typeof consoleOnboardingStateSchema
 
 /** `POST /console/onboarding/terms`. */
 export const acceptConsoleTermsInputSchema = z.object({
-  version: z.string().min(1).max(64),
+  version: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
   adultAcknowledged: z.literal(true),
   /** Understands the account may be suspended or terminated for violating the AUP/Terms. */
   aupAcknowledged: z.literal(true),
@@ -51,7 +52,11 @@ export const CONSOLE_USE_CASE_DESCRIPTION_MAX_LENGTH = 2000;
 
 export const saveConsoleUseCasesInputSchema = z.object({
   /** Optional free text; trimmed, and blank counts as absent. */
-  description: z.string().trim().max(CONSOLE_USE_CASE_DESCRIPTION_MAX_LENGTH).optional(),
+  description: z
+    .string()
+    .trim()
+    .check(utf16MaxLength(CONSOLE_USE_CASE_DESCRIPTION_MAX_LENGTH))
+    .optional(),
   useCases: z
     .array(consoleUseCaseIdSchema)
     .max(CONSOLE_USE_CASES.length)

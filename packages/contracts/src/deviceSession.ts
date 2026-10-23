@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
@@ -7,7 +9,7 @@ export { SESSION_ACCOUNTS_CHANGED_EVENT } from './client/deviceSession';
 export const sessionAccountSchema = z.object({
   accountId: z.string(),
   sessionId: z.string(),
-  authuser: z.number().int().nonnegative(),
+  authuser: z.number().check(integerCheck()).nonnegative(),
   operatedByUserId: z.string().optional(),
 });
 
@@ -15,7 +17,7 @@ export const deviceSessionStateSchema = z.object({
   deviceId: z.string(),
   accounts: z.array(sessionAccountSchema),
   activeAccountId: z.string().nullable(),
-  revision: z.number().int().nonnegative(),
+  revision: z.number().check(integerCheck()).nonnegative(),
   updatedAt: z.number(),
 });
 
@@ -55,9 +57,9 @@ export type DeviceSessionSync = z.infer<typeof deviceSessionSyncSchema>;
  * state every other app observes.
  */
 export const deviceTokenMintRequestSchema = z.object({
-  deviceId: z.string().min(1),
-  deviceSecret: z.string().min(1),
-  accountId: z.string().min(1).optional(),
+  deviceId: z.string().check(utf16MinLength(1)),
+  deviceSecret: z.string().check(utf16MinLength(1)),
+  accountId: z.string().check(utf16MinLength(1)).optional(),
 });
 
 /**
@@ -102,7 +104,7 @@ export const sessionAccountsChangedReasonSchema = z.enum([
  */
 export const sessionAccountsChangedEventSchema = z.object({
   userId: z.string(),
-  revision: z.number().int().nonnegative(),
+  revision: z.number().check(integerCheck()).nonnegative(),
   reason: sessionAccountsChangedReasonSchema,
 });
 
@@ -136,9 +138,9 @@ export type SessionAccountsChangedEvent = z.infer<typeof sessionAccountsChangedE
  * the API's serializers checked against it — the producer is the same server.
  */
 export const deviceBackgroundCredentialResponseSchema = z.object({
-  deviceId: z.string().min(1),
-  secret: z.string().min(1),
-  accountId: z.string().min(1),
+  deviceId: z.string().check(utf16MinLength(1)),
+  secret: z.string().check(utf16MinLength(1)),
+  accountId: z.string().check(utf16MinLength(1)),
   expiresAt: z.string(),
 });
 
@@ -153,8 +155,8 @@ export const deviceBackgroundCredentialResponseSchema = z.object({
  * run.
  */
 export const deviceBackgroundTokenRequestSchema = z.object({
-  deviceId: z.string().min(1),
-  secret: z.string().min(1),
+  deviceId: z.string().check(utf16MinLength(1)),
+  secret: z.string().check(utf16MinLength(1)),
 });
 
 /**
@@ -170,7 +172,7 @@ export const deviceBackgroundTokenRequestSchema = z.object({
 export const deviceBackgroundTokenResponseSchema = z.object({
   accessToken: z.string(),
   expiresAt: z.string(),
-  accountId: z.string().min(1),
+  accountId: z.string().check(utf16MinLength(1)),
 });
 
 export type DeviceBackgroundCredentialResponse = z.infer<
@@ -192,8 +194,8 @@ export type DeviceBackgroundTokenResponse = z.infer<typeof deviceBackgroundToken
  * the account. An invalid proof on a sign-in is ignored, never an error.
  */
 export const deviceProofSchema = z.object({
-  deviceId: z.string().min(1).max(128),
-  deviceSecret: z.string().min(1).max(256),
+  deviceId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  deviceSecret: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
 });
 
 /**
@@ -202,8 +204,8 @@ export const deviceProofSchema = z.object({
  * auth.oxy.so. The raw secret is returned exactly once.
  */
 export const deviceRegisterResponseSchema = z.object({
-  deviceId: z.string().min(1),
-  deviceSecret: z.string().min(1),
+  deviceId: z.string().check(utf16MinLength(1)),
+  deviceSecret: z.string().check(utf16MinLength(1)),
 });
 
 /** PKCE S256 challenge: base64url of a SHA-256 digest (43 characters). */
@@ -217,16 +219,16 @@ const pkceS256ChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
  * minute.
  */
 export const deviceJoinCodeRequestSchema = deviceProofSchema.extend({
-  clientId: z.string().min(1).max(256),
-  redirectUri: z.string().url().max(2048),
+  clientId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+  redirectUri: z.string().check(urlCheck()).check(utf16MaxLength(2048)),
   codeChallenge: pkceS256ChallengeSchema,
   codeChallengeMethod: z.literal('S256'),
 });
 
 export const deviceJoinCodeResponseSchema = z.object({
-  code: z.string().min(1),
+  code: z.string().check(utf16MinLength(1)),
   /** Seconds until the code expires. */
-  expiresIn: z.number().int().positive(),
+  expiresIn: z.number().check(integerCheck()).positive(),
 });
 
 /**
@@ -236,14 +238,14 @@ export const deviceJoinCodeResponseSchema = z.object({
  * ordinary `POST /session/device/token`.
  */
 export const deviceJoinRequestSchema = z.object({
-  code: z.string().min(1).max(256),
+  code: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
   codeVerifier: z
     .string()
-    .min(43)
-    .max(128)
+    .check(utf16MinLength(43))
+    .check(utf16MaxLength(128))
     .regex(/^[A-Za-z0-9._~-]+$/),
-  clientId: z.string().min(1).max(256),
-  redirectUri: z.string().url().max(2048),
+  clientId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+  redirectUri: z.string().check(urlCheck()).check(utf16MaxLength(2048)),
 });
 
 export const deviceJoinResponseSchema = deviceRegisterResponseSchema;

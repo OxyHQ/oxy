@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Signing in: an email code or link, an optional password,
  * and an optional authenticator app (TOTP) as a second factor.
@@ -79,27 +81,53 @@ const sixDigits = z
 const opaqueTokenSchema = emailTicketSchema;
 
 /** A username or an email. */
-export const signInIdentifierSchema = z.string().trim().min(1).max(254);
+export const signInIdentifierSchema = z
+  .string()
+  .trim()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(254));
 
 /** A password as typed. Its policy applies only when one is set. */
-export const passwordInputSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
+export const passwordInputSchema = z
+  .string()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(PASSWORD_MAX_LENGTH));
 
 /** A new password. */
 export const newPasswordSchema = z
   .string()
-  .min(PASSWORD_MIN_LENGTH, `password must be at least ${PASSWORD_MIN_LENGTH} characters`)
-  .max(PASSWORD_MAX_LENGTH, `password must be at most ${PASSWORD_MAX_LENGTH} characters`);
+  .check(
+    utf16MinLength(
+      PASSWORD_MIN_LENGTH,
+      `password must be at least ${PASSWORD_MIN_LENGTH} characters`,
+    ),
+  )
+  .check(
+    utf16MaxLength(
+      PASSWORD_MAX_LENGTH,
+      `password must be at most ${PASSWORD_MAX_LENGTH} characters`,
+    ),
+  );
 
 /**
  * An authenticator code (6 digits) or a backup code (10 characters, with or
  * without its dash). Normalised server-side.
  */
-export const secondFactorCodeSchema = z.string().trim().min(TOTP_DIGITS).max(16);
+export const secondFactorCodeSchema = z
+  .string()
+  .trim()
+  .check(utf16MinLength(TOTP_DIGITS))
+  .check(utf16MaxLength(16));
 
 /** The device-session fields every body that ends in a session may carry. */
 const sessionEnvelope = {
-  deviceName: z.string().trim().min(1).max(120).optional(),
-  deviceFingerprint: z.string().trim().min(1).max(256).optional(),
+  deviceName: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(120)).optional(),
+  deviceFingerprint: z
+    .string()
+    .trim()
+    .check(utf16MinLength(1))
+    .check(utf16MaxLength(256))
+    .optional(),
   /** Proof of the browser's shared device; invalid → the session gets its own. */
   device: deviceProofSchema.optional(),
 } as const;
@@ -130,9 +158,9 @@ export interface EmailSignInStartResponse {
 }
 
 export const emailSignInStartResponseSchema: z.ZodType<EmailSignInStartResponse> = z.object({
-  requestId: z.string().min(1).max(64),
+  requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
   requestSecret: opaqueTokenSchema,
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().check(integerCheck()).positive(),
   retryLater: z.literal(true).optional(),
 });
 
@@ -164,7 +192,7 @@ export const emailSignInCodeSchema = z
 /** `POST /auth/signin/email/confirm` — the code from the email. */
 export const emailSignInConfirmRequestSchema = z
   .object({
-    requestId: z.string().trim().min(1).max(64),
+    requestId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     requestSecret: opaqueTokenSchema,
     code: emailSignInCodeSchema,
     ...sessionEnvelope,
@@ -175,7 +203,7 @@ export type EmailSignInConfirmRequest = z.infer<typeof emailSignInConfirmRequest
 /** `POST /auth/signin/email/collect` — the dialog asks whether its link was opened. */
 export const emailSignInCollectRequestSchema = z
   .object({
-    requestId: z.string().trim().min(1).max(64),
+    requestId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     requestSecret: opaqueTokenSchema,
     ...sessionEnvelope,
   })
@@ -227,7 +255,7 @@ export type SecondFactorSignInRequest = z.infer<typeof secondFactorSignInRequest
 /** `POST /auth/signup` — the account, from a username and a confirmed email. */
 export const signUpRequestSchema = z
   .object({
-    username: z.string().trim().min(1).max(60),
+    username: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(60)),
     email: emailAddressSchema,
     /** The ticket `POST /auth/email/verify/confirm` (purpose `signup`) returned. */
     emailTicket: emailTicketSchema,
@@ -248,7 +276,7 @@ export interface SecondFactorRequired {
 export const secondFactorRequiredSchema: z.ZodType<SecondFactorRequired> = z.object({
   secondFactorRequired: z.literal(true),
   challengeId: opaqueTokenSchema,
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().check(integerCheck()).positive(),
 });
 
 /** The dialog's link has not been opened (in the right browser) yet. */
@@ -259,7 +287,7 @@ export interface EmailSignInPending {
 
 export const emailSignInPendingSchema: z.ZodType<EmailSignInPending> = z.object({
   status: z.literal('pending'),
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().check(integerCheck()).positive(),
 });
 
 /** What a first factor answers: a session, or the second-factor step. */
@@ -276,10 +304,10 @@ export interface EmailSignInAccountOption {
 }
 
 export const emailSignInAccountOptionSchema: z.ZodType<EmailSignInAccountOption> = z.object({
-  id: z.string().min(1).max(64),
-  username: z.string().min(1).optional(),
-  displayName: z.string().min(1).optional(),
-  avatar: z.string().min(1).optional(),
+  id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+  username: z.string().check(utf16MinLength(1)).optional(),
+  displayName: z.string().check(utf16MinLength(1)).optional(),
+  avatar: z.string().check(utf16MinLength(1)).optional(),
 });
 
 /**
@@ -299,7 +327,7 @@ export interface EmailSignInChooseAccount {
 export const emailSignInChooseAccountSchema: z.ZodType<EmailSignInChooseAccount> = z.object({
   chooseAccount: z.literal(true),
   accounts: z.array(emailSignInAccountOptionSchema).min(2).max(EMAIL_ACCOUNTS_MAX),
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().check(integerCheck()).positive(),
 });
 
 /** What proving an email answers: a session, the second-factor step, or the account choice. */
@@ -308,9 +336,9 @@ export type EmailSignInStepResult = SignInStepResult | EmailSignInChooseAccount;
 /** `POST /auth/signin/email/choose` — the account, from those {@link EmailSignInChooseAccount} listed. */
 export const emailSignInChooseRequestSchema = z
   .object({
-    requestId: z.string().trim().min(1).max(64),
+    requestId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     requestSecret: opaqueTokenSchema,
-    userId: z.string().trim().min(1).max(64),
+    userId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     ...sessionEnvelope,
   })
   .strict();
@@ -331,7 +359,7 @@ export const reauthProofSchema = z
     password: passwordInputSchema.optional(),
     emailCode: z
       .object({
-        verificationId: z.string().trim().min(1).max(64),
+        verificationId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
         code: sixDigits,
       })
       .strict()
@@ -376,7 +404,7 @@ export type EmailChangeStartRequest = z.infer<typeof emailChangeStartRequestSche
 export const emailSetRequestSchema = z
   .object({
     email: emailAddressSchema,
-    verificationId: z.string().trim().min(1).max(64),
+    verificationId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     code: sixDigits,
     reauth: reauthProofSchema,
   })
@@ -396,7 +424,7 @@ export const signInMethodsSchema: z.ZodType<SignInMethods> = z.object({
   hasEmail: z.boolean(),
   hasPassword: z.boolean(),
   totpEnabled: z.boolean(),
-  backupCodesRemaining: z.number().int().min(0),
+  backupCodesRemaining: z.number().check(integerCheck()).min(0),
 });
 
 /** `POST /users/me/totp/enroll` — a new secret, not active until confirmed. */

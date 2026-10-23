@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- Root schemas and public schema types use patched Zod 4.6.7. Client checks remain Zod-free and match its validation and error codes. Explicit contract checks preserve existing UTF-16 limits, minute timestamps, URL values and integer bounds; oversized bounded collections fail before element validation.
 - Distinguish first-party authority without scopes from external scoped service, inference and agent authority.
 
 ### Added

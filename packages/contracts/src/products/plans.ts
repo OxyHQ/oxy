@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 import { z } from 'zod';
 import { productBenefitSchema } from './access';
 
@@ -5,7 +7,7 @@ import { productBenefitSchema } from './access';
 export const personalPlanDisplayPriceSchema = z
   .object({
     currency: z.string().regex(/^[A-Z]{3}$/),
-    amountMinorUnits: z.number().int().positive().safe(),
+    amountMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     interval: z.literal('month'),
     trial: z.literal('none'),
     taxTreatment: z.literal('inclusive'),
@@ -22,15 +24,18 @@ export const personalPlanCatalogueSchema = z
     plans: z.array(
       z
         .object({
-          offerId: z.string().min(1).max(160),
-          offerVersion: z.number().int().positive().safe(),
-          displayName: z.string().min(1).max(100),
+          offerId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+          offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+          displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(100)),
           audience: z.literal('personal'),
           kind: z.literal('oxy_one'),
           price: personalPlanDisplayPriceSchema.optional(),
           benefits: z.array(
             z
-              .object({ displayName: z.string().min(1).max(100), benefit: productBenefitSchema })
+              .object({
+                displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+                benefit: productBenefitSchema,
+              })
               .strict(),
           ),
         })
@@ -47,15 +52,15 @@ export type PersonalPlanCatalogue = z.infer<typeof personalPlanCatalogueSchema>;
 export const productPlanCatalogueSchema = z
   .object({
     schemaVersion: z.literal(1),
-    productId: z.string().min(1).max(160),
+    productId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
     purchase: z.enum(['unavailable', 'available']),
     plans: z.array(
       z
         .object({
-          productId: z.string().min(1).max(160),
-          offerId: z.string().min(1).max(160),
-          offerVersion: z.number().int().positive().safe(),
-          displayName: z.string().min(1).max(100),
+          productId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+          offerId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+          offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+          displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(100)),
           price: personalPlanDisplayPriceSchema.extend({ interval: z.enum(['month', 'year']) }),
         })
         .strict(),

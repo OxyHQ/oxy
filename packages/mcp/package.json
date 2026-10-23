@@ -47,7 +47,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@oxy.so/contracts": "workspace:^",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

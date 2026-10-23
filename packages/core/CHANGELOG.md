@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- Server schema validation uses patched Zod 4 and contracts 6; client entry points remain Zod-free.
 - Own service authority is explicit and scope-free. Workload callers use shared service transports; external credential pairs retain scoped authority.
 - Own workload mint requests reject scope options. Reader-first deployment temporarily preserves v1 only for public manual token calls; internal SDK calls use v2.
 
