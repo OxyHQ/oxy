@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Live authority and product audience. Access is independent of billing read. */
 import { getDb } from '../config/postgres';
 import { accountClosureFences, applicationCredentials } from '../db/schema';
@@ -100,7 +101,7 @@ export async function readServiceAuthorizedSubjectProductGrantSnapshot(
   const required = ['user:read', SERVICE_ACTING_AS_SCOPE];
   if (
     identity.environment !== 'production' ||
-    required.some((scope) => !identity.scopes.includes(scope))
+    required.some((scope) => !hasServiceAuthority(identity, scope))
   )
     throw new ForbiddenError('Production offline product read authority is required');
   const grant = await resolveServiceActingAsGrant(identity.appId, query.subjectAccountId, {

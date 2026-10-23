@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Account-scoped billing (issue #972, sections 7.1, 7.4 and 7.5).
  *
@@ -317,7 +318,7 @@ async function authorizeAccount(
     if (permission !== 'billing:read') {
       throw new ForbiddenError('A service credential may not change billing configuration');
     }
-    if (!principal.service.scopes.includes('inference:usage:read')) {
+    if (!hasServiceAuthority(principal.service, 'inference:usage:read')) {
       throw new ForbiddenError('This credential does not carry the inference:usage:read scope');
     }
     if (principal.service.ownerAccountId !== accountId) {

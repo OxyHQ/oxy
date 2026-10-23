@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import {
   MESSAGE_ACCESS_MAX_SUPERVISED_PARTICIPANTS,
@@ -22,7 +23,7 @@ export function consumerSupports(
 ): boolean {
   return (
     !!principal &&
-    principal.scopes.includes('safety:decide') &&
+    hasServiceAuthority(principal, 'safety:decide') &&
     principal.capabilities.includes(`safety:${action}:v1`)
   );
 }

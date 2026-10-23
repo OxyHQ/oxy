@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -200,7 +201,7 @@ async function livePrincipal(
     response.status(401).json({ error: 'service_principal_no_longer_active' });
     return null;
   }
-  if (!principal.scopes.includes(scope)) {
+  if (!hasServiceAuthority(principal, scope)) {
     response.status(403).json({ error: 'insufficient_service_scope', requiredScope: scope });
     return null;
   }
@@ -1019,7 +1020,7 @@ router.post(
     if (
       !coordinator ||
       !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY) ||
-      !coordinator.scopes.includes('capability-tickets:issue')
+      !hasServiceAuthority(coordinator, 'capability-tickets:issue')
     ) {
       response.status(400).json({ error: 'coordinator_not_active_or_authorized' });
       return;

@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * The routing policy control plane's HTTP surface (issue #972, workstream 6).
  *
@@ -240,7 +241,7 @@ async function authorizeApplication(
   scope: 'inference:routing:read' | 'inference:routing:write',
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes(scope)) {
+    if (!hasServiceAuthority(principal.service, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     // A service token reaches only its OWN application. Without this, any
@@ -275,7 +276,7 @@ async function authorizeAccount(
   scope: 'inference:routing:read' | 'inference:routing:write',
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes(scope)) {
+    if (!hasServiceAuthority(principal.service, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     if (principal.service.ownerAccountId !== accountId) {
