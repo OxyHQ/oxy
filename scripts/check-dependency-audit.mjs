@@ -83,6 +83,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectForgeAuditPolicy } from './forge-audit-policy.mjs';
+import { inspectZodAuditPaths, ZOD_ADVISORY } from './zod-audit-paths.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -106,6 +107,16 @@ const GATED_SEVERITIES = new Set(['high', 'critical']);
  * list.
  */
 const ACKNOWLEDGED_PACKAGES = [
+  {
+    package: 'zod',
+    advisories: [ZOD_ADVISORY],
+    reachedBy: 'Only API atproto OAuth 0.5.7 and the reviewed shadcn/Expo build CLI paths',
+    reason:
+      'Own runtime schemas use patched Zod 4.6.7. Atproto JSON and restored DPoP state are ' +
+      'bounded before the unavoidable Zod 3.25.76 parsers; build-only CLI paths are isolated. ' +
+      'The mandatory lock graph guard rejects every other vulnerable version or consumer. ' +
+      'Evidence, limits and removal conditions: docs/security/zod-parser-boundary.md.',
+  },
   {
     package: 'undici',
     reachedBy: 'release-it (dev)',
@@ -148,6 +159,12 @@ if (process.env.DEPENDENCY_AUDIT_EMIT_ACKNOWLEDGEMENTS === '1') {
 }
 
 const problems = [];
+const zodPaths = inspectZodAuditPaths(repositoryRoot);
+for (const error of zodPaths.errors) problems.push(`Scoped Zod path policy: ${error}`);
+if (zodPaths.residuals.length === 0)
+  problems.push(
+    'Zod residual acknowledgement is stale: remove it when all reviewed dependencies are patched.',
+  );
 
 /**
  * The audit payload.

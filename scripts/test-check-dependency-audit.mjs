@@ -115,6 +115,15 @@ const firstCritical = criticals[0];
 
 const cases = [
   {
+    name: 'a different high Zod advisory is never covered by the parser boundary review',
+    payload: {
+      ...cleanPayload(),
+      zod: [...cleanPayload().zod, advisory('high', 'GHSA-new-zod-advisory', 'new parser defect')],
+    },
+    expectFailure: true,
+    expectOutput: 'GHSA-new-zod-advisory',
+  },
+  {
     name: 'a high advisory in formerly acknowledged braces fails',
     payload: {
       ...cleanPayload(),
