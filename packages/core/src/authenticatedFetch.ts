@@ -1,4 +1,5 @@
 import type { HttpService, ResponseRequest } from './HttpService';
+import { awaitRequestSignal } from './utils/requestSignal';
 
 /** Adapt a product SDK's fetch calls to the session owner's raw-response lane. */
 export function createAuthenticatedFetch(
@@ -27,7 +28,7 @@ export function createAuthenticatedFetch(
       body,
       signal,
     };
-    if (options.prepare) await options.prepare();
+    if (options.prepare) await awaitRequestSignal(options.prepare(), signal);
     if (options.disposed?.()) throw new Error('The authenticated transport has been disposed');
     return client.requestAuthenticatedResponse(config);
   };
