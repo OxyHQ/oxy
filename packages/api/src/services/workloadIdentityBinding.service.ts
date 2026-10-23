@@ -1,14 +1,9 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
-import {
-  isPrivilegedScope,
-  isValidApplicationScope,
-  type ApplicationScope,
-} from '../utils/applicationScopes';
-import { logger } from '../utils/logger';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   canonicalAwsSubject,
@@ -21,58 +16,16 @@ import {
   WorkloadAttributionError,
 } from './workloadAttributionIdentity.service';
 
-/**
- * Creating the row that makes a workload an application — the one write on the
- * credential-free path, and the only step of ADR 0026 a human performs.
- *
- * `workloadIdentity.service.ts` reads `application_workload_identities` to
- * answer "which application is this attested workload?". Nothing wrote it.
- * Every other piece of ADR 0026 shipped — the challenge, the STS verifier, the
- * mint, the trust and scope gates — so the path was complete except that the
- * table it resolves against was empty and stayed empty, and every attestation
- * ended at `unbound_workload`. This module is that missing write, and the
- * refusals around it.
- *
- * ## Why this is a module and not a route
- *
- * A binding says one service IS one application. Exposing that over HTTP means
- * designing who may call it, and the honest answer — staff, out of band, once
- * per service deployment — is an operator task, not a product surface. It is
- * also rare: a row per service, created when that service is deployed and
- * deleted when it is retired. `scripts/bind-workload-identity.ts` is the
- * entrypoint; the decisions live here so they can be tested without a process.
- *
- * ## A binding names identity, and — since the scopes column — authority too
- *
- * For as long as this module existed, a binding said only WHICH application a
- * workload is, and the mint gave that application's non-privileged grants. That
- * made every first-party service holding a privileged scope unmigratable: take
- * the key pair off Mention's task definition and `federation:write`,
- * `signals:write` and `catalogs:write` go with it, which is what happened in
- * production and what the scopes column fixes.
- *
- * The fix is not a weaker rule. The rule is that privileged authority must be
- * named on something a human granted deliberately, and a binding row IS such a
- * thing: staff write it, it names one IAM role and one application, and it
- * carries a description somebody wrote. So it may name scopes exactly as an
- * `ApplicationCredential` may, and {@link authorizeBindingScopes} applies the
- * same gate `POST /applications/:appId/credentials` applies — the app's grants
- * are the ceiling for everyone, and a privileged scope needs staff.
- *
- * ## There is no secret here, and that is the point
- *
- * `create-service-credential.ts` encrypts its output because it emits a secret
- * exactly once. This module emits nothing of the kind: a binding row is a
- * statement about our own infrastructure — an account number, a role name, an
- * application id — and none of it authenticates anybody on its own. Holding the
- * row's contents gets an attacker nowhere without also holding the IAM role it
- * names, which is the whole reason ADR 0026 prefers this to a shared secret. So
- * the output of a bind is safe to paste into a ticket, a CI log or a runbook,
- * and no part of this file needs to be careful about what it prints.
+/** Staff-managed workload identities bind an application and deployment environment.
+ * Scopes belong to external credentials. Legacy binding scopes are retained only
+ * for reading old tokens during the transition; no new mint uses them.
  */
 
 /** Why a bind was refused. Every value is a deliberate no, never a failure. */
 export type WorkloadBindingRefusal =
+  | 'environment_required'
+  | 'environment_conflict'
+  | 'staff_required'
   | 'unsupported_provider'
   | 'uncanonical_subject'
   | 'unknown_application'
@@ -81,9 +34,7 @@ export type WorkloadBindingRefusal =
   | 'invalid_expiry'
   | 'subject_bound_elsewhere'
   | 'subject_attributed_elsewhere'
-  | 'unknown_scope'
-  | 'ungrantable_scope'
-  | 'privileged_scope_requires_staff';
+  | 'workload_scopes_unsupported';
 
 export class WorkloadBindingError extends Error {
   readonly reason: WorkloadBindingRefusal;
@@ -100,7 +51,8 @@ export interface WorkloadBindingRow {
   provider: string;
   subject: string;
   description: string | null;
-  /** What the mint will intersect with the application's grants. Empty means "names none". */
+  environment: OxyServiceEnvironment | null;
+  /** Legacy metadata; not first-party authority. */
   scopes: string[];
   /**
    * The `credentialId` every token minted through this binding will carry.
@@ -146,27 +98,18 @@ export interface WorkloadBindingRequest {
   /** A role ARN, or the assumed-role ARN a task reports — both canonicalise. */
   subject: string;
   description?: string;
-  /**
-   * Scopes the binding names, or ABSENT to leave whatever the row already says.
-   *
-   * Absent and `[]` are different answers on purpose. A bind runs as part of a
-   * deploy and will be re-run with whatever arguments that deploy step has
-   * always carried, which for every existing service is no scopes at all — so
-   * absent MUST mean "do not touch", or the first re-run after a migration
-   * silently revokes the authority the migration just granted. Naming an empty
-   * list is the explicit way to say "this binding names none", and it is
-   * applied.
-   */
+  environment?: OxyServiceEnvironment;
+  /** Rejected explicitly to make obsolete automation fail visibly. */
   scopes?: readonly string[];
   /** ISO 8601. Absent means the binding does not wind itself down. */
   expiresAt?: string;
-  /** Required before a privileged scope can be named; see {@link WorkloadBindingActor}. */
+  /** Required before a workload environment can be provisioned; see {@link WorkloadBindingActor}. */
   actor?: WorkloadBindingActor;
 }
 
 export interface WorkloadBindingResult {
   /**
-   * `created` wrote a row, `updated` changed the scopes of one already there,
+   * `created` wrote a row, `updated` provisioned the environment of one already there,
    * and `unchanged` found the binding already saying what was asked for.
    */
   state: 'created' | 'unchanged' | 'updated';
@@ -174,9 +117,7 @@ export interface WorkloadBindingResult {
   /**
    * What `updated` changed, named for the operator, and absent otherwise.
    *
-   * The only feedback a one-off ECS task gives is what it prints, so a run that
-   * moved a binding from no scopes to three says which three, and a run that
-   * moved nothing says `unchanged` rather than the same cheerful success.
+   * Reports whether an existing environment was provisioned.
    */
   changed?: string[];
   /**
@@ -208,6 +149,7 @@ const BINDING_COLUMNS = {
   provider: applicationWorkloadIdentities.provider,
   subject: applicationWorkloadIdentities.subject,
   description: applicationWorkloadIdentities.description,
+  environment: applicationWorkloadIdentities.environment,
   scopes: applicationWorkloadIdentities.scopes,
   expiresAt: applicationWorkloadIdentities.expiresAt,
   createdAt: applicationWorkloadIdentities.createdAt,
@@ -315,105 +257,6 @@ async function requireApplication(applicationId: string) {
   return application;
 }
 
-/**
- * The staff-only privileged-scope gate, and the application ceiling — the same
- * rules `POST /applications/:appId/credentials` applies, restated for a caller
- * that has no `req` to ask `isStaffUser` about.
- *
- * Three rules, in the order the route applies them:
- *
- *   1. **A scope must exist.** The route gets this from its request schema; a
- *      script gets a string an operator typed. A misspelt scope written here
- *      would sit in the table reading as granted while the mint silently drops
- *      it, and the failure would surface as a 403 from another service with
- *      nothing pointing back at this row.
- *   2. **The application's grants are the ceiling, for everyone including
- *      staff.** A binding must never name a scope the application itself was
- *      not granted — that is the invariant `intersectScopes` enforces at every
- *      mint, and refusing the write as well is what stops a row from reading as
- *      a finished rollout that quietly grants less than it says. Staff get no
- *      exemption here for the same reason they get none on the route: widening
- *      an APPLICATION's authority is a separate, deliberate act on the
- *      application record.
- *   3. **A privileged scope requires staff**, and so does taking one away.
- *
- * Rule 3 is symmetric because the route's is (`authorizeRequestedScopes`,
- * `routes/applications.ts`), and for the failure that made it symmetric: a
- * caller that omits an already-granted privileged scope would otherwise REVOKE
- * it by omission, which is exactly how Mention's in-use `signals:write` was
- * wiped by routine edits. A bind is re-run by a deploy step whose arguments
- * predate the scope it is now carrying, so omission-as-revocation is not a
- * hypothetical here — it is the default shape of the second run. An omitted
- * privileged scope is therefore PRESERVED and said out loud, never dropped.
- *
- * `previousScopes` is empty on create and the stored row's scopes on update.
- */
-export function authorizeBindingScopes(
-  requested: readonly string[],
-  applicationScopes: readonly string[],
-  previousScopes: readonly string[],
-  actor: WorkloadBindingActor | undefined,
-): ApplicationScope[] {
-  const deduped: ApplicationScope[] = [];
-  const seen = new Set<string>();
-  for (const scope of requested) {
-    const trimmed = scope.trim();
-    if (!isValidApplicationScope(trimmed)) {
-      throw new WorkloadBindingError(
-        'unknown_scope',
-        `"${trimmed}" is not an Oxy application scope, so a binding naming it would grant ` +
-          'nothing and read as if it granted something. Check the spelling against ' +
-          'APPLICATION_SCOPES in utils/applicationScopes.ts.',
-      );
-    }
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    deduped.push(trimmed);
-  }
-
-  const grantable = new Set(applicationScopes);
-  const ungrantable = deduped.filter((scope) => !grantable.has(scope));
-  if (ungrantable.length > 0) {
-    throw new WorkloadBindingError(
-      'ungrantable_scope',
-      `Scope(s) [${ungrantable.join(', ')}] are not granted to this application, so the mint ` +
-        'would drop them from every token and the binding would read as granting authority it ' +
-        'cannot. Grant them on the application first — a deliberate act on the application ' +
-        'record, with its own staff gate.',
-    );
-  }
-
-  if (actor?.isPlatformStaff) return deduped;
-
-  const previouslyGranted = new Set(previousScopes);
-  const newlyAddedPrivileged = deduped.filter(
-    (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope),
-  );
-  if (newlyAddedPrivileged.length > 0) {
-    throw new WorkloadBindingError(
-      'privileged_scope_requires_staff',
-      `Naming the scope(s) [${newlyAddedPrivileged.join(', ')}] on a binding requires Oxy ` +
-        `platform staff privileges; this bind is running as ${actor?.describedAs ?? 'an unidentified actor'}. ` +
-        'A binding can name privileged authority precisely because a human wrote the row — so ' +
-        'the row has to be written by one.',
-    );
-  }
-
-  // Preserve, never silently revoke: an omitted privileged scope is a deploy
-  // step re-running with the arguments it has always had, not a decision.
-  const preserved = Array.from(previouslyGranted).filter(
-    (scope): scope is ApplicationScope =>
-      isPrivilegedScope(scope) && !seen.has(scope) && isValidApplicationScope(scope),
-  );
-  if (preserved.length > 0) {
-    logger.warn(
-      '[WorkloadIdentityBinding] preserving a privileged scope the bind omitted; removing one requires staff',
-      { scopes: preserved, actor: actor?.describedAs ?? 'unidentified' },
-    );
-  }
-  return [...deduped, ...preserved];
-}
-
 function requireExpiry(value: string | undefined, now: Date): Date | null {
   if (value === undefined) return null;
   const parsed = new Date(value);
@@ -467,42 +310,13 @@ async function findBinding(
   return row ? withAttestationId(row) : undefined;
 }
 
-/**
- * Decide what an existing row means for this request.
- *
- * Same application: the bind already happened, and re-running a deploy step
- * must not be an error. Different application: REFUSE, and never repoint. A
- * repoint is silent and total — the workload keeps authenticating, keeps
- * getting tokens, and every one of them now carries somebody else's
- * `applicationId`, so its writes land in another tenant's data with correct
- * audit attribution to the wrong party. There is no reading of "bind this role
- * to this app" that should quietly take a role away from the app that has it;
- * an operator who genuinely means to move one deletes the old row first, which
- * is a decision with its own trace.
- *
- * ## Scopes ARE applied, and the asymmetry with description and expiry is the point
- *
- * A re-run still refuses to edit a description or an expiry: it says what it
- * ignored and changes nothing, because a create that quietly became an edit is
- * how a binding's LIFETIME gets changed by somebody who meant to create one.
- *
- * Scopes are the opposite case. Naming them on an existing binding is the whole
- * migration — every service that holds a privileged credential today already
- * has a binding row, and the step that lets it give the key pair up is adding
- * scopes to that row. The only alternative under a no-edit rule is delete and
- * re-create, which cuts a running workload off between the two commands. And
- * unlike an expiry, a scope change cannot be a silent widening: it is bounded
- * by the application's own grants and staff-gated
- * ({@link authorizeBindingScopes}), so the dangerous direction is closed before
- * the write is reached.
- */
+/** Re-running cannot repoint an identity or change its bound environment. */
 async function reconcileExisting(
   existing: WorkloadBindingRow,
   request: {
     applicationId: string;
-    applicationScopes: readonly string[];
+    environment?: OxyServiceEnvironment;
     description?: string;
-    scopes?: readonly string[];
     expiresAt: Date | null;
     actor?: WorkloadBindingActor;
   },
@@ -545,50 +359,51 @@ async function reconcileExisting(
     ...(ignoredChanges.length > 0 ? { ignoredChanges } : {}),
   };
 
-  if (request.scopes === undefined) return { state: 'unchanged', ...base };
-
-  const authorized = authorizeBindingScopes(
-    request.scopes,
-    request.applicationScopes,
-    existing.scopes,
-    request.actor,
-  );
-  // Set equality, not list equality: `--scopes a,b` and `--scopes b,a` name the
-  // same authority, and an UPDATE that only reorders a column would move
-  // `updated_at` and report a change to an operator who made none.
-  if (sameScopeSet(authorized, existing.scopes)) return { state: 'unchanged', ...base };
-
+  if (request.environment === undefined || request.environment === existing.environment) {
+    return { state: 'unchanged', ...base };
+  }
+  if (existing.environment !== null) {
+    throw new WorkloadBindingError(
+      'environment_conflict',
+      'A binding cannot change environment; retire it and provision a new workload.',
+    );
+  }
+  if (!request.actor?.isPlatformStaff) {
+    throw new WorkloadBindingError(
+      'staff_required',
+      'Binding an environment requires platform staff.',
+    );
+  }
   const [updated] = await getDb()
     .update(applicationWorkloadIdentities)
-    .set({ scopes: authorized, updatedAt: new Date() })
-    .where(eq(applicationWorkloadIdentities.id, existing.id))
+    .set({ environment: request.environment, updatedAt: new Date() })
+    .where(
+      and(
+        eq(applicationWorkloadIdentities.id, existing.id),
+        eq(applicationWorkloadIdentities.applicationId, request.applicationId),
+        isNull(applicationWorkloadIdentities.environment),
+      ),
+    )
     .returning(BINDING_COLUMNS);
-
+  if (!updated) {
+    const current = await findBinding(requireProvider(existing.provider), existing.subject);
+    if (
+      current?.environment === request.environment &&
+      current.applicationId === request.applicationId
+    ) {
+      return { state: 'unchanged', binding: current };
+    }
+    throw new WorkloadBindingError(
+      'environment_conflict',
+      'The binding changed during provisioning.',
+    );
+  }
   return {
     state: 'updated',
     binding: withAttestationId(updated),
-    changed: [describeScopeChange(existing.scopes, authorized)],
+    changed: [`environment ${request.environment}`],
     ...(ignoredChanges.length > 0 ? { ignoredChanges } : {}),
   };
-}
-
-/** Two scope lists naming the same authority. */
-function sameScopeSet(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((scope) => rightSet.has(scope));
-}
-
-/** What an operator needs to read back: what went, what arrived, what stands now. */
-function describeScopeChange(before: readonly string[], after: readonly string[]): string {
-  const afterSet = new Set(after);
-  const beforeSet = new Set(before);
-  const added = after.filter((scope) => !beforeSet.has(scope));
-  const removed = before.filter((scope) => !afterSet.has(scope));
-  const parts: string[] = [];
-  if (added.length > 0) parts.push(`+[${added.join(', ')}]`);
-  if (removed.length > 0) parts.push(`-[${removed.join(', ')}]`);
-  return `scopes ${parts.join(' ')} (now: ${after.length > 0 ? after.join(', ') : 'none'})`;
 }
 
 /** Postgres's unique_violation. */
@@ -608,6 +423,21 @@ export async function bindWorkloadIdentity(
   request: WorkloadBindingRequest,
   now: Date = new Date(),
 ): Promise<WorkloadBindingResult> {
+  if (request.scopes !== undefined) {
+    throw new WorkloadBindingError(
+      'workload_scopes_unsupported',
+      'Workloads authenticate without scopes.',
+    );
+  }
+  if (
+    request.environment !== undefined &&
+    !OXY_SERVICE_ENVIRONMENTS.includes(request.environment)
+  ) {
+    throw new WorkloadBindingError(
+      'environment_required',
+      'A valid explicit workload environment is required.',
+    );
+  }
   const provider = requireProvider(request.provider ?? 'aws-iam');
   const subject = canonicalWorkloadSubject(provider, request.subject);
   const expiresAt = requireExpiry(request.expiresAt, now);
@@ -632,9 +462,8 @@ export async function bindWorkloadIdentity(
 
   const reconcileAgainst = {
     applicationId: application.id,
-    applicationScopes: application.scopes,
+    environment: request.environment,
     description: request.description,
-    scopes: request.scopes,
     expiresAt,
     actor: request.actor,
   };
@@ -642,14 +471,15 @@ export async function bindWorkloadIdentity(
   const existing = await findBinding(provider, subject);
   if (existing) return reconcileExisting(existing, reconcileAgainst);
 
-  // Nothing to preserve on a create, so the previous set is empty — the same
-  // thing `authorizeRequestedScopes` is handed when an application is created.
-  const scopes = authorizeBindingScopes(
-    request.scopes ?? [],
-    application.scopes,
-    [],
-    request.actor,
-  );
+  if (!request.environment || !OXY_SERVICE_ENVIRONMENTS.includes(request.environment)) {
+    throw new WorkloadBindingError(
+      'environment_required',
+      'An explicit workload environment is required.',
+    );
+  }
+  if (!request.actor?.isPlatformStaff) {
+    throw new WorkloadBindingError('staff_required', 'Workload bindings require platform staff.');
+  }
 
   try {
     /**
@@ -670,7 +500,7 @@ export async function bindWorkloadIdentity(
           applicationId: application.id,
           provider,
           subject,
-          scopes,
+          environment: request.environment,
           ...(request.description !== undefined ? { description: request.description } : {}),
           ...(expiresAt !== null ? { expiresAt } : {}),
         })
@@ -762,33 +592,10 @@ const VALUE_FLAGS = [
   '--subject',
   '--provider',
   '--description',
+  '--environment',
   '--scopes',
   '--expires-at',
 ] as const;
-
-/**
- * `--scopes a,b` → `['a','b']`, and `--scopes=` → `[]`.
- *
- * The empty string is a real answer and not a missing one: it is how an
- * operator says "this binding names none" out loud, which is different from
- * leaving `--scopes` off entirely (leave the row's scopes alone). Whitespace
- * around a comma is forgiven because the list is copied out of a ticket; an
- * empty ELEMENT (`a,,b`, a trailing comma) is not, because it is a typo in a
- * list where a dropped entry is silent.
- */
-export function parseScopeList(raw: string): string[] {
-  if (raw.trim() === '') return [];
-  return raw.split(',').map((scope) => {
-    const trimmed = scope.trim();
-    if (trimmed === '') {
-      throw new WorkloadBindingUsageError(
-        `--scopes contains an empty entry ("${raw}"). Give a comma-separated list with no ` +
-          'stray commas, or --scopes= to name none.',
-      );
-    }
-    return trimmed;
-  });
-}
 
 /**
  * Turn argv into one invocation, or refuse to guess.
@@ -804,11 +611,7 @@ export function parseScopeList(raw: string): string[] {
  *     values means the operator does not know which one is being bound.
  *   * `--list` takes an application and nothing else, so a run that names a
  *     subject as well is one whose author expected a write.
- *   * `--scopes` ABSENT and `--scopes=` are different invocations. Absent leaves
- *     an existing binding's scopes untouched; empty sets them to none. Folding
- *     the two together would make the next routine re-run of a deploy's bind
- *     step — which carries no `--scopes`, because it predates the column —
- *     revoke the authority somebody granted that morning.
+ *   * Obsolete scope flags fail visibly; workloads authenticate by identity.
  */
 export function parseBindWorkloadIdentityArgv(
   argv: readonly string[],
@@ -853,6 +656,7 @@ export function parseBindWorkloadIdentityArgv(
       subject !== undefined ||
       values.has('--description') ||
       values.has('--scopes') ||
+      values.has('--environment') ||
       values.has('--expires-at')
     ) {
       throw new WorkloadBindingUsageError(
@@ -870,6 +674,17 @@ export function parseBindWorkloadIdentityArgv(
 
   const description = values.get('--description');
   const rawScopes = values.get('--scopes');
+  if (rawScopes !== undefined)
+    throw new WorkloadBindingUsageError('Workloads use identity, not scopes; remove --scopes.');
+  const environment = values.get('--environment');
+  if (
+    environment !== undefined &&
+    !OXY_SERVICE_ENVIRONMENTS.includes(environment as OxyServiceEnvironment)
+  ) {
+    throw new WorkloadBindingUsageError(
+      '--environment must be development, staging or production.',
+    );
+  }
   const expiresAt = values.get('--expires-at');
   return {
     mode: 'bind',
@@ -878,7 +693,7 @@ export function parseBindWorkloadIdentityArgv(
       subject,
       ...(values.has('--provider') ? { provider: values.get('--provider') as string } : {}),
       ...(description !== undefined ? { description } : {}),
-      ...(rawScopes !== undefined ? { scopes: parseScopeList(rawScopes) } : {}),
+      ...(environment !== undefined ? { environment: environment as OxyServiceEnvironment } : {}),
       ...(expiresAt !== undefined ? { expiresAt } : {}),
     },
   };

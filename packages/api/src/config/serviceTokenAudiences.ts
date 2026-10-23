@@ -37,7 +37,18 @@ export const SERVICE_TOKEN_AUDIENCES = [
   KAANA_CONTROL_AUDIENCE,
 ] as const;
 
-export type ServiceTokenAudience = (typeof SERVICE_TOKEN_AUDIENCES)[number];
+export type ServiceTokenAudience =
+  | (typeof SERVICE_TOKEN_AUDIENCES)[number]
+  | `oxy-service:${string}`;
+
+/** A receiving application is registered by its immutable Oxy id, never its hostname. */
+export function serviceAudienceApplicationId(audience: string): string | null {
+  const match =
+    /^oxy-service:([a-f0-9]{24}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.exec(
+      audience,
+    );
+  return match?.[1] ?? null;
+}
 
 /** The application that alone may mint {@link KAANA_CONTROL_AUDIENCE}. Pinned, never by name. */
 export const KAANA_CONTROL_APPLICATION_ID = KAANA_APPLICATION_ID;
