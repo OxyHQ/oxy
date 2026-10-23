@@ -1,0 +1,184 @@
+/** Finite compatibility cohort observed read-only on 2026-10-23.
+ * Remove after all recorded deployments request protocolVersion: 2.
+ * Source ECS task f561800e3dbb4e379d086c22569240de; evidence SHA256
+ * d5bf0e16bc91dcbf11fd0664d64c673ed220dd9e4f56098a3cf53bfe710cc9f9.
+ */
+export const LEGACY_WORKLOAD_BINDINGS = [
+  {
+    id: '01a0b9bc-40bb-772f-aba4-c763fcfe1ca5',
+    applicationId: '6a2f851751b784a86fd0e934',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-alia-integrations-task',
+  },
+  {
+    id: '01a0b9b9-4a69-7d3d-a589-7a42b5b89c7d',
+    applicationId: '6a2f851751b784a86fd0e934',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-alia-task',
+  },
+  {
+    id: '01a0b8f5-a4e2-721e-bc78-6c34bd8b1746',
+    applicationId: '6a2f851751b784a86fd0e92b',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-allo-task',
+  },
+  {
+    id: '01a0bd01-78dc-712c-9613-5e6d5314a97d',
+    applicationId: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-clarity-task',
+  },
+  {
+    id: '01a0ba2d-84de-71c4-be5d-65f4ef525842',
+    applicationId: '6a6947b30fe72510b411252f',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-crowdsource-task',
+  },
+  {
+    id: '01a12513-c595-772f-8f5c-ccea0aa5291b',
+    applicationId: '73176d04c3654667138c23ec',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-goway-task',
+  },
+  {
+    id: '01a0b901-2dc4-70eb-81dc-a4450053d89e',
+    applicationId: '6a2f851751b784a86fd0e922',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-homiio-task',
+  },
+  {
+    id: '01a12a52-b939-7c5c-a18b-cb7ca2f9a257',
+    applicationId: '6a2f851751b784a86fd0e922',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-homiio-worker-task',
+  },
+  {
+    id: '01a0d62a-71ed-7b13-a066-70ed13ea208f',
+    applicationId: '68b7c4e19f2a6d0e3c8b5174',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-kaana-publisher',
+  },
+  {
+    id: '01a0d629-2b4c-71de-a7a1-89400cbbf2c8',
+    applicationId: '68b7c4e19f2a6d0e3c8b5174',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-kaana-task',
+  },
+  {
+    id: '01a0b9ad-6079-7d9c-8fb3-ecdc94c60d50',
+    applicationId: '6a2f851751b784a86fd0e916',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-mention-mcp-task',
+  },
+  {
+    id: '01a0b40a-9739-7703-a154-428dd51d15bb',
+    applicationId: '6a2f851751b784a86fd0e916',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-mention-task',
+  },
+  {
+    id: '01a12a44-d414-73a2-8244-7cec9a98b0ef',
+    applicationId: '6a37d0cc5d4b5f15482a9340',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-mercaria-task',
+  },
+  {
+    id: '01a0b9b7-f242-7606-9044-ece9eaa3ed24',
+    applicationId: '6a396f5c2ccd7e7831cb6a31',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-moovo-task',
+  },
+  {
+    id: '01a0bd08-1bf1-717c-a00e-7d0573de537c',
+    applicationId: 'ed143b1b58d60eab417f7d5c',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-nilo-task',
+  },
+  {
+    id: '01a12a46-0ab6-721d-86a0-c63669a4e9b6',
+    applicationId: '6a37b3e71ddfd195b65681d2',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-noted-task',
+  },
+  {
+    id: '01a12a75-5302-78bc-9778-2768efc0e2bc',
+    applicationId: '6a37b3e61ddfd195b656819b',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-oxy-api-task',
+  },
+  {
+    id: '01a12a47-5019-7aa9-ac18-c926e3a1c993',
+    applicationId: '71ea45cf97451563762ead13',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-oxy-asset-variant-worker-task',
+  },
+  {
+    id: '01a0da34-a676-70a2-b1c9-412ee0d4c89e',
+    applicationId: '4bac8f1baed68fd02d65d592',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-move-task',
+  },
+  {
+    id: '01a0bd27-7899-75ae-b64d-287e1d2c5b19',
+    applicationId: '6a2f851751b784a86fd0e94f',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-website-api-task',
+  },
+  {
+    id: '01a0bd1d-4c98-7b38-90e6-84a7db64d5ac',
+    applicationId: '6a2f851751b784a86fd0e958',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-peable-task',
+  },
+  {
+    id: '01a14433-6e30-7ae9-b22f-172dbdd64822',
+    applicationId: '6a37b02cd55f88733615197c',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-schedio-task',
+  },
+  {
+    id: '01a0b9b6-8e03-74c2-9a99-2932edc9fdb4',
+    applicationId: '6a2f851751b784a86fd0e93d',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-syra-task',
+  },
+  {
+    id: '01a12a0c-f738-785f-bd90-21b866b8e216',
+    applicationId: '6a2f851751b784a86fd0e946',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-tnp-api-task',
+  },
+  {
+    id: '01a12a0e-296a-7133-a9d1-885db88339ec',
+    applicationId: '6a2f851751b784a86fd0e946',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-tnp-dns-task',
+  },
+  {
+    id: '01a1471f-9c36-7514-839a-da006e6873ae',
+    applicationId: '6a2f851751b784a86fd0e946',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-tnp-relay-task',
+  },
+  {
+    id: '01a12514-b10b-777b-9215-aa8f3acd0a87',
+    applicationId: 'b043569d14d358371cb545b5',
+    provider: 'aws-iam',
+    subject: 'arn:aws:iam::237343248947:role/oxy-willo-task',
+  },
+] as const;
+
+export function isLegacyWorkloadCohort(binding: {
+  id: string;
+  applicationId: string;
+  provider: string;
+  subject: string;
+}): boolean {
+  return LEGACY_WORKLOAD_BINDINGS.some(
+    (entry) =>
+      entry.id === binding.id &&
+      entry.applicationId === binding.applicationId &&
+      entry.provider === binding.provider &&
+      entry.subject === binding.subject,
+  );
+}

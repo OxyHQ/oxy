@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Present-requester approval within the existing capability ticket family. */
 import { createHash } from 'node:crypto';
 import { ApiError } from '../utils/error';
@@ -47,7 +48,7 @@ function sessionDigest(session: CachedSession): string {
 }
 
 async function liveSession(sessionId: string, presenter: LiveAgencyServicePrincipal) {
-  if (!presenter.scopes.includes('user:read')) return null;
+  if (!hasServiceAuthority(presenter, 'user:read')) return null;
   // This checks managed membership and bot key liveness without the cached
   // positive authority result. Account status/fences below are also fresh SQL.
   const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
@@ -74,6 +75,8 @@ async function liveSession(sessionId: string, presenter: LiveAgencyServicePrinci
       return null;
     throw error;
   }
+  // App-bound OAuth provenance stays external even if registry flags later change.
+  if (presenter.authority === 'first_party' && session.applicationId !== null) return null;
   if (session.applicationId !== null) {
     if (
       session.applicationId !== presenter.applicationId ||

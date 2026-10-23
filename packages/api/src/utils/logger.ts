@@ -36,6 +36,13 @@ const isDev = process.env.NODE_ENV === 'development';
  * `err.token` and friends.
  */
 const REDACTED_PATHS = [
+  'requesterToken',
+  '*.requesterToken',
+  '["x-oxy-requester-token"]',
+  '*["x-oxy-requester-token"]',
+  'req.headers["x-oxy-requester-token"]',
+  'headers["x-oxy-requester-token"]',
+  'headers["X-Oxy-Requester-Token"]',
   'authorization',
   '*.authorization',
   'apiKey',
