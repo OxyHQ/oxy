@@ -50,13 +50,13 @@ function pausedMutation(client: QueryClient, mutationKey: string[]) {
 async function writeFor(
   storage: StorageInterface,
   accountId: string,
-  write: (client: QueryClient) => void,
+  write: (client: QueryClient) => unknown,
 ) {
   const client = new QueryClient();
   const persistence = mount(client, storage);
   persistence.activate(accountId);
   await until(persistence);
-  write(client);
+  await write(client);
   await flushWrites();
   persistence.detach();
 }
@@ -252,6 +252,54 @@ describe('account query persistence', () => {
     expect(keys(sharedBlob)).toEqual([['other']]);
     expect(keys(accountBlob)).toEqual([['app', 'star']]);
     shared.unsubscribe();
+    persistence.detach();
+  });
+
+  it("keeps a query marked persist: 'account' with no declared root, and only that one", async () => {
+    const storage = createMemoryStorage();
+    const prefs = ['viewer', 'alice', 'prefs'];
+    const meta = { persist: 'account' };
+    await writeFor(storage, 'alice', async (c) => {
+      await c.fetchQuery({ queryKey: prefs, queryFn: async () => ['tabs'], meta });
+      c.setQueryData(['viewer', 'alice', 'feed'], ['a post']);
+    });
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('a post');
+
+    const client = new QueryClient();
+    const persistence = mount(client, storage, { roots: [] });
+    persistence.activate('alice');
+    await persistence.whenReady();
+    expect(client.getQueryData(prefs)).toEqual(['tabs']);
+
+    persistence.activate('bob');
+    expect(client.getQueryData(prefs)).toBeUndefined();
+    persistence.detach();
+  });
+
+  it('writes nothing while only queries it does not keep change', async () => {
+    const storage = createMemoryStorage();
+    const setItem = jest.spyOn(storage, 'setItem');
+    const client = new QueryClient();
+    const persistence = mount(client, storage);
+    persistence.activate('alice');
+    await persistence.whenReady();
+    client.setQueryData(['feed', 'home'], ['a post']);
+    await flushWrites();
+
+    expect(setItem).not.toHaveBeenCalled();
+    persistence.detach();
+  });
+
+  it('becomes ready when the stored cache cannot be read', async () => {
+    const storage: StorageInterface = {
+      ...createMemoryStorage(),
+      getItem: () => Promise.reject(new Error('unreadable')),
+    };
+    const persistence = mount(new QueryClient(), storage);
+    persistence.activate('alice');
+    await persistence.whenReady();
+
+    expect(persistence.isReady()).toBe(true);
     persistence.detach();
   });
 

@@ -4,7 +4,9 @@
  * The SDK's own persister (`attachQueryPersistence`) keeps account-agnostic
  * data. An app's mail, library or drafts belong to one account, and every app
  * that wanted them to survive a restart had to scope a persister to the session
- * itself. The SDK owns the session, so it owns this too:
+ * itself. The SDK owns the session, so it owns this too, for every root an app
+ * declares (`accountQueries`) and for any single query marked
+ * `meta: { persist: 'account' }`, with no declaration at all:
  *
  * - Storage is keyed by the account (`oxy_account_queries:<accountId>`), so a
  *   restore can only ever hydrate the account that is signed in.
@@ -15,7 +17,9 @@
  *   is woken. The leaving account's latest state is written first, a sign-out
  *   then deletes it, and only then is the next account's blob read.
  * - `isReady()` is false until the signed-in account's blob is restored, and
- *   `RequireOxyAuth` waits on it, so another account's rows never render.
+ *   `RequireOxyAuth` waits on it, so another account's rows never render. A
+ *   cold boot that paints a cached session waits on it too (`whenReady()`), so
+ *   the first paint already has the account's rows.
  *
  * Every storage operation runs through one queue, in order, and a restore
  * checks that its account is still the active one in the same tick it hydrates.
@@ -39,12 +43,29 @@ import {
   type PersistFilters,
 } from './persistedQueryCache';
 
+/**
+ * The `meta` that makes one query the signed-in account's and keeps it across
+ * restarts, exactly like a query under a declared root: for the few reads that
+ * shape a returning user's first paint (the tabs, the theme), not for lists.
+ *
+ * `useQuery({ queryKey, queryFn, meta: { persist: 'account' } })`
+ */
+export interface AccountQueryMeta {
+  persist: 'account';
+}
+
+function isAccountQuery(query: Query): boolean {
+  return (query.meta as Partial<AccountQueryMeta> | undefined)?.persist === 'account';
+}
+
 /** An app's declaration of which data is private to the signed-in account. */
 export interface AccountQueriesConfig {
   /**
    * Query-key roots (`queryKey[0]`) whose data belongs to the signed-in account
    * and survives a restart. `'all'`: every query the app runs, for an app whose
    * every read may depend on who is signed in, so no root can be forgotten.
+   * Every root's queries are written on every change to any of them: for one
+   * or two queries under a busy root, mark those instead (`AccountQueryMeta`).
    *
    * The roots `accounts`, `sessions` and `devices` are reserved for the SDK's
    * device-level data: an app must not use them. `users` and `privacy` are the
@@ -75,13 +96,19 @@ export interface AccountQueryOwnership {
 /** SDK roots that hold device-level data, the same whoever is signed in. */
 const DEVICE_ROOTS = new Set(['accounts', 'sessions', 'devices']);
 
-export function accountQueryOwnership(config: AccountQueriesConfig): AccountQueryOwnership {
+/** No declared roots: only the queries marked `AccountQueryMeta` are the account's. */
+const NO_ROOTS: AccountQueriesConfig = { roots: [] };
+
+export function accountQueryOwnership(
+  config: AccountQueriesConfig = NO_ROOTS,
+): AccountQueryOwnership {
   const memoryOnly = new Set([...(config.memoryOnlyRoots ?? []), ...SDK_MEMORY_ONLY_ROOTS]);
   const sdkRoots = new Set(PERSISTED_QUERY_PREFIXES);
   const declared = config.roots === 'all' ? null : new Set(config.roots);
   const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
 
   const ownsQuery = (query: Query): boolean => {
+    if (isAccountQuery(query)) return true;
     const root = rootOf(query);
     if (root !== null && memoryOnly.has(root)) return true;
     if (declared === null) return root === null || !DEVICE_ROOTS.has(root);
@@ -94,7 +121,9 @@ export function accountQueryOwnership(config: AccountQueriesConfig): AccountQuer
       const root = rootOf(query);
       if (root === null) return true;
       // The SDK's own roots stay with the SDK persister.
-      return !memoryOnly.has(root) && (declared !== null || !sdkRoots.has(root));
+      return (
+        !memoryOnly.has(root) && (isAccountQuery(query) || declared !== null || !sdkRoots.has(root))
+      );
     },
     ownsMutation: (mutation) => {
       const key = mutation.options.mutationKey;
@@ -118,6 +147,8 @@ export interface AccountQueryPersistence {
   detach(): void;
   /** True once the active account's cache is restored (always true signed out). */
   isReady(): boolean;
+  /** Resolves once `isReady()`, or once the account it waited for is left. */
+  whenReady(): Promise<void>;
   subscribe(listener: () => void): () => void;
 }
 
@@ -127,11 +158,11 @@ function storageKeyFor(accountId: string): string {
 
 export function createAccountQueryPersistence(
   queryClient: QueryClient,
-  config: AccountQueriesConfig,
+  config?: AccountQueriesConfig,
 ): AccountQueryPersistence {
   const { ownsQuery, persistsQuery, ownsMutation } = accountQueryOwnership(config);
   const filters: PersistFilters = {
-    shouldDehydrateQuery: (query) => query.state.status === 'success' && persistsQuery(query),
+    persistsQuery,
     shouldDehydrateMutation: (mutation) => mutation.state.isPaused && ownsMutation(mutation),
   };
   const listeners = new Set<() => void>();
@@ -159,6 +190,13 @@ export function createAccountQueryPersistence(
   const notify = () => {
     for (const listener of listeners) listener();
   };
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+  const isReady = () => accountId === null || restoredFor === accountId;
 
   const dropScopedData = () => {
     queryClient.removeQueries({ predicate: ownsQuery });
@@ -179,11 +217,12 @@ export function createAccountQueryPersistence(
     const current = generation;
     const key = storageKeyFor(id);
     enqueue(async (storage) => {
-      const raw = await storage.getItem(key);
+      // An unreadable blob restores nothing; it must not leave the account unready.
+      const raw = await storage.getItem(key).catch(() => null);
       // Same tick as the hydrate: a switch in between cannot be missed.
       if (current !== generation) return;
       if (!hydrateSnapshot(queryClient, raw, ACCOUNT_QUERY_CACHE_MAX_AGE) && raw) {
-        await storage.removeItem(key);
+        await storage.removeItem(key).catch(() => undefined);
         if (current !== generation) return;
       }
       restoredFor = id;
@@ -245,15 +284,21 @@ export function createAccountQueryPersistence(
       restoredFor = null;
     },
 
-    isReady() {
-      return accountId === null || restoredFor === accountId;
+    isReady,
+
+    whenReady() {
+      const waitingFor = generation;
+      const settled = () => isReady() || generation !== waitingFor;
+      if (settled()) return Promise.resolve();
+      return new Promise((resolve) => {
+        const off = subscribe(() => {
+          if (!settled()) return;
+          off();
+          resolve();
+        });
+      });
     },
 
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe,
   };
 }

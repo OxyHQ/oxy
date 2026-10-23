@@ -21,7 +21,7 @@
  *   (`persistedQueryCache.ts`) when introducing reads that should survive restart.
  */
 
-import { QueryClient, onlineManager, type Mutation, type Query } from '@tanstack/react-query';
+import { QueryClient, onlineManager, type Query } from '@tanstack/react-query';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { isDev } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
@@ -30,6 +30,7 @@ import {
   PERSISTED_QUERY_PREFIXES,
   hydrateSnapshot,
   subscribeSnapshots,
+  type PersistFilters,
 } from './persistedQueryCache';
 
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
@@ -53,15 +54,8 @@ export function shouldRetryQuery(failureCount: number, error: unknown): boolean 
   return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
-/**
- * Whether a query belongs in the account-agnostic cache: successful (a
- * `pending`/`error` state is not worth keeping, and an error would leak
- * failure objects across restarts) and under one of the SDK's own prefixes.
- */
+/** Whether a query is under one of the SDK's own account-agnostic prefixes. */
 function isSharedQuery(query: Query): boolean {
-  if (query.state.status !== 'success') {
-    return false;
-  }
   const head = query.queryKey[0];
   return typeof head === 'string' && PERSISTED_QUERY_PREFIXES.includes(head);
 }
@@ -135,10 +129,11 @@ export interface AttachPersistenceResult {
  * Restore, then keep writing, the account-agnostic cache.
  *
  * Queries written by another build are dropped; queued mutations are kept
- * (`persistedQueryCache.ts`). Whatever the app declared account-scoped
- * (`accountQueries`) is left to `createAccountQueryPersistence`, even under
- * one of the SDK's prefixes, so private rows never land in the shared blob and
- * a paused mutation cannot replay twice or under another account.
+ * (`persistedQueryCache.ts`). Whatever belongs to the account (`accountQueries`,
+ * or a query marked `meta: { persist: 'account' }`) is left to
+ * `createAccountQueryPersistence`, even under one of the SDK's prefixes, so
+ * private rows never land in the shared blob and a paused mutation cannot
+ * replay twice or under another account.
  *
  * Safe to no-op if `storage` is null/undefined (e.g. server-side render
  * with no host storage).
@@ -155,13 +150,12 @@ export const attachQueryPersistence = (
     };
   }
 
-  const account = accountQueries ? accountQueryOwnership(accountQueries) : null;
-  const filters = {
-    shouldDehydrateQuery: (query: Query) =>
-      isSharedQuery(query) && !(account?.ownsQuery(query) ?? false),
+  const account = accountQueryOwnership(accountQueries);
+  const filters: PersistFilters = {
+    persistsQuery: (query) => isSharedQuery(query) && !account.ownsQuery(query),
     // Every other mutation, whatever its status: paused ones are exactly the
     // ones that must survive a restart to replay when online.
-    shouldDehydrateMutation: (mutation: Mutation) => !(account?.ownsMutation(mutation) ?? false),
+    shouldDehydrateMutation: (mutation) => !account.ownsMutation(mutation),
   };
 
   let stopped = false;

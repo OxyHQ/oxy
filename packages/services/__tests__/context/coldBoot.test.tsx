@@ -22,7 +22,7 @@
 
 import React from 'react';
 import { render, waitFor, act, fireEvent, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AppState } from 'react-native';
 import { AUTH_STATE_STORAGE_KEY, createNativeAuthStateStore } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
@@ -89,6 +89,8 @@ import { useAuthStore } from '../../src/ui/stores/authStore';
 import { useAuth } from '../../src/ui/hooks/useAuth';
 import OxySignInButton from '../../src/ui/components/OxySignInButton';
 import { KeyManager } from '@oxy.so/core/crypto';
+import { ACCOUNT_QUERY_CACHE_KEY } from '../../src/ui/hooks/accountQueryPersistence';
+import { snapshot } from '../../src/ui/hooks/persistedQueryCache';
 
 const API_BASE_URL = 'https://api.oxy.so';
 const USER_ID = 'user_cb_1';
@@ -180,7 +182,7 @@ function Capture() {
 
 function renderProvider(
   oxyServices: unknown,
-  options: { button?: boolean; onError?: jest.Mock } = {},
+  options: { button?: boolean; onError?: jest.Mock; children?: React.ReactNode } = {},
 ): RenderResult {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -193,6 +195,7 @@ function renderProvider(
       >
         <Capture />
         {options.button && <OxySignInButton text="Retry sign in" />}
+        {options.children}
       </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
@@ -284,6 +287,53 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(stub.users.me).toHaveBeenCalled();
     expect(capturedContext?.user?.id).toBe(USER_ID);
     expect(redirectToAuthorize).not.toHaveBeenCalled();
+  });
+
+  it("paints a saved session with the account's cached queries already restored", async () => {
+    const prefs = ['viewer', USER_ID, 'prefs'];
+    const seed = new QueryClient();
+    await seed.fetchQuery({
+      queryKey: prefs,
+      queryFn: async () => ['tabs'],
+      meta: { persist: 'account' },
+    });
+    window.localStorage.setItem(
+      `${ACCOUNT_QUERY_CACHE_KEY}:${USER_ID}`,
+      snapshot(seed, { persistsQuery: () => true, shouldDehydrateMutation: () => false }),
+    );
+    window.localStorage.setItem(
+      'oxy_session_boot_lane',
+      JSON.stringify({ v: 1, clientId: 'oxy_test_client', lane: 'device' }),
+    );
+    window.localStorage.setItem(
+      'oxy_session_boot_account',
+      JSON.stringify({ v: 1, user: { id: USER_ID, username: 'cbuser' } }),
+    );
+    window.localStorage.setItem(
+      AUTH_STATE_STORAGE_KEY,
+      JSON.stringify({
+        sessionId: 'sess_cb',
+        userId: USER_ID,
+        deviceId: 'dev-cb',
+        deviceSecret: 'cb.device.secret',
+      }),
+    );
+    const { stub } = buildStub();
+    // The registry never answers: only the cached paint can resolve auth.
+    stub.apps.getPublic.mockImplementation(() => new Promise(() => {}));
+    const firstPaint: unknown[] = [];
+    function FirstPaint() {
+      const { isAuthResolved } = useOxy();
+      const client = useQueryClient();
+      if (isAuthResolved && firstPaint.length === 0) firstPaint.push(client.getQueryData(prefs));
+      return null;
+    }
+
+    renderProvider(stub, { children: <FirstPaint /> });
+
+    await waitFor(() => expect(firstPaint).toHaveLength(1));
+    expect(firstPaint[0]).toEqual(['tabs']);
+    expect(capturedContext?.user?.id).toBe(USER_ID);
   });
 
   it('restores a session from the persisted store (device-secret mint) and hands off to the SessionClient', async () => {
