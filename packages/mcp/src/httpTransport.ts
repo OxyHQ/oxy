@@ -11,6 +11,7 @@ import {
 } from './catalogAdapter';
 import { extractBearerToken } from './http';
 import { introspectOxyMcpAccessToken } from './introspection';
+import type { OxyMcpServiceAuthentication } from './serviceRequest';
 import {
   buildProtectedResourceMetadata,
   createMcpAuthInfo,
@@ -52,14 +53,13 @@ type CatalogMcpTokenIntrospection =
       getServiceToken?: never;
       invalidateServiceToken?: never;
       introspectionEndpoint?: never;
+      transport?: never;
     }
-  | {
+  | (OxyMcpServiceAuthentication & {
       /** Remote apps authenticate their live introspection request as a service. */
       introspectToken?: never;
-      getServiceToken: () => Promise<string>;
-      invalidateServiceToken?: () => void | Promise<void>;
       introspectionEndpoint?: string;
-    };
+    });
 
 export type CatalogMcpHttpServiceOptions = CatalogMcpHttpServiceBaseOptions &
   CatalogMcpTokenIntrospection;
@@ -237,6 +237,15 @@ export function closeServerAfterResponse(server: McpServer, response: ServerResp
 export function createCatalogMcpHttpService(
   options: CatalogMcpHttpServiceOptions,
 ): CatalogMcpHttpService {
+  if (
+    options.transport &&
+    (options.getServiceToken ||
+      options.invalidateServiceToken ||
+      options.fetch ||
+      options.introspectToken)
+  ) {
+    throw new Error('Provide one Oxy MCP authentication transport');
+  }
   const resource = options.catalog.externalMcp?.resource;
   if (!resource) throw new Error('MCP HTTP transport requires catalog.externalMcp.resource');
 
@@ -290,9 +299,13 @@ export function createCatalogMcpHttpService(
         : await introspectOxyMcpAccessToken(token, {
             endpoint:
               options.introspectionEndpoint ?? `${authorizationServer}/auth/mcp/oauth/introspect`,
-            getServiceToken: options.getServiceToken,
-            invalidateServiceToken: options.invalidateServiceToken,
-            fetch: options.fetch,
+            ...(options.transport
+              ? { transport: options.transport }
+              : {
+                  getServiceToken: options.getServiceToken,
+                  invalidateServiceToken: options.invalidateServiceToken,
+                  fetch: options.fetch,
+                }),
           });
     } catch (error) {
       options.logger?.error('MCP token introspection failed', error);
