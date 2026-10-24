@@ -5,6 +5,8 @@ import { Canvas, Group, LinearGradient, RoundedRect, vec } from '@shopify/react-
 import { useDerivedValue } from 'react-native-reanimated';
 import { HolographicLogo } from '@/components/OxyID/holographic-logo';
 import { useTilt } from '@/components/OxyID/tilt-context';
+import { EMBLEM_CLEARANCE } from '@/components/OxyID/emblem';
+import { useTranslation } from '@/lib/i18n';
 
 interface IdQrBackProps {
   /** The Oxy ID QR payload (`oxycommons://card?did=…&v=1`) to encode. */
@@ -42,6 +44,7 @@ const QR_RADIUS = 12;
  */
 export function IdQrBack({ payload, caption }: IdQrBackProps) {
   const { nx, ny, mag } = useTilt();
+  const { t } = useTranslation();
 
   // Iridescent frame gradient — SAME tilt-driven band as the card's guilloché
   // hologram: its endpoints slide with the phone's tilt (nx/ny), so the border
@@ -91,8 +94,8 @@ export function IdQrBack({ payload, caption }: IdQrBackProps) {
 
       {/* Footer note. */}
       <View style={styles.footer}>
-        <Text style={styles.footerStrong}>SIGNED · SELF-CUSTODY IDENTITY</Text>
-        <Text style={styles.footerNote}>Resolves & verifies on the Oxy network</Text>
+        <Text style={styles.footerStrong}>{t('civic.id.card.qrFooterTitle')}</Text>
+        <Text style={styles.footerNote}>{t('civic.id.card.qrFooterNote')}</Text>
       </View>
     </View>
   );
@@ -147,6 +150,8 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(0,0,0,0.18)',
     paddingTop: 8,
     gap: 2,
+    // A back face: the hologram's emblem shows in its bottom-LEFT corner.
+    paddingLeft: EMBLEM_CLEARANCE - 18,
   },
   footerStrong: {
     color: '#2B2B2E',

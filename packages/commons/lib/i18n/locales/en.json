@@ -1249,7 +1249,12 @@
       "qrPending": "Finish setting up your account to generate your QR.",
       "flipHint": "Tap the card to flip it",
       "didLabel": "Decentralized ID (DID)",
-      "pendingNote": "This device holds your keys, but your account isn't registered with Oxy yet. Your card and QR work offline; we'll finish registration when you're back online."
+      "pendingNote": "This device holds your keys, but your account isn't registered with Oxy yet. Your card and QR work offline; we'll finish registration when you're back online.",
+      "card": {
+        "backFooterNote": "SELF-CUSTODY · NO PASSWORD · YOU HOLD THE KEY",
+        "qrFooterTitle": "SIGNED · SELF-CUSTODY IDENTITY",
+        "qrFooterNote": "Resolves and verifies on the Oxy network"
+      }
     },
     "card": {
       "title": "Citizen card",
