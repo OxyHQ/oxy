@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { Linking, View } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../components/ExpoImage';
 import { SubscriptionPlans } from '@oxy.so/bloom/subscription-plans';
 import {
   SegmentedControl,

@@ -1,5 +1,30 @@
 # Changelog
 
+## [13.1.0] - 2026-10-24
+
+### Added
+
+- Runs on React Native 0.81 to 0.88 and Expo SDK 54 to 58 (it needed 0.85 and
+  SDK 56). The peer floors are now the Expo SDK 54 stack: `react-native`
+  `>=0.81.0`, `expo` `>=54.0.0`, each `expo-*` module at its SDK 54 version,
+  `react-native-reanimated` `>=4.1.0`, `react-native-gesture-handler`
+  `>=2.28.0`, `react-native-safe-area-context` `>=5.6.0`, `react-native-svg`
+  `>=15.12.1`, `react-native-keyboard-controller` `>=1.18.5` and
+  `@expo/app-integrity` `>=0.1.10`. `compat/expo-54` installs that stack as an
+  external consumer in CI and typechecks, renders and bundles `OxyProvider`
+  against it.
+- Runs on react-native-macos (Astro). Importing the SDK there used to throw,
+  because expo-image and react-native-keyboard-controller have no macOS
+  implementation and throw on import. `.macos` forks now draw images and read
+  their size through react-native's `Image` and skip the keyboard provider;
+  the SDK's own iOS/Android native modules, and the Expo modules macOS lacks,
+  are optional at runtime and their features stay off.
+
+### Fixed
+
+- The native OAuth return no longer calls `URLSearchParams.keys()`, which React
+  Native's own `URLSearchParams` typings before 0.85 do not declare.
+
 ## 13.0.0
 
 ### Breaking

@@ -10,14 +10,24 @@
  * decoders off from rendering (or measuring) a user's GIF or WebP. Every one
  * of them draws with expo-image and measures with `ui/utils/imageSize`, whose
  * web fork alone keeps react-native-web's `getSize` (an `<img>` probe, no CORS).
+ *
+ * The react-native-macos forks are the other exception: expo-image has no macOS
+ * implementation and throws on import there, and Fresco is Android-only, so
+ * `ExpoImage.macos.tsx` and `imageSize.macos.ts` draw and measure through
+ * react-native's `Image` (`macosBoundary.test.ts`). Metro picks a `.macos` file
+ * only for the macOS platform, so no Android bundle can reach them.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const srcRoot = path.resolve(__dirname, '../../src');
 
-/** The one file allowed to name react-native's `Image`: the web measurement fork. */
-const WEB_MEASUREMENT_FORK = path.join('ui', 'utils', 'imageSize.ts');
+/** The files allowed to name react-native's `Image`: the web measurement fork and the macOS forks. */
+const REACT_NATIVE_IMAGE_FORKS = [
+  path.join('ui', 'utils', 'imageSize.ts'),
+  path.join('ui', 'utils', 'imageSize.macos.ts'),
+  path.join('ui', 'components', 'ExpoImage.macos.tsx'),
+];
 
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -66,10 +76,13 @@ describe("react-native's Image boundary", () => {
     );
   });
 
-  it('names it only in the web measurement fork', () => {
+  it('names it only in the web measurement fork and the macOS forks', () => {
+    for (const fork of REACT_NATIVE_IMAGE_FORKS) {
+      expect(namesReactNativeImage(code(path.join(srcRoot, fork)))).toBe(true);
+    }
     const offenders = files
       .map((file) => path.relative(srcRoot, file))
-      .filter((rel) => rel !== WEB_MEASUREMENT_FORK)
+      .filter((rel) => !REACT_NATIVE_IMAGE_FORKS.includes(rel))
       .filter((rel) => namesReactNativeImage(code(path.join(srcRoot, rel))));
     expect(offenders).toEqual([]);
   });

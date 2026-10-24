@@ -8,7 +8,7 @@ import { type ComponentRef, useState, useCallback, useMemo, useRef } from 'react
 import { View, StyleSheet, ScrollView, RefreshControl, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useQueryClient } from '@tanstack/react-query';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../components/ExpoImage';
 import type { FileManagementScreenProps } from '../types/fileManagement';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
