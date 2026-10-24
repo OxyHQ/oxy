@@ -104,7 +104,7 @@
     "jsdom": "catalog:",
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.9.32",
-    "multer": "^2.3.0",
+    "multer": "^2.5.0",
     "nodemailer": "^10.0.13",
     "parse5": "7.3.0",
     "pino": "catalog:",
