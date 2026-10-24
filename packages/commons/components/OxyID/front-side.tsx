@@ -42,10 +42,10 @@ const sanitizeMrz = (value: string | undefined, length: number) =>
     .padEnd(length, '<')
     .slice(0, length);
 
-// Kept short enough that the MRZ lines clear the Commons emblem watermark in the
-// card's bottom-right corner (rendered in the hologram layer behind this).
 /** Smallest a one-word name shrinks to before it is ellipsized. */
 const PRIMARY_NAME_MIN_SCALE = 0.6;
+// Kept short enough that the MRZ lines clear the Commons emblem watermark in the
+// card's bottom-right corner (rendered in the hologram layer behind this).
 const MRZ_WIDTH = 22;
 
 export const FrontSide: React.FC<FrontSideProps> = ({
