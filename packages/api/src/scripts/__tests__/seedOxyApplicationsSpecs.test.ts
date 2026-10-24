@@ -888,6 +888,16 @@ describe('the canonical official-application registry', () => {
   });
 });
 
+it('registers the OxyOS transport without claiming browser recognition or backend authority', () => {
+  const spec = specNamed('OxyOS');
+  expect(requiresPublicSeedCredential(spec)).toBe(true);
+  expect(spec.redirectUris).toEqual(['tauri://localhost']);
+  expect(spec.webOrigins ?? []).toEqual([]);
+  expect(spec.scopes).toEqual([]);
+  expect(spec.capabilities ?? []).toEqual([]);
+  expect(spec.type).toBe('first_party');
+});
+
 it('registers the native Authenticator client without backend or external app permissions', () => {
   const spec = specNamed('Authenticator by Oxy');
   expect(requiresPublicSeedCredential(spec)).toBe(true);
