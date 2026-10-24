@@ -4,10 +4,10 @@ import { __resetAsyncStorage, __seedAsyncStorage } from '@/__mocks__/async-stora
 
 // Spy on the biometric gate primitives so we can assert whether the gate ran.
 const authenticate = jest.fn(async () => ({ success: true }));
-const canUseBiometrics = jest.fn(async () => true);
+const hasLocalConfirmation = jest.fn(async () => true);
 jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (reason?: string) => authenticate(reason),
-  canUseBiometrics: () => canUseBiometrics(),
+  hasLocalConfirmation: () => hasLocalConfirmation(),
   getErrorMessage: () => 'Biometric error',
 }));
 
@@ -33,7 +33,7 @@ describe('key sign-in — silent core vs biometric-gated wrapper', () => {
     sdkSignIn.mockClear().mockResolvedValue({ id: 'me' });
     __setOxyState({ signIn: sdkSignIn });
     authenticate.mockClear().mockResolvedValue({ success: true });
-    canUseBiometrics.mockClear().mockResolvedValue(true);
+    hasLocalConfirmation.mockClear().mockResolvedValue(true);
     getPublicKeyMock.mockClear().mockResolvedValue('resolved-pubkey');
   });
 

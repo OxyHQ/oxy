@@ -8,7 +8,7 @@ import { useTranslation } from '@/lib/i18n';
 import { parseScan, type ScanResult } from '@/lib/commons-signin/parse-scan';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import { AttestReviewSheet, type AttestReviewStatus } from '@/components/civic/AttestReviewSheet';
-import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
+import { authenticate, hasLocalConfirmation, getErrorMessage } from '@/lib/biometricAuth';
 
 /**
  * QR scanner for the Commons handoffs (approver / verifier side).
@@ -111,7 +111,7 @@ export default function ScanSignInScreen() {
   const handleConfirmAttest = useCallback(async () => {
     setConfirming(true);
     try {
-      const canUse = await canUseBiometrics();
+      const canUse = await hasLocalConfirmation();
       if (canUse) {
         const auth = await authenticate(t('civic.attest.review.biometricReason'));
         if (!auth.success) {

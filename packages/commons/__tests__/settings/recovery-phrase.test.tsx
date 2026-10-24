@@ -50,7 +50,7 @@ jest.mock('@/components/ui', () => {
 // device-only keychain read is the real gate). Kept as a jest.fn so a test can
 // flip it to exercise the authenticate() branch if needed.
 jest.mock('@/lib/biometricAuth', () => ({
-  canUseBiometrics: jest.fn(async () => false),
+  hasLocalConfirmation: jest.fn(async () => false),
   authenticate: jest.fn(async () => ({ success: true })),
   getErrorMessage: jest.fn(() => 'gate error'),
 }));

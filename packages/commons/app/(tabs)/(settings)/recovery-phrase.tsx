@@ -10,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Screen, StackHeader, Section, STATE_MIN_HEIGHT } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
-import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
+import { authenticate, hasLocalConfirmation, getErrorMessage } from '@/lib/biometricAuth';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -45,11 +45,10 @@ export default function RecoveryPhraseScreen() {
   const reveal = useCallback(async () => {
     setState({ kind: 'authenticating' });
 
-    // Biometric/passcode gate when biometrics are available. A device WITHOUT
-    // enrolled biometrics is already unlocked (the device-only keychain read
-    // below only succeeds while the device is unlocked), so we don't lock those
-    // users out of their own phrase.
-    const canUse = await canUseBiometrics();
+    // Biometric/screen-lock gate whenever the device has either. A device with
+    // NO screen lock has nothing to ask for; it is open to whoever holds it, so
+    // the phrase is not locked away from its own owner there.
+    const canUse = await hasLocalConfirmation();
     if (canUse) {
       const auth = await authenticate(t('settings.recoveryPhrase.biometricReason'));
       if (!auth.success) {
