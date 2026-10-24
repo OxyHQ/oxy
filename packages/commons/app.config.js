@@ -35,7 +35,11 @@ module.exports = {
     version: '1.2.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
-    scheme: ['commons', 'oxycommons'],
+    // `oxycommons` FIRST: it is the scheme every approve / card / attest /
+    // link payload is minted with (`@oxy.so/core`, the API), and expo-linking
+    // builds this app's own URLs from the first entry ("Using 'commons'" was
+    // logged on device). `commons` stays registered for older links.
+    scheme: ['oxycommons', 'commons'],
     userInterfaceStyle: 'automatic',
     platforms: ['ios', 'android'],
     // Native-only, but Expo Router 58 defaults an unset `web.output` to

@@ -44,10 +44,20 @@ export function KeyboardAwareScrollViewWrapper({
 }: KeyboardAwareScrollViewWrapperProps) {
   const insets = useSafeAreaInsets();
   const tabBarBottomPad = useScreenBottomPad();
-  const bottomPadding = reserveTabBarFootprint ? tabBarBottomPad : insets.bottom;
+  const reservedBottom = reserveTabBarFootprint ? tabBarBottomPad : insets.bottom;
+  const callerStyle = StyleSheet.flatten(contentContainerStyle);
+  // Added to the caller's own bottom padding and applied AFTER its style. It
+  // used to sit before it, so every caller that sets `padding` (all of them)
+  // replaced the tab bar's footprint with its own 16-22pt, and the last control
+  // of the screen (Delete account, Create backup, Continue) sat under the
+  // floating tab bar.
+  const callerBottomPadding = Number(
+    callerStyle?.paddingBottom ?? callerStyle?.paddingVertical ?? callerStyle?.padding ?? 0,
+  );
+  const bottomPadding = reservedBottom + callerBottomPadding;
   // Added to the caller's own top padding rather than replacing it, so a
   // screen keeps its air below the status bar instead of butting against it.
-  const callerTopPadding = StyleSheet.flatten(contentContainerStyle)?.paddingTop;
+  const callerTopPadding = callerStyle?.paddingTop;
   const topPadding = reserveTopInset
     ? insets.top + (typeof callerTopPadding === 'number' ? callerTopPadding : 0)
     : undefined;
@@ -57,8 +67,8 @@ export function KeyboardAwareScrollViewWrapper({
       style={[styles.container, style]}
       contentContainerStyle={[
         styles.contentContainer,
-        { paddingBottom: bottomPadding },
         contentContainerStyle,
+        { paddingBottom: bottomPadding },
         topPadding === undefined ? null : { paddingTop: topPadding },
       ]}
       extraKeyboardSpace={extraKeyboardSpace}

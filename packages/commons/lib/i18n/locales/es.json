@@ -55,7 +55,7 @@
     },
     "welcome": {
       "lead": "Oxy es tu",
-      "termsAgree": "Acepto los Términos y Condiciones de Usuario de Oxy y reconozco el Aviso de Privacidad",
+      "termsAgree": "Acepto los <terms>Términos del servicio</terms> de Oxy y reconozco la <privacy>Política de privacidad</privacy>.",
       "decline": "Rechazar",
       "accept": "Aceptar",
       "restore": "Ya tengo una cuenta",
@@ -1062,8 +1062,8 @@
   },
   "deviceBackupWarning": {
     "title": "Esta identidad no tiene copia en este dispositivo",
-    "body": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",
-    "bodyNoPhrase": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo. Se importó desde una clave privada y no tiene frase de recuperación, así que rota a una clave que la tenga.",
+    "body": "Este dispositivo no puede guardar una copia automática de tu identidad: en Android hacen falta los servicios de Google Play. Si se desinstala Commons o se borra su almacenamiento, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",
+    "bodyNoPhrase": "Este dispositivo no puede guardar una copia automática de tu identidad: en Android hacen falta los servicios de Google Play. Si se desinstala Commons o se borra su almacenamiento, tu identidad se borra de este dispositivo. Se importó desde una clave privada y no tiene frase de recuperación, así que rota a una clave que la tenga.",
     "revealPhrase": "Apunta tu frase de recuperación",
     "encryptedBackup": "Configura una copia cifrada",
     "rotate": "Rotar a una clave con frase de recuperación",

@@ -286,25 +286,33 @@ export function UsernameStep({
                 ? t('auth.usernameStep.confirming')
                 : t('auth.usernameStep.confirm')}
           </Button>
+
+          {/* Inside the measured block on purpose: `bottomOffset` keeps everything
+              in it above the keyboard, and "Learn more" used to sit outside it,
+              behind the keyboard. */}
+          {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
+          {isOffline && onSkip && (
+            <Button
+              appearance="subtle"
+              onPress={onSkip}
+              className="mt-space-12"
+              disabled={isUpdating}
+            >
+              {t('auth.usernameStep.skip')}
+            </Button>
+          )}
+
+          {!isOffline && (
+            <Button
+              appearance="subtle"
+              onPress={learnMoreDialog.open}
+              className="mt-space-12"
+              disabled={isUpdating}
+            >
+              {t('auth.usernameStep.learnMore')}
+            </Button>
+          )}
         </View>
-
-        {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
-        {isOffline && onSkip && (
-          <Button
-            appearance="subtle"
-            onPress={onSkip}
-            className="mt-space-12"
-            disabled={isUpdating}
-          >
-            {t('auth.usernameStep.skip')}
-          </Button>
-        )}
-
-        {!isOffline && (
-          <Button appearance="subtle" onPress={learnMoreDialog.open} disabled={isUpdating}>
-            {t('auth.usernameStep.learnMore')}
-          </Button>
-        )}
       </KeyboardAwareScrollViewWrapper>
 
       <Dialog
