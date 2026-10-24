@@ -160,3 +160,17 @@ profile identity. The shared account chooser uses the same resolution.
 Deployment expands the SQL constraint before rollout, then renames legacy
 `amber` to `yellow` and contracts it after the new server is running. Other
 persisted choices and exact hex values are preserved.
+
+### Product socket handshakes
+
+A product frontend creates one `oxy.createLinkedClient({ baseURL })` for its
+backend. Use `linked.fetch` for HTTP and call
+`linked.getAccessToken(socketTarget, { signal })` afresh for every socket
+handshake or reconnect. The shared SDK refreshes the session and rejects account
+switches, logout, disposal and cancellation during that work. HTTP/WS schemes
+must preserve TLS, host and port (`https`/`wss`, `http`/`ws`); other origins are
+rejected before refresh. A caller cancelling its wait does not cancel another
+caller's shared refresh. Dispose the linked client when its owning product
+client is released. Product cryptographic signatures and instance/account
+checks remain in the product; never persist a captured bearer in a socket
+configuration or replace it with a service token.

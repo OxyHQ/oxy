@@ -42,6 +42,19 @@ Public reads, person-bound calls and asynchronous operations are distinct:
 a worker retains the original account and operation binding, not a persistent
 copy of the user's bearer or a caller-supplied user ID.
 
+For streaming uploads, a product SDK can call the service transport's
+`fetchReplayable(url, { method: 'POST', bodyFactory, signal, headers })`.
+`bodyFactory` synchronously opens a fresh `BodyInit` (for example `Bun.file(path)`
+or a file-backed `ReadableStream`) after authentication succeeds. It must return
+the same logical content on each call. Core invokes it again only after one
+explicit 401 refusal and successful credential refresh; it cancels the refused
+response and preserves the original requester context. A network error, 429,
+5xx or redirect never triggers a replay. Ordinary `fetch` does not replay
+stream bodies. Keep the operation's idempotency header stable and provide its
+abort signal; the transport does not buffer files or create a separate timeout
+policy. Product code never handles bearer refresh or adds a retry around this
+transport.
+
 ## Authentication surfaces
 
 Own sign-in is the ordinary account dialog/Commons confirmation of a sign-in,
@@ -94,3 +107,22 @@ to reject files owned by another account. This response-only bridge does not
 promote the caller's authority or grant access to file contents, and customer
 keys remain excluded even on official applications. Remove this projection
 bridge when these consumers use protocol v2.
+
+### External housing document tools
+
+Homiio's existing external MCP tools `uploadLeaseDocument`, `submitApplication`
+and `addApplicationDocuments` retain their OAuth grants. The SDK's
+`assets.withMcpDocumentRequester({connectionToken, tool, accountId})` forwards
+that connection to the multipart user-media upload lane. It never creates own
+requester authority or requires an additional global Files permission.
+
+Oxy resolves the live connection and active account at admission and every
+continuation. The registered Homiio receiver and current tool descriptor must
+match the existing housing permission. Uploads are private PDF/images up to
+10 MiB; imports, recordings, unrelated reads and reference creation are excluded.
+Server-owned upload metadata binds the original client, grant, tool, receiver and
+account, preventing another connection from continuing the operation. No bearer
+is persisted. Revocation prevents the next part URL or completion call.
+
+This additive contract follows the foundation release and must be deployed with
+its shared SDK before Homiio switches the document facade.

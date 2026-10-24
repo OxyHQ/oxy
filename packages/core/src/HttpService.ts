@@ -101,6 +101,8 @@ export interface ResponseRequest {
   method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   body?: BodyInit;
+  /** Reopen a body per attempt; authorizes only the single rejected-auth (401) replay. */
+  bodyFactory?: () => BodyInit;
   headers?: HeadersInit;
   signal?: AbortSignal;
   /** Must honour the supplied URL, headers, signal and redirect policy. */
@@ -1695,6 +1697,40 @@ export class HttpService {
     return this.requestRawResponse(config, false);
   }
 
+  /** Fresh session bearer for an origin-bound non-HTTP handshake (for example a socket).
+   * Uses the same refresh and account/session fences as authenticated fetch.
+   * An anonymous provider can never substitute for the person's session.
+   */
+  async getAuthenticatedAccessToken(
+    url: string | URL,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<string> {
+    const base = new URL(this.baseURL);
+    const target = new URL(String(url), base);
+    if (target.protocol === 'wss:') target.protocol = 'https:';
+    else if (target.protocol === 'ws:') target.protocol = 'http:';
+    if (
+      target.origin !== base.origin ||
+      !['http:', 'https:'].includes(target.protocol) ||
+      target.username ||
+      target.password
+    )
+      throw new Error('Session credentials must target the configured API origin');
+    if (options.signal?.aborted) throw createCancelledError();
+    const contextToken = this.syncAccessTokenFromProvider();
+    if (!contextToken)
+      throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
+    const beforeAuthEpoch = this.sessionEpoch;
+    const authHeader = await awaitRequestSignal(this.getAuthHeader(), options.signal);
+    const currentToken = this.syncAccessTokenFromProvider();
+    if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, currentToken))
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    if (options.signal?.aborted) throw createCancelledError();
+    if (!authHeader?.startsWith('Bearer '))
+      throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
+    return authHeader.slice('Bearer '.length);
+  }
+
   private async requestRawResponse(
     config: ResponseRequest,
     requireAuth: boolean,
@@ -1712,6 +1748,13 @@ export class HttpService {
       throw new Error('Raw response requests must target the configured API origin');
     }
     if (config.signal?.aborted) throw createCancelledError();
+    if (
+      config.bodyFactory &&
+      (config.body !== undefined || ['GET', 'HEAD'].includes(config.method))
+    )
+      throw new TypeError(
+        'A replayable request requires a body factory and a body-carrying method',
+      );
     // Snapshot caller-owned options once, including headers, before any await.
     const request = { ...config, headers: new Headers(config.headers) };
     const contextToken = this.syncAccessTokenFromProvider();
@@ -1780,7 +1823,12 @@ export class HttpService {
     }
 
     try {
-      const body = config.method === 'GET' || config.method === 'HEAD' ? undefined : config.body;
+      const body =
+        config.method === 'GET' || config.method === 'HEAD'
+          ? undefined
+          : config.bodyFactory
+            ? config.bodyFactory()
+            : config.body;
       const init: RequestInit & { duplex?: 'half' } = {
         method: config.method,
         headers,
@@ -1802,7 +1850,8 @@ export class HttpService {
         await response.body?.cancel();
         throw error;
       }
-      const replayable = body === undefined || typeof body === 'string';
+      const replayable =
+        Boolean(config.bodyFactory) || body === undefined || typeof body === 'string';
       if (
         response.status === 401 &&
         !isAuthRetry &&

@@ -1,5 +1,10 @@
 import { utf16MinLength } from '@oxy.so/contracts';
 import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
+import {
+  assertExternalDocumentUpload,
+  assertExternalDocumentContinuation,
+  externalDocumentMetadata,
+} from '../services/externalMcpMediaRequester.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
@@ -2539,19 +2544,37 @@ function largeUploadHandlers(
 ) {
   const load = async (req: ServiceAuthRequest) => {
     const { owner, uploaderApplicationId } = await admit(req, false);
-    return fileUploadSessionService.load(req.params.uploadId, owner, uploaderApplicationId);
+    const row = await fileUploadSessionService.load(
+      req.params.uploadId,
+      owner,
+      uploaderApplicationId,
+    );
+    assertExternalDocumentContinuation(req.serviceExternalMedia, row);
+    return row;
   };
   return {
     open: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
       const body = req.body as LargeUploadBody;
+      assertExternalDocumentUpload(req.serviceExternalMedia, body);
       const { owner, uploaderApplicationId } = await admit(req, body.reference !== undefined);
       const { audio, metadata, ...rest } = body;
-      const withAudio = withAudioOptions(metadata, audio);
+      const withAudio = externalDocumentMetadata(
+        req.serviceExternalMedia,
+        withAudioOptions(metadata, audio),
+      );
       const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
         ...rest,
         ...(withAudio ? { metadata: withAudio } : {}),
         visibility: body.visibility ?? defaultVisibility,
       });
+      if (req.serviceExternalMedia?.privateDocument && view.uploadId) {
+        const row = await fileUploadSessionService.load(
+          view.uploadId,
+          owner,
+          uploaderApplicationId,
+        );
+        assertExternalDocumentContinuation(req.serviceExternalMedia, row);
+      }
       sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
     }),
     describe: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {

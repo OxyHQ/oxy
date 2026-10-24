@@ -716,6 +716,27 @@ export const SEED_APPS: SeedAppSpec[] = [
     capabilities: [catalogApplicationCapability('noted')],
   },
   {
+    name: 'OxyOS',
+    description: 'Official Oxy desktop shell for Linux.',
+    websiteUrl: 'https://oxy.so/os',
+    type: 'first_party',
+    // Tauri's Linux WebKit application origin. This registers transport and
+    // the public sign-in client only: it is NOT a web-recognition origin or
+    // proof that a request came from OxyOS. Ordinary Alia uses the session.
+    redirectUris: ['tauri://localhost'],
+    scopes: [],
+  },
+  {
+    name: 'Authenticator by Oxy',
+    description:
+      'Official Oxy authenticator app — local TOTP accounts with account-bound cloud sync.',
+    type: 'first_party',
+    // Authenticator/app.config.js declares this native deep-link scheme. There
+    // is no deployed web origin to register or a backend workload to create.
+    redirectUris: ['oxyauthenticator://'],
+    scopes: [],
+  },
+  {
     name: 'Commons by Oxy',
     description:
       'Official Oxy Commons app — self-sovereign identity wallet and Sign-in-with-Oxy approvals (native).',

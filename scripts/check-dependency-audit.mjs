@@ -117,13 +117,6 @@ const ACKNOWLEDGED_PACKAGES = [
       'The mandatory lock graph guard rejects every other vulnerable version or consumer. ' +
       'Evidence, limits and removal conditions: docs/security/zod-parser-boundary.md.',
   },
-  {
-    package: 'undici',
-    reachedBy: 'release-it (dev)',
-    reason:
-      "release-it's HTTP client, used to talk to GitHub and npm during a release. The advisories " +
-      'are WebSocket and multi-user proxy issues; release-it opens neither.',
-  },
 ];
 
 /**

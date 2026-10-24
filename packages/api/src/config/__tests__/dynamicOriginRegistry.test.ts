@@ -131,6 +131,18 @@ describe('before the authoritative refresh', () => {
 });
 
 describe('refresh() — trusted vs third-party routing', () => {
+  it('admits only the explicitly registered desktop transport, without changing loopback policy', async () => {
+    expect(isLoopbackOrigin('tauri://localhost')).toBe(false);
+    expect(getCorsDecision('tauri://localhost')).toEqual({ allow: false, credentials: false });
+    await registerApp({ type: 'first_party', redirectUris: ['tauri://localhost'] });
+    await refreshOriginRegistry();
+    expect(getCorsDecision('tauri://localhost')).toEqual({ allow: true, credentials: true });
+    for (const origin of ['tauri://other', 'capacitor://localhost', 'null']) {
+      expect(getCorsDecision(origin)).toEqual({ allow: false, credentials: false });
+    }
+    expect(isLoopbackOrigin('tauri://localhost')).toBe(false);
+  });
+
   it('routes trusted apps to the credentialed lane and third-party apps to the bearer lane', async () => {
     await registerApp({ type: 'third_party', redirectUris: ['https://third.example.com/cb'] });
     await registerApp({ isOfficial: true, redirectUris: ['https://official.example.com/cb'] });

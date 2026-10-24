@@ -1,4 +1,8 @@
-import { bindExternalMcpMediaLane, type ExternalMcpMediaProof } from './externalMediaRequester';
+import {
+  bindExternalMcpMediaLane,
+  type ExternalMcpDocumentProof,
+  type ExternalMcpMediaProof,
+} from './externalMediaRequester';
 /**
  * The server-side halves of the namespaces: what exists only with a service
  * credential. `OxyServer` returns these from its namespace getters, so
@@ -272,6 +276,15 @@ export class ServerAssetsApi extends AssetsApi {
       uploadUserMedia: assets.uploadUserMedia.bind(assets),
       importUserMedia: assets.importUserMedia.bind(assets),
     };
+  }
+
+  /** Forward an existing external housing action without creating user/session authority. */
+  withMcpDocumentRequester(
+    proof: ExternalMcpDocumentProof,
+  ): Pick<ServerAssetsApi, 'uploadUserMediaLarge'> {
+    const service = bindExternalMcpMediaLane(lane(this.ctx), proof);
+    const assets = new ServerAssetsApi({ ...this.ctx, service, request: service.request });
+    return { uploadUserMediaLarge: assets.uploadUserMediaLarge.bind(assets) };
   }
 
   withRequester(proof: RequesterProof): ServerAssetsApi {

@@ -440,7 +440,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
               secretHash: null,
               type: 'public',
               environment: 'production',
-              scopes: ['user:read'],
+              scopes: [],
               status: 'active',
               createdByUserId: oxyId,
             })
