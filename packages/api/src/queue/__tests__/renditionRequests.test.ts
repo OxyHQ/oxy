@@ -91,7 +91,9 @@ async function requestInOrder(ids: readonly string[]): Promise<void> {
   const base = Date.now() - 60_000;
   await getDb()
     .insert(fileRenditionRequests)
-    .values(ids.map((fileId, i) => ({ fileId, requestedAt: new Date(base + i) })));
+    .values(
+      ids.map((fileId, i) => ({ fileId, requestedAt: new Date(base + i), lane: 'fresh' as const })),
+    );
 }
 
 interface FakeJob {
@@ -281,7 +283,7 @@ describe('the scheduler pass', () => {
       expect(typeof job.data.requestedAt).toBe('string');
     }
     expect((await requestsOf(ids)).every((row) => row.enqueuedUntil !== null)).toBe(true);
-    expect(ASSET_VARIANT_QUEUE_TARGET_DEPTH).toBe(32);
+    expect(ASSET_VARIANT_QUEUE_TARGET_DEPTH).toBe(64);
   });
 
   it('leaves the requests due when the queue refuses the add', async () => {

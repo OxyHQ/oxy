@@ -42,8 +42,8 @@
  *   - every request for renditions is a row of `file_rendition_requests`
  *     (`services/renditionRequests.ts`), the durable backlog;
  *   - all normal producers record due fresh requests and wake one dispatcher;
- *   - the dispatcher leases fair 14:1:1 rounds of fresh uploads, targeted repairs
- *     and legacy bulk, oldest inside each lane, with at most 32 jobs waiting;
+ *   - the dispatcher leases fair 30:1:1 rounds of fresh uploads, targeted repairs
+ *     and legacy bulk, oldest inside each lane, with at most 64 jobs waiting;
  *   - Redis FIFO preserves that order; legacy excess is recorded durably before
  *     removal, and existing retries retain their attempt counts and delays.
  *
@@ -132,7 +132,7 @@ const ASSET_VARIANT_JOB_ATTEMPTS = 3;
 const ASSET_VARIANT_BACKOFF_MS = 30_000;
 
 /** A small FIFO window keeps dispatch decisions close to available workers. */
-export const ASSET_VARIANT_QUEUE_TARGET_DEPTH = 32;
+export const ASSET_VARIANT_QUEUE_TARGET_DEPTH = 2 * RENDITION_DISPATCH_ROUND.length;
 /** How long a queued job holds its request before the request is due again. */
 export const ASSET_VARIANT_REQUEST_LEASE_MS = 30 * 60_000;
 /** Legacy oversized queues are returned to durable storage in bounded pages. */
@@ -459,7 +459,7 @@ export async function runAssetVariantSchedulerPass(
     const room = ASSET_VARIANT_QUEUE_TARGET_DEPTH - (await queueDepth(q));
     // Never restart a weighted round for each single vacancy: that would serve
     // only fresh uploads under sustained load. One full round grants all lanes
-    // a turn, and empty lanes donate their slots without idle worker capacity.
+    // a turn. Empty/capped lanes donate only to lanes with admission headroom.
     const capacity =
       Math.floor(room / RENDITION_DISPATCH_ROUND.length) * RENDITION_DISPATCH_ROUND.length;
     const due = await claimDueRenditionRequests(capacity, ASSET_VARIANT_REQUEST_LEASE_MS, tx);
