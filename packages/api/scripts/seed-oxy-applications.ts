@@ -60,6 +60,7 @@
  */
 
 import crypto from 'crypto';
+import { seedPublicClientCredential } from '../src/scripts/seedPublicClientCredential';
 import { scopeSeedMain } from '../src/scripts/seedOxyApplicationScopes';
 import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
@@ -433,17 +434,13 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         if (!dryRun && application) {
           const [created] = await getDb()
             .insert(applicationCredentials)
-            .values({
-              applicationId: application.id,
-              name: 'Production',
-              publicKey: generatePublicKey(),
-              secretHash: null,
-              type: 'public',
-              environment: 'production',
-              scopes: ['user:read'],
-              status: 'active',
-              createdByUserId: oxyId,
-            })
+            .values(
+              seedPublicClientCredential({
+                applicationId: application.id,
+                publicKey: generatePublicKey(),
+                createdByUserId: oxyId,
+              }),
+            )
             .returning();
           credential = created;
           credentialsCreated += 1;
