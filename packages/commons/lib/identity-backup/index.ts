@@ -43,18 +43,33 @@ function loadNative(): OxyIdentityBackupNative | null {
  * keeps the recovery-phrase fallback, a new one is protected. iOS returns `null`
  * on purpose: its keychain is not wiped by another app (see the doc).
  */
-export function createBlockStoreBackup(): IdentityDeviceBackupStore | null {
+export function createBlockStoreBackup(
+  onUnavailable?: () => void,
+): IdentityDeviceBackupStore | null {
   const native = loadNative();
   if (!native) return null;
+  // A rejection (no Google Play services, Block Store unavailable) is caught
+  // and logged by KeyManager, which treats it as "no device backup". The first
+  // one that says the API is MISSING is reported through `onUnavailable`, so the
+  // store can be taken out instead of failing, and logging, on every identity
+  // write: three in two seconds during one onboarding, measured on a Pixel 8a
+  // without Play services.
+  const guard = async <T>(call: () => Promise<T>): Promise<T> => {
+    try {
+      return await call();
+    } catch (error) {
+      if (isBlockStoreUnavailableError(error)) onUnavailable?.();
+      throw error;
+    }
+  };
   return {
     name: 'android-block-store',
-    // A rejection (no Google Play services, Block Store unavailable) is caught
-    // and logged by KeyManager, which treats it as "no device backup".
-    read: () => native.read(IDENTITY_BACKUP_KEY),
-    write: async (value: string) => {
-      await native.write(IDENTITY_BACKUP_KEY, value);
-    },
-    clear: () => native.clear(IDENTITY_BACKUP_KEY),
+    read: () => guard(() => native.read(IDENTITY_BACKUP_KEY)),
+    write: (value: string) =>
+      guard(async () => {
+        await native.write(IDENTITY_BACKUP_KEY, value);
+      }),
+    clear: () => guard(() => native.clear(IDENTITY_BACKUP_KEY)),
   };
 }
 
@@ -69,7 +84,17 @@ let installed = false;
 export function installIdentityDeviceBackup(): void {
   if (installed) return;
   installed = true;
-  KeyManager.setDeviceBackupStore(createBlockStoreBackup());
+  let removed = false;
+  const store = createBlockStoreBackup(() => {
+    // This device has no Block Store (no Play services): nothing was or will be
+    // backed up here in this process, so stop asking. The no-device-backup
+    // warning reads availability through its own probe, and the next launch
+    // registers the store again.
+    if (removed) return;
+    removed = true;
+    KeyManager.setDeviceBackupStore(null);
+  });
+  KeyManager.setDeviceBackupStore(store);
 }
 
 /**

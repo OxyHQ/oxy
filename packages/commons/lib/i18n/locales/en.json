@@ -56,7 +56,7 @@
     },
     "welcome": {
       "lead": "Oxy is your",
-      "termsAgree": "I agree with Oxy User Terms And Conditions and acknowledge the Privacy notice",
+      "termsAgree": "I agree to Oxy's <terms>Terms of Service</terms> and acknowledge the <privacy>Privacy Policy</privacy>.",
       "decline": "Decline",
       "accept": "Accept",
       "restore": "I already have an account",
@@ -1069,8 +1069,8 @@
   },
   "deviceBackupWarning": {
     "title": "This identity isn't backed up on this device",
-    "body": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device, and only your recovery phrase can bring it back. Write your phrase down now, and set up an encrypted backup.",
-    "bodyNoPhrase": "This device can't keep an automatic backup of your identity. On Android it needs Google Play services. If storage is cleared for Commons or any other Oxy app, your identity is erased from this device. It was imported from a private key and has no recovery phrase, so rotate to a key with one.",
+    "body": "This device can't keep an automatic backup of your identity: on Android that needs Google Play services. If Commons is uninstalled or its storage is cleared, your identity is erased from this device, and only your recovery phrase can bring it back. Write your phrase down now, and set up an encrypted backup.",
+    "bodyNoPhrase": "This device can't keep an automatic backup of your identity: on Android that needs Google Play services. If Commons is uninstalled or its storage is cleared, your identity is erased from this device. It was imported from a private key and has no recovery phrase, so rotate to a key that has one.",
     "revealPhrase": "Write down your recovery phrase",
     "encryptedBackup": "Set up an encrypted backup",
     "rotate": "Rotate to a key with a recovery phrase",

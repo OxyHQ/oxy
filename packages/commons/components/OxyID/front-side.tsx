@@ -44,6 +44,8 @@ const sanitizeMrz = (value: string | undefined, length: number) =>
 
 // Kept short enough that the MRZ lines clear the Commons emblem watermark in the
 // card's bottom-right corner (rendered in the hologram layer behind this).
+/** Smallest a one-word name shrinks to before it is ellipsized. */
+const PRIMARY_NAME_MIN_SCALE = 0.6;
 const MRZ_WIDTH = 22;
 
 export const FrontSide: React.FC<FrontSideProps> = ({
@@ -59,6 +61,12 @@ export const FrontSide: React.FC<FrontSideProps> = ({
     const line2 = sanitizeMrz(publicKeyShort, MRZ_WIDTH);
     return [line1, line2];
   }, [username, displayName, publicKeyShort]);
+
+  const primaryName = displayName || (username ? `@${username}` : publicKeyShort) || '—';
+  // A name with no space in it (a handle, "soliddeer428") has no word to break
+  // at, so a second line can only split it mid-word ("soliddeer42" / "8"). It
+  // gets one line and shrinks to fit instead; a name with words keeps two.
+  const primaryNameLines = /\s/.test(primaryName.trim()) ? 2 : 1;
 
   const issued = useMemo(() => {
     if (!accountCreated) return undefined;
@@ -106,8 +114,15 @@ export const FrontSide: React.FC<FrontSideProps> = ({
         </View>
         <View style={styles.primaryCol}>
           <Text style={styles.fieldLabel}>NAME</Text>
-          <Text style={styles.primaryValue} numberOfLines={2}>
-            {displayName || (username ? `@${username}` : publicKeyShort) || '—'}
+          <Text
+            style={styles.primaryValue}
+            numberOfLines={primaryNameLines}
+            adjustsFontSizeToFit
+            minimumFontScale={PRIMARY_NAME_MIN_SCALE}
+            ellipsizeMode="tail"
+            textBreakStrategy="simple"
+          >
+            {primaryName}
           </Text>
           <Text style={styles.fieldLabel}>TYPE</Text>
           <Text style={styles.fieldValueSmall}>SELF-CUSTODY</Text>

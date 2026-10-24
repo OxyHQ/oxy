@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
@@ -8,6 +8,13 @@ import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-tex
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
 import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';
+import {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  consentPlainText,
+  splitConsentText,
+  type ConsentLink,
+} from '@/lib/legal';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 
 const ROTATING_TEXT_KEYS = [
@@ -70,6 +77,13 @@ export default function WelcomeScreen() {
     () => [styles.checkboxText, { color: textColor }],
     [textColor],
   );
+  const consentSegments = useMemo(() => splitConsentText(t('auth.welcome.termsAgree')), [t]);
+  const openLegal = useCallback((link: ConsentLink | undefined) => {
+    const url = link === 'privacy' ? PRIVACY_POLICY_URL : TERMS_OF_SERVICE_URL;
+    Linking.openURL(url).catch((error: unknown) => {
+      console.warn('[welcome] failed to open a legal document', error);
+    });
+  }, []);
 
   // Consolidated entrance animation
   useEffect(() => {
@@ -165,17 +179,31 @@ export default function WelcomeScreen() {
             onValueChange={setTermsAccepted}
             style={styles.checkbox}
             color={textColor}
+            accessibilityLabel={consentPlainText(t('auth.welcome.termsAgree'))}
           />
-          <TouchableOpacity
-            className="flex-1"
+          {/* The sentence toggles the box; its two links open the documents
+              themselves (a nested Text's own press wins over the outer one). */}
+          <Text
+            style={[checkboxTextStyleMemo, styles.consentText]}
             onPress={toggleTermsAccepted}
-            activeOpacity={0.7}
             accessibilityRole="checkbox"
-            accessibilityLabel={t('auth.welcome.termsAgree')}
             accessibilityState={{ checked: termsAccepted }}
           >
-            <Text style={checkboxTextStyleMemo}>{t('auth.welcome.termsAgree')}</Text>
-          </TouchableOpacity>
+            {consentSegments.map((segment, index) =>
+              segment.link ? (
+                <Text
+                  key={index}
+                  style={styles.consentLink}
+                  onPress={() => openLegal(segment.link)}
+                  accessibilityRole="link"
+                >
+                  {segment.text}
+                </Text>
+              ) : (
+                segment.text
+              ),
+            )}
+          </Text>
         </View>
 
         <View className="flex-row gap-space-12">
@@ -239,6 +267,13 @@ const styles = StyleSheet.create({
   checkboxText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  consentText: {
+    flex: 1,
+  },
+  consentLink: {
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   restoreText: {
     fontSize: 14,

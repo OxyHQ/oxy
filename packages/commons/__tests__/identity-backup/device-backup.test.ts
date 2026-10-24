@@ -53,6 +53,49 @@ describe('createBlockStoreBackup', () => {
     expect(await store?.read()).toBeNull();
   });
 
+  // A device without Play services: every Block Store call rejects. The first
+  // "API missing" rejection is reported once so the store can be taken out;
+  // a transient failure is not.
+  it('reports an API-missing rejection, and only that kind', async () => {
+    const native = fakeNative();
+    native.write.mockRejectedValue(
+      new Error('Blockstore.API is not available on this device. statusCode=SERVICE_INVALID'),
+    );
+    native.read.mockRejectedValueOnce(new Error('Timeout'));
+    requireOptional.mockReturnValue(native);
+    const onUnavailable = jest.fn();
+    const store = createBlockStoreBackup(onUnavailable);
+
+    await expect(store?.read()).rejects.toThrow('Timeout');
+    expect(onUnavailable).not.toHaveBeenCalled();
+    await expect(store?.write('record')).rejects.toThrow('SERVICE_INVALID');
+    expect(onUnavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it('installIdentityDeviceBackup takes the store out after the API is found missing', async () => {
+    const native = fakeNative();
+    native.write.mockRejectedValue(new Error('statusCode=SERVICE_INVALID'));
+    await jest.isolateModulesAsync(async () => {
+      const rn = await import('react-native');
+      (rn.Platform as { OS: string }).OS = 'android';
+      const expo = await import('expo');
+      (expo.requireOptionalNativeModule as jest.Mock).mockReturnValue(native);
+      const { KeyManager: IsolatedKeyManager } = await import('@oxy.so/core/crypto');
+      const { installIdentityDeviceBackup: install } = await import('@/lib/identity-backup');
+      const spy = jest.spyOn(IsolatedKeyManager, 'setDeviceBackupStore');
+      install();
+      const store = spy.mock.calls[0][0];
+      expect(store?.name).toBe('android-block-store');
+      await expect(store?.write('a')).rejects.toThrow();
+      await expect(store?.write('b')).rejects.toThrow();
+      // Registered once, removed once: later identity writes skip it.
+      expect(spy.mock.calls.map(([arg]) => arg?.name ?? null)).toEqual([
+        'android-block-store',
+        null,
+      ]);
+    });
+  });
+
   it('is absent on a binary without the native module (over-the-air install)', () => {
     requireOptional.mockReturnValue(null);
     expect(createBlockStoreBackup()).toBeNull();

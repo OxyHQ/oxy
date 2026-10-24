@@ -198,6 +198,14 @@ export default function IdScreen() {
       {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
           centered hero and the DID/callout blocks are padded to align with it. */}
       <Screen contentStyle={styles.flush} gap={16} bottomClearance={fabClearance}>
+        {/* Shown once after onboarding on devices where the identity has no
+            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it.
+            FIRST on the screen: below the card it came to rest under the QR
+            button and the floating tab bar, which covered its copy and its
+            "Write down your recovery phrase" action (Pixel 8a, no Play
+            services). */}
+        <DeviceBackupWarning variant="prompt" />
+
         <View className="items-center gap-space-16 pt-space-8">
           <OxyID
             width={CARD_WIDTH}
@@ -239,10 +247,6 @@ export default function IdScreen() {
             {t('civic.id.flipHint')}
           </Text>
         </View>
-
-        {/* Shown once after onboarding on devices where the identity has no
-            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it. */}
-        <DeviceBackupWarning variant="prompt" />
 
         {/* Self-custody identity actions (native only). */}
         {isNative && (
