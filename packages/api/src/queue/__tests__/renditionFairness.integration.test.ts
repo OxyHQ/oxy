@@ -16,8 +16,13 @@ import {
   recordRenditionRequest,
   settleRenditionRequest,
   type RenditionLane,
+  RENDITION_DISPATCH_ROUND,
 } from '../../services/renditionRequests';
-import { assetVariantsJobId, runAssetVariantSchedulerPass } from '../assetVariants.queue';
+import {
+  ASSET_VARIANT_QUEUE_TARGET_DEPTH,
+  assetVariantsJobId,
+  runAssetVariantSchedulerPass,
+} from '../assetVariants.queue';
 
 type Data = { fileId: string; requestedAt?: string };
 const endpoint = new URL(process.env.TEST_QUEUE_REDIS_URL ?? 'redis://127.0.0.1:6391');
@@ -95,16 +100,113 @@ async function dispatch() {
   return runAssetVariantSchedulerPass(queue);
 }
 
+it('shares each background lease cap across simultaneous scheduler passes', async () => {
+  await seed('repair', 20);
+  await seed('bulk', 20);
+  let markClaimed: () => void = () => {};
+  let releaseWrite: () => void = () => {};
+  const claimed = new Promise<void>((resolve) => {
+    markClaimed = resolve;
+  });
+  const writeAllowed = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  const original = queue.addBulk.bind(queue);
+  jest.spyOn(queue, 'addBulk').mockImplementationOnce(async (jobs) => {
+    markClaimed();
+    await writeAllowed;
+    return original(jobs);
+  });
+  const first = dispatch();
+  await claimed;
+  try {
+    expect(await dispatch()).toMatchObject({ skipped: true, enqueued: 0 });
+  } finally {
+    releaseWrite();
+  }
+  expect((await first).enqueued).toBe(2);
+  expect((await dispatch()).enqueued).toBe(0);
+  expect(await queue.getWaitingCount()).toBe(2);
+  const rows = await getDb().select().from(fileRenditionRequests);
+  for (const lane of ['repair', 'bulk'])
+    expect(rows.filter((r) => r.lane === lane && r.enqueuedUntil)).toHaveLength(1);
+});
+
+it('reserves fresh headroom when both background backlogs arrive before any uploads', async () => {
+  await seed('repair', 100);
+  await seed('bulk', 100);
+  expect((await dispatch()).enqueued).toBe(2);
+  const active = [await take(), await take()];
+  expect(active.map((job) => lanes.get(job.data.fileId)).sort()).toEqual(['bulk', 'repair']);
+  expect((await dispatch()).enqueued).toBe(0);
+
+  await seed('fresh', 100);
+  expect((await dispatch()).enqueued).toBe(64);
+  for (let i = 0; i < 96; i++) {
+    const job = await take();
+    expect(lanes.get(job.data.fileId)).toBe('fresh');
+    await finish(job);
+    await seed('fresh', 1);
+    await dispatch();
+  }
+  // The two long background jobs keep their leases throughout fresh progress.
+  for (const job of active) expect(await job.getState()).toBe('active');
+  for (const job of active) await finish(job);
+});
+
+it('keeps retry ownership while a full fresh round fits beside a delayed background job', async () => {
+  await seed('repair', 3);
+  await dispatch();
+  const retry = await take();
+  await retry.moveToFailed(new Error('temporary source error'), token, false);
+  expect(await retry.getState()).toBe('delayed');
+  await seed('fresh', 100);
+  expect((await dispatch()).enqueued).toBe(32);
+  expect(await queue.getWaitingCount()).toBe(32);
+  // A delayed retry leaves headroom for the next full fresh round after one completion.
+  const first = await take();
+  await finish(first);
+  expect((await dispatch()).enqueued).toBe(32);
+  expect((await queue.getJob(assetVariantsJobId(retry.data.fileId)))?.attemptsMade).toBe(1);
+  expect(await queue.getDelayedCount()).toBe(1);
+  const claimedRepairs = await getDb().select().from(fileRenditionRequests);
+  expect(claimedRepairs.filter((r) => r.lane === 'repair' && r.enqueuedUntil)).toHaveLength(1);
+});
+
+it('does not refill tiny vacancies or grant extra background leases from an older deployment', async () => {
+  expect(ASSET_VARIANT_QUEUE_TARGET_DEPTH).toBe(2 * RENDITION_DISPATCH_ROUND.length);
+  const background = [...(await seed('repair', 3)), ...(await seed('bulk', 3))];
+  await getDb()
+    .update(fileRenditionRequests)
+    .set({ enqueuedUntil: sql`now() + interval '5 minutes'` })
+    .where(inArray(fileRenditionRequests.fileId, background));
+  await seed('repair', 3);
+  await seed('bulk', 3);
+  await seed('fresh', 100);
+  expect((await dispatch()).enqueued).toBe(64);
+  for (let i = 1; i < 32; i++) {
+    const job = await take();
+    expect(lanes.get(job.data.fileId)).toBe('fresh');
+    await finish(job);
+    expect((await dispatch()).enqueued).toBe(0);
+  }
+  await finish(await take());
+  expect((await dispatch()).enqueued).toBe(32);
+  const rows = await getDb().select().from(fileRenditionRequests);
+  for (const lane of ['repair', 'bulk'])
+    expect(rows.filter((r) => r.lane === lane && r.enqueuedUntil)).toHaveLength(3);
+});
+
 it('keeps repair and old bulk moving under continuous fresh arrivals, in bounded FIFO rounds', async () => {
   await seed('bulk', 100);
   await seed('repair', 20);
   await seed('fresh', 100);
   const seen: string[] = [];
-  for (let round = 0; round < 6; round++) {
+  for (let round = 0; round < 8; round++) {
     await dispatch();
-    expect(await queue.getWaitingCount()).toBeLessThanOrEqual(32);
+    expect(await queue.getWaitingCount()).toBeLessThanOrEqual(64);
     const dispatched: RenditionLane[] = [];
-    for (let slot = 0; slot < 16; slot++) {
+    for (let slot = 0; slot < 32; slot++) {
       const job = await take();
       seen.push(job.data.fileId);
       const lane = lanes.get(job.data.fileId);
@@ -114,9 +216,17 @@ it('keeps repair and old bulk moving under continuous fresh arrivals, in bounded
       await seed('fresh', 1); // sustained traffic while both background lanes stay due
       await dispatch();
     }
-    expect(dispatched.filter((lane) => lane === 'fresh')).toHaveLength(14);
-    expect(dispatched.filter((lane) => lane === 'repair')).toHaveLength(1);
-    expect(dispatched.filter((lane) => lane === 'bulk')).toHaveLength(1);
+    expect(dispatched.filter((lane) => lane === 'fresh').length).toBeGreaterThanOrEqual(30);
+    expect(dispatched.filter((lane) => lane === 'repair').length).toBeLessThanOrEqual(1);
+    expect(dispatched.filter((lane) => lane === 'bulk').length).toBeLessThanOrEqual(1);
+  }
+  for (const lane of ['repair', 'bulk']) {
+    const positions = seen.flatMap((id, index) => (lanes.get(id) === lane ? [index] : []));
+    expect(positions.length).toBeGreaterThanOrEqual(3);
+    // Admission may wait for the previous job's lease to settle, but every
+    // two-round window still advances both background lanes under fresh load.
+    for (let i = 1; i < positions.length; i++)
+      expect(positions[i] - positions[i - 1]).toBeLessThanOrEqual(64);
   }
   expect(new Set(seen).size).toBe(seen.length);
   expect(await queue.getPrioritizedCount()).toBe(0);
@@ -128,7 +238,7 @@ it('donates an empty lane, then admits its new request within the next bounded w
   await dispatch();
   const [repair] = await seed('repair', 1);
   let seenAt = 0;
-  for (let slot = 1; slot <= 48; slot++) {
+  for (let slot = 1; slot <= 96; slot++) {
     const job = await take();
     await finish(job);
     if (job.data.fileId === repair) {
@@ -138,9 +248,9 @@ it('donates an empty lane, then admits its new request within the next bounded w
     await seed('fresh', 1);
     await dispatch();
   }
-  // At most32 already-admitted jobs plus one16-slot round (repair's reserved slot15).
+  // At most64 already-admitted jobs plus one32-slot round (repair's reserved slot31).
   expect(seenAt).toBeGreaterThan(0);
-  expect(seenAt).toBeLessThanOrEqual(47);
+  expect(seenAt).toBeLessThanOrEqual(95);
 });
 
 it('recovers a partial Redis write after transaction rollback and scheduler restart without duplicate work', async () => {
@@ -201,7 +311,7 @@ it('adopts an oversized legacy queue while preserving active jobs, retries and d
   );
   const active = await take();
   const pass = await dispatch();
-  expect(pass.adopted).toBe(37); //69 waiting minus32; active and delayed retry remain owned
+  expect(pass.adopted).toBe(5); //69 waiting minus64; active and delayed retry remain owned
   const afterRetry = await queue.getJob(assetVariantsJobId(retryId));
   expect(afterRetry?.attemptsMade).toBe(1);
   expect(afterRetry?.priority).toBe(0);
