@@ -9,6 +9,11 @@
  *   KNOWN to be public (avatars). A private asset renders a hard 404 there.
  * - {@link AssetsApi.urls} — {@link AssetsApi.url} for a whole grid in one
  *   round trip.
+ * - {@link AssetsApi.cachedUrl} — what {@link AssetsApi.url} already resolved
+ *   for this caller, synchronously, or nothing; never a request.
+ * - {@link AssetsApi.renderUrl} — the URL a render path shows without waiting:
+ *   an absolute URL as-is, else the cached resolution, else
+ *   {@link AssetsApi.publicUrl}.
  *
  * The service-token asset routes (metadata by id / by hash, linked download
  * URLs) are `OxyServer`'s `assets` (`@oxy.so/core/server`).
@@ -895,6 +900,37 @@ export class AssetsApi {
   }
 
   /**
+   * The URL {@link url} resolved for `fileId` for the CURRENT caller, while it
+   * is still cached, or `undefined`. Synchronous and never a request, so a
+   * render can show an already-resolved URL in its first frame and call
+   * {@link url} only on a miss. Same identity-scoped cache and TTL as
+   * {@link url}: another account's scoped media URL is never returned, and a
+   * trashed, restored, deleted or re-scoped asset is a miss.
+   */
+  cachedUrl(fileId: string, variant?: string, expiresIn?: number): string | undefined {
+    const { path, params } = urlRequest(fileId, variant, expiresIn);
+    return this.ctx.http.peekCachedGet<{ url?: string }>(path, params)?.url || undefined;
+  }
+
+  /**
+   * The URL to render for an asset reference RIGHT NOW, without waiting:
+   *
+   * - a reference that is already an absolute `http(s)` URL (a media URL the
+   *   server resolved) comes back unchanged;
+   * - else the URL {@link url} already resolved for this caller
+   *   ({@link cachedUrl});
+   * - else {@link publicUrl}: right for a public asset, a 404 for a private one
+   *   until {@link url} has resolved it.
+   *
+   * Resolve a private asset with {@link url} (services: `useFileDownloadUrl`);
+   * from then on this answers the resolved URL.
+   */
+  renderUrl(ref: string, variant?: string): string {
+    if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+    return this.cachedUrl(ref, variant) ?? this.publicUrl(ref, variant);
+  }
+
+  /**
    * {@link url} for many assets — each with its OWN variant — in one round
    * trip. Ids the caller cannot read (or that do not exist) are OMITTED from
    * the map: no CDN fallback, so a grid never renders a known-404. Keyed by
@@ -1015,15 +1051,11 @@ export class AssetsApi {
     variant?: string,
     expiresIn?: number,
   ): Promise<string | undefined> {
-    const params: Record<string, string | number> = {};
-    if (variant) params.variant = variant;
-    if (expiresIn) params.expiresIn = expiresIn;
-    const res = await this.ctx.request<{ url?: string }>(
-      'GET',
-      `/assets/${enc(fileId)}/url`,
-      Object.keys(params).length ? params : undefined,
-      { cache: true, cacheTTL: assetUrlCacheTTL(expiresIn) },
-    );
+    const { path, params } = urlRequest(fileId, variant, expiresIn);
+    const res = await this.ctx.request<{ url?: string }>('GET', path, params, {
+      cache: true,
+      cacheTTL: assetUrlCacheTTL(expiresIn),
+    });
     return res?.url || undefined;
   }
 
@@ -1050,6 +1082,25 @@ export class AssetsApi {
 }
 
 const enc = encodeURIComponent;
+
+/**
+ * The `GET /assets/:id/url` request {@link AssetsApi.url} sends and
+ * {@link AssetsApi.cachedUrl} looks up: one builder, so the two can never key
+ * the cache differently.
+ */
+function urlRequest(
+  fileId: string,
+  variant?: string,
+  expiresIn?: number,
+): { path: string; params: Record<string, string | number> | undefined } {
+  const params: Record<string, string | number> = {};
+  if (variant) params.variant = variant;
+  if (expiresIn) params.expiresIn = expiresIn;
+  return {
+    path: `/assets/${enc(fileId)}/url`,
+    params: Object.keys(params).length ? params : undefined,
+  };
+}
 
 /** A Blob, from any runtime: a web, Node or Bun Blob, or React Native's own. */
 function isBlob(value: Blob | RNFileDescriptor): value is Blob {

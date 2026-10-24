@@ -1,5 +1,29 @@
 # Changelog
 
+## [13.3.0] - 2026-10-24
+
+Needs `@oxy.so/core` 7.2.0.
+
+### Added
+
+- `useAccountTheme({ canUse })` applies the account theme to Bloom: the account
+  colour always (through `useAccountColor`), the account's mode
+  (`user.themePreference.mode`) while this device's theme source is `account`.
+  The source (`'app' | 'account'`, default `account`) is a local, per-device
+  choice, read synchronously on web so the first paint knows it.
+- `useAccountThemeControls()` returns `{ source, changeThemeSource,
+  changeThemeMode }` for a settings screen: a mode change applies at once and,
+  on the `account` source, is written to the account's portable theme; turning
+  the source to `account` seeds an account that has no theme yet. Without a
+  session that can reach the account the effective source is `app`.
+
+### Changed
+
+- `useFileDownloadUrl` answers a URL core already resolved in its first render
+  (`assets.cachedUrl`), with no request and no loading frame, and returns an
+  absolute `http(s)` reference unchanged. A result is never shown for another
+  file, variant, expiry or viewer.
+
 ## [13.2.0] - 2026-10-24
 
 ### Added
