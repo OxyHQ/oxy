@@ -1,3 +1,11 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  urlCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { oxyAccountIdSchema } from '@oxy.so/contracts';
 import { createPeablePersonalCheckoutProvider } from './peablePersonalCheckout.service';
 import { createPublicKey } from 'node:crypto';
@@ -32,14 +40,17 @@ import {
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 
 const pinnedKeysSchema = z
-  .record(z.string().min(1), z.string().min(1))
+  .record(z.string().check(utf16MinLength(1)), z.string().check(utf16MinLength(1)))
   .refine((keys) => Object.keys(keys).length > 0);
 export const peablePersonalRuntimeConfigurationSchema = peablePersonalManagementConfigurationSchema
   .extend({
     invoiceIssuer: z
-      .object({ legalName: z.literal('Oxy Platforms, Inc.'), id: z.string().min(1) })
+      .object({
+        legalName: z.literal('Oxy Platforms, Inc.'),
+        id: z.string().check(utf16MinLength(1)),
+      })
       .strict(),
-    sellerId: z.string().min(1),
+    sellerId: z.string().check(utf16MinLength(1)),
     invoiceAuthorityKeys: pinnedKeysSchema,
     taxQuoteAuthorityKeys: pinnedKeysSchema,
     purchasesEnabled: z.boolean(),
@@ -47,17 +58,20 @@ export const peablePersonalRuntimeConfigurationSchema = peablePersonalManagement
       .object({
         returnUrl: z
           .string()
-          .url()
+          .check(urlCheck())
           .refine((value) => new URL(value).protocol === 'https:'),
-        taxRemitterId: z.string().min(1),
+        taxRemitterId: z.string().check(utf16MinLength(1)),
         /** Reviewed Peable evidence references, not client country/IP guesses. */
-        customerLocationEvidence: z.record(z.string().min(1), z.string().min(1)),
+        customerLocationEvidence: z.record(
+          z.string().check(utf16MinLength(1)),
+          z.string().check(utf16MinLength(1)),
+        ),
       })
       .strict()
       .optional(),
     observationsEnabled: z.boolean(),
     recoveryEnabled: z.boolean(),
-    recoveryIntervalMilliseconds: z.number().int().min(60_000).max(86_400_000),
+    recoveryIntervalMilliseconds: z.number().check(integerCheck()).min(60_000).max(86_400_000),
   })
   .strict()
   .refine(
@@ -110,7 +124,12 @@ export function createPeablePersonalRuntime(
                 priceId: offer.providerPriceId,
                 amountMinorUnits:
                   offer.kind === 'existing_product'
-                    ? z.number().int().positive().safe().parse(offer.amountMinorUnits)
+                    ? z
+                        .number()
+                        .check(integerCheck())
+                        .positive()
+                        .check(safeNumberCheck())
+                        .parse(offer.amountMinorUnits)
                     : 2999,
                 currency: 'USD' as const,
                 interval: offer.interval ?? 'month',
@@ -306,9 +325,9 @@ export function createPeablePersonalRuntime(
               throw new Error('Recovered checkout operation differs from frozen authority');
             const session = z
               .object({
-                id: z.string().min(1).max(160),
-                expiresAt: z.string().datetime(),
-                url: z.string().url().startsWith('https://').optional(),
+                id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+                expiresAt: z.string().check(isoDateTime()),
+                url: z.string().check(urlCheck()).startsWith('https://').optional(),
               })
               .parse(recovered.checkout);
             await getDb()

@@ -1,3 +1,7 @@
+import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { resolveFirstPartyTask, taskAllowsEffectiveAccount } from './firstPartyTasks.service';
+import { liveFirstPartyCatalog } from './firstPartyTaskAuthority.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { isSupervised } from './supervisionPolicy.service';
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
@@ -48,6 +52,7 @@ export interface CapabilityCoordinatorPrincipal {
 }
 
 export interface AuthorityRequest {
+  authority?: 'first_party' | 'external';
   executionAuthorizationId: string;
   coordinator: CapabilityCoordinatorPrincipal;
   /** Required when durable automation authority is materialized for one run. */
@@ -303,19 +308,61 @@ export async function evaluateCapabilityAuthority(
   options: { issueTicket?: boolean; includeResolvedAuthority?: boolean; now?: Date } = {},
 ): Promise<AuthorityResult> {
   const now = options.now ?? new Date();
+  const authorization = await loadExecutionAuthorization(request, now);
+  if (!authorization) return denied('execution_authorization_not_active');
+  const firstParty = authorization.authority === 'first_party';
+  if (firstParty && request.authority !== 'first_party')
+    return denied('task_requires_first_party_presenter');
   const coordinator = await resolveLiveAgencyCoordinator(
     request.coordinator.applicationId,
     request.coordinator.credentialId,
+    firstParty ? 'first_party' : 'external',
   );
   if (
     !coordinator ||
-    !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY) ||
-    !coordinator.scopes.includes('capability-tickets:issue')
-  ) {
+    (!firstParty && !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY)) ||
+    !hasServiceAuthority(coordinator, 'capability-tickets:issue')
+  )
     return denied('coordinator_no_longer_authorized');
+  if (firstParty) {
+    if (
+      !authorization.requesterSessionId ||
+      !authorization.requesterSessionBindingDigest ||
+      authorization.ceilingId ||
+      authorization.ownerAccountId !== authorization.effectiveAccountId
+    )
+      return denied('own_task_provenance_invalid');
+    const rootTask = authorization.taskId
+      ? await resolveFirstPartyTask(authorization.taskId, request.coordinator)
+      : null;
+    if (
+      authorization.taskId &&
+      (!rootTask ||
+        rootTask.requesterAccountId !== authorization.requesterAccountId ||
+        !(await taskAllowsEffectiveAccount(
+          rootTask,
+          authorization.effectiveAccountId,
+          actorOf(authorization),
+        )))
+    )
+      return denied('task_root_no_longer_authorized');
+    // A scheduled task outlives the sign-in that created it; the original task
+    // row is revocable and account membership/actor/credentials are checked below.
+    if (
+      !rootTask &&
+      authorization.kind === 'direct_request' &&
+      !(await revalidateForegroundRequester(
+        {
+          sessionId: authorization.requesterSessionId,
+          principalAccountId: authorization.requesterAccountId,
+          subjectAccountId: authorization.effectiveAccountId,
+          digest: authorization.requesterSessionBindingDigest,
+        },
+        coordinator,
+      ))
+    )
+      return denied('task_requester_no_longer_authorized');
   }
-  const authorization = await loadExecutionAuthorization(request, now);
-  if (!authorization) return denied('execution_authorization_not_active');
   const safetySubjects = [
     ...new Set([
       authorization.requesterAccountId,
@@ -333,7 +380,7 @@ export async function evaluateCapabilityAuthority(
     }))
   )
     return denied('requester_autonomous_credential_not_active');
-  if (authorization.actorType === 'requester') {
+  if (authorization.actorType === 'requester' && !firstParty) {
     if (
       !authorization.requesterSessionId ||
       !authorization.requesterSessionBindingDigest ||
@@ -379,24 +426,26 @@ export async function evaluateCapabilityAuthority(
     stepId = authorization.stepId ?? undefined;
   }
   if (
-    authorization.actorType !== 'requester' &&
+    (firstParty || authorization.actorType !== 'requester') &&
     !autonomousSelf &&
     !(await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId))
   ) {
     return denied('requester_lacks_current_account_authority');
   }
   if (
-    authorization.actorType !== 'requester' &&
+    (firstParty || authorization.actorType !== 'requester') &&
     !autonomousSelf &&
     !(await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId))
   ) {
     return denied('requester_lacks_grant_owner_authority');
   }
 
-  const registration = await activeCapabilityCatalog(authorization.resourceApp);
+  const registration = firstParty
+    ? await liveFirstPartyCatalog(authorization.resourceApp)
+    : await activeCapabilityCatalog(authorization.resourceApp);
   if (!registration) return denied('catalog_not_registered');
   if (
-    authorization.actorType === 'requester' &&
+    (firstParty || authorization.actorType === 'requester') &&
     (authorization.requesterCatalogRegistrationId !== registration.id ||
       authorization.requesterCatalogVersion !== registration.version ||
       authorization.requesterCatalogDigest !== registration.digest)
@@ -416,7 +465,7 @@ export async function evaluateCapabilityAuthority(
   // narrows its actors withdraws authority already created for the others.
   if (!catalogToolAllowsActor(tool, authorization.actorType))
     return denied('tool_not_available_to_actor');
-  if (authorization.actorType === 'requester' && tool.effect !== 'read')
+  if (!firstParty && authorization.actorType === 'requester' && tool.effect !== 'read')
     return denied('foreground_effect_not_allowed');
   if (!tool.resourceTypes.includes(authorization.resourceType))
     return denied('resource_type_mismatch');
@@ -455,15 +504,25 @@ export async function evaluateCapabilityAuthority(
   if (authorizationSensitiveLimitError) return denied(authorizationSensitiveLimitError);
   if (actor.type === 'agent' && !autonomousSelf) {
     const [actorRow] = await getDb()
-      .select({ kind: users.kind, accountStatus: users.accountStatus })
+      .select({
+        kind: users.kind,
+        accountStatus: users.accountStatus,
+        fence: accountClosureFences.accountId,
+      })
       .from(users)
+      .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
       .where(eq(users.id, actor.accountId))
       .limit(1);
-    if (!actorRow || actorRow.kind !== 'bot' || actorRow.accountStatus === 'archived') {
+    if (
+      !actorRow ||
+      actorRow.kind !== 'bot' ||
+      actorRow.accountStatus !== 'active' ||
+      actorRow.fence !== null
+    ) {
       return denied('actor_is_not_an_active_bot_account');
     }
   }
-  if (actor.type === 'agent' && !autonomousSelf && !agentOwnAccount) {
+  if (!firstParty && actor.type === 'agent' && !autonomousSelf && !agentOwnAccount) {
     const byCeiling = authorization.ceilingId !== null;
     bound = byCeiling
       ? await loadCeilingBound(authorization, actor.accountId, registration.catalog)
@@ -555,8 +614,10 @@ export async function evaluateCapabilityAuthority(
     ...(stepId ? { stepId } : {}),
     ...(automationId ? { automationId } : {}),
     executionAuthorization,
+    authority: firstParty ? 'first_party' : 'external',
+    ...(authorization.taskId ? { taskId: authorization.taskId } : {}),
     coordinator: request.coordinator,
-    ...(authorization.actorType === 'requester'
+    ...(firstParty || authorization.actorType === 'requester'
       ? {
           catalog: {
             registrationId: registration.id,
@@ -647,6 +708,8 @@ function claimsMatchAuthorization(
       : claims.runId === authorization.runId &&
         claims.stepId === (authorization.stepId ?? undefined);
   return (
+    (claims.authority ?? 'external') === (authorization.authority ?? 'external') &&
+    (claims.taskId ?? null) === authorization.taskId &&
     executionAuthorizationMatches &&
     claims.requesterAccountId === authorization.requesterAccountId &&
     claims.ownerAccountId === authorization.ownerAccountId &&
@@ -672,6 +735,7 @@ export async function reauthorizeCapabilityTicket(
   const now = new Date();
   const request = {
     executionAuthorizationId: claims.executionAuthorization.id,
+    authority: claims.authority ?? 'external',
     coordinator: claims.coordinator,
     ...(claims.catalog ? { expectedCatalog: claims.catalog } : {}),
     ...(claims.executionAuthorization.kind === 'automation'

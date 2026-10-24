@@ -1,3 +1,6 @@
+import { utf16MinLength } from '@oxy.so/contracts';
+import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
 import recordingIngestRouter from './recordingIngest';
@@ -370,16 +373,16 @@ const initUploadSchema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, 'SHA256 must be 64 hexadecimal characters')
     .transform((value) => value.toLowerCase()),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
 });
 
 const completeUploadSchema = z.object({
-  fileId: z.string().min(1, 'File ID is required'),
-  originalName: z.string().min(1, 'Original name is required'),
+  fileId: z.string().check(utf16MinLength(1, 'File ID is required')),
+  originalName: z.string().check(utf16MinLength(1, 'Original name is required')),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**
@@ -609,7 +612,7 @@ router.post(
       validatedData = initUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -712,7 +715,7 @@ router.post(
       validatedData = completeUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -963,8 +966,7 @@ const SERVICE_LOOKUP_MAX_PER_MINUTE = 600;
 const USER_MEDIA_WRITE_SCOPE: ApplicationScope = 'files:user-media:write';
 
 function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(scope)) {
+  if (!hasServiceAuthority(req.serviceApp, scope)) {
     throw new ForbiddenError(`Missing required scope: ${scope}`);
   }
 }
@@ -1295,18 +1297,14 @@ router.post(
  * authority check — shared by the upload and the import (ADR 0043 D7), so the
  * two can never disagree on who may attribute a file to a person.
  *
- * Attributing a file to a user is cross-tenant act-as authority, not ordinary
- * application-owned file access, so it always needs a staff-granted scope. Two
- * grants carry it:
- *  - `files:user-media:write` — exactly this authority and nothing else (Oxy
- *    Move imports a user's media with it);
- *  - `files:write` + `federation:write` — the original pair, kept unchanged for
- *    Mention's MCP intent-media.
- * `files:write` alone is self-grantable and never enough. The owner is the
- * `x-owner-user-id` header, an existing LOCAL user.
+ * Own workloads use a verified requester session/task account; the explicit
+ * owner must match it. A task may select only its root account or exact self bot
+ * with live operator membership. External credentials retain files:user-media:write
+ * or the legacy files:write + federation:write pair. An owner header alone is
+ * never requester proof for an own workload.
  */
 async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
-  if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, USER_MEDIA_WRITE_SCOPE)) {
     requireServiceScope(req, 'files:write');
     requireServiceScope(req, 'federation:write');
   }
@@ -1314,6 +1312,14 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
   const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
   if (!ownerUserId) {
     throw new BadRequestError('x-owner-user-id must be a valid user id');
+  }
+
+  if (
+    req.serviceApp?.authority === 'first_party' &&
+    (req.serviceExternalMedia?.effectiveAccountId ?? req.serviceRequester?.subjectAccountId) !==
+      ownerUserId
+  ) {
+    throw new ForbiddenError('User media requires the authenticated requester account.');
   }
 
   // Same reasoning as `/service/federation` above: a malformed id matches no
@@ -1509,8 +1515,7 @@ async function requireActiveApplication(
   req: ServiceAuthRequest,
   scopes: readonly ApplicationScope[],
 ): Promise<string> {
-  const granted = req.serviceApp?.scopes ?? [];
-  if (!scopes.some((scope) => granted.includes(scope))) {
+  if (!scopes.some((scope) => hasServiceAuthority(req.serviceApp, scope))) {
     throw new ForbiddenError(`Missing required scope: ${scopes.join(' or ')}`);
   }
   const appId = req.serviceApp?.appId;
@@ -2055,6 +2060,10 @@ router.post(
     if (typeof appId !== 'string' || appId.length === 0) {
       throw new ForbiddenError('Service token carries no application id');
     }
+    if (body.reference && req.serviceExternalMedia)
+      throw new ForbiddenError(
+        'External media creation does not authorize application references.',
+      );
     if (body.reference) await requireActiveApplication(req, ['files:references:write']);
 
     const result = await fileImportService.importFromUrl(
@@ -3552,13 +3561,17 @@ router.post(
     // fallback to the progressive original, once per video per play. Measured in
     // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     // `ownerUserId` is the one exception to "no owner ids", and it is granted
-    // only to Oxy's OWN applications (`tier: 'internal'`, i.e. trusted
-    // first-party). A first-party service that is handed an asset id by a user
-    // (Mention ingesting a post from Oxy Move) must be able to check the asset is
+    // only to verified first-party workload authority, plus the exact live legacy
+    // workload cohort during reader-first rollout. The scope check above still
+    // requires the old token and live binding to retain files:read. Branding an
+    // external credential as internal never reveals ownership. A service handed
+    // an asset id by a user (Mention ingesting a post from Oxy Move) must be able to check the asset is
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner = req.serviceApp?.tier === 'internal';
+    const revealOwner =
+      req.serviceApp?.authority === 'first_party' ||
+      Boolean(req.serviceApp && (await resolveLegacyResourceWorkload(req.serviceApp)));
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
@@ -3757,10 +3770,28 @@ router.post(
 
     const files = await assetService.getFilesByIds(ids);
 
+    const requesterAccount =
+      req.serviceApp?.authority === 'first_party'
+        ? req.serviceRequester?.subjectAccountId
+        : undefined;
+    const readable = await Promise.all(
+      files.map(async (file) => {
+        if (!isServableStatus(file)) return null;
+        if (mayApplicationRead(file, appId)) return file;
+        // Account authority comes from the separately verified requester proof,
+        // never from the file owner or an arbitrary account header.
+        if (
+          requesterAccount &&
+          !file.ownerApplicationId &&
+          (await assetService.canUserAccessFile(file, requesterAccount))
+        )
+          return file;
+        return null;
+      }),
+    );
     const data = await Promise.all(
-      files
-        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
-        .filter((file) => isServableStatus(file) && mayApplicationRead(file, appId))
+      readable
+        .filter((file): file is NonNullable<typeof file> => file !== null)
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
@@ -4421,7 +4452,7 @@ router.post(
       validatedData = linkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -4506,7 +4537,7 @@ router.delete(
       validatedData = unlinkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }

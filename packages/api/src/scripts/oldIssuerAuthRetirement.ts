@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Administrative preparation only: no bootstrap, timers, AWS writes or automatic old restart. */
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -6,9 +7,9 @@ import { z } from 'zod';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import sessionService from '../services/session.service';
 
-const id = z.string().min(1).max(256);
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(256));
 const revision = z.string().regex(/^[0-9]+$/);
-const timestamp = z.string().datetime();
+const timestamp = z.string().check(isoDateTime());
 const method = {
   auth_method_id: id.nullable(),
   auth_method_owner_id: id.nullable(),

@@ -1,3 +1,9 @@
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
+jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
+jest.mock('../../services/securityActivityService', () => ({
+  __esModule: true,
+  default: { logDeviceAdded: jest.fn(), logSignIn: jest.fn() },
+}));
 /**
  * `/linked-accounts`, against a REAL Postgres and a fake Mastodon server.
  *
@@ -18,13 +24,13 @@
  *  - `returnTo` must be a redirect URI registered on a trusted app;
  *  - concurrent starts at a new instance register Oxy there once;
  *  - a private instance is refused before any request is made to it;
- *  - the service read requires `linked-accounts:read`;
+ *  - own service reads bind the verified requester account;
  *  - aliases follow live ActivityPub links.
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import type http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 
@@ -40,10 +46,16 @@ jest.mock('../../middleware/auth', () => ({
     next();
   },
   serviceAuthMiddleware: (
-    req: { headers: Record<string, string | undefined>; serviceApp?: unknown },
+    req: {
+      headers: Record<string, string | undefined>;
+      serviceApp?: unknown;
+      serviceRequester?: unknown;
+    },
     res: { status(code: number): { json(body: unknown): void } },
     next: () => void,
   ) => {
+    if (req.headers.authorization)
+      return jest.requireActual('../../middleware/auth').serviceAuthMiddleware(req, res, next);
     const scopes = req.headers['x-test-scopes'];
     if (scopes === undefined) return res.status(401).json({ error: 'Authentication required' });
     req.serviceApp = {
@@ -51,7 +63,10 @@ jest.mock('../../middleware/auth', () => ({
       credentialId: 'cred',
       scopes: scopes ? scopes.split(',') : [],
       tier: 'internal',
+      ...(req.headers['x-test-requester'] ? { authority: 'first_party' } : {}),
     };
+    if (req.headers['x-test-requester'])
+      req.serviceRequester = { subjectAccountId: req.headers['x-test-requester'] };
     next();
   },
 }));
@@ -282,10 +297,18 @@ interface Result {
 async function call(
   method: string,
   path: string,
-  options: { user?: string; scopes?: string; body?: unknown } = {},
+  options: {
+    user?: string;
+    scopes?: string;
+    requester?: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+  } = {},
 ): Promise<Result> {
   const { port } = server.address() as AddressInfo;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
+  Object.assign(headers, options.headers);
+  if (options.requester) headers['x-test-requester'] = options.requester;
   if (options.user) headers['x-test-user'] = options.user;
   if (options.scopes !== undefined) headers['x-test-scopes'] = options.scopes;
   const response = await fetch(`http://127.0.0.1:${port}/linked-accounts${path}`, {
@@ -744,13 +767,55 @@ describe('revoke', () => {
 });
 
 describe('service read — GET /by-user/:userId', () => {
-  it('requires linked-accounts:read', async () => {
+  it('keeps only the finite legacy reader and its live bounded scope during migration', async () => {
+    const legacyModule = await import('../../services/legacyResourceWorkload.service');
+    const principalModule = await import('../../services/agencyServicePrincipal.service');
+    const identity = {
+      applicationId: 'move-app',
+      credentialId: 'cred',
+      ownerAccountId: 'owner',
+      capabilities: [],
+    };
+    const legacy = jest
+      .spyOn(legacyModule, 'resolveLegacyResourceWorkload')
+      .mockResolvedValue({ ...identity, authority: 'first_party' });
+    const live = jest
+      .spyOn(principalModule, 'resolveLiveAgencyServicePrincipal')
+      .mockResolvedValue({ ...identity, authority: 'external', scopes: ['linked-accounts:read'] });
+    const user = await newUser();
+    try {
+      expect(
+        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
+      ).toBe(200);
+      live.mockResolvedValue({ ...identity, authority: 'external', scopes: [] });
+      expect(
+        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
+      ).toBe(403);
+      live.mockResolvedValue({
+        ...identity,
+        authority: 'external',
+        scopes: ['linked-accounts:read'],
+      });
+      legacy.mockResolvedValue(null);
+      expect(
+        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
+      ).toBe(403);
+    } finally {
+      legacy.mockRestore();
+      live.mockRestore();
+    }
+  });
+
+  it('refuses a scope-only caller and requires the matching own requester', async () => {
     const user = await newUser();
     expect((await call('GET', `/by-user/${user}`)).status).toBe(401);
     expect(
       (await call('GET', `/by-user/${user}`, { scopes: 'files:write,federation:write' })).status,
     ).toBe(403);
-    const ok = await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' });
+    expect((await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status).toBe(
+      403,
+    );
+    const ok = await call('GET', `/by-user/${user}`, { scopes: '', requester: user });
     expect(ok.status).toBe(200);
     expect(ok.body.data).toEqual({ userId: user, linkedAccounts: [] });
   });
@@ -759,7 +824,10 @@ describe('service read — GET /by-user/:userId', () => {
     const user = await newUser();
     const host = `svc-${randomUUID().slice(0, 8)}.example`;
     await linkVia(user, host, 'ivy');
-    const ok = await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' });
+    expect((await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status).toBe(
+      403,
+    );
+    const ok = await call('GET', `/by-user/${user}`, { scopes: '', requester: user });
     expect(ok.body.data.linkedAccounts).toEqual([
       expect.objectContaining({ accountKey: `ivy@${host}`, federatedUserId: null }),
     ]);
@@ -927,4 +995,192 @@ describe('atproto', () => {
     );
     expect(done.location).toBe(`${RETURN_TO}?link_error=access_denied`);
   });
+});
+
+describe('linked identities through real workload middleware', () => {
+  it('binds session and durable task proofs, revocation and workload identity over HTTP', async () => {
+    const { insertAccountFixtures } = await import('../../db/__fixtures__/accountIdentity');
+    const { bindWorkloadIdentity } = await import('../../services/workloadIdentityBinding.service');
+    const { mintServiceToken } = await import('../../services/serviceTokenMint.service');
+    const { default: sessionService } = await import('../../services/session.service');
+    const { createFirstPartyTask, revokeFirstPartyTask } = await import(
+      '../../services/firstPartyTasks.service'
+    );
+    const [owner, person, other] = await insertAccountFixtures([{}, {}, {}]);
+    const [app] = await getDb()
+      .insert(applications)
+      .values({
+        name: 'Linked accounts requester test',
+        ownerAccountId: owner.id,
+        status: 'active',
+        isOfficial: true,
+        scopes: [],
+      })
+      .returning();
+    const { binding } = await bindWorkloadIdentity({
+      applicationId: app.id,
+      subject: `arn:aws:iam::237343248947:role/test-linked-${randomUUID()}`,
+      environment: 'development',
+      actor: { isPlatformStaff: true, describedAs: 'test' },
+    });
+    const claims = {
+      appId: app.id,
+      appName: app.name,
+      credentialId: binding.attestationId,
+      ownerAccountId: owner.id,
+      environment: 'development' as const,
+      tier: 'internal' as const,
+      authority: 'first_party' as const,
+    };
+    const token = mintServiceToken(claims);
+    const presenter = {
+      applicationId: app.id,
+      credentialId: binding.attestationId,
+      ownerAccountId: owner.id,
+      authority: 'first_party' as const,
+      capabilities: [],
+    };
+    const session = await sessionService.createSession(
+      person.id,
+      { headers: {} } as import('express').Request,
+      { deviceId: randomUUID() },
+    );
+    const read = (userId: string, proof: Record<string, string> = {}, bearer = token) =>
+      call('GET', `/by-user/${userId}`, {
+        headers: { authorization: `Bearer ${bearer}`, ...proof },
+      });
+    expect((await read(person.id)).status).toBe(403);
+    expect((await read(person.id, { 'x-oxy-user-id': person.id })).status).toBe(403);
+    const proof = { 'x-oxy-requester-token': session.accessToken };
+    expect((await read(person.id, proof)).status).toBe(200);
+    expect((await read(other.id, proof)).status).toBe(403);
+    const task = await createFirstPartyTask(
+      {
+        origin: { kind: 'goal', id: randomUUID() },
+        actor: { type: 'requester', accountId: person.id },
+        effectiveAccountId: person.id,
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      },
+      session.accessToken,
+      presenter,
+    );
+    await sessionService.deactivateSession(session.sessionId);
+    expect((await read(person.id, proof)).status).toBe(403);
+    expect((await read(person.id, { 'x-oxy-task-id': task.id })).status).toBe(200);
+    expect((await read(other.id, { 'x-oxy-task-id': task.id })).status).toBe(403);
+    const { binding: wrongBinding } = await bindWorkloadIdentity({
+      applicationId: app.id,
+      subject: `arn:aws:iam::237343248947:role/test-linked-other-${randomUUID()}`,
+      environment: 'development',
+      actor: { isPlatformStaff: true, describedAs: 'test' },
+    });
+    const wrongCoordinator = mintServiceToken({
+      ...claims,
+      credentialId: wrongBinding.attestationId,
+    });
+    expect((await read(person.id, { 'x-oxy-task-id': task.id }, wrongCoordinator)).status).toBe(
+      403,
+    );
+    await revokeFirstPartyTask(task.id, presenter);
+    expect((await read(person.id, { 'x-oxy-task-id': task.id })).status).toBe(403);
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['linked-accounts:read'] })
+      .where(eq(applications.id, app.id));
+    const [customerKey] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: app.id,
+        name: 'Official app customer key',
+        publicKey: randomUUID(),
+        type: 'service',
+        environment: 'development',
+        scopes: ['linked-accounts:read'],
+      })
+      .returning();
+    const external = mintServiceToken({
+      ...claims,
+      credentialId: customerKey.id,
+      authority: 'external',
+      scopes: ['linked-accounts:read'],
+    });
+    expect((await read(person.id, {}, external)).status).toBe(403);
+    // An arbitrary new workload cannot use the finite legacy bridge merely by
+    // retaining the old scope and signing a v1-shaped token.
+    const legacy = mintServiceToken({
+      ...claims,
+      authority: 'external',
+      scopes: ['linked-accounts:read'],
+    });
+    expect((await read(person.id, {}, legacy)).status).toBe(403);
+  });
+});
+
+describe('atproto parser budgets on state and session restores', () => {
+  it('rejects old oversized serialized DPoP state before the upstream JWK parser', async () => {
+    const { assertLinkedAccountStateBudget, LinkedAccountJsonBudgetError } = await import(
+      '../../services/linkedAccounts/http'
+    );
+    const largeJwk = JSON.stringify({ keys: Array(10_000).fill(0) });
+    expect(() => assertLinkedAccountStateBudget({ dpopJwk: largeJwk })).toThrow(
+      LinkedAccountJsonBudgetError,
+    );
+    expect(() =>
+      assertLinkedAccountStateBudget({
+        dpopJwk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y', d: 'd' },
+      }),
+    ).not.toThrow();
+    await expect(
+      atprotoStoresForTesting.sessionStore.set('oversized-session', { dpopJwk: largeJwk }),
+    ).rejects.toThrow(LinkedAccountJsonBudgetError);
+    atprotoSessionsInFlight.set('oversized-session', { dpopJwk: largeJwk });
+    try {
+      await expect(atprotoStoresForTesting.sessionStore.get('oversized-session')).rejects.toThrow(
+        LinkedAccountJsonBudgetError,
+      );
+      await expect(
+        atprotoStoresForTesting.stateStore.set('unbound-state', {
+          appState: 'not-a-challenge',
+          dpopJwk: largeJwk,
+        }),
+      ).rejects.toThrow(LinkedAccountJsonBudgetError);
+    } finally {
+      atprotoSessionsInFlight.delete('oversized-session');
+    }
+  });
+});
+
+it('consumes and clears an oversized legacy OAuth state without restoring its JWK', async () => {
+  const { mintChallenge, bindProviderState } = await import(
+    '../../services/linkedAccounts/challenges'
+  );
+  const { LinkedAccountJsonBudgetError } = await import('../../services/linkedAccounts/http');
+  const userId = await newUser();
+  const [credential] = await getDb()
+    .select()
+    .from(applicationCredentials)
+    .where(eq(applicationCredentials.publicKey, client));
+  const challenge = await mintChallenge({
+    userId,
+    network: 'atproto',
+    clientApplicationId: credential.applicationId,
+    returnTo: RETURN_TO,
+  });
+  const state = `legacy-budget-${randomUUID()}`;
+  await bindProviderState(
+    challenge.id,
+    state,
+    { dpopJwk: JSON.stringify({ keys: Array(10_000).fill(0) }) },
+    'identity.example',
+  );
+  await expect(atprotoStoresForTesting.stateStore.get(state)).rejects.toThrow(
+    LinkedAccountJsonBudgetError,
+  );
+  const [stored] = await getDb()
+    .select()
+    .from(linkedAccountOauthChallenges)
+    .where(eq(linkedAccountOauthChallenges.id, challenge.id));
+  expect(stored.providerState).toBeNull();
+  expect(stored.usedAt).not.toBeNull();
+  await expect(atprotoStoresForTesting.stateStore.get(state)).resolves.toBeUndefined();
 });

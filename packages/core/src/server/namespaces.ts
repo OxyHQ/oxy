@@ -1,3 +1,4 @@
+import { bindExternalMcpMediaLane, type ExternalMcpMediaProof } from './externalMediaRequester';
 /**
  * The server-side halves of the namespaces: what exists only with a service
  * credential. `OxyServer` returns these from its namespace getters, so
@@ -9,6 +10,10 @@ import {
   type AgentAvailability,
   capabilityTicketRequestSchema,
   foregroundExecutionAuthorizationInputSchema,
+  firstPartyExecutionAuthorizationInputSchema,
+  firstPartyTaskInputSchema,
+  type FirstPartyTaskInput,
+  type FirstPartyExecutionAuthorizationInput,
   type ForegroundExecutionAuthorizationInput,
   type ActorRef,
   type AppCapabilityCatalog,
@@ -57,6 +62,7 @@ import type {
   ServiceUserMediaFile,
   ServiceUserMediaImport,
 } from '../models/interfaces';
+import { bindRequesterLane, type RequesterProof } from './requesterContext';
 import { AssetsApi } from '../api/assets';
 import {
   runLargeUpload,
@@ -74,7 +80,11 @@ import {
 import { NotificationsApi } from '../api/notifications';
 import { OxyApiError } from '../OxyServices.errors';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
-import { AgencyApi, type CapabilityExecutionAuthorization } from '../api/agency';
+import {
+  AgencyApi,
+  type CapabilityExecutionAuthorization,
+  type FirstPartyTask,
+} from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { AppsApi } from '../api/apps';
 import { AccountsApi } from '../api/accounts';
@@ -251,6 +261,24 @@ function uniqueIds(ids: string[]): string[] {
 }
 
 export class ServerAssetsApi extends AssetsApi {
+  /** Isolated requester context for uploads, imports, recordings and reads. */
+  /** Forward one externally granted MCP media action, keeping its original grant and account. */
+  withMcpMediaRequester(
+    proof: ExternalMcpMediaProof,
+  ): Pick<ServerAssetsApi, 'uploadUserMedia' | 'importUserMedia'> {
+    const service = bindExternalMcpMediaLane(lane(this.ctx), proof);
+    const assets = new ServerAssetsApi({ ...this.ctx, service, request: service.request });
+    return {
+      uploadUserMedia: assets.uploadUserMedia.bind(assets),
+      importUserMedia: assets.importUserMedia.bind(assets),
+    };
+  }
+
+  withRequester(proof: RequesterProof): ServerAssetsApi {
+    const service = bindRequesterLane(lane(this.ctx), proof);
+    return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
+  }
+
   /**
    * The calling application's own uses of files (`file_references`, ADR 0043
    * D4; scope `files:references:write`). The application is always the service
@@ -1245,10 +1273,13 @@ export class ServerNotificationsApi extends NotificationsApi {
 }
 
 export class ServerLinkedAccountsApi extends LinkedAccountsApi {
-  /**
-   * A user's live linked accounts, each with the federated shadow user Oxy holds
-   * for it (`federatedUserId`). Needs the privileged `linked-accounts:read`.
-   */
+  /** An isolated session, task or forwarded context for account-specific reads. */
+  withRequester(proof: RequesterProof): ServerLinkedAccountsApi {
+    const service = bindRequesterLane(lane(this.ctx), proof);
+    return new ServerLinkedAccountsApi({ ...this.ctx, request: service.request, service });
+  }
+
+  /** Live linked identities for the account verified by withRequester(). */
   async forUser(userId: string): Promise<ServiceLinkedAccountListResponse> {
     return lane(this.ctx).request<ServiceLinkedAccountListResponse>(
       'GET',
@@ -1443,9 +1474,57 @@ export class ServerAgencyApi extends AgencyApi {
     );
   }
 
+  async createTask(
+    input: FirstPartyTaskInput,
+    options: { requesterToken: string; signal?: AbortSignal },
+  ): Promise<FirstPartyTask> {
+    if (
+      !options.requesterToken ||
+      options.requesterToken.length > 16_384 ||
+      /\s/.test(options.requesterToken)
+    )
+      throw new Error('A requester bearer is required');
+    const result = await lane(this.ctx).request<{ task: FirstPartyTask }>(
+      'POST',
+      '/capabilities/tasks',
+      { ...firstPartyTaskInputSchema.parse(input), subjectToken: options.requesterToken },
+      agencyAuthorityOptions(options.signal),
+    );
+    return result.task;
+  }
+
+  async createTaskExecutionAuthorization(
+    taskId: string,
+    input: FirstPartyExecutionAuthorizationInput,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<CapabilityExecutionAuthorization> {
+    if (!taskId || taskId.length > 128 || /\s/.test(taskId))
+      throw new Error('A task id is required');
+    const result = await lane(this.ctx).request<{
+      authorization: CapabilityExecutionAuthorization;
+    }>(
+      'POST',
+      `/capabilities/tasks/${encodeURIComponent(taskId)}/execution-authorizations`,
+      firstPartyExecutionAuthorizationInputSchema.parse(input),
+      agencyAuthorityOptions(options.signal),
+    );
+    return result.authorization;
+  }
+
+  async revokeTask(taskId: string, options: { signal?: AbortSignal } = {}): Promise<void> {
+    if (!taskId || taskId.length > 128 || /\s/.test(taskId))
+      throw new Error('A task id is required');
+    await lane(this.ctx).request<void>(
+      'DELETE',
+      `/capabilities/tasks/${encodeURIComponent(taskId)}`,
+      undefined,
+      agencyAuthorityOptions(options.signal),
+    );
+  }
+
   /** Independent service proof plus present requester bearer, sent only to Oxy. */
   async createForegroundExecutionAuthorization(
-    input: ForegroundExecutionAuthorizationInput,
+    input: ForegroundExecutionAuthorizationInput | FirstPartyExecutionAuthorizationInput,
     options: { requesterToken: string; signal?: AbortSignal },
   ): Promise<CapabilityExecutionAuthorization> {
     if (
@@ -1460,7 +1539,10 @@ export class ServerAgencyApi extends AgencyApi {
       'POST',
       '/capabilities/foreground-execution-authorizations',
       {
-        ...foregroundExecutionAuthorizationInputSchema.parse(input),
+        ...('authority' in input
+          ? firstPartyExecutionAuthorizationInputSchema
+          : foregroundExecutionAuthorizationInputSchema
+        ).parse(input),
         subjectToken: options.requesterToken,
       },
       agencyAuthorityOptions(options.signal),

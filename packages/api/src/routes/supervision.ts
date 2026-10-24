@@ -1,3 +1,10 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import { resolveRequesterContext } from '../services/requesterContext.service';
+import {
+  resolveCapabilityRequester,
+  requireRequesterEffect,
+} from '../services/capabilityRequester.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { safetyOrganizationIdentities } from '../services/organization-directory.service';
 import {
   safetyProfileRequestSchema,
@@ -135,7 +142,7 @@ async function principal(req: ServiceAuthRequest): Promise<LiveAgencyServicePrin
       'A consumer service identity is required',
     );
   const live = await resolveLiveAgencyServicePrincipal(req.serviceApp);
-  if (!live || !live.scopes.includes('safety:decide'))
+  if (!live || !hasServiceAuthority(live, 'safety:decide'))
     throw new supervision.SafetyError(403, 'forbidden', 'Consumer authority is no longer active');
   return live;
 }
@@ -165,7 +172,26 @@ async function serviceContext(req: ServiceAuthRequest, requireUser: boolean) {
   const live = await principal(req);
   const proof = safetyRequesterSchema.parse(req.body.requester);
   let user: string | null;
-  if ('connectionToken' in proof) {
+  if ('requesterContext' in proof) {
+    const resolved = await resolveRequesterContext(proof.requesterContext, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The forwarded requester context is no longer authorized',
+      );
+    user = resolved.binding.subjectAccountId;
+  } else if ('capabilityTicket' in proof) {
+    const resolved = await resolveCapabilityRequester(proof.capabilityTicket, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The original operation is no longer authorized',
+      );
+    requireRequesterEffect(resolved, req.path.startsWith('/service/purchases') ? 'write' : 'read');
+    user = resolved.subjectAccountId;
+  } else if ('connectionToken' in proof) {
     const resolved = await resolveLiveMcpAccessToken(proof.connectionToken, live.applicationId);
     if (!resolved)
       throw new supervision.SafetyError(
@@ -591,7 +617,7 @@ router.post(
     safetyPurchaseRequestSchema.parse(req.body);
     const live = await purchasing(req);
     const token = z
-      .object({ accessToken: z.string().min(1).max(16384) })
+      .object({ accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
       .strict()
       .parse(req.body.requester).accessToken;
     const child = await requester(token, live);

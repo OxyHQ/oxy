@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 import { accountTitleSchema } from './accountName';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
@@ -21,13 +23,14 @@ export {
   ORGANIZATION_ERROR_CODES,
 } from './client/organizations';
 
-const id = z.string().min(1).max(128);
-const optionalText = (max: number) => z.string().trim().min(1).max(max).nullable().optional();
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
+const optionalText = (max: number) =>
+  z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(max)).nullable().optional();
 export const organizationAliasSchema = z
   .object({
-    alias: z.string().trim().min(1).max(300),
+    alias: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(300)),
     kind: z.enum(ORGANIZATION_ALIAS_KINDS),
-    language: z.string().min(2).max(35).optional(),
+    language: z.string().check(utf16MinLength(2)).check(utf16MaxLength(35)).optional(),
   })
   .strict();
 /** An organization is named by the title policy every non-personal account uses. */
@@ -39,8 +42,8 @@ export const createOrganizationSchema = z
     legalName: optionalText(300),
     websiteUrl: z
       .string()
-      .url()
-      .max(2048)
+      .check(urlCheck())
+      .check(utf16MaxLength(2048))
       .refine((value) => /^https?:\/\//.test(value), 'Use HTTP or HTTPS')
       .nullable()
       .optional(),
@@ -66,16 +69,16 @@ export const organizationSchema = createOrganizationSchema
     claimStatus: z.enum(ORGANIZATION_CLAIM_STATUSES),
     status: z.enum(ORGANIZATION_STATUSES),
     mergedIntoAccountId: id.nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const organizationSearchSchema = z
   .object({
-    query: z.string().trim().max(200).default(''),
+    query: z.string().trim().check(utf16MaxLength(200)).default(''),
     organizationType: z.enum(ORGANIZATION_TYPES).optional(),
-    limit: z.coerce.number().int().min(1).max(50).default(20),
-    cursor: z.string().min(1).max(2048).optional(),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(50).default(20),
+    cursor: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)).optional(),
   })
   .strict();
 export const organizationListSchema = z
@@ -90,7 +93,7 @@ export const organizationBatchSchema = z
   .strict();
 export const organizationClaimInputSchema = z
   .object({
-    evidenceReference: z.string().trim().min(1).max(1000),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(1000)),
   })
   .strict();
 export const organizationClaimSchema = z
@@ -99,21 +102,21 @@ export const organizationClaimSchema = z
     accountId: id,
     claimantUserId: id,
     status: z.enum(ORGANIZATION_CLAIM_DECISIONS),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const organizationClaimDetailSchema = organizationClaimSchema
   .extend({
     evidenceReference: z.string(),
     reviewEvidenceReference: z.string().nullable(),
-    reviewedAt: z.string().datetime().nullable(),
+    reviewedAt: z.string().check(isoDateTime()).nullable(),
   })
   .strict();
 export const organizationClaimListQuerySchema = z
   .object({
     status: z.enum(ORGANIZATION_CLAIM_DECISIONS).optional(),
-    limit: z.coerce.number().int().min(1).max(50).default(20),
-    cursor: z.string().min(1).max(2048).optional(),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(50).default(20),
+    cursor: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)).optional(),
   })
   .strict();
 export const organizationClaimListSchema = z
@@ -122,16 +125,16 @@ export const organizationClaimListSchema = z
 export const organizationClaimReviewSchema = z
   .object({
     decision: z.enum(['approved', 'rejected']),
-    evidenceReference: z.string().trim().min(1).max(1000),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(1000)),
   })
   .strict();
 export const organizationExternalInputSchema = z
   .object({
     namespace: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/),
-    externalId: z.string().min(1).max(256),
+    externalId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     accountId: id.optional(),
     organization: createOrganizationSchema,
-    evidenceReference: z.string().trim().min(1).max(1000),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(1000)),
     avatarFileId: id.optional(),
   })
   .strict();
@@ -171,7 +174,7 @@ export const organizationExternalResolutionSchema = z.object({ accountId: id }).
 export const organizationMergeSchema = z
   .object({
     targetAccountId: id,
-    evidenceReference: z.string().trim().min(1).max(1000),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(1000)),
   })
   .strict();
 export const organizationErrorSchema = z
@@ -209,7 +212,7 @@ export const organizationCurationSchema = z
   .object({
     changes: updateOrganizationSchema.optional(),
     status: z.enum(['active', 'inactive', 'suppressed']).optional(),
-    evidenceReference: z.string().trim().min(1).max(1000),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(1000)),
   })
   .strict()
   .refine(

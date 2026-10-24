@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * The signed Alia model release manifest — the ingestion contract for a
  * first-party model release.
@@ -99,10 +101,10 @@ import {
 export const aliaReleaseArtifactSchema = z
   .object({
     /** Path within the release, e.g. `model-00001-of-00004.safetensors`. */
-    path: z.string().min(1).max(512),
+    path: z.string().check(utf16MinLength(1)).check(utf16MaxLength(512)),
     digest: sha256DigestSchema,
-    sizeBytes: z.number().int().positive().safe(),
-    mediaType: z.string().min(1).max(255).optional(),
+    sizeBytes: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    mediaType: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
   })
   .strict();
 
@@ -132,7 +134,7 @@ export const aliaReleaseSignatureSchema = z
     algorithm: z.enum(['ed25519']),
     canonicalization: z.enum(['jcs']),
     /** Opaque identifier of the public key. Resolving it is undecided. */
-    keyId: z.string().min(1).max(256),
+    keyId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     /**
      * Unpadded base64url. Exactly 86 characters, which is a 64-byte Ed25519
      * signature — the one algorithm above. A second algorithm moves this length
@@ -161,7 +163,7 @@ export const aliaModelReleaseManifestSchema = z
     /** See `version.ts`: an ingestion payload is a whole message on the wire. */
     schemaVersion: z.literal(1),
     /** The release's own identity, so ingestion is idempotent on it. */
-    releaseId: z.string().min(1).max(128),
+    releaseId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     issuedAt: inferenceTimestampSchema,
     /**
      * The revision being released. Carries its OWN `schemaVersion`, like

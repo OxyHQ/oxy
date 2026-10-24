@@ -1,5 +1,11 @@
 # ADR 0042 — An agent acts for a present requester under its owner's published ceiling; present-requester assertions are retired
 
+> Internal scopes, own-app consent and agent per-app enablement requirements
+> are superseded by [ADR 0049](0049-first-party-platform-authority.md).
+> Resource ownership, identity and external-connection rules remain. See its
+> migration tracker for rollout state.
+
+
 - Status: accepted
 - Date: 2026-10-16
 - Amended: 2026-10-17 — the retirement below has shipped. Clarity's backend keeps `inference:invoke`: it is its metered search-embeddings relationship (`clarity-kaana`), not the retired lane. What the bootstrap used to provision is now reviewed seed source (Clarity's two applications, Homiio's organization-import grant, the `homiio` and `clarity` cost centres), and Homiio's application row loses the two scopes through migration `0181` (post), because the seed only ever unions scopes.

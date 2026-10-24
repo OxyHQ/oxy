@@ -1,3 +1,19 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import {
+  issueRequesterContext,
+  resolveRequesterContext,
+} from '../services/requesterContext.service';
+import { verifyServiceToken } from '../middleware/serviceToken';
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
+import {
+  resolveFirstPartyTask,
+  taskAllowsEffectiveAccount,
+} from '../services/firstPartyTasks.service';
+import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
+import { serviceActingAsAuthorityEpochs } from '../db/schema/serviceActingAsAuthorityEpochs';
+import { resolveLiveAgencyWorkloadByHandle } from '../services/agencyServicePrincipal.service';
+import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { OXY_SERVICE_ENVIRONMENTS } from '@oxy.so/core/server';
 /**
  * `/internal` — endpoints only another Oxy service may call.
@@ -70,7 +86,7 @@ import {
   infrastructureHeartbeatSchema,
 } from '../services/platformActivity.schema';
 import { publishPlatformActivity } from '../services/platformActivity.service';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { type AccountAccessVerdict, isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
 import { publicColumns } from '@oxy.so/db/assert';
@@ -164,7 +180,9 @@ const aliaMachineIntrospectionLimiter = rateLimit({
   max: 300,
   keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId || 'unknown',
 });
-const aliaMachineIntrospectionBody = z.object({ token: z.string().min(1).max(2048) }).strict();
+const aliaMachineIntrospectionBody = z
+  .object({ token: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)) })
+  .strict();
 
 /** Only Alia's own authenticated resource server may resolve this audience. */
 router.post(
@@ -218,35 +236,144 @@ router.post('/activity', (req, res) => {
  * that admits only one of them would silently deny every user with the other.
  */
 const serviceActingAsVerifyQuery = z.object({
-  credentialId: z.string().min(1).max(128).optional(),
-  ownerAccountId: z.string().min(1).max(128).optional(),
+  taskId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  credentialId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  ownerAccountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   environment: z.enum(OXY_SERVICE_ENVIRONMENTS).optional(),
-  appId: z.string().min(1).max(128),
-  userId: z.string().min(1).max(128),
+  appId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  userId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
 
 /**
- * `GET /internal/service-acting-as/verify?appId=&userId=`
- *
- * Answers the one question `@oxy.so/core`'s `oxy.auth()` asks before it will let
- * a service token name a user in `X-Oxy-User-Id`: does `appId` hold live,
- * user-granted authority to act as `userId`?
- *
- * `appId` is the application being asked ABOUT, which is not the caller. A
- * verifier (Syra) receives a token minted by another application (Alia) and asks
- * whether that application may act for the user it named.
- *
- * Always 200 with `{ authorized, scopes }`. Never 404, and never a different
- * status for "no such user" than for "no grant" — the caller learns whether this
- * exact delegation is live and nothing else about who exists.
+ * Verify a received service principal's requested account on behalf of a live
+ * receiving Oxy workload. Own callers supply the original shared-session token
+ * or a durable task ID bound to their exact workload. The verified account must
+ * match that proof, and own replies carry authority without scope arrays.
+ * External callers remain constrained by their live per-user delegation grant.
  */
 router.get(
   '/service-acting-as/verify',
   serviceActingAsVerifyLimiter,
   validate({ query: serviceActingAsVerifyQuery }),
   asyncHandler(async (req: ServiceAuthRequest, res) => {
-    const { appId, userId, credentialId, ownerAccountId, environment } =
+    const { appId, userId, credentialId, ownerAccountId, environment, taskId } =
       serviceActingAsVerifyQuery.parse(req.query);
+    const requesterToken = req.headers['x-oxy-requester-token'];
+    const presentedContext = req.headers['x-oxy-presented-requester-context'];
+    const presentedToken = req.headers['x-oxy-presented-service-token'];
+    if (
+      requesterToken !== undefined ||
+      taskId !== undefined ||
+      presentedContext !== undefined ||
+      presentedToken !== undefined
+    ) {
+      const denied = () =>
+        sendSuccess(res, { authorized: false, authority: 'first_party', epoch: '0' });
+      if (
+        req.serviceApp?.authority !== 'first_party' ||
+        !credentialId ||
+        !ownerAccountId ||
+        !environment ||
+        [requesterToken, taskId, presentedContext].filter((proof) => proof !== undefined).length !==
+          1
+      )
+        return denied();
+      const binding = await resolveLiveAgencyWorkloadByHandle(appId, credentialId);
+      if (
+        !binding?.environmentBound ||
+        binding.ownerAccountId !== ownerAccountId ||
+        binding.environment !== environment
+      )
+        return denied();
+      const caller = {
+        authority: 'first_party' as const,
+        applicationId: appId,
+        credentialId,
+        ownerAccountId,
+        capabilities: binding.capabilities,
+      };
+      const previous =
+        typeof presentedContext === 'string'
+          ? await resolveRequesterContext(presentedContext, caller)
+          : null;
+      const task = taskId ? await resolveFirstPartyTask(taskId, caller) : null;
+      const requester =
+        previous?.binding ??
+        (task
+          ? (await taskAllowsEffectiveAccount(task, userId, {
+              type: task.actorType,
+              accountId: task.actorAccountId ?? undefined,
+            }))
+            ? {
+                subjectAccountId: userId,
+                principalAccountId: task.requesterAccountId,
+                sessionId: task.requesterSessionId,
+                digest: task.requesterSessionBindingDigest,
+                expiresAt: task.expiresAt,
+              }
+            : null
+          : typeof requesterToken === 'string'
+            ? await validateForegroundRequesterBearer(requesterToken, caller)
+            : null);
+      if (!requester || requester.subjectAccountId !== userId) return denied();
+      let requesterContext: string | null = null;
+      if (presentedToken !== undefined) {
+        const received =
+          typeof presentedToken === 'string'
+            ? verifyServiceToken(presentedToken, `oxy-service:${req.serviceApp.appId}`)
+            : null;
+        if (
+          !received?.ok ||
+          received.payload.authority !== 'first_party' ||
+          received.payload.appId !== appId ||
+          received.payload.credentialId !== credentialId ||
+          received.payload.ownerAccountId !== ownerAccountId ||
+          received.payload.environment !== environment ||
+          typeof received.payload.exp !== 'number'
+        )
+          return denied();
+        const receiver = await resolveLiveAgencyServicePrincipal(req.serviceApp);
+        if (!receiver) return denied();
+        requesterContext = await issueRequesterContext({
+          caller,
+          receiver,
+          binding: {
+            ...requester,
+            expiresAt: new Date(
+              Math.min(requester.expiresAt.getTime(), received.payload.exp * 1000),
+            ),
+          },
+          source:
+            previous?.claims.source ??
+            (task
+              ? { kind: 'task', taskId: task.id }
+              : { kind: 'session', sessionId: requester.sessionId, digest: requester.digest }),
+          actor:
+            previous?.claims.actor ??
+            (task
+              ? { type: task.actorType, accountId: task.actorAccountId ?? undefined }
+              : { type: 'requester', accountId: requester.principalAccountId }),
+          ...(previous ? { previous: previous.claims } : {}),
+        });
+        if (!requesterContext) return denied();
+      } else if (presentedContext !== undefined) return denied();
+      const [generation] = await getDb()
+        .select({ epoch: serviceActingAsAuthorityEpochs.epoch })
+        .from(serviceActingAsAuthorityEpochs)
+        .where(
+          and(
+            eq(serviceActingAsAuthorityEpochs.userId, userId),
+            eq(serviceActingAsAuthorityEpochs.applicationId, appId),
+          ),
+        )
+        .limit(1);
+      return sendSuccess(res, {
+        authorized: true,
+        authority: 'first_party',
+        epoch: generation?.epoch.toString() ?? '0',
+        ...(requesterContext ? { requesterContext } : {}),
+      });
+    }
     const anyCredentialContext =
       credentialId !== undefined || ownerAccountId !== undefined || environment !== undefined;
     const grant =
@@ -292,8 +419,8 @@ const accountAccessLimiter = rateLimit({
  * live id shapes (legacy 24-hex and uuid v7), and nothing longer reaches a query.
  */
 const accountAccessParams = z.object({
-  accountId: z.string().trim().min(1).max(128),
-  userId: z.string().trim().min(1).max(128),
+  accountId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  userId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
 
 /**
@@ -339,7 +466,7 @@ router.get(
     if (!serviceApp) {
       throw new UnauthorizedError('Service authentication required');
     }
-    if (!serviceApp.scopes?.includes(ACCOUNT_MEMBERSHIP_READ_SCOPE)) {
+    if (!hasServiceAuthority(serviceApp, ACCOUNT_MEMBERSHIP_READ_SCOPE)) {
       throw new ForbiddenError(`This endpoint requires the ${ACCOUNT_MEMBERSHIP_READ_SCOPE} scope`);
     }
 
@@ -413,89 +540,22 @@ const serviceAccountSwitchLimiter = rateLimit({
  * Express produces from a repeated header, rather than letting a comma-joined
  * value fall through to a lookup that would merely miss.
  */
-const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
+const serviceAccountSwitchOperator = z
+  .string()
+  .trim()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(128));
 
 /**
- * `POST /internal/accounts/:id/service-switch`
+ * Mint a managed-account session for a verified own workload and original
+ * requester. Shared-session/task proof supplies the operator; live account:act_as
+ * membership and eligible target kind still govern the switch. Tasks additionally
+ * bind the target to their original effective account or exact self bot.
  *
- * Mint a REAL session whose SUBJECT is a managed account (`organization`,
- * `project` or `bot`), on the authority of a human who holds `account:act_as`
- * over it, with no session of theirs, no device and no browser in the request.
- *
- * This is what lets an Oxy application run an autonomous agent AS a real Oxy
- * account — a `bot` with its own identity, its own follows, its own posts and
- * its own audit trail — instead of as the application wearing a display name.
- *
- * ## It is the same operation as `POST /accounts/:id/switch`, from the other lane
- *
- * That route is the user-facing twin and stays the reference for what a switch
- * IS. It cannot serve this caller: its whole router sits under `authMiddleware`,
- * which refuses any bearer without a `sessionId` claim, and a service token
- * carries none. That refusal is structural rather than a guard aimed at
- * services, so it is not something to relax — a service principal genuinely is
- * not a session, and `resolveOperatorId` there reads `req.user._id`, which a
- * service token never populates.
- *
- * ## The order of the checks IS the authorization
- *
- *   1. the token carries `accounts:act-as-session`      → else 403
- *   2. the request names an operating human              → else 400
- *   3. that human explicitly granted this application     → else 403
- *   4. the target account exists and is not archived     → else 404
- *   5. the human holds `account:act_as` over it          → else 403
- *   6. the target is an act-as-eligible KIND             → else 403
- *
- * (1) is first because it is free and it is the gate that distinguishes this
- * endpoint from the router it sits on: EVERY application that reaches this file
- * is platform-trusted, so trust cannot be what authorizes minting a session as
- * somebody's bot. Without the scope this would be open to every first-party
- * service on the platform, which is why it is a NEW scope and not
- * `acting-as:offline` — that one authorizes per-request attribution, and reusing
- * it would have silently promoted every holder to minting durable bearers.
- *
- * (5) precedes (6) so a caller who cannot act as the account learns nothing
- * about what KIND of account it is. The user-facing twin orders these the other
- * way round and can afford to: it has already authorized a human. Here the two
- * refusals are indistinguishable to a caller with no relationship to the target.
- *
- * (4) does disclose existence, and that is accepted rather than overlooked. The
- * audience is the staff-controlled set of trusted first-party services this
- * router already serves, and the distinction earns its keep: a deleted bot and a
- * withdrawn membership need different remediations, and collapsing them into one
- * status would make an agent retry forever against an account that is gone.
- *
- * ## The blast radius, stated rather than implied
- *
- * THIS IS NOT A BOT-ONLY ENDPOINT. `isDelegatedActAsEligibleKind` admits `organization`
- * and `project` as well, so the scope permits an application to become a user's
- * ORGANIZATION, not merely the bot they built for it — with that organization's
- * billing surfaces, its members, its content and its ability to remove people.
- * That is the deliberate shape (a platform primitive, not an agent feature), and
- * it is written here so nobody has to infer it from a predicate's name.
- *
- * Trust opens the service router; it never supplies the human's decision.
- * `resolveServiceActingAsGrant` requires a real `app_grants` row naming
- * `acting-as:offline`, so the radius of one leaked credential is limited to
- * users who explicitly consented and accounts those users may actually operate.
- * Three independent checks bound it: the staff-granted token scope, the user's
- * explicit app grant, and the per-account `account:act_as` permission.
- *
- * ## What is deliberately NOT done
- *
- * The minted session is NOT registered into a device set
- * (`deviceSessionService.addAccount`), which the user-facing twin does do. A
- * backend has no device: there is no browser to restore it on reload and no
- * device room for a broadcast to reach. Registering one would invent a device
- * doc nothing ever reads and put a live-looking account into a set no human
- * holds.
- *
- * ## Revocation
- *
- * The session's validity stays bound to the operator's membership, because
- * `operatedByUserId` is recorded on it — the `account:act_as` re-check on
- * validate and refresh reads that column, so withdrawing the membership kills
- * the live session rather than merely refusing the next mint. Removing the app
- * grant or writing its revocation marker (step 3) refuses future mints.
+ * External credentials cannot mint shared sessions. Only the inventoried legacy
+ * workload cohort retains its old scoped/granted path during the fleet migration.
+ * The minted session records operatedByUserId so membership revocation remains
+ * effective on validation/refresh. No browser device registration is created.
  */
 router.post(
   '/accounts/:id/service-switch',
@@ -507,28 +567,69 @@ router.post(
       throw new UnauthorizedError('Service authentication required');
     }
 
-    if (!serviceApp.scopes?.includes(SERVICE_ACCOUNT_SWITCH_SCOPE)) {
+    if (serviceApp.authority !== 'first_party') {
+      const workload = await resolveLiveAgencyWorkloadByHandle(
+        serviceApp.appId,
+        serviceApp.credentialId,
+      );
+      if (
+        !workload ||
+        !isLegacyWorkloadCohort({
+          id: workload.bindingId,
+          applicationId: workload.applicationId,
+          provider: workload.provider,
+          subject: workload.subject,
+        })
+      ) {
+        throw new ForbiddenError('External credentials cannot mint shared Oxy sessions.');
+      }
+    }
+    if (!hasServiceAuthority(serviceApp, SERVICE_ACCOUNT_SWITCH_SCOPE)) {
       throw new ForbiddenError(`This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`);
     }
 
-    const operator = serviceAccountSwitchOperator.safeParse(req.headers['x-oxy-user-id']);
+    if (req.serviceRequester?.operation || req.serviceRequester?.forwardedContext)
+      throw new ForbiddenError('Operation context cannot mint shared sessions.');
+    const operator = serviceAccountSwitchOperator.safeParse(
+      serviceApp.authority === 'first_party'
+        ? req.serviceRequester?.principalAccountId
+        : req.headers['x-oxy-user-id'],
+    );
     if (!operator.success) {
       throw new BadRequestError(
-        'X-Oxy-User-Id must name the human operating this account. There is no session in this request to fall back to.',
+        'Verified requester session or task proof is required for this account switch.',
       );
     }
     const operatorId = operator.data;
     const accountId = req.params.id;
+    if (
+      serviceApp.authority === 'first_party' &&
+      typeof req.headers['x-oxy-task-id'] === 'string'
+    ) {
+      const task = await resolveFirstPartyTask(req.headers['x-oxy-task-id'], {
+        applicationId: serviceApp.appId,
+        credentialId: serviceApp.credentialId,
+      });
+      if (
+        !task ||
+        !(await taskAllowsEffectiveAccount(task, accountId, {
+          type: task.actorType,
+          accountId: task.actorAccountId ?? undefined,
+        }))
+      )
+        throw new ForbiddenError('The switch target is outside the original task.');
+    }
 
-    // The application's own authority to act for this human at all, and the
-    // door their revocation closes. `resolveServiceActingAsGrant` checks the
-    // revocation FIRST, ahead of anything that could authorize, so a user who
-    // said no is refused here whatever the membership below says.
-    const grant = await resolveServiceActingAsGrant(serviceApp.appId, operatorId, {
-      credentialId: serviceApp.credentialId,
-      ownerAccountId: serviceApp.ownerAccountId,
-      environment: serviceApp.environment,
-    });
+    // The finite legacy cohort retains its original scoped delegation checks.
+    // Own workload authority comes from the verified requester proof above.
+    const grant =
+      serviceApp.authority === 'first_party'
+        ? { authorized: true }
+        : await resolveServiceActingAsGrant(serviceApp.appId, operatorId, {
+            credentialId: serviceApp.credentialId,
+            ownerAccountId: serviceApp.ownerAccountId,
+            environment: serviceApp.environment,
+          });
     if (!grant.authorized) {
       logger.warn('[internal] service-switch refused: no live delegation', {
         callerAppId: serviceApp.appId,

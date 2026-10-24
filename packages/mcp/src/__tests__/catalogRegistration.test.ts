@@ -102,3 +102,20 @@ describe('registerCapabilityCatalog', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+it('uses an injected authenticated transport without a token callback or a second refresh loop', async () => {
+  const fetch = respond(201, {
+    registration: { id: 'own', version: catalog.version, digest: capabilityCatalogDigest(catalog) },
+  });
+  const transport = { fetch };
+  await expect(
+    registerCapabilityCatalog(catalog, { oxyApiUrl: 'https://api.oxy.so', transport }),
+  ).resolves.toMatchObject({ registrationId: 'own' });
+  expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+    redirect: 'error',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: { 'content-type': 'application/json' },
+  });
+  expect(fetch.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization');
+});

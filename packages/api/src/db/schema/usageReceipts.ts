@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `usage_receipts` + `usage_receipt_unit_prices` — the immutable settlement.
  *
@@ -89,10 +90,10 @@ import { INFERENCE_ENVIRONMENTS, usageReservations } from './usageReservations';
 import { users } from './users';
 
 /** `completed | partial | cancelled | failed`, from the wire contract. */
-export const INFERENCE_REQUEST_OUTCOMES = inferenceRequestOutcomeSchema.options;
+export const INFERENCE_REQUEST_OUTCOMES = enumValues(inferenceRequestOutcomeSchema.options);
 
 /** `provider_reported | oxy_measured | estimated`, from the wire contract. */
-export const USAGE_SOURCE_VALUES = usageSourceSchema.options;
+export const USAGE_SOURCE_VALUES = enumValues(usageSourceSchema.options);
 
 export const usageReceipts = pgTable(
   'usage_receipts',

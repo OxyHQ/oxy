@@ -1,3 +1,6 @@
+import type { RequesterContextClaims } from './requesterContext.service';
+import type { CapabilityRequesterOperation } from './capabilityRequester.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /** Present-requester approval within the existing capability ticket family. */
 import { createHash } from 'node:crypto';
 import { ApiError } from '../utils/error';
@@ -11,7 +14,6 @@ import { appGrants } from '../db/schema/appGrants';
 import { users } from '../db/schema/users';
 import { checkAccessTokenBinding, validateAccessToken } from '../utils/sessionUtils';
 import { isCredentialUsable } from '../utils/credentialUsability';
-import { isTrustedApplication } from '../utils/trustedApplication';
 import type { CachedSession } from '../utils/sessionCache';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import { readSessionAgentBinding } from './agentKeyAuthority.service';
@@ -23,6 +25,8 @@ export interface ForegroundRequesterBinding {
   subjectAccountId: string;
   digest: string;
   expiresAt: Date;
+  operation?: CapabilityRequesterOperation;
+  forwardedContext?: RequesterContextClaims;
 }
 
 function sessionDigest(session: CachedSession): string {
@@ -47,7 +51,7 @@ function sessionDigest(session: CachedSession): string {
 }
 
 async function liveSession(sessionId: string, presenter: LiveAgencyServicePrincipal) {
-  if (!presenter.scopes.includes('user:read')) return null;
+  if (!hasServiceAuthority(presenter, 'user:read')) return null;
   // This checks managed membership and bot key liveness without the cached
   // positive authority result. Account status/fences below are also fresh SQL.
   const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
@@ -74,6 +78,8 @@ async function liveSession(sessionId: string, presenter: LiveAgencyServicePrinci
       return null;
     throw error;
   }
+  // App-bound OAuth provenance stays external even if registry flags later change.
+  if (presenter.authority === 'first_party' && session.applicationId !== null) return null;
   if (session.applicationId !== null) {
     if (
       session.applicationId !== presenter.applicationId ||
@@ -116,21 +122,19 @@ async function liveSession(sessionId: string, presenter: LiveAgencyServicePrinci
       (client.credential.scopes.length > 0 && !client.credential.scopes.includes('user:read'))
     )
       return null;
-    // Preserve the existing OAuth consent rule: ordinary trusted first-party
-    // sign-in has no redundant standing grant. Untrusted consent must be live.
-    if (!isTrustedApplication(client.application)) {
-      const [grant] = await getDb()
-        .select({ scopes: appGrants.scopes })
-        .from(appGrants)
-        .where(
-          and(
-            eq(appGrants.userId, session.userId),
-            eq(appGrants.applicationId, presenter.applicationId),
-          ),
-        )
-        .limit(1);
-      if (!grant?.scopes.includes('user:read')) return null;
-    }
+    // OAuth provenance remains external, including credentials registered to
+    // an Oxy-owned application. Registry branding cannot remove its live grant.
+    const [grant] = await getDb()
+      .select({ scopes: appGrants.scopes })
+      .from(appGrants)
+      .where(
+        and(
+          eq(appGrants.userId, session.userId),
+          eq(appGrants.applicationId, presenter.applicationId),
+        ),
+      )
+      .limit(1);
+    if (!grant?.scopes.includes('user:read')) return null;
   }
   // The presenter resolver independently proves current first-party trust for
   // shared sessions; no app ID supplied by the requester participates here.

@@ -2,23 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { OxyServer } from '../OxyServer';
 
-/**
- * How an official service stops holding a secret WITHOUT a code change.
- *
- * `serviceToken()` has always required an api key and secret. It now falls
- * back to workload identity (ADR 0026) when there is none — which means the
- * migration for each of Oxy's own services is "delete two environment
- * variables", not "edit and redeploy an app".
- *
- * Three things have to be true for that to be safe, and each is asserted below:
- *
- *  1. A configured credential still wins. The fallback must not quietly change
- *     how an already-working service authenticates.
- *  2. With no credential AND no way to attest — a laptop, a CI box — the caller
- *     gets the same "no credentials" error as before, not a confusing failure
- *     from a container credentials endpoint that is not there.
- *  3. The token is cached, so a service does not mint one per request.
- */
+/** Explicit credentials retain external authority; ordinary own-service clients use infrastructure identity. */
 
 // One clock read: two could straddle a second and mint a 301 s token, which the
 // cache rightly refuses to reuse (OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS).
@@ -27,16 +11,16 @@ const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-  requestWorkloadServiceToken: jest.fn(async () => ({
+  requestLegacyWorkloadServiceToken: jest.fn(async () => ({
     token: mockToken,
     expiresIn: 300,
     appName: 'Mention',
   })),
 }));
 
-import { requestWorkloadServiceToken } from '../workloadIdentity';
+import { requestLegacyWorkloadServiceToken } from '../workloadIdentity';
 
-const attestations = requestWorkloadServiceToken as unknown as jest.Mock;
+const attestations = requestLegacyWorkloadServiceToken as unknown as jest.Mock;
 
 function client() {
   return new OxyServer({ baseURL: 'https://api.oxy.so' });
@@ -71,7 +55,7 @@ describe('service token — workload fallback', () => {
     expect(attestations).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves a configured credential alone', async () => {
+  it('keeps explicitly configured credentials external even on an attestable workload', async () => {
     const oxy = client();
     oxy.configureServiceAuth('oxy_dk_example', 'secret-example');
     // The credential path goes to the network; failing there is fine — what
@@ -84,34 +68,21 @@ describe('service token — workload fallback', () => {
   it('still says "no credentials" where nothing can be attested', async () => {
     process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '';
 
-    await expect(client().serviceToken()).rejects.toThrow(/Service credentials not provided/);
+    await expect(client().serviceToken()).rejects.toThrow(/No workload identity is available/);
     expect(attestations).not.toHaveBeenCalled();
   });
 });
 
-describe('workload scope cache separation', () => {
-  it('does not reuse a broad cached workload token for a narrow operation and clears every variant', async () => {
+describe('workload authority', () => {
+  it('refuses requested scopes instead of manufacturing an internal permission list', async () => {
     const previous = process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
     process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/scopes';
-    const token = (scopes: string[]) =>
-      `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300, scopes })).toString('base64url')}.fixture`;
     attestations.mockClear();
-    attestations.mockImplementation(async (options: { scopes?: string[] }) => ({
-      token: token(options.scopes ?? ['user:read', 'files:read']),
-      expiresIn: 300,
-      appName: 'App',
-    }));
     try {
-      const oxy = client(),
-        broad = await oxy.serviceToken();
-      expect(await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] })).not.toBe(
-        broad,
-      );
-      await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
-      expect(attestations).toHaveBeenCalledTimes(2);
-      oxy.invalidateServiceToken();
-      await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
-      expect(attestations).toHaveBeenCalledTimes(3);
+      await expect(
+        client().serviceToken(undefined, undefined, { scopes: ['user:read'] }),
+      ).rejects.toThrow('do not request scopes');
+      expect(attestations).not.toHaveBeenCalled();
     } finally {
       process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = previous ?? '';
     }

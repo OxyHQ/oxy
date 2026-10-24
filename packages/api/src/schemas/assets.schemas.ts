@@ -1,9 +1,10 @@
+import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { PLAY_SESSION_RENDITIONS } from '../db/schema/filePlaySessions';
 
 // Params with :id
 export const assetIdParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 // GET /assets (list)
@@ -56,8 +57,8 @@ export const batchAccessSchema = z.object({
   files: z
     .array(
       z.object({
-        fileId: z.string().trim().min(1),
-        variant: z.string().trim().min(1).optional(),
+        fileId: z.string().trim().check(utf16MinLength(1)),
+        variant: z.string().trim().check(utf16MinLength(1)).optional(),
       }),
     )
     .min(1, 'files must not be empty')
@@ -65,7 +66,7 @@ export const batchAccessSchema = z.object({
       MAX_BATCH_ACCESS_FILES,
       `Cannot request more than ${MAX_BATCH_ACCESS_FILES} files at once`,
     ),
-  expiresIn: z.number().int().positive().optional(),
+  expiresIn: z.number().check(integerCheck()).positive().optional(),
   context: z.string().optional(),
 });
 
@@ -97,7 +98,7 @@ export const MAX_FEDERATED_ASSET_DELETE_IDS = 20;
 export const federatedAssetDeleteBodySchema = z
   .object({
     ids: z
-      .array(z.string().trim().min(1).max(128))
+      .array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)))
       .min(1, 'ids must not be empty')
       .max(
         MAX_FEDERATED_ASSET_DELETE_IDS,
@@ -154,7 +155,7 @@ export const MAX_ASSETS_BY_IDS = 100;
 // POST /assets/service/by-ids
 export const assetsByIdsBodySchema = z.object({
   ids: z
-    .array(z.string().trim().min(1))
+    .array(z.string().trim().check(utf16MinLength(1)))
     .min(1, 'ids must not be empty')
     .max(MAX_ASSETS_BY_IDS, `Cannot request more than ${MAX_ASSETS_BY_IDS} assets at once`),
 });
@@ -173,7 +174,7 @@ export const MAX_ASSETS_LINKED_URL = 25;
 // POST /assets/service/linked-url
 export const assetsLinkedUrlBodySchema = z.object({
   ids: z
-    .array(z.string().trim().min(1))
+    .array(z.string().trim().check(utf16MinLength(1)))
     .min(1, 'ids must not be empty')
     .max(
       MAX_ASSETS_LINKED_URL,
@@ -201,7 +202,7 @@ export const assetsBySha256BodySchema = z.object({
     .max(MAX_ASSETS_BY_SHA256, `Cannot request more than ${MAX_ASSETS_BY_SHA256} hashes at once`),
   // Resolve each hash to THIS account's own live row (rows are per owner).
   // Omitted: the legacy answer, the oldest live row of any owner.
-  ownerUserId: z.string().trim().min(1).max(64).optional(),
+  ownerUserId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
 });
 
 // POST /assets/:id/links — a signed-in owner records that an application uses
@@ -212,24 +213,24 @@ export const assetsBySha256BodySchema = z.object({
 // `webhookUrl` is deprecated (D9): accepted for old clients, ignored — file
 // events go to the application's own endpoint now.
 export const linkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required'),
+  app: z.string().check(utf16MinLength(1, 'App name is required')),
+  entityType: z.string().check(utf16MinLength(1, 'Entity type is required')),
+  entityId: z.string().check(utf16MinLength(1, 'Entity ID is required')),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
-  webhookUrl: z.string().url().optional(),
+  webhookUrl: z.string().check(urlCheck()).optional(),
 });
 
 // DELETE /assets/:id/links — remove one application's use of a file.
 export const unlinkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required'),
+  app: z.string().check(utf16MinLength(1, 'App name is required')),
+  entityType: z.string().check(utf16MinLength(1, 'Entity type is required')),
+  entityId: z.string().check(utf16MinLength(1, 'Entity ID is required')),
 });
 
 // GET /assets/service/app — one page of the calling application's own files.
 export const listApplicationFilesQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional(),
-  cursor: z.string().min(1).max(512).optional(),
+  cursor: z.string().check(utf16MinLength(1)).check(utf16MaxLength(512)).optional(),
 });
 
 /** References per `POST`/`DELETE /assets/service/references` call. */
@@ -244,9 +245,9 @@ const serviceReferenceSchema = z
   .object({
     // As long as an entity id: an id that names no file is that reference's
     // answer (`not_found`), never a batch that fails.
-    fileId: z.string().trim().min(1).max(256),
-    entityType: z.string().trim().min(1).max(128),
-    entityId: z.string().trim().min(1).max(256),
+    fileId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    entityType: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    entityId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
   })
   .strict();
 
@@ -268,7 +269,7 @@ export const MAX_RECONCILE_PAGE_ITEMS = 1000;
 
 // POST /assets/service/references/reconcile — begin an inventory of one entity type.
 export const beginReconcileBodySchema = z
-  .object({ entityType: z.string().trim().min(1).max(128) })
+  .object({ entityType: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)) })
   .strict();
 
 // PUT /assets/service/references/reconcile/:sessionId — one page of the inventory.
@@ -280,8 +281,8 @@ export const reconcilePageBodySchema = z
           .object({
             // As long as an entity id: an id that names no file is an answer
             // (`refused` at commit), never a page that fails.
-            fileId: z.string().trim().min(1).max(256),
-            entityId: z.string().trim().min(1).max(256),
+            fileId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+            entityId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
           })
           .strict(),
       )
@@ -303,7 +304,7 @@ export const commitReconcileBodySchema = z
   .strict();
 
 export const reconcileSessionParams = z.object({
-  sessionId: z.string().trim().min(1).max(64),
+  sessionId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
 });
 
 /** Imports per `POST /assets/service/app/import/batch` call (ADR 0043 D7). */
@@ -312,8 +313,8 @@ export const MAX_IMPORT_BATCH_ITEMS = 50;
 /** The reference an import registers for the calling application in the same request. */
 const importReferenceSchema = z
   .object({
-    entityType: z.string().trim().min(1).max(128),
-    entityId: z.string().trim().min(1).max(256),
+    entityType: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    entityId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
   })
   .strict();
 
@@ -332,7 +333,7 @@ export const audioOptionsSchema = z
 export type AudioOptions = z.infer<typeof audioOptionsSchema>;
 
 const importItemShape = {
-  sourceUrl: z.string().trim().min(1).max(2048),
+  sourceUrl: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2048)),
   reference: importReferenceSchema.optional(),
   revalidate: z.boolean().optional(),
   audio: audioOptionsSchema.optional(),
@@ -381,10 +382,10 @@ const largeUploadShape = {
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'sha256 must be 64 hexadecimal characters')
     .transform((value) => value.toLowerCase()),
-  size: z.number().int().positive(),
-  mime: z.string().trim().min(1).max(255),
-  filename: z.string().trim().min(1).max(255).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  size: z.number().check(integerCheck()).positive(),
+  mime: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(255)),
+  filename: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   reference: importReferenceSchema.optional(),
   audio: audioOptionsSchema.optional(),
 };
@@ -413,14 +414,14 @@ export const ownLargeUploadBodySchema = z
   .strict();
 
 export const largeUploadParams = z.object({
-  uploadId: z.string().trim().min(1).max(64),
+  uploadId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
 });
 
 // POST …/uploads/:uploadId/parts — presigned URLs for these parts.
 export const largeUploadPartsBodySchema = z
   .object({
     partNumbers: z
-      .array(z.number().int().min(1).max(10_000))
+      .array(z.number().check(integerCheck()).min(1).max(10_000))
       .min(1)
       .max(MAX_UPLOAD_PART_URLS_PER_CALL),
   })
@@ -430,7 +431,7 @@ export const largeUploadPartsBodySchema = z
 // copy of a file it can read, sharing the stored bytes.
 export const appAdoptBodySchema = z
   .object({
-    fileId: z.string().trim().min(1).max(64),
+    fileId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     visibility: z.enum(['private', 'public', 'unlisted']),
     reference: importReferenceSchema.optional(),
   })
@@ -442,16 +443,16 @@ export const appAdoptBodySchema = z
 
 // DELETE /assets/:id/access/:applicationId — the owner revokes an application's access.
 export const fileAccessParams = z.object({
-  id: z.string().trim().min(1).max(64),
-  applicationId: z.string().trim().min(1).max(64),
+  id: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+  applicationId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
 });
 
 // POST /assets/service/streams — open a play session over a file's HLS ladder.
 export const playSessionBodySchema = z
   .object({
-    fileId: z.string().trim().min(1).max(64),
-    endUserId: z.string().trim().min(1).max(64).optional(),
-    ttlSeconds: z.number().int().min(60).max(43_200).optional(),
+    fileId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    endUserId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
+    ttlSeconds: z.number().check(integerCheck()).min(60).max(43_200).optional(),
     encryption: z.enum(['aes-128', 'none']).optional(),
     keyAuthorization: z.enum(['none', 'webhook']).optional(),
     /**
@@ -463,14 +464,14 @@ export const playSessionBodySchema = z
   .strict();
 
 export const playSessionParams = z.object({
-  sessionId: z.string().trim().uuid(),
+  sessionId: z.string().trim().guid(),
 });
 
 // POST /assets/service/streams/revoke — every live session for a file and/or an end user.
 export const revokePlaySessionsBodySchema = z
   .object({
-    fileId: z.string().trim().min(1).max(64).optional(),
-    endUserId: z.string().trim().min(1).max(64).optional(),
+    fileId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
+    endUserId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
   })
   .strict()
   .refine((body) => body.fileId !== undefined || body.endUserId !== undefined, {
@@ -479,21 +480,21 @@ export const revokePlaySessionsBodySchema = z
 
 // GET /assets/streams/:token/:name — a session's playlist, segment, key, preview or waveform.
 export const streamObjectParams = z.object({
-  token: z.string().min(1).max(200),
-  name: z.string().min(1).max(128),
+  token: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
 
 const recordingTargetShape = {
-  filename: z.string().trim().min(1).max(255).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  filename: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   reference: importReferenceSchema.optional(),
   maxBytes: z
     .number()
-    .int()
+    .check(integerCheck())
     .positive()
     .max(8 * 1024 ** 3)
     .optional(),
-  expiresInSeconds: z.number().int().min(60).max(604_800).optional(),
+  expiresInSeconds: z.number().check(integerCheck()).min(60).max(604_800).optional(),
   audio: audioOptionsSchema.optional(),
 };
 
@@ -511,9 +512,9 @@ export const userMediaRecordingTargetBodySchema = z
   .strict();
 
 export const recordingTargetParams = z.object({
-  targetId: z.string().trim().uuid(),
+  targetId: z.string().trim().guid(),
 });
 
 export const ingestImportParams = z.object({
-  importId: z.string().trim().uuid(),
+  importId: z.string().trim().guid(),
 });

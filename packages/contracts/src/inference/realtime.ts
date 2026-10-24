@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Realtime sessions — the one inference family that is not a request.
  *
@@ -131,13 +133,19 @@ export const MAX_REALTIME_RESUME_WINDOW_MS = 60_000;
 /* -------------------------------------------------------------------------- */
 
 /** A client-chosen command identity, unique within one session. */
-export const realtimeCommandIdSchema = z.string().min(1).max(128);
+export const realtimeCommandIdSchema = z
+  .string()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(128));
 
 /** A conversation item's identity within one session. */
-export const realtimeItemIdSchema = z.string().min(1).max(128);
+export const realtimeItemIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 
 /** A response's identity within one session. */
-export const realtimeResponseIdSchema = z.string().min(1).max(128);
+export const realtimeResponseIdSchema = z
+  .string()
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(128));
 
 /**
  * The audio encodings a session carries, in both directions. Named by what they
@@ -150,12 +158,12 @@ export const realtimeOutputModalitySchema = z.enum(['text', 'audio']);
 
 const audioFrameSchema = z
   .string()
-  .min(4)
-  .max(MAX_REALTIME_AUDIO_FRAME_BASE64_LENGTH)
+  .check(utf16MinLength(4))
+  .check(utf16MaxLength(MAX_REALTIME_AUDIO_FRAME_BASE64_LENGTH))
   .regex(PADDED_BASE64_PATTERN);
 
-const sequenceSchema = z.number().int().nonnegative().safe();
-const milliseconds = z.number().int().nonnegative().safe();
+const sequenceSchema = z.number().check(integerCheck()).nonnegative().check(safeNumberCheck());
+const milliseconds = z.number().check(integerCheck()).nonnegative().check(safeNumberCheck());
 
 /* -------------------------------------------------------------------------- */
 /*  Session configuration                                                     */
@@ -176,8 +184,8 @@ export const realtimeTurnDetectionSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('server_vad'),
       threshold: z.number().min(0).max(1).optional(),
-      prefixPaddingMs: z.number().int().min(0).max(5_000).optional(),
-      silenceDurationMs: z.number().int().min(0).max(10_000).optional(),
+      prefixPaddingMs: z.number().check(integerCheck()).min(0).max(5_000).optional(),
+      silenceDurationMs: z.number().check(integerCheck()).min(0).max(10_000).optional(),
       createResponse: z.boolean(),
       interruptResponse: z.boolean(),
     })
@@ -200,8 +208,8 @@ export const realtimeTurnDetectionSchema = z.discriminatedUnion('type', [
 export const realtimeInputTranscriptionSchema = z
   .object({
     /** A BCP 47 tag, when the caller knows the language. */
-    language: z.string().min(2).max(35).optional(),
-    prompt: z.string().max(4_096).optional(),
+    language: z.string().check(utf16MinLength(2)).check(utf16MaxLength(35)).optional(),
+    prompt: z.string().check(utf16MaxLength(4_096)).optional(),
   })
   .strict();
 
@@ -209,7 +217,7 @@ export const realtimeInputTranscriptionSchema = z
 export const realtimeTranslationSchema = z
   .object({
     /** A BCP 47 tag. */
-    targetLanguage: z.string().min(2).max(35),
+    targetLanguage: z.string().check(utf16MinLength(2)).check(utf16MaxLength(35)),
   })
   .strict();
 
@@ -224,9 +232,9 @@ export const realtimeTranslationSchema = z
  */
 export const realtimeSessionConfigSchema = z
   .object({
-    instructions: z.string().max(32_768).optional(),
+    instructions: z.string().check(utf16MaxLength(32_768)).optional(),
     outputModalities: z.array(realtimeOutputModalitySchema).min(1).max(2).optional(),
-    voice: z.string().min(1).max(64).optional(),
+    voice: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
     inputAudioFormat: realtimeAudioFormatSchema,
     outputAudioFormat: realtimeAudioFormatSchema.optional(),
     turnDetection: realtimeTurnDetectionSchema,
@@ -236,7 +244,12 @@ export const realtimeSessionConfigSchema = z
     toolChoice: toolChoiceSchema.optional(),
     temperature: z.number().min(0).max(2).optional(),
     /** Per response, not per session: the session's ceiling is `limits`. */
-    maxOutputTokens: z.number().int().positive().safe().optional(),
+    maxOutputTokens: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
   })
   .strict();
 
@@ -250,14 +263,19 @@ export const realtimeSessionConfigSchema = z
  */
 export const realtimeSessionConfigUpdateSchema = z
   .object({
-    instructions: z.string().max(32_768).optional(),
+    instructions: z.string().check(utf16MaxLength(32_768)).optional(),
     outputModalities: z.array(realtimeOutputModalitySchema).min(1).max(2).optional(),
     turnDetection: realtimeTurnDetectionSchema.optional(),
     inputAudioTranscription: realtimeInputTranscriptionSchema.optional(),
     tools: z.array(toolDefinitionSchema).max(128).optional(),
     toolChoice: toolChoiceSchema.optional(),
     temperature: z.number().min(0).max(2).optional(),
-    maxOutputTokens: z.number().int().positive().safe().optional(),
+    maxOutputTokens: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
   })
   .strict()
   .superRefine((update, ctx) => {
@@ -277,11 +295,27 @@ export const realtimeSessionConfigUpdateSchema = z
  */
 export const realtimeSessionLimitsSchema = z
   .object({
-    maxDurationMs: z.number().int().min(1_000).max(MAX_REALTIME_SESSION_DURATION_MS),
-    idleTimeoutMs: z.number().int().min(1_000).max(MAX_REALTIME_SESSION_DURATION_MS),
-    maxInputAudioBytes: z.number().int().positive().max(MAX_REALTIME_SESSION_AUDIO_BYTES),
-    maxOutputAudioBytes: z.number().int().positive().max(MAX_REALTIME_SESSION_AUDIO_BYTES),
-    maxResponses: z.number().int().positive().max(10_000),
+    maxDurationMs: z
+      .number()
+      .check(integerCheck())
+      .min(1_000)
+      .max(MAX_REALTIME_SESSION_DURATION_MS),
+    idleTimeoutMs: z
+      .number()
+      .check(integerCheck())
+      .min(1_000)
+      .max(MAX_REALTIME_SESSION_DURATION_MS),
+    maxInputAudioBytes: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .max(MAX_REALTIME_SESSION_AUDIO_BYTES),
+    maxOutputAudioBytes: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .max(MAX_REALTIME_SESSION_AUDIO_BYTES),
+    maxResponses: z.number().check(integerCheck()).positive().max(10_000),
   })
   .strict();
 
@@ -292,10 +326,10 @@ export const realtimeSessionLimitsSchema = z
 export const realtimeClientMetadataSchema = z
   .object({
     /** The public path, e.g. `/v1/realtime`. */
-    endpoint: z.string().min(1).max(256),
-    clientSessionId: z.string().min(1).max(128).optional(),
+    endpoint: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    clientSessionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     receivedAt: inferenceTimestampSchema,
-    labels: z.record(z.string().max(256)).optional(),
+    labels: z.record(z.string(), z.string().check(utf16MaxLength(256))).optional(),
   })
   .strict();
 
@@ -448,7 +482,9 @@ export const realtimeSessionRequestSchema = z
  * item echoing it carries only the format and, once known, the transcript.
  */
 export const realtimeContentPartSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('input_text'), text: z.string().max(1_048_576) }).strict(),
+  z
+    .object({ type: z.literal('input_text'), text: z.string().check(utf16MaxLength(1_048_576)) })
+    .strict(),
   z
     .object({
       type: z.literal('input_audio'),
@@ -489,8 +525,8 @@ export const realtimeConversationItemSchema = z
       .object({
         type: z.literal('function_call'),
         itemId: realtimeItemIdSchema.optional(),
-        callId: z.string().min(1).max(128),
-        name: z.string().min(1).max(128),
+        callId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+        name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
         arguments: z.string(),
       })
       .strict(),
@@ -498,8 +534,8 @@ export const realtimeConversationItemSchema = z
       .object({
         type: z.literal('function_call_output'),
         itemId: realtimeItemIdSchema.optional(),
-        callId: z.string().min(1).max(128),
-        output: z.string().max(1_048_576),
+        callId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+        output: z.string().check(utf16MaxLength(1_048_576)),
       })
       .strict(),
   ])
@@ -529,9 +565,14 @@ export const realtimeConversationItemSchema = z
 /** Per-response overrides for `response.create`. Absent fields keep the session's. */
 export const realtimeResponseParametersSchema = z
   .object({
-    instructions: z.string().max(32_768).optional(),
+    instructions: z.string().check(utf16MaxLength(32_768)).optional(),
     outputModalities: z.array(realtimeOutputModalitySchema).min(1).max(2).optional(),
-    maxOutputTokens: z.number().int().positive().safe().optional(),
+    maxOutputTokens: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
     toolChoice: toolChoiceSchema.optional(),
   })
   .strict();
@@ -576,7 +617,7 @@ export const realtimeItemTruncateCommandSchema = z.object({
   ...commandBase,
   type: z.literal('conversation.item.truncate'),
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   audioEndMs: milliseconds,
 });
 
@@ -617,7 +658,7 @@ export const realtimeResponseCancelCommandSchema = z.object({
 export const realtimeSessionResumeCommandSchema = z.object({
   ...commandBase,
   type: z.literal('session.resume'),
-  afterSequence: z.number().int().min(-1).safe(),
+  afterSequence: z.number().check(integerCheck()).min(-1).check(safeNumberCheck()),
 });
 
 export const realtimeSessionCloseCommandSchema = z.object({
@@ -669,7 +710,7 @@ export const realtimeSessionCreatedEventSchema = z.object({
   kind: realtimeSessionKindSchema,
   config: realtimeSessionConfigSchema,
   limits: realtimeSessionLimitsSchema,
-  resumeWindowMs: z.number().int().nonnegative().max(MAX_REALTIME_RESUME_WINDOW_MS),
+  resumeWindowMs: z.number().check(integerCheck()).nonnegative().max(MAX_REALTIME_RESUME_WINDOW_MS),
   startedAt: inferenceTimestampSchema,
   expiresAt: inferenceTimestampSchema,
 });
@@ -683,7 +724,7 @@ export const realtimeSessionUpdatedEventSchema = z.object({
 export const realtimeSessionResumedEventSchema = z.object({
   ...eventBase,
   type: z.literal('session.resumed'),
-  afterSequence: z.number().int().min(-1).safe(),
+  afterSequence: z.number().check(integerCheck()).min(-1).check(safeNumberCheck()),
 });
 
 /** Sent before a command is applied. `duplicate` means it was not applied again. */
@@ -719,7 +760,7 @@ export const realtimeItemTruncatedEventSchema = z.object({
   ...eventBase,
   type: z.literal('conversation.item.truncated'),
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   audioEndMs: milliseconds,
 });
 
@@ -766,7 +807,7 @@ export const realtimeOutputAudioDeltaEventSchema = z.object({
   type: z.literal('output_audio.delta'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   format: realtimeAudioFormatSchema,
   data: audioFrameSchema,
 });
@@ -776,7 +817,7 @@ export const realtimeOutputAudioDoneEventSchema = z.object({
   type: z.literal('output_audio.done'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
 });
 
 /**
@@ -790,7 +831,7 @@ export const realtimeTranscriptDeltaEventSchema = z.object({
   type: z.literal('transcript.delta'),
   source: realtimeTranscriptSourceSchema,
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   /** Present for `output_audio`: the response whose speech this is. */
   responseId: realtimeResponseIdSchema.optional(),
   text: z.string(),
@@ -801,7 +842,7 @@ export const realtimeTranscriptDoneEventSchema = z.object({
   type: z.literal('transcript.done'),
   source: realtimeTranscriptSourceSchema,
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   responseId: realtimeResponseIdSchema.optional(),
   transcript: z.string(),
 });
@@ -812,7 +853,7 @@ export const realtimeTextDeltaEventSchema = z.object({
   type: z.literal('text.delta'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
-  contentIndex: z.number().int().nonnegative().safe(),
+  contentIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   text: z.string(),
 });
 
@@ -822,8 +863,8 @@ export const realtimeToolCallEventSchema = z.object({
   type: z.literal('tool_call'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
-  toolCallId: z.string().min(1).max(128),
-  name: z.string().min(1).max(128).optional(),
+  toolCallId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   argumentsDelta: z.string().optional(),
   complete: z.boolean(),
 });

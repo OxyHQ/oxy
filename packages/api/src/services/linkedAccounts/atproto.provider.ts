@@ -37,7 +37,7 @@ import {
   oxyApiOrigin,
   type VerifiedExternalAccount,
 } from './common';
-import { linkedAccountTransport } from './http';
+import { assertLinkedAccountStateBudget, linkedAccountTransport } from './http';
 import { loadAtprotoOAuthModule } from './atprotoClientLoader';
 
 const ATPROTO_LINK_SCOPE = 'atproto';
@@ -118,9 +118,12 @@ export const atprotoSessionsInFlight = new Map<string, unknown>();
 
 const sessionStore: SimpleStore<unknown> = {
   async get(key) {
-    return atprotoSessionsInFlight.get(key);
+    const value = atprotoSessionsInFlight.get(key);
+    assertLinkedAccountStateBudget(value);
+    return value;
   },
   async set(key, value) {
+    assertLinkedAccountStateBudget(value);
     atprotoSessionsInFlight.set(key, value);
   },
   async del(key) {
@@ -130,6 +133,7 @@ const sessionStore: SimpleStore<unknown> = {
 
 const stateStore: SimpleStore<Record<string, unknown>> = {
   async set(key, value) {
+    assertLinkedAccountStateBudget(value);
     const challengeId = typeof value.appState === 'string' ? value.appState : null;
     if (!challengeId) throw new Error('atproto state carries no challenge id');
     let host: string | null = null;
@@ -146,6 +150,7 @@ const stateStore: SimpleStore<Record<string, unknown>> = {
   async get(key) {
     const spent = await spendChallenge('atproto', key);
     if (!spent?.providerState) return undefined;
+    assertLinkedAccountStateBudget(spent.providerState);
     // The row id IS the appState — restored from the row rather than trusted
     // from the stored blob.
     return { ...spent.providerState, appState: spent.id };

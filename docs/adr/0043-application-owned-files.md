@@ -1,5 +1,11 @@
 # ADR 0043 — Who owns a file, who uses it, and when it goes away
 
+> Internal scopes, own-app consent and agent per-app enablement requirements
+> are superseded by [ADR 0049](0049-first-party-platform-authority.md).
+> Resource ownership, identity and external-connection rules remain. See its
+> migration tracker for rollout state.
+
+
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
   1, 2, 3, 4a, 4b and 4c of the rollout are implemented on this branch; the
   release runbook is at the end)

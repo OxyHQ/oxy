@@ -90,20 +90,21 @@ beforeEach(() => {
   delete process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
   delete process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
   delete process.env.INBOX_INFERENCE_ROUTING_PROFILE_ID;
-  mockResolveCredentialAttribution.mockResolvedValue({
-    status: 'resolved',
-    attribution: {
-      credentialId: 'cred_1',
-      credentialType: 'service',
-      credentialEnvironment: 'live',
-      credentialScopes: ['inference:invoke'],
-      applicationScopes: ['inference:invoke'],
-      application: {
-        applicationId: INBOX_APPLICATION_ID,
-        applicationStatus: 'active',
-        ownerAccountId: 'account_1',
-      },
-    },
+  mockOwnWorkloadIdentity.mockResolvedValue({
+    provider: 'aws-iam',
+    subject: 'inbox-task',
+    attestationId: 'wl_000000000000000000000001',
+  });
+  mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
+    applicationId: INBOX_APPLICATION_ID,
+    provider: 'aws-iam',
+    subject: 'inbox-task',
+    handle: 'wl_000000000000000000000001',
+    ownerAccountId: 'account_1',
+    environment: 'production',
+    environmentBound: true,
+    scopes: [],
+    capabilities: [],
   });
   mockExecuteInferenceRequest.mockResolvedValue({
     status: 'completed',
@@ -159,39 +160,37 @@ describe('Inbox point inference routing', () => {
   it('still fails closed with no pair and no workload identity to prove', async () => {
     delete process.env.INBOX_APPLICATION_KEY;
     delete process.env.INBOX_APPLICATION_SECRET;
+    mockOwnWorkloadIdentity.mockResolvedValue(null);
 
     await expect(executeInboxPointInference(input())).rejects.toMatchObject({
       code: 'INBOX_INFERENCE_UNAVAILABLE',
     });
-    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
+    expect(mockOwnWorkloadIdentity).toHaveBeenCalled();
     expect(mockExecuteInferenceRequest).not.toHaveBeenCalled();
   });
 });
 
 describe('Inbox point inference identity', () => {
-  it('keeps the key pair when one is configured, even on a host that can attest', async () => {
-    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
-
+  it('uses workload authority without scopes even when a legacy key pair is configured', async () => {
     await executeInboxPointInference(input());
-
-    expect(mockResolveCredentialAttribution).toHaveBeenCalledWith('oxy_pk_inbox');
-    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
-    expect(mockResolveLiveAgencyWorkloadByHandle).not.toHaveBeenCalled();
-    const [context] = mockExecuteInferenceRequest.mock.calls[0] as [
-      { principal: { credentialId: string } },
-    ];
-    expect(context.principal.credentialId).toBe('cred_1');
+    expect(mockResolveCredentialAttribution).not.toHaveBeenCalled();
+    const context = mockExecuteInferenceRequest.mock.calls[0][0];
+    expect(context.principal).toMatchObject({
+      authority: 'first_party',
+      credentialId: 'wl_000000000000000000000001',
+    });
+    expect(context.principal).not.toHaveProperty('scopes');
   });
 
-  it('refuses half a pair rather than attesting instead', async () => {
-    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
-    delete process.env.INBOX_APPLICATION_SECRET;
-
+  it('refuses an unbound deployment environment', async () => {
+    mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
+      provider: 'aws-iam',
+      subject: 'inbox-task',
+      environmentBound: false,
+    });
     await expect(executeInboxPointInference(input())).rejects.toMatchObject({
       code: 'INBOX_INFERENCE_UNAVAILABLE',
     });
-    expect(mockResolveCredentialAttribution).not.toHaveBeenCalled();
-    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
     expect(mockExecuteInferenceRequest).not.toHaveBeenCalled();
   });
 
@@ -211,7 +210,9 @@ describe('Inbox point inference identity', () => {
       subject,
       handle: 'wl_000000000000000000000001',
       ownerAccountId: 'account_1',
-      scopes: ['inference:invoke'],
+      environment: 'production',
+      environmentBound: true,
+      scopes: [],
       capabilities: [],
     });
 
@@ -239,7 +240,9 @@ describe('Inbox point inference identity', () => {
       subject: 'arn:aws:iam::237343248947:role/some-other-task',
       handle: 'wl_000000000000000000000001',
       ownerAccountId: 'account_1',
-      scopes: ['inference:invoke'],
+      environment: 'production',
+      environmentBound: true,
+      scopes: [],
       capabilities: [],
     });
 

@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * `/reputation/moderation` — the HTTP surface of the reputation bridge.
  *
@@ -116,7 +117,7 @@ function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
   if (!serviceApp) {
     throw new UnauthorizedError('This endpoint requires a service credential');
   }
-  if (!serviceApp.scopes?.includes(scope)) {
+  if (!hasServiceAuthority(serviceApp, scope)) {
     throw new ForbiddenError(`Missing required scope: ${scope}`);
   }
 }

@@ -34,7 +34,6 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "react-native-web": "^0.21.0",
-    "shadcn": "catalog:",
     "socket.io-client": "catalog:",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.3.3",
@@ -42,6 +41,7 @@
     "vite": "npm:rolldown-vite@^7.3.1"
   },
   "devDependencies": {
+    "shadcn": "catalog:",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

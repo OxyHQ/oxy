@@ -44,10 +44,11 @@ export function validate(schemas: ValidationSchemas) {
       req.body = parseValidatedRequestValue(schemas.body, req.body);
     }
     if (schemas.params) {
-      req.params = parseValidatedRequestValue(schemas.params, req.params);
+      // A route schema may coerce params (for example policyVersion) to numbers.
+      Object.assign(req, { params: parseValidatedRequestValue(schemas.params, req.params) });
     }
     if (schemas.query) {
-      req.query = parseValidatedRequestValue(schemas.query, req.query);
+      Object.assign(req, { query: parseValidatedRequestValue(schemas.query, req.query) });
     }
     next();
   };

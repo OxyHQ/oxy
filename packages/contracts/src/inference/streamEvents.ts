@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Normalized stream events — what the data plane emits and the Oxy edge
  * forwards as SSE.
@@ -48,7 +50,7 @@ export const inferenceStreamStartEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('start'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   generationId: generationIdSchema.optional(),
   /** Always revision-pinned, even when the request named only the model. */
   resolvedModelReference: modelReferenceSchema,
@@ -68,9 +70,9 @@ export const inferenceStreamDeltaEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('delta'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   /** Which output of a multi-output response this chunk belongs to. */
-  outputIndex: z.number().int().nonnegative().safe(),
+  outputIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   /**
    * `output_audio_transcript` (contract set 3.2.0) carries the words of spoken
    * output requested with `audioOutput`. It is its own channel for the same
@@ -101,10 +103,14 @@ export const inferenceStreamAudioEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('audio'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
-  outputIndex: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+  outputIndex: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   mediaType: inferenceAudioMediaTypeSchema,
-  data: z.string().min(4).max(65536).regex(PADDED_BASE64_PATTERN),
+  data: z
+    .string()
+    .check(utf16MinLength(4))
+    .check(utf16MaxLength(65536))
+    .regex(PADDED_BASE64_PATTERN),
 });
 
 /**
@@ -118,10 +124,10 @@ export const inferenceStreamToolCallEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('tool_call'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
-  toolCallId: z.string().min(1).max(128),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+  toolCallId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
   /** Present on the first event of a call. */
-  name: z.string().min(1).max(128).optional(),
+  name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   argumentsDelta: z.string().optional(),
   complete: z.boolean(),
 });
@@ -166,7 +172,7 @@ export const inferenceStreamUsageEventSchema = z.object({
   schemaVersion: z.literal(2),
   type: z.literal('usage'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   /** Exact deployment whose metering produced these partial units. */
   deploymentId: deploymentIdSchema,
   units: z.array(usageQuantitySchema).min(1),
@@ -234,7 +240,7 @@ export const inferenceStreamRouteSwitchEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('route_switch'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   reason: inferenceRouteSwitchReasonSchema,
   detail: inferenceRouteSwitchDetailSchema,
   occurredAt: inferenceTimestampSchema,
@@ -249,7 +255,7 @@ export const inferenceStreamErrorEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('error'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   /** Carries its own `schemaVersion`: the same body is returned non-streaming. */
   error: inferenceErrorSchema,
 });
@@ -284,10 +290,10 @@ export const inferenceStreamDoneEventSchema = z.object({
   schemaVersion: z.literal(1),
   type: z.literal('done'),
   requestId: requestIdSchema,
-  sequence: z.number().int().nonnegative().safe(),
+  sequence: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   generationId: generationIdSchema.optional(),
   finishReason: inferenceFinishReasonSchema,
-  receiptId: z.string().min(1).max(128).optional(),
+  receiptId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   completedAt: inferenceTimestampSchema,
 });
 

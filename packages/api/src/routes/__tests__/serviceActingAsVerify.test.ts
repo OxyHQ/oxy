@@ -264,7 +264,7 @@ describe('caller trust', () => {
     expect(res.body.data).toBeUndefined();
   });
 
-  it('refuses a caller whose application is no longer active (403)', async () => {
+  it('refuses a caller whose application is no longer active (401)', async () => {
     // The token lives an hour. An application suspended inside that window must
     // lose the router immediately, not when its last token expires.
     const caller = await seedApp('internal', 'suspended');
@@ -274,7 +274,7 @@ describe('caller trust', () => {
 
     const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 });
 

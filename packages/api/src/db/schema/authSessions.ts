@@ -129,6 +129,8 @@ export const authSessions = pgTable(
     oauthCodeChallengeMethod: text({ enum: AUTH_SESSION_CHALLENGE_METHODS }),
     /** `NOT NULL` only in the sense the group CHECK enforces; `{}` means "no scopes". */
     oauthScopes: text().array(),
+    /** Application lane at request creation; changing classification requires a fresh request. */
+    oauthAuthority: text({ enum: ['first_party', 'external'] }),
     /**
      * OPTIONAL delegated subject — the account the app will act AS. `CASCADE`:
      * a request to act as a deleted account can never be finalized, and `SET
@@ -188,6 +190,10 @@ export const authSessions = pgTable(
     // `auth_sessions_session_token_key` is UNIQUE, so the lookup already lands
     // on one row and `status` is a free check on it.
 
+    check(
+      'auth_sessions_oauth_authority_check',
+      sql`${t.oauthAuthority} in ('first_party', 'external')`,
+    ),
     check(
       'auth_sessions_status_check',
       sql`${t.status} in (${sql.raw(AUTH_SESSION_STATUSES.map((value) => `'${value}'`).join(', '))})`,

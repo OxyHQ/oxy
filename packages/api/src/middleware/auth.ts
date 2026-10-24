@@ -1,5 +1,12 @@
-import { isSupervised } from '../services/supervisionPolicy.service';
-import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
+import {
+  hasExternalMcpMediaProof,
+  resolveExternalMcpMediaRequest,
+  type ExternalMcpMediaOperation,
+} from '../services/externalMcpMediaRequester.service';
+import { ForbiddenError } from '../utils/error';
+import { resolveServiceRequester } from '../services/serviceRequester.service';
+import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
+import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
@@ -292,23 +299,24 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
 /**
  * Request augmented by `serviceAuthMiddleware` with the verified service
- * principal. Routes can read `req.serviceApp.scopes` to gate sensitive
+ * principal. Routes use verified authority and resource ownership to gate sensitive
  * actions.
  */
 export interface ServiceAuthRequest extends Request {
   serviceApp?: ServiceTokenPayload;
+  serviceRequester?: ForegroundRequesterBinding;
+  serviceExternalMedia?: ExternalMcpMediaOperation;
 }
 
 /**
  * Service token authentication middleware
  *
- * Validates OAuth2 client-credentials service JWTs (type: 'service').
- * Only accepts tokens issued via POST /auth/service-token — rejects regular
- * user session tokens. Used to protect internal endpoints that should only
- * be called by other Oxy ecosystem services.
+ * Validates workload and external credential service JWTs (type: 'service').
+ * User sessions use the separate session middleware. Workload registry identity
+ * and requester session/task context are resolved live before reaching a route.
  *
- * Attaches the decoded service payload (including granted `scopes`) to
- * `req.serviceApp` so routes can do scope-level authorisation.
+ * Attaches the live service principal to `req.serviceApp`. First-party workloads
+ * use identity and requester session/task proof; external credentials keep scopes.
  *
  * @param req - Express request object
  * @param res - Express response object
@@ -332,21 +340,31 @@ export const serviceAuthMiddleware = async (
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     try {
-      if (
-        (await isSupervised(verification.payload.ownerAccountId)) ||
-        !(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId))
-      )
-        return sendAuthFailure(res, 403, {
-          error: 'Forbidden',
-          message: 'The owning account has no operating authority',
-        });
-    } catch {
+      const live = await resolveLiveServiceTokenAuthority(verification.payload);
+      if (!live) return res.status(401).json({ error: 'invalid_service_identity' });
+      const externalMedia = hasExternalMcpMediaProof(req.headers);
+      if (externalMedia && verification.payload.authority !== 'first_party')
+        throw new ForbiddenError('The registered resource workload is required.');
+      if (verification.payload.authority === 'first_party') {
+        const principal = live.principal;
+        if (externalMedia)
+          req.serviceExternalMedia = await resolveExternalMcpMediaRequest(principal, req);
+        else
+          req.serviceRequester = await resolveServiceRequester(
+            principal,
+            req.headers,
+            ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
+          );
+      }
+      req.serviceApp = live.payload;
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        return sendAuthFailure(res, 403, { error: 'Forbidden', message: error.message });
       return sendAuthFailure(res, 503, {
         error: 'Unavailable',
         message: 'Account authority could not be verified',
       });
     }
-    req.serviceApp = verification.payload;
     return next();
   }
 
@@ -394,7 +412,8 @@ export const simpleAuthMiddleware = async (
     }
 
     const token = authHeader.split(' ')[1];
-    if (!process.env.ACCESS_TOKEN_SECRET) {
+    const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
+    if (!accessTokenSecret) {
       logger.error('ACCESS_TOKEN_SECRET not configured');
       return res.status(500).json({
         error: 'Server configuration error',
@@ -404,7 +423,7 @@ export const simpleAuthMiddleware = async (
 
     try {
       // Decode token to check if it's session-based
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!) as TokenDecoded;
+      const decoded = jwt.verify(token, accessTokenSecret) as TokenDecoded;
 
       // Only session-based tokens are supported
       if (!decoded.sessionId) {

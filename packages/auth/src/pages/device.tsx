@@ -281,6 +281,14 @@ export function DevicePage() {
           the centered auth card, exactly as on `/authorize`. */}
       <div className="w-full">
         <OxyConsentScreen
+          mode={
+            application &&
+            (application.isOfficial ||
+              application.isInternal ||
+              ['first_party', 'internal', 'system'].includes(application.type ?? ''))
+              ? 'sign-in'
+              : 'consent'
+          }
           application={{
             name: application.name,
             iconUrl: application.icon ? getAvatarUrl(application.icon) : undefined,

@@ -353,6 +353,7 @@ async function oauthCode(
         oauthCodeChallenge: challenge,
         oauthCodeChallengeMethod: 'S256',
         oauthScopes: ['user:read'],
+        oauthAuthority: 'external',
         ...(explicitSubject ? { oauthSubjectAccountId: subject } : {}),
         expiresAt: new Date(Date.now() + 60_000),
       });
@@ -453,6 +454,7 @@ async function pendingOAuth(subject?: string) {
       oauthCodeChallenge: 'a'.repeat(43),
       oauthCodeChallengeMethod: 'S256',
       oauthScopes: ['user:read'],
+      oauthAuthority: 'external',
       ...(subject ? { oauthSubjectAccountId: subject } : {}),
     })
     .where(eq(authSessions.id, row.id));

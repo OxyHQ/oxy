@@ -26,29 +26,16 @@ import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
  */
 
 /**
- * Decoded payload for service-to-service JWTs minted via
- * `POST /auth/service-token`. Carries the `scopes` granted to the Application so
- * downstream middleware can do per-scope authorisation. The `appId` claim is the
- * Application `_id`.
+ * Signed service attribution: application, workload/credential, owning account,
+ * environment and audience. First-party workload authority has no scopes;
+ * external credentials carry bounded scopes. Signature verification alone does
+ * not establish live authority: receivers must resolve the registered principal.
  *
- * This is the whole canonical attribution tuple of ADR 0007 minus the delegated
- * user: application, credential and the OWNING ACCOUNT, all resolved server-side
- * at mint time from the presented credential. A verifier holding a valid token
- * can therefore name the financially responsible principal with no lookup.
- *
- * A delegated end user is deliberately ABSENT from this type. It arrives as the
- * `X-Oxy-User-Id` header, is authorised per request, and is attribution only —
- * see `resolveViewerId` in `middleware/optionalAuth.ts`. Nothing here may ever
- * hold it, because a field on this payload is exactly what code reaches for when
- * it wants "who is responsible for this request".
+ * A requester account is separate from billing attribution. A user-id header
+ * alone cannot establish it; session, task, capability or chained requester proof
+ * is validated per request before accessing personal resources (ADR 0049).
  */
-/**
- * Which side of the ecosystem boundary the calling application is on.
- *
- * `internal` and `external` classify the registered application; neither
- * bypasses scope ceilings or live offline delegation at a receiver. A token
- * minted before this claim existed reads as external.
- */
+/** Legacy wire metadata only. Never infer authority from tier or application branding. */
 export type ServiceTier = 'internal' | 'external';
 
 export interface ServiceTokenPayload {
@@ -67,7 +54,9 @@ export interface ServiceTokenPayload {
   environment: OxyServiceEnvironment;
   /** See {@link ServiceTier}. */
   tier: ServiceTier;
-  scopes: string[];
+  authority?: 'first_party' | 'external';
+  scopes?: string[];
+  audience?: string;
   iat?: number;
   exp?: number;
 }
@@ -105,6 +94,7 @@ type UnverifiedServiceClaims = {
   ownerAccountId?: string;
   environment?: unknown;
   tier?: unknown;
+  authority?: unknown;
   scopes?: unknown;
   iss?: unknown;
   aud?: unknown;
@@ -220,17 +210,28 @@ export function verifyServiceToken(
     !isExactNonEmptyString(decoded.appName) ||
     !isExactNonEmptyString(decoded.credentialId) ||
     !isExactNonEmptyString(decoded.ownerAccountId) ||
-    !isOxyServiceEnvironment(decoded.environment) ||
-    !Array.isArray(decoded.scopes) ||
-    !decoded.scopes.every(
-      (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
-    ) ||
-    new Set(decoded.scopes).size !== decoded.scopes.length
+    !isOxyServiceEnvironment(decoded.environment)
   ) {
     return { ok: false, reason: 'not_service' };
   }
 
-  const scopes = decoded.scopes as string[];
+  const firstParty = decoded.authority === 'first_party';
+  if (firstParty) {
+    if (
+      decoded.scopes !== undefined ||
+      !/^wl_[a-f0-9]{24}$/.test(decoded.credentialId) ||
+      decoded.tier !== 'internal' ||
+      decoded.aud !== audience
+    ) {
+      return { ok: false, reason: 'invalid' };
+    }
+  } else if (
+    (decoded.authority !== undefined && decoded.authority !== 'external') ||
+    !Array.isArray(decoded.scopes) ||
+    !decoded.scopes.every((scope) => isExactNonEmptyString(scope)) ||
+    new Set(decoded.scopes).size !== decoded.scopes.length
+  )
+    return { ok: false, reason: 'invalid' };
 
   return {
     ok: true,
@@ -242,7 +243,10 @@ export function verifyServiceToken(
       ownerAccountId: decoded.ownerAccountId,
       environment: decoded.environment,
       tier: decoded.tier === 'internal' ? 'internal' : 'external',
-      scopes,
+      authority: firstParty ? 'first_party' : 'external',
+      // Preserve exact audience provenance; an accepted legacy audience array is not an exact recipient.
+      audience: typeof decoded.aud === 'string' ? decoded.aud : undefined,
+      ...(firstParty ? {} : { scopes: decoded.scopes as string[] }),
       iat: decoded.iat,
       exp: decoded.exp,
     },

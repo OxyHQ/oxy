@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.5.1
+
+### Changed
+
+- Remove the unused Zod dependency; protocol validation continues through the shared client checks.
+- Package against contracts 6. Protocol exports and signed wire formats are unchanged.
+
 ## 1.5.0
 
 Same `@oxy.so/contracts`.

@@ -849,6 +849,7 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: |
           bun scripts/test-check-dependency-audit.mjs
+          bun scripts/test-zod-audit-paths.mjs
           bun scripts/test-forge-audit-policy.mjs
       - name: 'Native Expo crypto: sealed fork and compatibility checks'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}

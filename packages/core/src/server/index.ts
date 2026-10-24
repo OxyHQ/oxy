@@ -318,3 +318,11 @@ export {
 } from './serviceTokenLifetime';
 export { signInAgentAccount } from './agentAccount';
 export type { AgentAccountSigner } from './agentAccount';
+
+export type { ServiceClientOptions, ServiceHttpClient } from './OxyServer';
+export type { WorkloadCredentials, WorkloadCredentialProvider } from './workloadIdentity';
+
+export { OxyRequesterClient } from './requesterClient';
+export type { RequesterProof } from './requesterContext';
+
+export type { ExternalMcpMediaProof } from './externalMediaRequester';

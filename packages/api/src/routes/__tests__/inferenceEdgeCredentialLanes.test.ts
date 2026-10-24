@@ -555,6 +555,7 @@ function signServiceToken(input: {
   ownerAccountId: string;
   credentialId: string;
   scopes?: string[];
+  authority?: 'first_party';
 }): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
@@ -564,7 +565,9 @@ function signServiceToken(input: {
     credentialId: input.credentialId,
     ownerAccountId: input.ownerAccountId,
     environment: 'development',
-    scopes: input.scopes ?? ['inference:invoke'],
+    ...(input.authority === 'first_party'
+      ? { authority: 'first_party', tier: 'internal' }
+      : { scopes: input.scopes ?? ['inference:invoke'] }),
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: issuedAt,
@@ -848,6 +851,7 @@ async function bindWorkload(
       provider: 'aws-iam',
       subject,
       description: `lane suite ${suffix()}`,
+      environment: 'development',
       scopes: options.scopes ?? [],
     })
     .returning({ id: applicationWorkloadIdentities.id });
@@ -892,12 +896,12 @@ async function bindWorkload(
  */
 describe('the attested service-token lane', () => {
   /** The token an attestation of `subject` mints: the handle as `credentialId`. */
-  function attestedToken(fixture: Fixture, handle: string, scopes?: string[]): string {
+  function attestedToken(fixture: Fixture, handle: string): string {
     return signServiceToken({
       applicationId: fixture.applicationId,
       ownerAccountId: fixture.accountId,
       credentialId: handle,
-      ...(scopes === undefined ? {} : { scopes }),
+      authority: 'first_party',
     });
   }
 
@@ -909,7 +913,8 @@ describe('the attested service-token lane', () => {
       credentialId,
       ownerAccountId: fixture.accountId,
       environment: 'development',
-      scopes: ['inference:invoke'],
+      authority: 'first_party',
+      tier: 'internal',
     };
   }
 
@@ -943,6 +948,8 @@ describe('the attested service-token lane', () => {
     // The handle travels as the principal's credential id all the way into the
     // data plane's attribution block, unchanged.
     expect(seen[0].attribution.principal.credentialId).toBe(handle);
+    expect(seen[0].attribution.principal.authority).toBe('first_party');
+    expect(seen[0].attribution.principal).not.toHaveProperty('inferenceScopes');
 
     // The reservation was held against the attested identity — the exact INSERT
     // that used to fail `usage_reservations_application_credential_id_…`.

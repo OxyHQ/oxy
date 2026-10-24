@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Model documentation: what a first-party release must DECLARE, what a
  * downstream developer may READ, and the request that ingests both.
@@ -153,7 +155,7 @@ export const modelSystemicRiskTierSchema = z.enum([
  */
 export const trainingComputeFlopsSchema = z
   .string()
-  .max(40)
+  .check(utf16MaxLength(40))
   .regex(
     /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:e\+?(?:0|[1-9][0-9]?))?$/,
     'training compute must be a decimal or scientific figure, e.g. 4.2e25',
@@ -190,13 +192,13 @@ export const SYSTEMIC_RISK_COMPUTE_THRESHOLD_FLOPS = 1e25;
 export const modelDownstreamDocumentationSchema = z
   .object({
     /** Annex XI §1(2), Annex XII §1(a): the tasks the model is intended for. */
-    intendedTasks: z.string().min(1).max(2000).optional(),
+    intendedTasks: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2000)).optional(),
     /** Annex XI §1(4), Annex XII §1(a). */
     distributionMethods: z.array(modelDistributionMethodSchema).min(1),
     /** Annex XI §1(5), reachable through Annex XII §1(a) ("points 1 to 5"). */
-    architecture: z.string().min(1).max(500).optional(),
+    architecture: z.string().check(utf16MinLength(1)).check(utf16MaxLength(500)).optional(),
     /** Annex XI §1(5): the number of parameters. */
-    parameterCount: z.number().int().positive().safe().optional(),
+    parameterCount: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
     /** Article 53(1)(d): the publicly available summary of training content. */
     trainingDataSummaryUrl: inferenceHttpsUrlSchema,
     /**
@@ -236,13 +238,13 @@ export const modelGpaiDocumentationSchema = modelDownstreamDocumentationSchema
     /** Annex XI §2(b): the computational resources used for training. */
     trainingComputeFlops: trainingComputeFlopsSchema.optional(),
     /** Annex XI §2(b): the training time. */
-    trainingTimeHours: z.number().positive().safe().optional(),
+    trainingTimeHours: z.number().positive().check(safeNumberCheck()).optional(),
     /**
      * Annex XI §2(c): the known or ESTIMATED energy consumption. The Act asks
      * for an estimate where the figure is not known, so absence here means the
      * Annex XI set is exempt rather than that the number was hard to obtain.
      */
-    energyConsumptionMwh: z.number().nonnegative().safe().optional(),
+    energyConsumptionMwh: z.number().nonnegative().check(safeNumberCheck()).optional(),
     /**
      * Article 55(1)(a): the model evaluation, including adversarial testing,
      * performed for a model with systemic risk. A pointer, like every other
@@ -352,8 +354,8 @@ export const modelGpaiDocumentationSchema = modelDownstreamDocumentationSchema
  */
 export const modelLineDeclarationSchema = z
   .object({
-    displayName: z.string().min(1).max(200),
-    description: z.string().max(4000).optional(),
+    displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+    description: z.string().check(utf16MaxLength(4000)).optional(),
     capabilities: modelCapabilitiesSchema,
     knowledgeCutoff: inferenceDateSchema.optional(),
     releasedOn: inferenceDateSchema.optional(),
@@ -398,15 +400,15 @@ export const modelReleaseIngestionResultSchema = z
   .object({
     /** See `version.ts`: served on its own, so it is versioned. */
     schemaVersion: z.literal(1),
-    releaseId: z.string().min(1).max(128),
+    releaseId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     modelId: modelIdSchema,
     revision: modelRevisionLabelSchema,
     reference: modelReferenceSchema,
     /** Whether this request created the release, or found it already ingested. */
     outcome: z.enum(['ingested', 'already_ingested']),
-    artifactCount: z.number().int().positive().safe(),
-    signatureCount: z.number().int().positive().safe(),
-    evaluationCount: z.number().int().nonnegative().safe(),
+    artifactCount: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    signatureCount: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    evaluationCount: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
     ingestedAt: inferenceTimestampSchema,
   })
   .strict();

@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * Request schemas for the staff catalogue-admin surface (`/inference/admin/*`).
  *
@@ -21,18 +22,22 @@ import {
 import { DEPLOYMENT_LEGAL_REVIEW_STATUSES } from '../db/schema';
 import { DEPLOYMENT_PERMISSION_ACTIONS } from '../services/inferenceCatalogueAdmin.service';
 
-export const deploymentParams = z.object({ deploymentId: z.string().min(1).max(128) });
+export const deploymentParams = z.object({
+  deploymentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+});
 
 /** Exact Kaana identity, deliberately not named like an Oxy catalogue row id. */
 export const kaanaDeploymentParams = z.object({
   kaanaDeploymentId: z
     .string()
-    .min(1)
-    .max(128)
+    .check(utf16MinLength(1))
+    .check(utf16MaxLength(128))
     .refine((value) => value === value.trim(), 'Kaana deployment identity must be exact'),
 });
 
-export const revisionParams = z.object({ revisionId: z.string().min(1).max(128) });
+export const revisionParams = z.object({
+  revisionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+});
 
 /**
  * The widest window a metrics read may ask for.
@@ -72,8 +77,8 @@ export const metricsQuery = z
   .object({
     from: isoDay,
     to: isoDay,
-    accountId: z.string().min(1).max(128).optional(),
-    applicationId: z.string().min(1).max(128).optional(),
+    accountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+    applicationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   })
   .strict()
   .refine((value) => value.from <= value.to, {
@@ -97,15 +102,17 @@ export const permissionActionParams = deploymentParams.extend({
   action: z.enum(DEPLOYMENT_PERMISSION_ACTIONS),
 });
 
-export const permissionActionBody = z.object({ note: z.string().max(500).optional() }).strict();
+export const permissionActionBody = z
+  .object({ note: z.string().check(utf16MaxLength(500)).optional() })
+  .strict();
 
 /** Existing immutable fee-version ID only; this surface never authors money. */
 export const platformFeePriceVersionBody = z
   .object({
     platformFeePriceVersionId: z
       .string()
-      .min(1)
-      .max(128)
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(128))
       .refine((value) => value === value.trim(), 'price version identity must be exact'),
   })
   .strict();
@@ -114,16 +121,16 @@ export const platformFeePriceVersionResponse = z
   .object({
     data: z
       .object({
-        deploymentId: z.string().min(1).max(128),
-        platformFeePriceVersionId: z.string().min(1).max(128),
+        deploymentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+        platformFeePriceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
       })
       .strict(),
   })
   .strict();
 
-const routingScore = z.number().int().min(-1_000_000).max(1_000_000).nullable();
-const evidenceRef = z.string().trim().min(1).max(500);
-const instant = z.string().datetime({ offset: true });
+const routingScore = z.number().check(integerCheck()).min(-1_000_000).max(1_000_000).nullable();
+const evidenceRef = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500));
+const instant = z.string().check(isoDateTime({ offset: true }));
 
 const measuredRoutingScore = z
   .object({
@@ -169,7 +176,7 @@ export const routingScoresBody = z
         score: routingScore,
         source: z.enum(PRICE_ROUTING_SCORE_SOURCES),
         evidenceRef,
-        priceVersionId: z.string().trim().min(1).max(128),
+        priceVersionId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
       })
       .strict(),
     latency: measuredRoutingScore,
@@ -179,7 +186,7 @@ export const routingScoresBody = z
         score: routingScore,
         source: z.enum(BALANCED_ROUTING_SCORE_SOURCES),
         evidenceRef,
-        formulaRef: z.string().trim().min(1).max(500),
+        formulaRef: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500)),
         validUntil: instant,
       })
       .strict(),
@@ -192,7 +199,12 @@ export const routingScoresBody = z
           .string()
           .regex(/^\d+(?:\.\d{1,12})?$/)
           .nullable(),
-        remainingUnit: z.string().trim().min(1).max(64).nullable(),
+        remainingUnit: z
+          .string()
+          .trim()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(64))
+          .nullable(),
         observedAt: instant.nullable(),
         validUntil: instant.nullable(),
       })
@@ -235,7 +247,7 @@ export const routingScoresBody = z
           });
         }
       }),
-    reason: z.string().trim().min(1).max(500),
+    reason: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500)),
   })
   .strict();
 
@@ -244,7 +256,7 @@ export const routingScorecardResponse = z
   .object({
     data: z
       .object({
-        deploymentId: z.string().min(1).max(128),
+        deploymentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
         scorecard: routingScoresBody,
       })
       .strict(),
@@ -267,12 +279,12 @@ export const routingScorecardResponse = z
  * defect on every request.
  */
 export const spendAnomalyQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(100) })
   .strict();
 
 /** The token half's read, bounded identically — see {@link spendAnomalyQuery}. */
 export const tokenAnomalyQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(100) })
   .strict();
 
 export const legalReviewBody = z
@@ -283,7 +295,7 @@ export const legalReviewBody = z
      * cannot tell a real matter reference from a plausible one, so the database
      * additionally refuses an approval whose reference is blank after trimming.
      */
-    evidenceRef: z.string().min(1).max(200).optional(),
+    evidenceRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(200)).optional(),
   })
   .strict();
 
@@ -306,12 +318,12 @@ export const catalogueSyncBody = z
 export const catalogueBlockBody = z
   .object({
     modelId: modelIdSchema,
-    reason: z.string().trim().min(1).max(500),
+    reason: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500)),
   })
   .strict();
 
 /** `DELETE /catalogue/blocklist/:publisher/:model`. */
 export const catalogueBlockParams = z.object({
-  publisher: z.string().min(1).max(128),
-  model: z.string().min(1).max(128),
+  publisher: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  model: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
 });
