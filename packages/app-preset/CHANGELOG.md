@@ -1,5 +1,25 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 4.1.0
+
+### Fixed
+
+- `import … from 'react-native'` on native no longer loses every name
+  NativeWind's `react-native-css/components` shim does not list. React Native
+  0.88 added `AssetRegistry`, which Expo SDK 58's `expo-asset` imports from
+  `'react-native'`; the shim lacked it, every `useFonts` failed with
+  `Cannot read property 'getAssetByID' of undefined`, and Android release builds
+  stayed on a blank screen. Metro now resolves that import to
+  `metro/react-native.js`: the shim's own getters unchanged, plus a forwarding
+  getter for each remaining name of React Native's index. No `node_modules`
+  patch is needed (upstream: nativewind/react-native-css#506, #504).
+
+### Added
+
+- `withCompleteReactNative(config, projectRoot)` from `@oxy.so/app-preset/metro`,
+  the same fix for an app that still composes `withNativeWind` itself. Apply it
+  last.
+
 ## 4.0.0
 
 ### Breaking

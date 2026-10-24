@@ -6,6 +6,11 @@ const { after, before, test } = require('node:test');
 const Module = require('node:module');
 
 const originalLoad = Module._load;
+const CSS_COMPONENTS_ENTRY =
+  '/repo/node_modules/react-native-css/dist/commonjs/components/index.cjs';
+const COMPLETE_REACT_NATIVE = path.resolve(__dirname, '../metro/react-native.js');
+const WORKLETS_SHIM =
+  '/repo/node_modules/react-native-worklets/bundleMode/shims/reactNativeShim.js';
 let createOxyMetroConfig;
 let findWorkspaceRoot;
 /** Configs worklets' `getBundleModeMetroConfig` was handed. */
@@ -21,11 +26,11 @@ before(() => {
               assetExts: ['png', 'svg', 'woff'],
               sourceExts: ['js', 'ts'],
               extraNodeModules: { existing: '/existing' },
-              resolveRequest: (context, moduleName, platform) => ({
-                context,
-                moduleName,
-                platform,
-              }),
+              // Where NativeWind's resolver sends `react-native` on native.
+              resolveRequest: (context, moduleName, platform) =>
+                moduleName === 'react-native' && platform !== 'web'
+                  ? { type: 'sourceFile', filePath: CSS_COMPONENTS_ENTRY }
+                  : { context, moduleName, platform },
             },
             transformer: { minifierConfig: { compress: { existing: true } } },
           };
@@ -36,6 +41,12 @@ before(() => {
       return {
         getBundleModeMetroConfig(config) {
           bundleModeWrapped.push(config);
+          // Worklets' own redirect: every `react-native` but its shim's.
+          const parent = config.resolver.resolveRequest;
+          config.resolver.resolveRequest = (context, moduleName, platform) =>
+            moduleName === 'react-native' && context.originModulePath !== WORKLETS_SHIM
+              ? { type: 'sourceFile', filePath: WORKLETS_SHIM }
+              : parent(context, moduleName, platform);
           config.workletsBundleMode = true;
           return config;
         },
@@ -247,4 +258,47 @@ test('Bundle Mode is opt-in, and wraps the finished config last', () => {
   // What worklets wraps is the finished config: Bloom's resolver (and its
   // web `ws` shim) is already in it, for worklets' resolver to hand down to.
   assert.deepEqual(config.resolver.resolveRequest({}, 'ws', 'web'), { type: 'empty' });
+});
+
+test('react-native gets the completed shim, over every other resolver, Bundle Mode included', () => {
+  const projectRoot = '/repo/packages/frontend';
+  const app = '/repo/app/index.tsx';
+  for (const workletsBundleMode of [false, true]) {
+    const { resolveRequest } = createOxyMetroConfig(projectRoot, { workletsBundleMode }).resolver;
+    const metro = [];
+    const resolve = (originModulePath, moduleName, platform = 'android') =>
+      resolveRequest(
+        {
+          originModulePath,
+          resolveRequest: (context, name, target) => {
+            metro.push([context.originModulePath, name, target]);
+            return { type: 'sourceFile', filePath: `/resolved/${name}` };
+          },
+        },
+        moduleName,
+        platform,
+      );
+
+    if (workletsBundleMode) {
+      // Worklets' shim first; ITS react-native is the completed one.
+      assert.equal(resolve(app, 'react-native').filePath, WORKLETS_SHIM);
+      assert.equal(resolve(WORKLETS_SHIM, 'react-native').filePath, COMPLETE_REACT_NATIVE);
+    } else {
+      assert.equal(resolve(app, 'react-native').filePath, COMPLETE_REACT_NATIVE);
+    }
+    // Web, and any other module, are what the resolvers beneath answered.
+    assert.notEqual(resolve(app, 'react-native', 'web').filePath, COMPLETE_REACT_NATIVE);
+    assert.equal(resolve(app, 'react').moduleName, 'react');
+
+    // The completed module's own imports reach Metro from the project, never a
+    // redirect beneath (NativeWind's would return the module itself, worklets'
+    // a shim that requires it back).
+    for (const moduleName of ['react-native', 'react-native-css/components']) {
+      assert.equal(resolve(COMPLETE_REACT_NATIVE, moduleName).filePath, `/resolved/${moduleName}`);
+    }
+    assert.deepEqual(metro, [
+      [`${projectRoot}/package.json`, 'react-native', 'android'],
+      [`${projectRoot}/package.json`, 'react-native-css/components', 'android'],
+    ]);
+  }
 });

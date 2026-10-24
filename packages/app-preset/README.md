@@ -232,6 +232,37 @@ paths are escaped and block only their descendants. `extraNodeModules`,
 `extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
 defaults without replacing them.
 
+#### `react-native` on native: the complete NativeWind shim (4.1.0+)
+
+On native, NativeWind's resolver sends every `import … from 'react-native'`
+outside React Native itself to `react-native-css/components`, a shim that
+re-exports a FIXED list of React Native's API. A name React Native adds and the
+list lacks reads as `undefined`: React Native 0.88 added `AssetRegistry`, Expo
+SDK 58's `expo-asset` imports it from `'react-native'`, every `useFonts` failed
+(`Cannot read property 'getAssetByID' of undefined`), Bloom's font loader never
+rendered its children, and Android release builds showed a blank screen with no
+visible error (upstream: nativewind/react-native-css#506, #504).
+
+`createOxyMetroConfig` returns `metro/react-native.js` wherever NativeWind
+resolved `react-native` to that shim: the shim's own properties, copied as they
+are (so `className` behaves exactly as NativeWind makes it), plus every other
+name of React Native's index, forwarded to React Native. Only a request for
+exactly `react-native` that NativeWind resolved to the shim is touched; web,
+deep `react-native/…` imports and every other module resolve as before. No
+`node_modules` patch is needed, and a name React Native adds later is covered
+without one. An app that wraps the returned `resolveRequest` in its own (Allo's
+`@hpke` and harness aliases) sits above this one, which is fine as long as it
+hands `react-native` and `react-native-css/components` down unchanged.
+
+An app that still composes `withNativeWind` itself gets the same fix by
+wrapping its finished config, LAST (over worklets' Bundle Mode too):
+
+```js
+const { withCompleteReactNative } = require('@oxy.so/app-preset/metro');
+
+module.exports = withCompleteReactNative(withNativeWind(config, options), __dirname);
+```
+
 ### 3. Babel (`babel.config.js`)
 
 ```js
