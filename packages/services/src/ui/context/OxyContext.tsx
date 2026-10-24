@@ -130,8 +130,6 @@ export {
   OxyProviderMissingError,
 } from './oxyRuntimeContext';
 
-const subscribeNever = (): (() => void) => () => undefined;
-
 /**
  * The SDK's internal runtime provider — the session/account state machine that
  * backs `useOxy()`.
@@ -350,24 +348,23 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // a persistence write is never dropped because it raced storage init.
   const queryClient = useQueryClient();
 
-  // The app's per-account offline cache (`accountQueries`). Built once, like the
-  // runtime. `handleSubjectChange` activates it BEFORE anyone is woken, so a
-  // consumer of the new account never reads the previous account's rows.
-  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null | undefined>(undefined);
-  if (accountQueryPersistenceRef.current === undefined) {
-    accountQueryPersistenceRef.current = accountQueries
-      ? createAccountQueryPersistence(queryClient, accountQueries)
-      : null;
+  // The account's offline cache: the app's `accountQueries` roots and every
+  // query marked `meta: { persist: 'account' }`. Built once, like the runtime.
+  // `handleSubjectChange` activates it BEFORE anyone is woken, so a consumer of
+  // the new account never reads the previous account's rows.
+  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null>(null);
+  if (accountQueryPersistenceRef.current === null) {
+    accountQueryPersistenceRef.current = createAccountQueryPersistence(queryClient, accountQueries);
   }
   const accountQueryPersistence = accountQueryPersistenceRef.current;
   useEffect(() => {
-    accountQueryPersistence?.attach();
-    return () => accountQueryPersistence?.detach();
+    accountQueryPersistence.attach();
+    return () => accountQueryPersistence.detach();
   }, [accountQueryPersistence]);
   const isAccountCacheReady = useSyncExternalStore(
-    accountQueryPersistence ? accountQueryPersistence.subscribe : subscribeNever,
-    () => accountQueryPersistence?.isReady() ?? true,
-    () => accountQueryPersistence?.isReady() ?? true,
+    accountQueryPersistence.subscribe,
+    accountQueryPersistence.isReady,
+    accountQueryPersistence.isReady,
   );
 
   const storageRef = useRef<StorageInterface | null>(null);
@@ -409,7 +406,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .then((storageInstance) => {
         storageRef.current = storageInstance;
         storageReady.resolve(storageInstance);
-        accountQueryPersistence?.setStorage(storageInstance);
+        accountQueryPersistence.setStorage(storageInstance);
         if (mounted) {
           setStorage(storageInstance);
           runtime.setStorageReady(true);
@@ -418,7 +415,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .catch((err) => {
         // Nothing persisted can be restored; the account cache still has to
         // become ready, or RequireOxyAuth would wait forever.
-        accountQueryPersistence?.setStorage(createMemoryStorage());
+        accountQueryPersistence.setStorage(createMemoryStorage());
         if (mounted) {
           logger('Failed to initialize storage', err);
           onError?.({
@@ -1378,9 +1375,20 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       runtime.setAccount(cached.user);
     });
     onAuthStateChangeRef.current?.(cached.user);
+    // The account's cached queries are part of this paint: one local read,
+    // started by the subject change above, so nothing renders without them.
+    await accountQueryPersistence.whenReady();
     markAuthResolvedRef.current();
     return true;
-  }, [identity, clientIdProp, authStore, oxyServices, runtime, syncDeviceCredentialToHost]);
+  }, [
+    identity,
+    clientIdProp,
+    authStore,
+    oxyServices,
+    runtime,
+    syncDeviceCredentialToHost,
+    accountQueryPersistence,
+  ]);
 
   // A painted session the server could not be asked about yet stays on screen
   // and is asked again: on the lost-token backoff, and at once when the device
@@ -1687,7 +1695,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     ({ previous, next }: SubjectTransition): void => {
       // Every transition, the first sign-in included: the account cache is
       // keyed by the subject, and a sign-out deletes the signed-out one's.
-      accountQueryPersistence?.activate(next);
+      accountQueryPersistence.activate(next);
       if (previous === null) {
         return;
       }

@@ -83,6 +83,7 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 - `@tanstack/react-query-persist-client` wired in `@oxy.so/services` (AsyncStorage; localStorage-backed on web).
 - Query whitelist: `accounts`, `users`, `sessions`, `devices`, `privacy`, `payments` queries are persisted; mutations always persisted; 30-day TTL; 1s throttle; v1 cache cleanup on startup.
 - `OxyProvider` awaits `restored` before exposing the QueryClient → first paint serves cached data, not a loading spinner.
+- Per-account data: `accountQueries` roots, or ONE query marked `meta: { persist: 'account' }` (`AccountQueryMeta`; no declaration). Stored per account, dropped on a switch, deleted on sign-out; a painted cold boot resolves auth only after it is restored (`whenReady`). A persister serializes only when one of ITS queries changes. Mark the reads that shape a returning user's first paint, never lists — `accountQueryPersistence.ts`.
 - `useOnlineStatus()` hook in `@oxy.so/services` — built on `useSyncExternalStore` over `onlineManager`; use for offline banners in app UIs.
 - TanStack Query must use a consistent `^5.x` major version across services, console, and test-app-expo — check each workspace's `package.json` for the pinned range.
 

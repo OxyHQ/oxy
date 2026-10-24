@@ -150,6 +150,8 @@ export interface OxyProviderProps {
    * account switch and deleted on sign-out. `RequireOxyAuth` waits for the
    * signed-in account's cache to restore, so another account's rows never
    * render. Works with the SDK's client or one passed as `queryClient`.
+   * A single query opts in with `meta: { persist: 'account' }` and needs no
+   * declaration here (`AccountQueryMeta`).
    */
   accountQueries?: AccountQueriesConfig;
   /**

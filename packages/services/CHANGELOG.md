@@ -1,5 +1,28 @@
 # Changelog
 
+## [13.2.0] - 2026-10-24
+
+### Added
+
+- A single query can be kept across restarts for the signed-in account with
+  `meta: { persist: 'account' }` (type `AccountQueryMeta`), without declaring
+  its root in `accountQueries`: it is written to that account's blob, restored
+  before the account cache is ready, dropped from memory on an account switch
+  and deleted on sign-out, exactly like a declared root. Meant for the few
+  reads that shape a returning user's first paint (tab layout, theme), not for
+  lists. Apps that pass no `accountQueries` get this too.
+
+### Changed
+
+- A cold boot that paints a saved session resolves `isAuthResolved` only once
+  the account's cached queries are restored (one local read), so the first
+  paint already has them instead of shifting a moment later.
+- The SDK's query persisters serialize only when a query they keep (or a
+  mutation) changes; activity in other queries (feeds, search) no longer
+  re-serializes them.
+- An account cache whose stored blob cannot be read becomes ready empty
+  instead of never becoming ready.
+
 ## [13.1.0] - 2026-10-24
 
 ### Added

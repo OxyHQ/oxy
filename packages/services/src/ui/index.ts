@@ -34,7 +34,7 @@ export { LogoText } from './components/logo/LogoText';
 export { RequireOxyAuth } from './components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './components/RequireOxyAuth';
 // `OxyProvider`'s `accountQueries`: the app's per-account offline cache.
-export type { AccountQueriesConfig } from './hooks/accountQueryPersistence';
+export type { AccountQueriesConfig, AccountQueryMeta } from './hooks/accountQueryPersistence';
 export { default as FollowButton } from './components/FollowButton';
 export { default as PeableButton } from './components/PeableButton';
 export type { PeableButtonProps } from './components/PeableButton';
