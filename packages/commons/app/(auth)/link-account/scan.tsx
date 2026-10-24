@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icons } from '@/constants/icons';
-import { parseIdentityLinkQrPayload } from '@oxy.so/contracts';
+import { parseIdentityLinkQrPayload } from '@oxy.so/contracts/client';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/lib/i18n';

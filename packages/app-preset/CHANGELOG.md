@@ -1,5 +1,28 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 5.1.0
+
+### Fixed
+
+- Metro answers an OPTIONAL require (`try { require('x') }`, an `import()` in a
+  `try`) that lands on a native package Expo autolinking does not link with
+  "not found", which is what the probe sees on a clean install. Commons 1.3.0
+  crashed on launch from a checkout whose bun store kept a stale hoisted
+  `node_modules/.bun/node_modules/@expo/ui` (57.0.17, in no lockfile):
+  expo-router's `@expo/ui/jetpack-compose` probe found it and SDK 57 JS ran
+  against an SDK 58 binary that never linked it. Static imports are unchanged
+  (warned about once). `metro/linked-native-packages.js`.
+- A RELEASE bundle (Metro `dev: false`, or NODE_ENV=production) refuses a
+  workspace package's `dist/` that was not built from the checkout's `src/`.
+  The same 1.3.0 build bundled a five-day-old `packages/contracts/dist` (Zod 3
+  era) whose module scope called `innerType()` against Zod 4, and a core from
+  before the commit's own KeyManager changes. A package opts in with
+  `"oxySourceStamp": "dist"` and runs `metro/source-stamp.js` last in its
+  build (core, contracts, protocol, telemetry and expo-splash do); the check is
+  by content, so a checkout round trip that only changes mtimes passes. A
+  package that does not opt in is only warned about, by mtime.
+  `metro/fresh-workspace-builds.js`.
+
 ## 5.0.0
 
 ### Breaking
