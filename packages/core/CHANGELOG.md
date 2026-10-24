@@ -5,6 +5,7 @@
 ### Fixed
 
 - `identity.rotateKey` stores the new recovery phrase once the new key is persisted on the device. The phrase slot used to keep the replaced key's phrase, so Settings revealed a phrase that recovers nothing and the device backup lost its phrase. If the new phrase cannot be stored, the replaced one is deleted.
+- `deleteIdentity` retries a failed device-backup clear once, then overwrites the record with a tombstone that restores nothing. A failed clear used to leave the full key in a store (Android Block Store) that is restored silently on the next launch without keys, so a deleted identity could come back.
 
 ### Added
 

@@ -360,5 +360,37 @@ describe('KeyManager device backup', () => {
       await KeyManager.deleteIdentity(false, false, true);
       expect(store.value).toBeNull();
     });
+
+    // A clear that fails used to be logged and forgotten, leaving the full key
+    // in a store that is restored silently on the next launch without keys.
+    it('a clear that keeps failing is overwritten with a tombstone nothing restores', async () => {
+      await KeyManager.createIdentity();
+      let clears = 0;
+      store.clear = async () => {
+        clears += 1;
+        throw new Error('Block Store busy');
+      };
+      await KeyManager.deleteIdentity(true, true, true);
+      expect(clears).toBe(2);
+      expect(store.value).not.toBeNull();
+      expect(store.value).not.toContain('privateKey');
+      // A launch with no keys and no marker (the reinstall case) finds nothing.
+      expect(await KeyManager.attemptIdentityRecovery()).toMatchObject({ recovered: false });
+      expect(await KeyManager.hasIdentity()).toBe(false);
+    });
+
+    it('a clear that fails once is retried', async () => {
+      await KeyManager.createIdentity();
+      const realClear = store.clear;
+      let clears = 0;
+      store.clear = async () => {
+        clears += 1;
+        if (clears === 1) throw new Error('transient');
+        await realClear();
+      };
+      await KeyManager.deleteIdentity(true, true, true);
+      expect(clears).toBe(2);
+      expect(store.value).toBeNull();
+    });
   });
 });

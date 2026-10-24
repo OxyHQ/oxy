@@ -47,6 +47,12 @@ import {
 } from './deviceBackup';
 
 /**
+ * What a device backup is overwritten with when it cannot be cleared: valid
+ * JSON with no key, which `parseDeviceBackup` rejects, so it restores nothing.
+ */
+const DEVICE_BACKUP_TOMBSTONE = JSON.stringify({ deleted: true });
+
+/**
  * Options for expo-secure-store calls made by KeyManager.
  *
  * Defined as a standalone interface (not extending expo-secure-store's
@@ -1740,20 +1746,46 @@ export class KeyManager {
     }
   }
 
-  /** Remove the device backup. Best-effort: never throws. @internal */
-  private static async _clearDeviceBackup(): Promise<void> {
+  /**
+   * Remove the device backup. Best-effort: never throws.
+   *
+   * The device backup is restored SILENTLY on a launch that finds no keys, so a
+   * record left behind by a failed clear brings a deleted identity back. A
+   * failed clear is therefore retried once and then OVERWRITTEN with a
+   * tombstone that `parseDeviceBackup` rejects, which nothing restores from.
+   * Resolves `false` only when the store may still hold the key.
+   *
+   * @internal
+   */
+  private static async _clearDeviceBackup(): Promise<boolean> {
     const store = KeyManager.deviceBackupStore;
     if (!store) {
-      return;
+      return true;
+    }
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await store.clear();
+        return true;
+      } catch (error) {
+        lastError = error;
+      }
     }
     try {
-      await store.clear();
-    } catch (error) {
+      await store.write(DEVICE_BACKUP_TOMBSTONE);
       logger.warn(
-        `Failed to clear the identity device backup (${store.name})`,
+        `Could not clear the identity device backup (${store.name}); overwrote it with a tombstone`,
         { component: 'KeyManager' },
-        error,
+        lastError,
       );
+      return true;
+    } catch (writeError) {
+      logger.error(
+        `Could not clear the identity device backup (${store.name}); it may still hold the deleted key`,
+        writeError,
+        { component: 'KeyManager' },
+      );
+      return false;
     }
   }
 
