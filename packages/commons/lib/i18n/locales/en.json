@@ -51,7 +51,8 @@
       "importFailed": "Failed to import identity",
       "identityExistsSyncFailed": "Your identity exists on this device, but we could not connect it to your account. Check your connection and try again.",
       "noIdentityFound": "No identity found on this device.",
-      "couldNotReadIdentity": "Could not read your identity. Please try again."
+      "couldNotReadIdentity": "Could not read your identity. Please try again.",
+      "connectFailed": "Couldn't connect your identity. Please try again."
     },
     "welcome": {
       "lead": "Oxy is your",
@@ -169,6 +170,12 @@
       "wordPlaceholder": "word",
       "import": "Import Identity",
       "createInstead": "Create a new identity instead"
+    },
+    "notificationsStep": {
+      "title": "Get sign-in requests on this phone",
+      "subtitle": "When you sign in to an Oxy app on another device, Commons can ask you here to approve it. You can turn this off at any time in your phone's settings.",
+      "enable": "Turn on notifications",
+      "notNow": "Not now"
     }
   },
   "home": {

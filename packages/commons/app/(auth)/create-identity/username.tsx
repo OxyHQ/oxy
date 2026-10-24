@@ -18,7 +18,7 @@ export default function CreateIdentityUsernameScreen() {
   const colors = useColors();
   const { isOffline } = useNetworkStatus();
   const onDone = useCallback(() => {
-    router.push('/(auth)/create-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
   const { username, setUsername, handleContinue, oxyServices, isUpdating, updateError } =
     useUsernameStep({ onDone });

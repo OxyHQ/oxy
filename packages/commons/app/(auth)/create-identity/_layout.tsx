@@ -12,7 +12,8 @@ import { Stack } from 'expo-router';
  *   3. `interests`       — pick interest tags
  *   4. `username`        — pick a username; this registers the account, key
  *                          and username together (offline: on reconnect)
- *   5. `notifications`   — request push perms, finish onboarding
+ *   5. `/enable-notifications` (a root route, see that file) — request push
+ *      permission, finish onboarding
  */
 export default function CreateIdentityLayout() {
   return (
@@ -33,7 +34,6 @@ export default function CreateIdentityLayout() {
       />
       <Stack.Screen name="interests" />
       <Stack.Screen name="username" />
-      <Stack.Screen name="notifications" />
     </Stack>
   );
 }

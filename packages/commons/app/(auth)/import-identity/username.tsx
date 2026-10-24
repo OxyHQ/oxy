@@ -20,14 +20,14 @@ export default function ImportIdentityUsernameScreen() {
   const colors = useColors();
   const { isOffline } = useNetworkStatus();
   const onDone = useCallback(() => {
-    router.replace('/(auth)/import-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
   const { username, setUsername, handleContinue, oxyServices, isUpdating, updateError } =
     useUsernameStep({ onDone });
 
   const handleSkip = useCallback(() => {
     void persistPendingUsername(null);
-    router.replace('/(auth)/import-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
 
   return (

@@ -158,18 +158,18 @@ export function useAuthHandlers({
             continue;
           }
 
-          // If not a network error or no retries left, throw
+          // Any other failure is final. It is shown on this screen rather than
+          // thrown: a throw escaped the button's handler and left `isSigningIn`
+          // set, so the screen sat behind its spinner with taps disabled.
           if (!isNetworkError) {
-            throw err;
+            break;
           }
         }
       }
 
-      // If connecting the identity failed after retries, show error
+      // If connecting the identity failed, show the error and let the user retry.
       if (!signInSuccess) {
-        setAuthError(
-          extractAuthErrorMessage(lastError, "Couldn't connect your identity. Please try again."),
-        );
+        setAuthError(extractAuthErrorMessage(lastError, t('auth.errors.connectFailed')));
         setSigningIn(false);
         return false;
       }
@@ -223,7 +223,7 @@ export function useAuthHandlers({
     // Push notifications don't exist in Expo Go (SDK 53+) — skip straight to
     // the vault rather than prompting for a permission that buys nothing.
     if (isExpoGo()) {
-      router.push('/(tabs)/(id)');
+      router.replace('/(tabs)/(id)');
       return;
     }
 
@@ -251,12 +251,29 @@ export function useAuthHandlers({
       setIsRequestingNotifications(false);
     }
 
-    router.push('/(tabs)/(id)');
+    router.replace('/(tabs)/(id)');
   }, [isAuthenticated, router, setAuthError, completeSignIn, oxyServices, t]);
+
+  /**
+   * "Not now": finish onboarding without the system prompt. Signs in first when
+   * needed, exactly like the request path. The root `usePushRegistration` never
+   * prompts, so the user is not asked again by Commons; the OS settings still
+   * let them turn notifications on later.
+   */
+  const handleSkipNotifications = useCallback(async () => {
+    if (!isAuthenticated) {
+      const signedIn = await completeSignIn({ navigateOnSuccess: false });
+      if (!signedIn || !useAuthStore.getState().isAuthenticated) {
+        return;
+      }
+    }
+    router.replace('/(tabs)/(id)');
+  }, [isAuthenticated, router, completeSignIn]);
 
   return {
     handleSignIn,
     handleRequestNotifications,
+    handleSkipNotifications,
     isRequestingNotifications,
   };
 }

@@ -574,6 +574,16 @@ function AppStackContent() {
           bounced to onboarding (and the cold-start replay above re-navigates
           here once the gate settles to an authenticated device).
         */}
+        {/*
+          The last onboarding step (notification permission). Deliberately
+          OUTSIDE both guards: the username step completes onboarding, which
+          flips the guards in the same render, and a step inside `(auth)` was
+          unreachable from then on. See `app/enable-notifications.tsx`.
+        */}
+        <Stack.Screen
+          name="enable-notifications"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
         <Stack.Protected guard={!needsAuth}>
           <Stack.Screen
             name="approve"
