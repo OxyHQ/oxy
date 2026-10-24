@@ -177,6 +177,13 @@
       "subtitle": "Cuando inicies sesión en una app de Oxy desde otro dispositivo, Commons puede pedirte aquí que lo apruebes. Puedes desactivarlo cuando quieras en los ajustes del teléfono.",
       "enable": "Activar notificaciones",
       "notNow": "Ahora no"
+    },
+    "interestsStep": {
+      "title": "Construye en torno\na lo que te gusta",
+      "subtitle": "Toca lo que va contigo. Arrastra y lanza el resto.",
+      "pickAny": "Elige todas las que quieras",
+      "selected": "{{count}} seleccionadas",
+      "skip": "Omitir por ahora"
     }
   },
   "home": {

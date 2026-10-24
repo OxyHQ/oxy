@@ -8,6 +8,7 @@ import { InterestTagsCanvas } from '@/components/auth/InterestTagsCanvas';
 import { Chip } from '@oxy.so/bloom/chip';
 import { INTEREST_TAGS } from '@/constants/interestTags';
 import { useScreenReaderEnabled } from '@/hooks/useScreenReaderEnabled';
+import { useTranslation } from '@/lib/i18n';
 
 interface InterestsStepProps {
   onContinue: (selectedIds: string[]) => void;
@@ -33,6 +34,7 @@ interface InterestsStepProps {
 export function InterestsStep({ onContinue, isSubmitting = false }: InterestsStepProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [footerHeight, setFooterHeight] = useState(0);
   const screenReaderEnabled = useScreenReaderEnabled();
@@ -75,12 +77,12 @@ export function InterestsStep({ onContinue, isSubmitting = false }: InterestsSte
         <View style={[styles.header, { paddingTop: insets.top + 26 }]} pointerEvents="none">
           <Animated.View entering={FadeInDown.delay(300).duration(800).springify()}>
             <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
-              Build around{'\n'}what you love
+              {t('auth.interestsStep.title')}
             </Text>
           </Animated.View>
           <Animated.View entering={FadeInDown.delay(400).duration(800).springify()}>
             <Text style={[styles.subtitle, { color: colors.text }]}>
-              Tap what feels like you. Drag and toss the rest.
+              {t('auth.interestsStep.subtitle')}
             </Text>
           </Animated.View>
         </View>
@@ -107,10 +109,12 @@ export function InterestsStep({ onContinue, isSubmitting = false }: InterestsSte
           onLayout={handleFooterLayout}
         >
           <Text style={[styles.count, { color: colors.text }]}>
-            {selectedIds.size === 0 ? 'Pick as many as you like' : `${selectedIds.size} selected`}
+            {selectedIds.size === 0
+              ? t('auth.interestsStep.pickAny')
+              : t('auth.interestsStep.selected', { count: selectedIds.size })}
           </Text>
           <Button onPress={handleContinue} loading={isSubmitting} disabled={isSubmitting}>
-            {selectedIds.size === 0 ? 'Skip for now' : 'Continue'}
+            {selectedIds.size === 0 ? t('auth.interestsStep.skip') : t('common.continue')}
           </Button>
         </Animated.View>
       </View>
