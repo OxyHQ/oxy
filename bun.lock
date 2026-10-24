@@ -113,6 +113,7 @@
         "zustand": "catalog:",
       },
       "devDependencies": {
+        "@oxy.so/zod3": "workspace:*",
         "@tailwindcss/postcss": "4.3.3",
         "@testing-library/react": "^16.3.2",
         "@types/jest": "^30.0.0",
@@ -384,6 +385,7 @@
         "zustand": "catalog:",
       },
       "devDependencies": {
+        "@oxy.so/zod3": "workspace:*",
         "@tailwindcss/postcss": "4.3.3",
         "@testing-library/react": "^16.3.2",
         "@types/jest": "^30.0.0",
@@ -458,6 +460,7 @@
         "zustand": "catalog:",
       },
       "devDependencies": {
+        "@oxy.so/zod3": "workspace:*",
         "@tailwindcss/postcss": "4.3.3",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/react": "^16.3.2",
@@ -933,6 +936,7 @@
         "zustand": "catalog:",
       },
       "devDependencies": {
+        "@oxy.so/zod3": "workspace:*",
         "@types/react": "~19.3.0",
         "@typescript-eslint/parser": "catalog:",
         "babel-preset-expo": "catalog:",

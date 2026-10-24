@@ -278,10 +278,10 @@ expectScope(
   { api: 'is in packages/core', platform: 'is in packages/core', apps: 'is in packages/core' },
 );
 expectScope(
-  'zod3-only-source-fix-runs-api-and-platform',
+  'zod3-only-source-fix-runs-api-platform-and-expo-tooling',
   (root) => write(root, 'packages/zod3/patches/oversized-collections.patch', 'changed\n'),
-  { api: true, platform: true, apps: false },
-  { api: 'is in packages/zod3', platform: 'is in packages/zod3' },
+  ALL_RUN,
+  { api: 'is in packages/zod3', platform: 'is in packages/zod3', apps: 'is in packages/zod3' },
 );
 expectScope(
   'zod4-only-source-fix-runs-every-dependent-suite',

@@ -1428,7 +1428,7 @@ jobs:
       - name: Build contracts, protocol, core
         id: build-core
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
+        run: bunx turbo run build --filter=@oxy.so/zod3 --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
 
       # Services SDK tests (Jest — build workspace deps first)
       - name: 'Services Tests: test'
