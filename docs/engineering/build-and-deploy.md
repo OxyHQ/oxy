@@ -84,6 +84,16 @@ service image is amd64-only; the merge queue builds arm64) and runs
 to the undici instrumentation. Returning to Node is reverting the change that
 switched the runtime stage and the commands together.
 
+The API and data-node images install from the complete frozen workspace graph.
+Both rebuild the maintained Zod workspaces from pinned source archives before
+compiling consumers, then stage their actual `bun pm pack` contents into the
+production image. Compiler dependencies stay in the builder. The final Bun image
+runs `scripts/check-zod-forks.mjs` across physical dependency copies and staged
+workspaces; the API also loads the MCP SDK to check its converter's Zod peer.
+`node scripts/test-api-runtime-dependencies.mjs` reproduces these filtered build
+and production installs outside the checkout, without ancestor dependencies.
+Native install hooks and image smoke checks remain Docker CI's responsibility.
+
 ### Asset-variant producer and worker
 
 Asset rendition generation has two runtime roles built from the same image:

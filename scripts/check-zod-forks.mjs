@@ -219,7 +219,9 @@ export async function probePackage(directory, mode = 'import', compiled = false)
 }
 
 export function runProbe(directory, mode, compiled = false) {
-  const executable = mode === 'source' ? 'bun' : process.versions.bun ? 'node' : process.execPath;
+  // Builder/release checks execute on Node; final-image checks execute on Bun.
+  // Keep the caller's real runtime instead of requiring Node in a Bun-only image.
+  const executable = mode === 'source' ? 'bun' : process.execPath;
   const run = spawnSync(executable, [script, '--probe', directory, mode, String(compiled)], {
     encoding: 'utf8',
     timeout: 60_000,
@@ -268,7 +270,7 @@ export function verifyPackage(directory) {
 }
 
 /** Physical inventory includes Bun/pnpm stores and nested dependency trees. */
-export function installedZodCopies(nodeModulesRoots) {
+export function installedZodCopies(nodeModulesRoots, workspaceRoots = []) {
   const copies = new Set();
   const visited = new Set();
   function visitModules(path) {
@@ -302,18 +304,22 @@ export function installedZodCopies(nodeModulesRoots) {
     visitModules(join(path, 'node_modules'));
   }
   for (const root of nodeModulesRoots) visitModules(root);
+  for (const root of workspaceRoots) visitPackage(root);
   return [...copies].sort();
 }
 
 export function verifyInstallation(root) {
   const roots = [join(root, 'node_modules')];
+  const workspaces = [];
   for (const group of ['packages', 'apps', 'workers']) {
     const directory = join(root, group);
     if (existsSync(directory))
-      for (const entry of readdirSync(directory))
+      for (const entry of readdirSync(directory)) {
         roots.push(join(directory, entry, 'node_modules'));
+        workspaces.push(join(directory, entry));
+      }
   }
-  const copies = installedZodCopies(roots);
+  const copies = installedZodCopies(roots, workspaces);
   assert.ok(copies.length > 0, 'No installed Zod inventory; run the frozen install first');
   const names = new Set(copies.map((path) => metadata(path).name));
   for (const name of Object.keys(FORKS))

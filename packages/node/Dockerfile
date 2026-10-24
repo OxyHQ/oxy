@@ -14,8 +14,8 @@
 ##
 ## Build context is the MONOREPO ROOT (it copies @oxy.so/protocol + @oxy.so/core +
 ## @oxy.so/telemetry + @oxy.so/contracts as workspace deps): a lean workspace
-## subset (contracts + protocol + telemetry + core + node only), built from
-## source on node:24-alpine + bun.
+## install filtered to node and its workspace dependencies, built from source
+## on node:24-alpine + bun against the complete frozen manifest graph.
 ##
 ## The node RUNS on Bun: the production stage is oven/bun:1.4.3-alpine and the
 ## store is Bun's built-in `bun:sqlite`, so no stage compiles a native addon
@@ -34,28 +34,29 @@
 # @oven platform binary.
 FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS bun-bin
 
+FROM alpine:3.22 AS workspace-manifests
+
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY patches/ patches/
+COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
+COPY packages/ packages/
+RUN find packages -type f ! -name package.json -delete
+
 FROM node:24-alpine AS builder
+
+# Source-only validator builds apply the checked-in security patch with git.
+RUN apk add --no-cache git
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
-# Narrow the workspaces to the lean subset this image needs, then drop the
-# monorepo lockfile (the subset does not match the full-repo lock — bun resolves
-# deterministically from the package.json versions). Mirrors the api Dockerfile.
-COPY package.json ./
-COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/telemetry','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
-
-# package.json files first for dependency resolution caching
-COPY packages/node/package.json packages/node/
-COPY packages/core/package.json packages/core/
-COPY packages/telemetry/package.json packages/telemetry/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-
-RUN bun install
+# Preserve the complete lock graph while materializing only this server and
+# both maintained validator generations checked in its runtime image.
+COPY --from=workspace-manifests /app/ ./
+RUN bun install --frozen-lockfile --filter @oxy.so/node --filter @oxy.so/zod4
 
 # Source
 COPY packages/core/ packages/core/
@@ -63,6 +64,12 @@ COPY packages/telemetry/ packages/telemetry/
 COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
 COPY packages/node/ packages/node/
+COPY packages/zod3/ packages/zod3/
+COPY packages/zod4/ packages/zod4/
+COPY scripts/build-zod-fork.mjs scripts/check-zod-forks.mjs scripts/prepare-api-workspaces.mjs scripts/
+
+RUN bun run --filter @oxy.so/zod3 build \
+    && bun run --filter @oxy.so/zod4 build
 
 # Build contracts, then protocol (the signed-record crypto base node verifies
 # with), then telemetry and core (core depends on @oxy.so/telemetry; node
@@ -72,6 +79,7 @@ RUN bun run --filter @oxy.so/protocol build
 RUN bun run --filter @oxy.so/telemetry build
 RUN bun run --filter @oxy.so/core build
 RUN cd packages/node && bunx tsc
+RUN node scripts/prepare-api-workspaces.mjs /app/runtime-workspaces
 
 # ── Production image: Bun ─────────────────────────────────────────
 # The same digest-pinned Bun as the builder's binary. Alpine (musl), like the
@@ -82,16 +90,8 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
-COPY package.json ./
-COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
-RUN bun -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/telemetry','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
-COPY packages/node/package.json packages/node/
-COPY packages/core/package.json packages/core/
-COPY packages/telemetry/package.json packages/telemetry/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-
-RUN bun install --production
+COPY --from=workspace-manifests /app/ ./
+RUN bun install --production --frozen-lockfile --filter @oxy.so/node --filter @oxy.so/zod4
 
 # Built artifacts
 COPY --from=builder /app/packages/node/dist packages/node/dist
@@ -99,6 +99,11 @@ COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/telemetry/dist packages/telemetry/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
+COPY --from=builder /app/runtime-workspaces/zod3 packages/zod3
+COPY --from=builder /app/runtime-workspaces/zod4 packages/zod4
+COPY --from=builder /app/scripts/check-zod-forks.mjs scripts/check-zod-forks.mjs
+
+RUN bun scripts/check-zod-forks.mjs
 
 # Default data directory (mount a volume here to persist the SQLite DB + blobs).
 ENV OXY_NODE_DATA_DIR=/data

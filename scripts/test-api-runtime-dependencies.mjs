@@ -1,17 +1,28 @@
 import assert from 'node:assert/strict';
 import { inventory } from './forge-remediation-proof-proposal.mjs';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import {
   inspectImage,
   readDeclaredNativePackageInventory,
 } from './native-expo-image-inventory.mjs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import {
+  prepareWorkspaceManifests,
+  buildRuntimeValidators,
+  stageRuntimeValidators,
+  verifyRuntimeValidators,
+} from './image-workspace-fixture.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
+for (const file of ['Dockerfile', 'packages/node/Dockerfile']) {
+  const source = readFileSync(join(root, file), 'utf8');
+  const builder = source.split(/FROM [^\n]+ AS builder\n/)[1]?.split('\nFROM ')[0];
+  assert.match(builder ?? '', /^RUN apk add --no-cache git$/m, `${file} builder needs git apply`);
+}
 const stage = dockerfile
   .split('FROM bun-node AS production-deps')[1]
   // Up to the next stage (the Bun runtime image), whatever its base.
@@ -28,33 +39,27 @@ assert.ok(install.includes('--production') && install.includes('--frozen-lockfil
 // satisfy a missing peer. The resolution assertion also rejects that fallback.
 const cache = join(homedir(), '.cache');
 mkdirSync(cache, { recursive: true });
-const fixture = mkdtempSync(join(cache, 'oxy-runtime-closure-'));
+const temporary = mkdtempSync(join(cache, 'oxy-runtime-closure-'));
+const fixture = join(temporary, 'api-runtime');
 try {
-  for (const file of ['package.json', 'bun.lock'])
-    copyFileSync(join(root, file), join(fixture, file));
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  for (const patch of Object.values(manifest.patchedDependencies ?? {})) {
-    assert.ok(typeof patch === 'string' && patch.startsWith('patches/') && !patch.includes('..'));
-    mkdirSync(dirname(join(fixture, patch)), { recursive: true });
-    copyFileSync(join(root, patch), join(fixture, patch));
-  }
-  // Reproduce Docker's sealed file inputs instead of accidentally relying on
-  // Bun's cache for a file dependency absent from this isolated build context.
-  for (const dependency of ['@expo/cli', '@expo/code-signing-certificates']) {
-    const specifier = manifest.overrides[dependency];
-    assert.match(specifier, /^file:\.\/vendor\/expo-native\/oxy\.so-[A-Za-z0-9.+-]+\.tgz$/);
-    const file = specifier.slice('file:./'.length);
-    mkdirSync(dirname(join(fixture, file)), { recursive: true });
-    copyFileSync(join(root, file), join(fixture, file));
-  }
-  const workspaces = Array.isArray(manifest.workspaces)
-    ? manifest.workspaces
-    : manifest.workspaces.packages;
-  for (const workspace of workspaces) {
-    assert.ok(!workspace.includes('*'), 'Fixture must expand a newly introduced workspace glob');
-    mkdirSync(join(fixture, workspace), { recursive: true });
-    copyFileSync(join(root, workspace, 'package.json'), join(fixture, workspace, 'package.json'));
-  }
+  const builder = join(temporary, 'builder');
+  prepareWorkspaceManifests(root, builder);
+  const builderStage = dockerfile.split('FROM bun-node AS builder')[1]?.split('\nFROM ')[0];
+  const builderInstall = builderStage
+    ?.match(/^RUN bun (install[^\n]*?)(?:\s*\\)?$/m)?.[1]
+    ?.trim()
+    .split(/\s+/);
+  assert.ok(
+    builderInstall?.includes('--frozen-lockfile'),
+    'Exercise the real filtered builder install',
+  );
+  execFileSync('bun', [...builderInstall, '--ignore-scripts'], {
+    cwd: builder,
+    stdio: 'inherit',
+    timeout: 600_000,
+  });
+  buildRuntimeValidators(root, builder);
+  prepareWorkspaceManifests(root, fixture);
   // Native build hooks are unrelated to JS resolution and are not run in this
   // portable fixture. The final Docker image separately loads Sharp and the
   // complete compiled migration entrypoint on its target architecture.
@@ -63,6 +68,22 @@ try {
     stdio: 'inherit',
     timeout: 600_000,
   });
+  stageRuntimeValidators(builder, fixture);
+  verifyRuntimeValidators(fixture);
+  // Loading the real MCP SDK also traverses zod-to-json-schema's peer import.
+  // A parser census alone cannot prove that a consumer can resolve its peer.
+  execFileSync(
+    'bun',
+    [
+      '-e',
+      `
+    const r = require('node:module').createRequire(process.cwd() + '/packages/mcp/package.json');
+    const { McpServer } = r('@modelcontextprotocol/sdk/server/mcp.js');
+    if (typeof McpServer !== 'function') throw new Error('MCP server runtime did not load');
+  `,
+    ],
+    { cwd: fixture, stdio: 'inherit', timeout: 30_000 },
+  );
   execFileSync(
     process.execPath,
     [
@@ -94,7 +115,7 @@ try {
   const packages = inspectImage(fixture, expected);
   const adapter = packages.find((pkg) => pkg.name === '@oxy.so/expo-code-signing-native');
   assert.ok(
-    adapter.root.startsWith(fixture + '/'),
+    adapter.root.startsWith(`${fixture}/`),
     'Native package escaped isolated production graph',
   );
   // The API only uses this API in tests (a devDependency); production deliberately
@@ -108,9 +129,28 @@ try {
     ],
     { cwd: fixture, stdio: 'inherit', timeout: 30_000 },
   );
+  const nodeDockerfile = readFileSync(join(root, 'packages/node/Dockerfile'), 'utf8');
+  const nodeRuntime = nodeDockerfile.split('FROM oven/bun:').at(-1);
+  const nodeInstall = nodeRuntime
+    .match(/^RUN bun (install[^\n]*?)(?:\s*\\)?$/m)?.[1]
+    ?.trim()
+    .split(/\s+/);
+  assert.ok(
+    nodeInstall?.includes('--production') && nodeInstall.includes('--frozen-lockfile'),
+    'The data-node production graph must be frozen and scoped',
+  );
+  const nodeFixture = join(temporary, 'node-runtime');
+  prepareWorkspaceManifests(root, nodeFixture);
+  execFileSync('bun', [...nodeInstall, '--ignore-scripts'], {
+    cwd: nodeFixture,
+    stdio: 'inherit',
+    timeout: 600_000,
+  });
+  stageRuntimeValidators(builder, nodeFixture);
+  verifyRuntimeValidators(nodeFixture);
   console.log(
     'Forge absent; sealed native API/CLI production bytes and installed Expo compatibility verified.',
   );
 } finally {
-  rmSync(fixture, { recursive: true, force: true });
+  rmSync(temporary, { recursive: true, force: true });
 }

@@ -66,6 +66,16 @@ test('an empty installed inventory cannot produce a successful verdict', () => {
   assert.throws(() => verifyInstallation(fixture()), /No installed Zod inventory/);
 });
 
+test('inventory checks staged workspaces even when no consumer creates a dependency link', () => {
+  const root = fixture();
+  const standalone = pkg(join(root, 'packages', 'zod4'), '@oxy.so/zod4', '4.6.8');
+  const hidden = pkg(join(standalone, 'node_modules', 'zod'));
+  assert.deepEqual(
+    installedZodCopies([join(root, 'node_modules')], [standalone]),
+    [standalone, hidden].sort(),
+  );
+});
+
 test('stock Zod4 is rejected despite its package-level patched version', () => {
   const stock = pkg(fixture(), 'zod', '4.6.7');
   assert.throws(() => verifyPackage(stock), /Unreviewed Zod distribution/);
