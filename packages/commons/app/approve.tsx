@@ -10,6 +10,7 @@ import { useTranslation } from '@/lib/i18n';
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
 import { resolveApprovedAction } from '@/lib/commons-signin/approval-return';
+import { APPROVAL_ERROR_KEYS } from '@/lib/commons-signin/approval-error';
 import { ErrorFallback } from '@/components/error-fallback';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
 import { LoadingState, STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
@@ -63,7 +64,7 @@ export default function ApproveSignInScreen() {
   const { code, source } = useLocalSearchParams<{ code?: string; source?: string }>();
   const control = useDialogControl();
 
-  const { state, info, confirmationIssue, errorMessage, denialReason, approve, deny, reload } =
+  const { state, info, confirmationIssue, errorKind, denialReason, approve, deny, reload } =
     useCommonsApproval(code, t('signInApproval.approve.biometricReason'));
 
   // Present the sheet on mount. Imperative dialog refs bind during the commit's
@@ -174,7 +175,7 @@ export default function ApproveSignInScreen() {
           title={t('signInApproval.approve.errorTitle')}
           description={
             code
-              ? (errorMessage ?? t('signInApproval.approve.errorBody'))
+              ? t(errorKind ? APPROVAL_ERROR_KEYS[errorKind] : 'signInApproval.approve.errorBody')
               : t('signInApproval.approve.noCode')
           }
           minHeight={STATE_MIN_HEIGHT}

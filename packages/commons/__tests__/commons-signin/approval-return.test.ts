@@ -1,4 +1,8 @@
-import { resolveApprovedAction, SCANNER_SOURCE } from '@/lib/commons-signin/approval-return';
+import {
+  PUSH_SOURCE,
+  resolveApprovedAction,
+  SCANNER_SOURCE,
+} from '@/lib/commons-signin/approval-return';
 
 describe('resolveApprovedAction', () => {
   it('returns to the caller for an external deep link on Android', () => {
@@ -27,5 +31,13 @@ describe('resolveApprovedAction', () => {
     // (including a spoofed value) is treated as external → Android returns.
     expect(resolveApprovedAction('elsewhere', 'android')).toBe('return-to-caller');
     expect(resolveApprovedAction('elsewhere', 'ios')).toBe('close');
+  });
+
+  // A push is cross-device by construction: approving from one on Android used
+  // to run BackHandler.exitApp() and close Commons.
+  it('stays in Commons after approving from a push', () => {
+    expect(PUSH_SOURCE).toBe('push');
+    expect(resolveApprovedAction(PUSH_SOURCE, 'android')).toBe('close');
+    expect(resolveApprovedAction(PUSH_SOURCE, 'ios')).toBe('close');
   });
 });
