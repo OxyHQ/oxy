@@ -30,6 +30,12 @@
  * options throw, so an app config that still passes them fails loudly instead
  * of silently doing something else.
  *
+ * `withOxySharedPermissions` also signs every release build with the ONE Oxy
+ * ecosystem key (the `OXY_UPLOAD_*` Gradle properties) and fails a release that
+ * does not carry its certificate; an app lists no signing plugin of its own.
+ * `withOxyR8Optimize` (always applied) swaps in R8's `-optimize` ProGuard file on
+ * Expo SDK 56/57 and is a no-op on 58.
+ *
  * @param {import('expo/config').ExpoConfig} config
  * @param {object} [options]
  * @param {string|false} [options.keychainGroup='group.so.oxy.shared']
@@ -48,7 +54,9 @@
  */
 const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
-const { projectRootOf, requireFromProject } = require('./requireFromProject');
+const withOxyR8Optimize = require('./withOxyR8Optimize');
+const { dirname, join } = require('node:path');
+const { projectRootOf, requireFromProject, resolveFromProject } = require('./requireFromProject');
 
 const REMOVED_OPTIONS = {
   sharedUserId:
@@ -94,15 +102,22 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     next = withOxyBuildProperties(next, { ios, android });
   }
 
+  next = withOxyR8Optimize(next);
+
   let withOxySharedPermissions;
   try {
-    withOxySharedPermissions = requireFromProject(
+    const permissionsPlugin = resolveFromProject(
       '@oxy.so/services/plugins/withOxySharedPermissions',
       projectRootOf(config),
     );
+    // A Services older than 13.4.0 declares the permissions WITHOUT release
+    // signing, and Expo's template then signs release with the debug key: refuse
+    // it. Its sibling, because withOxySharedPermissions loads that very file.
+    require.resolve(join(dirname(permissionsPlugin), 'withOxyReleaseSigning'));
+    withOxySharedPermissions = require(permissionsPlugin);
   } catch (error) {
     throw new Error(
-      "[@oxy.so/app-preset] needs '@oxy.so/services' 11 or later (for plugins/withOxySharedPermissions). " +
+      "[@oxy.so/app-preset] needs '@oxy.so/services' 13.4.0 or later (for plugins/withOxySharedPermissions and withOxyReleaseSigning). " +
         `Install it in the app. (${error instanceof Error ? error.message : String(error)})`,
     );
   }

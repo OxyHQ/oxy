@@ -61,6 +61,17 @@ signing key Google holds for each listing. Confirm it for every app with
 `apksigner verify --print-certs` on the Play-delivered APK. An app signed
 differently cannot hold the permissions and is refused by the providers.
 
+The build enforces it: `withOxySharedPermissions` also applies
+`withOxyReleaseSigning` (services 13.4.0), so the plugin that declares the
+permissions signs every release with the ecosystem key from the `OXY_UPLOAD_*`
+Gradle properties and FAILS a release variant whose effective signing
+certificate is not the ecosystem one (`oxyVerifyReleaseSigning`, SHA-256
+`b8ab3746…a58d`). Nothing falls back to the debug key; apps list no signing
+plugin. Before this, a release built without the properties was silently
+debug-signed: one such Mention release took the permissions on a phone and
+every correctly signed Oxy app then failed with
+`INSTALL_FAILED_DUPLICATE_PERMISSION`.
+
 ## The caller check
 
 The permission is necessary but not sufficient. Inside `call()` each provider

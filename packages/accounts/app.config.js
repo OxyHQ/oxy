@@ -132,7 +132,10 @@ module.exports = {
       // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
       // so.oxy.permission.DEVICE_SESSION (signature level) and queries the
       // Commons and Accounts providers. No Oxy app shares a UID: this app signs
-      // in by asking Commons for a proof, never by reading its key.
+      // in by asking Commons for a proof, never by reading its key. It also
+      // signs the release with the ONE ecosystem key (OXY_UPLOAD_* Gradle
+      // properties) and fails a release without it: the device-session provider
+      // this app hosts answers only callers signed with its own certificate.
       '@oxy.so/services/plugins/withOxySharedPermissions',
       // Hosts the signature-protected OxyDeviceSessionProvider for the SHARED
       // DEVICE SESSION credential — a different secret from the identity key,
@@ -142,10 +145,6 @@ module.exports = {
       // installed official app join the device's session without a QR and
       // without the Commons private key.
       '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
-      // Release signing with the ONE ecosystem key (OXY_UPLOAD_* Gradle
-      // properties): the device-session provider this app hosts answers only
-      // callers signed with its own certificate, and they all carry that one.
-      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself

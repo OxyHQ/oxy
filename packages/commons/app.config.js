@@ -121,8 +121,8 @@ module.exports = {
             // Appended to android/app/proguard-rules.pro. Kept deliberately
             // small: react-native, expo-modules-core, reanimated and skia
             // already ship their own rules as consumerProguardFiles inside
-            // their AARs, and over-keeping would cancel the R8 optimization
-            // that withOxyAndroidRelease turns on.
+            // their AARs, and over-keeping would cancel R8's optimization
+            // (the template's proguard-android-optimize.txt).
             extraProguardRules: [
               '# expo-contacts is referenced by the autolinked ExpoModulesPackageList',
               "# but is not a dependency here; suppress R8's missing-class error for",
@@ -144,16 +144,13 @@ module.exports = {
           cameraPermission: 'Allow $(PRODUCT_NAME) to scan sign-in QR codes.',
         },
       ],
-      // Release buildType bits expo-build-properties cannot express: the R8
-      // -optimize proguard file, and the real release signing config
-      // (credentials come from Gradle properties, never the repo). The artefact
-      // MUST carry the shared Oxy ecosystem certificate: the other Oxy apps reach
-      // Commons through signature permissions — verify it, never assume it.
-      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
       // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
       // so.oxy.permission.DEVICE_SESSION (signature level) and queries the host
       // authorities. No Oxy app shares a UID: identity and session cross apps
-      // only through the providers below.
+      // only through the providers below. It also signs the release with the ONE
+      // ecosystem key (OXY_UPLOAD_* Gradle properties, never the repo) and fails
+      // a release whose certificate is not that one: the other Oxy apps reach
+      // Commons through signature permissions.
       '@oxy.so/services/plugins/withOxySharedPermissions',
       // The identity host (modules/oxy-identity-host): Commons is the ONLY
       // holder of the identity private key, and this provider answers the other

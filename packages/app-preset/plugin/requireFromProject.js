@@ -12,16 +12,24 @@
  * @param {string | undefined} projectRoot  The app's directory.
  */
 function requireFromProject(specifier, projectRoot) {
+  return require(resolveFromProject(specifier, projectRoot));
+}
+
+/**
+ * The file `requireFromProject` would load, resolved the same way.
+ *
+ * @param {string} specifier
+ * @param {string | undefined} projectRoot
+ */
+function resolveFromProject(specifier, projectRoot) {
   if (projectRoot) {
-    let resolved;
     try {
-      resolved = require.resolve(specifier, { paths: [projectRoot] });
+      return require.resolve(specifier, { paths: [projectRoot] });
     } catch {
-      resolved = null;
+      // Fall through to the preset's own resolution.
     }
-    if (resolved) return require(resolved);
   }
-  return require(specifier);
+  return require.resolve(specifier);
 }
 
 /**
@@ -34,4 +42,4 @@ function projectRootOf(config) {
   return config?._internal?.projectRoot ?? process.cwd();
 }
 
-module.exports = { requireFromProject, projectRootOf };
+module.exports = { requireFromProject, resolveFromProject, projectRootOf };
