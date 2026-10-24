@@ -51,7 +51,8 @@
       "importFailed": "No se pudo importar la identidad",
       "identityExistsSyncFailed": "Tu identidad existe en este dispositivo, pero no pudimos conectarla con tu cuenta. Comprueba tu conexión e inténtalo de nuevo.",
       "noIdentityFound": "No se encontró ninguna identidad en este dispositivo.",
-      "couldNotReadIdentity": "No se pudo leer tu identidad. Inténtalo de nuevo."
+      "couldNotReadIdentity": "No se pudo leer tu identidad. Inténtalo de nuevo.",
+      "connectFailed": "No se pudo conectar tu identidad. Inténtalo de nuevo."
     },
     "welcome": {
       "lead": "Oxy es tu",
@@ -169,6 +170,12 @@
       "wordPlaceholder": "palabra",
       "import": "Importar identidad",
       "createInstead": "Crear una nueva identidad en su lugar"
+    },
+    "notificationsStep": {
+      "title": "Recibe aquí las solicitudes de inicio de sesión",
+      "subtitle": "Cuando inicies sesión en una app de Oxy desde otro dispositivo, Commons puede pedirte aquí que lo apruebes. Puedes desactivarlo cuando quieras en los ajustes del teléfono.",
+      "enable": "Activar notificaciones",
+      "notNow": "Ahora no"
     }
   },
   "home": {
