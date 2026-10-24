@@ -331,6 +331,35 @@ describe('the registry: only the staff lane declares how an application is recog
 });
 
 describe('web: the browser’s Origin', () => {
+  it('does not turn a registered desktop transport or an isolated external session into web recognition', async () => {
+    const w = await world();
+    const [desktop] = await getDb()
+      .insert(applications)
+      .values({
+        name: `Desktop ${randomUUID()}`,
+        ownerAccountId: w.org,
+        type: 'first_party',
+        status: 'active',
+        redirectUris: ['tauri://localhost'],
+      })
+      .returning({ id: applications.id });
+    const recognition = await readApplicationRecognition(desktop.id);
+    expect(recognition.webOrigins).toEqual([]);
+    const own = await as(w.person).assertion(
+      { applicationId: desktop.id, platform: 'web' },
+      'tauri://localhost',
+    );
+    expect(own.status).toBe(403);
+    expect(own.body.error).toBe('platform_not_registered');
+    const external = await as(w.person, 'external-session', w.other).assertion(
+      { applicationId: desktop.id, platform: 'web' },
+      'tauri://localhost',
+    );
+    expect(external.status).toBe(403);
+    expect(external.body.error).toBe('session_other_application');
+    expect(external.body.assertion).toBeUndefined();
+  });
+
   it('issues a five-minute assertion for a registered origin, bound to the person and session', async () => {
     const w = await world();
     const issued = await as(w.person).assertion(
