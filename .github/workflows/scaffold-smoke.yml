@@ -13,6 +13,10 @@ on:
       - 'packages/create-oxy-app/**'
       - 'packages/app-preset/**'
       - 'packages/contracts/**'
+      - 'packages/zod3/**'
+      - 'packages/zod4/**'
+      - 'scripts/build-zod-fork.mjs'
+      - 'scripts/check-zod-forks.mjs'
       - 'packages/core/**'
       - 'packages/protocol/**'
       - 'packages/telemetry/**'
@@ -104,13 +108,12 @@ jobs:
           # and exercises each package's publish-time workspace-range rewriting and
           # `files` list. Every package packed below is built here first:
           # create-oxy-app's own build compiles only its CLI and builds no
-          # workspace package. core's build builds telemetry before itself.
-          bun run --filter @oxy.so/contracts build
-          bun run --filter @oxy.so/protocol build
-          bun run --filter @oxy.so/core build
-          bun run --cwd packages/db build
-          bun run --cwd packages/services build
-          for package in contracts protocol telemetry core db services app-preset; do
+          # workspace package. Turbo builds every transitive workspace first,
+          # including both maintained parsers, without repeating their compilers.
+          bunx turbo run build --filter=@oxy.so/zod3 --filter=@oxy.so/zod4 \
+            --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core \
+            --filter=@oxy.so/db --filter=@oxy.so/services
+          for package in zod3 zod4 contracts protocol telemetry core db services app-preset; do
             bun pm pack --cwd "packages/$package" --destination "$RUNNER_TEMP"
           done
 
@@ -168,6 +171,8 @@ jobs:
             const path = require("path");
             const dir = process.env.RUNNER_TEMP;
             const packed = [
+              ["@oxy.so/zod3", /^oxy\.so-zod3-.*\.tgz$/],
+              ["@oxy.so/zod4", /^oxy\.so-zod4-.*\.tgz$/],
               ["@oxy.so/contracts", /^oxy\.so-contracts-.*\.tgz$/],
               ["@oxy.so/protocol", /^oxy\.so-protocol-.*\.tgz$/],
               ["@oxy.so/telemetry", /^oxy\.so-telemetry-.*\.tgz$/],
