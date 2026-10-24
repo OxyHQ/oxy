@@ -227,6 +227,77 @@ describe('OxyServices.rotateKey', () => {
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/u/user-123/did.json');
     });
 
+    // The new phrase is the account's recovery phrase from here on. Before this,
+    // the slot kept the REPLACED key's phrase, and Settings revealed it as the
+    // user's recovery phrase although it recovers nothing.
+    describe('the recovery phrase slot', () => {
+      function arrangeServerRotation() {
+        jest
+          .spyOn(RecoveryPhraseService, 'derivePendingIdentity')
+          .mockResolvedValue(pendingFixture);
+        jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+        jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+        jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+        makeRequestSpy
+          .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+          .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+      }
+
+      it('stores the new phrase once the new key is persisted', async () => {
+        arrangeServerRotation();
+        const order: string[] = [];
+        jest.spyOn(KeyManager, 'importKeyPair').mockImplementation(async () => {
+          order.push('key');
+          return NEW_PUBLIC;
+        });
+        const storeSpy = jest
+          .spyOn(KeyManager, 'storeRecoveryMnemonic')
+          .mockImplementation(async () => {
+            order.push('phrase');
+          });
+        const deleteSpy = jest.spyOn(KeyManager, 'deleteRecoveryMnemonic').mockResolvedValue();
+
+        await oxy.identity.rotateKey({ proof: 'device' });
+
+        expect(storeSpy).toHaveBeenCalledWith(pendingFixture.phrase);
+        expect(order).toEqual(['key', 'phrase']);
+        expect(deleteSpy).not.toHaveBeenCalled();
+      });
+
+      it('clears the replaced phrase when the new one cannot be stored, and still succeeds', async () => {
+        arrangeServerRotation();
+        jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+        jest
+          .spyOn(KeyManager, 'storeRecoveryMnemonic')
+          .mockRejectedValue(new Error('keychain write failed'));
+        const deleteSpy = jest.spyOn(KeyManager, 'deleteRecoveryMnemonic').mockResolvedValue();
+
+        const result = await oxy.identity.rotateKey({ proof: 'device' });
+
+        expect(deleteSpy).toHaveBeenCalledTimes(1);
+        expect(result).toEqual({
+          newPublicKey: NEW_PUBLIC,
+          newPhrase: pendingFixture.phrase,
+          words: pendingFixture.words,
+        });
+      });
+
+      it('leaves the slot alone when the new key itself could not be persisted', async () => {
+        arrangeServerRotation();
+        jest
+          .spyOn(KeyManager, 'importKeyPair')
+          .mockRejectedValue(new Error('secure store write failed'));
+        const storeSpy = jest.spyOn(KeyManager, 'storeRecoveryMnemonic').mockResolvedValue();
+        const deleteSpy = jest.spyOn(KeyManager, 'deleteRecoveryMnemonic').mockResolvedValue();
+
+        const result = await oxy.identity.rotateKey({ proof: 'device' });
+
+        expect(result).toMatchObject({ localPersistFailed: true });
+        expect(storeSpy).not.toHaveBeenCalled();
+        expect(deleteSpy).not.toHaveBeenCalled();
+      });
+    });
+
     // The shared slot is what every cross-app reader takes first, including
     // `deriveScopedSeed` — the FairCoin wallet Peable derives. A rotation that
     // wrote only the primary left that wallet on the replaced key, watching

@@ -21,7 +21,8 @@ import { useTranslation } from '@/lib/i18n';
  * phrase, and the phrase cannot be re-derived from the key.
  *
  * Rather than show two dead rows to those users, the hub reads whether a phrase
- * was ever captured on this device ({@link KeyManager.getRecoveryMnemonic}) and
+ * for the CURRENT key is on this device
+ * ({@link KeyManager.getRecoveryMnemonicForCurrentIdentity}) and
  * tells the honest story: phrase-backed identities get both actions; key-imported
  * identities are told why they're unavailable and pointed at key rotation (which
  * mints a fresh phrase-backed key). The existence check never renders or logs the
@@ -39,7 +40,7 @@ export default function BackupRecoveryScreen() {
     let active = true;
     (async () => {
       try {
-        const mnemonic = await KeyManager.getRecoveryMnemonic();
+        const mnemonic = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
         if (active) setStatus(mnemonic ? 'present' : 'absent');
       } catch {
         // A locked/unreadable keychain can't confirm absence — assume present so

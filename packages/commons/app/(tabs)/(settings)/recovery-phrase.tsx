@@ -18,7 +18,9 @@ import { useTranslation } from '@/lib/i18n';
  *
  * Re-reveals the 12-word phrase that was captured (best-effort) at identity
  * creation/import and persisted in a dedicated, device-only keychain slot
- * ({@link KeyManager.getRecoveryMnemonic}). Gated behind the device biometric /
+ * ({@link KeyManager.getRecoveryMnemonicForCurrentIdentity}, which returns it only
+ * when it derives the key on this device: a phrase a key rotation replaced is
+ * never shown as the recovery phrase). Gated behind the device biometric /
  * passcode when biometrics are available.
  *
  * The phrase is loaded ONLY after the gate passes and is never persisted to any
@@ -57,7 +59,7 @@ export default function RecoveryPhraseScreen() {
     }
 
     try {
-      const mnemonic = await KeyManager.getRecoveryMnemonic();
+      const mnemonic = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
       if (!mnemonic) {
         setState({ kind: 'notStored' });
         return;

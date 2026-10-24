@@ -127,7 +127,7 @@ export default function LinkAccountConfirmScreen() {
         words = (await createIdentity()).recoveryPhrase;
       } catch (error) {
         if (!(error instanceof IdentityAlreadyExistsError)) throw error;
-        words = (await KeyManager.getRecoveryMnemonic())?.split(' ') ?? null;
+        words = (await KeyManager.getRecoveryMnemonicForCurrentIdentity())?.split(' ') ?? null;
       }
       if (words) {
         setStep({ name: 'phrase', words });

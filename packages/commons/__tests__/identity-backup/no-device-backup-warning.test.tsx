@@ -186,7 +186,9 @@ describe('<DeviceBackupWarning />', () => {
     publicKey = KEY_A;
     mnemonic = PHRASE;
     jest.spyOn(KeyManager, 'getPublicKey').mockImplementation(async () => publicKey);
-    jest.spyOn(KeyManager, 'getRecoveryMnemonic').mockImplementation(async () => mnemonic);
+    jest
+      .spyOn(KeyManager, 'getRecoveryMnemonicForCurrentIdentity')
+      .mockImplementation(async () => mnemonic);
   });
 
   function renderWarning(variant: 'prompt' | 'settings') {
@@ -285,7 +287,9 @@ describe('<DeviceBackupWarning />', () => {
     __seedAsyncStorage(NO_DEVICE_BACKUP_ACKNOWLEDGED_KEY, KEY_A);
     __seedAsyncStorage(NO_DEVICE_BACKUP_PROMPTED_KEY, KEY_A);
     const view = renderWarning('prompt');
-    await waitFor(() => expect(KeyManager.getRecoveryMnemonic).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(KeyManager.getRecoveryMnemonicForCurrentIdentity).toHaveBeenCalled(),
+    );
     expect(view.queryByTestId('device-backup-warning-prompt')).toBeNull();
   });
 });
