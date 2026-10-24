@@ -19,7 +19,7 @@ and JSON.
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
 | Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
 | Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
-| Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
+| Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` alone in development, so Expo's oxc transformer (Noxcturnal) runs; the build-id inliner in production |
 | ESLint | `@oxy.so/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
 | CSS base | `@oxy.so/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
 | tsconfig | `@oxy.so/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
@@ -237,6 +237,21 @@ defaults without replacing them.
 ```js
 module.exports = require('@oxy.so/app-preset/babel');
 ```
+
+In development this is exactly `babel-preset-expo`. Expo's oxc transformer,
+Noxcturnal, runs only when the Babel config resolves to the bare Expo preset;
+one extra plugin or preset option sends every file back to Babel. The config
+plugin turns the experiment (`experiments.noxcturnalTransformWorker`) on for
+development; `noxcturnal: false` opts out. Production builds stay on Babel,
+with the build-id inliner, because Noxcturnal keeps the requires of dead
+platform branches and pulls native-only packages into a web bundle.
+
+`@/` resolves from the app's `tsconfig.json` paths (`"@/*": ["./*"]`), not from
+Babel. Jest needs the same alias in `moduleNameMapper`
+(`"^@/(.*)$": "<rootDir>/$1"`). `babel-preset-expo` adds
+`react-native-worklets/plugin` and the `import.meta` transform itself. An app
+that adds its own Babel plugins, or a custom `babelTransformerPath` such as
+`react-native-svg-transformer`, keeps every file on Babel.
 
 With Bundle Mode (opt-in, 3.2.0+), a worker runtime runs the app's own modules:
 

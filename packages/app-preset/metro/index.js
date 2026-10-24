@@ -25,7 +25,8 @@
  * @param {boolean} [options.dropConsole=false] Strip console calls from the
  *   production web bundle. Hermes native bundles do not use Metro's minifier.
  * @param {string} [options.svgTransformerPath] Resolved SVG transformer path.
- *   When set, `svg` moves from asset extensions to source extensions.
+ *   When set, `svg` moves from asset extensions to source extensions. A custom
+ *   Babel transformer keeps every file on Babel, so the app loses Noxcturnal.
  * @param {Record<string,string>} [options.extraNodeModules={}] Extra aliases.
  * @param {string[]} [options.extraWatchFolders=[]] Additional watch roots.
  * @param {string} [options.workspaceRoot] The install root Metro watches and
@@ -136,7 +137,8 @@ function createOxyMetroConfig(projectRoot, options = {}) {
   const monorepoRoot = workspaceRoot ? path.resolve(workspaceRoot) : findWorkspaceRoot(projectRoot);
   const config = getDefaultConfig(projectRoot);
 
-  // The preset's Babel plugin inlines this id into every module, but Metro's
+  // In a production build the preset's Babel plugin inlines this id into every
+  // module (development uses a constant id and no plugin), but Metro's
   // transform cache key does not cover it: without the id in `cacheVersion`, a
   // cached SDK module would keep an old build's id. Published so the Babel
   // workers Metro forks resolve the same value.

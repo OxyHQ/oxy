@@ -228,7 +228,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "3.6.1",
+      "version": "4.0.0",
       "dependencies": {
         "parse5": "catalog:",
       },
@@ -246,7 +246,6 @@
         "@expo/router-server": "<59.0.0",
         "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || >=6.0.0",
         "@oxy.so/services": ">=11.0.0",
-        "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
         "eslint-config-expo": "*",
@@ -266,7 +265,6 @@
       "optionalPeers": [
         "@expo/router-server",
         "@oxy.so/bloom",
-        "babel-plugin-module-resolver",
         "babel-preset-expo",
         "eslint",
         "eslint-config-expo",

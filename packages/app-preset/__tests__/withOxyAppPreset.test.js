@@ -145,3 +145,26 @@ test('`webgpu: true` without react-native-webgpu installed says what to install'
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('Noxcturnal is on in development only, and an app can opt out or set it itself', () => {
+  const root = fakeApp();
+  const saved = process.env.NODE_ENV;
+  try {
+    const base = { name: 'app', _internal: { projectRoot: root } };
+    const flag = (config, options = {}) =>
+      withOxyAppPreset(config, { ios: false, android: false, ...options }).experiments
+        ?.noxcturnalTransformWorker;
+
+    process.env.NODE_ENV = 'development';
+    assert.equal(flag(base), true);
+    assert.equal(flag(base, { noxcturnal: false }), undefined);
+    assert.equal(flag({ ...base, experiments: { noxcturnalTransformWorker: false } }), false);
+
+    process.env.NODE_ENV = 'production';
+    assert.equal(flag(base), false);
+  } finally {
+    if (saved === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = saved;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
