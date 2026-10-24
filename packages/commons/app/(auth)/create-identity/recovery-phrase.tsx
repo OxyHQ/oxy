@@ -83,12 +83,12 @@ export default function RecoveryPhraseScreen() {
   }, [acknowledged, acknowledgeRecoveryPhrase, router, setRecoveryPhraseAcknowledgedPersisted]);
 
   const handleMissingPhrase = useCallback(() => {
-    // The in-memory phrase is gone. Send the user back to the start of
-    // the create flow so a fresh identity (and a fresh phrase) can be
-    // generated. We DELIBERATELY do not attempt to re-derive from the
-    // stored private key — there is no deterministic way to recover the
-    // original mnemonic from the seed bytes alone.
-    router.replace('/(auth)/welcome');
+    // The in-memory phrase is gone (the app was reloaded on this screen). The
+    // create flow's index reloads it from the phrase slot it was stored in at
+    // creation and comes back here; it cannot be re-derived from the key. The
+    // welcome screen it used to go to resumed at the username step instead,
+    // and onboarding finished without the phrase ever being shown again.
+    router.replace('/(auth)/create-identity');
   }, [router]);
 
   return (
