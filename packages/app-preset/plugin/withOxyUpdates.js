@@ -39,12 +39,14 @@
  * (`certs/oxy-updates-code-signing.pem`) rather than copied into every app repo,
  * so a key rotation is one preset bump instead of thirteen.
  *
- * Until that certificate is committed the plugin wires the update URL but NOT
- * signature verification, and warns on both platforms. A binary built in that
- * state can never verify a manifest signature for its whole lifetime, because the
- * certificate is baked into the native build, so **do not ship a store build of
- * an OTA-enabled app before the certificate exists.** Pass
- * `{ codeSigning: 'require' }` to turn that warning into a hard build failure.
+ * **It fails closed.** The default is `codeSigning: 'require'`: a build whose
+ * certificate is missing or is not a PEM certificate throws, because a binary
+ * built without it can never verify a manifest signature for its whole lifetime
+ * (the certificate is baked into the native build) and would run whatever an
+ * attacker between it and the server sent. The server side matches: oxy-api
+ * signs every manifest and directive and serves nothing without its key.
+ * `'auto'` (warn when absent) and `false` (no verification) exist for local
+ * development only and must be asked for explicitly.
  *
  * @param {import('expo/config').ExpoConfig} config
  * @param {object} options
@@ -52,9 +54,10 @@
  *   (`oxy_dk_...`) identifying this app to the update server. Required.
  * @param {string} [options.apiOrigin='https://api.oxy.so'] Origin serving `/updates/v1`.
  * @param {string} [options.channel='production'] Release channel this binary tracks.
- * @param {'auto'|'require'|false} [options.codeSigning='auto'] `auto` wires
- *   signing when the certificate is present and warns when it is not; `require`
- *   throws when it is absent; `false` skips signing entirely.
+ * @param {'require'|'auto'|false} [options.codeSigning='require'] `require`
+ *   throws unless a valid certificate is present; `auto` (development only)
+ *   wires signing when present and warns when not; `false` (development only)
+ *   skips verification entirely.
  * @param {string} [options.certificatePath] Absolute path to a different
  *   certificate than the bundled one. Normally unset; it exists for the overlap
  *   window of a key rotation, where one binary has to trust an incoming
@@ -92,7 +95,7 @@ module.exports = function withOxyUpdates(config, options = {}) {
     clientId,
     apiOrigin = DEFAULT_API_ORIGIN,
     channel = DEFAULT_CHANNEL,
-    codeSigning = 'auto',
+    codeSigning = 'require',
     certificatePath = CERTIFICATE_PATH,
     runtimeVersionPolicy = 'appVersion',
   } = options;
@@ -117,8 +120,26 @@ module.exports = function withOxyUpdates(config, options = {}) {
   updates.url = `${origin}/updates/v1/apps/${clientId}/manifest`;
   updates.requestHeaders = { ...updates.requestHeaders, 'expo-channel-name': channel };
 
+  if (codeSigning !== false && codeSigning !== 'auto' && codeSigning !== 'require') {
+    throw new Error(
+      `[${PLUGIN_NAME}] \`codeSigning\` must be 'require' (the default), 'auto' or false; got ` +
+        `${JSON.stringify(codeSigning)}.`,
+    );
+  }
+
   if (codeSigning !== false) {
-    if (fs.existsSync(certificatePath)) {
+    const certificate = fs.existsSync(certificatePath)
+      ? fs.readFileSync(certificatePath, 'utf8')
+      : null;
+    if (certificate !== null && !/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(certificate)) {
+      // Never wire a file expo-updates cannot parse: the binary would fail every
+      // update check, or worse, a later native change could treat it as absent.
+      throw new Error(
+        `[${PLUGIN_NAME}] ${certificatePath} is not a PEM certificate. It must be the PUBLIC ` +
+          'certificate written by oxy-api `scripts/generate-updates-code-signing.ts`.',
+      );
+    }
+    if (certificate !== null) {
       const projectRoot = config._internal?.projectRoot;
       if (typeof projectRoot !== 'string') {
         throw new Error(
@@ -133,10 +154,11 @@ module.exports = function withOxyUpdates(config, options = {}) {
       updates.codeSigningMetadata = { keyid: CODE_SIGNING_KEY_ID, alg: CODE_SIGNING_ALG };
     } else if (codeSigning === 'require') {
       throw new Error(
-        `[${PLUGIN_NAME}] code signing is required but the Oxy Updates certificate is missing at ` +
-          `${certificatePath}. Generate the ecosystem keypair with oxy-api's ` +
-          '`bun scripts/generate-updates-code-signing.ts`, commit the certificate into ' +
-          '@oxy.so/app-preset, and set the private key as UPDATES_CODE_SIGNING_PRIVATE_KEY on oxy-api.',
+        `[${PLUGIN_NAME}] the Oxy Updates code-signing certificate is missing at ` +
+          `${certificatePath}, and an OTA-enabled build without it would accept unsigned ` +
+          'updates for its whole lifetime. Use an @oxy.so/app-preset that ships ' +
+          '`certs/oxy-updates-code-signing.pem` (see certs/README.md). For a local development ' +
+          "build only, pass `{ codeSigning: 'auto' }` or `{ codeSigning: false }`.",
       );
     } else {
       const warning =

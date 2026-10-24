@@ -4,9 +4,14 @@
  * Code signing is MANDATORY for the update protocol: the manifest transitively
  * signs every asset (each asset's SHA-256 hash is inside the signed manifest and
  * verified by the client), so a signed manifest is the only thing standing
- * between a compromised ALB/CDN and remote code execution on every device. The
- * client sends `expo-expect-signature`; we MUST return a valid `expo-signature`
- * for each signable part or refuse to serve.
+ * between a compromised ALB/CDN and remote code execution on every device.
+ *
+ * This server never produces an unsigned manifest or directive. Every signable
+ * part carries `expo-signature`, whether or not the client sent
+ * `expo-expect-signature` (a binary built without the certificate ignores the
+ * header; one built with it rejects anything unsigned). Without a usable key the
+ * manifest route answers 503 and the publish API refuses to record an update,
+ * because an update that can only be served unsigned must not exist.
  *
  * Scheme: RSASSA-PKCS1-v1_5 over SHA-256 (`rsa-v1_5-sha256`), keyid `main`,
  * matching Expo's reference server and the `@expo/code-signing-certificates`
@@ -15,12 +20,15 @@
  * Expo Structured-Field-Value dictionary: `sig="<base64>", keyid="main"`.
  *
  * The private key is provided as base64-encoded PEM via
- * `UPDATES_CODE_SIGNING_PRIVATE_KEY`. It is OPTIONAL at boot (the process starts
- * without it); a request that needs a signature when the key is absent fails
- * with a clear {@link CodeSigningNotConfiguredError} that the route maps to 500.
+ * `UPDATES_CODE_SIGNING_PRIVATE_KEY` (SSM `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY`,
+ * bound in `deploy-aws.yml`). The process boots without it so the rest of the
+ * API keeps serving, but every update request then fails with
+ * {@link CodeSigningNotConfiguredError} (503). Its public half is
+ * `@oxy.so/app-preset`'s `certs/oxy-updates-code-signing.pem`.
  */
 
 import crypto from 'crypto';
+import { ServiceUnavailableError } from '../../utils/error';
 import { logger } from '../../utils/logger';
 
 /** keyid advertised in the `expo-signature` header; the client selects the cert by it. */
@@ -30,12 +38,12 @@ export const CODE_SIGNING_KEY_ID = 'main';
 export const CODE_SIGNING_ALG = 'rsa-v1_5-sha256';
 
 /**
- * Thrown when a signature is required but `UPDATES_CODE_SIGNING_PRIVATE_KEY` is
- * unset (or unusable). The manifest route maps this to an HTTP 500 with a clear
- * log rather than serving an unsigned manifest a code-signing client would
- * reject anyway.
+ * Thrown when `UPDATES_CODE_SIGNING_PRIVATE_KEY` is unset or unusable. A 503: the
+ * request is fine, the capability is not configured, and nothing changes until an
+ * operator sets the key. The manifest route answers it instead of serving an
+ * unsigned manifest; the publish API answers it instead of recording an update.
  */
-export class CodeSigningNotConfiguredError extends Error {
+export class CodeSigningNotConfiguredError extends ServiceUnavailableError {
   constructor(message = 'UPDATES_CODE_SIGNING_PRIVATE_KEY is not configured') {
     super(message);
     this.name = 'CodeSigningNotConfiguredError';
@@ -87,9 +95,19 @@ export function resetSigningKeyCache(): void {
   cachedPrivateKeyPem = undefined;
 }
 
-/** True when a usable code-signing private key is configured. */
+/** True when a code-signing private key PEM is configured (not proof it signs; see below). */
 export function isCodeSigningConfigured(): boolean {
   return resolvePrivateKeyPem() !== null;
+}
+
+/**
+ * Throw {@link CodeSigningNotConfiguredError} unless the configured key can
+ * actually produce a signature. The publish API calls it before recording an
+ * update, so a key that decodes to a PEM but cannot sign (truncated, wrong type)
+ * is caught at publish time rather than on the first device's manifest request.
+ */
+export function assertCodeSigningConfigured(): void {
+  signPartBytes(Buffer.from('oxy-updates-signing-probe', 'utf8'));
 }
 
 /**

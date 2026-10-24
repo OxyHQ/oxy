@@ -16,7 +16,7 @@ and JSON.
 | --- | --- | --- |
 | Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` (which signs every release with the ecosystem key, see below) + the R8 `-optimize` ProGuard file |
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
-| Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
+| Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate, required (opt-in, see below) |
 | Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
 | Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` alone in development, so Expo's oxc transformer (Noxcturnal) runs; the build-id inliner in production |
 | ESLint | `@oxy.so/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
@@ -226,10 +226,13 @@ receive JS assuming native modules they do not have.
 
 **Code signing is one certificate for the whole ecosystem**, shipped in this
 package at `certs/oxy-updates-code-signing.pem` rather than copied into each app
-repo, so a rotation is one preset bump. See `certs/README.md` for how it is
-generated and rotated. Until that file exists, `withOxyUpdates` fails the build
-by default rather than producing a binary that accepts unsigned manifests for
-its whole lifetime. Development builds may explicitly pass
+repo, so a rotation is one preset bump. See `certs/README.md` for how it was
+generated, where its private key lives, and how to rotate it. `withOxyUpdates`
+fails the build (5.2.0+; before that the code defaulted to a warning) when the
+certificate is missing or is not a PEM certificate, rather than producing a
+binary that accepts unsigned manifests for its whole lifetime. The server side
+matches: oxy-api signs every manifest and directive and serves nothing, and
+accepts no publish, without its key. Development builds may explicitly pass
 `{ codeSigning: 'auto' }` to receive platform warnings, or
 `{ codeSigning: false }` to opt out of verification.
 

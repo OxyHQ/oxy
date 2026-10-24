@@ -4,36 +4,75 @@
  * Generates an RSA keypair + a self-signed code-signing certificate (the same
  * `@expo/code-signing-certificates` machinery the expo-updates client verifies
  * against), then:
- *   - prints the BASE64-ENCODED private-key PEM to stdout — paste this into the
- *     GitHub Actions secret / SSM `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY`
- *     (the value `services/updates/signing.service.ts` decodes at runtime);
- *   - writes the PUBLIC certificate PEM to the given output path — commit this
- *     certificate into each app that receives updates (expo-updates
- *     `codeSigningCertificate`), NEVER the private key.
+ *   - writes the PUBLIC certificate PEM to `<certificate-output-path>`. It is
+ *     committed ONCE, into `@oxy.so/app-preset` (`certs/oxy-updates-code-signing.pem`),
+ *     where `withOxyUpdates` bakes it into every OTA-enabled binary;
+ *   - writes the BASE64-ENCODED private-key PEM (the value
+ *     `services/updates/signing.service.ts` decodes at runtime) to
+ *     `<private-key-output-path>`, created with mode 0600. That path must be
+ *     OUTSIDE every git checkout. The key goes from that file into SSM
+ *     (`/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY`, SecureString) with
+ *     `--value file://<path>`, so it is never typed, echoed or pasted.
  *
- * The private key is NEVER written to disk in the repo. Run it locally, capture
- * the base64 line into the secret store, and discard the terminal scrollback.
+ * The private key is never printed. The script refuses an existing private-key
+ * file (it would silently replace the key a binary already trusts) and a path
+ * inside a git work tree.
  *
- *   bun scripts/generate-updates-code-signing.ts <certificate-output-path>
+ *   bun scripts/generate-updates-code-signing.ts <certificate-output-path> <private-key-output-path>
  *
- * e.g. `bun scripts/generate-updates-code-signing.ts ./updates-certificate.pem`
+ * The full procedure, including the SSM write and the rotation rules, is in
+ * `packages/app-preset/certs/README.md`.
  */
 
-import { promises as fs } from 'fs';
+import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import {
-  generateKeyPair,
-  generateSelfSignedCodeSigningCertificate,
   convertCertificateToCertificatePEM,
   convertKeyPairToPEM,
+  generateKeyPair,
+  generateSelfSignedCodeSigningCertificate,
 } from '@expo/code-signing-certificates';
 
 const CERTIFICATE_COMMON_NAME = 'Oxy Updates Code Signing';
 const CERTIFICATE_VALIDITY_YEARS = 10;
 
+/** True when `target` (a file that may not exist yet) sits inside a git work tree. */
+function isInsideGitWorkTree(target: string): boolean {
+  let dir = path.dirname(target);
+  for (;;) {
+    if (existsSync(path.join(dir, '.git'))) {
+      return true;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return false;
+    }
+    dir = parent;
+  }
+}
+
 async function main(): Promise<void> {
-  const certOutputArg = process.argv[2] ?? './updates-code-signing-certificate.pem';
+  const [certOutputArg, keyOutputArg] = process.argv.slice(2);
+  if (!certOutputArg || !keyOutputArg) {
+    throw new Error(
+      'usage: bun scripts/generate-updates-code-signing.ts <certificate-output-path> <private-key-output-path>',
+    );
+  }
   const certOutputPath = path.resolve(process.cwd(), certOutputArg);
+  const keyOutputPath = path.resolve(process.cwd(), keyOutputArg);
+
+  if (isInsideGitWorkTree(keyOutputPath)) {
+    throw new Error(
+      `refusing to write the private key inside a git work tree (${keyOutputPath}); ` +
+        'choose a path outside every checkout, e.g. ~/.config/oxy/',
+    );
+  }
+  if (existsSync(keyOutputPath)) {
+    throw new Error(
+      `refusing to overwrite ${keyOutputPath}: it may hold the key shipped binaries trust. ` +
+        'Rotation is a deliberate procedure (certs/README.md, "Rotation").',
+    );
+  }
 
   const keyPair = generateKeyPair();
 
@@ -50,24 +89,19 @@ async function main(): Promise<void> {
 
   const { privateKeyPEM } = convertKeyPairToPEM(keyPair);
   const certificatePEM = convertCertificateToCertificatePEM(certificate);
-
-  await fs.writeFile(certOutputPath, certificatePEM, { encoding: 'utf8' });
-
   const privateKeyBase64 = Buffer.from(privateKeyPEM, 'utf8').toString('base64');
 
-  process.stdout.write('\n');
-  process.stdout.write('=== Oxy Updates code-signing keypair generated ===\n\n');
-  process.stdout.write(`Public certificate written to: ${certOutputPath}\n`);
-  process.stdout.write('  → commit this certificate into each app that receives updates.\n\n');
+  await fs.mkdir(path.dirname(keyOutputPath), { recursive: true, mode: 0o700 });
+  // `wx`: fail if it appeared since the check above; 0600 from creation, never chmod'ed later.
+  await fs.writeFile(keyOutputPath, privateKeyBase64, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  await fs.writeFile(certOutputPath, certificatePEM, { encoding: 'utf8' });
+
+  process.stdout.write('Oxy Updates code-signing keypair generated.\n');
+  process.stdout.write(`  public certificate: ${certOutputPath} (commit it)\n`);
+  process.stdout.write(`  private key (base64 PEM, mode 0600): ${keyOutputPath} (never commit it)\n`);
   process.stdout.write(
-    'UPDATES_CODE_SIGNING_PRIVATE_KEY (base64 PEM — set as a secret, never commit):\n\n',
-  );
-  process.stdout.write(`${privateKeyBase64}\n\n`);
-  process.stdout.write(
-    'Store the value above in GitHub Actions secrets → SSM /oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY.\n',
-  );
-  process.stdout.write(
-    'The private key was NOT written to disk. Clear your terminal scrollback.\n',
+    'Next: aws ssm put-parameter --type SecureString --name ' +
+      `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY --value file://${keyOutputPath}\n`,
   );
 }
 

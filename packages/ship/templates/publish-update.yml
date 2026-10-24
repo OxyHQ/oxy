@@ -12,8 +12,9 @@
 #     expo-updates at https://api.oxy.so/updates/v1/apps/<clientId>/manifest.
 #     Both come from `@oxy.so/app-preset/plugin/withOxyUpdates`; see that
 #     package's README, section "Oxy Updates (OTA)".
-#   - oxy-api has UPDATES_CODE_SIGNING_PRIVATE_KEY configured. Without it every
-#     manifest request that asks for a signature answers HTTP 500.
+#   - oxy-api has UPDATES_CODE_SIGNING_PRIVATE_KEY configured (SSM). Without it
+#     the publish is refused and every manifest request answers HTTP 503:
+#     nothing is ever published or served unsigned.
 #   - `bunx oxy-ship` (from `@oxy.so/ship` on npm, or a workspace checkout).
 #
 # This publishes ONLY the OTA update. It does NOT build native binaries.

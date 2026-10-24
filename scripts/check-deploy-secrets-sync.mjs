@@ -127,6 +127,9 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
     ['R2_ACCESS_KEY_ID', '/oxy/oxy-api/R2_ACCESS_KEY_ID'],
     ['R2_SECRET_ACCESS_KEY', '/oxy/oxy-api/R2_SECRET_ACCESS_KEY'],
     ['CLOUDFLARE_CACHE_PURGE_TOKEN', '/oxy/oxy-api/CLOUDFLARE_CACHE_PURGE_TOKEN'],
+    // The Oxy Updates manifest-signing key. Without it every manifest answers
+    // 503 and every publish is refused (services/updates/signing.service.ts).
+    ['UPDATES_CODE_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY'],
   ].map(([name, path]) => [name, `${SSM_ARN_PREFIX}${path}`]),
 );
 

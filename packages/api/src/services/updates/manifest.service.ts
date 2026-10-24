@@ -4,8 +4,9 @@
  * This is the hot, unauthenticated path (`GET /updates/v1/apps/:clientId/manifest`).
  * It resolves what a given device should receive for its `(channel,
  * runtimeVersion, platform)` and assembles the exact `multipart/mixed` bytes the
- * expo-updates v1 protocol requires, signing the manifest/directive part when
- * the client requested code signing.
+ * expo-updates v1 protocol requires. Every manifest and directive part is
+ * signed, whether or not the client asked (`signing.service.ts`): without a
+ * usable key nothing is served at all.
  *
  * Decision precedence (matches the plan tree + Expo's reference server):
  *   1. Active `rollBackToEmbedded` directive for this runtime+platform → serve it
@@ -38,7 +39,7 @@ import {
   updateChannels,
 } from '../../db/schema';
 import { updateAssetCdnUrl, sha256HexToBase64Url } from './assetKeys';
-import { signPartBytes } from './signing.service';
+import { CodeSigningNotConfiguredError, isCodeSigningConfigured, signPartBytes } from './signing.service';
 
 /** Parsed, validated inputs for a manifest resolution. */
 export interface ManifestRequest {
@@ -54,8 +55,6 @@ export interface ManifestRequest {
   embeddedUpdateId?: string;
   /** Negotiated protocol version (0 or 1). */
   protocolVersion: 0 | 1;
-  /** True when the client sent `expo-expect-signature` (wants a signed response). */
-  expectSignature: boolean;
   /** Rollout device key from `expo-extra-params` `oxy-device-id`; absent → out of any partial rollout. */
   deviceKey?: string;
 }
@@ -336,13 +335,12 @@ function multipartHeaders(boundary: string): Record<string, string> {
 function jsonPartResponse(
   name: 'manifest' | 'directive',
   json: Record<string, unknown>,
-  expectSignature: boolean,
   extraParts: MultipartPart[] = [],
 ): ManifestResponse {
   const body = Buffer.from(JSON.stringify(json), 'utf8');
-  // signPartBytes throws CodeSigningNotConfiguredError when a signature is
-  // required but no key is configured — the route maps that to a 500.
-  const signature = expectSignature ? signPartBytes(body) : undefined;
+  // Always signed. signPartBytes throws CodeSigningNotConfiguredError (503) when
+  // the key is missing or cannot sign; there is no unsigned fallback.
+  const signature = signPartBytes(body);
   const part: MultipartPart = {
     name,
     contentType: 'application/json; charset=utf-8',
@@ -363,10 +361,15 @@ function noContentResponse(): ManifestResponse {
 
 /**
  * Resolve a manifest request into a fully-formed HTTP response (status, headers,
- * body). Pure of Express — the route adapts it. May throw
- * `CodeSigningNotConfiguredError` when a signature is required but unconfigured.
+ * body). Pure of Express — the route adapts it. Throws
+ * `CodeSigningNotConfiguredError` (503) before reading anything when no signing
+ * key is configured, so a misconfigured server serves nothing, not even a
+ * protocol-0 no-op.
  */
 export async function buildManifestResponse(input: ManifestRequest): Promise<ManifestResponse> {
+  if (!isCodeSigningConfigured()) {
+    throw new CodeSigningNotConfiguredError();
+  }
   const decision = await decide(input);
 
   if (decision.kind === 'manifest') {
@@ -378,7 +381,7 @@ export async function buildManifestResponse(input: ManifestRequest): Promise<Man
       contentType: 'application/json',
       body: Buffer.from(JSON.stringify({ assetRequestHeaders: {} }), 'utf8'),
     };
-    return jsonPartResponse('manifest', manifest, input.expectSignature, [extensions]);
+    return jsonPartResponse('manifest', manifest, [extensions]);
   }
 
   // Directives are unavailable on protocol 0 → empty 204 no-op.
@@ -393,9 +396,8 @@ export async function buildManifestResponse(input: ManifestRequest): Promise<Man
         type: 'rollBackToEmbedded',
         parameters: { commitTime: decision.commitTime.toISOString() },
       },
-      input.expectSignature,
     );
   }
 
-  return jsonPartResponse('directive', { type: 'noUpdateAvailable' }, input.expectSignature);
+  return jsonPartResponse('directive', { type: 'noUpdateAvailable' });
 }

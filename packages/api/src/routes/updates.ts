@@ -7,7 +7,8 @@
  * identifies its app by the `:clientId` (an `ApplicationCredential.publicKey`,
  * `oxy_dk_…`) and its `(channel, runtimeVersion, platform)` via the expo-updates
  * request headers. The response is a signed `multipart/mixed` manifest or
- * directive assembled by the manifest service.
+ * directive assembled by the manifest service. Every response part is signed;
+ * without a signing key the endpoint answers 503 and serves nothing.
  *
  * Only genuinely malformed/missing REQUIRED protocol headers (platform, runtime,
  * protocol version) produce a 400. An unknown channel or an up-to-date client is
@@ -129,7 +130,6 @@ router.get(
       currentUpdateId: singleHeader(req, 'expo-current-update-id'),
       embeddedUpdateId: singleHeader(req, 'expo-embedded-update-id'),
       protocolVersion: protocolVersion as 0 | 1,
-      expectSignature: singleHeader(req, 'expo-expect-signature') !== undefined,
       deviceKey: extraParam(req, 'oxy-device-id'),
     };
 
@@ -138,15 +138,14 @@ router.get(
       response = await buildManifestResponse(input);
     } catch (error) {
       if (error instanceof CodeSigningNotConfiguredError) {
-        // A signed manifest was requested but the signing key is unconfigured.
-        // Serving an unsigned manifest to a code-signing client would be rejected
-        // anyway; fail loudly so the misconfiguration is visible.
-        logger.error('Update manifest requested with signing but no key configured', {
+        // No usable signing key. Never fall back to an unsigned manifest: a
+        // binary built without the certificate would run it unverified.
+        logger.error('Update manifest refused: code signing is not configured', {
           clientId: req.params.clientId,
           runtimeVersion,
           platform,
         });
-        return res.status(500).json({ error: 'Code signing is not configured on this server.' });
+        return res.status(503).json({ error: 'Code signing is not configured on this server.' });
       }
       throw error;
     }

@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 5.2.0
+
+### Security
+
+- Ships the Oxy Updates code-signing certificate,
+  `certs/oxy-updates-code-signing.pem` (RSA 2048, CN=Oxy Updates Code Signing,
+  SHA-256 `E9:1D:40:E6:…:39:DA:81`, valid to 2036-10-24). Every OTA-enabled
+  binary built with this preset verifies manifest signatures.
+- `withOxyUpdates` now FAILS CLOSED, as its README already said: the default
+  `codeSigning` is `'require'` (it was `'auto'`, which only warned and produced
+  a binary that accepts unsigned manifests for its whole lifetime). A
+  certificate file that is not a PEM certificate, or an unknown `codeSigning`
+  value, is refused. `'auto'` and `false` remain for local development builds,
+  explicitly.
+
 ## 5.1.0
 
 ### Fixed
