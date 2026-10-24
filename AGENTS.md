@@ -39,6 +39,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Client code (core's client entries, services) imports contract VALUES from `@oxy.so/contracts/client`, never Zod; root schemas are for servers — core `clientEntriesZodFree.test.ts`
 - Client code loads the identity stack only via `import('@oxy.so/core/crypto')` (core: `../crypto/index`), one lazy root — core `rootEntryGraph.test.ts`
 - Peer ranges on third-party packages that ship breaking majors have an UPPER bound; first-party `@oxy.so/bloom` is deliberately open (`>=`) so apps always run the latest — #peer-ranges
+- A native module services/core/protocol need on a phone is a REQUIRED peer of services; Expo autolinking skips optional peers — #native-peers
 
 **Runtime traps**
 - Never ship a `\p{…}` regex atom in anything that runs on Hermes; transpile with `regexpu-core` — #hermes-property-escapes

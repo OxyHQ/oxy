@@ -50,10 +50,10 @@ const OPTIONAL_PEERS = Object.entries(manifest.peerDependenciesMeta ?? {})
 const STATIC_OPTIONAL_PEER_IMPORTS: Record<string, string> = {
   // `expo` depends on `expo-modules-core`; an Expo app cannot be without it.
   'expo-modules-core': 'installed by expo itself',
-  // The native keyboard boundary wraps the provider tree in `KeyboardProvider`.
-  // An app on iOS/Android without this peer does not bundle; that is a known,
-  // separate requirement, recorded here so it is not mistaken for optional.
-  'react-native-keyboard-controller': 'native KeyboardBoundary needs it at bundle time',
+  // `react-native-keyboard-controller` used to be listed here: the native
+  // KeyboardBoundary imports it statically, so it was never optional. It is a
+  // REQUIRED peer since 13.5.0 (`requiredNativePeers.test.ts`), because Expo's
+  // autolinking skips optional peers and a JS-only install crashed at launch.
 };
 
 function peerOf(specifier: string): string | null {

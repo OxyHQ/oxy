@@ -32,6 +32,16 @@ gated on it, red at once; each app still has to upgrade inside the window.
 Duplicate locked versions and a missing lockfile are always errors.
 Operational failures use status 2. Default mode is informational.
 
+It also checks that every app (a manifest on `@oxy.so/services` and on `expo`
+or `react-native`) declares each REQUIRED native peer of the services it has
+installed, an **error** otherwise (`undeclared-native-peer`, with the
+`npx expo install …` line). Expo's autolinking skips optional peers and an
+undeclared native module installs at whatever version the package manager
+picks: an Android release without `expo-crypto` built, then had no CSPRNG and
+no sign-in. The check reads the installed `@oxy.so/services` manifest, so run it
+after `bun install`; a manifest whose services is not installed is listed as
+unverified (`nativePeersUnverified` in `--json`), never passed.
+
 Use Renovate with a shared organisation preset for grouped, reviewable updates.
 Require normal tests and typecheck before merging; never use `latest` ranges or
 mutate dependencies during application startup or CI. Renovate proposes

@@ -64,10 +64,6 @@ export const IOS_DEVICE_SESSION_KEYCHAIN_SERVICE = 'oxy_device_session';
 /** The single key holding the JSON-encoded `{deviceId, deviceSecret}` pair. */
 export const SHARED_DEVICE_SESSION_STORAGE_KEY = 'oxy_shared_device_session_v1';
 
-// Variable indirection so Metro's static analyzer never traces expo-secure-store
-// into the web bundle; the module is native-only and optional.
-const SECURE_STORE_MODULE = 'expo-secure-store';
-
 /**
  * The subset of `expo-secure-store` this module needs. Unlike the adapter in
  * `nativeSecureStorage.ts` it must pass OPTIONS — the access group and the
@@ -83,27 +79,38 @@ interface KeychainGroupStore {
 
 let keychainStorePromise: Promise<KeychainGroupStore | null> | null = null;
 
+/**
+ * `expo-secure-store`, a required peer of this package, loaded lazily as a
+ * direct statement of a `try` block with a LITERAL specifier (see
+ * `nativeSecureStorage.ts` for why the old runtime-computed one hid nothing
+ * from Metro). A build without its native module reads `unsupported`.
+ */
+async function importKeychainGroupStore(): Promise<KeychainGroupStore | null> {
+  let mod: Partial<KeychainGroupStore>;
+  try {
+    mod = (await import('expo-secure-store')) as unknown as Partial<KeychainGroupStore>;
+  } catch {
+    return null;
+  }
+  if (
+    typeof mod.getItemAsync === 'function' &&
+    typeof mod.setItemAsync === 'function' &&
+    typeof mod.deleteItemAsync === 'function' &&
+    typeof mod.WHEN_UNLOCKED_THIS_DEVICE_ONLY === 'number'
+  ) {
+    return {
+      getItemAsync: mod.getItemAsync.bind(mod),
+      setItemAsync: mod.setItemAsync.bind(mod),
+      deleteItemAsync: mod.deleteItemAsync.bind(mod),
+      WHEN_UNLOCKED_THIS_DEVICE_ONLY: mod.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    } satisfies KeychainGroupStore;
+  }
+  return null;
+}
+
 function loadKeychainGroupStore(): Promise<KeychainGroupStore | null> {
   if (!keychainStorePromise) {
-    const moduleName = SECURE_STORE_MODULE;
-    keychainStorePromise = import(moduleName)
-      .then((mod: Partial<KeychainGroupStore>) => {
-        if (
-          typeof mod.getItemAsync === 'function' &&
-          typeof mod.setItemAsync === 'function' &&
-          typeof mod.deleteItemAsync === 'function' &&
-          typeof mod.WHEN_UNLOCKED_THIS_DEVICE_ONLY === 'number'
-        ) {
-          return {
-            getItemAsync: mod.getItemAsync.bind(mod),
-            setItemAsync: mod.setItemAsync.bind(mod),
-            deleteItemAsync: mod.deleteItemAsync.bind(mod),
-            WHEN_UNLOCKED_THIS_DEVICE_ONLY: mod.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-          } satisfies KeychainGroupStore;
-        }
-        return null;
-      })
-      .catch(() => null);
+    keychainStorePromise = importKeychainGroupStore();
   }
   return keychainStorePromise;
 }

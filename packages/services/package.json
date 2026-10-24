@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "13.4.0",
+  "version": "13.5.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -178,6 +178,7 @@
     "copyfiles": "^2.4.1",
     "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",
+    "expo-crypto": "catalog:",
     "expo-file-system": "catalog:",
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
@@ -227,6 +228,7 @@
     "expo": ">=54.0.0 <59.0.0",
     "expo-clipboard": ">=8.0.0 <59.0.0",
     "expo-constants": ">=18.0.0 <59.0.0",
+    "expo-crypto": ">=15.0.0 <59.0.0",
     "expo-document-picker": ">=14.0.0 <59.0.0",
     "expo-file-system": ">=19.0.0 <59.0.0",
     "expo-haptics": ">=15.0.0 <59.0.0",
@@ -236,6 +238,7 @@
     "expo-linear-gradient": ">=15.0.0 <59.0.0",
     "expo-modules-core": "<59.0.0",
     "expo-notifications": ">=0.32.0 <59.0.0",
+    "expo-secure-store": ">=15.0.0 <59.0.0",
     "expo-web-browser": ">=15.0.0 <59.0.0",
     "nativewind": ">=5.0.0-preview.3 <6.0.0",
     "react-native-css": "^3.0.6 || 3.1.0-rc.0",
@@ -261,9 +264,6 @@
       "optional": true
     },
     "@types/react": {
-      "optional": true
-    },
-    "react-native-keyboard-controller": {
       "optional": true
     },
     "expo": {
