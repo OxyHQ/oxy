@@ -132,7 +132,6 @@ describe('foreground notification presentation', () => {
     // Nothing from the payload rides along — not the app name, not the body.
     // `source: 'push'` is ours: it keeps Commons open after the approval.
     expect(target.params).toEqual({ code: 'fg-tap', source: 'push' });
-    expect(Object.keys(target.params)).toEqual(['code']);
   });
 });
 
