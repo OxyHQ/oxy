@@ -111,7 +111,7 @@ describe('foreground notification presentation', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('leaves a TAP doing only what it did before: open /approve with only the code', async () => {
+  it('leaves a TAP doing only what it did before: open /approve with only the code (marked as a push)', async () => {
     renderHook(() => useForegroundNotificationHandler());
     renderHook(() => useAuthRequestNotifications(true));
     await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
@@ -130,8 +130,8 @@ describe('foreground notification presentation', () => {
     ];
     expect(target.pathname).toBe('/approve');
     // Nothing from the payload rides along — not the app name, not the body.
-    expect(target.params).toEqual({ code: 'fg-tap' });
-    expect(Object.keys(target.params)).toEqual(['code']);
+    // `source: 'push'` is ours: it keeps Commons open after the approval.
+    expect(target.params).toEqual({ code: 'fg-tap', source: 'push' });
   });
 });
 

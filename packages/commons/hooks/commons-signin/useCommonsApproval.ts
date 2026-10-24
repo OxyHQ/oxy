@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services';
-import { getCommonsApprovalBlockingReason, logger, type CommonsApprovalInfo } from '@oxy.so/core';
+import { logger, type CommonsApprovalInfo } from '@oxy.so/core';
 import type { CommonsDenyReason } from '@oxy.so/contracts';
 import {
   requestLocalConfirmation,
   type LocalConfirmationUnavailableReason,
 } from '@/lib/biometricAuth';
+import {
+  approvalErrorKind,
+  approvalInfoBlockingKind,
+  type ApprovalErrorKind,
+} from '@/lib/commons-signin/approval-error';
 
 /**
  * Lifecycle of a "Sign in with Oxy" approval on the Commons (approver) side.
@@ -59,8 +64,12 @@ export interface UseCommonsApproval {
    * call only ever runs after a `confirmed` outcome.
    */
   confirmationIssue: ApprovalConfirmationIssue | null;
-  /** Optional server/network error message for the `error` state. */
-  errorMessage: string | null;
+  /**
+   * Why the request ended in `error`, as a kind the screen translates; `null`
+   * when there is no code at all (the screen says so). Never a raw server or
+   * transport message.
+   */
+  errorKind: ApprovalErrorKind | null;
   /**
    * The reason the request was denied with, once it has been. `null` until a
    * denial completes, so the terminal state can tell the user what was actually
@@ -112,7 +121,7 @@ export function useCommonsApproval(
   const [confirmationIssue, setConfirmationIssue] = useState<ApprovalConfirmationIssue | null>(
     null,
   );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<ApprovalErrorKind | null>(null);
   const [denialReason, setDenialReason] = useState<CommonsDenyReason | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   // Single-flight latch for the primary action. The device prompt is modal, but
@@ -123,7 +132,7 @@ export function useCommonsApproval(
   useEffect(() => {
     if (!code) {
       setState('error');
-      setErrorMessage(null);
+      setErrorKind(null);
       return;
     }
     // Wait until the SDK client is available before fetching.
@@ -131,7 +140,7 @@ export function useCommonsApproval(
 
     let cancelled = false;
     setState('loading');
-    setErrorMessage(null);
+    setErrorKind(null);
 
     // Progress-only signal so the waiting relying party can show "Opened in
     // Commons" the moment the user actually lands here (issue #691, Phase 4).
@@ -151,10 +160,10 @@ export function useCommonsApproval(
       .approvalInfo(code)
       .then((result) => {
         if (cancelled) return;
-        const blockingReason = getCommonsApprovalBlockingReason(result);
-        if (blockingReason) {
+        const blockingKind = approvalInfoBlockingKind(result);
+        if (blockingKind) {
           setInfo(null);
-          setErrorMessage(blockingReason);
+          setErrorKind(blockingKind);
           setState('error');
           return;
         }
@@ -163,7 +172,7 @@ export function useCommonsApproval(
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setErrorMessage(error instanceof Error ? error.message : null);
+        setErrorKind(approvalErrorKind(error));
         setState('error');
       });
 
@@ -199,7 +208,7 @@ export function useCommonsApproval(
         await oxyServices.auth.commons.approve({ authorizeCode: code });
         setState('approved');
       } catch (error: unknown) {
-        setErrorMessage(error instanceof Error ? error.message : null);
+        setErrorKind(approvalErrorKind(error));
         setState('error');
       }
     } finally {
@@ -219,7 +228,7 @@ export function useCommonsApproval(
         setDenialReason(reason);
         setState('denied');
       } catch (error: unknown) {
-        setErrorMessage(error instanceof Error ? error.message : null);
+        setErrorKind(approvalErrorKind(error));
         setState('error');
       } finally {
         inFlight.current = false;
@@ -230,5 +239,5 @@ export function useCommonsApproval(
 
   const reload = useCallback(() => setReloadKey((key) => key + 1), []);
 
-  return { state, info, confirmationIssue, errorMessage, denialReason, approve, deny, reload };
+  return { state, info, confirmationIssue, errorKind, denialReason, approve, deny, reload };
 }

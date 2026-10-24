@@ -47,7 +47,7 @@ describe('useAuthRequestNotifications', () => {
     expect(subscribeToNotificationResponses).not.toHaveBeenCalled();
   });
 
-  it('opens the approval route with ONLY the authorize code', async () => {
+  it('opens the approval route with ONLY the authorize code, marked as a push', async () => {
     renderHook(() => useAuthRequestNotifications(true));
     await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
@@ -64,9 +64,10 @@ describe('useAuthRequestNotifications', () => {
       { pathname: string; params: Record<string, string> },
     ];
     expect(target.pathname).toBe('/approve');
-    expect(target.params).toEqual({ code: 'warm-1' });
-    // Nothing from the payload rides along — not the app name, not the origin.
-    expect(Object.keys(target.params)).toEqual(['code']);
+    // `source: 'push'` keeps Commons open after the approval (there is no caller
+    // on this phone to return to). Nothing from the payload rides along — not
+    // the app name, not the origin.
+    expect(target.params).toEqual({ code: 'warm-1', source: 'push' });
   });
 
   it.each([

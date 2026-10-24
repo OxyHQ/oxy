@@ -44,6 +44,7 @@ import {
   useHideNativeSplashWhenReady,
 } from '@oxy.so/expo-splash';
 import { installIdentityDeviceBackup } from '@/lib/identity-backup';
+import { PUSH_SOURCE } from '@/lib/commons-signin/approval-return';
 import { installIdentitySigner } from '@/lib/identity-signer';
 import { DEVICE_BACKUP_WARNING_QUERY_KEY } from '@/hooks/identity/useDeviceBackupWarning';
 
@@ -199,7 +200,10 @@ async function resolveColdLaunchIntent(): Promise<ColdLaunchIntent> {
   }
 
   const code = coldLaunchApprovalCode(launchData);
-  return { target: code ? { pathname: '/approve', params: { code } } : null, systemNotificationId };
+  return {
+    target: code ? { pathname: '/approve', params: { code, source: PUSH_SOURCE } } : null,
+    systemNotificationId,
+  };
 }
 
 /**

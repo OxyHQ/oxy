@@ -1208,7 +1208,13 @@
       "unverifiedTitle": "We couldn't verify this sign-in",
       "unverifiedBody": "We couldn't confirm where this sign-in request started. Only continue if you JUST started it yourself on a device you trust. If you didn't, tap “This wasn't me”.",
       "privacyLink": "Privacy Policy",
-      "termsLink": "Terms of Service"
+      "termsLink": "Terms of Service",
+      "errors": {
+        "unresolvedApp": "We couldn't tell which app is asking to sign in, so this request can't be approved.",
+        "expired": "This sign-in request has expired. Ask for a new QR code.",
+        "network": "Couldn't reach Oxy. Check your connection and try again.",
+        "failed": "Something went wrong. Try again in a moment."
+      }
     },
     "channel": {
       "name": "Sign-in requests",
