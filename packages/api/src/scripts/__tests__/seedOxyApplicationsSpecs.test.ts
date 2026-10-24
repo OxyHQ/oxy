@@ -47,6 +47,7 @@ import {
   ALIA_APPLICATION_SCOPES,
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  ASTRO_APPLICATION_ID,
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
@@ -206,6 +207,27 @@ describe('the canonical official-application registry', () => {
     });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
     expect(nilo.capabilities).toEqual(['catalog:noted']);
+  });
+
+  it('registers Astro by exact identity as a native public sign-in client with no authority beyond the session', () => {
+    const astro = specNamed('Astro');
+    expect(astro).toMatchObject({
+      id: ASTRO_APPLICATION_ID,
+      websiteUrl: 'https://astro.oxy.so',
+      redirectUris: [],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(astro.webOrigins).toBeUndefined();
+    expect(astro.capabilities).toBeUndefined();
+    expect(requiresPublicSeedCredential(astro)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === ASTRO_APPLICATION_ID)).toHaveLength(1);
+    expect(ASTRO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(astro, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: ASTRO_APPLICATION_ID,
+    });
+    expect(seededPrincipal(astro)).toEqual({ type: 'first_party', isInternal: false });
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
