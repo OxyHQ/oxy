@@ -50,6 +50,8 @@ import {
   isPublicGraphTarget,
   normalizePeopleSearchTerm,
   peopleSearchMatch,
+  peopleSearchFilterPredicate,
+  type PeopleSearchFilters,
   peopleSearchOrder,
   peopleSearchPredicate,
 } from '../utils/profileQuery';
@@ -479,9 +481,28 @@ router.get(
  *
  * Search for user profiles by username or name
  *
+ * Matches the term case-insensitively against the username, first, last and
+ * display name and the description (a term under three characters matches as a
+ * prefix of the username and names only). Results are ranked by relevance
+ * before paging: an exact username or handle first (a federated
+ * `nate@mstdn.social` counts as exact for `nate`), then a username prefix, then
+ * an exact name, then a name or name-word prefix, then a substring of the
+ * username or a name, then anything else (description). Within a tier Oxy
+ * accounts come before federated ones, then higher reputation, then the shorter
+ * username, then `id` — a strict total order, so offset pages never repeat or
+ * skip a row. A query that is an exact fediverse handle (`user@host`) puts the
+ * resolved remote actor first.
+ *
+ * Optional `type` (`local`, `federated`, `agent`, `automated`) and `kind`
+ * (`personal`, `organization`, `bot`, …) keep only rows whose own `type` /
+ * `kind` equals the value; `type=local` returns Oxy accounts only and skips
+ * remote discovery. Private, archived and restricted accounts never appear.
+ *
  * @query {string} query - Search query (required)
  * @query {number} limit - Number of results (max 100, default 10)
  * @query {number} offset - Pagination offset (default 0)
+ * @query {string} type - Optional: only rows of this account type (e.g. `local`)
+ * @query {string} kind - Optional: only rows of this account kind (e.g. `personal`)
  * @returns {PaginatedResponse<UserProfile>} Paginated list of matching profiles
  */
 router.get(
@@ -491,6 +512,8 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const query = req.query.query as string;
     const { limit, offset } = req.query as PaginationQuery;
+    const { type, kind } = req.query as PeopleSearchFilters;
+    const filters = peopleSearchFilterPredicate({ type, kind });
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new BadRequestError('Search query is required');
@@ -509,19 +532,21 @@ router.get(
     // passed RAW: `peopleSearchMatch` escapes it for LIKE and binds it.
     const sanitizedQuery = normalizePeopleSearchTerm(query);
 
-    // Run local DB search and (if query is a fediverse handle) remote resolution in parallel
-    const isFediverse = isFediverseHandle(sanitizedQuery);
+    // Run local DB search and (if query is a fediverse handle) remote resolution in parallel.
+    // A `type` filter that excludes federated rows skips discovery outright: the
+    // actor it would resolve could never be returned.
+    const isFediverse =
+      isFediverseHandle(sanitizedQuery) && (type === undefined || type === 'federated');
     const [pageRows, federatedUser] = await Promise.all([
       // Order the WHOLE match set BEFORE paging so offset pagination is
       // deterministic (the client's infinite scroll must never see a row
-      // duplicated or skipped across pages):
-      //   1. NATIVE (Oxy local/agent/etc.) before FEDERATED.
-      //   2. Most-reputable first — `reputation_rank_weight` is the
-      //      denormalized reputation rank.
-      //   3. `id` ascending as the FINAL tiebreaker — `id` is unique, so this
-      //      makes the total order STRICT and pagination stable.
-      // The order precedes OFFSET/LIMIT, so it orders the full match set, not
-      // just the page. `count(*) over ()` is evaluated before LIMIT, which is
+      // duplicated or skipped across pages): relevance tier first (exact
+      // handle, username prefix, name, substring, description), then native
+      // before federated, reputation, username length and `id` as the FINAL
+      // tiebreaker — see `peopleSearchOrder`. The relevance is computed on the
+      // canonical row this query returns, so a row that matched only through a
+      // linked alias ranks in the last tier. The order precedes OFFSET/LIMIT,
+      // so it orders the full match set, not just the page. `count(*) over ()` is evaluated before LIMIT, which is
       // what makes the total and the page ONE round trip — the job `$facet` did.
       // The selection is INCLUSION-ONLY (`publicUserColumns`): this row is
       // world-readable, and an exclusion denylist is one forgotten field away
@@ -536,6 +561,7 @@ router.get(
         .where(
           and(
             peopleSearchPredicate(),
+            filters,
             inArray(
               users.id,
               canonicalExternalUserIdsQuery(
@@ -544,7 +570,7 @@ router.get(
             ),
           ),
         )
-        .orderBy(...peopleSearchOrder())
+        .orderBy(...peopleSearchOrder(sanitizedQuery))
         .offset(parsedOffset)
         .limit(parsedLimit),
       isFediverse
@@ -575,7 +601,7 @@ router.get(
       // `resolveAndUpsert` hands back the cached row for a known actor, which
       // can be archived, `restricted`, or private.
       const resolvedProfile = await loadProfileByPredicate(
-        and(eq(users.id, fedId), peopleSearchPredicate()) ?? sql`false`,
+        and(eq(users.id, fedId), peopleSearchPredicate(), filters) ?? sql`false`,
       );
       if (resolvedProfile) {
         profiles.unshift(resolvedProfile);
