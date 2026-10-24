@@ -19,14 +19,14 @@ function fixture(fn) {
       const files = {
         'package.json': JSON.stringify({
           name,
-          version: name === '@oxy.so/expo-cli-native' ? '58.1.11+oxy.native.1' : '0.1.2',
+          version: name === '@oxy.so/expo-cli-native' ? '58.1.15+oxy.native.1' : '0.1.2',
         }),
         'index.cjs': 'module.exports = {}',
       };
       for (const [file, bytes] of Object.entries(files))
         fs.writeFileSync(path.join(dir, file), bytes);
       expected[name] = {
-        version: name === '@oxy.so/expo-cli-native' ? '58.1.11+oxy.native.1' : '0.1.2',
+        version: name === '@oxy.so/expo-cli-native' ? '58.1.15+oxy.native.1' : '0.1.2',
         files: Object.fromEntries(Object.entries(files).map(([file, bytes]) => [file, sha(bytes)])),
       };
     }
@@ -77,7 +77,7 @@ test('historical archive cannot override the exact manifest selection', () => {
     ),
   );
   const expected = readDeclaredNativePackageInventory(root);
-  assert.equal(expected['@oxy.so/expo-cli-native'].version, '58.1.11+oxy.native.1');
+  assert.equal(expected['@oxy.so/expo-cli-native'].version, '58.1.15+oxy.native.1');
   assert.equal(expected['@oxy.so/expo-code-signing-native'].version, '0.1.2');
 });
 

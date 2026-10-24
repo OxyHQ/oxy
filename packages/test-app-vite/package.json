@@ -26,7 +26,7 @@
     "clsx": "catalog:",
     "nativewind": "catalog:",
     "radix-ui": "catalog:",
-    "react-native-css": "^3.0.6",
+    "react-native-css": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native-gesture-handler": "catalog:",

@@ -72,11 +72,11 @@ clearing and replay rejection.
   The app imports its static Tailwind stylesheet at build time; it does not import
   the generator's JavaScript or execute the CLI in a served runtime. Moving it
   into runtime dependencies or another workspace fails the guard.
-- The exact vendored `@oxy.so/expo-cli-native@58.1.11+oxy.native.1` artifact contains
+- The exact vendored `@oxy.so/expo-cli-native@58.1.15+oxy.native.1` artifact contains
   Expo's Node build CLI dependency on Zod 3.25.76. Expo installs this CLI alongside
   the framework, but it is not the React Native app runtime or an API parser.
   The guard binds the existing artifact identifier and integrity, and admits only
-  the current incoming `expo@58.0.14 → @expo/cli (^58.1.11)` edge. Direct API/SDK
+  the current incoming `expo@58.0.19 → @expo/cli (^58.1.15)` edge. Direct API/SDK
   CLI dependencies and a new transitive parent are rejected. This exception
   does not cover another CLI version, an altered artifact, or a direct weak Zod
   import in an app or published package.

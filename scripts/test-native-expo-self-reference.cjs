@@ -9,7 +9,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const archive = process.argv[2]
   ? path.resolve(process.argv[2])
-  : path.join(root, 'vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz');
+  : path.join(root, 'vendor/expo-native/oxy.so-expo-cli-native-58.1.15+oxy.native.1.tgz');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-cli-self-reference-'));
 execFileSync('tar', ['-xzf', archive, '-C', scratch]);
 const packageRoot = path.join(scratch, 'package');

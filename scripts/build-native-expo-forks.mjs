@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const vendor = path.join(root, 'vendor/expo-native');
-const original = path.join(vendor, 'expo-cli-58.1.11-upstream.tgz');
+const original = path.join(vendor, 'expo-cli-58.1.15-upstream.tgz');
 const expected = JSON.parse(fs.readFileSync(path.join(vendor, 'upstream-integrity.json'), 'utf8'));
 const bytes = fs.readFileSync(original);
 assert.equal(`sha512-${createHash('sha512').update(bytes).digest('base64')}`, expected.integrity);
@@ -20,7 +20,7 @@ try {
   const manifest = path.join(fork, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
   assert.equal(pkg.name, '@expo/cli');
-  assert.equal(pkg.version, '58.1.11');
+  assert.equal(pkg.version, '58.1.15');
   assert.equal(pkg.dependencies['node-forge'], '^1.4.0');
   pkg.dependencies = Object.fromEntries(
     Object.entries(pkg.dependencies).filter(([name]) => name !== 'node-forge'),
@@ -31,10 +31,10 @@ try {
   assert(fs.existsSync(path.join(fork, 'LICENSE-third-party')));
   pkg.files = [...pkg.files, 'LICENSE-third-party'];
   pkg.name = '@oxy.so/expo-cli-native';
-  pkg.version = '58.1.11+oxy.native.1';
+  pkg.version = '58.1.15+oxy.native.1';
   pkg.oxyUpstream = {
     name: '@expo/cli',
-    version: '58.1.11',
+    version: '58.1.15',
     integrity: expected.integrity,
   };
   fs.writeFileSync(manifest, `${JSON.stringify(pkg, null, 2)}\n`);
