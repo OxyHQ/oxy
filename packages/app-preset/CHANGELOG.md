@@ -1,5 +1,32 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 4.0.0
+
+### Breaking
+
+- The Babel config no longer adds `babel-plugin-module-resolver`. `@/` resolves
+  from the app's `tsconfig.json` paths instead (`"@/*": ["./*"]`), which Metro
+  reads by default. An app that imports `@/…` without that path breaks, and its
+  Jest config needs `"^@/(.*)$": "<rootDir>/$1"` in `moduleNameMapper`.
+
+### Changed
+
+- In development the Babel config is exactly `babel-preset-expo`. Expo SDK 58's
+  oxc transformer, Noxcturnal, runs only when the Babel config resolves to the
+  bare Expo preset, and any extra plugin or option sends every file back to Babel.
+  The explicit `react-native-worklets/plugin` and `unstable_transformImportMeta`
+  are gone because `babel-preset-expo` 58 does both itself. The build-id inliner
+  now runs in production only; development already used a constant id.
+- The config plugin turns on `experiments.noxcturnalTransformWorker` in
+  development (`NODE_ENV !== 'production'`). Production builds stay on Babel:
+  Noxcturnal keeps the requires of dead platform branches, which pulled
+  `@livekit/react-native` into Mention's web bundle (+6.8% JS). Pass
+  `noxcturnal: false` to opt out; an app that sets the experiment keeps its value.
+  Measured in Mention with `noxcturnal` 0.1.9: cold Android dev bundle 55.5 s →
+  26.0 s, and web 92.9 s → 56.2 s. `noxcturnal` 0.1.5 (`@expo/metro-config`
+  58.0.15) fails on TS generic arrows in `.ts` files, so take `expo` 58.0.19 or
+  later.
+
 ## 3.6.1
 
 - Match Expo's development web root when `staticHydrationBoundary` is enabled.
