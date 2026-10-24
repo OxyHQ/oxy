@@ -28,6 +28,16 @@ Deploy the API and CDN Worker support before publishing the SDK and updating
 consumers. Purging the edge does not invalidate redirects already stored in a
 browser; the semantic revision is what gives a repaired rendition a new URL.
 
+## Asset URLs in render paths (core, services)
+
+Apps keep no file-id → URL cache of their own. A render path (an image
+resolver, a list row) calls `assets.renderUrl(ref, variant)`: an absolute URL
+as-is, else what `assets.url` already resolved for this caller (the SDK's
+identity-scoped GET cache, `assets.cachedUrl`), else `publicUrl`. A component
+that must show a private asset uses services' `useFileDownloadUrl`, which
+answers a cached resolution in its first render and calls `assets.url` only on
+a miss.
+
 ## SDK Cache Sweep on Profile Writes (core)
 
 `oxyServices.users.updateMe()` invalidates, in one `http.invalidateCache` pass:

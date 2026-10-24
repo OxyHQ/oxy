@@ -223,6 +223,27 @@ describe('oxy.assets.url', () => {
 
     await expect(oxy.assets.url('priv1')).rejects.toBeInstanceOf(AssetUrlResolutionError);
   });
+
+  it('answers what url() resolved synchronously, for that caller only, and renders without waiting', async () => {
+    const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+    oxy.session.setAccessToken(makeJwt({ userId: 'viewer-A' }));
+    const scopedUrl = 'https://api.oxy.so/assets/priv1/stream?variant=thumb&mt=TOKEN';
+
+    expect(oxy.assets.cachedUrl('priv1', 'thumb')).toBeUndefined();
+    expect(oxy.assets.renderUrl('priv1', 'thumb')).toBe(oxy.assets.publicUrl('priv1', 'thumb'));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ url: scopedUrl }));
+    await oxy.assets.url('priv1', 'thumb');
+    expect(oxy.assets.cachedUrl('priv1', 'thumb')).toBe(scopedUrl);
+    expect(oxy.assets.renderUrl('priv1', 'thumb')).toBe(scopedUrl);
+    expect(oxy.assets.renderUrl('https://example.test/a.jpg', 'thumb')).toBe(
+      'https://example.test/a.jpg',
+    );
+
+    oxy.session.setAccessToken(makeJwt({ userId: 'viewer-B' }));
+    expect(oxy.assets.cachedUrl('priv1', 'thumb')).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('OxyServices asset URL cache TTL', () => {

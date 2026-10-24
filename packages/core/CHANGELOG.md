@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 7.2.0
+
+### Added
+
+- `assets.cachedUrl(fileId, variant?, expiresIn?)` answers, synchronously and without a request, the URL `assets.url` already resolved for the current caller while it is cached. It reads the same identity-scoped cache and TTL as `url`, so another account's scoped media URL is never returned and a trashed, restored, deleted or re-scoped asset is a miss.
+- `assets.renderUrl(ref, variant?)` is the URL a render path shows without waiting: an absolute `http(s)` reference unchanged, else the cached resolution, else `publicUrl`. Apps no longer keep their own file-id → URL cache next to the SDK's.
+- `HttpService.peekCachedGet(url, params?)` reads the identity-scoped response cache without a request.
+
 ## 7.1.0
 
 ### Added

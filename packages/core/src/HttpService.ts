@@ -2072,6 +2072,18 @@ export class HttpService {
   }
 
   // Cache management
+
+  /**
+   * The response a `GET` to `url` with `params` would be answered from right
+   * now, for the CURRENT identity, or `null`. Never a request: the same
+   * identity-scoped key and TTL as {@link request}, so a value is only ever one
+   * this caller's own read cached and no invalidation has dropped since.
+   */
+  peekCachedGet<T>(url: string, params?: Record<string, unknown>): T | null {
+    if (this.cacheDisabled) return null;
+    return this.cache.get(this.generateCacheKey('GET', url, params)) as T | null;
+  }
+
   clearCache(): void {
     for (const lease of this.readLeases.values()) lease.valid = false;
     this.readLeases.clear();

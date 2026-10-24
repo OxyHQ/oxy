@@ -53,6 +53,8 @@ export {
   resolveAccountColor,
   entitledAccountColors,
 } from './hooks/useAccountColor';
+export { useAccountTheme, useAccountThemeControls } from './hooks/useAccountTheme';
+export type { AccountThemeControls, ThemeSource } from './hooks/useAccountTheme';
 // This app's Oxy-signed assertion of which app it is (ADR 0045), for an SDK
 // that attaches it to its own requests without pulling in the account screens.
 export {
