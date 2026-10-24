@@ -227,7 +227,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "4.1.0",
+      "version": "5.0.0",
       "dependencies": {
         "parse5": "catalog:",
       },
@@ -246,7 +246,7 @@
       "peerDependencies": {
         "@expo/router-server": "<59.0.0",
         "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || >=6.0.0",
-        "@oxy.so/services": ">=11.0.0",
+        "@oxy.so/services": ">=13.4.0",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",
         "eslint-config-expo": "*",
@@ -693,7 +693,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "13.3.0",
+      "version": "13.4.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",

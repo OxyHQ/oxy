@@ -325,6 +325,15 @@ jobs:
               || { echo "::error::$permission is not requested"; exit 1; }
           done
           grep -q 'android:authorities="so.oxy.commons.identity"' "$manifest"
+          # Release is signed with the ecosystem key and NEVER falls back to the
+          # debug one: without OXY_UPLOAD_* the guard task fails the release build.
+          gradle=android/app/build.gradle
+          grep -q "tasks.register('oxyVerifyReleaseSigning')" "$gradle"
+          grep -q "def expected = 'b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d'" "$gradle"
+          if grep -q 'signingConfig signingConfigs.debug' "$gradle"; then
+            echo "::error::a buildType is signed with the debug key unconditionally"; exit 1
+          fi
+          grep -q 'signingConfig signingConfigs.release' "$gradle"
           # The preset's build properties applied (resource shrinking), and it
           # leaves the compile/target SDK to the Expo template: a pin below
           # SDK 58's compileSdk 37 fails every release build.

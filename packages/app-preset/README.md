@@ -14,8 +14,7 @@ and JSON.
 
 | Piece | Import | Replaces |
 | --- | --- | --- |
-| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` |
-| Android release build | `@oxy.so/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
+| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` (which signs every release with the ecosystem key, see below) + the R8 `-optimize` ProGuard file |
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
 | Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
 | Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
@@ -120,17 +119,61 @@ react-native's `Image` renders nothing for it, with no error. The keys exist fro
 `expo-build-properties` 58 (Expo SDK 58); older versions ignore them silently.
 
 The `sharedUserId` and `sharedIdentityReader` options were removed in 3.0.0 and
-throw if passed. `@oxy.so/services` 11+ is a required peer.
+throw if passed. `@oxy.so/services` 13.4.0+ is a required peer (the preset refuses an older one: it would declare the permissions without release signing).
 
 `webgpu: true` (opt-in, 3.2.0+) also applies `react-native-webgpu`'s config
 plugin, for an app that draws with WebGPU on native. Install
 `react-native-webgpu` in the app first; the option throws without it.
 
-#### Android release-build plugins (opt-in)
+#### Android release signing (always on, fails closed)
 
-These two are deliberately NOT part of `['@oxy.so/app-preset', {}]`: one writes a
-signing config and the other needs `sharp` installed, so both are registered
-explicitly by apps that ship to Play.
+Every Oxy Android release is signed with the ONE ecosystem key (certificate
+SHA-256 `b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d`,
+alias `oxy`). It is not a preset plugin: `@oxy.so/services/plugins/withOxySharedPermissions`
+applies `withOxyReleaseSigning` (services 13.4.0+), because the signature
+permissions it declares are what make the certificate load-bearing. A release
+signed with anything else takes ownership of `so.oxy.permission.IDENTITY` /
+`DEVICE_SESSION`, after which every correctly signed Oxy app fails to install
+(`INSTALL_FAILED_DUPLICATE_PERMISSION`), and Commons refuses it. So every app
+that declares the permissions, through the preset or directly, gets the rule;
+**list no signing plugin**.
+
+The keystore comes from Gradle properties (`~/.gradle/gradle.properties`, `-P`,
+or `ORG_GRADLE_PROJECT_<name>` environment variables), never from the repo:
+
+```properties
+OXY_UPLOAD_STORE_FILE=~/.config/oxy/oxy-ecosystem-release.keystore
+OXY_UPLOAD_STORE_PASSWORD_FILE=~/.config/oxy/oxy-ecosystem-release-keystore.pass
+OXY_UPLOAD_KEY_ALIAS=oxy
+```
+
+`OXY_UPLOAD_STORE_PASSWORD` takes the password itself instead of a file;
+`OXY_UPLOAD_KEY_PASSWORD` (or `_FILE`) is needed only when the key's password
+differs from the store's. `~/` is expanded, a password file is trimmed.
+
+Release always uses `signingConfigs.release`; nothing falls back to the debug
+key. A task, `oxyVerifyReleaseSigning`, runs before every release variant
+(`pre…ReleaseBuild`, `validateSigning…Release`, so `assembleRelease`,
+`bundleRelease`, `expo run:android --variant release` and EAS's release
+builds) and fails the build, saying how to provide the key, unless the release
+buildType's EFFECTIVE signing config opens and its certificate is the ecosystem
+one. It checks the outcome, not the properties, so it also refuses EAS-managed
+or per-app keys and a wrong alias. Debug builds never run it. There is no
+opt-out for release.
+
+Debug builds keep Expo's debug key unless `OXY_UPLOAD_SIGN_DEBUG=true` is set:
+then debug is signed with the same key and checked by the same task, so a dev
+client can be installed next to real Oxy apps and be granted the permissions
+(this replaces Willo's `withOxyDebugSigning`, which prebuild now refuses). An app
+that declares no Oxy permission (Authenticator) lists
+`@oxy.so/services/plugins/withOxyReleaseSigning` directly for the same release
+signing.
+
+`withOxyAndroidRelease` was removed in 5.0.0; listing it throws and says to delete it.
+
+#### Android WebP resources (opt-in)
+
+`withOxyAndroidWebp` needs `sharp` installed, so it is registered explicitly:
 
 ```js
 plugins: [
@@ -138,16 +181,8 @@ plugins: [
   // order, and this has to run after every image generator (splash included).
   '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
   // …app-specific plugins…
-  '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
 ]
 ```
-
-`withOxyAndroidRelease` reads the release keystore from four Gradle properties
-(`OXY_UPLOAD_STORE_FILE`, `OXY_UPLOAD_STORE_PASSWORD`, `OXY_UPLOAD_KEY_ALIAS`,
-`OXY_UPLOAD_KEY_PASSWORD`) in `~/.gradle/gradle.properties` or CI secrets — never
-from the repo. When they are absent the release buildType falls back to the debug
-keystore, so **always verify the artefact's certificate** (`keytool -printcert
--jarfile <aab>`, `apksigner verify --print-certs <apk>`) instead of assuming.
 
 `withOxyAndroidWebp` requires `sharp` as a devDependency of the app.
 
@@ -336,6 +371,5 @@ Requires **Expo SDK 56+**; validated against **Expo SDK 58 / React Native 0.88**
 (the current Oxy ecosystem target) with a clean `expo prebuild` of `test-app-expo`,
 `accounts` and `commons` (Android and iOS). SDK 58's Android template already
 uses `proguard-android-optimize.txt` and turns R8 on through `gradle.properties`
-(`android.enableMinifyInReleaseBuilds`), so on SDK 58 `withOxyAndroidRelease`
-only adds the release signing config; on SDK 56/57 it also swaps in the
-`-optimize` ProGuard file.
+(`android.enableMinifyInReleaseBuilds`), so the preset's `-optimize` ProGuard
+swap only changes anything on SDK 56/57.

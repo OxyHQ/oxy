@@ -1,6 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, symlinkSync, rmSync, writeFileSync } = require('node:fs');
+const {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  rmSync,
+  writeFileSync,
+} = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 
@@ -167,4 +174,98 @@ test('Noxcturnal is on in development only, and an app can opt out or set it its
     else process.env.NODE_ENV = saved;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+const SDK58_BUILD_GRADLE = readFileSync(
+  resolve(__dirname, '../../services/__tests__/plugins/fixtures/expo-58-app-build.gradle'),
+  'utf8',
+);
+
+/** Run the app/build.gradle mods the preset registered, over `contents`. */
+async function runAppBuildGradleMods(config, contents) {
+  const mod = config.mods?.android?.appBuildGradle;
+  assert.equal(typeof mod, 'function', 'the preset registers an app/build.gradle mod');
+  const result = await mod({
+    ...config,
+    modResults: { contents, language: 'groovy' },
+    modRequest: {
+      platform: 'android',
+      modName: 'appBuildGradle',
+      projectRoot: config._internal.projectRoot,
+    },
+  });
+  return result.modResults.contents;
+}
+
+test('the preset signs every release with the ecosystem key and fails one without it', async () => {
+  const root = fakeApp();
+  try {
+    const config = withOxyAppPreset(
+      { name: 'app', _internal: { projectRoot: root } },
+      { ios: false, android: false },
+    );
+    const gradle = await runAppBuildGradleMods(config, SDK58_BUILD_GRADLE);
+    const releaseBuildType = gradle.slice(
+      gradle.indexOf('release {', gradle.indexOf('buildTypes {')),
+    );
+    assert.match(releaseBuildType, /^release \{[\s\S]*?signingConfig signingConfigs\.release\n/);
+    assert.match(gradle, /tasks\.register\('oxyVerifyReleaseSigning'\)/);
+    assert.match(
+      gradle,
+      /def expected = 'b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d'/,
+    );
+    assert.ok(gradle.includes('proguard-android-optimize.txt'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('on Expo SDK 56/57 the preset swaps in the R8 -optimize ProGuard file', async () => {
+  const root = fakeApp();
+  try {
+    const config = withOxyAppPreset(
+      { name: 'app', _internal: { projectRoot: root } },
+      { ios: false, android: false },
+    );
+    const sdk57 = SDK58_BUILD_GRADLE.replace(
+      'getDefaultProguardFile("proguard-android-optimize.txt")',
+      'getDefaultProguardFile("proguard-android.txt")',
+    );
+    const gradle = await runAppBuildGradleMods(config, sdk57);
+    assert.ok(gradle.includes('getDefaultProguardFile("proguard-android-optimize.txt")'));
+    assert.ok(!gradle.includes('getDefaultProguardFile("proguard-android.txt")'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a Services without release signing (older than 13.4.0) is refused', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oxy-preset-old-services-'));
+  try {
+    const plugins = join(root, 'node_modules', '@oxy.so', 'services', 'plugins');
+    mkdirSync(plugins, { recursive: true });
+    writeFileSync(
+      join(root, 'node_modules', '@oxy.so', 'services', 'package.json'),
+      JSON.stringify({ name: '@oxy.so/services', version: '13.3.0' }),
+    );
+    writeFileSync(join(plugins, 'withOxySharedPermissions.js'), 'module.exports = (c) => c;\n');
+    assert.throws(
+      () =>
+        withOxyAppPreset(
+          { name: 'app', _internal: { projectRoot: root } },
+          { ios: false, android: false },
+        ),
+      /needs '@oxy\.so\/services' 13\.4\.0 or later/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('plugin/withOxyAndroidRelease is gone and says what replaced it', () => {
+  const withOxyAndroidRelease = require('../plugin/withOxyAndroidRelease');
+  assert.throws(
+    () => withOxyAndroidRelease({ name: 'app' }),
+    /removed in 5\.0\.0\. Delete it from the app config: release signing is applied by @oxy\.so\/services\/plugins\/withOxySharedPermissions/,
+  );
 });

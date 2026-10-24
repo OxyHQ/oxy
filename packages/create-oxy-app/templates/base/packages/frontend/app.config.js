@@ -50,13 +50,11 @@ module.exports = {
       oxySplashScreenPlugin({ image: './assets/images/splash-logo.png' }),
       '@oxy.so/expo-splash',
       // Shared Oxy native config: iOS keychain group, expo-build-properties
-      // defaults, and the Android signature permissions + <queries> that let
-      // this app sign in silently through Commons.
+      // defaults, the Android signature permissions + <queries> that let this
+      // app sign in silently through Commons, and release signing with the ONE
+      // ecosystem key (OXY_UPLOAD_* Gradle properties). A release build without
+      // that key fails: Commons answers only apps signed with its certificate.
       ['@oxy.so/app-preset', {}],
-      // Release signing with the ONE ecosystem key (OXY_UPLOAD_* Gradle
-      // properties). Commons answers only apps signed with its certificate;
-      // without the properties the release falls back to the debug key.
-      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
     ],
     extra: {
       router: {},

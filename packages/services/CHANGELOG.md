@@ -1,5 +1,40 @@
 # Changelog
 
+## [13.4.0] - 2026-10-24
+
+### Changed
+
+- `plugins/withOxySharedPermissions` now also applies the new
+  `plugins/withOxyReleaseSigning`: an app cannot declare the Oxy signature
+  permissions without its Android release being signed with, and checked
+  against, the ONE ecosystem certificate (SHA-256
+  `b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d`, alias
+  `oxy`). It replaces `@oxy.so/app-preset/plugin/withOxyAndroidRelease`
+  (removed in app-preset 5.0.0) and app-local copies such as Mention's
+  `plugins/withAndroidReleaseBuild.js`; prebuild refuses a `build.gradle` one of
+  them already edited. Measured on a phone: a debug-signed Mention release took
+  ownership of `so.oxy.permission.IDENTITY` / `DEVICE_SESSION`, and every
+  correctly signed Oxy app then failed with `INSTALL_FAILED_DUPLICATE_PERMISSION`.
+  - The `release` buildType is always signed by `signingConfigs.release`, never
+    the debug key. The keystore comes from the Gradle properties
+    `OXY_UPLOAD_STORE_FILE`, `OXY_UPLOAD_STORE_PASSWORD` or (new)
+    `OXY_UPLOAD_STORE_PASSWORD_FILE`, `OXY_UPLOAD_KEY_ALIAS`, and optionally
+    `OXY_UPLOAD_KEY_PASSWORD` / `OXY_UPLOAD_KEY_PASSWORD_FILE` (default: the
+    store password). `~/` is expanded.
+  - **A release build without the ecosystem key FAILS.** `oxyVerifyReleaseSigning`
+    runs before every release variant (`pre…ReleaseBuild`,
+    `validateSigning…Release`), opens the release buildType's effective signing
+    config and compares the key's certificate with the ecosystem one, so it also
+    refuses an EAS-managed or per-app key and a wrong alias. The error says how
+    to provide the key and never prints a password. Debug builds never run it,
+    and there is no opt-out for release.
+  - Opt-in `OXY_UPLOAD_SIGN_DEBUG=true` signs the debug buildType with the same
+    key and puts it under the same check (a dev client that can be installed
+    next to real Oxy apps). It replaces Willo's `withOxyDebugSigning`
+    (`OXY_DEBUG_*`), which prebuild now refuses.
+  - An app that declares no Oxy permission (Authenticator) lists
+    `plugins/withOxyReleaseSigning` directly.
+
 ## [13.3.0] - 2026-10-24
 
 Needs `@oxy.so/core` 7.2.0.

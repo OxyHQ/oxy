@@ -1,5 +1,31 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 5.0.0
+
+### Breaking
+
+- `plugin/withOxyAndroidRelease` is removed; listing it throws with the fix.
+  Release signing moved to `@oxy.so/services/plugins/withOxySharedPermissions`
+  (services 13.4.0), which every Oxy Android app applies, directly or through
+  this preset, and it now FAILS CLOSED: a release build is always signed by
+  `signingConfigs.release` from the `OXY_UPLOAD_*` Gradle properties (new:
+  `OXY_UPLOAD_STORE_PASSWORD_FILE` / `OXY_UPLOAD_KEY_PASSWORD_FILE`, and the key
+  password defaults to the store's), and `oxyVerifyReleaseSigning` fails every
+  release variant whose certificate is not the ecosystem one. A debug-signed
+  Mention release, built without the properties, had taken ownership of
+  `so.oxy.permission.IDENTITY` / `DEVICE_SESSION` on a phone, and every correctly
+  signed Oxy app then failed with `INSTALL_FAILED_DUPLICATE_PERMISSION`. Debug
+  builds are unchanged unless `OXY_UPLOAD_SIGN_DEBUG=true` opts them in. Delete
+  the entry (and any app-local signing plugin).
+- The `@oxy.so/services` peer floor is `>=13.4.0`, and the preset refuses an
+  older Services: it would declare the permissions without release signing.
+
+### Changed
+
+- `['@oxy.so/app-preset', {}]` applies the R8 `-optimize` ProGuard swap that
+  `withOxyAndroidRelease` did (a no-op on Expo SDK 58, whose template already
+  uses it).
+
 ## 4.1.0
 
 ### Fixed
