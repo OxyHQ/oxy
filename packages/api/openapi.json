@@ -55033,7 +55033,7 @@
           "Profiles"
         ],
         "summary": "Search for user profiles by username or name",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/profiles.ts` to fill in summary, description, request/response examples.",
+        "description": "Matches the term case-insensitively against the username, first, last and\ndisplay name and the description (a term under three characters matches as a\nprefix of the username and names only). Results are ranked by relevance\nbefore paging: an exact username or handle first (a federated\n`nate@mstdn.social` counts as exact for `nate`), then a username prefix, then\nan exact name, then a name or name-word prefix, then a substring of the\nusername or a name, then anything else (description). Within a tier Oxy\naccounts come before federated ones, then higher reputation, then the shorter\nusername, then `id` — a strict total order, so offset pages never repeat or\nskip a row. A query that is an exact fediverse handle (`user@host`) puts the\nresolved remote actor first.\n\nOptional `type` (`local`, `federated`, `agent`, `automated`) and `kind`\n(`personal`, `organization`, `bot`, …) keep only rows whose own `type` /\n`kind` equals the value; `type=local` returns Oxy accounts only and skips\nremote discovery. Private, archived and restricted accounts never appear.",
         "parameters": [
           {
             "name": "query",
@@ -55060,6 +55060,36 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "local",
+                "federated",
+                "agent",
+                "automated"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal",
+                "organization",
+                "project",
+                "bot",
+                "channel",
+                "community"
+              ]
             }
           }
         ],

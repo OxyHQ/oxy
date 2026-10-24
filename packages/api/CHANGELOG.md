@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Changed (people search ranks by relevance; `GET /profiles/search` takes `type` and `kind`)
+
+`GET /profiles/search`, `GET /search` and `POST /users/search` ordered their
+matches native-first and then by reputation alone, so a query for `nate` put
+`notasdenate` and `nateiserntest` above the account named exactly `nate`, and
+remote actors that matched only in their bio above `natehill@…`. All three now
+apply one order (`peopleSearchOrder(term)`, `utils/profileQuery.ts`), before
+paging: relevance tier (exact username or federated handle, username prefix,
+exact name, name or name-word prefix, substring of username or name, anything
+else such as the description), then native before federated WITHIN a tier,
+reputation, the shorter username, and `id`. A federated actor whose handle IS
+the query therefore outranks a local account that only contains it. `POST
+/users/search` had no ORDER BY at all; its five rows are now the five best. The
+match set and the gates are unchanged, and no index is needed: the tier is
+computed over the already-matched rows (measured +7 ms on 3,333 matches).
+
+`GET /profiles/search` also accepts `type` (`local`, `federated`, `agent`,
+`automated`) and `kind` (`personal`, `organization`, …): only rows whose own
+`type` / `kind` equals the value, counted in `total`; an unknown value is a
+400. `type=local` is "Oxy accounts only" (a messaging app's new-chat picker)
+and skips remote fediverse discovery.
+
 ### Fixed (an upload's cleanup can no longer delete the object of a row being committed)
 
 A large upload or import that failed (`fileUploadSession.fail`,

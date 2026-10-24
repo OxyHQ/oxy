@@ -17,9 +17,9 @@ import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
  *   table, the predicate compares two of its own columns, and the query returns
  *   nothing WITH NO ERROR (`db/schema/CONVENTIONS.md`). The location cases
  *   below fail if `qualified()` is dropped.
- * - **{@link peopleSearchOrder} is a STRICT TOTAL ORDER.** Its third key
+ * - **{@link peopleSearchOrder} is a STRICT TOTAL ORDER.** Its last key
  *   (`id asc`) is what stops an `OFFSET`/`LIMIT` page from repeating or
- *   skipping a row when the first two keys tie. Rows with IDENTICAL type and
+ *   skipping a row when the keys before it tie. Rows with IDENTICAL type and
  *   rank weight are the only input that can tell a total order from a partial
  *   one.
  *
@@ -42,8 +42,10 @@ import {
   isFederatableUser,
   isPublicGraphTarget,
   peopleSearchMatch,
+  PEOPLE_SEARCH_TIERS,
   peopleSearchOrder,
   peopleSearchPredicate,
+  peopleSearchRelevance,
   normalizePeopleSearchTerm,
   profileQualityPredicate,
 } from '../profileQuery';
@@ -407,7 +409,103 @@ describe('peopleSearchMatch', () => {
   });
 });
 
+/**
+ * A term every `eligibleDefaults` row matches only through its description, so
+ * all of them share ONE relevance tier and the keys after it decide the order.
+ */
+const SAME_TIER_TERM = 'mathematician';
+
+describe('peopleSearchRelevance', () => {
+  /** `id → tier` for the rows this test wrote. */
+  async function tiers(term: string, scope: string[]): Promise<Record<string, number>> {
+    const rows = await getDb()
+      .select({ id: users.id, tier: peopleSearchRelevance(term).mapWith(Number) })
+      .from(users)
+      .where(inArray(users.id, scope));
+    return Object.fromEntries(rows.map((row) => [row.id, row.tier]));
+  }
+
+  it('assigns each clause its tier, case-insensitively', async () => {
+    const term = `r${uniqueId().slice(0, 12)}`;
+    const T = PEOPLE_SEARCH_TIERS;
+    const plain = { nameFirst: null, nameLast: null, description: null } as const;
+    const cases: Array<[Partial<typeof users.$inferInsert>, number]> = [
+      [{ ...plain, username: term.toUpperCase() }, T.exactHandle],
+      [{ ...plain, username: `${term}@host.example`, type: 'federated' }, T.exactHandle],
+      [{ ...plain, username: `${term}more` }, T.usernamePrefix],
+      [{ ...plain, username: `${term}more@host.example`, type: 'federated' }, T.usernamePrefix],
+      [{ ...plain, nameDisplay: term.toUpperCase() }, T.nameExact],
+      [{ ...plain, nameFirst: term }, T.nameExact],
+      [{ ...plain, nameFirst: 'Ada', nameLast: term }, T.nameExact],
+      [{ ...plain, nameDisplay: `${term}son` }, T.namePrefix],
+      [{ ...plain, nameDisplay: `Notas de ${term}` }, T.namePrefix],
+      [{ ...plain, nameFirst: 'Ada', nameLast: `${term}ez` }, T.namePrefix],
+      [{ ...plain, nameFirst: 'Ada', nameLast: `de ${term}` }, T.namePrefix],
+      [{ ...plain, username: `x${term}x` }, T.substring],
+      [{ ...plain, nameDisplay: `zz${term}zz` }, T.substring],
+      [{ ...plain, description: `about ${term}` }, T.other],
+    ];
+    const expected: Record<string, number> = {};
+    for (const [fields, tier] of cases) {
+      expected[await makeUser(fields)] = tier;
+    }
+
+    expect(await tiers(term, Object.keys(expected))).toEqual(expected);
+  });
+
+  it('matches a composed first + last name exactly', async () => {
+    const first = `f${uniqueId().slice(0, 8)}`;
+    const last = `l${uniqueId().slice(0, 8)}`;
+    const id = await makeUser({ nameFirst: first, nameLast: last, description: null });
+
+    expect(await tiers(`${first} ${last}`, [id])).toEqual({ [id]: PEOPLE_SEARCH_TIERS.nameExact });
+  });
+
+  it('does NOT treat a local username containing @ as a federated handle', async () => {
+    const term = `r${uniqueId().slice(0, 12)}`;
+    const id = await makeUser({ username: `${term}@host.example`, type: 'local' });
+
+    expect(await tiers(term, [id])).toEqual({ [id]: PEOPLE_SEARCH_TIERS.usernamePrefix });
+  });
+
+  it('ranks a pasted upstream profile URL by the username it resolves to', async () => {
+    const marker = `r${uniqueId().slice(0, 12)}`;
+    const id = await makeUser({ username: `${marker}@x.com`, type: 'federated' });
+
+    expect(await tiers(`https://x.com/${marker}`, [id])).toEqual({
+      [id]: PEOPLE_SEARCH_TIERS.exactHandle,
+    });
+  });
+
+  it('treats LIKE wildcards in the term as literal characters', async () => {
+    const term = `r${uniqueId().slice(0, 12)}`;
+    const id = await makeUser({ username: `${term}abc`, description: null });
+
+    // Unescaped, `%` would make `abc` a username PREFIX match (tier 1).
+    expect(await tiers(`${term}%`, [id])).toEqual({ [id]: PEOPLE_SEARCH_TIERS.other });
+    expect(await tiers(`${term}_bc`, [id])).toEqual({ [id]: PEOPLE_SEARCH_TIERS.other });
+  });
+});
+
 describe('peopleSearchOrder', () => {
+  it('orders by relevance tier before origin and rank weight', async () => {
+    const term = `r${uniqueId().slice(0, 12)}`;
+    const fedExact = await makeUser({
+      username: `${term}@host.example`,
+      type: 'federated',
+      reputationRankWeight: 0.1,
+    });
+    const localSubstring = await makeUser({ username: `x${term}`, reputationRankWeight: 99 });
+
+    const rows = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, [fedExact, localSubstring]))
+      .orderBy(...peopleSearchOrder(term));
+
+    expect(rows.map((row) => row.id)).toEqual([fedExact, localSubstring]);
+  });
+
   it('orders native before federated, then by rank weight, then by id', async () => {
     const scope: string[] = [];
     // Three rows sharing type AND rank weight: the ONLY input that can tell the
@@ -432,12 +530,12 @@ describe('peopleSearchOrder', () => {
       .select({ id: users.id })
       .from(users)
       .where(inArray(users.id, scope))
-      .orderBy(...peopleSearchOrder());
+      .orderBy(...peopleSearchOrder(SAME_TIER_TERM));
 
     expect(rows.map((row) => row.id)).toEqual([
       // Native first, highest rank weight first...
       highRankNative,
-      // ...then the tied trio in ID order, which only the third key can produce.
+      // ...then the tied trio in ID order, which only the last key can produce.
       ...[...tiedIds].sort(),
       // ...and the federated account last despite the highest rank weight.
       federated,
