@@ -4,6 +4,7 @@
  * interest (OxyHQ/oxy#1375 item 17). With a screen reader on, the same tags are
  * Bloom chips — one toggle each, with its label and selected state.
  */
+import { LocaleProvider } from '@/lib/i18n/locale-context';
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
@@ -47,7 +48,12 @@ type A11yMock = typeof AccessibilityInfo & { screenReaderEnabled: boolean };
 
 async function renderStep(screenReaderEnabled: boolean, onContinue = jest.fn()) {
   (AccessibilityInfo as A11yMock).screenReaderEnabled = screenReaderEnabled;
-  const utils = render(<InterestsStep onContinue={onContinue} />);
+  // Real translations: the copy used to be hard-coded English.
+  const utils = render(
+    <LocaleProvider>
+      <InterestsStep onContinue={onContinue} />
+    </LocaleProvider>,
+  );
   // Let the screen-reader probe resolve.
   await act(async () => undefined);
   return utils;

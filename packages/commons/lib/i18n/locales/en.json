@@ -176,6 +176,13 @@
       "subtitle": "When you sign in to an Oxy app on another device, Commons can ask you here to approve it. You can turn this off at any time in your phone's settings.",
       "enable": "Turn on notifications",
       "notNow": "Not now"
+    },
+    "interestsStep": {
+      "title": "Build around\nwhat you love",
+      "subtitle": "Tap what feels like you. Drag and toss the rest.",
+      "pickAny": "Pick as many as you like",
+      "selected": "{{count}} selected",
+      "skip": "Skip for now"
     }
   },
   "home": {
