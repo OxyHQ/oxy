@@ -169,7 +169,8 @@
       "subtitle": "Introduce tu frase de recuperación de 12 palabras para restaurar tu identidad.",
       "wordPlaceholder": "palabra",
       "import": "Importar identidad",
-      "createInstead": "Crear una nueva identidad en su lugar"
+      "createInstead": "Crear una nueva identidad en su lugar",
+      "wrongWordCount": "Una frase de recuperación tiene 12 palabras. Lo que pegaste tiene {{count}}."
     },
     "notificationsStep": {
       "title": "Recibe aquí las solicitudes de inicio de sesión",

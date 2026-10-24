@@ -169,7 +169,8 @@
       "subtitle": "Enter your 12-word recovery phrase to restore your identity.",
       "wordPlaceholder": "word",
       "import": "Import Identity",
-      "createInstead": "Create a new identity instead"
+      "createInstead": "Create a new identity instead",
+      "wrongWordCount": "A recovery phrase has 12 words. What you pasted has {{count}}."
     },
     "notificationsStep": {
       "title": "Get sign-in requests on this phone",

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
+import { SECRET_INPUT_PROPS } from '@/lib/recovery-phrase/secret-input';
 import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
 
 interface PhraseInputGridProps {
@@ -59,8 +60,7 @@ export function PhraseInputGrid({
             }}
             placeholder={t('auth.importStep.wordPlaceholder')}
             placeholderTextColor={colors.textSecondary}
-            autoCapitalize="none"
-            autoCorrect={false}
+            {...SECRET_INPUT_PROPS}
           />
         </View>
       ))}

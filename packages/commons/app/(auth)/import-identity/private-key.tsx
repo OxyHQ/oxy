@@ -19,6 +19,7 @@ import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
+import { SECRET_INPUT_PROPS } from '@/lib/recovery-phrase/secret-input';
 
 /**
  * Import an identity from a raw private key (hex).
@@ -117,10 +118,8 @@ export default function ImportPrivateKeyScreen() {
           placeholder={t('importPrivateKey.placeholder')}
           placeholderTextColor={withAlpha(colors.text, 0.4)}
           editable={!isLoading}
-          autoCapitalize="none"
-          autoCorrect={false}
+          {...SECRET_INPUT_PROPS}
           multiline
-          spellCheck={false}
           style={[
             styles.input,
             {
