@@ -1,6 +1,6 @@
 {
-  "url": "https://registry.npmjs.org/@expo/cli/-/cli-58.1.11.tgz",
-  "integrity": "sha512-wkFTSLXXYqLkRT5oy4DnLuTOtbFIu3qTiXHSHkFSqUBTHiE92y3bOIwM3UN7Y1ys18qVJge8lXjezaEfsHmijQ==",
-  "sha256": "b4dde3a0c2901c3cae3be850bfe542d62d45ee0593bc4f05b73bcc9db9cc9263",
-  "size": 1010048
+  "url": "https://registry.npmjs.org/@expo/cli/-/cli-58.1.15.tgz",
+  "integrity": "sha512-+gBvfvmttvNqs8ceJe1SdiWBa6reocb/ZC8jMxsF8qFlCijAUQNqFMGCPkT/6zasFkQLUL8ZOFhf/9DKj2XaLg==",
+  "sha256": "796f19d95293482289d7b1445a2b5f39ee2ccac26963017caef01bdf16f5cb93",
+  "size": 1010429
 }

@@ -105,9 +105,9 @@ export function inspectZodLock(lock) {
   if (
     residuals.includes('@expo/cli/zod') &&
     (packages['@expo/cli']?.[0] !==
-      '@oxy.so/expo-cli-native@./vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz' ||
+      '@oxy.so/expo-cli-native@./vendor/expo-native/oxy.so-expo-cli-native-58.1.15+oxy.native.1.tgz' ||
       packages['@expo/cli']?.at(-1) !==
-        'sha512-gRY9CvFESqxDzC2WR5wE6fdnqWpiIGAJDJbjKxxqZNJ6lr8ACEZ/GWMEwM69tjnfqyTdlHvC9pe6zyGUhAfr4A==')
+        'sha512-ECFVeLjnyMvAyb0UOoDkkIwhasj18D+E6GefKXj/pFH7Ndt51CXKlX68y0Q/YvPPRFtc6ZXPhN0mxtfEPvg4mw==')
   )
     errors.push('The reviewed Expo build CLI artifact changed');
 
@@ -142,8 +142,8 @@ export function inspectZodLock(lock) {
       if (!key) continue; // Optional peers need not be installed; unknown weak leaves are checked above.
       const reviewedExpoParent =
         item.from === 'expo' &&
-        packages.expo?.[0] === 'expo@58.0.14' &&
-        metadata(packages.expo).dependencies?.['@expo/cli'] === '^58.1.11';
+        packages.expo?.[0] === 'expo@58.0.19' &&
+        metadata(packages.expo).dependencies?.['@expo/cli'] === '^58.1.15';
       if (key === '@expo/cli' && !reviewedExpoParent)
         errors.push(`Expo CLI entered through an unreviewed parent: ${item.path} -> ${key}`);
       const visited = `${key}:${item.lane}`;

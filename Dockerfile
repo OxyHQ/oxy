@@ -28,7 +28,7 @@ WORKDIR /app
 # stages, so dependency resolution is reproducible without building the apps.
 COPY package.json bun.lock ./
 COPY patches/ patches/
-COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.11+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
+COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.15+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
 COPY packages/ packages/
 RUN find packages -type f ! -name package.json -delete
 

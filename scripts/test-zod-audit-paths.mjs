@@ -75,13 +75,13 @@ const cases = [
   [
     'API directly consumes Expo CLI',
     (lock) => {
-      lock.workspaces['packages/api'].dependencies['@expo/cli'] = '^58.1.11';
+      lock.workspaces['packages/api'].dependencies['@expo/cli'] = '^58.1.15';
     },
   ],
   [
     'published SDK directly consumes Expo CLI',
     (lock) => {
-      lock.workspaces['packages/core'].dependencies['@expo/cli'] = '^58.1.11';
+      lock.workspaces['packages/core'].dependencies['@expo/cli'] = '^58.1.15';
     },
   ],
   [
@@ -91,7 +91,7 @@ const cases = [
       lock.packages['new-runtime'] = [
         'new-runtime@1.0.0',
         '',
-        { dependencies: { '@expo/cli': '^58.1.11' } },
+        { dependencies: { '@expo/cli': '^58.1.15' } },
       ];
     },
   ],
