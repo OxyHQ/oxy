@@ -534,7 +534,7 @@
     },
     "packages/create-oxy-app": {
       "name": "create-oxy-app",
-      "version": "0.8.2",
+      "version": "0.9.0",
       "bin": {
         "create-oxy-app": "dist/index.js",
       },
@@ -569,7 +569,7 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
       },
@@ -693,7 +693,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "13.4.0",
+      "version": "13.5.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",
@@ -722,6 +722,7 @@
         "copyfiles": "^2.4.1",
         "expo-clipboard": "catalog:",
         "expo-constants": "catalog:",
+        "expo-crypto": "catalog:",
         "expo-file-system": "catalog:",
         "expo-haptics": "catalog:",
         "expo-image": "catalog:",
@@ -768,6 +769,7 @@
         "expo": ">=54.0.0 <59.0.0",
         "expo-clipboard": ">=8.0.0 <59.0.0",
         "expo-constants": ">=18.0.0 <59.0.0",
+        "expo-crypto": ">=15.0.0 <59.0.0",
         "expo-document-picker": ">=14.0.0 <59.0.0",
         "expo-file-system": ">=19.0.0 <59.0.0",
         "expo-haptics": ">=15.0.0 <59.0.0",
@@ -777,6 +779,7 @@
         "expo-linear-gradient": ">=15.0.0 <59.0.0",
         "expo-modules-core": "<59.0.0",
         "expo-notifications": ">=0.32.0 <59.0.0",
+        "expo-secure-store": ">=15.0.0 <59.0.0",
         "expo-video": ">=3.0.0 <59.0.0",
         "expo-web-browser": ">=15.0.0 <59.0.0",
         "nativewind": ">=5.0.0-preview.3 <6.0.0",
@@ -808,7 +811,6 @@
         "expo-video",
         "expo-web-browser",
         "nativewind",
-        "react-native-keyboard-controller",
       ],
     },
     "packages/ship": {
@@ -1048,6 +1050,7 @@
     "expo-clipboard": "~58.0.4",
     "expo-constants": "~58.0.13",
     "expo-contacts": "~58.0.9",
+    "expo-crypto": "~58.0.7",
     "expo-document-picker": "~58.0.4",
     "expo-file-system": "~58.0.11",
     "expo-font": "~58.0.10",
@@ -4674,6 +4677,8 @@
     "@oxy.so/services/@peable.to/sdk": ["@peable.to/sdk@0.4.1", "", { "dependencies": { "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.5.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-HwAowV8rPU/JYuc4c0T8suFtFaquQXuMuQxTciKaoTjmg7rfra6s9WoAsbHKlNva/01zxVdam+pGWuuzZ0V79w=="],
 
     "@oxy.so/services/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
+
+    "@oxy.so/services/expo-crypto": ["expo-crypto@58.0.7", "", { "peerDependencies": { "expo": "*" } }, "sha512-g+4i4UpqQ5jNy1VPRvVVvr9aIdh8WwvxbpwL2ntiSESDRsXyVSeb8JM6tHVdC3b9J2nGxjtrhrsaWOo0jbSxlA=="],
 
     "@oxy.so/services/expo-secure-store": ["expo-secure-store@58.0.2", "", { "peerDependencies": { "expo": "*" } }, "sha512-VupWWEuQF6IiQ06McSymtn7/tehs8ifThhFwAU4UK8poomZcaa2S0UVt/y7G2XozBdkI3xpiPSx+r0pS2zsuYQ=="],
 

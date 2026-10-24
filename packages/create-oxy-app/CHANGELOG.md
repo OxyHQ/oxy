@@ -1,5 +1,16 @@
 # Changelog: `create-oxy-app`
 
+## 0.9.0
+
+### Changed
+
+- The generated frontend declares every required native peer of
+  `@oxy.so/services`: `expo-crypto`, `expo-secure-store`, `expo-file-system`,
+  `@expo/app-integrity` and `@react-native-community/netinfo` join the ones it
+  already listed. Expo's autolinking skips optional peers and an undeclared
+  native module installs at whatever version the package manager picks; an app
+  without `expo-crypto` built and then had no CSPRNG and no sign-in.
+
 ## 0.8.2
 
 ### Fixed

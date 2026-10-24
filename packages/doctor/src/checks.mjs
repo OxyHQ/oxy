@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 export const FIRST_PARTY_SCOPES = ['@oxy.so/'];
@@ -155,6 +155,76 @@ function catalogEntries(rootManifest) {
   return rows;
 }
 
+/** The SDK whose native peers an app has to declare itself. */
+export const NATIVE_PEER_HOST = '@oxy.so/services';
+
+/** The installed directory of `name`, found the way Node and Metro walk node_modules. */
+function installedPackageDir(name, from) {
+  let directory = from;
+  while (true) {
+    const candidate = join(directory, 'node_modules', name);
+    if (existsSync(join(candidate, 'package.json'))) return candidate;
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+/** Ships native code autolinking must link: the markers Expo and the React Native CLI read. */
+export function isNativeModulePackage(directory) {
+  return (
+    existsSync(join(directory, 'expo-module.config.json')) ||
+    existsSync(join(directory, 'react-native.config.js')) ||
+    existsSync(join(directory, 'android')) ||
+    existsSync(join(directory, 'ios')) ||
+    readdirSync(directory).some((entry) => entry.endsWith('.podspec'))
+  );
+}
+
+/**
+ * Required native peers of `@oxy.so/services` that an app (a manifest on
+ * services and on `expo` or `react-native`) does not declare. Expo's autolinking skips OPTIONAL peers, and an undeclared native
+ * module is installed at whatever version the package manager picks rather than
+ * the build `expo install` pins for the app's SDK; `expo-crypto` missing from
+ * Allo's release APK broke the CSPRNG and sign-in. Reads the INSTALLED services
+ * manifest, so it needs `bun install` first; without one the manifest is
+ * reported as unverified rather than passed.
+ *
+ * @returns {Promise<{ finding?: object, unverified?: string }>}
+ */
+export async function nativePeerCheck(root, manifestPath, manifest) {
+  const declared = { ...manifest.dependencies, ...manifest.devDependencies };
+  // Only an APP is autolinked: a manifest on services that is no Expo / React
+  // Native project (a monorepo root holding it for hoisting, a library) is not.
+  if (!(NATIVE_PEER_HOST in declared) || !('expo' in declared || 'react-native' in declared))
+    return {};
+  const relative = manifestPath.slice(root.length + 1);
+  const servicesDir = installedPackageDir(NATIVE_PEER_HOST, dirname(manifestPath));
+  if (!servicesDir) return { unverified: relative };
+  const services = JSON.parse(await readFile(join(servicesDir, 'package.json'), 'utf8'));
+  const meta = services.peerDependenciesMeta ?? {};
+  const missing = Object.keys(services.peerDependencies ?? {})
+    .filter((name) => meta[name]?.optional !== true && !(name in declared))
+    .filter((name) => {
+      const directory = installedPackageDir(name, servicesDir);
+      // Not installed at all: a required peer is missing outright.
+      return directory === null || isNativeModulePackage(directory);
+    })
+    .sort();
+  if (missing.length === 0) return {};
+  return {
+    finding: {
+      severity: 'error',
+      code: 'undeclared-native-peer',
+      package: NATIVE_PEER_HOST,
+      version: services.version,
+      manifest: relative,
+      missing,
+      message: `${relative} uses ${NATIVE_PEER_HOST} ${services.version} but does not declare its required native peer${missing.length === 1 ? '' : 's'} ${missing.join(', ')}; run \`npx expo install ${missing.join(' ')}\` in ${dirname(relative) || '.'}`,
+    },
+  };
+}
+
 /**
  * @param {string} root
  * @param {(name: string) => Promise<{ version: string, publishedAt: string }>} fetchLatest
@@ -168,6 +238,7 @@ export async function inspectRepository(
   const rootManifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   const manifestPaths = await collectManifests(root, rootManifest);
   const usages = new Map();
+  const findings = [];
   for (const { section, name, range } of catalogEntries(rootManifest)) {
     if (!isFirstPartyPackage(name)) continue;
     const rows = usages.get(name) ?? [];
@@ -195,9 +266,15 @@ export async function inspectRepository(
       }
     }
   }
+  const unverified = [];
+  for (const path of manifestPaths) {
+    const manifest = JSON.parse(await readFile(path, 'utf8'));
+    const result = await nativePeerCheck(root, path, manifest);
+    if (result.finding) findings.push(result.finding);
+    if (result.unverified) unverified.push(result.unverified);
+  }
   const lockPath = join(root, 'bun.lock');
   const lockfile = existsSync(lockPath) ? await readFile(lockPath, 'utf8') : null;
-  const findings = [];
   if (!lockfile)
     findings.push({ severity: 'error', code: 'missing-lockfile', message: 'bun.lock is missing' });
   await Promise.all(
@@ -244,7 +321,13 @@ export async function inspectRepository(
       }
     }),
   );
-  return { root, manifests: manifestPaths.length, packages: usages.size, findings };
+  return {
+    root,
+    manifests: manifestPaths.length,
+    packages: usages.size,
+    findings,
+    nativePeersUnverified: unverified,
+  };
 }
 
 /** The `latest` dist-tag of `name` and when that version was published. */

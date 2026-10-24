@@ -1,5 +1,38 @@
 # Changelog
 
+## [13.5.0] - 2026-10-24
+
+### Changed
+
+- **`expo-crypto`, `expo-secure-store` and `react-native-keyboard-controller`
+  are REQUIRED peers.** Every app must list them itself:
+  `npx expo install expo-crypto expo-secure-store react-native-keyboard-controller`.
+  Expo SDK 58's autolinking links the app's dependencies and the NON-optional
+  peers of what it walks, and skips optional peers. `expo-crypto` was only an
+  optional peer of `@oxy.so/core` / `@oxy.so/protocol`, so in an app that did not
+  list it the native module was never linked: measured on a Pixel 10 Pro, Allo's
+  Android release failed to start its client with `[oxy.protocol.crypto]
+  'expo-crypto' is not installed, so the React Native CSPRNG
+  (crypto.getRandomValues) is unavailable … Cannot find native module
+  'ExpoCrypto'`, and "Sign in with Oxy" failed at once in
+  `generateChallenge()`. `expo-secure-store` (the device credential and the
+  shared iOS device session; without it the credential falls back to
+  plaintext AsyncStorage) was not declared at all, and
+  `react-native-keyboard-controller` was optional although the native
+  `KeyboardBoundary` imports it statically. Core and protocol keep them
+  optional: they also run in Node, servers and browsers.
+- `expo-secure-store` is loaded by a literal `import()` in a `try` instead of a
+  runtime-computed specifier. Behaviour is unchanged: Babel evaluates the old
+  constant, so Metro resolved the package all along; only this package's own
+  gates could not see it.
+
+### Added
+
+- `__tests__/packaging/requiredNativePeers.test.ts` reads every runtime load in
+  services', core's and protocol's source and fails on a native module that is
+  neither a required peer of services nor recorded as a graceful optional one
+  (haptics, pickers, clipboard, push, the third-party OAuth browser, video).
+
 ## [13.4.0] - 2026-10-24
 
 ### Changed

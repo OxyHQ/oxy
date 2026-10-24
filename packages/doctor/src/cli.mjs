@@ -31,6 +31,10 @@ try {
       `Oxy Doctor: ${report.packages} first-party packages across ${report.manifests} manifests`,
     );
     if (report.findings.length === 0) console.log('✓ No dependency-health findings');
+    for (const manifest of report.nativePeersUnverified)
+      console.log(
+        `? ${manifest}: @oxy.so/services is not installed, so its native peers were not checked (run bun install first)`,
+      );
     for (const finding of report.findings)
       console.log(`${finding.severity === 'error' ? '✗' : '!'} ${finding.message}`);
   }

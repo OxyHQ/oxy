@@ -121,20 +121,21 @@ bun add @oxy.so/services @oxy.so/core
 
 ### Peer Dependencies
 
-To avoid duplicate native modules and ensure smooth integration across apps, install (or ensure your app already includes) the following peer dependencies:
+The native modules `@oxy.so/services` needs on iOS and Android (Expo SDK 54 to 58;
+`package.json` has the exact ranges):
 
-- react: >=18, react-native: >=0.76
-- react-native-reanimated: >=3.16, react-native-gesture-handler: >=2.16
-- react-native-safe-area-context: ^5.4.0, react-native-svg: >=13
-- Expo projects: expo, expo-font, expo-image, expo-linear-gradient
-- Navigation (if you use the provided screens): @react-navigation/native
-
-
-Example for Expo:
 ```bash
-npm i react-native-reanimated react-native-gesture-handler react-native-safe-area-context react-native-svg \
-  expo expo-font expo-image expo-linear-gradient @react-navigation/native
+npx expo install expo-crypto expo-secure-store expo-file-system expo-image @expo/app-integrity \
+  @react-native-async-storage/async-storage @react-native-community/netinfo \
+  react-native-reanimated react-native-gesture-handler react-native-keyboard-controller \
+  react-native-safe-area-context react-native-svg
 ```
+
+Every native module above is a **required** peer: the app must list each one
+itself. Expo's autolinking skips optional peers and installs nothing an app does
+not name at its SDK's version, so an app without `expo-crypto` builds and then
+fails at launch (`Cannot find native module 'ExpoCrypto'`: no CSPRNG, no
+sign-in). `bunx @oxy.so/doctor --ci` fails an app that is missing one.
 
 ### React Native/Expo Setup
 

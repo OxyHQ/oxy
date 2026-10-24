@@ -90,6 +90,16 @@ export const VERSIONS = {
   svg: '15.16.0', // react-native-svg
   worklets: '0.13.0', // react-native-worklets
   keyboardController: '1.22.7', // react-native-keyboard-controller
+  // REQUIRED native peers of @oxy.so/services that nothing above installs. An
+  // app must declare each itself: Expo's autolinking skips optional peers, and
+  // an undeclared one installs at whatever version the package manager picks.
+  // expo-crypto is the CSPRNG and sign-in challenge; expo-secure-store holds the
+  // device credential (`oxy-doctor` fails an app missing any of them).
+  expoCrypto: '~58.0.7',
+  expoSecureStore: '~58.0.2',
+  expoFileSystem: '~58.0.10',
+  expoAppIntegrity: '~58.0.2', // @expo/app-integrity
+  netinfo: '12.0.1', // @react-native-community/netinfo
 
   // --- Styling (NativeWind 5 preview + Tailwind v4) ---
   nativewind: '5.0.0-preview.3',
