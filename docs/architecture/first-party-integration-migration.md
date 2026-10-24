@@ -18,24 +18,24 @@ revocation and operation binding remain mandatory.
 
 | Area | Source state | Required acceptance |
 |---|---|---|
-| Oxy auth, OAuth finalizers, Commons | Implemented `0447cdc9d`; verification below, not released | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
-| Oxy workload environment preflight | Deployed and provisioned; evidence below | Nullable DDL, exact 27-binding CAS and live readback; no v2 cutover yet |
-| Oxy core/contracts service authority | Implemented source (`5bb379b80`, `dc2896083`, `ad2ebca18`, `aa6a10695`); combined release pending | Workload proof, environment and audience; customer key stays external |
-| Oxy API files/inference/agency/introspection | Implemented source (`43a9c810d`); migration/combined release pending | Account/resource isolation without own scope/grant dependencies |
-| Oxy Console application settings/credentials | Implemented in source; verification below, not released | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
+| Oxy auth, OAuth finalizers, Commons | Foundation `4d8cc12a` deployed; shared SDKs published; human fleet adoption remains | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
+| Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS and live readback; product fleet cutovers remain |
+| Oxy core/contracts service authority | Core 7.0.0 / contracts 6.0.0 published; foundation live canary passed | Workload proof, environment and audience; customer key stays external |
+| Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority canary passed; product/private-data canaries remain | Account/resource isolation without own scope/grant dependencies |
+| Oxy Console application settings/credentials | Foundation frontend deploy passed; interactive smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
 | Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
-| Kaana inference own-service receiver | Deployed 8.0.0; evidence below | Retain requester/account, external scopes, audience and revocation |
+| Kaana inference own-service receiver | Contracts 8.0.1 published and deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity, Mention, CrowdSource, Peable and Mercaria source prepared with caller/receiver tests; remaining fleet adoption and production rollout pending | Caller→SDK→receiver tests for own and external identities |
-| Registry/workload migration and deploy | Environment preflight complete for the exact 27 bindings; authority runtime and product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
+| Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. The Oxy authority runtime and Alia remain source-only at this
-checkpoint; Oxy's environment-only preflight and Kaana have the separately
-verified deployments recorded below.
+caller is updated. The Oxy authority runtime is deployed and its service canary passed. Alia and
+the product fleet still require their own SDK pins, deployments and acceptance;
+this checkpoint is not fleet completion.
 
 ## Audited runtime graph
 
@@ -88,9 +88,12 @@ A runtime code path is not evidence that the feature is enabled in production.
 
 Authenticator uses Oxy provider/appData; its separate identity storage is
 intentional. Atlas consumes public store APIs and Alia without a backend.
-ActivityWallpaper uses public socket/PoP data: no credential migration follows
-from those reads. Astro's inspected Alia shell panel is informational, not a
-runtime API client. No Oxy API consumer was found in Eufesio. Fresh OxyOS source
+ActivityWallpaper at `46a7d8e` uses public Socket.IO `/platform-activity` and
+Cloudflare PoP data, with no bearer or Oxy SDK: no credential migration follows
+from those reads. Fresh Astro `origin/main` at
+`5a6bf7d71c11` has no Alia, `@oxy.so`, `@alia.onl`, or `api.oxy.so` references
+in source/manifests; the earlier informational-panel description was stale.
+No Oxy API consumer was found in Eufesio. Fresh OxyOS source
 (`815c65f`) has an Alia panel using a legacy manual SSE client. Its migration
 requires the shared Alia SDK and an actual registered Oxy public client; the live
 registry lookup found no OxyOS registration, so activation remains pending. GWJ explicitly excludes itself
@@ -126,6 +129,43 @@ and task-definition evidence is retained in the root workstream's
 `runtime-inventory-20261023.json`; no production changes were performed.
 The workload readback found 27 bindings without explicit environment, so the
 new strict environment contract requires a reviewed migration before cutover.
+
+## Verified foundation rollout (2026-10-24)
+
+[PR #1942](https://github.com/OxyHQ/oxy/pull/1942) merged as
+`4d8cc12a797cbc9477bcfb8f6c2b99bc3a7ecb27`. Merge-queue CI
+`40031157732` and image build `40031157558` passed. API deploy
+[40032105204](https://github.com/OxyHQ/oxy/actions/runs/40032105204), frontend
+deploy `40032105168`, and package release `40032105335` succeeded. Production
+readback matched that source and image digest
+`sha256:ae78be1220b7584ec65c5097699d6cd2ee26699676fd8512f195e5f869b5309b`.
+
+The registry independently returned these eight published versions:
+
+| Package | Version |
+|---|---|
+| `@oxy.so/contracts` | `6.0.0` |
+| `@oxy.so/core` | `7.0.0` |
+| `@oxy.so/services` | `13.0.0` |
+| `@oxy.so/protocol` | `1.5.1` |
+| `@oxy.so/federation` | `2.12.0` |
+| `@oxy.so/mcp` | `1.4.0` |
+| `@oxy.so/stickers` | `0.2.2` |
+| `@oxy.so/ship` | `1.1.1` |
+
+At `2026-10-24T05:16:43Z`, the ECS canary passed v2 workload minting without
+scopes, live identity verification, canonical recipient introspection and
+wrong-recipient refusal. It also verified that the central v1 compatibility
+projection remains bounded to the finite legacy workload cohort. Evidence is
+retained in the root workstream's `authority-canary-logs.json`.
+
+This establishes the shared authority foundation. It does not establish every
+product receiver, human interaction, background task, or private-data path in
+production. The temporary manual-v1 issuance and finite compatibility projections
+(including trusted metadata owner fields) remain until inventoried callers and
+readers have moved. Core 7.1's explicit streaming replay, linked socket getter,
+and private-document mediation are a separate queued follow-up, not part of
+this published 7.0.0 receipt.
 
 ## Auth source acceptance
 
@@ -188,8 +228,13 @@ revision 147 and publisher revision 148 had three running tasks on image digest
 `sha256:599641f55a16e140c54fa18791850b3be9e9b19c729dc029d1ebbcb9283a8940`.
 The local evidence artifact is
 `/home/nate/Oxy/.scratch/first-party-root/kaana-rollout-20261023.json`.
-This verifies that Kaana checkpoint only; it does not close the Oxy, Alia or
-remaining product migration edges.
+The subsequent contracts `8.0.1` patch merged through PR #226 at
+`a766d6252c90b329915a7016fc34611ad0ef0980`, published in release run
+`40026959306`, and rolled out service/publisher task revisions 149/150 with
+three tasks on the matching `e41b7e6a…` image. Root artifacts
+`kaana-contracts-8.0.1-release.json` and `kaana-contracts-8.0.1-rollout.json`
+contain the complete image and registry receipts. This verifies Kaana only;
+it does not close the Alia or remaining product migration edges.
 
 ## Alia source acceptance checkpoint
 
