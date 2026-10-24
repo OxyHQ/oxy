@@ -10,7 +10,7 @@ import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import type { AttestSubmitParams } from '@/hooks/civic/attestStore';
 import { AttestReviewSheet, type AttestReviewStatus } from '@/components/civic/AttestReviewSheet';
 import { userIdFromDid } from '@/lib/civic/did';
-import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
+import { authenticate, hasLocalConfirmation, getErrorMessage } from '@/lib/biometricAuth';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -90,7 +90,7 @@ export default function AttestDeepLinkScreen() {
   const handleConfirmAttest = useCallback(async () => {
     setConfirming(true);
     try {
-      const canUse = await canUseBiometrics();
+      const canUse = await hasLocalConfirmation();
       if (canUse) {
         const auth = await authenticate(t('civic.attest.review.biometricReason'));
         if (!auth.success) {
