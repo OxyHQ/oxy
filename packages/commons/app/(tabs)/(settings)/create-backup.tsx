@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
+import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
 import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -96,12 +97,18 @@ export default function CreateBackupScreen() {
     setError(null);
   }, []);
 
-  const handlePaste = useCallback((text: string) => {
-    const words = text.trim().toLowerCase().split(/\s+/);
-    if (words.length === RECOVERY_PHRASE_LENGTH || words.length === 24) {
-      setPhraseWords(words.slice(0, RECOVERY_PHRASE_LENGTH));
-    }
-  }, []);
+  const handlePaste = useCallback(
+    (text: string) => {
+      const pasted = readPastedPhrase(text);
+      if (pasted.ok) {
+        setPhraseWords(pasted.words);
+        setError(null);
+      } else {
+        setError(t(WRONG_WORD_COUNT_KEY, { count: pasted.count }));
+      }
+    },
+    [setError, t],
+  );
 
   const handleCreate = useCallback(async () => {
     if (!oxyServices) return;
