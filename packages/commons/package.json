@@ -1,7 +1,7 @@
 {
   "name": "commons",
   "main": "expo-router/entry",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "scripts": {
     "android": "RCT_METRO_PORT=8101 expo run:android",
     "check:classnames": "node scripts/check-classnames.mjs",
@@ -31,6 +31,7 @@
     "expo-build-properties": "catalog:",
     "expo-camera": "catalog:",
     "expo-checkbox": "catalog:",
+    "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "~58.0.7",
     "expo-document-picker": "catalog:",
@@ -40,6 +41,7 @@
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
     "expo-image-manipulator": "catalog:",
+    "expo-image-picker": "~58.0.10",
     "expo-linear-gradient": "catalog:",
     "expo-linking": "catalog:",
     "expo-local-authentication": "catalog:",

@@ -31,8 +31,9 @@ module.exports = {
     // The OTA compatibility boundary (withOxyUpdates sets runtimeVersion
     // policy 'appVersion'): bump it whenever the native layer changes, so a
     // binary built from older native code never receives JS that needs newer
-    // native modules. 1.2.0 is the first Expo SDK 58 build.
-    version: '1.2.0',
+    // native modules. 1.2.0 is the first Expo SDK 58 build; 1.3.0 links
+    // expo-image-picker and expo-clipboard.
+    version: '1.3.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: ['commons', 'oxycommons'],
@@ -49,7 +50,7 @@ module.exports = {
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
-      versionCode: 3,
+      versionCode: 4,
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
       permissions: ['android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT'],
@@ -142,6 +143,21 @@ module.exports = {
         'expo-camera',
         {
           cameraPermission: 'Allow $(PRODUCT_NAME) to scan sign-in QR codes.',
+        },
+      ],
+      // The SDK's account surface (Settings > Manage account) changes the
+      // profile picture through expo-image-picker, and its authenticator and
+      // app-info screens copy through expo-clipboard. Both are OPTIONAL peers of
+      // @oxy.so/services, and Expo autolinking skips optional peers, so without
+      // these direct dependencies the release had neither native module: the
+      // photo library said it was unavailable and copy did nothing. No
+      // microphone: Commons never records video.
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Allow $(PRODUCT_NAME) to choose a profile picture from your photos.',
+          cameraPermission: 'Allow $(PRODUCT_NAME) to take a profile picture.',
+          microphonePermission: false,
         },
       ],
       // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
