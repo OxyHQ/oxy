@@ -38,6 +38,9 @@
 //                         peer, optional) already resolves on the registry, or
 //                         is satisfied by the exact version this same ordered
 //                         release publishes first
+//   publish-status <name> <version> <tgz>
+//                         fresh registry read: 0 only for identical SHA-512,
+//                         1 absent, 2 conflicting bytes or registry failure
 //   published <name> <version>
 //                         exits 0 when that version is on the registry, 1 when
 //                         it is not, and 2 when the registry cannot say
@@ -47,6 +50,7 @@
 // A registry or GitHub error is never read as an answer: it fails the run.
 
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -253,15 +257,40 @@ export function plannedDependencyVersions(name, workspaces, releasing) {
  * registry that cannot answer has not said "absent".
  */
 function npmView(spec, field) {
-  const result = spawnSync('npm', ['view', spec, field, '--json', '--userconfig', '/dev/null'], {
-    encoding: 'utf8',
-  });
+  const result = spawnSync(
+    'npm',
+    [
+      'view',
+      spec,
+      ...(field ? [field] : []),
+      '--json',
+      '--prefer-online',
+      '--userconfig',
+      '/dev/null',
+    ],
+    {
+      encoding: 'utf8',
+    },
+  );
   if (result.status === 0) {
     const out = result.stdout.trim();
     return out === '' || out === '[]' ? null : JSON.parse(out);
   }
   if (/\bE404\b/.test(result.stderr)) return null;
   throw new Error(`npm view ${spec} ${field} failed: ${result.stderr.trim() || result.error}`);
+}
+
+/** Only identical trusted bytes may be skipped after another queued run publishes. */
+export function identicalPublishedTarball(metadata, name, version, bytes) {
+  if (metadata === null) return false;
+  if (metadata.name !== name || metadata.version !== version)
+    throw new Error(`registry identity does not match ${name}@${version}`);
+  const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+  if (metadata.dist?.integrity !== integrity)
+    throw new Error(
+      `${name}@${version} already exists with different or missing SHA-512 integrity`,
+    );
+  return true;
 }
 
 /** Whether anything on the registry satisfies `name@range`. */
@@ -460,11 +489,25 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       pack(resolve(args[0]), resolve(args[1]));
     } else if (command === 'inspect') {
       inspect(resolve(args[0]), resolve(args[1]), new Set(args.slice(2)));
+    } else if (command === 'publish-status') {
+      const [name, version, tarball] = args;
+      if (!name || !version || !tarball)
+        throw new Error('publish-status requires name, version and tarball');
+      process.exit(
+        identicalPublishedTarball(
+          npmView(`${name}@${version}`, ''),
+          name,
+          version,
+          readFileSync(tarball),
+        )
+          ? 0
+          : 1,
+      );
     } else if (command === 'published') {
       process.exit(npmView(`${args[0]}@${args[1]}`, 'version') === null ? 1 : 0);
     } else {
       fail(
-        'usage: release-package.mjs plan | ci <sha> <workflow> | pack <directory> <destination> | inspect <tgz> <directory> [<releasing name>...] | published <name> <version>',
+        'usage: release-package.mjs plan | ci <sha> <workflow> | pack <directory> <destination> | inspect <tgz> <directory> [<releasing name>...] | published <name> <version> | publish-status <name> <version> <tgz>',
       );
     }
   } catch (error) {

@@ -100,7 +100,9 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
 - `publish` (environment `npm`, `id-token: write`) runs none of the repository's code: it checks the
   trusted bytes against their SHA-512 and runs `npm publish <tgz> --provenance --access public
   --tag <tag>` for each, in dependency order, with npm trusted publishing (OIDC); there is no
-  `NPM_TOKEN` in any repository. A version already on the registry (a re-run) is skipped.
+  `NPM_TOKEN` in any repository. Immediately before each publish, a fresh registry read compares the exact version and
+  SHA-512 of the trusted tarball. Only identical bytes are skipped; a conflicting version or
+  registry error fails the release. Publish errors, including HTTP 403, remain failures.
 - `tag` (`contents: write`, nothing else) creates the annotated tag `<name>@<version>` at the
   released commit for each package it published — the website's docs sync pins packages by that
   tag — and, when the package's `CHANGELOG.md` has a section for the version, a GitHub release
