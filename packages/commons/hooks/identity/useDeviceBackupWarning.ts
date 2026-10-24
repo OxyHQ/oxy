@@ -79,7 +79,7 @@ async function readFlag(key: string): Promise<string | null> {
 
 async function readHasPhrase(): Promise<boolean> {
   try {
-    return Boolean(await KeyManager.getRecoveryMnemonic());
+    return Boolean(await KeyManager.getRecoveryMnemonicForCurrentIdentity());
   } catch {
     // A locked keychain cannot confirm absence; assume a phrase exists, as the
     // Backup & recovery hub does, so a phrase-backed user is never told otherwise.

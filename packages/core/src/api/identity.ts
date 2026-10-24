@@ -397,6 +397,35 @@ export class IdentityApi {
           persistError,
         );
       }
+
+      // 7. The new phrase is now THE recovery phrase. Store it so Settings can
+      //    reveal it and the device backup carries it; the slot otherwise keeps
+      //    the replaced key's phrase, which recovers nothing. When the key itself
+      //    could not be persisted the user re-imports from the phrase on screen,
+      //    and that import stores it.
+      //    Best-effort: the rotation already succeeded and the phrase is on
+      //    screen. When it cannot be stored, the replaced phrase is deleted
+      //    instead, so the slot never holds a phrase that recovers nothing.
+      if (!localPersistFailed) {
+        try {
+          await KeyManager.storeRecoveryMnemonic(pending.phrase);
+        } catch (storeError) {
+          logger.warn(
+            'Key rotated, but the new recovery phrase could not be stored for re-reveal; clearing the replaced one.',
+            { component: 'oxy.identity', method: 'rotateKey' },
+            storeError,
+          );
+          try {
+            await KeyManager.deleteRecoveryMnemonic();
+          } catch (deleteError) {
+            logger.warn(
+              'Could not clear the replaced recovery phrase after a key rotation.',
+              { component: 'oxy.identity', method: 'rotateKey' },
+              deleteError,
+            );
+          }
+        }
+      }
     }
 
     this.invalidate(userId);

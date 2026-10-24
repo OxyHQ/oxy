@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## Unreleased
+
+### Fixed
+
+- `identity.rotateKey` stores the new recovery phrase once the new key is persisted on the device. The phrase slot used to keep the replaced key's phrase, so Settings revealed a phrase that recovers nothing and the device backup lost its phrase. If the new phrase cannot be stored, the replaced one is deleted.
+
+### Added
+
+- `KeyManager.getRecoveryMnemonicForCurrentIdentity()` returns the stored phrase only when it derives the key on this device, and `null` otherwise. It throws `IdentityUnavailableError` when storage cannot be read, like `getRecoveryMnemonic`.
+
 ## 7.2.0
 
 ### Added

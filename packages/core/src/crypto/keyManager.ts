@@ -2280,6 +2280,34 @@ export class KeyManager {
   }
 
   /**
+   * The stored recovery phrase, but only when it derives the identity this device
+   * holds now; `null` otherwise. This is the read for anything that shows the
+   * phrase or tells the user they have one.
+   *
+   * The slot can hold a phrase that no longer restores anything: key rotation
+   * used to replace the key and leave the OLD phrase in place, so Settings
+   * revealed twelve dead words as the user's recovery phrase. Checking
+   * the derivation here means those devices read "no phrase" (and are offered
+   * key rotation) instead of being handed a phrase that cannot recover them.
+   *
+   * THROWS {@link IdentityUnavailableError} when storage is unreadable, like
+   * {@link getRecoveryMnemonic}; a locked keychain is never reported as "none".
+   */
+  static async getRecoveryMnemonicForCurrentIdentity(): Promise<string | null> {
+    const mnemonic = await KeyManager.getRecoveryMnemonic();
+    if (!mnemonic) {
+      return null;
+    }
+    const primary = await KeyManager._readHealthyPrimary();
+    if (!primary) {
+      return null;
+    }
+    return (await KeyManager._phraseDerivesPublicKey(mnemonic, primary.publicKey))
+      ? mnemonic
+      : null;
+  }
+
+  /**
    * Delete the stored recovery mnemonic. Best-effort: a delete failure is logged
    * and swallowed, never thrown — it runs inside the identity-deletion path where
    * an unreadable keychain must not abort the wider teardown.

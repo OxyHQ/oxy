@@ -73,7 +73,7 @@ describe('Settings → Recovery phrase re-reveal', () => {
   });
 
   it('reveals the stored phrase words after tapping reveal', async () => {
-    jest.spyOn(KeyManager, 'getRecoveryMnemonic').mockResolvedValue(PHRASE);
+    jest.spyOn(KeyManager, 'getRecoveryMnemonicForCurrentIdentity').mockResolvedValue(PHRASE);
     const { getByText, container } = renderScreen();
 
     fireEvent.click(getByText('Reveal recovery phrase'));
@@ -88,7 +88,7 @@ describe('Settings → Recovery phrase re-reveal', () => {
   });
 
   it('explains the not-stored case for pre-feature identities', async () => {
-    jest.spyOn(KeyManager, 'getRecoveryMnemonic').mockResolvedValue(null);
+    jest.spyOn(KeyManager, 'getRecoveryMnemonicForCurrentIdentity').mockResolvedValue(null);
     const { getByText, container } = renderScreen();
 
     fireEvent.click(getByText('Reveal recovery phrase'));
@@ -101,7 +101,7 @@ describe('Settings → Recovery phrase re-reveal', () => {
 
   it('surfaces a retriable state when storage is locked', async () => {
     jest
-      .spyOn(KeyManager, 'getRecoveryMnemonic')
+      .spyOn(KeyManager, 'getRecoveryMnemonicForCurrentIdentity')
       .mockRejectedValue(new IdentityUnavailableError('locked'));
     const { getByText, container } = renderScreen();
 
