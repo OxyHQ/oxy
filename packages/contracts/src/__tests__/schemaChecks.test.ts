@@ -1,5 +1,5 @@
 import { oxyAccountIdSchema, usageQuantitySchema, unitPriceSchema } from '../index';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   utf16MinLength,
   utf16MaxLength,

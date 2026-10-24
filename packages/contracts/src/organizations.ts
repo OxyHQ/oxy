@@ -1,6 +1,6 @@
 import { integerCheck } from './numberChecks';
 import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { accountTitleSchema } from './accountName';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.

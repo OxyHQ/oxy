@@ -29,7 +29,7 @@ import { utf16MinLength } from './stringChecks';
  * consumer's node10 `moduleResolution`. Platform-agnostic — zod only, ESM-safe
  * (no `require()`).
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** 256-bit backup locator (32 bytes), lowercase/uppercase hex. */
 export const backupLookupIdSchema = z

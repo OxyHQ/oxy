@@ -41,7 +41,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  DID document (W3C DID core)                                               */

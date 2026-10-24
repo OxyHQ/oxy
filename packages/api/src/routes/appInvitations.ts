@@ -9,7 +9,7 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
  */
 
 import express, { type NextFunction, type Response } from 'express';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';

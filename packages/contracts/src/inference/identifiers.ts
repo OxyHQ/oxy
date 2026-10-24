@@ -19,7 +19,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
  * Decided in: docs/adr/0007-canonical-request-attribution.md, docs/adr/0008-catalogue-concept-separation.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  Principal identifiers                                                     */

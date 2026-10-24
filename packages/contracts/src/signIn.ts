@@ -31,7 +31,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * Every body that ends in a session may carry `device`, the proof of the
  * browser's shared device (ADR 0029 D2), so the account lands on it.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { EMAIL_CODE_LENGTH, emailAddressSchema, emailTicketSchema } from './accountEmail';
 import type { LoginResult } from './deviceBoot';
 import { deviceProofSchema } from './deviceSession';

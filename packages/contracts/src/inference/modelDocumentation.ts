@@ -74,7 +74,7 @@ import { utf16MaxLength, utf16MinLength } from '../stringChecks';
  * Decided in: docs/adr/0008-catalogue-concept-separation.md, issue #972 §12.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { aliaModelReleaseManifestSchema } from './aliaModelRelease';
 import {
   modelCapabilitiesSchema,

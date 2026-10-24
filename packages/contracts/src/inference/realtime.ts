@@ -86,7 +86,7 @@ import { utf16MaxLength, utf16MinLength } from '../stringChecks';
  * Decided in: OxyHQ/Kaana#90.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { inferenceAttributionSchema } from './attribution';
 import { realtimeSessionKindSchema, realtimeSessionTransportSchema } from './catalogue';
 import { inferenceErrorSchema } from './errors';

@@ -1,7 +1,7 @@
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { eq } from 'drizzle-orm';
 import {
   organizationSchema,

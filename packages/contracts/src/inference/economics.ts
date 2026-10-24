@@ -29,7 +29,7 @@ import { isoDateTime, utf16MinLength } from '../stringChecks';
  * UNKNOWN cost is reported as unknown — counted, never summed as zero.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { costCenterSchema } from './entitlement';
 import {
   currencyCodeSchema,

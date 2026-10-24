@@ -1,6 +1,6 @@
 import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Approved P2: declarations are versioned code; the initial registry is empty. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { ConflictError } from '../utils/error';
 const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
 const count = z.number().check(integerCheck()).nonnegative().max(Number.MAX_SAFE_INTEGER);

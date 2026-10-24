@@ -42,7 +42,7 @@ import { utf16MinLength } from '@oxy.so/contracts';
  */
 
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { signedRecordSigningInput } from '@oxy.so/protocol';
 import { safeFetch } from '@oxy.so/core/server';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';

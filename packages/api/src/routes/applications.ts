@@ -4,7 +4,7 @@ import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {

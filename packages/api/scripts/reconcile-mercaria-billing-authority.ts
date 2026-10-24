@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { closeSync, fsyncSync, openSync, readFileSync, writeSync } from 'node:fs';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { connectPostgres, closePostgres } from '../src/config/postgres';
 import {
   applyMercariaBillingAuthority,

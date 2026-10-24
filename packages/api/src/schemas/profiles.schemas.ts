@@ -1,5 +1,5 @@
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 // GET /profiles/username/:username
 export const usernameParams = z.object({

@@ -2,7 +2,7 @@ import { utf16MinLength } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { and, count, desc, eq, getTableColumns, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 import type { AuthRequest } from '../middleware/auth';
 import { type DatabaseOrTransaction, getDb } from '../config/postgres';

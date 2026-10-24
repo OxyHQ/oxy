@@ -322,6 +322,7 @@ jobs:
       - name: Build core SDK, federation, MCP + db (for resolution in api tests)
         run: >-
           bunx turbo run build
+          --filter=@oxy.so/zod3 --filter=@oxy.so/zod4
           --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
           --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 
@@ -840,8 +841,8 @@ jobs:
       # matches fails too — which is also the positive control, since a non-empty list
       # plus an audit that returned nothing is red rather than green.
       #
-      # No install: verified that `bun audit` needs only bun.lock and the workspace
-      # manifests by running it against a tree holding exactly those. The fixture
+      # The registry audit itself needs only bun.lock and workspace manifests;
+      # the maintained-parser gate below additionally builds the actual bytes. The fixture
       # tests are offline: every failing branch is driven from a synthesised audit
       # payload, because the live audit on this tree only ever exercises the
       # passing path.
@@ -849,7 +850,6 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: |
           bun scripts/test-check-dependency-audit.mjs
-          bun scripts/test-zod-audit-paths.mjs
           bun scripts/test-forge-audit-policy.mjs
       - name: 'Native Expo crypto: sealed fork and compatibility checks'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
@@ -886,8 +886,20 @@ jobs:
           forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
           test -n "$forge_runner_home"
           printf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token
-      - name: 'Security Audit: check'
+      # A fork name must never hide an unchanged vulnerable parser. Build the
+      # verified source, exercise all exports and negative controls, then census
+      # every installed copy before the ordinary registry advisory ratchet.
+      - name: 'Security Audit: maintained Zod source and installed closure'
+        id: zod-forks
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: |
+          bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+          bun run --filter @oxy.so/zod3 build
+          bun run --filter @oxy.so/zod4 build
+          node --test scripts/test-check-zod-forks.mjs scripts/test-zod-fork-artifacts.mjs
+          node scripts/check-zod-forks.mjs
+      - name: 'Security Audit: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' && steps.zod-forks.outcome == 'success' }}
         run: bun scripts/check-dependency-audit.mjs
       - name: 'Security Audit: remove read-only provenance login'
         if: ${{ always() && steps.forge-policy.outputs.active == 'true' }}
@@ -1128,6 +1140,7 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: >-
           bunx turbo run build
+          --filter=@oxy.so/zod3 --filter=@oxy.so/zod4
           --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
           --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 
@@ -1251,7 +1264,13 @@ jobs:
           key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
           restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
 
-      # Contracts package tests (Jest, no database), against nothing built.
+      # Contracts tests import source, but the maintained validators are real
+      # packages whose compiled exports must exist on a fresh checkout.
+      - name: Build maintained Zod validators
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx turbo run build --filter=@oxy.so/zod3 --filter=@oxy.so/zod4
+
+      # Contracts package tests (Jest, no database), against source contracts.
       - name: 'Contracts Tests: test'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run test
@@ -1314,6 +1333,10 @@ jobs:
       - name: 'MCP Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test
+        working-directory: ./packages/mcp
+      - name: 'MCP Tests: packed npm and Bun dependency closure'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run build && bun run test:package
         working-directory: ./packages/mcp
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
@@ -1405,7 +1428,7 @@ jobs:
       - name: Build contracts, protocol, core
         id: build-core
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
+        run: bunx turbo run build --filter=@oxy.so/zod3 --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
 
       # Services SDK tests (Jest — build workspace deps first)
       - name: 'Services Tests: test'

@@ -1,7 +1,7 @@
 import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Short-lived own request attribution across live, authenticated service hops. */
 import { randomUUID, sign, verify } from 'node:crypto';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import {
   resolveLiveAgencyWorkloadByHandle,

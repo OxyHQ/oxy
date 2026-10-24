@@ -1,0 +1,15 @@
+/src/
+/v3/
+/v4/
+/v4-mini/
+/mini/
+/locales/
+/dist/
+/*.js
+/*.cjs
+/*.d.ts
+/*.d.cts
+/*.d.mts
+/.zshy-*
+/.build-*/
+!upstream/*.tgz

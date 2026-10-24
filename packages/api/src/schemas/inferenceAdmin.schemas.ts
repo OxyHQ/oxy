@@ -10,7 +10,7 @@ import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.
  * and no query parameters at all. Nothing about the shapes changed in the move.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { modelIdSchema } from '@oxy.so/contracts';
 import {
   BALANCED_ROUTING_SCORE_SOURCES,

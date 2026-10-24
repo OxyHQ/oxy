@@ -43,7 +43,7 @@ import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.
  * asserts it rather than assuming it.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   currencyCodeSchema,
   exactDecimalSchema,

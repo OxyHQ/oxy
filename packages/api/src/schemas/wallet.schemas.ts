@@ -1,5 +1,5 @@
 import { utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 // GET /wallet/:userId
 export const walletUserIdParams = z.object({

@@ -22,7 +22,7 @@ import { isoDateTime } from '../stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** An ISO-8601 instant as `Date.prototype.toJSON` writes it. */
 const isoInstant = z.string().check(isoDateTime());

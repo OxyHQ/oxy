@@ -1,6 +1,6 @@
 import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /** Approved P1 integer policy; provider evidence validation happens separately. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { ConflictError } from '../utils/error';
 
 const count = z.number().check(integerCheck()).nonnegative().max(Number.MAX_SAFE_INTEGER);

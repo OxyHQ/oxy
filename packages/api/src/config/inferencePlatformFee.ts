@@ -35,7 +35,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
  */
 
 import { USAGE_UNITS, type UsageUnit } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import type { PriceSnapshotInput } from '../services/inferenceLedger.service';
 
 export const platformFeeScheduleSchema = z

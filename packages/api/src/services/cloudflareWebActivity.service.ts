@@ -56,7 +56,7 @@ import { integerCheck } from '@oxy.so/contracts';
  * `docs/operations/cloudflare-web-activity.md`.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import type { TrafficAggregate } from '@oxy.so/telemetry/collector';
 import { normalizeEdgePop } from '@oxy.so/telemetry/server';
 import { getRedisClient } from '../config/redis';

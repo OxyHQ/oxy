@@ -115,7 +115,7 @@ describe('fix-esm-imports', () => {
         "import '../server/workloadIdentity';",
         "export { a as b } from '../server/workloadIdentity';",
         "import { createHash } from 'node:crypto';",
-        "import { z } from 'zod';",
+        "import { z } from '@oxy.so/zod4';",
         "const late = await import('./sibling.js');",
         '',
       ].join('\n'),
@@ -125,7 +125,7 @@ describe('fix-esm-imports', () => {
     const source = out['api/auth.js'];
     expect(source.match(/workloadIdentity\.js/g) ?? []).toHaveLength(3);
     expect(source).toContain("import { createHash } from 'node:crypto';");
-    expect(source).toContain("import { z } from 'zod';");
+    expect(source).toContain("import { z } from '@oxy.so/zod4';");
     expect(source).toContain("await import('./sibling.js')");
     expect(source).not.toContain('sibling.js.js');
   });

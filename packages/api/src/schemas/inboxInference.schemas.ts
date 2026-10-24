@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Opt in without changing the body accepted by existing Inbox clients. */
 export const inboxDailyBriefQuerySchema = z

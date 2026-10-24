@@ -17,7 +17,7 @@ import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/c
  * is broken, and it would be broken silently.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   billingInvoiceSchema,
   billingModeSchema,

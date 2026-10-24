@@ -4,7 +4,7 @@ import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
  * bodies are the shared contracts in `@oxy.so/contracts` (`linkedAccounts.ts`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { linkedAccountNetworkSchema } from '@oxy.so/contracts';
 
 export const linkedAccountNetworkParams = z.object({ network: linkedAccountNetworkSchema });

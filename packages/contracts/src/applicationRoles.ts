@@ -28,7 +28,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Two to four dot-separated segments, each a lowercase letter followed by

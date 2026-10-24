@@ -26,7 +26,7 @@ import { utf16MaxLength, utf16MinLength } from '../stringChecks';
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
-import { z } from "zod";
+import { z } from "@oxy.so/zod4";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,

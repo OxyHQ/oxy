@@ -31,7 +31,7 @@
  *    ({@link accountKindActorNature} `'agent'`), never its owner.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import type { AccountKind } from './accountGraph';
 import { oxyAccountIdSchema } from './inference/identifiers';
 

@@ -10,7 +10,7 @@
  * This walks the STATIC value-import graph of each client entry — the graph
  * every bundler, Metro included, must load — following the workspace packages
  * core depends on (`@oxy.so/contracts`, `@oxy.so/protocol`, `@oxy.so/telemetry`)
- * into their source, and asserts no module on it imports `zod`. A source-text
+ * into their source, and asserts no module on it imports a Zod runtime. A source-text
  * grep would miss a re-export chain; resolving the graph does not.
  */
 import { join, relative, resolve } from 'node:path';
@@ -28,11 +28,11 @@ function resolveWorkspace(specifier: string): string | null {
   return resolveSource(join(PACKAGES, name, 'src', subpath ?? 'index'));
 }
 
-/** Who (relative to packages/) imports `zod` on the static graph of `entry`. */
+/** Who (relative to packages/) imports Zod on the static graph of `entry`. */
 function zodImporters(entry: string): string[] {
   const { external } = walkImportGraph(join(SRC, entry), resolveWorkspace);
   return [...external.entries()]
-    .filter(([specifier]) => /^zod(\/.*)?$/.test(specifier))
+    .filter(([specifier]) => /^(?:zod|@oxy\.so\/zod[34])(?:\/.*)?$/.test(specifier))
     .flatMap(([, importers]) => importers.map((file) => relative(PACKAGES, file)))
     .sort();
 }

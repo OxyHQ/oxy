@@ -4,7 +4,7 @@ import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/
  * body is `contentClaimSubmissionSchema` in `@oxy.so/contracts`, shared with
  * the Oxy website's form.
  */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { CONTENT_CLAIM_KINDS, CONTENT_CLAIM_STATES } from '@oxy.so/contracts';
 
 const NOTE_MAX = 5000;

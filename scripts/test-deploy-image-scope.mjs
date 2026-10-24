@@ -20,6 +20,11 @@ const patterns = deployPaths(readFileSync(WORKFLOW_PATH, 'utf8'));
 for (const file of [
   'packages/api/src/server.ts',
   'packages/core/src/index.ts',
+  'packages/zod3/patches/oversized-collections.patch',
+  'packages/zod4/upstream/provenance.json',
+  'scripts/build-zod-fork.mjs',
+  'scripts/check-zod-forks.mjs',
+  'scripts/prepare-api-workspaces.mjs',
   'packages/db/drizzle/0001.sql',
   'Dockerfile',
   'bun.lock',

@@ -37,7 +37,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
-import { z, type ZodTypeAny } from 'zod';
+import { z, type ZodTypeAny } from '@oxy.so/zod4';
 import { catalogInvocationTemplatesEquivalent } from '@oxy.so/contracts';
 import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 

@@ -1,6 +1,6 @@
 import { integerCheck } from './numberChecks';
 import { utf16MinLength } from './stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Transparency log — the public wire contract of the checkpoint surface.

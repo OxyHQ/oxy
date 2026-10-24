@@ -37,7 +37,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** The Socket.IO namespace on oxy-api that carries service events. */
 export const OXY_SERVICE_EVENTS_NAMESPACE = '/service-events';

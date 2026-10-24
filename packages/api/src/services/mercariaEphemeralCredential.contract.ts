@@ -1,5 +1,5 @@
 import { isoDateTime, utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 export const target = {
   applicationId: '6a37d0cc5d4b5f15482a9340',
   ownerAccountId: '69b2d3df5d12f58c9800d651',

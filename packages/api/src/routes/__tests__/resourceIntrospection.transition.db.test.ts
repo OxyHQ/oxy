@@ -8,7 +8,7 @@ import express, { type Request } from 'express';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { resourceIntrospectionSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';

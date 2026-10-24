@@ -1,5 +1,5 @@
 import { utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 // Params with :id (privacy settings)
 export const privacyUserIdParams = z.object({

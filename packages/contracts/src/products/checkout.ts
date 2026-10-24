@@ -1,6 +1,6 @@
 import { integerCheck, safeNumberCheck } from '../numberChecks';
 import { urlCheck, utf16MaxLength, utf16MinLength } from '../stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from '../inference/identifiers';
 export const personalPlanCheckoutRequestSchema = z
   .object({

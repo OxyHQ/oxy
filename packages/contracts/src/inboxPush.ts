@@ -11,7 +11,7 @@ import { utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Android notification channel id the new-mail push is sent on. */
 export const INBOX_EMAIL_PUSH_CHANNEL = 'email';

@@ -26,7 +26,7 @@ import { utf16MaxLength, utf16MinLength } from '../stringChecks';
  * Decided in: issue #972 workstream 10.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   deploymentIdSchema,
   inferenceEnvironmentSchema,

@@ -7,7 +7,7 @@ import { validateForegroundRequesterBearer } from '../services/foregroundCapabil
 import { asyncHandler } from '../utils/asyncHandler';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   actorRefSchema,
   agentRequesterCeilingWriteSchema,

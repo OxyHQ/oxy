@@ -82,7 +82,7 @@ import {
   type DeploymentCommercial,
   deploymentCommercialSchema,
 } from '@kaana.ai/contracts/internal';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   kaanaPublicKeyBase64,
   resolveKaanaDataPlane,

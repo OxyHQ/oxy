@@ -30,7 +30,7 @@
 
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 import * as barrel from '../index';
 import * as accountBilling from '../inference/accountBilling';

@@ -34,6 +34,9 @@ RUN find packages -type f ! -name package.json -delete
 
 FROM bun-node AS builder
 
+# The maintained validator build applies its reviewed patch to pinned sources.
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 # Validate the committed lock against the complete manifest graph, while only
@@ -74,6 +77,14 @@ COPY packages/federation/ packages/federation/
 COPY packages/db/ packages/db/
 COPY packages/utils/ packages/utils/
 COPY packages/api/ packages/api/
+COPY packages/zod3/ packages/zod3/
+COPY packages/zod4/ packages/zod4/
+COPY scripts/build-zod-fork.mjs scripts/check-zod-forks.mjs scripts/prepare-api-workspaces.mjs scripts/
+
+# Maintained validators are workspace dependencies, built from their pinned
+# source archives with their locked workspace compiler before any consumer compiles.
+RUN bun run --filter @oxy.so/zod3 build \
+    && bun run --filter @oxy.so/zod4 build
 
 # drizzle-orm's runtime migrator reads the SQL files and meta/_journal.json.
 # The 46 historical drizzle-kit snapshots are generation inputs only and added
@@ -103,6 +114,7 @@ RUN bun run --cwd packages/federation build:cjs \
 RUN bun run --filter @oxy.so/db build
 RUN bun run --filter @oxy.so/utils build
 RUN bun run --cwd packages/api tsc -p tsconfig.json
+RUN node scripts/prepare-api-workspaces.mjs /app/runtime-workspaces
 
 # ── Production dependency tree ────────────────────────────────────
 # Native dependencies may need a compiler while installing, but the resulting
@@ -165,6 +177,14 @@ COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
 COPY --from=builder /app/packages/federation/dist packages/federation/dist
 COPY --from=builder /app/packages/db/dist packages/db/dist
 COPY --from=builder /app/packages/utils/dist packages/utils/dist
+COPY --from=builder /app/runtime-workspaces/zod3 packages/zod3
+COPY --from=builder /app/runtime-workspaces/zod4 packages/zod4
+COPY --from=builder /app/scripts/check-zod-forks.mjs scripts/check-zod-forks.mjs
+
+# Inspect every physical parser copy in the final production dependency tree.
+# This runs on Bun itself; neither a compiler nor standalone Node is required.
+RUN bun scripts/check-zod-forks.mjs \
+    && bun -e "const r=require('node:module').createRequire('/app/packages/mcp/package.json'); r('@modelcontextprotocol/sdk/server/mcp.js')"
 
 # Copy admin scripts + their src dependencies so one-shot ECS tasks can run them
 # via `bun run packages/api/scripts/<name>.ts`. Scripts intentionally live outside

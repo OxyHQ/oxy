@@ -5,7 +5,7 @@ import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIn
 import { createHash } from 'node:crypto';
 import { productOfferSegmentSchema, productSubscriptionSourceSchema } from '@oxy.so/contracts';
 import { and, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { type Transaction, getDb } from '../config/postgres';
 import {
   accessProviderEvents,

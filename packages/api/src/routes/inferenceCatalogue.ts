@@ -55,7 +55,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { getDb } from '../config/postgres';
 import { isCataloguePublished, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema';
@@ -65,12 +65,12 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { validate } from '../middleware/validate';
 import {
-  catalogueEntryResponse,
-  catalogueListResponse,
-  catalogueStatsResponse,
+  type catalogueEntryResponse,
+  type catalogueListResponse,
+  type catalogueStatsResponse,
   documentationQuery,
-  modelDocumentationResponse,
-  routingProfileListResponse,
+  type modelDocumentationResponse,
+  type routingProfileListResponse,
 } from '../schemas/inferenceCatalogue.schemas';
 import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { getRevisionDocumentation } from '../services/inferenceModelDocumentation.service';

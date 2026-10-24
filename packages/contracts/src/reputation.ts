@@ -41,7 +41,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { type UserNameResponse, userNameSchema } from './userResponse';
 import {
   type ReputationConduct,

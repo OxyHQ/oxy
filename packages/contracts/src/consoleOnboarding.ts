@@ -10,7 +10,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only. ESM-safe (no `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { CONSOLE_TERMS_VERSION, CONSOLE_USE_CASES } from './client/consoleOnboarding';
 
 export {

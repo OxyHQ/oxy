@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/mcp",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "repository": {
     "type": "git",
@@ -35,19 +35,21 @@
     "!dist/**/*.tsbuildinfo"
   ],
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/zod4 && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "lint": "biome lint --error-on-warnings ./src"
+    "lint": "biome lint --error-on-warnings ./src",
+    "test:package": "node ../../scripts/check-mcp-package-closure.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@oxy.so/contracts": "workspace:^",
-    "zod": "catalog:"
+    "@oxy.so/zod4": "workspace:*",
+    "zod": "npm:@oxy.so/zod4@4.6.8"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

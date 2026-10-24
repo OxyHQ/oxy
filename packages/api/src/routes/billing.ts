@@ -29,7 +29,7 @@ import {
 import { and, count, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
 import Stripe from 'stripe';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { getDb } from '../config/postgres';
 import { addCredits } from '../db/credits';
 import { billingCreditGrants } from '../db/schema/billingCreditGrants';

@@ -1,6 +1,6 @@
 import { integerCheck } from '../numberChecks';
 import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { inferenceErrorSchema } from './errors';
 
 const inboxTextSchema = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(20_000));

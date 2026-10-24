@@ -20,7 +20,7 @@ import {
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { SessionController } from '../controllers/session.controller';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import { publicColumns } from '@oxy.so/db/assert';

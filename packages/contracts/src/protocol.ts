@@ -39,7 +39,7 @@ import { integerCheck } from './numberChecks';
  * Platform-agnostic — zod only, no react/react-native/expo, ESM-safe.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from './identity';
 
 /* -------------------------------------------------------------------------- */

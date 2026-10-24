@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Oxy text limits count UTF-16 units. Each factory owns its check and retains

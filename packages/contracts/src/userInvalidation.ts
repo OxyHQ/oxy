@@ -33,7 +33,7 @@ import { utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Redis pub/sub channel carrying user-invalidation events. */
 export const OXY_USER_INVALIDATION_CHANNEL = 'oxy:user:invalidate';

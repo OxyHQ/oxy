@@ -1,6 +1,6 @@
 import { integerCheck, safeNumberCheck } from '../numberChecks';
 import { utf16MaxLength, utf16MinLength } from '../stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { productBenefitSchema } from './access';
 
 /** Approved display terms never identify or activate a billing-provider price. */

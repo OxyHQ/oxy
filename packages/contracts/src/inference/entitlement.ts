@@ -44,7 +44,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
  * Decided in: docs/adr/0014-account-billing-and-entitlements.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from './identifiers';
 import { billingModeSchema } from './accountBilling';
 import { currencyCodeSchema, exactDecimalSchema } from './money';

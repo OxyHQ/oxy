@@ -8,7 +8,7 @@ import {
 } from '../db/schema';
 import { and, eq } from 'drizzle-orm';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from '@oxy.so/contracts';
 import type { Peable, BillingPaidInvoice, BillingInvoiceState } from '@peable.to/sdk';
 import {

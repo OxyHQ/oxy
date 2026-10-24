@@ -52,7 +52,7 @@ import type { inferenceErrorSchema } from '@oxy.so/contracts';
 import type { originalGenerationReceiptHeadersSchema } from '../schemas/inferenceEdge.schemas';
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import { USAGE_UNITS } from '@oxy.so/contracts';
 import type {
   InferenceContentSource,

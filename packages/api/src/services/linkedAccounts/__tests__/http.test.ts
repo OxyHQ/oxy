@@ -16,8 +16,8 @@ jest.mock('@oxy.so/core/server', () => ({
 const fetch = jest.mocked(safeFetch);
 const read = jest.mocked(readResponseBody);
 const endpoint = 'https://identity.example/.well-known/oauth-authorization-server';
-// Resolve the unavoidable runtime dependency along the exact installed atproto
-// chain. This is deliberately not the API's patched Zod 4 parser.
+// Resolve the actual maintained v3 dependency along the installed atproto chain.
+// Transport budgets remain an independent boundary even with the parser fixed.
 const nodeClientRequire = createRequire(require.resolve('@atproto/oauth-client-node'));
 const oauthClientRequire = createRequire(nodeClientRequire.resolve('@atproto/oauth-client'));
 const oauthTypesRequire = createRequire(oauthClientRequire.resolve('@atproto/oauth-types'));
@@ -36,11 +36,17 @@ function payload(bytes: Buffer, status = 200, contentType = 'application/json') 
   read.mockResolvedValue({ kind: 'ok', body: bytes });
 }
 beforeEach(() => jest.clearAllMocks());
-it('keeps an explicit positive control for the unavoidable transitive parser', () => {
-  expect(oauthTypesRequire('zod/package.json').version).toMatch(/^3\./);
-  const result = upstreamSchema.safeParse({ scopes_supported: Array(10_000).fill(0) });
+it('the actual transitive parser rejects oversized constrained arrays before traversal', () => {
+  expect(oauthTypesRequire('zod/package.json')).toMatchObject({
+    name: '@oxy.so/zod3',
+    version: '3.25.77',
+  });
+  const child = jest.fn((value: unknown) => value);
+  const bounded = legacyZod.z.array(legacyZod.z.preprocess(child, legacyZod.z.string())).max(100);
+  const result = bounded.safeParse(Array(10_000).fill(0));
+  expect(child).not.toHaveBeenCalled();
   expect(result.success).toBe(false);
-  expect(result.error.issues).toHaveLength(10_001);
+  expect(result.error.issues).toHaveLength(1);
 });
 
 it.each([false, true])(

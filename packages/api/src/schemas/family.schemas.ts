@@ -1,5 +1,5 @@
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Route params with :id (the family id). */
 export const familyIdRouteParams = z.object({

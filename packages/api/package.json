@@ -8,7 +8,7 @@
     "start": "bun dist/server.js",
     "start:asset-variant-worker": "bun dist/asset-variant-worker.js",
     "dev": "bun --watch src/server.ts",
-    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/zod3 @oxy.so/zod4 @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
@@ -104,7 +104,7 @@
     "jsdom": "catalog:",
     "jsonwebtoken": "^9.0.2",
     "mailparser": "^3.9.32",
-    "multer": "^2.3.0",
+    "multer": "^2.5.0",
     "nodemailer": "^10.0.13",
     "parse5": "7.3.0",
     "pino": "catalog:",
@@ -118,7 +118,8 @@
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.1",
     "ws": "^8.21.3",
-    "zod": "catalog:"
+    "@oxy.so/zod4": "workspace:*",
+    "@oxy.so/zod3": "workspace:*"
   },
   "optionalDependencies": {
     "ffmpeg-static": "^5.2.0",

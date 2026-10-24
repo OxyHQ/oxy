@@ -29,7 +29,7 @@ import { integerCheck, safeNumberCheck } from '../numberChecks';
  * Decided in: docs/adr/0009-usage-reservation-and-settlement.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  Money                                                                     */

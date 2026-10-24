@@ -1,5 +1,5 @@
 import { utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { reauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 

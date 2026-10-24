@@ -26,7 +26,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  Shared primitives                                                         */

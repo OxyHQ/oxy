@@ -8,7 +8,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * {@link ACCOUNT_CATEGORY_IDS} for the four rules that govern it.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { avatarCharacterSchema } from './avatarCharacter';
 import { accountTitleSchema } from './accountName';
 import { ACCOUNT_TITLE_MAX_LENGTH } from './client/accountName';

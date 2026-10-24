@@ -1,0 +1,9 @@
+{
+  "name": "zod",
+  "version": "3.25.76",
+  "tarball": "https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+  "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==",
+  "gitHead": "50606616c0d291caf3210a7521da51271b918333",
+  "advisory": "GHSA-mrhx-c7xc-m3w5",
+  "fixCommit": "https://github.com/colinhacks/zod/commit/a0ebf970f2d752e5f58527cd2942ff48be4f46bd"
+}

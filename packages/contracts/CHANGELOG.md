@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.0.1
+
+- Use the maintained Zod4 source build, including the fixed embedded v3 parser, while retaining the current schema and authorization contracts.
+
 ## 6.0.0
 
 ### Breaking

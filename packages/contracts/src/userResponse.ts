@@ -30,7 +30,7 @@ import { isoDateTime } from './stringChecks';
  * `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 import { avatarCharacterSchema } from './avatarCharacter';

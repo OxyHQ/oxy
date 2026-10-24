@@ -1,6 +1,6 @@
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { randomBytes } from 'node:crypto';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { getRedisClient } from '../config/redis';
 import type { FileRecord } from '../types/file.types';
 import { logger } from './logger';

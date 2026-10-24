@@ -33,7 +33,7 @@ import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@
  * `tsc` where the parsed body is passed in.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { MAX_APPLICATION_INFERENCE_LIMIT } from '../db/schema/applicationInferenceLimits';
 import {
   currencyCodeSchema,

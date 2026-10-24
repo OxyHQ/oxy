@@ -13,7 +13,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
  * / expo, ESM-safe).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { avatarCharacterSchema } from './avatarCharacter';
 import { userNameSchema } from './userResponse';
 

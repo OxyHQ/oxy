@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { totpBackupCodesResponseSchema } from '../signIn';
 import { totpBackupCodesResponseCheck } from '../client/signIn';
 

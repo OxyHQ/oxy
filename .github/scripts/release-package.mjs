@@ -214,6 +214,12 @@ export function workspaceRangeProblems(packed, source, workspaces) {
 export function consumerRanges(packed, publishedFirst = new Map()) {
   return CONSUMER_FIELDS.flatMap((field) =>
     Object.entries(packed[field] ?? {})
+      .map(([dependency, range]) => {
+        // npm aliases install the target package under another dependency key.
+        // Validate the real target both in the ordered plan and on the registry.
+        const alias = /^npm:((?:@[a-z0-9._-]+\/)?[a-z0-9._-]+)@(.+)$/.exec(range);
+        return alias ? [alias[1], alias[2]] : [dependency, range];
+      })
       .filter(([dependency, range]) => {
         const version = publishedFirst.get(dependency);
         return !version || !satisfiesRange(version, range);

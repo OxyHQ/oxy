@@ -100,7 +100,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * knows what is taken, and it must not pretend to.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 import type { AccountKind } from './accountGraph';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);

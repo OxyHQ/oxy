@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { validate } from '../validate';
 import { errorHandler } from '../errorHandler';
 

@@ -24,7 +24,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
  * `./client/appAssertions.ts`.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   APP_ASSERTION_CHALLENGE_PURPOSES,
   APP_ASSERTION_ERROR_CODES,

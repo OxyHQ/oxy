@@ -16,7 +16,7 @@ import { urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only. ESM-safe (no `require()`).
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  Limits                                                                    */

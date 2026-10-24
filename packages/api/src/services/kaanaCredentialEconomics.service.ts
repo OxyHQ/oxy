@@ -51,7 +51,7 @@ import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts'
  * request over to the next signed route on a quota refusal.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
 import type { InferenceFundingClass } from '../db/schema';
 import { postProviderTelemetry } from './kaanaProviderCostFeed.service';

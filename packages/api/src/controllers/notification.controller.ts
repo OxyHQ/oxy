@@ -39,7 +39,7 @@
 
 import type { Response, Request } from 'express';
 import { and, count, desc, eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 import { getDb } from '../config/postgres';
 import type { AuthRequest, ServiceAuthRequest } from '../middleware/auth';

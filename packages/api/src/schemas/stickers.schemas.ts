@@ -1,5 +1,5 @@
 import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { stickerPackSlugSchema } from '@oxy.so/contracts';
 
 const id = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64));

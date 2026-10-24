@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 // POST /security/activity/private-key-exported
 export const logPrivateKeyExportedSchema = z.object({

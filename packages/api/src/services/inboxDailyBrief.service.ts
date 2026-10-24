@@ -18,7 +18,7 @@ import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 
 import type { InboxDailyBriefResponse, InboxDailyBriefSection } from '@oxy.so/contracts';
 import { and, desc, eq, exists, gte, lt, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { getDb } from '../config/postgres';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments } from '../db/schema/messageAttachments';

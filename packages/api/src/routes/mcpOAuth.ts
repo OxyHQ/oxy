@@ -2,7 +2,7 @@ import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { mcpOAuthClientInfoResponseSchema, mcpOAuthConsentResponseSchema } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';

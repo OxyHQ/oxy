@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Integer validation does not add a safe-number ceiling unless the contract requests one. */
 export function integerCheck(message?: string | { message?: string }) {

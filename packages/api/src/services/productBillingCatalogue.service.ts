@@ -16,7 +16,7 @@ import {
   productSubscriptionSourceSchema,
 } from '@oxy.so/contracts';
 import type Stripe from 'stripe';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { getBillingStripe } from '../utils/billingStripe';
 import type { ProductProviderPeriodInput } from './productProviderEvidence.service';
 import {

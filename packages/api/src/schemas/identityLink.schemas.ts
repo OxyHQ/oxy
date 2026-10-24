@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { identityLinkIdSchema } from '@oxy.so/contracts';
 
 // /identity/link/:linkId

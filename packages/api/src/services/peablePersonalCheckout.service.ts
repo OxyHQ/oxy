@@ -9,7 +9,7 @@ import {
 import { createHash } from 'node:crypto';
 import { PeableError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
 import { ApiError } from '../utils/error';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import type {
   PersonalCheckoutProvider,

@@ -19,7 +19,7 @@ import {
   safetyPurchaseListQuerySchema,
 } from '../schemas/supervision.schemas';
 import { Router, type Response, type RequestHandler } from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   messagingSessionsInputSchema,
   messagingSessionsResponseSchema,

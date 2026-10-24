@@ -1,5 +1,5 @@
 import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 /** Omitted means the existing grant; an explicit set only narrows that authority. */
 export const serviceTokenScopesSchema = z

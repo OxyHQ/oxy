@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 export type JsonSchema = Parameters<typeof z.fromJSONSchema>[0];
 

@@ -1,5 +1,5 @@
 import { Router, type Response, type RequestHandler } from 'express';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { profileAccessInputSchema, profileAccessDecisionSchema } from '@oxy.so/contracts';
 import type { AuthRequest } from '../middleware/auth';
 import {

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 

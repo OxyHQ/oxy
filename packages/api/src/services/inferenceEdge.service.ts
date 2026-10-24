@@ -109,7 +109,7 @@ import { exactDecimalSchema } from '@oxy.so/contracts';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
-import type { z } from 'zod';
+import type { z } from '@oxy.so/zod4';
 import {
   currentDeploymentLiveness,
   isDeploymentPublished,

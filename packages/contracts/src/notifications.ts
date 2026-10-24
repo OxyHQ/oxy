@@ -12,7 +12,7 @@ import { utf16MaxLength, utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 export const OXY_NOTIFICATION_TYPES = [
   'like',

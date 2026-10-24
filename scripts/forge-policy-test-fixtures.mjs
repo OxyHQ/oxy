@@ -19,7 +19,6 @@ export function policyTestRepository(decision = SYNTHETIC_INACTIVE) {
   const root = mkdtempSync(join(tmpdir(), 'forge-policy-offline-fixture-'));
   const paths = [
     'scripts/check-dependency-audit.mjs',
-    'scripts/zod-audit-paths.mjs',
     'scripts/forge-audit-policy.mjs',
     'scripts/forge-remediation-proof-proposal.mjs',
     'scripts/forge-source-topology.mjs',
@@ -32,31 +31,6 @@ export function policyTestRepository(decision = SYNTHETIC_INACTIVE) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), readFileSync(join(source, path)));
   }
-  writeFileSync(
-    join(root, 'bun.lock'),
-    JSON.stringify({
-      workspaces: {
-        'packages/api': {
-          name: '@oxy.so/api',
-          dependencies: { '@atproto/oauth-client-node': '0.5.7' },
-        },
-      },
-      packages: {
-        '@atproto/oauth-client-node': [
-          '@atproto/oauth-client-node@0.5.7',
-          '',
-          { dependencies: { '@atproto/oauth-types': '0.7.6' } },
-        ],
-        '@atproto/oauth-types': [
-          '@atproto/oauth-types@0.7.6',
-          '',
-          { dependencies: { zod: '3.25.76' } },
-        ],
-        '@atproto/oauth-types/zod': ['zod@3.25.76', '', {}],
-        zod: ['zod@4.6.7', '', {}],
-      },
-    }),
-  );
   mkdirSync(dirname(join(root, DECISION_PATH)), { recursive: true });
   writeFileSync(join(root, DECISION_PATH), JSON.stringify(decision) + '\n');
   const git = (...args) =>

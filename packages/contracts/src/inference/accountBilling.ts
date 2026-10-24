@@ -44,7 +44,7 @@ import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
  * docs/adr/0009-usage-reservation-and-settlement.md.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from './identifiers';
 import { currencyCodeSchema, exactDecimalSchema } from './money';
 

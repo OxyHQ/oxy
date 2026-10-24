@@ -29,7 +29,7 @@
     "react-native-web": "^0.21.2",
     "react-router-dom": "^7.18.2",
     "tailwindcss": "^4.3.3",
-    "zod": "catalog:"
+    "@oxy.so/zod4": "workspace:*"
   },
   "devDependencies": {
     "jsdom": "catalog:",

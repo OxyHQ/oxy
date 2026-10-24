@@ -21,7 +21,7 @@ import { utf16MinLength } from './stringChecks';
  * Platform-agnostic — zod only.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { accountKindSchema } from './accountGraph';
 
 /**

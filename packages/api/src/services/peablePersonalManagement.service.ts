@@ -1,7 +1,7 @@
 import { integerCheck, safeNumberCheck, utf16MinLength } from '@oxy.so/contracts';
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { Peable } from '@peable.to/sdk';
 import {
   billingNamespaceSchema,

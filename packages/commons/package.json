@@ -89,7 +89,8 @@
     "sharp": "catalog:",
     "tailwindcss": "4.3.3",
     "ts-jest": "^29.4.12",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "@oxy.so/zod3": "workspace:*"
   },
   "private": true,
   "expo": {

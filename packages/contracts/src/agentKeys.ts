@@ -1,7 +1,7 @@
 import { integerCheck } from './numberChecks';
 import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 /** Autonomous runtime proof. No private key crosses this contract. */
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { reauthProofSchema } from './signIn';
 import { canonicalJson } from './identityProof';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);

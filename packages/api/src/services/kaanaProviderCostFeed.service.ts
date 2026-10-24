@@ -28,7 +28,7 @@ import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.
 
 import { createHash, sign } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { usageUnitSchema, type UsageUnit } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';

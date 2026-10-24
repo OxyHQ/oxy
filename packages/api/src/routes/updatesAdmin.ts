@@ -16,7 +16,7 @@ import { hasServiceAuthority } from '../utils/serviceAuthority';
 
 import express from 'express';
 import { and, eq, ne } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import {
   assetInitRequestSchema,
   assetCompleteRequestSchema,

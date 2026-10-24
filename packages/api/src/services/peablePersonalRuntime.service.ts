@@ -12,7 +12,7 @@ import { createPublicKey } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { Peable } from '@peable.to/sdk';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
 import {

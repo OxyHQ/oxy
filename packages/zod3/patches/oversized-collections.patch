@@ -1,0 +1,126 @@
+--- a/src/v3/types.ts
++++ b/src/v3/types.ts
+@@ -2263,6 +2263,8 @@
+           exact: true,
+           message: def.exactLength.message,
+         });
++        // Never walk an input that already exceeds its declared upper bound.
++        if (tooBig) return INVALID;
+         status.dirty();
+       }
+     }
+@@ -2291,7 +2293,8 @@
+           exact: false,
+           message: def.maxLength.message,
+         });
+-        status.dirty();
++        // The raw elements have not been parsed; do not run later refinements.
++        return INVALID;
+       }
+     }
+ 
+@@ -3723,7 +3726,8 @@
+           exact: false,
+           message: def.maxSize.message,
+         });
+-        status.dirty();
++        // The raw elements have not been parsed; do not run later refinements.
++        return INVALID;
+       }
+     }
+ 
+--- a/src/v4/core/util.ts
++++ b/src/v4/core/util.ts
+@@ -773,3 +773,16 @@
+ export abstract class Class {
+   constructor(..._args: any[]) {}
+ }
++
++/** The leading size checks of `defChecks` that set an upper bound, each paired with it. */
++export function sizeCaps(defChecks: checks.$ZodCheck<never>[] | undefined): [number, checks.$ZodCheck<never>][] {
++  const caps: [number, checks.$ZodCheck<never>][] = [];
++  for (const ch of defChecks ?? []) {
++    const d = ch._zod.def as any;
++    // a later check may rewrite the value
++    if (!/_(length|size)$|_equals$/.test(d.check)) break;
++    const max = d.maximum ?? d.length ?? d.size;
++    if (max >= 0) caps.push([max, ch]);
++  }
++  return caps;
++}
+--- a/src/v4/core/schemas.ts
++++ b/src/v4/core/schemas.ts
+@@ -30,6 +30,8 @@
+ export interface ParsePayload<T = unknown> {
+   value: T;
+   issues: errors.$ZodRawIssue[];
++  /** @internal An upper bound rejected the raw container before element parsing. */
++  aborted?: boolean;
+ }
+ 
+ export type CheckFn<T> = (input: ParsePayload<T>) => util.MaybeAsync<void>;
+@@ -203,6 +205,7 @@
+       checks: checks.$ZodCheck<never>[],
+       ctx?: ParseContextInternal | undefined
+     ): util.MaybeAsync<ParsePayload> => {
++      if (payload.aborted) return payload;
+       let isAborted = util.aborted(payload);
+ 
+       let asyncResult!: Promise<unknown> | undefined;
+@@ -1514,6 +1517,32 @@
+   final.value[index] = result.value;
+ }
+ 
++// Backport of upstream a0ebf97: only leading size checks may precede parsing.
++function capSize(inst: $ZodType, size: (input: unknown) => number): void {
++  const caps = util.sizeCaps(inst._zod.def.checks);
++  if (!caps.length) return;
++  const cap = Math.min(...caps.map(([maximum]) => maximum));
++  const parse = inst._zod.parse;
++  inst._zod.parse = (payload, ctx) => {
++    const n = size(payload.value);
++    if (n > cap) {
++      for (const [maximum, check] of util.sizeCaps(inst._zod.def.checks)) {
++        if (n > maximum && (!check._zod.def.when || check._zod.def.when(payload))) {
++          const start = payload.issues.length;
++          check._zod.check(payload as ParsePayload<never>);
++          // Raw elements are unvalidated: neither traversal nor later checks may run.
++          if (payload.issues.length > start) {
++            payload.issues[start] = { ...payload.issues[start], continue: false };
++            payload.aborted = true;
++            return payload;
++          }
++        }
++      }
++    }
++    return parse(payload, ctx);
++  };
++}
++
+ export const $ZodArray: core.$constructor<$ZodArray> = /*@__PURE__*/ core.$constructor("$ZodArray", (inst, def) => {
+   $ZodType.init(inst, def);
+ 
+@@ -1555,6 +1584,7 @@
+ 
+     return payload; //handleArrayResultsAsync(parseResults, final);
+   };
++  capSize(inst, (input) => Array.isArray(input) ? input.length : -1);
+ });
+ 
+ //////////////////////////////////////////
+@@ -2599,6 +2629,7 @@
+     if (proms.length) return Promise.all(proms).then(() => payload);
+     return payload;
+   };
++  capSize(inst, (input) => input instanceof Map ? input.size : -1);
+ });
+ 
+ function handleMapResult(
+@@ -2691,6 +2722,7 @@
+     if (proms.length) return Promise.all(proms).then(() => payload);
+     return payload;
+   };
++  capSize(inst, (input) => input instanceof Set ? input.size : -1);
+ });
+ 
+ function handleSetResult(result: ParsePayload, final: ParsePayload<Set<any>>) {

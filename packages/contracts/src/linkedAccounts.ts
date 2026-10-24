@@ -11,7 +11,7 @@ import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from './stringC
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 
 export const LINKED_ACCOUNT_NETWORKS = ['activitypub', 'atproto'] as const;
 

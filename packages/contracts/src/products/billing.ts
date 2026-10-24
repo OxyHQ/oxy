@@ -1,6 +1,6 @@
 import { integerCheck, safeNumberCheck } from '../numberChecks';
 import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from '../inference/identifiers';
 const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
 const name = z.string().check(utf16MinLength(1)).check(utf16MaxLength(100));

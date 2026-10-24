@@ -1,6 +1,6 @@
 /** Physical billing database boundary. Session GUCs never establish provisioning. */
 import { sql } from 'drizzle-orm';
-import { z } from 'zod';
+import { z } from '@oxy.so/zod4';
 import type { DatabaseOrTransaction } from './postgres';
 
 export const billingNamespaceSchema = z.discriminatedUnion('mode', [
