@@ -354,6 +354,8 @@ export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 export const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
+/** Astro, Oxy's browser: a public sign-in client, so it can read the person's Nilo calendar. */
+export const ASTRO_APPLICATION_ID = 'c08f19e22ae6e86eb1d50361';
 
 /**
  * Willo's backend service-activity principal. First credential this
@@ -916,6 +918,21 @@ export const SEED_APPS: SeedAppSpec[] = [
       'invitations:email',
     ],
     capabilities: [catalogApplicationCapability('noted')],
+  },
+  {
+    id: ASTRO_APPLICATION_ID,
+    name: 'Astro',
+    description: "Official Oxy web browser. Signs in with Oxy to show the person's Nilo calendar.",
+    websiteUrl: 'https://astro.oxy.so',
+    type: 'first_party',
+    // Native on every platform: react-native-macos on macOS, and on Windows and
+    // Linux an interface whose requests the browser process sends, with no
+    // Origin or Sec-Fetch-Site, as a native app's. No web origin to prove, no
+    // deep-link scheme and no OAuth redirect: sign-in is the in-app dialog.
+    redirectUris: [],
+    // Ordinary first-party sign-in only. Nilo's /calendar takes the person's
+    // own session, so Astro needs no feature-write or inference authority.
+    scopes: ['user:read'],
   },
   {
     id: WILLO_APPLICATION_ID,
