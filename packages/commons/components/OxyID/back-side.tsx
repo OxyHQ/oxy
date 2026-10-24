@@ -7,6 +7,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Fonts } from '@/constants/theme';
 import { HolographicLogo } from './holographic-logo';
+import { EMBLEM_CLEARANCE } from './emblem';
+import { useTranslation } from '@/lib/i18n';
 
 interface BackSideProps {
   publicKey?: string;
@@ -31,6 +33,7 @@ const formatDate = (dateString?: string) => {
 };
 
 export const BackSide: React.FC<BackSideProps> = ({ publicKey, displayName, accountCreated }) => {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       {/* Header — mirrors the front. */}
@@ -61,16 +64,19 @@ export const BackSide: React.FC<BackSideProps> = ({ publicKey, displayName, acco
           <Text style={styles.footerStrong}>ISSUED</Text>
           <Text style={styles.footerStrong}>{formatDate(accountCreated)}</Text>
         </View>
-        <Text style={styles.footerNote}>SELF-CUSTODY · NO PASSWORD · YOU HOLD THE KEY</Text>
+        <Text style={styles.footerNote}>{t('civic.id.card.backFooterNote')}</Text>
       </View>
     </View>
   );
 };
 
+/** The face's own padding; the footer's left inset is measured from it. */
+const FACE_PADDING = 18;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 18,
+    padding: FACE_PADDING,
     justifyContent: 'space-between',
   },
   header: {
@@ -121,6 +127,11 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(0,0,0,0.18)',
     paddingTop: 8,
     gap: 3,
+    // The hologram's emblem shows in this face's bottom-LEFT corner (the
+    // hologram does not flip with the card). Without this inset the note wrapped
+    // under it ("SELF-CUSTODY · NO PASSWORD · YOU HOLD THE KEY", Pixel 8a). The
+    // note may wrap; it wraps beside the mark, never under it.
+    paddingLeft: EMBLEM_CLEARANCE - FACE_PADDING,
   },
   infoRow: {
     flexDirection: 'row',

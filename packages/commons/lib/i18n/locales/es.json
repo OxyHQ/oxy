@@ -1262,7 +1262,12 @@
       "qrPending": "Termina de configurar tu cuenta para generar tu QR.",
       "flipHint": "Toca la tarjeta para girarla",
       "didLabel": "ID descentralizado (DID)",
-      "pendingNote": "Este dispositivo guarda tus claves, pero tu cuenta aún no está registrada en Oxy. Tu tarjeta y QR funcionan sin conexión; completaremos el registro cuando vuelvas a estar en línea."
+      "pendingNote": "Este dispositivo guarda tus claves, pero tu cuenta aún no está registrada en Oxy. Tu tarjeta y QR funcionan sin conexión; completaremos el registro cuando vuelvas a estar en línea.",
+      "card": {
+        "backFooterNote": "AUTOCUSTODIA · SIN CONTRASEÑA · TÚ TIENES LA CLAVE",
+        "qrFooterTitle": "FIRMADA · IDENTIDAD EN AUTOCUSTODIA",
+        "qrFooterNote": "Se resuelve y verifica en la red de Oxy"
+      }
     },
     "card": {
       "title": "Tarjeta de ciudadanía",
