@@ -142,3 +142,60 @@ describe('OxyServer.assets.metadataBySha256', () => {
     expect(result).toEqual([publicEntry]);
   });
 });
+
+describe('OxyServer.assets.lookupBySha256', () => {
+  let oxy: OxyServer;
+  let serviceRequestSpy: jest.SpyInstance;
+  const sha = (i: number): string => i.toString(16).padStart(64, '0');
+
+  beforeEach(() => {
+    oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    serviceRequestSpy = jest.spyOn(oxy, 'serviceRequest');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('all found: nothing missing or failed', async () => {
+    serviceRequestSpy.mockResolvedValueOnce([publicEntry, privateEntry]);
+
+    const result = await oxy.assets.lookupBySha256(['A'.repeat(64), 'b'.repeat(64), 'not-hex']);
+
+    expect(result).toEqual({ found: [publicEntry, privateEntry], missing: [], failed: [] });
+  });
+
+  it('partial absence: a digest the server answered without is missing', async () => {
+    serviceRequestSpy.mockResolvedValueOnce([publicEntry]);
+
+    const result = await oxy.assets.lookupBySha256(['a'.repeat(64), 'c'.repeat(64)]);
+
+    expect(result.found).toEqual([publicEntry]);
+    expect(result.missing).toEqual(['c'.repeat(64)]);
+    expect(result.failed).toEqual([]);
+  });
+
+  it('a failed chunk: its digests are failed, not missing, and the error is kept', async () => {
+    const shas = Array.from({ length: 150 }, (_, i) => sha(i));
+    const boom = new Error('chunk failed');
+    serviceRequestSpy
+      .mockResolvedValueOnce([{ ...publicEntry, sha256: sha(0) }])
+      .mockRejectedValueOnce(boom);
+
+    const result = await oxy.assets.lookupBySha256(shas);
+
+    expect(result.found).toHaveLength(1);
+    expect(result.missing).toEqual(shas.slice(1, 100));
+    expect(result.failed).toEqual(shas.slice(100));
+    expect(result.error).toBe(boom);
+  });
+
+  it('all failed: every digest failed, none missing', async () => {
+    const boom = new Error('down');
+    serviceRequestSpy.mockRejectedValue(boom);
+
+    const result = await oxy.assets.lookupBySha256([sha(1), sha(2)]);
+
+    expect(result).toEqual({ found: [], missing: [], failed: [sha(1), sha(2)], error: boom });
+  });
+});

@@ -73,6 +73,7 @@ export type {
   ClaimedSession,
 } from './api/auth';
 export type { UsersApi, ResolveExternalUserInput, DeleteAccountProof } from './api/users';
+export type { BatchLookup } from './utils/batchLookup';
 export type {
   FollowsApi,
   FollowMutationResult,

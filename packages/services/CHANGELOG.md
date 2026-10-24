@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.6.0] - 2026-10-25
+
+### Fixed
+
+- The account members screen reads member handles with `users.lookupMany` and fails the query when a chunk failed, so React Query retries it. With `getMany` a failed read resolved empty and members showed their raw id for the whole five-minute stale window. Requires `@oxy.so/core` ^7.3.0.
+
 ## [13.5.0] - 2026-10-24
 
 ### Changed
