@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/mcp",
-  "version": "1.3.2",
+  "version": "1.4.1",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "repository": {
     "type": "git",
@@ -42,8 +42,8 @@
     "clean": "rm -rf dist",
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "test:package": "node ../../scripts/check-mcp-package-closure.mjs",
-    "lint": "biome lint --error-on-warnings ./src"
+    "lint": "biome lint --error-on-warnings ./src",
+    "test:package": "node ../../scripts/check-mcp-package-closure.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -55,6 +55,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@oxy.so/core": "workspace:^"
   }
 }

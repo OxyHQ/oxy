@@ -18,7 +18,6 @@
     "@oxy.so/core": "workspace:*",
     "@oxy.so/protocol": "workspace:*",
     "@oxy.so/services": "workspace:*",
-    "@oxy.so/zod3": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query": "catalog:",
     "react": "catalog:",
@@ -29,7 +28,8 @@
     "react-native-svg": "catalog:",
     "react-native-web": "^0.21.2",
     "react-router-dom": "^7.18.2",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "@oxy.so/zod4": "workspace:*"
   },
   "devDependencies": {
     "jsdom": "catalog:",

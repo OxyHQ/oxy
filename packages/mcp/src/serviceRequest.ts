@@ -2,22 +2,26 @@ import { z } from '@oxy.so/zod4';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-/**
- * How a resource server reaches a service-authenticated Oxy endpoint.
- *
- * The caller owns credential storage; this module only asks for a live service
- * token and, once, for it to be invalidated when Oxy answers 401.
- */
-export interface OxyMcpServiceRequestOptions {
+/** Own products inject the core service client; external callers keep explicit credentials. */
+export type OxyMcpServiceAuthentication =
+  | {
+      transport: { fetch: typeof fetch };
+      getServiceToken?: never;
+      invalidateServiceToken?: never;
+      fetch?: never;
+    }
+  | {
+      transport?: never;
+      getServiceToken: () => Promise<string>;
+      invalidateServiceToken?: () => void | Promise<void>;
+      fetch?: typeof fetch;
+    };
+
+export type OxyMcpServiceRequestOptions = OxyMcpServiceAuthentication & {
   /** Exact endpoint for this environment. */
   endpoint: string;
-  /** Returns a live Oxy service token. */
-  getServiceToken: () => Promise<string>;
-  /** Invalidates the caller's cached service token before the one allowed retry. */
-  invalidateServiceToken?: () => void | Promise<void>;
-  fetch?: typeof fetch;
   timeoutMs?: number;
-}
+};
 
 export function validateOxyEndpoint(value: string): string {
   const url = new URL(value);
@@ -62,7 +66,8 @@ export class OxyMcpRequestError extends Error {
 }
 
 /**
- * POST JSON to Oxy as a service, with exactly one retry after a 401.
+ * POST JSON to Oxy through the shared transport, or an explicit external token.
+ * The shared transport owns refresh; the legacy callback lane retries one 401.
  *
  * Never cached: every call here is an authorization decision (is this token
  * still live, may this account still be acted as), and a cached answer would
@@ -74,22 +79,39 @@ export async function postOxyServiceJson(
 ): Promise<unknown> {
   const endpoint = validateOxyEndpoint(options.endpoint);
   const timeoutMs = timeout(options);
-  const fetcher = options.fetch ?? globalThis.fetch;
+  if (
+    options.transport &&
+    (options.getServiceToken || options.invalidateServiceToken || options.fetch)
+  ) {
+    throw new Error('Provide one Oxy MCP authentication transport');
+  }
+  const fetcher = options.transport
+    ? options.transport.fetch.bind(options.transport)
+    : (options.fetch ?? globalThis.fetch);
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const serviceToken = await options.getServiceToken();
-    if (!serviceToken.trim()) throw new Error('Oxy service token is unavailable');
+    const serviceToken = options.transport ? undefined : await options.getServiceToken();
+    if (serviceToken !== undefined && !serviceToken.trim())
+      throw new Error('Oxy service token is unavailable');
     const response = await fetcher(endpoint, {
       method: 'POST',
+      redirect: 'error',
+      credentials: 'omit',
+      cache: 'no-store',
       headers: {
-        authorization: `Bearer ${serviceToken}`,
+        ...(serviceToken === undefined ? {} : { authorization: `Bearer ${serviceToken}` }),
         'content-type': 'application/json',
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
 
-    if (response.status === 401 && attempt === 0 && options.invalidateServiceToken) {
+    if (
+      !options.transport &&
+      response.status === 401 &&
+      attempt === 0 &&
+      options.invalidateServiceToken
+    ) {
       await response.body?.cancel().catch(() => undefined);
       await options.invalidateServiceToken();
       continue;

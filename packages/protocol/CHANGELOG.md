@@ -1,8 +1,15 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.5.2
+
+- Depend on the updated shared contracts with their maintained parser, preserving the current protocol and authorization behavior.
+
 ## 1.5.1
 
-- Use the maintained, source-built Zod security backport to reject oversized constrained collections before traversing their elements, preserving the existing validation API.
+### Changed
+
+- Remove the unused Zod dependency; protocol validation continues through the shared client checks.
+- Package against contracts 6. Protocol exports and signed wire formats are unchanged.
 
 ## 1.5.0
 

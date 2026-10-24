@@ -39,7 +39,7 @@
 
 import type { Response, Request } from 'express';
 import { and, count, desc, eq } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 import { getDb } from '../config/postgres';
 import type { AuthRequest, ServiceAuthRequest } from '../middleware/auth';
@@ -389,7 +389,7 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     sendSuccess(res, { notification }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new BadRequestError('Invalid notification data', { errors: error.errors });
+      throw new BadRequestError('Invalid notification data', { errors: error.issues });
     }
     if (error instanceof ConflictError || error instanceof BadRequestError) {
       throw error;

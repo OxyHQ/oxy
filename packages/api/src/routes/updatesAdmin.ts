@@ -1,3 +1,5 @@
+import { integerCheck, utf16MinLength } from '@oxy.so/contracts';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Authenticated Oxy Updates publish/admin API (`/updates/v1/...`). Called by the
  * `oxy-ship` CLI (service token) and the console Updates tab (user bearer). No
@@ -14,7 +16,7 @@
 
 import express from 'express';
 import { and, eq, ne } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import {
   assetInitRequestSchema,
   assetCompleteRequestSchema,
@@ -24,8 +26,9 @@ import {
   promoteRequestSchema,
   updateRolloutPatchSchema,
 } from '@oxy.so/contracts';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as authenticatePrincipal } from '../middleware/userOrServiceAuth';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -62,31 +65,6 @@ const readLimiter = rateLimit({
 });
 
 /**
- * Authenticate the caller as EITHER a service token OR a user session. A valid
- * `service`-type JWT sets `req.serviceApp`; anything else falls through to the
- * standard user-session middleware. App-level authorization is deferred to
- * {@link authorizeForApp} (it needs the target applicationId from the body).
- */
-function authenticatePrincipal(
-  req: UpdatesAdminRequest,
-  res: express.Response,
-  next: express.NextFunction,
-): void {
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice('Bearer '.length);
-    const verification = verifyServiceToken(token);
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  // Not a service token → require a user session.
-  void authMiddleware(req, res, next);
-}
-
-/**
  * Enforce that the authenticated principal may manage updates for
  * `applicationId`.
  *
@@ -95,8 +73,7 @@ function authenticatePrincipal(
  */
 async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string): Promise<void> {
   if (req.serviceApp) {
-    const scopes = req.serviceApp.scopes ?? [];
-    if (!scopes.includes('updates:publish')) {
+    if (!hasServiceAuthority(req.serviceApp, 'updates:publish')) {
       throw new ForbiddenError('Missing required scope: updates:publish');
     }
     if (req.serviceApp.appId !== applicationId) {
@@ -139,7 +116,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success) {
-    throw new ValidationError('Invalid request data', { details: result.error.errors });
+    throw new ValidationError('Invalid request data', { details: result.error.issues });
   }
   return result.data;
 }
@@ -260,10 +237,10 @@ router.post(
 
 /** Shared query schema for the read endpoints — applicationId is required. */
 const readQuerySchema = z.object({
-  applicationId: z.string().min(1),
-  runtimeVersion: z.string().min(1).optional(),
+  applicationId: z.string().check(utf16MinLength(1)),
+  runtimeVersion: z.string().check(utf16MinLength(1)).optional(),
   platform: z.enum(['ios', 'android']).optional(),
-  limit: z.coerce.number().int().positive().max(200).optional(),
+  limit: z.coerce.number().check(integerCheck()).positive().max(200).optional(),
 });
 
 router.get(

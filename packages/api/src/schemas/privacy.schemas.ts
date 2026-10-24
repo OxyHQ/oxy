@@ -1,13 +1,14 @@
-import { z } from '@oxy.so/zod3';
+import { utf16MinLength } from '@oxy.so/contracts';
+import { z } from '@oxy.so/zod4';
 
 // Params with :id (privacy settings)
 export const privacyUserIdParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 // Params with :targetId (block/restrict)
 export const targetIdParams = z.object({
-  targetId: z.string().trim().min(1),
+  targetId: z.string().trim().check(utf16MinLength(1)),
 });
 
 export const privacySettingsSchema = z.object({

@@ -1,14 +1,15 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Invitation emails an application has Oxy send for it (`invitations:email`).
  *
  * Mounted at `/apps/invitations`. Service tokens only — a person's session never
- * reaches the handler — and the privileged scope, which staff grant per
- * application. What the email may say and where its link may point is decided
+ * reaches the handler. Own workloads carry a verified inviter proof; external
+ * credentials retain the invitation scope. Content, budgets and link origins are decided
  * in `services/appInvitationEmail.service.ts`.
  */
 
 import express, { type NextFunction, type Response } from 'express';
-import type { z } from '@oxy.so/zod3';
+import type { z } from '@oxy.so/zod4';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
@@ -26,11 +27,11 @@ import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 const router = express.Router();
 
 /**
- * Refuse a token without `invitations:email` before the body is even parsed.
- * The service reads the application's live ceiling again; this is the token's.
+ * Require verified own authority or external invitations:email authority.
+ * The service rechecks live identity and the requester's inviter attribution.
  */
 function requireInvitationEmailScope(req: ServiceAuthRequest, res: Response, next: NextFunction) {
-  if (!req.serviceApp?.scopes.includes(APP_INVITATION_EMAIL_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, APP_INVITATION_EMAIL_SCOPE)) {
     return res.status(403).json({
       error: 'FORBIDDEN',
       message: `Missing required scope: ${APP_INVITATION_EMAIL_SCOPE}`,
@@ -81,11 +82,14 @@ router.post(
     const body = req.body as AppInvitationEmailBody;
     const serviceApp = req.serviceApp;
     if (!serviceApp) throw new Error('serviceAuthMiddleware ran without a service principal');
-    const accepted = await acceptAppInvitationEmail({
-      applicationId: serviceApp.appId,
-      idempotencyKey,
-      ...body,
-    });
+    const accepted = await acceptAppInvitationEmail(
+      {
+        applicationId: serviceApp.appId,
+        idempotencyKey,
+        ...body,
+      },
+      { principal: serviceApp, requester: req.serviceRequester },
+    );
     const answer: z.input<typeof appInvitationEmailResponseSchema> = {
       data: {
         ...accepted.invitation,

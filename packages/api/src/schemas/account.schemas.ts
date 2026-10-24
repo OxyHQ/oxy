@@ -1,4 +1,5 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import { z } from '@oxy.so/zod4';
 import {
   accountCategoriesSchema,
   avatarCharacterSchema,
@@ -11,13 +12,13 @@ import { ACCOUNT_PERMISSIONS, ACCOUNT_ROLES } from '../utils/accountRoles';
 
 /** Route params with :id (the account id). */
 export const accountIdRouteParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :id and :memberId. */
 export const accountMemberParams = z.object({
-  id: z.string().trim().min(1),
-  memberId: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
+  memberId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** GET /accounts — optional `?tree=true` to request a nested forest. */
@@ -47,9 +48,9 @@ export const updateAccountSchema = z
     // that. Without `.nullable()` the schema rejects the WHOLE request, so an
     // account with no bio and no picture could not save its NAME either — the
     // one field the caller did set went down with the two they left empty.
-    bio: z.string().trim().max(500).nullable().optional(),
+    bio: z.string().trim().check(utf16MaxLength(500)).nullable().optional(),
     avatar: z.string().nullable().optional(),
-    description: z.string().trim().max(1000).optional(),
+    description: z.string().trim().check(utf16MaxLength(1000)).optional(),
     /**
      * A named preset KEY, never a hex value — and NOT nullable, because the
      * column is `NOT NULL` with a default, so an account always has a colour and
@@ -63,7 +64,7 @@ export const updateAccountSchema = z
      * catalogue here would 400 the whole request for a client that round-tripped
      * what it was served.
      */
-    color: z.string().trim().max(32).optional(),
+    color: z.string().trim().check(utf16MaxLength(32)).optional(),
     links: z.array(z.string()).optional(),
     /**
      * The WHOLE list, replaced — there is no add/remove verb, because the order
@@ -96,7 +97,7 @@ export const updateAccountSchema = z
 
 /** POST /accounts/:id/move — re-parent the account. */
 export const moveAccountSchema = z.object({
-  newParentId: z.string().trim().min(1),
+  newParentId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Roles assignable to a member (owner is reachable only via transfer-ownership). */
@@ -150,7 +151,7 @@ export const updateAccountMemberSchema = z
 
 /** POST /accounts/:id/transfer-ownership. */
 export const transferAccountOwnershipSchema = z.object({
-  userId: z.string().trim().min(1),
+  userId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /**
@@ -171,8 +172,8 @@ export const transferAccountOwnershipSchema = z.object({
  */
 export const accountAuditQuerySchema = z
   .object({
-    limit: z.coerce.number().int().min(1).max(200).default(50),
-    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50),
+    cursor: z.string().check(utf16MinLength(1)).optional(),
   })
   .strict();
 
@@ -195,8 +196,8 @@ export const accountAuditQuerySchema = z
  */
 export const accountBillingAuditQuerySchema = z
   .object({
-    limit: z.coerce.number().int().min(1).max(200).default(50),
-    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50),
+    cursor: z.string().check(utf16MinLength(1)).optional(),
   })
   .strict();
 
@@ -205,11 +206,11 @@ export const accountInvitationTokenSchema = z.object({
   token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
 export const accountInvitationInputSchema = z.object({
-  email: z.string().trim().email().max(254),
+  email: z.string().trim().email().check(utf16MaxLength(254)),
   role: z.enum(['admin', 'editor', 'developer', 'billing', 'viewer']),
   inherit: z.boolean().optional(),
 });
 export const accountInvitationAcceptanceSchema = accountInvitationTokenSchema.extend({
   confirmed: z.literal(true),
-  selectedUserId: z.string().min(1),
+  selectedUserId: z.string().check(utf16MinLength(1)),
 });

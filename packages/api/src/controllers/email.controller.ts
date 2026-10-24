@@ -25,7 +25,7 @@ import { logger } from '../utils/logger';
 import { accountNameParts, resolveEmailFromName } from '../utils/displayName';
 import { accountNameColumns } from '../utils/publicUserProjection';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
-import type { z } from '@oxy.so/zod3';
+import type { z } from '@oxy.so/zod4';
 import type {
   RecipientInput,
   AttachmentInput,

@@ -21,8 +21,11 @@ import {
   OXY_APP_ASSERTION_TTL_SECONDS,
   OXY_APP_ASSERTION_TYPE,
   type AppAssertionPlatform,
+  utf16MinLength,
+  utf16MaxLength,
+  integerCheck,
 } from '@oxy.so/contracts';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { createOxyJwksKeyResolver } from './jwks';
 
 export const OXY_APP_ASSERTION_DEFAULT_ISSUER = 'https://api.oxy.so';
@@ -35,11 +38,11 @@ const KEY_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_ASSERTION_BYTES = 4096;
 
-const identifier = z.string().min(1).max(255);
+const identifier = z.string().check(utf16MinLength(1)).check(utf16MaxLength(255));
 
 export const oxyAppAssertionClaimsSchema = z
   .object({
-    iss: z.string().min(1).max(256),
+    iss: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     aud: z.literal(OXY_APP_ASSERTION_AUDIENCE),
     /** The person the assertion was issued to. */
     sub: identifier,
@@ -49,9 +52,9 @@ export const oxyAppAssertionClaimsSchema = z
     app: identifier,
     /** How it proved itself. */
     platform: z.enum(APP_ASSERTION_PLATFORMS),
-    iat: z.number().int().nonnegative(),
-    exp: z.number().int().positive(),
-    jti: z.string().uuid(),
+    iat: z.number().check(integerCheck()).nonnegative(),
+    exp: z.number().check(integerCheck()).positive(),
+    jti: z.string().guid(),
   })
   .strict();
 

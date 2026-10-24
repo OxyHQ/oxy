@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * The BYOK control plane's HTTP surface (issue #972, workstream 10).
  *
@@ -21,10 +22,12 @@
  * inheriting `account:read`. Both narrowings are restorable per member through
  * `permission_grants`.
  *
- * A service token is authorised by `inference:providers:read` /
+ * An external service token is authorised by `inference:providers:read` /
  * `inference:providers:write` intersected with its application's own scopes at
  * mint time, and may only ever reach ITS OWN application's or owner account's
- * connections — and only to READ them. **There is no write lane for a service
+ * connections — and only to READ them. Own workloads use live registered
+ * identity without scopes and retain the same resource boundaries.
+ * **There is no write lane for a service
  * credential on this surface at all**; see {@link refuseServiceWrite} for the
  * escalation that closed it. `inference:providers:write` remains STAFF-GATED
  * (`PRIVILEGED_APPLICATION_SCOPES`) and still bounds what an application may be
@@ -34,9 +37,9 @@
  * and defines no third parsing path.
  *
  * `POST /:connectionId/validation` is a third, deliberately narrower case: only
- * a live trusted service principal holding BOTH `inference:byok:validate` and
- * the staff-controlled `kaana:provider-credential-validation` application
- * capability may report Kaana's verdict. It cannot create, rotate, disable,
+ * a live service principal with the registered
+ * `kaana:provider-credential-validation` role may report Kaana's verdict.
+ * External credentials additionally require `inference:byok:validate`. It cannot create, rotate, disable,
  * enable, reconcile or revoke a connection. An ordinary customer service token
  * remains inside the refusal above.
  *
@@ -59,10 +62,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as providerConnectionPrincipal } from '../middleware/userOrServiceAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   providerConnectionAccountBody,
   providerConnectionAccountParams,
@@ -169,7 +173,7 @@ const providerServiceReadLimiter = rateLimit({
   max: PROVIDER_SERVICE_READS_PER_15_MINUTES,
   prefix: 'rl:inference:providers:service-read:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 const providerServiceWriteRefusalLimiter = rateLimit({
@@ -177,7 +181,7 @@ const providerServiceWriteRefusalLimiter = rateLimit({
   max: PROVIDER_SERVICE_WRITES_REFUSED_PER_15_MINUTES,
   prefix: 'rl:inference:providers:service-write-refusal:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 const providerValidationLimiter = rateLimit({
@@ -185,7 +189,7 @@ const providerValidationLimiter = rateLimit({
   max: PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES,
   prefix: 'rl:inference:providers:validation:',
   keyGenerator: providerServiceRateLimitKey,
-  skip: (req) => !Boolean((req as ProviderRequest).serviceApp),
+  skip: (req) => !(req as ProviderRequest).serviceApp,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -201,29 +205,6 @@ interface ProviderRequest extends AuthRequest {
 }
 
 type ProviderScope = 'inference:providers:read' | 'inference:providers:write';
-
-/**
- * Dispatch between the package's two existing verifiers, adding no third. A
- * bearer that is not a valid service token falls through to `authMiddleware`,
- * which produces the 401 — so an expired user token is answered by the
- * middleware that understands user tokens.
- */
-const providerConnectionPrincipal = (
-  req: ProviderRequest,
-  res: Response,
-  next: (error?: unknown) => void,
-): void => {
-  const header = req.headers.authorization;
-  if (header !== undefined && header.startsWith('Bearer ')) {
-    const verification = verifyServiceToken(header.slice('Bearer '.length));
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  void authMiddleware(req, res, next);
-};
 
 function principalOf(req: ProviderRequest): ProviderPrincipal {
   if (req.serviceApp !== undefined) {
@@ -338,7 +319,7 @@ async function authorizeAccount(
     if (!live) {
       throw new NotFoundError('No provider connection is available for that account');
     }
-    if (!live.scopes.includes(scope)) {
+    if (!hasServiceAuthority(live, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     refuseServiceWrite(permission);
@@ -369,7 +350,7 @@ async function authorizeApplication(
     if (!live) {
       throw new NotFoundError('No provider connection is available for that application');
     }
-    if (!live.scopes.includes(scope)) {
+    if (!hasServiceAuthority(live, scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
     // Same refusal as the account lane, and it has to be on both: an
@@ -435,9 +416,9 @@ async function authorizeConnection(
  *
  * This is intentionally not an arm of `authorizeConnection`: Kaana reports
  * across customer tenants, while every ordinary service read is owner/app
- * bounded and every ordinary service write is refused. The independent narrow
- * scope plus staff-controlled capability keep that authority from implying any
- * other provider-connection mutation.
+ * bounded and every ordinary service write is refused. The registered Kaana
+ * role and callback-specific operation keep this from authorizing any other
+ * provider-connection mutation. External credentials also retain their scope gate.
  */
 async function authorizeKaanaValidation(
   principal: ProviderPrincipal,
@@ -450,7 +431,7 @@ async function authorizeKaanaValidation(
   if (!live) {
     throw new NotFoundError('No such provider connection');
   }
-  if (!live.scopes.includes('inference:byok:validate')) {
+  if (!hasServiceAuthority(live, 'inference:byok:validate')) {
     throw new ForbiddenError('This credential does not carry the inference:byok:validate scope');
   }
   if (!live.capabilities.includes(KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY)) {

@@ -1,10 +1,12 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema, oxyApplicationIdSchema } from '../inference/identifiers';
 
-const identifier = z.string().min(1).max(160);
-const count = z.number().int().nonnegative().safe();
+const identifier = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
+const count = z.number().check(integerCheck()).nonnegative().check(safeNumberCheck());
 const period = z
-  .object({ start: z.string().datetime(), end: z.string().datetime() })
+  .object({ start: z.string().check(isoDateTime()), end: z.string().check(isoDateTime()) })
   .strict()
   .refine(
     (value) => Date.parse(value.end) > Date.parse(value.start),
@@ -49,7 +51,7 @@ export const productOfferSchema = z
   .object({
     schemaVersion: z.literal(1),
     id: identifier,
-    version: z.number().int().positive().safe(),
+    version: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     kind: z.enum(['individual', 'bundle']),
     benefits: z.array(productBenefitSchema),
   })
@@ -92,7 +94,7 @@ export const productOfferSegmentSchema = z
     subscriptionId: identifier,
     beneficiaryAccountId: oxyAccountIdSchema,
     offerId: identifier,
-    offerVersion: z.number().int().positive().safe(),
+    offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     origin: z.enum(['individual', 'bundle']),
     period,
   })
@@ -106,11 +108,11 @@ export const productAccessGrantSchema = z
     sourceSegmentId: identifier,
     beneficiaryAccountId: oxyAccountIdSchema,
     offerId: identifier,
-    offerVersion: z.number().int().positive().safe(),
+    offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     origin: z.enum(['individual', 'bundle']),
     benefit: productBenefitSchema,
     period,
-    revokedAt: z.string().datetime().nullable(),
+    revokedAt: z.string().check(isoDateTime()).nullable(),
   })
   .strict();
 
@@ -120,7 +122,7 @@ export const subjectProductAccessSchema = z
     schemaVersion: z.literal(1),
     subjectAccountId: oxyAccountIdSchema,
     productId: identifier,
-    evaluatedAt: z.string().datetime(),
+    evaluatedAt: z.string().check(isoDateTime()),
     capabilities: z.array(z.object({ key: identifier, grantIds: z.array(identifier) }).strict()),
     quotas: z.array(
       z

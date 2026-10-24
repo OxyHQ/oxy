@@ -1,6 +1,7 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import type { AppCapabilityCatalog } from '@oxy.so/contracts';
 /** Only the canonical Oxy origin receives the ephemeral registrar credential. */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { tracedFetch } from '../utils/tracedFetch';
 
 const ORIGIN = 'https://api.oxy.so';
@@ -8,8 +9,8 @@ const MAX_BYTES = 64 * 1024;
 const MAX_WAIT_MS = 10_000;
 const tokenResponse = z.object({
   data: z.object({
-    token: z.string().min(1).max(16_384),
-    expiresIn: z.number().int().positive().max(300),
+    token: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16_384)),
+    expiresIn: z.number().check(integerCheck()).positive().max(300),
     appName: z.string(),
   }),
 });

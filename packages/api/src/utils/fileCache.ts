@@ -1,5 +1,6 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { randomBytes } from 'node:crypto';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { getRedisClient } from '../config/redis';
 import type { FileRecord } from '../types/file.types';
 import { logger } from './logger';
@@ -19,8 +20,11 @@ export const fileCacheInvalidationMessageSchema = z
   .object({
     v: z.literal(1),
     /** The publishing process: it already dropped its own copies. */
-    origin: z.string().min(1).max(64),
-    fileIds: z.array(z.string().min(1).max(64)).min(1).max(FILE_CACHE_INVALIDATION_BATCH),
+    origin: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    fileIds: z
+      .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)))
+      .min(1)
+      .max(FILE_CACHE_INVALIDATION_BATCH),
   })
   .strict();
 

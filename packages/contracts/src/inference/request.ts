@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * The normalized inference request — the canonical internal envelope Oxy's
  * public edge forwards to the data plane.
@@ -24,7 +26,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
-import { z } from "@oxy.so/zod3";
+import { z } from "@oxy.so/zod4";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,
@@ -51,13 +53,13 @@ import {
  */
 export const inferenceContentSourceSchema = z.discriminatedUnion("kind", [
   z
-    .object({ kind: z.literal("url"), url: z.string().min(1).max(4096) })
+    .object({ kind: z.literal("url"), url: z.string().check(utf16MinLength(1)).check(utf16MaxLength(4096)) })
     .strict(),
   z
     .object({
       kind: z.literal("inline"),
-      mediaType: z.string().min(1).max(255),
-      data: z.string().min(1),
+      mediaType: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)),
+      data: z.string().check(utf16MinLength(1)),
     })
     .strict(),
 ]);
@@ -111,7 +113,7 @@ export const inferenceContentPartSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("file"),
       source: inferenceContentSourceSchema,
-      filename: z.string().max(255).optional(),
+      filename: z.string().check(utf16MaxLength(255)).optional(),
     })
     .strict(),
   /**
@@ -130,8 +132,8 @@ export const inferenceContentPartSchema = z.discriminatedUnion("type", [
  */
 export const inferenceToolCallSchema = z
   .object({
-    id: z.string().min(1).max(128),
-    name: z.string().min(1).max(128),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     arguments: z.string(),
   })
   .strict();
@@ -157,9 +159,9 @@ export const inferenceMessageSchema = z
     role: inferenceMessageRoleSchema,
     content: z.array(inferenceContentPartSchema),
     /** Participant name, where the dialect supports naming participants. */
-    name: z.string().max(128).optional(),
+    name: z.string().check(utf16MaxLength(128)).optional(),
     /** The tool call this message answers. Required on, and only on, `tool`. */
-    toolCallId: z.string().min(1).max(128).optional(),
+    toolCallId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     /** Tool calls the assistant made. Only on `assistant`. */
     toolCalls: z.array(inferenceToolCallSchema).optional(),
   })
@@ -238,12 +240,12 @@ export const samplingParametersSchema = z
   .object({
     temperature: z.number().min(0).max(2).optional(),
     topP: z.number().min(0).max(1).optional(),
-    topK: z.number().int().positive().safe().optional(),
+    topK: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
     frequencyPenalty: z.number().min(-2).max(2).optional(),
     presencePenalty: z.number().min(-2).max(2).optional(),
     /** A seed makes a request reproducible on providers that honour one. */
-    seed: z.number().int().safe().optional(),
-    stopSequences: z.array(z.string().min(1).max(256)).max(8).optional(),
+    seed: z.number().check(integerCheck()).check(safeNumberCheck()).optional(),
+    stopSequences: z.array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(256))).max(8).optional(),
   })
   .strict();
 
@@ -255,9 +257,9 @@ export const samplingParametersSchema = z
 export const toolDefinitionSchema = z
   .object({
     type: z.literal("function"),
-    name: z.string().min(1).max(128),
-    description: z.string().max(2000).optional(),
-    parameters: z.record(z.unknown()),
+    name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    description: z.string().check(utf16MaxLength(2000)).optional(),
+    parameters: z.record(z.string(), z.unknown()),
     /** Ask the provider to enforce the schema, where it supports enforcement. */
     strict: z.boolean().optional(),
   })
@@ -267,7 +269,7 @@ export const toolDefinitionSchema = z
 export const toolChoiceSchema = z.union([
   z.enum(["auto", "none", "required"]),
   z
-    .object({ type: z.literal("function"), name: z.string().min(1).max(128) })
+    .object({ type: z.literal("function"), name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)) })
     .strict(),
 ]);
 
@@ -278,8 +280,8 @@ export const responseFormatSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("json_schema"),
-      name: z.string().min(1).max(128),
-      schema: z.record(z.unknown()),
+      name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+      schema: z.record(z.string(), z.unknown()),
       strict: z.boolean(),
     })
     .strict(),
@@ -318,11 +320,11 @@ export const clientRequestMetadataSchema = z
     /** The public dialect the customer called. The response is rendered in it. */
     apiFormat: inferenceApiFormatSchema,
     /** The public path, e.g. `/v1/responses`. */
-    endpoint: z.string().min(1).max(256),
+    endpoint: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     /** The customer's own correlation id, when they sent one. */
-    clientRequestId: z.string().min(1).max(128).optional(),
+    clientRequestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     receivedAt: inferenceTimestampSchema,
-    labels: z.record(z.string().max(256)).optional(),
+    labels: z.record(z.string(), z.string().check(utf16MaxLength(256))).optional(),
   })
   .strict();
 
@@ -344,7 +346,7 @@ const modelLineOf = (reference: string): string => {
 
 /** Parameters for text-to-speech, preserved in the signed request. */
 export const inferenceSpeechParametersSchema = z.object({
-  voice: z.string().min(1).max(64),
+  voice: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
   responseFormat: z.enum(["mp3", "opus", "aac", "flac", "wav", "pcm"]),
   speed: z.number().min(0.25).max(4).optional(),
 }).strict();
@@ -366,7 +368,7 @@ export type InferenceSpeechParameters = z.infer<typeof inferenceSpeechParameters
  */
 export const inferenceAudioOutputParametersSchema = z
   .object({
-    voice: z.string().min(1).max(64),
+    voice: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     format: z.enum(["wav", "mp3", "flac", "opus", "pcm"]),
   })
   .strict();
@@ -392,7 +394,7 @@ export const inferenceRequestSchema = z
     modality: inferenceModalitySchema,
     input: inferenceInputSchema,
     stream: z.boolean(),
-    maxOutputTokens: z.number().int().positive().safe().optional(),
+    maxOutputTokens: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
     sampling: samplingParametersSchema,
     /** Absent means the route's own default reasoning behaviour. */
     reasoning: inferenceReasoningSchema.optional(),

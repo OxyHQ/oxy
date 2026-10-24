@@ -1,5 +1,10 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import type { AuthMiddlewareOptions, OxyAuthRefusal, OxyMiddleware } from './middleware';
+import type {
+  AuthMiddlewareOptions,
+  OxyAuthRefusal,
+  OxyMiddleware,
+  ServiceApp,
+} from './middleware';
 import type { AccountActorChain } from '@oxy.so/contracts';
 import type { OxyAppPermissions } from './appPermissions';
 import { logger } from '../logger';
@@ -20,26 +25,11 @@ export interface OxyRequestUser {
   [key: string]: unknown;
 }
 
-export interface OxyServiceAppContext {
-  appId: string;
-  appName: string;
-  scopes: string[];
-  credentialId: string;
-  /**
-   * The Oxy account that owns `appId` and is financially responsible for it.
-   * Read off the VERIFIED service-token claim set — never a user id, and never
-   * the delegated `X-Oxy-User-Id` (ADR 0007).
-   */
-  ownerAccountId: string;
-  environment: OxyServiceEnvironment;
-  /** `internal` for one of Oxy's own applications, else `external` (see `ServiceApp.tier`). */
-  tier: 'internal' | 'external';
-}
+export type OxyServiceAppContext = ServiceApp;
 
-export interface OxyServiceActingAsContext {
-  userId: string;
-  scopes: string[];
-}
+export type OxyServiceActingAsContext =
+  | { userId: string; authority: 'first_party'; scopes?: never; requesterContext?: string }
+  | { userId: string; authority?: 'external'; scopes: string[] };
 
 export interface OxyAuthRequest extends Request {
   userId?: string | null;
@@ -152,7 +142,8 @@ export interface OxyBillingPrincipal {
   readonly applicationId: string;
   readonly credentialId: string;
   readonly environment: OxyServiceEnvironment;
-  readonly scopes: readonly string[];
+  readonly authority?: 'first_party' | 'external';
+  readonly scopes?: readonly string[];
 }
 
 /**
@@ -205,7 +196,12 @@ export function getOxyBillingPrincipal(req: Request): OxyBillingPrincipal | null
     applicationId,
     credentialId,
     environment: serviceApp.environment,
-    scopes: serviceApp.scopes,
+    ...(serviceApp.authority === 'first_party'
+      ? { authority: 'first_party' as const }
+      : {
+          ...(serviceApp.authority === 'external' ? { authority: 'external' as const } : {}),
+          scopes: serviceApp.scopes,
+        }),
   };
 }
 

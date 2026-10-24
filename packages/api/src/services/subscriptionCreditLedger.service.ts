@@ -1,8 +1,9 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 /** Subscription-credit accounting, separate from monetary account_balances. */
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import type { DatabaseOrTransaction, Transaction } from '../config/postgres';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import {
@@ -18,8 +19,8 @@ import { userCredits } from '../db/schema/userCredits';
 import { users } from '../db/schema/users';
 import { ConflictError } from '../utils/error';
 
-const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const id = z.string().min(1).max(160);
+const count = z.number().check(integerCheck()).nonnegative().max(Number.MAX_SAFE_INTEGER);
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
 const grantSchema = z
   .object({
     userId: id,

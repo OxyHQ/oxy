@@ -1,7 +1,8 @@
+import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { mcpOAuthClientInfoResponseSchema, mcpOAuthConsentResponseSchema } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
@@ -107,16 +108,19 @@ const viewerGraphLimiter = rateLimit({
 const httpsUrl = z
   .string()
   .trim()
-  .max(2_048)
-  .url()
+  .check(utf16MaxLength(2_048))
+  .check(urlCheck())
   .refine((value) => new URL(value).protocol === 'https:', {
     message: 'must use HTTPS',
   });
 
 const clientRegistrationSchema = z
   .object({
-    client_name: z.string().trim().min(1).max(120),
-    redirect_uris: z.array(z.string().trim().min(1).max(2_048)).min(1).max(20),
+    client_name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(120)),
+    redirect_uris: z
+      .array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2_048)))
+      .min(1)
+      .max(20),
     grant_types: z
       .array(z.enum(['authorization_code', 'refresh_token']))
       .default(['authorization_code', 'refresh_token']),
@@ -143,66 +147,69 @@ const clientRegistrationSchema = z
     }
   });
 
-const clientParamsSchema = z.object({ clientId: z.string().trim().min(1) });
+const clientParamsSchema = z.object({ clientId: z.string().trim().check(utf16MinLength(1)) });
 const clientQuerySchema = z.object({
-  resource: z.string().trim().min(1),
-  redirectUri: z.string().trim().min(1),
+  resource: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(utf16MinLength(1)),
 });
 const consentQuerySchema = z.object({
-  clientId: z.string().trim().min(1),
-  redirectUri: z.string().trim().min(1),
-  resource: z.string().trim().min(1),
-  scope: z.string().trim().min(1),
-  accountId: z.string().trim().min(1),
+  clientId: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(utf16MinLength(1)),
+  resource: z.string().trim().check(utf16MinLength(1)),
+  scope: z.string().trim().check(utf16MinLength(1)),
+  accountId: z.string().trim().check(utf16MinLength(1)),
 });
 const authorizeSchema = z
   .object({
     responseType: z.literal('code'),
-    clientId: z.string().trim().min(1),
-    redirectUri: z.string().trim().min(1),
-    resource: z.string().trim().min(1),
-    scope: z.string().trim().min(1),
-    accountId: z.string().trim().min(1),
+    clientId: z.string().trim().check(utf16MinLength(1)),
+    redirectUri: z.string().trim().check(utf16MinLength(1)),
+    resource: z.string().trim().check(utf16MinLength(1)),
+    scope: z.string().trim().check(utf16MinLength(1)),
+    accountId: z.string().trim().check(utf16MinLength(1)),
     codeChallenge: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/),
     codeChallengeMethod: z.literal('S256'),
-    state: z.string().max(1_024).optional(),
+    state: z.string().check(utf16MaxLength(1_024)).optional(),
   })
   .strict();
 const tokenRequestSchema = z.discriminatedUnion('grant_type', [
   z.object({
     grant_type: z.literal('authorization_code'),
-    code: z.string().min(1),
-    client_id: z.string().min(1),
-    redirect_uri: z.string().min(1),
+    code: z.string().check(utf16MinLength(1)),
+    client_id: z.string().check(utf16MinLength(1)),
+    redirect_uri: z.string().check(utf16MinLength(1)),
     code_verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/),
-    resource: z.string().min(1),
+    resource: z.string().check(utf16MinLength(1)),
   }),
   z.object({
     grant_type: z.literal('refresh_token'),
-    refresh_token: z.string().min(1),
-    client_id: z.string().min(1),
-    resource: z.string().min(1),
+    refresh_token: z.string().check(utf16MinLength(1)),
+    client_id: z.string().check(utf16MinLength(1)),
+    resource: z.string().check(utf16MinLength(1)),
   }),
 ]);
-const revokeSchema = z.object({ token: z.string().min(1), client_id: z.string().min(1) });
-const connectionTokenSchema = z.object({ token: z.string().min(1) }).strict();
+const revokeSchema = z.object({
+  token: z.string().check(utf16MinLength(1)),
+  client_id: z.string().check(utf16MinLength(1)),
+});
+const connectionTokenSchema = z.object({ token: z.string().check(utf16MinLength(1)) }).strict();
 const connectionAccountSchema = z
   .object({
-    token: z.string().min(1),
-    account_id: z.string().trim().min(1),
+    token: z.string().check(utf16MinLength(1)),
+    account_id: z.string().trim().check(utf16MinLength(1)),
   })
   .strict();
 const connectionFollowSchema = z
   .object({
-    token: z.string().min(1),
-    tool: z.string().trim().min(1).max(128),
-    target_user_id: z.string().trim().min(1).max(128),
+    token: z.string().check(utf16MinLength(1)),
+    tool: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    target_user_id: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     action: z.enum(['follow', 'unfollow']),
   })
   .strict();
-const linkIntentSchema = z.object({ intent: z.string().trim().min(1) }).strict();
-const introspectSchema = z.object({ token: z.string().min(1) }).strict();
-const grantParamsSchema = z.object({ grantId: z.string().min(1) });
+const linkIntentSchema = z.object({ intent: z.string().trim().check(utf16MinLength(1)) }).strict();
+const introspectSchema = z.object({ token: z.string().check(utf16MinLength(1)) }).strict();
+const grantParamsSchema = z.object({ grantId: z.string().check(utf16MinLength(1)) });
 
 function identity(request: AuthRequest): { principalUserId: string; effectiveAccountId: string } {
   if (!request.oxyToken)

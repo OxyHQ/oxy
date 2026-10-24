@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Email codes and tickets (ADR 0030).
  *
@@ -12,7 +14,7 @@
  * Signing in by email (`signin`) and re-verifying before a sensitive change
  * (`reauth`) use the same code, through their own routes (`signIn.ts`).
  */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import { EMAIL_CODE_LENGTH } from './client/accountEmail';
@@ -27,7 +29,13 @@ export {
 export type { EmailVerificationPurpose, EmailVerificationErrorCode } from './client/accountEmail';
 
 /** An email address as the API stores it: trimmed and lowercase. */
-export const emailAddressSchema = z.string().trim().toLowerCase().min(3).max(254).email();
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .check(utf16MinLength(3))
+  .check(utf16MaxLength(254))
+  .email();
 
 /** An opaque one-use ticket (32 random bytes, base64url). */
 export const emailTicketSchema = z
@@ -50,14 +58,14 @@ export interface EmailVerificationStartResponse {
 
 export const emailVerificationStartResponseSchema: z.ZodType<EmailVerificationStartResponse> =
   z.object({
-    verificationId: z.string().min(1).max(64),
-    expiresAt: z.number().int().positive(),
+    verificationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    expiresAt: z.number().check(integerCheck()).positive(),
   });
 
 /** `POST /auth/email/verify/confirm` */
 export const emailVerificationConfirmRequestSchema = z
   .object({
-    verificationId: z.string().trim().min(1).max(64),
+    verificationId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     code: z
       .string()
       .trim()
@@ -75,5 +83,5 @@ export interface EmailVerificationConfirmResponse {
 export const emailVerificationConfirmResponseSchema: z.ZodType<EmailVerificationConfirmResponse> =
   z.object({
     ticket: emailTicketSchema,
-    expiresAt: z.number().int().positive(),
+    expiresAt: z.number().check(integerCheck()).positive(),
   });

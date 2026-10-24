@@ -1,4 +1,6 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck } from './numberChecks';
+import { urlCheck, utf16MinLength } from './stringChecks';
+import { z } from '@oxy.so/zod4';
 import { catalogToolSchema } from './agency';
 import { publicApplicationSchema } from './sessionStatus';
 
@@ -61,10 +63,10 @@ export const oauthConsentDecisionSchema = z.discriminatedUnion('consentRequired'
  * code was issued against is the one it registered.
  */
 export const oauthAuthorizeCodeResponseSchema = z.object({
-  code: z.string().min(1),
+  code: z.string().check(utf16MinLength(1)),
   state: z.string().nullable(),
   redirectUri: z.string(),
-  expiresIn: z.number().int().positive(),
+  expiresIn: z.number().check(integerCheck()).positive(),
 });
 
 /**
@@ -74,7 +76,7 @@ export const oauthAuthorizeCodeResponseSchema = z.object({
  */
 export const mcpOAuthClientApplicationSchema = publicApplicationSchema
   .extend({
-    clientId: z.string().min(1),
+    clientId: z.string().check(utf16MinLength(1)),
   })
   .strict();
 
@@ -83,8 +85,8 @@ export const mcpOAuthClientApplicationSchema = publicApplicationSchema
  * Every field is picked from the canonical catalog tool schema so consent can
  * never maintain a second tool description or effect classification.
  */
-export const mcpOAuthWriteActionSchema = catalogToolSchema
-  .innerType()
+export const mcpOAuthWriteActionSchema = z
+  .object(catalogToolSchema.shape)
   .pick({
     name: true,
     version: true,
@@ -104,20 +106,20 @@ export const mcpOAuthConsentContextSchema = z
     client: mcpOAuthClientApplicationSchema,
     account: z
       .object({
-        id: z.string().min(1),
-        displayName: z.string().min(1).optional(),
-        handle: z.string().min(1).optional(),
-        avatar: z.string().min(1).optional(),
+        id: z.string().check(utf16MinLength(1)),
+        displayName: z.string().check(utf16MinLength(1)).optional(),
+        handle: z.string().check(utf16MinLength(1)).optional(),
+        avatar: z.string().check(utf16MinLength(1)).optional(),
       })
       .strict(),
     resource: z
       .object({
-        appId: z.string().min(1),
-        uri: z.string().url(),
+        appId: z.string().check(utf16MinLength(1)),
+        uri: z.string().check(urlCheck()),
         application: publicApplicationSchema,
       })
       .strict(),
-    capabilities: z.array(z.string().min(1)).min(1),
+    capabilities: z.array(z.string().check(utf16MinLength(1))).min(1),
     writeActions: z.array(mcpOAuthWriteActionSchema),
   })
   .strict();

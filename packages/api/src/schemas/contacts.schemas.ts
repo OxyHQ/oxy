@@ -1,4 +1,4 @@
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Schemas for the contact discovery routes (`/contacts/...`).

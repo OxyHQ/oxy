@@ -1,4 +1,5 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck } from '@oxy.so/contracts';
+import { z } from '@oxy.so/zod4';
 
 export const MAX_SEARCH_LIMIT = 50;
 export const DEFAULT_SEARCH_LIMIT = 10;
@@ -8,8 +9,8 @@ const paginationParam = (name: string, max: number) =>
   z.preprocess(
     (value) => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value),
     z
-      .number({ invalid_type_error: `${name} must be a positive integer` })
-      .int(`${name} must be a positive integer`)
+      .number({ error: `${name} must be a positive integer` })
+      .check(integerCheck(`${name} must be a positive integer`))
       .min(1, `${name} must be at least 1`)
       .max(max, `${name} is too large`),
   );

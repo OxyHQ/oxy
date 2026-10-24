@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * Oxy's reader of Kaana's provider-cost operator feed — issue #1526 (I09).
  *
@@ -27,7 +28,7 @@
 
 import { createHash, sign } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { usageUnitSchema, type UsageUnit } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
@@ -59,38 +60,43 @@ const operatorAmountSchema = z.object({
 
 export const providerCostAttemptEventSchema = z
   .object({
-    position: z.string().min(1).max(1024),
-    requestId: z.string().min(1).max(256),
-    attemptIndex: z.number().int().nonnegative(),
-    provider: z.string().min(1).max(128),
-    keyId: z.string().min(1).max(256),
+    position: z.string().check(utf16MinLength(1)).check(utf16MaxLength(1024)),
+    requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    attemptIndex: z.number().check(integerCheck()).nonnegative(),
+    provider: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    keyId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     // Historical operator rows may omit their classification as an empty
     // string. Preserve that fact; ingestion does not grant key authority.
-    keyClass: z.string().max(64),
-    deploymentId: z.string().min(1).max(256),
-    modelReference: z.string().min(1).max(512),
+    keyClass: z.string().check(utf16MaxLength(64)),
+    deploymentId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    modelReference: z.string().check(utf16MinLength(1)).check(utf16MaxLength(512)),
     cost: operatorAmountSchema.nullable(),
     costSource: z.enum(['provider_reported', 'rate_card', 'unknown']),
-    rateCardVersionId: z.string().max(256).nullable(),
+    rateCardVersionId: z.string().check(utf16MaxLength(256)).nullable(),
     costComplete: z.boolean(),
     served: z.boolean(),
-    occurredAt: z.string().datetime({ offset: true }),
+    occurredAt: z.string().check(isoDateTime({ offset: true })),
     // Null for an attempt Kaana recorded before attempts measured their units.
     // A closed set: a unit this reader does not know refuses the page rather
     // than being stored as an opaque document (see the table's header).
     units: z
-      .array(z.object({ unit: usageUnitSchema, quantity: z.number().int().nonnegative() }))
+      .array(
+        z.object({
+          unit: usageUnitSchema,
+          quantity: z.number().check(integerCheck()).nonnegative(),
+        }),
+      )
       .refine((units) => new Set(units.map((u) => u.unit)).size === units.length, {
         message: 'a unit appears more than once',
       })
       .nullable(),
     telemetry: z
       .object({
-        startedAt: z.string().datetime({ offset: true }),
-        latencyMs: z.number().int().nonnegative(),
-        timeToFirstOutputMs: z.number().int().nonnegative().nullable(),
-        outcome: z.string().min(1).max(32),
-        failureCode: z.string().max(64).nullable(),
+        startedAt: z.string().check(isoDateTime({ offset: true })),
+        latencyMs: z.number().check(integerCheck()).nonnegative(),
+        timeToFirstOutputMs: z.number().check(integerCheck()).nonnegative().nullable(),
+        outcome: z.string().check(utf16MinLength(1)).check(utf16MaxLength(32)),
+        failureCode: z.string().check(utf16MaxLength(64)).nullable(),
       })
       .nullable(),
   })
@@ -106,7 +112,7 @@ export type ProviderCostAttemptEvent = z.infer<typeof providerCostAttemptEventSc
 const attemptFeedPageSchema = z.object({
   schemaVersion: z.literal(1),
   attempts: z.array(providerCostAttemptEventSchema),
-  next: z.string().min(1).max(1024).nullable().optional(),
+  next: z.string().check(utf16MinLength(1)).check(utf16MaxLength(1024)).nullable().optional(),
   caughtUp: z.boolean(),
 });
 

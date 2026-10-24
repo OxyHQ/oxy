@@ -59,6 +59,8 @@ process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
  * authenticated would make that branch untestable.
  */
 jest.mock('../../middleware/auth', () => ({
+  serviceAuthMiddleware: (...args: unknown[]) =>
+    jest.requireActual('../../middleware/auth').serviceAuthMiddleware(...args),
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
@@ -82,6 +84,7 @@ jest.mock('../../utils/logger', () => ({
 import { and, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRoutingPolicyVersions';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -180,11 +183,35 @@ async function seedMember(
     .values({ accountId, memberUserId, role, inherit: true, status: 'active' });
 }
 
+const fixtureCredentials = new Map<string, string>();
 async function seedApp(ownerAccountId: string): Promise<string> {
+  const scopes = [
+    'inference:routing:read',
+    'inference:routing:write',
+    'inference:invoke',
+    'inference:usage:read',
+  ];
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `Routing ${tag()}`, ownerAccountId, createdByUserId: ownerAccountId })
+    .values({
+      name: `Routing ${tag()}`,
+      ownerAccountId,
+      createdByUserId: ownerAccountId,
+      scopes,
+    })
     .returning({ id: applications.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: row.id,
+      name: 'Fixture service',
+      publicKey: `fixture-${tag()}`,
+      type: 'service',
+      environment: 'production',
+      scopes,
+    })
+    .returning();
+  fixtureCredentials.set(row.id, credential.id);
   return row.id;
 }
 
@@ -205,7 +232,7 @@ function serviceToken(input: {
     type: 'service',
     appId: input.appId,
     appName: 'Routing Fixture App',
-    credentialId: `cred-${tag()}`,
+    credentialId: fixtureCredentials.get(input.appId),
     ownerAccountId: input.ownerAccountId,
     environment: 'production',
     scopes: [...input.scopes],

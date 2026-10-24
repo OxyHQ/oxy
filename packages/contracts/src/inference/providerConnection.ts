@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * BYOK provider connections — the metadata Oxy holds about a customer's own
  * upstream provider credential.
@@ -24,7 +26,7 @@
  * Decided in: issue #972 workstream 10.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import {
   deploymentIdSchema,
   inferenceEnvironmentSchema,
@@ -81,7 +83,7 @@ export const kaanaCredentialIdentitySchema = z
 
 const kaanaCredentialOperationActorSchema = z
   .string()
-  .min(1)
+  .check(utf16MinLength(1))
   .refine(
     (value) =>
       new TextEncoder().encode(value).byteLength <= 256 &&
@@ -131,8 +133,8 @@ function isVisibleASCIIProviderCredential(value: string): boolean {
 
 const kaanaCredentialSecretBase64Schema = z
   .string()
-  .min(1)
-  .max(8192)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(8192))
   .regex(PADDED_BASE64_PATTERN)
   .refine(isVisibleASCIIProviderCredential, {
     message: 'a decoded provider credential is 1-4096 visible ASCII bytes',
@@ -157,7 +159,7 @@ export const kaanaCredentialRotateMutationSchema = kaanaCredentialIdentitySchema
     credentialHandle: kaanaCredentialHandleSchema,
     expectedRevision: z
       .number()
-      .int()
+      .check(integerCheck())
       .positive()
       .max(Number.MAX_SAFE_INTEGER - 1),
     secretBase64: kaanaCredentialSecretBase64Schema,
@@ -173,7 +175,7 @@ export const kaanaCredentialRevokeMutationSchema = kaanaCredentialIdentitySchema
     credentialHandle: kaanaCredentialHandleSchema,
     expectedRevision: z
       .number()
-      .int()
+      .check(integerCheck())
       .positive()
       .max(Number.MAX_SAFE_INTEGER - 1),
   })
@@ -201,7 +203,7 @@ export const kaanaCredentialRotateOutcomeRequestSchema = kaanaCredentialIdentity
     credentialHandle: kaanaCredentialHandleSchema,
     expectedRevision: z
       .number()
-      .int()
+      .check(integerCheck())
       .positive()
       .max(Number.MAX_SAFE_INTEGER - 1),
   })
@@ -215,7 +217,7 @@ export const kaanaCredentialRevokeOutcomeRequestSchema = kaanaCredentialIdentity
     credentialHandle: kaanaCredentialHandleSchema,
     expectedRevision: z
       .number()
-      .int()
+      .check(integerCheck())
       .positive()
       .max(Number.MAX_SAFE_INTEGER - 1),
   })
@@ -234,7 +236,7 @@ export const kaanaCredentialAppliedOutcomeSchema = z
     action: kaanaCredentialOperationActionSchema,
     status: z.literal('applied'),
     credentialHandle: kaanaCredentialHandleSchema,
-    revision: z.number().int().positive().safe(),
+    revision: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
   })
   .strict();
 
@@ -265,7 +267,7 @@ export const kaanaCredentialValidationTaskSchema = kaanaCredentialIdentitySchema
     operationId: kaanaCredentialOperationIdSchema,
     applicationId: oxyApplicationIdSchema,
     credentialHandle: kaanaCredentialHandleSchema,
-    credentialRevision: z.number().int().positive().safe(),
+    credentialRevision: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     deploymentId: deploymentIdSchema,
   })
   .strict();
@@ -346,7 +348,7 @@ export const providerCredentialValidationOperationSchema = z
   .object({
     schemaVersion: z.literal(1),
     operationId: kaanaCredentialOperationIdSchema,
-    connectionId: z.string().min(1).max(128),
+    connectionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     applicationId: oxyApplicationIdSchema,
     deploymentId: deploymentIdSchema,
     state: kaanaCredentialValidationOutcomeStateSchema,
@@ -450,7 +452,7 @@ export const providerConnectionSchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane and rendered by Console. */
     schemaVersion: z.literal(2),
-    connectionId: z.string().min(1).max(128),
+    connectionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     provider: inferenceProviderSlugSchema,
     /** The Oxy account that owns the connection and answers for its use. */
     ownerAccountId: oxyAccountIdSchema,
@@ -459,7 +461,12 @@ export const providerConnectionSchema = z
     status: providerConnectionStatusSchema,
     custodyState: providerCredentialCustodyStateSchema,
     credentialHandle: kaanaCredentialHandleSchema.optional(),
-    credentialRevision: z.number().int().positive().safe().optional(),
+    credentialRevision: z
+      .number()
+      .check(integerCheck())
+      .positive()
+      .check(safeNumberCheck())
+      .optional(),
     validation: providerConnectionValidationSchema,
     /**
      * Always `true` for a BYOK connection: the provider bills the customer's own

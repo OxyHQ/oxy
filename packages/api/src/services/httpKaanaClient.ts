@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * The production {@link KaanaClient}: a signed HTTP hop to `OxyHQ/Kaana`
  * (issue #972 workstream 4, ADR 0006, ADR 0010, ADR 0015).
@@ -81,7 +82,7 @@ import {
   type DeploymentCommercial,
   deploymentCommercialSchema,
 } from '@kaana.ai/contracts/internal';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import {
   kaanaPublicKeyBase64,
   resolveKaanaDataPlane,
@@ -178,7 +179,7 @@ export const kaanaDeploymentCommercialSchema = z.custom<DeploymentCommercial>(
 
 const kaanaDeploymentAttestationSchema = z
   .object({
-    snapshotId: z.string().min(1).max(256),
+    snapshotId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     deployments: z
       .array(
         z
@@ -193,7 +194,10 @@ const kaanaDeploymentAttestationSchema = z
              * words are dropped by the sync) so the field can arrive without a
              * coordinated release; absent is unknown.
              */
-            acceptedParameters: z.array(z.string().max(64)).max(64).optional(),
+            acceptedParameters: z
+              .array(z.string().check(utf16MaxLength(64)))
+              .max(64)
+              .optional(),
             commercial: kaanaDeploymentCommercialSchema.optional(),
           })
           .strict(),
@@ -953,8 +957,8 @@ function readFrame(frame: RawFrame): KaanaStreamFrame | undefined {
   return { kind: 'event', event: parsed.data };
 }
 
-function issuePath(path: readonly (string | number)[] | undefined): string {
-  return path === undefined || path.length === 0 ? 'unknown field' : path.join('.');
+function issuePath(path: readonly PropertyKey[] | undefined): string {
+  return path === undefined || path.length === 0 ? 'unknown field' : path.map(String).join('.');
 }
 
 /**

@@ -1,3 +1,4 @@
+import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * Request shapes for `/inference/provider-connections` (issue #972 workstream 10).
  *
@@ -30,10 +31,10 @@ import {
   oxyApplicationIdSchema,
   providerConnectionSchema,
 } from '@oxy.so/contracts';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
-const idParam = z.string().min(1).max(128);
+const idParam = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 
 export const providerConnectionAccountParams = z.object({ accountId: idParam }).strict();
 
@@ -46,8 +47,8 @@ export const providerConnectionEnvironment = z.enum(['development', 'staging', '
 
 const providerCredentialSecret = z
   .string()
-  .min(1)
-  .max(4096)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(4096))
   .regex(/^[\x21-\x7E]+$/, 'secret must contain only visible ASCII bytes');
 
 /**
@@ -67,7 +68,7 @@ export const providerCredentialBody = z
   .object({
     provider: z
       .string()
-      .max(64)
+      .check(utf16MaxLength(64))
       .regex(/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/, 'provider must be a lowercase URL-safe slug'),
     environment: providerConnectionEnvironment,
     /** The customer's own upstream provider credential. Never stored, never logged. */
@@ -98,7 +99,7 @@ export const providerConnectionRotateBody = z.object({ secret: providerCredentia
 export const providerConnectionValidationBody = z
   .object({
     credentialHandle: kaanaCredentialHandleSchema,
-    credentialRevision: z.number().int().positive().safe(),
+    credentialRevision: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     state: z.enum(['unvalidated', 'valid', 'invalid', 'expired']),
     failureCode: z
       .enum(['unauthorized', 'forbidden', 'not_found', 'rate_limited', 'network', 'unknown'])
@@ -145,14 +146,14 @@ export const providerCredentialValidationOutcomeBody =
 /** The read a data plane performs before serving: which connection applies. */
 export const providerConnectionEffectiveQuery = z
   .object({
-    provider: z.string().min(1).max(64),
+    provider: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     environment: providerConnectionEnvironment,
   })
   .strict();
 
 /** Audit trail paging. Capped so one request cannot pull a whole account's trail. */
 export const providerConnectionAuditQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50) })
   .strict();
 
 /** An empty body, for the transitions that take no input. */

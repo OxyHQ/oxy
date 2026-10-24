@@ -1,3 +1,4 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * `GET /account-events` — the pull feed of account events addressed to the
  * calling application (OxyHQ/Mention#1169).
@@ -14,7 +15,7 @@
  */
 
 import express from 'express';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
@@ -37,8 +38,13 @@ const accountEventFeedLimiter = rateLimit({
 
 const accountEventFeedQuery = z.object({
   /** An event id previously returned as `nextCursor`. Opaque to the caller. */
-  after: z.string().min(1).max(128).optional(),
-  limit: z.coerce.number().int().min(1).max(ACCOUNT_EVENT_FEED_MAX_LIMIT).optional(),
+  after: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  limit: z.coerce
+    .number()
+    .check(integerCheck())
+    .min(1)
+    .max(ACCOUNT_EVENT_FEED_MAX_LIMIT)
+    .optional(),
 });
 
 router.get(

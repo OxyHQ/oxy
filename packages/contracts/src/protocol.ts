@@ -1,3 +1,4 @@
+import { integerCheck } from './numberChecks';
 /**
  * Generic "Oxy Protocol" record surface — the app-agnostic conventions every app
  * follows to decentralize its own content on the shared signed-record substrate.
@@ -38,7 +39,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo, ESM-safe.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from './identity';
 
 /* -------------------------------------------------------------------------- */
@@ -87,8 +88,8 @@ export interface ChainHeadResponse {
 
 export const chainHeadResponseSchema: z.ZodType<ChainHeadResponse> = z.object({
   headRecordId: z.string().nullable(),
-  seq: z.number().int(),
-  recordCount: z.number().int().nonnegative(),
+  seq: z.number().check(integerCheck()),
+  recordCount: z.number().check(integerCheck()).nonnegative(),
 });
 
 /**
@@ -103,5 +104,5 @@ export interface LogPageResponse {
 
 export const logPageResponseSchema: z.ZodType<LogPageResponse> = z.object({
   records: z.array(signedRecordEnvelopeSchema),
-  count: z.number().int().nonnegative(),
+  count: z.number().check(integerCheck()).nonnegative(),
 });

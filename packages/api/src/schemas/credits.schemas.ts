@@ -1,4 +1,4 @@
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 // GET /credits/usage
 export const creditsUsageQuerySchema = z.object({

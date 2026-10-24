@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import express from 'express';
 import {
   awardReputationSchema,
@@ -87,11 +88,10 @@ function authorizeServiceAward(
   actionType: string,
   sourceActionId: string | undefined,
 ): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (scopes.includes(REQUIRED_AWARD_SCOPE)) {
+  if (hasServiceAuthority(req.serviceApp, REQUIRED_AWARD_SCOPE)) {
     return;
   }
-  if (!scopes.includes(LEASE_AWARD_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, LEASE_AWARD_SCOPE)) {
     throw new ForbiddenError(
       `Missing required scope: ${REQUIRED_AWARD_SCOPE} or ${LEASE_AWARD_SCOPE}`,
     );

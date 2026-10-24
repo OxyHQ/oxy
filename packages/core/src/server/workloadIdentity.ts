@@ -1,7 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { trimTrailingSlashes } from '../utils/slashes';
-import { assertRequestedServiceScopes } from './serviceTokenScopes';
+import { awaitRequestSignal } from '../utils/requestSignal';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).
@@ -41,7 +40,8 @@ const STS_REGION = 'us-east-1';
 const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 
 export interface WorkloadServiceTokenOptions {
-  scopes?: string[];
+  /** Temporary infrastructure credentials, for example an assumed development role. */
+  credentials?: WorkloadCredentialProvider;
   /** Oxy's base URL, e.g. `https://api.oxy.so`. */
   baseUrl: string;
   /**
@@ -61,18 +61,20 @@ export interface WorkloadServiceToken {
 }
 
 /** Credentials as the ECS container credentials endpoint returns them. */
-interface ContainerCredentials {
+export interface WorkloadCredentials {
   AccessKeyId: string;
   SecretAccessKey: string;
   Token?: string;
 }
 
+export type WorkloadCredentialProvider = () => Promise<WorkloadCredentials>;
+
 /**
- * Whether this process can attest at all.
+ * Whether the default ECS credential source is available.
  *
- * The relative URI is set by ECS on every task and by nothing else, so its
- * presence is the honest test for "we can prove what we are here". A local
- * checkout has no attestation to offer and must fall back to a credential.
+ * This does not inspect an explicitly configured workload provider. Local
+ * development can use temporary IAM role credentials through the optional
+ * @oxy.so/core/server/aws provider and a registered development binding.
  */
 export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
@@ -80,7 +82,7 @@ export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env):
   );
 }
 
-async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerCredentials> {
+async function containerCredentials(fetchImpl: typeof fetch): Promise<WorkloadCredentials> {
   const relative = process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
   const url = relative
     ? `http://169.254.170.2${relative}`
@@ -96,7 +98,7 @@ async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerC
   if (!response.ok) {
     throw new Error(`The container credentials endpoint answered ${response.status}.`);
   }
-  const credentials = (await response.json()) as ContainerCredentials;
+  const credentials = (await response.json()) as WorkloadCredentials;
   if (!credentials.AccessKeyId || !credentials.SecretAccessKey) {
     throw new Error('The container credentials endpoint answered without credentials.');
   }
@@ -119,7 +121,7 @@ function sha256Hex(value: string): string {
  * does not cover can be swapped by whoever captured the attestation.
  */
 function signGetCallerIdentity(
-  credentials: ContainerCredentials,
+  credentials: WorkloadCredentials,
   nonce: string,
   now: Date,
 ): Record<string, string> {
@@ -221,9 +223,48 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
-  const requestedScopes =
-    options.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(options.scopes);
+  return exchangeWorkloadServiceToken(options, 2);
+}
+
+/** @internal Finite reader-first rollout bridge; not exported by the package. */
+export function requestLegacyWorkloadServiceToken(options: WorkloadServiceTokenOptions) {
+  return exchangeWorkloadServiceToken(options, 1);
+}
+
+async function exchangeWorkloadServiceToken(
+  options: WorkloadServiceTokenOptions,
+  protocolVersion: 1 | 2,
+): Promise<WorkloadServiceToken> {
+  if ('scopes' in options) throw new Error('First-party workloads do not request scopes');
+  // Bound the shared exchange independently of any one consumer's deadline.
+  // A cancelled consumer must not cancel another caller's in-flight mint.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   const fetchImpl = options.fetch ?? fetch;
+  const boundedFetch: typeof fetch = (input, init) => {
+    if (controller.signal.aborted) return Promise.reject(new Error('Workload exchange timed out'));
+    return fetchImpl(input, {
+      ...init,
+      signal: controller.signal,
+      redirect: 'error',
+      credentials: 'omit',
+    });
+  };
+  try {
+    return await awaitRequestSignal(
+      completeWorkloadExchange(options, protocolVersion, boundedFetch),
+      controller.signal,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function completeWorkloadExchange(
+  options: WorkloadServiceTokenOptions,
+  protocolVersion: 1 | 2,
+  fetchImpl: typeof fetch,
+): Promise<WorkloadServiceToken> {
   const base = trimTrailingSlashes(options.baseUrl);
 
   const challengeResponse = await fetchImpl(`${base}/auth/service-token/workload/challenge`, {
@@ -238,17 +279,19 @@ export async function requestWorkloadServiceToken(
     throw new Error('Oxy issued a workload challenge with no nonce.');
   }
 
-  const attestation = await awsContainerAttestation(fetchImpl, challenge.nonce);
+  const attestation = options.credentials
+    ? { headers: signGetCallerIdentity(await options.credentials(), challenge.nonce, new Date()) }
+    : await awsContainerAttestation(fetchImpl, challenge.nonce);
 
   const tokenResponse = await fetchImpl(`${base}/auth/service-token/workload`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       provider: 'aws-iam',
+      ...(protocolVersion === 2 ? { protocolVersion: 2 } : {}),
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),
-      ...(requestedScopes ? { scopes: requestedScopes } : {}),
     }),
   });
   if (!tokenResponse.ok) {
@@ -260,7 +303,6 @@ export async function requestWorkloadServiceToken(
   if (!granted?.token || typeof granted.expiresIn !== 'number') {
     throw new Error('Oxy answered the attestation without a usable token.');
   }
-  assertRequestedServiceScopes(granted.token, requestedScopes);
   return { token: granted.token, expiresIn: granted.expiresIn, appName: granted.appName ?? '' };
 }
 

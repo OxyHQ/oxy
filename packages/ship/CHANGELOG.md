@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/ship`
 
+## 1.1.1
+
+### Changed
+
+- Package against core 7 and contracts 6. Ship APIs are unchanged.
+
 ## 0.2.0
 
 ### Licence: AGPL-3.0-only becomes Apache-2.0

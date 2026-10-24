@@ -1,3 +1,10 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 /** Backend configuration only: explicit versioned catalogue, never guessed from plan names. */
 import { readFile } from 'node:fs/promises';
@@ -9,7 +16,7 @@ import {
   productSubscriptionSourceSchema,
 } from '@oxy.so/contracts';
 import type Stripe from 'stripe';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { getBillingStripe } from '../utils/billingStripe';
 import type { ProductProviderPeriodInput } from './productProviderEvidence.service';
 import {
@@ -18,7 +25,7 @@ import {
   subscriptionProcessorBinding,
 } from './stripeSubscriptionEvidence.service';
 
-const id = z.string().min(1).max(160);
+const id = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
 export const productBillingPriceSchema = z
   .object({
     priceId: id,
@@ -27,11 +34,11 @@ export const productBillingPriceSchema = z
     mode: z.enum(['live', 'test']),
     environment: z.enum(['production', 'test', 'staging', 'development']),
     offerId: id,
-    offerVersion: z.number().int().positive().safe(),
-    validFrom: z.string().datetime(),
-    validUntil: z.string().datetime().nullable(),
+    offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    validFrom: z.string().check(isoDateTime()),
+    validUntil: z.string().check(isoDateTime()).nullable(),
     currency: z.string().regex(/^[a-z]{3}$/),
-    amountMinorUnits: z.number().int().positive().safe(),
+    amountMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     /** API credit purchase is a separate existing product, never an Oxy One benefit. */
     offerKind: z.enum(['individual', 'bundle']),
     interval: z.enum(['month', 'year']).default('month'),
@@ -79,11 +86,11 @@ export const productBillingCatalogueSchema = z
         z
           .object({
             offerId: id,
-            offerVersion: z.number().int().positive().safe(),
-            displayName: z.string().min(1).max(100),
+            offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+            displayName: z.string().check(utf16MinLength(1)).check(utf16MaxLength(100)),
             audience: z.literal('personal'),
             kind: z.literal('oxy_one'),
-            benefitNames: z.array(z.string().min(1).max(100)),
+            benefitNames: z.array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(100))),
             price: personalPlanDisplayPriceSchema.optional(),
           })
           .strict(),
@@ -92,8 +99,8 @@ export const productBillingCatalogueSchema = z
     /** Explicit historical or beneficiary≠payer mappings require reviewed exact IDs. */
     displayNames: z
       .object({
-        products: z.record(id, z.string().min(1).max(100)),
-        offers: z.record(id, z.string().min(1).max(100)),
+        products: z.record(id, z.string().check(utf16MinLength(1)).check(utf16MaxLength(100))),
+        offers: z.record(id, z.string().check(utf16MinLength(1)).check(utf16MaxLength(100))),
       })
       .strict()
       .default({ products: {}, offers: {} }),

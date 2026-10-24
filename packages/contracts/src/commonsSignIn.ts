@@ -28,7 +28,7 @@
  * `require()`).
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /**
  * The closed set, as a value — consumed directly where a runtime list is

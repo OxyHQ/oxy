@@ -56,7 +56,7 @@ module.exports = {
     // Resolve @oxy.so/contracts from its TypeScript SOURCE so api tests do not
     // depend on the contracts package being built first (its dist is absent in
     // the CI `api-test` job). ts-jest transforms the source via the transform
-    // regex below; the contracts source only imports `@oxy.so/zod3`, which resolves
+    // regex below; the contracts source only imports `@oxy.so/zod4`, which resolves
     // normally from node_modules.
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxy.so/contracts/client$': '<rootDir>/../contracts/src/client/index.ts',

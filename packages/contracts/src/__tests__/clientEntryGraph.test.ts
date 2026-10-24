@@ -103,6 +103,6 @@ describe('@oxy.so/contracts/client entry graph', () => {
   });
 
   it('the root entry does reach Zod (the control that proves the walk sees an import)', () => {
-    expect(walk(join(SRC, 'index.ts')).externals.has('@oxy.so/zod3')).toBe(true);
+    expect(walk(join(SRC, 'index.ts')).externals.has('@oxy.so/zod4')).toBe(true);
   });
 });

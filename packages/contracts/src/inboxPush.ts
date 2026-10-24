@@ -1,3 +1,4 @@
+import { utf16MinLength } from './stringChecks';
 /**
  * Canonical contract for Inbox new-mail push notifications.
  *
@@ -10,7 +11,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /** Android notification channel id the new-mail push is sent on. */
 export const INBOX_EMAIL_PUSH_CHANNEL = 'email';
@@ -20,8 +21,8 @@ export const INBOX_EMAIL_PUSH_TYPE = 'oxy_inbox_new_message';
 
 export const inboxEmailPushDataSchema = z.object({
   type: z.literal(INBOX_EMAIL_PUSH_TYPE),
-  messageId: z.string().min(1),
-  mailboxId: z.string().min(1),
+  messageId: z.string().check(utf16MinLength(1)),
+  mailboxId: z.string().check(utf16MinLength(1)),
 });
 
 export type InboxEmailPushData = z.infer<typeof inboxEmailPushDataSchema>;

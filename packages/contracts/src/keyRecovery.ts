@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MinLength } from './stringChecks';
 /**
  * Encrypted off-device identity backup contract (b3 Feature 1).
  *
@@ -27,7 +29,7 @@
  * consumer's node10 `moduleResolution`. Platform-agnostic — zod only, ESM-safe
  * (no `require()`).
  */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /** 256-bit backup locator (32 bytes), lowercase/uppercase hex. */
 export const backupLookupIdSchema = z
@@ -56,13 +58,13 @@ export const backupLookupIdSchema = z
  * - `createdAt`     — ISO-8601 creation timestamp.
  */
 export const encryptedBackupEnvelopeSchema = z.object({
-  version: z.number().int().positive(),
+  version: z.number().check(integerCheck()).positive(),
   algorithm: z.literal('xchacha20poly1305'),
-  kdfInfo: z.string().min(1),
-  nonce: z.string().trim().min(1),
-  ciphertext: z.string().trim().min(1),
-  publicKeyHint: z.string().trim().min(1),
-  createdAt: z.string().trim().min(1),
+  kdfInfo: z.string().check(utf16MinLength(1)),
+  nonce: z.string().trim().check(utf16MinLength(1)),
+  ciphertext: z.string().trim().check(utf16MinLength(1)),
+  publicKeyHint: z.string().trim().check(utf16MinLength(1)),
+  createdAt: z.string().trim().check(utf16MinLength(1)),
 });
 
 export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSchema>;

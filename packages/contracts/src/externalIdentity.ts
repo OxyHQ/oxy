@@ -1,4 +1,5 @@
-import { z } from '@oxy.so/zod3';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
+import { z } from '@oxy.so/zod4';
 import { userResponseSchema } from './userResponse';
 
 /**
@@ -9,19 +10,19 @@ import { userResponseSchema } from './userResponse';
 export const externalIdentityProtocolSchema = z.enum(['activitypub', 'atproto', 'instagram-graph']);
 
 export const externalIdentityReferenceSchema = z.object({
-  canonicalAcct: z.string().min(1),
-  network: z.string().min(1),
+  canonicalAcct: z.string().check(utf16MinLength(1)),
+  network: z.string().check(utf16MinLength(1)),
   protocol: externalIdentityProtocolSchema,
-  actorUri: z.string().min(1),
-  transportAcct: z.string().min(1),
-  sourceUserId: z.string().min(1),
+  actorUri: z.string().check(utf16MinLength(1)),
+  transportAcct: z.string().check(utf16MinLength(1)),
+  sourceUserId: z.string().check(utf16MinLength(1)),
 });
 
 export const resolveExternalIdentityRequestSchema = z
   .object({
-    actorUri: z.string().min(1).max(2048).optional(),
-    handle: z.string().min(1).max(2048).optional(),
-    transportAcct: z.string().max(320).optional(),
+    actorUri: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)).optional(),
+    handle: z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)).optional(),
+    transportAcct: z.string().check(utf16MaxLength(320)).optional(),
     protocol: externalIdentityProtocolSchema.optional(),
   })
   .refine(
@@ -32,8 +33,8 @@ export const resolveExternalIdentityRequestSchema = z
 export const resolveExternalIdentityResponseSchema = z
   .object({
     user: userResponseSchema.extend({
-      id: z.string().min(1),
-      username: z.string().min(1),
+      id: z.string().check(utf16MinLength(1)),
+      username: z.string().check(utf16MinLength(1)),
       bio: z.string().optional(),
       externalIdentities: z.array(externalIdentityReferenceSchema),
       redirectedUserIds: z.array(z.string()),
@@ -76,7 +77,10 @@ export const resolveExternalIdentityResponseSchema = z
   });
 
 export const lookupExternalIdentitiesRequestSchema = z.object({
-  identifiers: z.array(z.string().min(1).max(2048)).min(1).max(100),
+  identifiers: z
+    .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(2048)))
+    .min(1)
+    .max(100),
 });
 export const lookupExternalIdentitiesResponseSchema = z.object({
   identities: z.array(

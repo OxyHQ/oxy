@@ -1,6 +1,6 @@
 /** Compiled one-shot entrypoint. No AWS CLI, network credential transport, or HTTP registration. */
 import { createHash } from 'node:crypto';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { closePostgres, connectPostgres } from '../config/postgres';
 import {
   planSchema,

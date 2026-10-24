@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Self-sovereign identity API contracts.
  *
@@ -39,7 +41,7 @@
  * `require()`).
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /* -------------------------------------------------------------------------- */
 /*  DID document (W3C DID core)                                               */
@@ -228,15 +230,15 @@ export const signedRecordEnvelopeSchema: z.ZodType<SignedRecordEnvelope> = z
     version: z.union([z.literal(1), z.literal(2)]),
     // Open, app-defined category (see the `type` doc above). The Oxy STORE
     // re-narrows to `oxySignedRecordTypeSchema`; an app to its own constant.
-    type: z.string().min(1),
+    type: z.string().check(utf16MinLength(1)),
     subject: z.string(),
     issuer: z.string(),
-    record: z.record(z.unknown()),
+    record: z.record(z.string(), z.unknown()),
     issuedAt: z.number(),
-    seq: z.number().int().nonnegative().optional(),
+    seq: z.number().check(integerCheck()).nonnegative().optional(),
     prev: z.string().nullable().optional(),
-    collection: z.string().min(1).optional(),
-    rkey: z.string().min(1).optional(),
+    collection: z.string().check(utf16MinLength(1)).optional(),
+    rkey: z.string().check(utf16MinLength(1)).optional(),
     publicKey: z.string(),
     alg: z.literal('ES256K-DER-SHA256'),
     signature: z.string(),
@@ -332,7 +334,7 @@ export const verifiedDomainSchema: z.ZodType<VerifiedDomain> = z.object({
 
 /** Request body for `POST /identity/domains` — the domain to start verifying. */
 export const domainVerificationRequestSchema = z.object({
-  domain: z.string().trim().min(1),
+  domain: z.string().trim().check(utf16MinLength(1)),
 });
 
 export type DomainVerificationRequest = z.infer<typeof domainVerificationRequestSchema>;
@@ -344,8 +346,8 @@ const resourceOriginHostSchema = z
   .pipe(
     z
       .string()
-      .min(1)
-      .max(253)
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(253))
       .regex(
         /^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
         'originHost must be a public DNS hostname without scheme, port or path',
@@ -355,8 +357,8 @@ const resourceOriginHostSchema = z
 /** Clarity resource-server request to bind a site to Oxy domain authority. */
 export const resourceDomainOwnershipRequestSchema = z
   .object({
-    accountId: z.string().min(1).max(128),
-    verifiedDomainId: z.string().min(1).max(128),
+    accountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    verifiedDomainId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     originHost: resourceOriginHostSchema,
   })
   .strict();
@@ -364,10 +366,10 @@ export const resourceDomainOwnershipRequestSchema = z
 export const resourceDomainOwnershipResponseSchema = z
   .object({
     verified: z.boolean(),
-    accountId: z.string().min(1).max(128),
-    verifiedDomainId: z.string().min(1).max(128),
+    accountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    verifiedDomainId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     originHost: resourceOriginHostSchema,
-    verifiedAt: z.string().datetime().optional(),
+    verifiedAt: z.string().check(isoDateTime()).optional(),
     method: z.enum(['dns-txt', 'well-known']).optional(),
   })
   .strict();
@@ -586,11 +588,11 @@ export const exportBundleSchema: z.ZodType<ExportBundle> = z.object({
   exportedAt: z.string(),
   did: z.string(),
   didDocument: didDocumentSchema,
-  profile: z.record(z.unknown()),
+  profile: z.record(z.string(), z.unknown()),
   verifiedDomains: z.array(verifiedDomainSchema),
   authMethods: z.array(authMethodEntrySchema),
   signedRecords: z.array(signedRecordEnvelopeSchema),
-  appData: z.array(z.record(z.unknown())),
+  appData: z.array(z.record(z.string(), z.unknown())),
   social: z.object({
     following: z.array(z.string()),
     followers: z.array(z.string()),

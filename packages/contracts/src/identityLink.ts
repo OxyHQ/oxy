@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MinLength } from './stringChecks';
 /**
  * Linking Commons to an account without a key (ADR 0029 D3) — the two-device
  * relay.
@@ -23,7 +25,7 @@
  *
  * The server stores only the challenge's hash; the challenge travels in the QR.
  */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { identityProofSchema } from './identityProof';
 import { reauthProofSchema } from './signIn';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
@@ -61,7 +63,7 @@ export interface IdentityLinkCreateResponse {
 export const identityLinkCreateResponseSchema: z.ZodType<IdentityLinkCreateResponse> = z.object({
   linkId: identityLinkIdSchema,
   challenge: z.string().regex(CHALLENGE),
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().check(integerCheck()).positive(),
   qrPayload: z.string().startsWith(IDENTITY_LINK_QR_PREFIX),
 });
 
@@ -79,11 +81,11 @@ export interface IdentityLinkState {
 
 export const identityLinkStateSchema: z.ZodType<IdentityLinkState> = z.object({
   status: z.enum(IDENTITY_LINK_STATUSES),
-  userId: z.string().min(1),
+  userId: z.string().check(utf16MinLength(1)),
   username: z.string().nullable(),
   publicKey: z.string().nullable(),
-  audience: z.string().min(1),
-  expiresAt: z.number().int().positive(),
+  audience: z.string().check(utf16MinLength(1)),
+  expiresAt: z.number().check(integerCheck()).positive(),
 });
 
 /** `POST /identity/link/:linkId/proof` — from Commons, no bearer. */

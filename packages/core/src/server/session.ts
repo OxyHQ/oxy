@@ -300,7 +300,7 @@ export class ServerSessionApi extends SessionApi {
             accessToken: options.accessToken,
             action: supervisedAction,
           }),
-          { cache: false, retry: false, serviceTokenScopes: ['safety:decide'] },
+          { cache: false, retry: false },
         ),
       );
       return { ...validation, user: normalizeUserIdentity(validation.user) as User };

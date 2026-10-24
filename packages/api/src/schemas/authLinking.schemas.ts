@@ -1,4 +1,5 @@
-import { z } from '@oxy.so/zod3';
+import { utf16MinLength } from '@oxy.so/contracts';
+import { z } from '@oxy.so/zod4';
 import { identityProofSchema } from '@oxy.so/contracts';
 
 // POST /auth/link — a root proof for an account whose root is this key
@@ -6,7 +7,7 @@ import { identityProofSchema } from '@oxy.so/contracts';
 export const linkAuthMethodSchema = z
   .object({
     type: z.literal('identity'),
-    publicKey: z.string().trim().min(1),
+    publicKey: z.string().trim().check(utf16MinLength(1)),
     proof: identityProofSchema,
   })
   .strict();

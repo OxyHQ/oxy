@@ -1,3 +1,4 @@
+import { isTrustedApplication } from '../../utils/trustedApplication';
 import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `authSession.service` against a REAL Postgres.
@@ -132,6 +133,7 @@ function oauthBinding(over: Partial<typeof authSessions.$inferInsert> = {}) {
     oauthCodeChallenge: 'challenge-abc',
     oauthCodeChallengeMethod: 'S256' as const,
     oauthScopes: ['user:read'],
+    oauthAuthority: 'external' as const,
     ...over,
   };
 }
@@ -915,6 +917,7 @@ describe('finalizeOAuthAuthorization', () => {
     const session = await authSession({
       applicationId,
       ...oauthBinding(),
+      oauthAuthority: isTrustedApplication(appOver) ? 'first_party' : 'external',
       status: 'authorized',
       authorizedUserId: identityUserId,
       ...over,
@@ -1067,7 +1070,7 @@ describe('finalizeOAuthAuthorization', () => {
     );
   });
 
-  it('falls back to ordinary scopes for a trusted application when the request named none', async () => {
+  it('issues a scope-less code for a trusted application when the request named none', async () => {
     const { sessionToken } = await approved(
       { oauthScopes: [] },
       { type: 'first_party', scopes: ['user:read'] },
@@ -1076,7 +1079,7 @@ describe('finalizeOAuthAuthorization', () => {
     await finalizeOAuthAuthorization({ sessionToken });
 
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes: ['user:read'] }),
+      expect.objectContaining({ scopes: [], authority: 'first_party' }),
     );
   });
 

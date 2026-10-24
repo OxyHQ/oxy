@@ -322,6 +322,7 @@ jobs:
       - name: Build core SDK, federation, MCP + db (for resolution in api tests)
         run: >-
           bunx turbo run build
+          --filter=@oxy.so/zod3 --filter=@oxy.so/zod4
           --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
           --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 
@@ -1139,6 +1140,7 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: >-
           bunx turbo run build
+          --filter=@oxy.so/zod3 --filter=@oxy.so/zod4
           --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
           --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
 

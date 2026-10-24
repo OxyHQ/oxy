@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Routing policy — the customer-facing routing configuration.
  *
@@ -32,7 +34,7 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 workstream 6.
  */
 
-import { z } from "@oxy.so/zod3";
+import { z } from "@oxy.so/zod4";
 import {
   deploymentIdSchema,
   inferenceProviderSlugSchema,
@@ -139,8 +141,8 @@ export const routingPolicySchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane on its own. */
     schemaVersion: z.literal(2),
-    routingPolicyId: z.string().min(1).max(128),
-    policyVersion: z.number().int().positive().safe(),
+    routingPolicyId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    policyVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     scope: routingPolicyScopeSchema,
     /** Absent when every request must name its own model. */
     defaultTarget: routingTargetSchema.optional(),
@@ -170,7 +172,7 @@ export const routingPolicySchema = z
     oxyHostedOnly: z.boolean(),
 
     /** License / usage-right constraints. Empty license list means unconstrained. */
-    allowedLicenseIds: z.array(z.string().min(1).max(128)).default([]),
+    allowedLicenseIds: z.array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(128))).default([]),
     requireCommercialUseRights: z.boolean(),
 
     fallback: routingFallbackPolicySchema,
@@ -308,8 +310,8 @@ export const routingPolicySchema = z
  */
 export const routingPolicyReferenceSchema = z
   .object({
-    routingPolicyId: z.string().min(1).max(128),
-    policyVersion: z.number().int().positive().safe(),
+    routingPolicyId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    policyVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
   })
   .strict();
 
@@ -360,9 +362,9 @@ const authorizedRouteFields = {
   customerProviderCredential: z
     .object({
       credentialHandle: kaanaCredentialHandleSchema,
-      credentialRevision: z.number().int().positive().safe(),
+      credentialRevision: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
       ownerAccountId: oxyAccountIdSchema,
-      connectionId: z.string().min(1).max(128),
+      connectionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
       environment: z.enum(["development", "staging", "production"]),
     })
     .strict()

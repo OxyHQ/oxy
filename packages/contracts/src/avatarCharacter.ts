@@ -18,7 +18,7 @@
  * the ids and falls back on a default look for one it cannot draw.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /** The flat shape of Bloom's `AvatarCharacter`; every field is optional (a preset supplies the rest). */
 export interface AvatarCharacter {
@@ -48,7 +48,7 @@ const idSchema = z.string().regex(ID);
  * now rather than a look that never takes effect. A character with nothing in
  * it draws nothing: it needs a preset, or a shape and a paint.
  */
-export const avatarCharacterSchema: z.ZodType<AvatarCharacter, z.ZodTypeDef, unknown> = z
+export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
   .object({
     preset: idSchema.optional(),
     shape: idSchema.optional(),

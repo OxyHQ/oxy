@@ -107,7 +107,7 @@ import {
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
-import type { z } from '@oxy.so/zod3';
+import type { z } from '@oxy.so/zod4';
 import { logger } from '../utils/logger';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import type { NormalizedEdgeRequest, RealtimeOpenFrame } from '../schemas/inferenceEdge.schemas';

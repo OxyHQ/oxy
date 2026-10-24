@@ -22,7 +22,8 @@ jest.mock('../workloadIdentity', () => ({
 
 import { OxyServices } from '../../OxyServices';
 import { ANONYMOUS_SERVICE_TOKEN_RETRY_MS, OxyServer } from '../OxyServer';
-import { canAttestWorkloadIdentity } from '../workloadIdentity';
+import { canAttestWorkloadIdentity, requestWorkloadServiceToken } from '../workloadIdentity';
+const workloadMint = requestWorkloadServiceToken as jest.Mock;
 
 const canAttest = canAttestWorkloadIdentity as unknown as jest.Mock;
 
@@ -60,6 +61,9 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
     calls = [];
     mockAttestation.canAttest = true;
     canAttest.mockClear();
+    workloadMint
+      .mockReset()
+      .mockResolvedValue({ token: 'svc-token', expiresIn: 300, appName: 'test' });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), authorization: authorizationOf(init) });
       return jsonResponse({ id: 'u1', username: 'alice', name: { displayName: 'Alice' } });
@@ -81,7 +85,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
 
   it('sends a session-less read with the service token', async () => {
     const oxy = backend();
-    const serviceToken = jest.spyOn(oxy, 'serviceToken').mockResolvedValue('svc-token');
+    const serviceToken = workloadMint;
 
     await oxy.users.get('u1');
     await oxy.users.byUsername('alice');
@@ -105,7 +109,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
 
   it('lets a user session win over the service token', async () => {
     const oxy = backend();
-    const serviceToken = jest.spyOn(oxy, 'serviceToken').mockResolvedValue('svc-token');
+    const serviceToken = workloadMint;
     const userToken = createJwt({ userId: 'viewer', exp: Math.floor(Date.now() / 1000) + 3600 });
     oxy.session.setAccessToken(userToken);
 
@@ -118,7 +122,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
   it('stays anonymous where no service token can exist (a local checkout)', async () => {
     mockAttestation.canAttest = false;
     const oxy = backend();
-    const serviceToken = jest.spyOn(oxy, 'serviceToken');
+    const serviceToken = workloadMint;
 
     await oxy.users.get('u1');
 
@@ -128,9 +132,9 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
 
   it('sends the read anonymous when the mint fails, and does not retry the mint for a window', async () => {
     const oxy = backend();
-    const serviceToken = jest
-      .spyOn(oxy, 'serviceToken')
-      .mockRejectedValue(new Error('Oxy refused the workload attestation (401)'));
+    const serviceToken = workloadMint.mockRejectedValue(
+      new Error('Oxy refused the workload attestation (401)'),
+    );
     const now = jest.spyOn(Date, 'now');
     const start = 1_800_000_000_000;
     now.mockReturnValue(start);
@@ -143,7 +147,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
     expect(serviceToken).toHaveBeenCalledTimes(1);
 
     // After the window the mint is tried again.
-    serviceToken.mockResolvedValue('svc-token');
+    serviceToken.mockResolvedValue({ token: 'svc-token', expiresIn: 300, appName: 'test' });
     now.mockReturnValue(start + ANONYMOUS_SERVICE_TOKEN_RETRY_MS + 1);
     await oxy.users.get('u3');
 
@@ -153,7 +157,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
 
   it('never attaches a bearer to a skipAuth request', async () => {
     const oxy = backend();
-    const serviceToken = jest.spyOn(oxy, 'serviceToken').mockResolvedValue('svc-token');
+    const serviceToken = workloadMint;
 
     await oxy.request('GET', '/auth/user/abc', undefined, { skipAuth: true, cache: false });
 
@@ -163,7 +167,7 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
 
   it('is off by default: a server without the option stays anonymous', async () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
-    const serviceToken = jest.spyOn(oxy, 'serviceToken').mockResolvedValue('svc-token');
+    const serviceToken = workloadMint;
 
     await oxy.users.get('u1');
 

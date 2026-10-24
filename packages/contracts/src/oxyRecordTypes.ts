@@ -53,7 +53,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo, ESM-safe.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 export const oxySignedRecordTypeSchema = z.enum([
   'identity',

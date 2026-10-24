@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * User Routes
  *
@@ -779,11 +780,12 @@ router.get(
   '/me/graph',
   optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    // This endpoint returns private relationship data (blocks/restrictions), so
-    // only a user session may select its viewer. Service delegation is limited
-    // to public personalization and must not turn X-Oxy-User-Id into access to
-    // another user's private graph.
-    const viewerId = req.serviceApp ? undefined : resolveViewerId(req);
+    // Personal sessions and verified own requester context select their exact
+    // account. An external service header never selects a private graph.
+    const viewerId =
+      req.serviceApp && req.serviceApp.authority !== 'first_party'
+        ? undefined
+        : resolveViewerId(req);
 
     // Anonymous / no-user-context callers have no graph. Short-circuit with the
     // empty graph and never touch the cache (its keys are strictly per-viewer).
@@ -1577,8 +1579,7 @@ router.put(
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     // Scope gate — only service tokens explicitly granted `federation:write`
     // may create or update federated/agent/automated users.
-    const scopes = req.serviceApp?.scopes ?? [];
-    if (!scopes.includes('federation:write')) {
+    if (!hasServiceAuthority(req.serviceApp, 'federation:write')) {
       throw new ForbiddenError('Missing required scope: federation:write');
     }
 

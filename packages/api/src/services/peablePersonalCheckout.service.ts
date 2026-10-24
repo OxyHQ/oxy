@@ -1,7 +1,15 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  urlCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { createHash } from 'node:crypto';
 import { PeableError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
 import { ApiError } from '../utils/error';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import type {
   PersonalCheckoutProvider,
@@ -27,25 +35,25 @@ function checkoutFailure(error: unknown): never {
 
 export const peablePersonalCheckoutConfigurationSchema = z
   .object({
-    merchantId: z.string().min(1),
-    applicationId: z.string().min(1),
+    merchantId: z.string().check(utf16MinLength(1)),
+    applicationId: z.string().check(utf16MinLength(1)),
     namespace: billingNamespaceSchema,
-    sellerId: z.string().min(1),
-    invoiceIssuerId: z.string().min(1),
-    taxRemitterId: z.string().min(1),
+    sellerId: z.string().check(utf16MinLength(1)),
+    invoiceIssuerId: z.string().check(utf16MinLength(1)),
+    taxRemitterId: z.string().check(utf16MinLength(1)),
     returnUrl: z
       .string()
-      .url()
+      .check(urlCheck())
       .refine((value) => new URL(value).protocol === 'https:'),
     offers: z
       .array(
         z
           .object({
-            offerId: z.string().min(1),
-            offerVersion: z.number().int().positive(),
-            priceId: z.string().min(1),
-            planId: z.string().min(1),
-            amountMinorUnits: z.number().int().positive().safe(),
+            offerId: z.string().check(utf16MinLength(1)),
+            offerVersion: z.number().check(integerCheck()).positive(),
+            priceId: z.string().check(utf16MinLength(1)),
+            planId: z.string().check(utf16MinLength(1)),
+            amountMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
             currency: z.literal('USD'),
             interval: z.enum(['month', 'year']),
             trial: z.literal('none'),
@@ -224,7 +232,7 @@ export function createPeablePersonalCheckoutProvider(
         !snapshot.customerId ||
         !z
           .string()
-          .url()
+          .check(urlCheck())
           .refine((value) => new URL(value).protocol === 'https:')
           .safeParse(snapshot.returnUrl).success ||
         input.idempotencyKey !== `personal-checkout:${input.intentId}`
@@ -255,12 +263,12 @@ export function createPeablePersonalCheckoutProvider(
       ).catch(checkoutFailure);
       const parsed = z
         .object({
-          id: z.string().min(1).max(160),
+          id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
           url: z
             .string()
-            .url()
+            .check(urlCheck())
             .refine((value) => new URL(value).protocol === 'https:'),
-          expiresAt: z.string().datetime(),
+          expiresAt: z.string().check(isoDateTime()),
         })
         .parse(session);
       if (

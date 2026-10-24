@@ -42,6 +42,8 @@ process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 // session speaks as a managed account; a missing or unreadable session leaves
 // only the subject.
 jest.mock('../../middleware/auth', () => ({
+  serviceAuthMiddleware: (...args: unknown[]) =>
+    jest.requireActual('../../middleware/auth').serviceAuthMiddleware(...args),
   authMiddleware: (
     req: { user?: { _id: string; id: string }; oxyToken?: { principalUserId: string } },
     _res: unknown,
@@ -188,10 +190,16 @@ async function seedChildAccount(parentAccountId: string): Promise<string> {
   return row.id;
 }
 
+const fixtureCredentials = new Map<string, string>();
 async function seedApp(ownerAccountId: string): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `Reporting ${tag()}`, ownerAccountId, createdByUserId: ownerAccountId })
+    .values({
+      name: `Reporting ${tag()}`,
+      ownerAccountId,
+      createdByUserId: ownerAccountId,
+      scopes: ['inference:usage:read', 'inference:invoke'],
+    })
     .returning({ id: applications.id });
   return row.id;
 }
@@ -204,10 +212,11 @@ async function seedCredential(applicationId: string): Promise<string> {
       name: 'Cred',
       publicKey: `oxy_dk_${tag()}${tag()}`,
       secretHash: 'hash',
-      type: 'confidential',
+      type: 'service',
       environment: 'production',
     })
     .returning({ id: applicationCredentials.id });
+  fixtureCredentials.set(applicationId, row.id);
   return row.id;
 }
 
@@ -381,7 +390,7 @@ function serviceToken(input: { appId: string; ownerAccountId: string; scopes: st
     type: 'service',
     appId: input.appId,
     appName: 'Fixture App',
-    credentialId: `cred-${tag()}`,
+    credentialId: fixtureCredentials.get(input.appId),
     ownerAccountId: input.ownerAccountId,
     environment: 'production',
     scopes: input.scopes,

@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Product entitlements — the interface a first-party product (Alia) queries to
  * learn what an account is entitled to, WITHOUT learning anything it could
@@ -42,7 +44,7 @@
  * Decided in: docs/adr/0014-account-billing-and-entitlements.md.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from './identifiers';
 import { billingModeSchema } from './accountBilling';
 import { currencyCodeSchema, exactDecimalSchema } from './money';
@@ -93,8 +95,8 @@ export const planAllowanceSchema = z
     /** A stable machine name, e.g. `api_credits_per_month`. */
     key: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
     /** Whole units included per period. Never money. */
-    included: z.number().int().nonnegative().safe(),
-    remaining: z.number().int().nonnegative().safe().optional(),
+    included: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+    remaining: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()).optional(),
   })
   .strict();
 
@@ -108,12 +110,12 @@ export const planAllowanceSchema = z
  */
 export const productPlanSchema = z
   .object({
-    id: z.string().min(1).max(64),
-    name: z.string().min(1).max(120),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    name: z.string().check(utf16MinLength(1)).check(utf16MaxLength(120)),
     status: productPlanStatusSchema,
     live: z.boolean(),
-    currentPeriodStart: z.string().datetime(),
-    currentPeriodEnd: z.string().datetime(),
+    currentPeriodStart: z.string().check(isoDateTime()),
+    currentPeriodEnd: z.string().check(isoDateTime()),
     cancelAtPeriodEnd: z.boolean(),
     allowances: z.array(planAllowanceSchema),
   })
@@ -169,10 +171,10 @@ export const costCenterSchema = z
     schemaVersion: z.literal(1),
     accountId: oxyAccountIdSchema,
     slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-    label: z.string().min(1).max(120),
+    label: z.string().check(utf16MinLength(1)).check(utf16MaxLength(120)),
     status: costCenterStatusSchema,
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -189,10 +191,10 @@ export const costCenterSpendSchema = z
     schemaVersion: z.literal(1),
     costCenter: costCenterSchema,
     currency: currencyCodeSchema,
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
+    periodEnd: z.string().check(isoDateTime()),
     billedAmount: exactDecimalSchema,
-    requestCount: z.number().int().nonnegative().safe(),
+    requestCount: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   })
   .strict();
 
@@ -225,7 +227,7 @@ export const productEntitlementSchema = z
     payAsYouGo: payAsYouGoEntitlementSchema.nullable(),
     costCenter: costCenterSchema.nullable(),
     /** When this view was computed. Entitlements are eventually consistent. */
-    resolvedAt: z.string().datetime(),
+    resolvedAt: z.string().check(isoDateTime()),
   })
   .strict();
 

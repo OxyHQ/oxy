@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { isoDateTime, utf16MinLength } from '../stringChecks';
 /**
  * Economic treatment and durable usage/cost reporting for inference
  * (issue #1526, plan item I09).
@@ -27,7 +29,7 @@
  * UNKNOWN cost is reported as unknown — counted, never summed as zero.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { costCenterSchema } from './entitlement';
 import {
   currencyCodeSchema,
@@ -52,7 +54,7 @@ export const PROVIDER_COST_SOURCES = ['provider_reported', 'rate_card', 'unknown
 
 export const providerCostSourceSchema = z.enum(PROVIDER_COST_SOURCES);
 
-const nonNegativeCount = z.number().int().nonnegative().safe();
+const nonNegativeCount = z.number().check(integerCheck()).nonnegative().check(safeNumberCheck());
 
 /** One amount family, with the rows it could not include counted beside it. */
 const knownAmountSchema = z
@@ -79,8 +81,8 @@ export const costCenterUsageSchema = z
     costCenter: costCenterSchema.nullable(),
     treatment: inferenceEconomicTreatmentSchema,
     currency: currencyCodeSchema,
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
+    periodEnd: z.string().check(isoDateTime()),
     /** Requests settled in the window (completed, failed, cancelled or partial). */
     requestCount: nonNegativeCount,
     /** Requests admitted and not yet settled when the report was read. */
@@ -100,10 +102,10 @@ export const costCenterUsageSchema = z
       /** Attempts priced in a different currency, excluded without currency conversion. */
       otherCurrencyCount: nonNegativeCount.default(0),
       /** Amount stated by the provider; this is not a copy of its invoice. */
-      providerReportedAmount: exactDecimalSchema.default('0'),
+      providerReportedAmount: exactDecimalSchema.prefault('0'),
       providerReportedCount: nonNegativeCount.default(0),
       /** Amount estimated from Kaana's immutable rate card, never described as invoiced. */
-      estimatedAmount: exactDecimalSchema.default('0'),
+      estimatedAmount: exactDecimalSchema.prefault('0'),
       estimatedCount: nonNegativeCount.default(0),
     }),
     /**
@@ -126,36 +128,39 @@ export const meteredGenerationSchema = z
   .object({
     schemaVersion: z.literal(2),
     kind: z.literal('metered_usage'),
-    meteredUsageId: z.string().min(1),
-    requestId: z.string().min(1),
-    generationId: z.string().min(1).optional(),
-    parentRequestId: z.string().min(1).optional(),
-    applicationId: z.string().min(1),
-    credentialId: z.string().min(1),
-    delegatedUserId: z.string().min(1).optional(),
+    meteredUsageId: z.string().check(utf16MinLength(1)),
+    requestId: z.string().check(utf16MinLength(1)),
+    generationId: z.string().check(utf16MinLength(1)).optional(),
+    parentRequestId: z.string().check(utf16MinLength(1)).optional(),
+    applicationId: z.string().check(utf16MinLength(1)),
+    credentialId: z.string().check(utf16MinLength(1)),
+    delegatedUserId: z.string().check(utf16MinLength(1)).optional(),
     environment: inferenceEnvironmentSchema,
     economicTreatment: z.literal('internal_metered'),
-    economicPolicyVersion: z.string().min(1),
+    economicPolicyVersion: z.string().check(utf16MinLength(1)),
     outcome: inferenceRequestOutcomeSchema,
     usageSource: usageSourceSchema,
     units: z.array(usageQuantitySchema),
     resolvedModelReference: modelReferenceSchema,
-    servingProvider: z.string().min(1),
+    servingProvider: z.string().check(utf16MinLength(1)),
     tariff: z.discriminatedUnion('status', [
       z
         .object({
           status: z.literal('quoted'),
           amount: exactDecimalSchema,
           currency: currencyCodeSchema,
-          priceVersionId: z.string().min(1),
+          priceVersionId: z.string().check(utf16MinLength(1)),
         })
         .strict(),
       z
-        .object({ status: z.literal('unpriced'), priceVersionId: z.string().min(1).nullable() })
+        .object({
+          status: z.literal('unpriced'),
+          priceVersionId: z.string().check(utf16MinLength(1)).nullable(),
+        })
         .strict(),
     ]),
     customerCharge: z.object({ status: z.literal('not_charged') }).strict(),
-    settledAt: z.string().datetime(),
+    settledAt: z.string().check(isoDateTime()),
   })
   .strict();
 export type MeteredGeneration = z.infer<typeof meteredGenerationSchema>;

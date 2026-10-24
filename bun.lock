@@ -157,6 +157,7 @@
         "@oxy.so/telemetry": "workspace:*",
         "@oxy.so/utils": "workspace:*",
         "@oxy.so/zod3": "workspace:*",
+        "@oxy.so/zod4": "workspace:*",
         "@peable.to/sdk": "0.2.7",
         "@peculiar/asn1-schema": "^2.10.0",
         "@peculiar/asn1-x509": "^2.10.0",
@@ -188,7 +189,7 @@
         "jsdom": "catalog:",
         "jsonwebtoken": "^9.0.2",
         "mailparser": "^3.9.32",
-        "multer": "^2.3.0",
+        "multer": "^2.5.0",
         "nodemailer": "^10.0.13",
         "parse5": "7.3.0",
         "pino": "catalog:",
@@ -292,7 +293,7 @@
         "@oxy.so/core": "workspace:*",
         "@oxy.so/protocol": "workspace:*",
         "@oxy.so/services": "workspace:*",
-        "@oxy.so/zod3": "workspace:*",
+        "@oxy.so/zod4": "workspace:*",
         "@tailwindcss/postcss": "^4",
         "@tanstack/react-query": "catalog:",
         "react": "catalog:",
@@ -475,9 +476,9 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "5.8.1",
+      "version": "6.0.1",
       "dependencies": {
-        "@oxy.so/zod3": "workspace:*",
+        "@oxy.so/zod4": "workspace:*",
       },
       "devDependencies": {
         "@oxy.so/bloom": "catalog:",
@@ -488,14 +489,14 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "6.17.1",
+      "version": "7.0.1",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
-        "@oxy.so/contracts": "workspace:5.8.0",
+        "@oxy.so/contracts": "workspace:6.0.1",
         "@oxy.so/protocol": "workspace:^",
         "@oxy.so/telemetry": "workspace:^",
-        "@oxy.so/zod3": "workspace:*",
+        "@oxy.so/zod4": "workspace:*",
         "@scure/bip39": "^1.6.0",
         "buffer": "^6.0.3",
         "express-rate-limit": "catalog:",
@@ -506,6 +507,7 @@
         "tldts": "^7.4.10",
       },
       "devDependencies": {
+        "@aws-sdk/credential-provider-node": "catalog:",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@types/express": "catalog:",
         "@types/invariant": "^2.2.34",
@@ -521,12 +523,14 @@
         "typescript": "^5.9.2",
       },
       "peerDependencies": {
+        "@aws-sdk/credential-provider-node": ">=3.972.83 <4",
         "@react-native-async-storage/async-storage": "<3.0.0",
         "expo-crypto": "<59.0.0",
         "expo-secure-store": "<59.0.0",
         "express": "^4.0.0",
       },
       "optionalPeers": [
+        "@aws-sdk/credential-provider-node",
         "@react-native-async-storage/async-storage",
         "expo-crypto",
         "expo-secure-store",
@@ -600,10 +604,10 @@
     },
     "packages/federation": {
       "name": "@oxy.so/federation",
-      "version": "2.11.0",
+      "version": "2.12.0",
       "dependencies": {
-        "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || 4.11.0-oxy-one.0",
-        "@oxy.so/core": "^6.14.0",
+        "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || 4.11.0-oxy-one.0",
+        "@oxy.so/core": "^6.14.0 || ^7.0.0",
       },
       "devDependencies": {
         "@types/express": "catalog:",
@@ -624,7 +628,7 @@
     },
     "packages/mcp": {
       "name": "@oxy.so/mcp",
-      "version": "1.3.2",
+      "version": "1.4.1",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",
         "@oxy.so/contracts": "workspace:^",
@@ -632,6 +636,7 @@
         "zod": "npm:@oxy.so/zod4@4.6.8",
       },
       "devDependencies": {
+        "@oxy.so/core": "workspace:^",
         "@types/jest": "^30.0.0",
         "@types/node": "^20.19.43",
         "jest": "^30.5.1",
@@ -659,11 +664,10 @@
     },
     "packages/protocol": {
       "name": "@oxy.so/protocol",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "dependencies": {
         "@noble/curves": "catalog:",
         "@oxy.so/contracts": "workspace:^",
-        "@oxy.so/zod3": "workspace:*",
       },
       "devDependencies": {
         "@react-native-async-storage/async-storage": "^2.2.0",
@@ -695,7 +699,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "12.14.0",
+      "version": "13.0.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",
@@ -816,7 +820,7 @@
     },
     "packages/ship": {
       "name": "@oxy.so/ship",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "bin": {
         "oxy-ship": "dist/cli.js",
       },
@@ -831,7 +835,7 @@
     },
     "packages/stickers": {
       "name": "@oxy.so/stickers",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
       },
@@ -963,7 +967,6 @@
         "react-native-safe-area-context": "catalog:",
         "react-native-svg": "catalog:",
         "react-native-web": "^0.21.0",
-        "shadcn": "catalog:",
         "socket.io-client": "catalog:",
         "tailwind-merge": "^3.4.0",
         "tailwindcss": "^4.3.3",
@@ -975,6 +978,7 @@
         "@types/react": "^19.2.18",
         "@types/react-dom": "^19.2.4",
         "@vitejs/plugin-react": "catalog:",
+        "shadcn": "catalog:",
         "typescript": "~5.9.3",
         "vite-plugin-react-native-web": "catalog:",
       },
@@ -1040,13 +1044,14 @@
   },
   "catalog": {
     "@alia.onl/sdk": "^21.5.0",
+    "@aws-sdk/credential-provider-node": "3.972.83",
     "@expo/app-integrity": "~58.0.2",
     "@expo/router-server": "58.0.14",
     "@hugeicons/core-free-icons": "^3.3.0",
     "@lottiefiles/dotlottie-react": "^0.19.9",
     "@noble/curves": "^1.9.7",
     "@oxy.so/bloom": "15.18.0",
-    "@oxy.so/core": "^6.16.0",
+    "@oxy.so/core": "^7.0.0",
     "@shopify/react-native-skia": "2.14.0",
     "@tanstack/query-async-storage-persister": "^5.101",
     "@tanstack/query-sync-storage-persister": "^5.101",
@@ -2825,7 +2830,7 @@
 
     "big-integer": ["big-integer@1.6.52", "", {}, "sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg=="],
 
-    "body-parser": ["body-parser@1.20.8", "", { "dependencies": { "bytes": "~3.1.2", "content-type": "~1.0.5", "debug": "2.6.9", "depd": "2.0.0", "destroy": "~1.2.0", "http-errors": "~2.0.1", "iconv-lite": "~0.4.24", "on-finished": "~2.4.1", "qs": "~6.16.0", "raw-body": "~2.5.3", "type-is": "~1.6.18", "unpipe": "~1.0.0" } }, "sha512-JNcyFQ64OiijEkPzUBTCe+hyPXUD/3LEldGQ6iF5LR1w00mx9o7xtDWHXBY2iItjdCFGoilOLNQbH943ut7pHA=="],
+    "body-parser": ["body-parser@1.20.9", "", { "dependencies": { "bytes": "~3.1.2", "content-type": "~1.0.5", "debug": "2.6.9", "depd": "2.0.0", "destroy": "~1.2.0", "http-errors": "~2.0.1", "iconv-lite": "~0.4.24", "on-finished": "~2.4.1", "qs": "~6.16.0", "raw-body": "~2.5.3", "type-is": "~1.6.18", "unpipe": "~1.0.0" } }, "sha512-FISIQxV5u91Y9gvuFq3q/tA/qTqLJn3AhRcEvyozyhJTh5OBFFtv827AdHU7Rbyct4r+Ba1/99oFa1Y3yuFsdw=="],
 
     "boolbase": ["boolbase@1.0.0", "", {}, "sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww=="],
 
@@ -3913,7 +3918,7 @@
 
     "msw": ["msw@2.15.0", "", { "dependencies": { "@inquirer/confirm": "^6.0.11", "@mswjs/interceptors": "^0.41.3", "@open-draft/deferred-promise": "^3.0.0", "@types/statuses": "^2.0.6", "cookie": "^1.1.1", "graphql": "^16.13.2", "headers-polyfill": "^5.0.1", "is-node-process": "^1.2.0", "outvariant": "^1.4.3", "path-to-regexp": "^6.3.0", "picocolors": "^1.1.1", "rettime": "^0.11.11", "statuses": "^2.0.2", "strict-event-emitter": "^0.5.1", "tough-cookie": "^6.0.1", "type-fest": "^5.5.0", "until-async": "^3.0.2", "yargs": "^17.7.2" }, "peerDependencies": { "typescript": ">= 4.8.x" }, "optionalPeers": ["typescript"], "bin": { "msw": "cli/index.js" } }, "sha512-2wQAmKkQKxRuXvYJxVhPGG0wZNBQyD06oJvxqw90XqLvptdqxdlHrFUfEteKkpaNORX3Xzc+HtEl/q0nfmN2wQ=="],
 
-    "multer": ["multer@2.3.0", "", { "dependencies": { "append-field": "^1.0.0", "busboy": "^1.6.0", "concat-stream": "^2.0.0", "type-is": "^1.6.18" } }, "sha512-cjNbm3sttszgZeGfJR124D+jFEfkXCVAsoPBmFn9X7UxmDSFHWqE2CoEj0vrmSpuAFnqWR1Szcm9QTsiHr60Xw=="],
+    "multer": ["multer@2.5.0", "", { "dependencies": { "append-field": "^1.0.0", "busboy": "^1.6.0", "type-is": "^1.6.18" } }, "sha512-BsqOzYGVq49JcW2IzoSAxeKYRevb+dGGPPWleOR8Lrlk4igwxu1/9pwSXlByhCb7MVZDrNJFC0IBP5/O5nLYRw=="],
 
     "multiformats": ["multiformats@13.4.2", "", {}, "sha512-eh6eHCrRi1+POZ3dA+Dq1C6jhP1GNtr9CRINMb67OKzqW9I5DUuZM/3jLPlzhgpGeiNUlEGEbkCYChXMCc/8DQ=="],
 
@@ -5579,7 +5584,7 @@
 
     "@modelcontextprotocol/sdk/express/accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
-    "@modelcontextprotocol/sdk/express/body-parser": ["body-parser@2.3.0", "", { "dependencies": { "bytes": "^3.1.2", "content-type": "^2.0.0", "debug": "^4.4.3", "http-errors": "^2.0.1", "iconv-lite": "^0.7.2", "on-finished": "^2.4.1", "qs": "^6.15.2", "raw-body": "^3.0.2", "type-is": "^2.1.0" } }, "sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw=="],
+    "@modelcontextprotocol/sdk/express/body-parser": ["body-parser@2.4.0", "", { "dependencies": { "bytes": "^3.1.2", "content-type": "^2.1.0", "debug": "^4.4.3", "http-errors": "^2.0.1", "iconv-lite": "^0.7.3", "on-finished": "^2.4.1", "qs": "^6.16.1", "raw-body": "^3.0.2", "type-is": "^2.1.0" } }, "sha512-Ifk1KcLrxaGt1occQagQNFNNOqRt1LFuehEnHHzB8Z6cRgIxRU1TBaiIsUiCdA+gy5PL7Y1IX31DNKkRmxtXjQ=="],
 
     "@modelcontextprotocol/sdk/express/content-disposition": ["content-disposition@1.1.0", "", {}, "sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g=="],
 
@@ -6011,7 +6016,7 @@
 
     "@modelcontextprotocol/sdk/express/body-parser/iconv-lite": ["iconv-lite@0.7.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ=="],
 
-    "@modelcontextprotocol/sdk/express/body-parser/qs": ["qs@6.16.0", "", { "dependencies": { "es-define-property": "^1.0.1", "side-channel": "^1.1.1" } }, "sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA=="],
+    "@modelcontextprotocol/sdk/express/body-parser/qs": ["qs@6.16.1", "", { "dependencies": { "es-define-property": "^1.0.1", "side-channel": "^1.1.1" } }, "sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg=="],
 
     "@modelcontextprotocol/sdk/express/type-is/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 

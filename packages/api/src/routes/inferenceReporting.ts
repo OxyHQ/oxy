@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * The customer-visible usage, spend and budget surface (issue #972, workstream 8).
  *
@@ -40,10 +41,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { userOrServiceAuthMiddleware as reportingPrincipal } from '../middleware/userOrServiceAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   applicationSpendReportQuery,
   applicationUsageReportQuery,
@@ -193,29 +195,6 @@ interface ReportingRequest extends AuthRequest {
   serviceApp?: ServiceTokenPayload;
 }
 
-/**
- * Dispatch between the package's two existing verifiers, adding no third
- * parsing path: a bearer that verifies as a service token takes the service
- * lane, and anything else is answered by `authMiddleware` — so an expired user
- * token gets the 401 from the middleware that understands user tokens.
- */
-const reportingPrincipal = (
-  req: ReportingRequest,
-  res: Response,
-  next: (error?: unknown) => void,
-): void => {
-  const header = req.headers.authorization;
-  if (header !== undefined && header.startsWith('Bearer ')) {
-    const verification = verifyServiceToken(header.slice('Bearer '.length));
-    if (verification.ok) {
-      req.serviceApp = verification.payload;
-      next();
-      return;
-    }
-  }
-  void authMiddleware(req, res, next);
-};
-
 function principalOf(req: ReportingRequest): ReportingPrincipal {
   if (req.serviceApp !== undefined) {
     return { kind: 'service', service: req.serviceApp };
@@ -288,7 +267,7 @@ async function authorizeApplication(
   permission: ApplicationPermission,
 ): Promise<void> {
   if (principal.kind === 'service') {
-    if (!principal.service.scopes.includes('inference:usage:read')) {
+    if (!hasServiceAuthority(principal.service, 'inference:usage:read')) {
       throw new ForbiddenError('This credential does not carry the inference:usage:read scope');
     }
     // A service token reaches only its OWN application. Without this, any

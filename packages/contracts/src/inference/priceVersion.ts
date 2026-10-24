@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Price versions — the immutable snapshots customer pricing is quoted and
  * settled against.
@@ -17,7 +18,7 @@
  * Decided in: docs/adr/0009-usage-reservation-and-settlement.md.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import {
   inferenceTimestampSchema,
   modelReferenceSchema,
@@ -45,7 +46,7 @@ export const priceVersionSchema = z
   .object({
     /** See `version.ts`: served on its own by the catalogue, so it is versioned. */
     schemaVersion: z.literal(1),
-    priceVersionId: z.string().min(1).max(128),
+    priceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     status: priceVersionStatusSchema,
     modelReference: modelReferenceSchema,
     provider: inferenceProviderSlugSchema,
@@ -55,7 +56,11 @@ export const priceVersionSchema = z
     /** Absent while this version is the current one. */
     effectiveUntil: inferenceTimestampSchema.optional(),
     /** The version this one replaced, absent for the first version of a route. */
-    supersedesPriceVersionId: z.string().min(1).max(128).optional(),
+    supersedesPriceVersionId: z
+      .string()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(128))
+      .optional(),
     createdAt: inferenceTimestampSchema,
   })
   .superRefine((priceVersion, ctx) => {
@@ -113,7 +118,7 @@ export const priceVersionSchema = z
  */
 export const priceSnapshotSchema = z
   .object({
-    priceVersionId: z.string().min(1).max(128),
+    priceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     currency: currencyCodeSchema,
     unitPrices: z.array(unitPriceSchema).min(1),
   })

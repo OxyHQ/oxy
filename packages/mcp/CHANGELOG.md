@@ -1,8 +1,23 @@
 # Changelog: `@oxy.so/mcp`
 
-## 1.3.2
+## 1.4.1
 
-- Use the maintained, source-built Zod security backport to reject oversized constrained collections before traversing their elements, preserving the existing validation API.
+- Use the maintained Zod4 source build, including the fixed embedded v3 parser, while retaining the current schema and authorization contracts.
+
+## 1.4.0
+
+### Added
+
+- Inject the shared authenticated Oxy transport for catalogue registration, introspection, connections and audit requests. Authentication and refresh stay with core; explicit external credential callbacks remain supported.
+
+### Fixed
+
+- Reject redirects and omit ambient cookies on authority calls.
+
+### Changed
+
+- Require patched Zod 4.6.7 for collection validation.
+- Package against contracts 6.
 
 ## 1.3.1
 

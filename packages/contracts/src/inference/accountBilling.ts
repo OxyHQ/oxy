@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * The account-scoped billing surface: who pays, what they hold, what bounds
  * them, and how it reconciles against the payment processor.
@@ -42,7 +44,7 @@
  * docs/adr/0009-usage-reservation-and-settlement.md.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { oxyAccountIdSchema } from './identifiers';
 import { currencyCodeSchema, exactDecimalSchema } from './money';
 
@@ -111,8 +113,8 @@ export const billingProfileSchema = z
      */
     creditLimit: exactDecimalSchema,
     autoRecharge: autoRechargeSchema,
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -184,20 +186,20 @@ export const billingInvoiceSchema = z
   .object({
     /** See `version.ts`: this shape is served to Console and to Alia. */
     schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     accountId: oxyAccountIdSchema,
     currency: currencyCodeSchema,
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
+    periodEnd: z.string().check(isoDateTime()),
     status: billingInvoiceStatusSchema,
     subtotalAmount: exactDecimalSchema,
     totalAmount: exactDecimalSchema,
-    minorUnitExponent: z.number().int().min(0).max(4),
+    minorUnitExponent: z.number().check(integerCheck()).min(0).max(4),
     /** The processor's own invoice id, for reconciliation. Never an authority. */
-    externalInvoiceRef: z.string().min(1).max(255).optional(),
-    issuedAt: z.string().datetime().optional(),
-    paidAt: z.string().datetime().optional(),
-    receiptCount: z.number().int().nonnegative().safe(),
+    externalInvoiceRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
+    issuedAt: z.string().check(isoDateTime()).optional(),
+    paidAt: z.string().check(isoDateTime()).optional(),
+    receiptCount: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   })
   .strict();
 
@@ -231,16 +233,16 @@ export const externalPaymentKindSchema = z.enum(EXTERNAL_PAYMENT_KINDS);
  */
 export const externalPaymentSchema = z
   .object({
-    id: z.string().min(1).max(64),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     accountId: oxyAccountIdSchema,
     provider: externalPaymentProviderSchema,
     externalKind: externalPaymentKindSchema,
-    externalRef: z.string().min(1).max(255),
+    externalRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)),
     amount: exactDecimalSchema,
     currency: currencyCodeSchema,
-    ledgerEntryId: z.string().min(1).max(64),
-    occurredAt: z.string().datetime(),
-    createdAt: z.string().datetime(),
+    ledgerEntryId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    occurredAt: z.string().check(isoDateTime()),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -261,18 +263,18 @@ export const autoRechargeAttemptSchema = z
   .object({
     /** See `version.ts`: this shape is served to Console and to Alia. */
     schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     accountId: oxyAccountIdSchema,
     currency: currencyCodeSchema,
     requestedAmount: exactDecimalSchema,
     /** The spendable balance that triggered it — why this attempt exists. */
     balanceAtTrigger: exactDecimalSchema,
     status: autoRechargeStatusSchema,
-    externalRef: z.string().min(1).max(255).optional(),
+    externalRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
     /** The processor's own decline code. Never a free-form message. */
-    failureCode: z.string().min(1).max(64).optional(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    failureCode: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -313,18 +315,18 @@ export const reconciliationDiscrepancySchema = z
   .object({
     /** See `version.ts`: this shape is served to Console and to Alia. */
     schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
-    runId: z.string().min(1).max(64),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+    runId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     kind: reconciliationDiscrepancyKindSchema,
     accountId: oxyAccountIdSchema.optional(),
-    externalRef: z.string().min(1).max(255).optional(),
-    ledgerEntryId: z.string().min(1).max(64).optional(),
+    externalRef: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)).optional(),
+    ledgerEntryId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)).optional(),
     /** What Oxy recorded. Absent for `missing_in_ledger`. */
     ledgerAmount: exactDecimalSchema.optional(),
     /** What the processor recorded. Absent for `missing_in_external`. */
     externalAmount: exactDecimalSchema.optional(),
     currency: currencyCodeSchema,
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -340,19 +342,19 @@ export const reconciliationRunSchema = z
   .object({
     /** See `version.ts`: this shape is served to Console and to Alia. */
     schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
+    id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
     provider: externalPaymentProviderSchema,
     /** Absent for a platform-wide pass. */
     accountId: oxyAccountIdSchema.optional(),
     currency: currencyCodeSchema,
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
+    periodStart: z.string().check(isoDateTime()),
+    periodEnd: z.string().check(isoDateTime()),
     status: reconciliationRunStatusSchema,
     ledgerTotal: exactDecimalSchema,
     externalTotal: exactDecimalSchema,
-    discrepancyCount: z.number().int().nonnegative().safe(),
-    startedAt: z.string().datetime(),
-    completedAt: z.string().datetime().optional(),
+    discrepancyCount: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+    startedAt: z.string().check(isoDateTime()),
+    completedAt: z.string().check(isoDateTime()).optional(),
   })
   .strict();
 

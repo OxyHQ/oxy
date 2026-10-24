@@ -1,6 +1,7 @@
+import { integerCheck, safeNumberCheck, utf16MinLength } from '@oxy.so/contracts';
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { Peable } from '@peable.to/sdk';
 import {
   billingNamespaceSchema,
@@ -20,18 +21,23 @@ import { cancelOwnedPeableSubscription } from './peablePersonalBilling.service';
 export const peablePersonalManagementConfigurationSchema = z
   .object({
     merchantId: z.string().regex(/^merch_[A-Za-z0-9_]+$/),
-    applicationId: z.string().min(1),
+    applicationId: z.string().check(utf16MinLength(1)),
     namespace: billingNamespaceSchema,
     offers: z
       .array(
         z
           .object({
-            offerId: z.string().min(1),
-            offerVersion: z.number().int().positive(),
-            planId: z.string().min(1),
-            providerPriceId: z.string().min(1),
+            offerId: z.string().check(utf16MinLength(1)),
+            offerVersion: z.number().check(integerCheck()).positive(),
+            planId: z.string().check(utf16MinLength(1)),
+            providerPriceId: z.string().check(utf16MinLength(1)),
             kind: z.enum(['oxy_one', 'existing_product']).optional(),
-            amountMinorUnits: z.number().int().positive().safe().optional(),
+            amountMinorUnits: z
+              .number()
+              .check(integerCheck())
+              .positive()
+              .check(safeNumberCheck())
+              .optional(),
             interval: z.enum(['month', 'year']).optional(),
           })
           .strict(),

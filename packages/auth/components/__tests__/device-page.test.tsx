@@ -64,7 +64,7 @@ mock.module('@oxy.so/services', () =>
       const busy = props.busy === true;
       return React.createElement(
         'div',
-        null,
+        { 'data-testid': 'approval-surface', 'data-mode': props.mode },
         React.createElement(
           'button',
           {
@@ -154,6 +154,24 @@ describe('DevicePage', () => {
     globalThis.fetch = mock(
       async () => new Response(JSON.stringify({ success: true }), { status: 200 }),
     ) as unknown as typeof fetch;
+  });
+
+  test('own device sign-in uses sign-in presentation; external applications retain consent', async () => {
+    for (const [type, mode] of [
+      ['first_party', 'sign-in'],
+      ['third_party', 'consent'],
+    ]) {
+      getCommonsApprovalInfo.mockImplementation(async () =>
+        pendingApproval({
+          application: { id: 'app', name: 'Example', type },
+        }),
+      );
+      const { container, unmount } = renderPage();
+      await flush();
+      expect(byTestId(container, 'approval-surface')?.getAttribute('data-mode')).toBe(mode);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      unmount();
+    }
   });
 
   test('a malformed code sends no request at all', async () => {

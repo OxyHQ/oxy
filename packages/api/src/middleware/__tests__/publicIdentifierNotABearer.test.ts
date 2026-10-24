@@ -180,16 +180,36 @@ async function signIn(userId: string): Promise<string> {
 
 /** A REAL service JWT, signed exactly as `POST /auth/service-token` signs one. */
 async function serviceToken(): Promise<string> {
+  const ownerAccountId = await account();
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: 'Probe',
+      ownerAccountId,
+      scopes: ['user:read'],
+    })
+    .returning();
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: 'Probe credential',
+      publicKey: randomUUID(),
+      type: 'service',
+      environment: 'production',
+      scopes: ['user:read'],
+    })
+    .returning();
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service',
-    appId: randomUUID(),
+    appId: application.id,
     appName: 'Probe',
-    credentialId: randomUUID(),
+    credentialId: credential.id,
     // The full attribution tuple the real mint emits (ADR 0007). Omitting
     // `ownerAccountId` makes `verifyServiceToken` answer `not_service`, which
     // would quietly turn the positive control below into a second negative.
-    ownerAccountId: await account(),
+    ownerAccountId,
     environment: 'production',
     scopes: ['user:read'],
     iss: 'oxy-auth',

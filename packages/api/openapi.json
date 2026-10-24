@@ -16713,6 +16713,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "protocolVersion": {
+                    "type": "number",
+                    "enum": [
+                      2
+                    ]
+                  },
                   "scopes": {
                     "type": "array",
                     "items": {
@@ -16739,12 +16745,7 @@
                     "additionalProperties": {}
                   },
                   "audience": {
-                    "type": "string",
-                    "enum": [
-                      "oxy-api",
-                      "kaana.ai",
-                      "oxy-api:kaana-control"
-                    ]
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -19937,8 +19938,8 @@
         "tags": [
           "Capabilities"
         ],
-        "summary": "Authorize one present requester read for a verified presenting service",
-        "description": "Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.",
+        "summary": "Authorize a tool operation for a verified requester and presenting service",
+        "description": "Separate service bearer and requester subjectToken. Own workloads use the first_party task contract with bound requester, actor, account and catalogue; external callers retain the restricted requester-read contract below.",
         "security": [
           {
             "serviceTokenAuth": []
@@ -56297,6 +56298,32 @@
                         "required": [
                           "connectionToken"
                         ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
+                        ]
                       }
                     ]
                   }
@@ -56767,6 +56794,32 @@
                         },
                         "required": [
                           "connectionToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
                         ]
                       }
                     ]
@@ -57277,6 +57330,32 @@
                         },
                         "required": [
                           "connectionToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
                         ]
                       }
                     ]
@@ -58460,6 +58539,32 @@
                         "required": [
                           "connectionToken"
                         ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
+                        ]
                       }
                     ]
                   }
@@ -58819,6 +58924,32 @@
                         },
                         "required": [
                           "connectionToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
                         ]
                       }
                     ]
@@ -59567,6 +59698,32 @@
                         "required": [
                           "connectionToken"
                         ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
+                        ]
                       }
                     ]
                   }
@@ -60033,6 +60190,32 @@
                         },
                         "required": [
                           "connectionToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
                         ]
                       }
                     ]
@@ -60889,6 +61072,32 @@
                         },
                         "required": [
                           "connectionToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "capabilityTicket": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "capabilityTicket"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requesterContext": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "requesterContext"
                         ]
                       }
                     ]
@@ -78759,7 +78968,7 @@
         "tags": [
           "Billing"
         ],
-        "summary": "No impersonation header: the exact path subject must hold live offline consent.",
+        "summary": "Exact beneficiary context: own requester proof or external live offline consent.",
         "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/productAccess.ts` to fill in summary, description, request/response examples.",
         "parameters": [
           {

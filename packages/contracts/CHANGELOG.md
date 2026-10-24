@@ -1,8 +1,20 @@
 # Changelog: `@oxy.so/contracts`
 
-## 5.8.1
+## 6.0.1
 
-- Use the maintained, source-built Zod security backport to reject oversized constrained collections before traversing their elements, preserving the existing validation API.
+- Use the maintained Zod4 source build, including the fixed embedded v3 parser, while retaining the current schema and authorization contracts.
+
+## 6.0.0
+
+### Breaking
+
+- Root schemas and public schema types use patched Zod 4.6.7. Client checks remain Zod-free and match its validation and error codes. Explicit contract checks preserve existing UTF-16 limits, minute timestamps, URL values and integer bounds; oversized bounded collections fail before element validation.
+- Distinguish first-party authority without scopes from external scoped service, inference and agent authority.
+
+### Added
+
+- Typed resource introspection preserves service, API-key and human-session identity, original requester, effective account and live account permissions.
+- First-party task and operation context contracts preserve requester provenance without storing user bearer tokens.
 
 ## 5.8.0
 

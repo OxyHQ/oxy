@@ -20,7 +20,7 @@
  *  - the derived score subtracts a heuristic `sybilPenalty`.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { verifyEnvelopeSignature, type RejectionReason } from '@oxy.so/protocol';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';

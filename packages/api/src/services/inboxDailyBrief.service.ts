@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * What the Daily Brief reads: the owner's Inbox for one client-defined local
  * calendar day, plus the unread mail still waiting from before it.
@@ -17,7 +18,7 @@
 
 import type { InboxDailyBriefResponse, InboxDailyBriefSection } from '@oxy.so/contracts';
 import { and, desc, eq, exists, gte, lt, sql } from 'drizzle-orm';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { getDb } from '../config/postgres';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments } from '../db/schema/messageAttachments';
@@ -329,9 +330,12 @@ export type InboxDailyBriefContent = Pick<
 const modelActionsSchema = z
   .array(
     z.object({
-      label: z.string().trim().min(1).max(40),
-      prompt: z.string().trim().min(1).max(600),
-      refs: z.array(z.string().trim().min(1)).min(1).max(10),
+      label: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(40)),
+      prompt: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(600)),
+      refs: z
+        .array(z.string().trim().check(utf16MinLength(1)))
+        .min(1)
+        .max(10),
     }),
   )
   .min(2)

@@ -37,7 +37,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
-import { z, type ZodTypeAny } from '@oxy.so/zod3';
+import { z, type ZodTypeAny } from '@oxy.so/zod4';
 import { catalogInvocationTemplatesEquivalent } from '@oxy.so/contracts';
 import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 
@@ -294,249 +294,162 @@ export function parseYaml(input: string): OpenApiDocument {
  * and `superRefine` (treated as the underlying object schema).
  */
 export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
-  if (!schema || typeof (schema as { _def?: unknown })._def !== 'object') {
-    return { type: 'string' };
-  }
-  const def = (schema as { _def: { typeName?: string; [key: string]: unknown } })._def;
-  const typeName = def.typeName ?? '';
-
-  switch (typeName) {
-    case 'ZodString': {
+  const def = schema._zod.def as unknown as { type: string; [key: string]: unknown };
+  const checks = [
+    def,
+    ...((def.checks ?? []) as Array<{ _zod: { def: Record<string, unknown> } }>).map(
+      (check) => check._zod.def,
+    ),
+  ];
+  switch (def.type) {
+    case 'string': {
       const out: Record<string, unknown> = { type: 'string' };
-      const checks = (def.checks ?? []) as Array<{
-        kind: string;
-        value?: number;
-        regex?: RegExp;
-        message?: string;
-      }>;
-      // A chain can carry SEVERAL length checks, and the published bound must be
-      // the tightest of them rather than the last one seen — see the number case
-      // below for the measured consequence of taking the last.
       let minLength: number | undefined;
       let maxLength: number | undefined;
-      for (const c of checks) {
-        if (c.kind === 'min' && typeof c.value === 'number') {
-          minLength = minLength === undefined ? c.value : Math.max(minLength, c.value);
+      for (const check of checks) {
+        if (check.check === 'min_length' && typeof check.minimum === 'number') {
+          minLength = Math.max(minLength ?? 0, check.minimum);
         }
-        if (c.kind === 'max' && typeof c.value === 'number') {
-          maxLength = maxLength === undefined ? c.value : Math.min(maxLength, c.value);
+        if (check.check === 'max_length' && typeof check.maximum === 'number') {
+          maxLength = Math.min(maxLength ?? Infinity, check.maximum);
         }
-        if (c.kind === 'email') out.format = 'email';
-        if (c.kind === 'url') out.format = 'uri';
-        if (c.kind === 'uuid') out.format = 'uuid';
-        if (c.kind === 'cuid' || c.kind === 'cuid2') out.format = c.kind;
-        if (c.kind === 'datetime') out.format = 'date-time';
-        if (c.kind === 'regex' && c.regex instanceof RegExp) out.pattern = c.regex.source;
-        if (c.kind === 'length' && typeof c.value === 'number') {
-          minLength = minLength === undefined ? c.value : Math.max(minLength, c.value);
-          maxLength = maxLength === undefined ? c.value : Math.min(maxLength, c.value);
+        if (check.check === 'length_equals' && typeof check.length === 'number') {
+          minLength = Math.max(minLength ?? 0, check.length);
+          maxLength = Math.min(maxLength ?? Infinity, check.length);
         }
+        const formats: Record<string, string> = {
+          email: 'email',
+          guid: 'uuid',
+          url: 'uri',
+          uuid: 'uuid',
+          cuid: 'cuid',
+          cuid2: 'cuid2',
+          datetime: 'date-time',
+        };
+        if (typeof check.format === 'string' && formats[check.format])
+          out.format = formats[check.format];
+        if (check.format === 'regex' && check.pattern instanceof RegExp)
+          out.pattern = check.pattern.source;
       }
       if (minLength !== undefined) out.minLength = minLength;
       if (maxLength !== undefined) out.maxLength = maxLength;
       return out;
     }
-    case 'ZodNumber': {
-      const checks = (def.checks ?? []) as Array<{
-        kind: string;
-        value?: number;
-        inclusive?: boolean;
-      }>;
+    case 'number': {
       let type = 'number';
-      // The TIGHTEST bound of each direction, not the last one written down.
-      //
-      // `.positive().safe()` produces two `min` checks — `0` exclusive, then
-      // `-Number.MAX_SAFE_INTEGER` inclusive — and overwriting on each one
-      // published the LOOSEST. Measured: `policyVersion` on
-      // `GET /inference/routing-policies/{policyId}/versions/{policyVersion}` is
-      // `z.coerce.number().int().positive().safe()` and the contract said it
-      // accepts -9007199254740991. Losing a bound is the same class of defect as
-      // publishing `{}`: the document states something the server refuses.
       let minimum: { value: number; exclusive: boolean } | undefined;
       let maximum: { value: number; exclusive: boolean } | undefined;
-      for (const c of checks) {
-        if (c.kind === 'int') type = 'integer';
-        if (c.kind === 'min' && typeof c.value === 'number') {
-          const candidate = { value: c.value, exclusive: c.inclusive === false };
-          if (
-            minimum === undefined ||
-            candidate.value > minimum.value ||
-            (candidate.value === minimum.value && candidate.exclusive)
-          ) {
-            minimum = candidate;
-          }
+      const minimumOf = (value: number, exclusive: boolean) => {
+        if (!minimum || value > minimum.value || (value === minimum.value && exclusive))
+          minimum = { value, exclusive };
+      };
+      const maximumOf = (value: number, exclusive: boolean) => {
+        if (!maximum || value < maximum.value || (value === maximum.value && exclusive))
+          maximum = { value, exclusive };
+      };
+      const bag = schema._zod.bag;
+      if (typeof bag.format === 'string' && bag.format.includes('int')) type = 'integer';
+      if (typeof bag.minimum === 'number') minimumOf(bag.minimum, false);
+      if (typeof bag.maximum === 'number') maximumOf(bag.maximum, false);
+      for (const check of checks) {
+        if (check.check === 'number_format' && check.format === 'safeint') {
+          type = 'integer';
+          minimumOf(Number.MIN_SAFE_INTEGER, false);
+          maximumOf(Number.MAX_SAFE_INTEGER, false);
         }
-        if (c.kind === 'max' && typeof c.value === 'number') {
-          const candidate = { value: c.value, exclusive: c.inclusive === false };
-          if (
-            maximum === undefined ||
-            candidate.value < maximum.value ||
-            (candidate.value === maximum.value && candidate.exclusive)
-          ) {
-            maximum = candidate;
-          }
-        }
+        if (check.check === 'greater_than' && typeof check.value === 'number')
+          minimumOf(check.value, check.inclusive === false);
+        if (check.check === 'less_than' && typeof check.value === 'number')
+          maximumOf(check.value, check.inclusive === false);
       }
       const out: Record<string, unknown> = { type };
-      // OpenAPI 3.1 is JSON Schema 2020-12, where `exclusiveMinimum` is the BOUND
-      // ITSELF and not a boolean modifier on `minimum`. This document declares
-      // 3.1.0 (`openapi.base.yaml:1`), so the 3.0 spelling `minimum: 0,
-      // exclusiveMinimum: true` is not merely stylistic — `true` is the wrong TYPE
-      // there, so a strict consumer either rejects the schema or ignores the
-      // keyword and admits the excluded value.
-      if (minimum !== undefined) {
-        if (minimum.exclusive) out.exclusiveMinimum = minimum.value;
-        else out.minimum = minimum.value;
-      }
-      if (maximum !== undefined) {
-        if (maximum.exclusive) out.exclusiveMaximum = maximum.value;
-        else out.maximum = maximum.value;
-      }
+      if (minimum) out[minimum.exclusive ? 'exclusiveMinimum' : 'minimum'] = minimum.value;
+      if (maximum) out[maximum.exclusive ? 'exclusiveMaximum' : 'maximum'] = maximum.value;
       return out;
     }
-    case 'ZodNull':
+    case 'null':
       return { type: 'null' };
-    case 'ZodBoolean':
+    case 'boolean':
       return { type: 'boolean' };
-    case 'ZodDate':
+    case 'date':
       return { type: 'string', format: 'date-time' };
-    case 'ZodLiteral': {
-      const value = (def as { value: unknown }).value;
-      const t =
-        typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
-      return { type: t, enum: [value] };
+    case 'literal': {
+      const values = def.values as unknown[];
+      const type = typeof values[0];
+      return { type: type === 'number' || type === 'boolean' ? type : 'string', enum: values };
     }
-    case 'ZodEnum': {
-      const values = ((def as { values?: string[] }).values ?? []) as string[];
-      return { type: 'string', enum: values };
-    }
-    case 'ZodNativeEnum': {
-      const values = Object.values(
-        (def as { values?: Record<string, string | number> }).values ?? {},
-      );
+    case 'enum': {
+      const entries = def.entries as Record<string, string | number>;
+      // Numeric TypeScript enums contain reverse mappings; these are not values.
+      const values = Object.entries(entries)
+        .filter(([key, value]) => typeof entries[value] !== 'number' || String(Number(key)) !== key)
+        .map(([, value]) => value);
       return { type: typeof values[0] === 'number' ? 'integer' : 'string', enum: values };
     }
-    case 'ZodArray': {
-      const items = zodToOpenApi((def as { type: ZodTypeAny }).type);
-      const out: Record<string, unknown> = { type: 'array', items };
-      const minItems = (def as { minLength?: { value: number } | null }).minLength;
-      const maxItems = (def as { maxLength?: { value: number } | null }).maxLength;
-      if (minItems && typeof minItems.value === 'number') out.minItems = minItems.value;
-      if (maxItems && typeof maxItems.value === 'number') out.maxItems = maxItems.value;
+    case 'array': {
+      const out: Record<string, unknown> = {
+        type: 'array',
+        items: zodToOpenApi(def.element as ZodTypeAny),
+      };
+      for (const check of checks) {
+        if (check.check === 'min_length' && typeof check.minimum === 'number')
+          out.minItems = Math.max(Number(out.minItems ?? 0), check.minimum);
+        if (check.check === 'max_length' && typeof check.maximum === 'number')
+          out.maxItems = Math.min(Number(out.maxItems ?? Infinity), check.maximum);
+        if (check.check === 'length_equals' && typeof check.length === 'number') {
+          out.minItems = Math.max(Number(out.minItems ?? 0), check.length);
+          out.maxItems = Math.min(Number(out.maxItems ?? Infinity), check.length);
+        }
+      }
       return out;
     }
-    case 'ZodObject': {
-      const shape = (schema as { _def: { shape: () => Record<string, ZodTypeAny> } })._def.shape();
+    case 'object': {
       const properties: Record<string, unknown> = {};
       const required: string[] = [];
-      for (const [key, value] of Object.entries(shape) as Array<[string, ZodTypeAny]>) {
+      for (const [key, value] of Object.entries(def.shape as Record<string, ZodTypeAny>)) {
         properties[key] = zodToOpenApi(value);
-        const valueDef = (value as { _def?: { typeName?: string } })._def;
-        const isOptional =
-          valueDef?.typeName === 'ZodOptional' || valueDef?.typeName === 'ZodDefault';
-        if (!isOptional) required.push(key);
+        if (!['optional', 'default', 'prefault'].includes(value._zod.def.type)) required.push(key);
       }
-      const out: Record<string, unknown> = {
-        type: 'object',
-        properties,
-      };
-      if (required.length > 0) out.required = required;
-      return out;
+      return { type: 'object', properties, ...(required.length ? { required } : {}) };
     }
-    case 'ZodRecord': {
-      const valueType = (def as { valueType?: ZodTypeAny }).valueType;
-      return {
-        type: 'object',
-        additionalProperties: valueType ? zodToOpenApi(valueType) : true,
-      };
-    }
-    case 'ZodOptional': {
-      return zodToOpenApi((def as { innerType: ZodTypeAny }).innerType);
-    }
-    case 'ZodNullable': {
-      const inner = zodToOpenApi((def as { innerType: ZodTypeAny }).innerType);
-      // `nullable: true` is the OpenAPI 3.0 spelling and 3.1 REMOVED it. In a 3.1
-      // document — which this one declares itself to be — it is an unknown keyword
-      // that every conforming consumer ignores, so a nullable field was published
-      // as NOT nullable and a generated client typed it non-optional. 3.1 spells it
-      // as a union with the `null` type.
-      const nullType = { type: 'null' };
-      if (Array.isArray(inner.oneOf)) {
-        return { ...inner, oneOf: [...(inner.oneOf as unknown[]), nullType] };
-      }
-      if (typeof inner.type === 'string') {
-        const widened: Record<string, unknown> = { ...inner, type: [inner.type, 'null'] };
-        // An `enum` constrains the value set as well as the type, so `null` has to
-        // be admitted there too or the widened type admits nothing new.
-        if (Array.isArray(inner.enum)) widened.enum = [...(inner.enum as unknown[]), null];
-        return widened;
-      }
-      // No `type` and no `oneOf` — an unconstrained inner schema (`z.any()`,
-      // `z.unknown()`) already admits null.
+    case 'record':
+      return { type: 'object', additionalProperties: zodToOpenApi(def.valueType as ZodTypeAny) };
+    case 'optional':
+      return zodToOpenApi(def.innerType as ZodTypeAny);
+    case 'nullable': {
+      const inner = zodToOpenApi(def.innerType as ZodTypeAny);
+      if (Array.isArray(inner.oneOf))
+        return { ...inner, oneOf: [...inner.oneOf, { type: 'null' }] };
+      if (typeof inner.type === 'string')
+        return {
+          ...inner,
+          type: [inner.type, 'null'],
+          ...(Array.isArray(inner.enum) ? { enum: [...inner.enum, null] } : {}),
+        };
       return inner;
     }
-    case 'ZodDefault': {
-      const innerSchema = zodToOpenApi((def as { innerType: ZodTypeAny }).innerType);
-      try {
-        const defaultFn = (def as { defaultValue: () => unknown }).defaultValue;
-        innerSchema.default = defaultFn();
-      } catch {
-        // Default produced an error — drop it; OpenAPI default is optional anyway.
-      }
-      return innerSchema;
+    case 'default':
+    case 'prefault':
+      return { ...zodToOpenApi(def.innerType as ZodTypeAny), default: def.defaultValue };
+    case 'union':
+      return {
+        oneOf: (def.options as ZodTypeAny[]).map(zodToOpenApi),
+        ...(typeof def.discriminator === 'string'
+          ? { discriminator: { propertyName: def.discriminator } }
+          : {}),
+      };
+    case 'pipe': {
+      const output = def.out as ZodTypeAny;
+      // Refinements now live on the original schema. A transform is a pipe:
+      // its declared input describes the accepted wire value, unless a concrete
+      // output schema follows it (the previous pipeline contract).
+      return zodToOpenApi(output._zod.def.type === 'transform' ? (def.in as ZodTypeAny) : output);
     }
-    case 'ZodUnion': {
-      const options = (def as { options: ZodTypeAny[] }).options.map((option) =>
-        zodToOpenApi(option),
-      );
-      return { oneOf: options };
-    }
-    case 'ZodEffects': {
-      // superRefine / refine wraps the underlying schema. Unwrap and reuse.
-      return zodToOpenApi((def as { schema: ZodTypeAny }).schema);
-    }
-    case 'ZodPipeline': {
-      return zodToOpenApi((def as { out: ZodTypeAny }).out);
-    }
-    case 'ZodDiscriminatedUnion': {
-      // The highest-value case in this function, and the one whose absence was
-      // invisible. A discriminated union used to fall through to the `default`
-      // arm below and be published as `{}` — which in OpenAPI does not mean
-      // "shape unknown", it means ANY VALUE IS VALID. Measured on `main`: eleven
-      // discriminated unions in `@oxy.so/contracts`' inference namespace alone
-      // were published as unconstrained, `inferenceContentPartSchema` among them
-      // — so the published contract said a chat message's content array accepts
-      // anything at all, and a generated client typed it `Any`.
-      //
-      // `discriminator` is emitted beside `oneOf` rather than instead of it: a
-      // consumer that understands the keyword gets the fast, unambiguous
-      // dispatch, and one that ignores it still validates against the branches.
-      const discriminator = (def as { discriminator: string }).discriminator;
-      const options = (def as { options: ZodTypeAny[] }).options.map((option) =>
-        zodToOpenApi(option),
-      );
-      return { oneOf: options, discriminator: { propertyName: discriminator } };
-    }
-    case 'ZodBranded': {
-      // A brand is a compile-time-only distinction; the wire shape is the inner
-      // schema's. Reached from `@oxy.so/contracts` identifier types.
-      return zodToOpenApi((def as { type: ZodTypeAny }).type);
-    }
-    case 'ZodAny':
-    case 'ZodUnknown':
-      // The only two types for which an empty schema is the TRUTH: both really do
-      // accept any value. Every other unhandled type reaching the arm below would
-      // publish the same bytes while meaning something else entirely, which is why
-      // that arm records rather than returns.
+    case 'any':
+    case 'unknown':
       return {};
     default:
-      // A zod type this converter does not know produces the same `{}` as
-      // `ZodAny` — indistinguishable on the wire, and a lie about every schema
-      // that is not genuinely unconstrained. So it is RECORDED and the run
-      // refuses to write, in the same way an unimportable schema module does.
-      // Before this arm existed, `ZodDiscriminatedUnion` and `ZodBranded` both
-      // landed here and nothing anywhere said so.
-      if (!unconvertibleZodTypes.includes(typeName)) unconvertibleZodTypes.push(typeName);
+      if (!unconvertibleZodTypes.includes(def.type)) unconvertibleZodTypes.push(def.type);
       return {};
   }
 }

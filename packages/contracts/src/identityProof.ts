@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Identity proof contract — the ONE signed format for operations on a personal root.
  *
@@ -15,7 +17,7 @@
  * caller hashes `canonicalJson(payload)` with SHA-256 using its platform's
  * primitive and passes the hex digest in).
  */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import {
@@ -47,8 +49,8 @@ export type {
 export const identityProofSchema = z.object({
   v: z.literal(IDENTITY_PROOF_VERSION),
   challenge: z.string().trim().regex(CHALLENGE, 'challenge must be 64 lowercase hex characters'),
-  expiresAt: z.number().int().positive(),
-  signature: z.string().trim().min(1).max(512),
+  expiresAt: z.number().check(integerCheck()).positive(),
+  signature: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(512)),
 });
 export type IdentityProof = z.infer<typeof identityProofSchema>;
 
@@ -68,8 +70,8 @@ export interface IdentityProofChallengeResponse {
 export const identityProofChallengeResponseSchema: z.ZodType<IdentityProofChallengeResponse> =
   z.object({
     challenge: z.string().regex(CHALLENGE),
-    expiresAt: z.number().int().positive(),
-    audience: z.string().min(1),
+    expiresAt: z.number().check(integerCheck()).positive(),
+    audience: z.string().check(utf16MinLength(1)),
   });
 
 /**

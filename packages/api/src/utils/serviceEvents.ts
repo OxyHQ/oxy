@@ -18,9 +18,9 @@
  *    validating on the other tasks for up to five minutes — and emits it to the
  *    service sockets connected to THIS task (`namespace.local`: every task
  *    relays to its own sockets, so nothing is delivered twice).
- * 3. DELIVER. The `/service-events` namespace admits only internal-tier service
- *    tokens (Oxy's own backends) whose owning account still has operating
- *    authority, and closes each socket when its token expires.
+ * 3. DELIVER. The `/service-events` namespace admits only live first-party workloads (or the finite
+ *    inventoried legacy workload cohort). It revalidates before every delivery
+ *    and heartbeat and closes each socket when its token expires.
  *
  * LIVENESS. A consumer caches only while it sees heartbeats, so a task sends one
  * only while it can still hear revocations: every
@@ -44,8 +44,8 @@ import type Redis from 'ioredis';
 import type { Namespace, Socket } from 'socket.io';
 import { getRedisClient } from '../config/redis';
 import { verifyServiceToken } from '../middleware/serviceToken';
-import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
-import { isSupervised } from '../services/supervisionPolicy.service';
+import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
+import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { logger } from './logger';
 import sessionCache from './sessionCache';
 
@@ -100,12 +100,12 @@ function deliver(
     if (event.sessionId) sessionCache.invalidateLocal(event.sessionId);
     else sessionCache.invalidateUserSessionsLocal(event.userId);
   } finally {
-    namespace?.local.emit(OXY_SESSION_REVOKED_EVENT, event);
+    if (namespace) void emitToLiveServices(namespace, OXY_SESSION_REVOKED_EVENT, event);
   }
 }
 
 /**
- * Admit an internal-tier service token whose owner may operate, from
+ * Admit a live first-party workload, including the finite legacy cohort, from
  * `handshake.auth.token`. A refusal that can never succeed answers
  * `OXY_SERVICE_EVENTS_FORBIDDEN`, so the SDK stops asking often.
  */
@@ -122,13 +122,14 @@ export async function authorizeServiceSocket(
     };
   }
   const { payload } = verification;
-  if (payload.tier !== 'internal' || typeof payload.exp !== 'number') {
+  if (typeof payload.exp !== 'number') {
     return { ok: false, reason: OXY_SERVICE_EVENTS_FORBIDDEN };
   }
   try {
+    const live = await resolveLiveServiceTokenAuthority(payload);
     if (
-      (await isSupervised(payload.ownerAccountId)) ||
-      !(await hasOrganizationOperatingAuthority(payload.ownerAccountId))
+      !live ||
+      (payload.authority !== 'first_party' && !(await resolveLegacyResourceWorkload(payload)))
     ) {
       return { ok: false, reason: OXY_SERVICE_EVENTS_FORBIDDEN };
     }
@@ -136,6 +137,41 @@ export async function authorizeServiceSocket(
     return { ok: false, reason: 'unavailable' };
   }
   return { ok: true, exp: payload.exp, appId: payload.appId };
+}
+
+const deliveryQueues = new WeakMap<Namespace, Promise<void>>();
+
+/** Preserve pub/sub order: a heartbeat must never overtake a pending revocation. */
+function emitToLiveServices(
+  namespace: Namespace,
+  event: string,
+  value: unknown,
+  canEmit: () => boolean = () => true,
+): Promise<void> {
+  const pending = (deliveryQueues.get(namespace) ?? Promise.resolve())
+    .then(() => emitToValidatedServices(namespace, event, value, canEmit))
+    .catch(() => namespace.local.disconnectSockets(true));
+  deliveryQueues.set(namespace, pending);
+  return pending;
+}
+
+/** Revoke access before emitting data; heartbeat checks also close idle revoked sockets. */
+async function emitToValidatedServices(
+  namespace: Namespace,
+  event: string,
+  value: unknown,
+  canEmit: () => boolean = () => true,
+): Promise<void> {
+  await Promise.all(
+    [...namespace.sockets.values()].map(async (socket) => {
+      try {
+        if (!(await authorizeServiceSocket(socket)).ok) socket.disconnect(true);
+      } catch {
+        socket.disconnect(true);
+      }
+    }),
+  );
+  if (canEmit()) namespace.local.emit(event, value);
 }
 
 /**
@@ -184,7 +220,13 @@ export function startServiceEvents(
         if (raw !== nonce) return;
         const wasHealthy = healthy();
         lastProbe = Date.now();
-        if (!wasHealthy) namespace.local.emit(OXY_SERVICE_EVENTS_HEARTBEAT_EVENT, heartbeat());
+        if (!wasHealthy)
+          void emitToLiveServices(
+            namespace,
+            OXY_SERVICE_EVENTS_HEARTBEAT_EVENT,
+            heartbeat(),
+            healthy,
+          );
         return;
       }
       if (channel !== SESSION_REVOCATION_CHANNEL) return;
@@ -227,7 +269,8 @@ export function startServiceEvents(
 
   const ticker = setInterval(() => {
     if (redis) redis.publish(SERVICE_EVENTS_PROBE_CHANNEL, nonce).catch(() => {});
-    if (healthy()) namespace.local.emit(OXY_SERVICE_EVENTS_HEARTBEAT_EVENT, heartbeat());
+    if (healthy())
+      void emitToLiveServices(namespace, OXY_SERVICE_EVENTS_HEARTBEAT_EVENT, heartbeat(), healthy);
   }, OXY_SERVICE_EVENTS_HEARTBEAT_MS);
   ticker.unref?.();
   if (redis) redis.publish(SERVICE_EVENTS_PROBE_CHANNEL, nonce).catch(() => {});

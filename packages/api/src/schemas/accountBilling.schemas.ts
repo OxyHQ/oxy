@@ -1,3 +1,4 @@
+import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * Request shapes for `/billing/accounts` and `/billing/cost-centers`
  * (issue #972, sections 7.1, 7.4 and 7.5).
@@ -16,7 +17,7 @@
  * is broken, and it would be broken silently.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import {
   billingInvoiceSchema,
   billingModeSchema,
@@ -27,7 +28,7 @@ import {
 import { LEDGER_AUTHORITATIVE_NOTE } from './inferenceReporting.schemas';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
-const idParam = z.string().min(1).max(128);
+const idParam = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 
 export const accountBillingParams = z.object({ accountId: idParam }).strict();
 
@@ -45,7 +46,7 @@ export const reconciliationRunParams = z.object({ runId: idParam }).strict();
  * hands the route an object whose `toISOString()` throws. Parsing to a `Date`
  * happens in the handler, after the shape is known good.
  */
-const isoInstant = z.string().datetime();
+const isoInstant = z.string().check(isoDateTime());
 
 /**
  * Provision an account's own billing profile.
@@ -105,12 +106,14 @@ export const topUpCheckoutBody = z
   .object({
     amount: exactDecimalSchema,
     currency: currencyCodeSchema.optional(),
-    successUrl: z.string().url().max(2048),
-    cancelUrl: z.string().url().max(2048),
+    successUrl: z.string().check(urlCheck()).check(utf16MaxLength(2048)),
+    cancelUrl: z.string().check(urlCheck()).check(utf16MaxLength(2048)),
   })
   .strict();
 
-export const accountPortalBody = z.object({ returnUrl: z.string().url().max(2048) }).strict();
+export const accountPortalBody = z
+  .object({ returnUrl: z.string().check(urlCheck()).check(utf16MaxLength(2048)) })
+  .strict();
 
 /**
  * Issue promotional credit. Staff-only at the route.
@@ -124,7 +127,7 @@ export const promotionalGrantBody = z
   .object({
     amount: exactDecimalSchema,
     currency: currencyCodeSchema.optional(),
-    idempotencyKey: z.string().min(8).max(128),
+    idempotencyKey: z.string().check(utf16MinLength(8)).check(utf16MaxLength(128)),
   })
   .strict();
 
@@ -178,7 +181,7 @@ export const registerCostCenterBody = z
   .object({
     accountId: idParam,
     slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
-    label: z.string().min(1).max(120),
+    label: z.string().check(utf16MinLength(1)).check(utf16MaxLength(120)),
   })
   .strict();
 

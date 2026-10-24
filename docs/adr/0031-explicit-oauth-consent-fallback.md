@@ -1,5 +1,11 @@
 # ADR 0031 — Explicit OAuth consent and ordinary trusted fallback
 
+> Internal scopes, own-app consent and agent per-app enablement requirements
+> are superseded by [ADR 0049](0049-first-party-platform-authority.md).
+> Resource ownership, identity and external-connection rules remain. See its
+> migration tracker for rollout state.
+
+
 - Status: accepted; implementation candidate for #1521.
 - Date: 2026-10-03.
 - Decided by: Nate's approval of the documented architecture recommendations:

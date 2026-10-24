@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { getPeablePersonalRuntime } from '../services/peablePersonalRuntime.service';
 import { assertPeablePersonalReconciliationComplete } from '../services/peablePersonalEvidence.service';
 
@@ -11,7 +11,7 @@ export async function receivePeablePersonalObservation(req: Request, res: Respon
   const rawSourceId: unknown = req.params.sourceId;
   if (typeof rawSourceId !== 'string')
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
-  const sourceId = z.string().uuid().safeParse(rawSourceId);
+  const sourceId = z.string().guid().safeParse(rawSourceId);
   const signature = req.get('peable-signature');
   const body: unknown = req.body;
   if (typeof body !== 'object' || body === null || Array.isArray(body) || !Buffer.isBuffer(body))

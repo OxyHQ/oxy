@@ -1,20 +1,21 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import { z } from '@oxy.so/zod4';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
 
 // POST /email/mailboxes
 export const createMailboxSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().check(utf16MinLength(1)),
   parentPath: z.string().trim().optional(),
 });
 
 // Params with :mailboxId
 export const mailboxIdParams = z.object({
-  mailboxId: z.string().trim().min(1),
+  mailboxId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // Params with :messageId
 export const messageIdParams = z.object({
-  messageId: z.string().trim().min(1),
+  messageId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/messages/:messageId/flags
@@ -37,17 +38,20 @@ export const updateLabelsSchema = z.object({
 
 // POST /email/messages/:messageId/move
 export const moveMessageSchema = z.object({
-  mailboxId: z.string().trim().min(1),
+  mailboxId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /email/messages/:messageId/snooze
 export const snoozeMessageSchema = z.object({
-  until: z.string().trim().min(1),
+  until: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /email/messages/bulk/flags
 export const bulkUpdateFlagsSchema = z.object({
-  messageIds: z.array(z.string().min(1)).min(1).max(100),
+  messageIds: z
+    .array(z.string().check(utf16MinLength(1)))
+    .min(1)
+    .max(100),
   flags: z.object({
     seen: z.boolean().optional(),
     starred: z.boolean().optional(),
@@ -60,19 +64,22 @@ export const bulkUpdateFlagsSchema = z.object({
 
 // POST /email/messages/bulk/move
 export const bulkMoveMessagesSchema = z.object({
-  messageIds: z.array(z.string().min(1)).min(1).max(100),
-  mailboxId: z.string().trim().min(1),
+  messageIds: z
+    .array(z.string().check(utf16MinLength(1)))
+    .min(1)
+    .max(100),
+  mailboxId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /email/labels
 export const createLabelSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().check(utf16MinLength(1)),
   color: z.string().trim().optional(),
 });
 
 // Params with :labelId
 export const labelIdParams = z.object({
-  labelId: z.string().trim().min(1),
+  labelId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/labels/:labelId
@@ -87,12 +94,12 @@ export const updateLabelSchema = z.object({
 // display name is optional. We do NOT accept bare strings or "Name <addr>"
 // — clients must parse and submit the canonical object.
 const recipientSchema = z.object({
-  name: z.string().trim().max(255).optional(),
+  name: z.string().trim().check(utf16MaxLength(255)).optional(),
   address: z
     .string()
     .trim()
-    .min(3)
-    .max(320) // RFC 5321 addr-spec maximum
+    .check(utf16MinLength(3))
+    .check(utf16MaxLength(320)) // RFC 5321 addr-spec maximum
     .email('Recipient address must be a valid email address'),
 });
 
@@ -104,7 +111,7 @@ export type RecipientInput = z.infer<typeof recipientSchema>;
 // (app: 'oxy-mail') so the file isn't orphaned. Only the file owner may
 // reference their own files (enforced by the controller).
 const attachmentInputSchema = z.object({
-  fileId: z.string().trim().min(1),
+  fileId: z.string().trim().check(utf16MinLength(1)),
   contentId: z.string().trim().optional(),
   isInline: z.boolean().optional(),
 });
@@ -116,7 +123,7 @@ export const sendMessageSchema = z.object({
   to: z.array(recipientSchema).min(1).max(100),
   cc: z.array(recipientSchema).max(100).optional(),
   bcc: z.array(recipientSchema).max(100).optional(),
-  subject: z.string().max(998).optional(), // RFC 5322 line length limit
+  subject: z.string().check(utf16MaxLength(998)).optional(), // RFC 5322 line length limit
   text: z.string().optional(),
   html: z.string().optional(),
   inReplyTo: rfcMessageIdSchema.optional(),
@@ -125,7 +132,7 @@ export const sendMessageSchema = z.object({
   scheduledAt: z.string().optional(),
   requestReadReceipt: z.boolean().optional(),
   // Row id of the draft being sent; the server removes it after the send.
-  draftId: z.string().trim().min(1).optional(),
+  draftId: z.string().trim().check(utf16MinLength(1)).optional(),
 });
 
 // POST /email/drafts
@@ -133,50 +140,50 @@ export const saveDraftSchema = z.object({
   to: z.array(recipientSchema).max(100).optional(),
   cc: z.array(recipientSchema).max(100).optional(),
   bcc: z.array(recipientSchema).max(100).optional(),
-  subject: z.string().max(998).optional(),
+  subject: z.string().check(utf16MaxLength(998)).optional(),
   text: z.string().optional(),
   html: z.string().optional(),
   inReplyTo: rfcMessageIdSchema.optional(),
   references: z.array(rfcMessageIdSchema).max(100).optional(),
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   existingDraftId: z.string().trim().optional(),
-  expectedRevision: z.number().int().min(1).optional(),
+  expectedRevision: z.number().check(integerCheck()).min(1).optional(),
 });
 
 const savedSearchFiltersSchema = z
   .object({
-    q: z.string().max(500).optional(),
-    from: z.string().max(128).optional(),
-    to: z.string().max(128).optional(),
-    subject: z.string().max(128).optional(),
+    q: z.string().check(utf16MaxLength(500)).optional(),
+    from: z.string().check(utf16MaxLength(128)).optional(),
+    to: z.string().check(utf16MaxLength(128)).optional(),
+    subject: z.string().check(utf16MaxLength(128)).optional(),
     hasAttachment: z.boolean().optional(),
-    dateAfter: z.string().max(40).optional(),
-    dateBefore: z.string().max(40).optional(),
-    mailbox: z.string().max(255).optional(),
+    dateAfter: z.string().check(utf16MaxLength(40)).optional(),
+    dateBefore: z.string().check(utf16MaxLength(40)).optional(),
+    mailbox: z.string().check(utf16MaxLength(255)).optional(),
     starred: z.boolean().optional(),
     unread: z.boolean().optional(),
-    label: z.string().max(255).optional(),
+    label: z.string().check(utf16MaxLength(255)).optional(),
   })
   .strict();
 
 export const createSavedSearchSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  query: z.string().trim().max(500),
+  name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+  query: z.string().trim().check(utf16MaxLength(500)),
   filters: savedSearchFiltersSchema,
-  order: z.number().int().min(0).max(10000).optional(),
+  order: z.number().check(integerCheck()).min(0).max(10000).optional(),
 });
 
 export const savedSearchIdParams = z.object({
-  savedSearchId: z.string().trim().min(1),
+  savedSearchId: z.string().trim().check(utf16MinLength(1)),
 });
 
 export const outboxIdParams = z.object({
-  outboxId: z.string().trim().min(1),
+  outboxId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /email/subscriptions/unsubscribe
 export const unsubscribeSchema = z.object({
-  senderAddress: z.string().trim().min(1),
+  senderAddress: z.string().trim().check(utf16MinLength(1)),
   method: z.enum(['list-unsubscribe', 'block']).optional(),
 });
 
@@ -184,9 +191,9 @@ export const unsubscribeSchema = z.object({
 const unsubscribeMethodSchema = z.enum(['one-click', 'http', 'mailto', 'blocked']);
 
 const offsetPaginationSchema = z.object({
-  total: z.number().int(),
-  limit: z.number().int(),
-  offset: z.number().int(),
+  total: z.number().check(integerCheck()),
+  limit: z.number().check(integerCheck()),
+  offset: z.number().check(integerCheck()),
   hasMore: z.boolean(),
 });
 
@@ -195,8 +202,8 @@ export const subscriptionSenderSchema = z.object({
   /** The sender address, lower-cased. Not a row id. */
   _id: z.string(),
   name: z.string(),
-  messageCount: z.number().int(),
-  readCount: z.number().int(),
+  messageCount: z.number().check(integerCheck()),
+  readCount: z.number().check(integerCheck()),
   latestDate: z.date(),
   oldestDate: z.date(),
   latestMessageId: z.string(),
@@ -228,7 +235,7 @@ export const unsubscribeResponseSchema = z.object({
 
 // PUT /email/bundles/:bundleId
 export const bundleIdParams = z.object({
-  bundleId: z.string().trim().min(1),
+  bundleId: z.string().trim().check(utf16MinLength(1)),
 });
 
 export const updateBundleSchema = z.object({
@@ -254,12 +261,12 @@ const optionalInstant = z
   .transform((value) => (value ? new Date(value) : undefined));
 
 export const updateEmailSettingsSchema = z.object({
-  signature: z.string().max(10_000).optional(),
+  signature: z.string().check(utf16MaxLength(10_000)).optional(),
   autoReply: z
     .object({
       enabled: z.boolean(),
-      subject: z.string().max(998).optional(),
-      body: z.string().max(10_000).optional(),
+      subject: z.string().check(utf16MaxLength(998)).optional(),
+      body: z.string().check(utf16MaxLength(10_000)).optional(),
       startDate: optionalInstant,
       endDate: optionalInstant,
     })
@@ -270,7 +277,7 @@ export const updateEmailSettingsSchema = z.object({
 
 // POST /email/reminders
 export const createReminderSchema = z.object({
-  text: z.string().trim().min(1),
+  text: z.string().trim().check(utf16MinLength(1)),
   remindAt: z
     .string()
     .trim()
@@ -280,7 +287,7 @@ export const createReminderSchema = z.object({
 
 // Params with :reminderId
 export const reminderIdParams = z.object({
-  reminderId: z.string().trim().min(1),
+  reminderId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/reminders/:reminderId
@@ -295,7 +302,7 @@ const instantSchema = z
   .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be a valid date');
 
 export const updateReminderSchema = z.object({
-  text: z.string().trim().min(1).optional(),
+  text: z.string().trim().check(utf16MinLength(1)).optional(),
   remindAt: instantSchema.optional(),
   completed: z.boolean().optional(),
   pinned: z.boolean().optional(),
@@ -306,7 +313,7 @@ export const updateReminderSchema = z.object({
 
 // POST /email/contacts
 export const createContactSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().check(utf16MinLength(1)),
   email: z.string().trim().email(),
   company: z.string().trim().optional(),
   notes: z.string().trim().optional(),
@@ -315,12 +322,12 @@ export const createContactSchema = z.object({
 
 // Params with :contactId
 export const contactIdParams = z.object({
-  contactId: z.string().trim().min(1),
+  contactId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/contacts/:contactId
 export const updateContactSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+  name: z.string().trim().check(utf16MinLength(1)).optional(),
   email: z.string().trim().email().optional(),
   company: z.string().trim().optional(),
   notes: z.string().trim().optional(),
@@ -340,7 +347,7 @@ const filterConditionSchema = z.object({
     'greater-than',
     'less-than',
   ]),
-  value: z.string().min(1),
+  value: z.string().check(utf16MinLength(1)),
 });
 
 const filterActionSchema = z.object({
@@ -350,7 +357,7 @@ const filterActionSchema = z.object({
 
 // POST /email/filters
 export const createFilterSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().check(utf16MinLength(1)),
   enabled: z.boolean().optional(),
   conditions: z.array(filterConditionSchema).min(1),
   matchAll: z.boolean().optional(),
@@ -360,7 +367,7 @@ export const createFilterSchema = z.object({
 
 // Params with :filterId
 export const filterIdParams = z.object({
-  filterId: z.string().trim().min(1),
+  filterId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/filters/:filterId
@@ -377,19 +384,19 @@ export const updateFilterSchema = z.object({
 
 // POST /email/templates
 export const createTemplateSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().check(utf16MinLength(1)),
   subject: z.string().trim().optional(),
-  body: z.string().min(1),
+  body: z.string().check(utf16MinLength(1)),
 });
 
 // Params with :templateId
 export const templateIdParams = z.object({
-  templateId: z.string().trim().min(1),
+  templateId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // PUT /email/templates/:templateId
 export const updateTemplateSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+  name: z.string().trim().check(utf16MinLength(1)).optional(),
   subject: z.string().trim().optional(),
-  body: z.string().min(1).optional(),
+  body: z.string().check(utf16MinLength(1)).optional(),
 });

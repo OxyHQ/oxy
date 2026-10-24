@@ -178,6 +178,14 @@ async function requester(p: Awaited<ReturnType<typeof presenter>>, appBound = fa
         }
       : {}),
   });
+  if (appBound)
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: user.id,
+        applicationId: p.application.id,
+        scopes: ['user:read', 'follows:read'],
+      });
   return { user, session };
 }
 async function register(token: string, catalog = oxyProfileCapabilityCatalog()) {
@@ -345,19 +353,12 @@ it('refuses data when the session is withdrawn while actual audit persistence is
   expect((await pending).status).toBe(403);
 });
 
-it('offline grant revoke is separate from foreground signout; canonical session revoke preserves the shared session', async () => {
+it('external OAuth grant revoke withdraws app-bound authority and preserves a separate shared session', async () => {
   const p = await presenter();
   const r = await requester(p, true);
   const shared = await sessionService.createSession(r.user.id, { headers: {} } as Request, {
     deviceId: randomUUID(),
   });
-  await getDb()
-    .insert(appGrants)
-    .values({
-      userId: r.user.id,
-      applicationId: p.application.id,
-      scopes: ['user:read', 'follows:read'],
-    });
   const issued = await issue(p, r.session.accessToken);
   const revoked = await request(app)
     .delete(`/auth/grants/${p.application.id}`)
@@ -369,8 +370,8 @@ it('offline grant revoke is separate from foreground signout; canonical session 
       .from(appGrants)
       .where(and(eq(appGrants.userId, r.user.id), eq(appGrants.applicationId, p.application.id))),
   ).toHaveLength(0);
-  // ADR0025: withdrawing standing offline consent does not withdraw the present requester session.
-  expect((await read(issued.ticket)).status).toBe(200);
+  // External app-bound provenance always depends on its live OAuth grant.
+  expect((await read(issued.ticket)).status).toBe(403);
   await sessionService.deactivateSession(r.session.sessionId);
   expect((await read(issued.ticket)).status).toBe(403);
   expect(
@@ -585,7 +586,7 @@ it('real workload mint uses its canonical inert attribution row for catalog and 
     applicationId: p.application.id,
     subject,
     provider: 'aws-iam',
-    scopes: scope,
+    environment: 'development',
     actor: { isPlatformStaff: true, describedAs: 'synthetic foreground fixture' },
   });
   registerAttestationVerifier({
@@ -601,6 +602,7 @@ it('real workload mint uses its canonical inert attribution row for catalog and 
     provider: 'aws-iam',
     nonce,
     attestation: { synthetic: true },
+    protocolVersion: 2,
   });
   const verified = verifyServiceToken(minted.token);
   if (!verified.ok) throw new Error('Expected actual signed workload mint');
@@ -623,8 +625,35 @@ it('real workload mint uses its canonical inert attribution row for catalog and 
     .select()
     .from(appCapabilityCatalogRegistrations)
     .where(eq(appCapabilityCatalogRegistrations.id, pin.registrationId));
-  expect(registered.registeredByCredentialId).toBe(bound.binding.attestationId);
-  const issued = await issue(p, r.session.accessToken, 'readViewerGraph', minted.token);
+  expect(registered.registeredByCredentialId).toBeNull();
+  expect(registered.source).toBe('first_party');
+  const created = await request(app)
+    .post('/capabilities/foreground-execution-authorizations')
+    .auth(minted.token, { type: 'bearer' })
+    .send({
+      authority: 'first_party',
+      kind: 'direct_request',
+      subjectToken: r.session.accessToken,
+      actor: { type: 'requester', accountId: r.user.id },
+      resource: {
+        appId: registered.appSlug,
+        effectiveAccountId: r.user.id,
+        resourceType: 'account',
+        resourceId: r.user.id,
+      },
+      tool: 'readViewerGraph',
+      expectedCatalog: pin,
+      runId: randomUUID(),
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+  expect(created.status).toBe(201);
+  const ticket = await request(app)
+    .post('/capabilities/tickets')
+    .auth(minted.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: created.body.authorization.id, expectedCatalog: pin });
+  expect(ticket.status).toBe(201);
+  const issued = { authorization: created.body.authorization, ticket: ticket.body.ticket };
   expect(issued.authorization.coordinatorCredentialId).toBe(bound.binding.attestationId);
   expect((await read(issued.ticket)).status).toBe(200);
   await getDb()

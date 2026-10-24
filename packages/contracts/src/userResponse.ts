@@ -1,3 +1,4 @@
+import { isoDateTime } from './stringChecks';
 /**
  * Canonical API user-response contracts.
  *
@@ -29,7 +30,7 @@
  * `require()`).
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 import { avatarCharacterSchema } from './avatarCharacter';
@@ -305,7 +306,7 @@ export const userResponseSchema = z
     personalization: z
       .object({
         mentionMono: z
-          .object({ allowed: z.boolean(), expiresAt: z.string().datetime().nullable() })
+          .object({ allowed: z.boolean(), expiresAt: z.string().check(isoDateTime()).nullable() })
           .strict(),
       })
       .strict()
@@ -365,12 +366,12 @@ export const userProfileUpdateSchema = z
      */
     languages: z.array(z.string()).optional(),
     accountExpiresAfterInactivityDays: z.number().nullable().optional(),
-    notificationPreferences: z.record(z.unknown()).optional(),
+    notificationPreferences: z.record(z.string(), z.unknown()).optional(),
     userPreferences: z
       .object({ displayCurrency: z.enum(['USD', 'EUR', 'FAIR']).optional() })
       .catchall(z.unknown())
       .optional(),
-    privacySettings: z.record(z.unknown()).optional(),
+    privacySettings: z.record(z.string(), z.unknown()).optional(),
     /**
      * Portable theme preference. Written through the same `PUT /users/me`
      * settings-update path as `languages`/`userPreferences`.

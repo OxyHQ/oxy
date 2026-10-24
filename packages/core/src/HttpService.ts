@@ -16,6 +16,7 @@
 import { TTLCache, registerCacheForCleanup, unregisterCacheFromCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
+import { awaitRequestSignal } from './utils/requestSignal';
 import {
   createCancelledError,
   ErrorCodes,
@@ -35,6 +36,17 @@ import { getBrowserActivityIdHeader } from './utils/activityId';
 import { requiresCorsPreflight } from './utils/corsPreflight';
 import { trimLeadingSlashes, trimTrailingSlashes } from './utils/slashes';
 
+/** Secret proofs that must remain within the configured API origin. */
+const REQUESTER_PROOF_HEADERS = new Set([
+  'x-oxy-requester-token',
+  'x-oxy-task-id',
+  'x-oxy-capability-ticket',
+  'x-oxy-mcp-media-token',
+  'x-oxy-requester-context',
+  'x-oxy-presented-requester-context',
+  'x-oxy-presented-service-token',
+]);
+
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
@@ -50,7 +62,18 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
   if (!left || !right) return false;
   const a = decodeTokenClaims(left);
   const b = decodeTokenClaims(right);
-  if (!a || !b || !(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  if (!a || !b) return false;
+  if (a.type === 'service' || b.type === 'service') {
+    if (a.type !== 'service' || b.type !== 'service') return false;
+    return (
+      ['appId', 'credentialId', 'ownerAccountId', 'environment', 'aud', 'iss'].every(
+        (key) => typeof a[key] === 'string' && a[key] !== '' && a[key] === b[key],
+      ) &&
+      a.authority === b.authority &&
+      JSON.stringify(a.scopes) === JSON.stringify(b.scopes)
+    );
+  }
+  if (!(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
   // A refresh may rotate exp/iat/jti while preserving its account and session.
   // Opaque/malformed context fields cannot establish that equivalence.
   return [
@@ -65,21 +88,6 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
 }
 
-/** Cancel this wait only; the shared mint continues for other callers. */
-function awaitRequestSignal<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return pending;
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      reject(createCancelledError());
-    };
-    if (signal.aborted) onAbort();
-    else signal.addEventListener('abort', onAbort, { once: true });
-    // Both handlers remain attached even after cancellation, so a late shared
-    // failure is observed without reviving this request or becoming unhandled.
-    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-  });
-}
-
 /** A trusted platform transport, for example Expo's streaming fetch. */
 export type ResponseTransport = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -90,7 +98,7 @@ export type ResponseTransport = (input: string, init: RequestInit) => Promise<Re
  * The caller owns response parsing and the AbortSignal for its full lifetime.
  */
 export interface ResponseRequest {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   body?: BodyInit;
   headers?: HeadersInit;
@@ -180,7 +188,7 @@ export interface RequestOptions {
 }
 
 interface RequestConfig extends RequestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  method: 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   data?: unknown;
   params?: Record<string, unknown>;
@@ -676,6 +684,27 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    // Per-call authority is not represented by the instance's session cache
+    // key. Never share or retain responses authenticated by explicit headers.
+    if (
+      Object.keys(config.headers ?? {}).some(
+        (key) =>
+          ['authorization', 'x-oxy-user-id'].includes(key.toLowerCase()) ||
+          REQUESTER_PROOF_HEADERS.has(key.toLowerCase()),
+      )
+    ) {
+      config = { ...config, headers: { ...config.headers }, cache: false, deduplicate: false };
+    }
+    if (
+      Object.keys(config.headers ?? {}).some((key) =>
+        REQUESTER_PROOF_HEADERS.has(key.toLowerCase()),
+      )
+    ) {
+      const target = new URL(this.buildURL(config.url));
+      if (target.origin !== new URL(this.baseURL).origin || target.username || target.password) {
+        throw new Error('Requester proofs must target the configured API origin');
+      }
+    }
     const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
     const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
     if (!cache && !deduplicate) {
@@ -883,6 +912,15 @@ export class HttpService {
         const useXhrForUpload =
           isFormData && isReactNative() && typeof XMLHttpRequest !== 'undefined';
 
+        // XHR cannot disable redirects. Delegated requester proofs belong to
+        // server fetch transports, where redirect:error is enforceable.
+        if (
+          useXhrForUpload &&
+          Object.keys(headers).some((key) => REQUESTER_PROOF_HEADERS.has(key.toLowerCase()))
+        ) {
+          throw new Error('Requester proofs require a transport that rejects redirects');
+        }
+
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -891,14 +929,15 @@ export class HttpService {
               bodyValue as FormData,
               controller.signal,
               timeout,
-              this.shouldSendCredentials(fullUrl),
+              false,
             )
           : await fetch(fullUrl, {
               method,
               headers,
               body: bodyValue as BodyInit | null | undefined,
               signal: controller.signal,
-              credentials: this.getCredentialsMode(fullUrl),
+              credentials: 'omit',
+              redirect: 'error',
             });
 
         // Cleared as early as possible; the `finally` below is what GUARANTEES
@@ -1192,9 +1231,7 @@ export class HttpService {
     return new Promise<Response>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(method, url, true);
-      // Only send ambient cookies to the configured API origin. Absolute
-      // caller-supplied URLs can target arbitrary origins, so they must not
-      // receive credential-bearing requests by default.
+      // Oxy authenticates with explicit credentials, never ambient cookies.
       xhr.withCredentials = withCredentials;
 
       // Forward headers but skip Content-Type — XHR sets the multipart
@@ -1373,18 +1410,6 @@ export class HttpService {
 
     const queryString = searchParams.toString();
     return queryString ? `${base}${base.includes('?') ? '&' : '?'}${queryString}` : base;
-  }
-
-  private getCredentialsMode(url: string): RequestCredentials {
-    return this.shouldSendCredentials(url) ? 'include' : 'omit';
-  }
-
-  private shouldSendCredentials(url: string): boolean {
-    try {
-      return new URL(url).origin === new URL(this.baseURL).origin;
-    } catch {
-      return false;
-    }
   }
 
   /**
@@ -1755,7 +1780,7 @@ export class HttpService {
     }
 
     try {
-      const body = config.method === 'GET' ? undefined : config.body;
+      const body = config.method === 'GET' || config.method === 'HEAD' ? undefined : config.body;
       const init: RequestInit & { duplex?: 'half' } = {
         method: config.method,
         headers,
@@ -1763,6 +1788,9 @@ export class HttpService {
         signal: config.signal,
         credentials: 'omit',
         redirect: 'error',
+        // The browser cache is separate from SDK caches and cannot distinguish
+        // account changes unless every receiver supplies correct Vary headers.
+        cache: 'no-store',
       };
       // Node fetch requires this flag for streaming uploads; ordinary and
       // multipart bodies keep the platform's existing body serialization.

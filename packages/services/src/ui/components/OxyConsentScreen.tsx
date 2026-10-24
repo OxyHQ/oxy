@@ -73,6 +73,8 @@ export interface OxyConsentResource {
 }
 
 export interface OxyConsentScreenProps {
+  /** Presentation only: own sign-in has no permission grant. External MCP stays consent. */
+  mode?: 'consent' | 'sign-in';
   /** The resolved requesting application. */
   application: OxyConsentApplication;
   /** OAuth scopes requested by the client (mapped to friendly labels). */
@@ -215,6 +217,7 @@ function ConsentLink({
 
 export function OxyConsentScreen({
   application,
+  mode = 'consent',
   scopes,
   user,
   resource,
@@ -269,10 +272,12 @@ export function OxyConsentScreen({
           </View>
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]}>
-          {t('consent.title', { app: appName })}
+          {mode === 'sign-in' ? t('signin.title') : t('consent.title', { app: appName })}
         </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {t('consent.subtitle', { app: appName })}
+          {mode === 'sign-in'
+            ? t('signin.chooser.subtitleToApp', { app: appName })
+            : t('consent.subtitle', { app: appName })}
         </Text>
       </View>
 
@@ -333,36 +338,38 @@ export function OxyConsentScreen({
         </View>
       ) : null}
 
-      {/* Requested permissions */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-          {t('consent.permissions.title')}
-        </Text>
-        <View
-          style={[
-            styles.card,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-          ]}
-        >
-          {permissionRows.length > 0 ? (
-            permissionRows.map((row) => (
-              <View key={row.scope} testID={`consent-scope-${row.scope}`} style={styles.row}>
+      {/* Own sign-in has no permissions section, including the basic fallback. */}
+      {mode === 'consent' ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+            {t('consent.permissions.title')}
+          </Text>
+          <View
+            style={[
+              styles.card,
+              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+            ]}
+          >
+            {permissionRows.length > 0 ? (
+              permissionRows.map((row) => (
+                <View key={row.scope} testID={`consent-scope-${row.scope}`} style={styles.row}>
+                  <View style={[styles.bullet, { backgroundColor: theme.colors.primary }]} />
+                  <Text style={[styles.rowText, { color: theme.colors.text }]}>
+                    {permissionRowLabel(row, t)}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <View testID="consent-scope-basic" style={styles.row}>
                 <View style={[styles.bullet, { backgroundColor: theme.colors.primary }]} />
                 <Text style={[styles.rowText, { color: theme.colors.text }]}>
-                  {permissionRowLabel(row, t)}
+                  {t('consent.permissions.basic')}
                 </Text>
               </View>
-            ))
-          ) : (
-            <View testID="consent-scope-basic" style={styles.row}>
-              <View style={[styles.bullet, { backgroundColor: theme.colors.primary }]} />
-              <Text style={[styles.rowText, { color: theme.colors.text }]}>
-                {t('consent.permissions.basic')}
-              </Text>
-            </View>
-          )}
+            )}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       {resource && resource.writeActions.length > 0 ? (
         <View style={styles.section}>
@@ -479,7 +486,7 @@ export function OxyConsentScreen({
           loading={busy}
           style={styles.actionButton}
         >
-          {t('consent.allow', { app: appName })}
+          {mode === 'sign-in' ? t('signin.actions.continue') : t('consent.allow', { app: appName })}
         </Button>
         <Button
           testID="consent-deny"
@@ -493,9 +500,11 @@ export function OxyConsentScreen({
         </Button>
       </View>
 
-      <Text style={[styles.disclaimer, { color: theme.colors.textSecondary }]}>
-        {t('consent.disclaimer', { app: appName })}
-      </Text>
+      {mode === 'consent' ? (
+        <Text style={[styles.disclaimer, { color: theme.colors.textSecondary }]}>
+          {t('consent.disclaimer', { app: appName })}
+        </Text>
+      ) : null}
     </ScrollView>
   );
 }

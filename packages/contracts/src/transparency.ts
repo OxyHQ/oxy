@@ -1,4 +1,6 @@
-import { z } from '@oxy.so/zod3';
+import { integerCheck } from './numberChecks';
+import { utf16MinLength } from './stringChecks';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Transparency log — the public wire contract of the checkpoint surface.
@@ -34,20 +36,20 @@ const hexDigestSchema = z
  */
 export const transparencyCheckpointSignatureSchema = z.object({
   /** Uncompressed hex public key of the signer. */
-  publicKey: z.string().min(1),
+  publicKey: z.string().check(utf16MinLength(1)),
   alg: z.literal('ES256K-DER-SHA256'),
   /** DER-encoded hex secp256k1 signature over the checkpoint signing input. */
-  signature: z.string().min(1),
+  signature: z.string().check(utf16MinLength(1)),
 });
 
 /** Where a checkpoint root was published on a public chain. */
 export const transparencyAnchorSchema = z.object({
   /** Chain/network identifier, e.g. `faircoin-main`. */
-  network: z.string().min(1),
-  txid: z.string().min(1),
-  confirmations: z.number().int().nonnegative(),
+  network: z.string().check(utf16MinLength(1)),
+  txid: z.string().check(utf16MinLength(1)),
+  confirmations: z.number().check(integerCheck()).nonnegative(),
   /** When the anchoring transaction was broadcast (ms epoch). */
-  anchoredAt: z.number().int().positive(),
+  anchoredAt: z.number().check(integerCheck()).positive(),
 });
 
 /**
@@ -59,11 +61,11 @@ export const transparencyAnchorSchema = z.object({
  * normal, temporary state rather than an error.
  */
 export const transparencyCheckpointSchema = z.object({
-  index: z.number().int().nonnegative(),
+  index: z.number().check(integerCheck()).nonnegative(),
   /** End of the committed period (ms epoch). */
-  periodEnd: z.number().int().positive(),
+  periodEnd: z.number().check(integerCheck()).positive(),
   /** Number of subjects (leaves) committed. */
-  treeSize: z.number().int().nonnegative(),
+  treeSize: z.number().check(integerCheck()).nonnegative(),
   root: hexDigestSchema,
   /** Hash of the previous checkpoint; `null` only at genesis. */
   prevCheckpointHash: hexDigestSchema.nullable(),
@@ -80,11 +82,11 @@ export const transparencyCheckpointSchema = z.object({
  */
 export const transparencyInclusionProofSchema = z.object({
   checkpoint: transparencyCheckpointSchema,
-  subjectDid: z.string().min(1),
-  seq: z.number().int().nonnegative(),
+  subjectDid: z.string().check(utf16MinLength(1)),
+  seq: z.number().check(integerCheck()).nonnegative(),
   headRecordId: hexDigestSchema,
   leaf: hexDigestSchema,
-  leafIndex: z.number().int().nonnegative(),
+  leafIndex: z.number().check(integerCheck()).nonnegative(),
   /** Audit path, leaf-adjacent sibling first; empty for a single-leaf tree. */
   proof: z.array(hexDigestSchema),
 });

@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * The closed set of Oxy in-app notification types — owned here so the API's
  * CHECK constraint (`notifications.type`), its request validation and the SDK
@@ -11,7 +12,7 @@
  * Platform-agnostic — zod only, no react/react-native/expo.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 export const OXY_NOTIFICATION_TYPES = [
   'like',
@@ -57,14 +58,29 @@ export const OXY_NOTIFICATION_URL_MAX = 2048;
  */
 export const createOxyNotificationRequestSchema = z
   .object({
-    recipientId: z.string().min(1),
-    actorId: z.string().min(1),
+    recipientId: z.string().check(utf16MinLength(1)),
+    actorId: z.string().check(utf16MinLength(1)),
     type: z.enum(OXY_NOTIFICATION_TYPES),
-    entityId: z.string().min(1),
+    entityId: z.string().check(utf16MinLength(1)),
     entityType: z.enum(OXY_NOTIFICATION_ENTITY_TYPES),
-    title: z.string().trim().min(1).max(OXY_SYSTEM_NOTIFICATION_TITLE_MAX).optional(),
-    message: z.string().trim().min(1).max(OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX).optional(),
-    url: z.string().trim().min(1).max(OXY_NOTIFICATION_URL_MAX).optional(),
+    title: z
+      .string()
+      .trim()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(OXY_SYSTEM_NOTIFICATION_TITLE_MAX))
+      .optional(),
+    message: z
+      .string()
+      .trim()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX))
+      .optional(),
+    url: z
+      .string()
+      .trim()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(OXY_NOTIFICATION_URL_MAX))
+      .optional(),
     data: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((value, context) => {
@@ -126,7 +142,7 @@ export const OXY_SYSTEM_NOTIFICATION_PUSH_TYPE = 'oxy_system_notification';
  */
 export const oxySystemNotificationPushDataSchema = z.object({
   type: z.literal(OXY_SYSTEM_NOTIFICATION_PUSH_TYPE),
-  notificationId: z.string().min(1).max(64),
+  notificationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
 });
 
 export type OxySystemNotificationPushData = z.infer<typeof oxySystemNotificationPushDataSchema>;

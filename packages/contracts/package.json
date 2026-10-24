@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/contracts",
-  "version": "5.8.1",
-  "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
+  "version": "6.0.1",
+  "description": "OxyHQ API contracts — single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -69,7 +69,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/zod3 && bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/zod4 && bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
@@ -81,7 +81,7 @@
     "check:profile-colors": "node scripts/generate-profile-colors.mjs --check"
   },
   "dependencies": {
-    "@oxy.so/zod3": "workspace:*"
+    "@oxy.so/zod4": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

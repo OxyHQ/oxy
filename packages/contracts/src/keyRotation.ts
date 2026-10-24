@@ -1,3 +1,4 @@
+import { utf16MinLength } from './stringChecks';
 /**
  * Key-rotation contract (b3 Feature 3 — key rotation + last-credential replacement).
  *
@@ -22,7 +23,7 @@
  *
  * Platform-agnostic — zod only, ESM-safe (no `require()`).
  */
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Response of `POST /auth/rotate/challenge`: the single-use `rotate_key`
@@ -55,11 +56,11 @@ export type RotateKeyChallengeResponse = z.infer<typeof rotateKeyChallengeRespon
  * key Y.
  */
 export const rotateKeyCompleteRequestSchema = z.object({
-  newPublicKey: z.string().trim().min(1),
-  challenge: z.string().trim().min(1),
-  signature: z.string().trim().min(1),
+  newPublicKey: z.string().trim().check(utf16MinLength(1)),
+  challenge: z.string().trim().check(utf16MinLength(1)),
+  signature: z.string().trim().check(utf16MinLength(1)),
   /** Proof-of-possession: the NEW key signs the rotate_key_new payload. */
-  newKeyProof: z.string().trim().min(1),
+  newKeyProof: z.string().trim().check(utf16MinLength(1)),
   timestamp: z.number(),
   /**
    * When true, all OTHER active sessions for the account are revoked after a

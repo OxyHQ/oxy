@@ -35,7 +35,7 @@
  * `require()`).
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 
 /**
  * Application `type` enum. Mirrors `APPLICATION_TYPES` in

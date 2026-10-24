@@ -4,7 +4,6 @@ import { Field } from '@oxy.so/bloom/field';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
-import { Switch } from '@oxy.so/bloom/switch';
 import { TagField } from '@oxy.so/bloom/tag-field';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -19,22 +18,16 @@ import {
   useUpdateApplication,
 } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
-import { hasAliaMachineScopes } from '@/lib/application-scopes';
 import { copyText } from '@/lib/clipboard';
 import { useTranslation } from '@/lib/i18n';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 import { ApplicationStatusBadge } from './ApplicationStatusBadge';
 import { DeleteApplicationDialog } from './DeleteApplicationDialog';
-import {
-  draftFromApplication,
-  draftScopes,
-  type GeneralDraft,
-  isDraftDirty,
-} from './general-draft';
+import { draftFromApplication, type GeneralDraft, isDraftDirty } from './general-draft';
 import { LogoField } from './LogoField';
 
 /**
- * The application's identity, OAuth redirect URIs, scope grants and its danger
+ * The application's identity, OAuth redirect URIs and its danger
  * zone. One draft, one Save: the screen is keyed by application id, so moving
  * between applications mounts a fresh draft.
  */
@@ -75,7 +68,6 @@ export function GeneralForm({
           // application metadata can be exposed publicly.
           icon: stripSensitiveImageUrlQueryParams(draft.icon),
           redirectUris: draft.redirectUris,
-          scopes: draftScopes(application, draft),
         },
       });
       toast.success(t('applications.general.saved'));
@@ -178,54 +170,6 @@ export function GeneralForm({
           />
         </CardBody>
       </Card>
-
-      <GroupedSection
-        title={t('applications.general.paymentsTitle')}
-        footer={t('applications.general.paymentsBody')}
-      >
-        <GroupedSectionItem
-          title="payments:read"
-          description={t('applications.scopes.paymentsRead')}
-          rightElement={
-            <Switch
-              checked={draft.paymentsRead}
-              onCheckedChange={(paymentsRead) => patch({ paymentsRead })}
-              disabled={!canEdit}
-              accessibilityLabel="payments:read"
-            />
-          }
-        />
-        <GroupedSectionItem
-          title="payments:write"
-          description={t('applications.scopes.paymentsWrite')}
-          rightElement={
-            <Switch
-              checked={draft.paymentsWrite}
-              onCheckedChange={(paymentsWrite) => patch({ paymentsWrite })}
-              disabled={!canEdit}
-              accessibilityLabel="payments:write"
-            />
-          }
-        />
-      </GroupedSection>
-
-      <GroupedSection
-        title={t('applications.general.aliaTitle')}
-        footer={t('applications.general.aliaBody')}
-      >
-        <GroupedSectionItem
-          title="alia:chat + inference:invoke"
-          description={t('applications.general.aliaToggleHint')}
-          rightElement={
-            <Switch
-              checked={draft.aliaMachineAccess ?? hasAliaMachineScopes(application.scopes)}
-              onCheckedChange={(aliaMachineAccess) => patch({ aliaMachineAccess })}
-              disabled={!canEdit}
-              accessibilityLabel={t('applications.general.aliaToggle')}
-            />
-          }
-        />
-      </GroupedSection>
 
       {canEdit ? (
         <View className="flex-row justify-end gap-2">

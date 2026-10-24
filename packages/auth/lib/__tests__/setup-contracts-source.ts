@@ -12,7 +12,7 @@
  * is `mock.module` (the same mechanism `setup-mocks.ts` already uses for
  * native-only modules): point the `@oxy.so/contracts` specifier at the package
  * SOURCE. The source uses extensionless relative imports and depends only on
- * `@oxy.so/zod3`, so it resolves with no build. This must run BEFORE any test file (or
+ * `@oxy.so/zod4`, so it resolves with no build. This must run BEFORE any test file (or
  * `@/lib/schemas`) imports `@oxy.so/contracts`, hence it is the first preload.
  *
  * This is TEST-ONLY: it lives in the test preload and never affects the Vite

@@ -1,3 +1,4 @@
+import { utf16MinLength } from './stringChecks';
 /**
  * Wire contract for `GET /internal/accounts/:accountId/access/:userId`: Oxy
  * answers a trusted first-party service's question "may this person act FOR
@@ -20,7 +21,7 @@
  * Platform-agnostic — zod only.
  */
 
-import { z } from '@oxy.so/zod3';
+import { z } from '@oxy.so/zod4';
 import { accountKindSchema } from './accountGraph';
 
 /**
@@ -56,8 +57,8 @@ export const accountAccessSourceSchema = z.enum(ACCOUNT_ACCESS_SOURCES);
  * revokes), never on `role`.
  */
 export const accountAccessGrantSchema = z.object({
-  role: z.string().min(1),
-  permissions: z.array(z.string().min(1)),
+  role: z.string().check(utf16MinLength(1)),
+  permissions: z.array(z.string().check(utf16MinLength(1))),
   /** Only an active membership grants access, so this is the one value. */
   status: z.literal('active'),
   source: accountAccessSourceSchema,
@@ -67,7 +68,7 @@ export type AccountAccessGrant = z.infer<typeof accountAccessGrantSchema>;
 
 export const accountAccessVerdictSchema = z
   .object({
-    accountId: z.string().min(1),
+    accountId: z.string().check(utf16MinLength(1)),
     /** `null` when no such account exists. */
     kind: accountKindSchema.nullable(),
     /** `null` means: this person may not act for this account. */
