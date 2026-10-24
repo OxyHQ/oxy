@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, type TextInputProps } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../components/ExpoImage';
 import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
