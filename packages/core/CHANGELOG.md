@@ -1,15 +1,19 @@
 # Changelog — `@oxy.so/core`
 
-## Unreleased
-
-### Fixed
-
-- `identity.rotateKey` stores the new recovery phrase once the new key is persisted on the device. The phrase slot used to keep the replaced key's phrase, so Settings revealed a phrase that recovers nothing and the device backup lost its phrase. If the new phrase cannot be stored, the replaced one is deleted.
-- `deleteIdentity` retries a failed device-backup clear once, then overwrites the record with a tombstone that restores nothing. A failed clear used to leave the full key in a store (Android Block Store) that is restored silently on the next launch without keys, so a deleted identity could come back.
+## 7.3.0
 
 ### Added
 
+- `users.lookupMany(ids): Promise<BatchLookup<User>>` reports every id as `found` (the users), `missing` (its chunk was answered without it: the server says the account does not exist or is not visible — the only list safe to cache as absent) or `failed` (its chunk failed: unknown, ask again), plus `error`, the first chunk failure. It never rejects for a chunk failure. `users.getMany` is now `lookupMany(ids).found`, unchanged in behaviour, and its JSDoc says it conflates failure with absence. Measured in Allo: one `/users/by-ids` chunk failing on a phone left a conversation with no name and a placeholder avatar for five minutes, because the people layer cached every id `getMany` did not return as unresolvable.
+- `OxyServer.assets.lookupBySha256(sha256s, { ownerUserId? })` gives the reverse content-address lookup the same three outcomes; `metadataBySha256` is its `found`, unchanged.
+- `BatchLookup<T>` is exported from the root entry.
 - `KeyManager.getRecoveryMnemonicForCurrentIdentity()` returns the stored phrase only when it derives the key on this device, and `null` otherwise. It throws `IdentityUnavailableError` when storage cannot be read, like `getRecoveryMnemonic`.
+
+### Fixed
+
+- An aborted request is classified by whether the SDK's own controller fired, not by the error's name. Expo's `fetch` (the global `fetch` of Expo 52+ native apps) rejects an abort with a plain `Error` — `fetch failed: Fetch request has been canceled` — so on a phone the 5 s per-attempt timeout surfaced as `NETWORK_ERROR` with `status: 0`, and a caller's cancellation as a network failure the retry loop tried again. A timeout is now `TIMEOUT` (`timeout: true`, `Request timed out after <n>ms`) and a cancellation `CANCELLED` on every platform. A GET that times out is therefore no longer retried on React Native, matching the web (`retryOnTimeout` opts in).
+- `identity.rotateKey` stores the new recovery phrase once the new key is persisted on the device. The phrase slot used to keep the replaced key's phrase, so Settings revealed a phrase that recovers nothing and the device backup lost its phrase. If the new phrase cannot be stored, the replaced one is deleted.
+- `deleteIdentity` retries a failed device-backup clear once, then overwrites the record with a tombstone that restores nothing. A failed clear used to leave the full key in a store (Android Block Store) that is restored silently on the next launch without keys, so a deleted identity could come back.
 
 ## 7.2.0
 

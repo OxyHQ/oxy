@@ -98,6 +98,7 @@ import {
 } from './aliaMachineCredential';
 import { ServiceAssetMetadataError, ServiceLinkedDownloadUrlError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
+import { type BatchLookup, runBatchLookup } from '../utils/batchLookup';
 import { logger } from '../logger';
 
 /** Server-side cap of `POST /assets/service/by-ids`. */
@@ -649,9 +650,13 @@ export class ServerAssetsApi extends AssetsApi {
   /**
    * Reverse content-address lookup: resolve `sha256` digests to the servable
    * asset holding each (`POST /assets/service/by-sha256`, scope `files:read`),
-   * with a public `url` for active public assets. Malformed hashes are dropped
-   * client-side; the server omits unknown ones, so map by `sha256`. A failed
-   * chunk is logged and skipped. Never cached.
+   * with a public `url` for active public assets, one call per chunk of 100,
+   * every digest sorted into found / missing / failed ({@link BatchLookup}).
+   * Digests are compared lowercase; malformed ones are dropped client-side and
+   * appear in no list. `missing` is the server's word that nothing servable
+   * holds that digest; `failed` is a chunk that failed — unknown, not "not
+   * stored", so never cache it as absent or re-upload on its strength alone.
+   * Never rejects for a chunk failure. Never cached.
    *
    * Asset rows are per owner. Pass `ownerUserId` to resolve each hash to THAT
    * account's own row — the id it may attach to its own content. Without it,
@@ -659,46 +664,48 @@ export class ServerAssetsApi extends AssetsApi {
    * stored" and for the public `url`, but that id belongs to whoever uploaded
    * first.
    */
+  async lookupBySha256(
+    sha256s: string[],
+    options: { ownerUserId?: string } = {},
+  ): Promise<BatchLookup<ServiceAssetMetadataBySha>> {
+    return runBatchLookup<ServiceAssetMetadataBySha>({
+      method: 'assets.lookupBySha256',
+      keys: Array.from(
+        new Set(
+          sha256s
+            .filter((sha): sha is string => typeof sha === 'string')
+            .map((sha) => sha.trim().toLowerCase())
+            .filter((sha) => SHA256_HEX_PATTERN.test(sha)),
+        ),
+      ),
+      chunkSize: SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE,
+      fetchChunk: (part) =>
+        lane(this.ctx).request<ServiceAssetMetadataBySha[]>(
+          'POST',
+          '/assets/service/by-sha256',
+          options.ownerUserId
+            ? { sha256s: part, ownerUserId: options.ownerUserId }
+            : { sha256s: part },
+        ),
+      mapItem: (entry) => entry,
+      keyOf: (entry) =>
+        typeof entry?.sha256 === 'string' ? entry.sha256.toLowerCase() : undefined,
+    });
+  }
+
+  /**
+   * The assets of {@link lookupBySha256}, and nothing else.
+   *
+   * **This conflates failure with absence**: a failed chunk is logged and
+   * contributes nothing, exactly like a digest nothing holds, and this never
+   * rejects. Anything that acts on "not stored" — caching it, uploading again —
+   * should use {@link lookupBySha256} and act only on its `missing`.
+   */
   async metadataBySha256(
     sha256s: string[],
     options: { ownerUserId?: string } = {},
   ): Promise<ServiceAssetMetadataBySha[]> {
-    const unique = Array.from(
-      new Set(
-        sha256s
-          .filter((sha): sha is string => typeof sha === 'string')
-          .map((sha) => sha.trim().toLowerCase())
-          .filter((sha) => SHA256_HEX_PATTERN.test(sha)),
-      ),
-    );
-    if (unique.length === 0) return [];
-
-    const settled = await Promise.all(
-      chunk(unique, SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE).map(
-        async (part): Promise<ServiceAssetMetadataBySha[]> => {
-          try {
-            const body = options.ownerUserId
-              ? { sha256s: part, ownerUserId: options.ownerUserId }
-              : { sha256s: part };
-            const entries = await lane(this.ctx).request<ServiceAssetMetadataBySha[]>(
-              'POST',
-              '/assets/service/by-sha256',
-              body,
-            );
-            return Array.isArray(entries) ? entries : [];
-          } catch (error: unknown) {
-            logger.warn('assets.metadataBySha256: chunk failed, continuing with remaining chunks', {
-              method: 'assets.metadataBySha256',
-              chunkSize: part.length,
-              status: extractErrorStatus(error),
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return [];
-          }
-        },
-      ),
-    );
-    return settled.flat();
+    return (await this.lookupBySha256(sha256s, options)).found;
   }
 
   /**

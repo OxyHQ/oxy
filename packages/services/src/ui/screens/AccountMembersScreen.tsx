@@ -111,7 +111,14 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   );
   const memberProfilesQuery = useQuery({
     queryKey: ['users', 'by-ids', memberUserIds],
-    queryFn: () => oxyServices.users.getMany(memberUserIds),
+    // `lookupMany`, not `getMany`: a chunk that failed is unknown, not absent.
+    // Failing the query lets React Query retry it, where a resolved empty
+    // answer would be cached as "no handle" for the whole stale window.
+    queryFn: async () => {
+      const lookup = await oxyServices.users.lookupMany(memberUserIds);
+      if (lookup.failed.length > 0) throw lookup.error ?? new Error('Member profiles unavailable');
+      return lookup.found;
+    },
     enabled: canUsePrivateApi && memberUserIds.length > 0,
   });
   const memberLabelByUserId = useMemo(() => {

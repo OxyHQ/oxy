@@ -8,7 +8,7 @@ export interface MemberProfile {
 }
 
 /**
- * Names for a workspace's members, one batch read (`users.getMany`). Rows show the id
+ * Names for a workspace's members, one batch read (`users.lookupMany`). Rows show the id
  * until it answers, and keep showing it for anyone the read could not resolve.
  */
 export function useMemberProfiles(userIds: ReadonlyArray<string>): Map<string, MemberProfile> {
@@ -17,7 +17,12 @@ export function useMemberProfiles(userIds: ReadonlyArray<string>): Map<string, M
   const query = useQuery({
     queryKey: ['member-profiles', ids],
     queryFn: async () => {
-      const users = await oxyServices.users.getMany(ids);
+      // `lookupMany`, not `getMany`: a failed chunk is unknown, not absent, so
+      // the query fails and is retried instead of caching ids as nameless for
+      // the ten-minute stale window.
+      const lookup = await oxyServices.users.lookupMany(ids);
+      if (lookup.failed.length > 0) throw lookup.error ?? new Error('Member profiles unavailable');
+      const users = lookup.found;
       return new Map<string, MemberProfile>(
         users.map((user) => [
           user.id,

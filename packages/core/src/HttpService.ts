@@ -259,8 +259,17 @@ const IDEMPOTENT_METHODS: ReadonlySet<string> = new Set(['GET', 'PUT', 'DELETE']
 /**
  * Default per-request timeout (ms) when neither the call site nor
  * {@link OxyConfig.requestTimeout} overrides it. Kept tight so a stalled
- * endpoint surfaces as an `AbortError` quickly rather than blocking the
+ * endpoint surfaces as a `TIMEOUT` quickly rather than blocking the
  * request queue.
+ *
+ * Per attempt, started when the attempt takes its queue slot. For a request
+ * the caller passed no `signal`, this timer is the ONLY thing in the SDK that
+ * aborts it: an account switch, a token refresh, a cache invalidation or an
+ * app-state change never aborts an in-flight request (they fence its RESULT
+ * out of the cache through the read lease instead), and deduplicated work is
+ * aborted only once every caller waiting on it has cancelled. On a phone,
+ * Expo's `fetch` reports that abort as `fetch failed: Fetch request has been
+ * canceled`; `request()` classifies it by its own controller, as `TIMEOUT`.
  */
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
@@ -1098,7 +1107,16 @@ export class HttpService {
         // over (a Jest VM context, a worker, an iframe), in which case the check
         // silently fails and the abort is misreported as a generic 500. That was
         // happening; a structural check cannot be fooled that way.
-        if (isAbortLike(error)) {
+        //
+        // And the NAME is not enough either: Expo's `fetch` (the global one in
+        // Expo 52+ native apps) rejects an aborted request with a plain `Error`
+        // — `fetch failed: Fetch request has been canceled` — with no
+        // `AbortError` name. That sent our own 5s timeout through
+        // `handleHttpError` as a `NETWORK_ERROR` with `status: 0`, so a slow
+        // request on a phone read as a failed network and a caller's
+        // cancellation as one worth retrying. Whether OUR controller fired is
+        // the fact; the error's shape is only the platform's report of it.
+        if (isAbortLike(error) || controller.signal.aborted) {
           if (timedOut) {
             const timeoutError = new Error(`Request timed out after ${timeout}ms`) as Error & {
               status?: number;

@@ -19,6 +19,7 @@ import {
   oxyAccountDetailCacheKey,
 } from '../utils/accountCacheSweep';
 import { extractErrorStatus } from '../utils/errorUtils';
+import { type BatchLookup, runBatchLookup } from '../utils/batchLookup';
 import { logger } from '../logger';
 
 const PROFILE_TTL = 5 * 60 * 1000;
@@ -72,56 +73,57 @@ export class UsersApi {
   }
 
   /**
-   * Many users by id, one round-trip per chunk of 100 — for hydration call
-   * sites that would otherwise issue one `get` per author.
+   * Many users by id, one round-trip per chunk of 100, with every id sorted
+   * into what the server returned, what it answered WITHOUT, and what could
+   * not be asked — see {@link BatchLookup}:
    *
-   * Ids are deduplicated and blank ids dropped; the result is unordered (map
-   * by `id`). `/users/by-ids` accepts a service token, a user session or an
-   * anonymous caller and returns the same public payload in every case: on a
-   * server that can mint a service token (`OxyServer`) the chunks go over the
-   * service lane — an anonymous call from a backend is charged to its shared
-   * NAT address's per-IP budget — and everywhere else over the user bearer.
+   * - `found`: the users, normalized (`name.displayName` present), unordered
+   *   (map by `id`);
+   * - `missing`: ids a chunk was answered without — the server's word that the
+   *   account does not exist or is not visible to this caller. Safe to cache
+   *   as absent;
+   * - `failed`: ids whose chunk failed (timeout, network, 5xx, 429). Unknown,
+   *   not absent: ask again, never cache them as "nobody";
+   * - `error`: the first chunk failure when `failed` is not empty.
    *
-   * Chunks are independent: a failed chunk is logged and skipped. Not cached.
+   * Never rejects for a chunk failure. Ids are deduplicated and blank ids
+   * dropped (they appear in no list). `/users/by-ids` accepts a service token, a
+   * user session or an anonymous caller and returns the same public payload in
+   * every case: on a server that can mint a service token (`OxyServer`) the
+   * chunks go over the service lane — an anonymous call from a backend is
+   * charged to its shared NAT address's per-IP budget — and everywhere else
+   * over the user bearer. Not cached.
+   */
+  async lookupMany(ids: string[]): Promise<BatchLookup<User>> {
+    const service = this.ctx.service?.available ? this.ctx.service : null;
+    return runBatchLookup<User>({
+      method: 'users.lookupMany',
+      keys: Array.from(
+        new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)),
+      ),
+      chunkSize: USERS_BY_IDS_CHUNK_SIZE,
+      fetchChunk: (chunk) =>
+        service
+          ? service.request<User[]>('POST', '/users/by-ids', { ids: chunk })
+          : this.ctx.request<User[]>('POST', '/users/by-ids', { ids: chunk }, { cache: false }),
+      mapItem: (user) => normalizeUserIdentity(user),
+      keyOf: (user) => (user?.id === undefined || user?.id === null ? undefined : String(user.id)),
+      logContext: { mode: service ? 'service' : 'user' },
+    });
+  }
+
+  /**
+   * The users of {@link lookupMany}, and nothing else.
+   *
+   * **This conflates failure with absence**: a chunk that failed (a timeout, a
+   * dropped connection) contributes nothing, exactly like ids the server does
+   * not return, and this never rejects. Fine for a one-off render; WRONG for
+   * anything that remembers who is missing — a cache of "unresolvable" ids
+   * built on it treats one network blip as "these accounts do not exist".
+   * Use {@link lookupMany} there, and cache only its `missing`.
    */
   async getMany(ids: string[]): Promise<User[]> {
-    const uniqueIds = Array.from(
-      new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)),
-    );
-    if (uniqueIds.length === 0) return [];
-
-    const chunks: string[][] = [];
-    for (let i = 0; i < uniqueIds.length; i += USERS_BY_IDS_CHUNK_SIZE) {
-      chunks.push(uniqueIds.slice(i, i + USERS_BY_IDS_CHUNK_SIZE));
-    }
-
-    const service = this.ctx.service?.available ? this.ctx.service : null;
-
-    const settled = await Promise.all(
-      chunks.map(async (chunk): Promise<User[]> => {
-        try {
-          const users = service
-            ? await service.request<User[]>('POST', '/users/by-ids', { ids: chunk })
-            : await this.ctx.request<User[]>(
-                'POST',
-                '/users/by-ids',
-                { ids: chunk },
-                { cache: false },
-              );
-          return Array.isArray(users) ? users.map((user) => normalizeUserIdentity(user)) : [];
-        } catch (error: unknown) {
-          logger.warn('users.getMany: chunk failed, continuing with remaining chunks', {
-            method: 'users.getMany',
-            mode: service ? 'service' : 'user',
-            chunkSize: chunk.length,
-            status: extractErrorStatus(error),
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return [];
-        }
-      }),
-    );
-    return settled.flat();
+    return (await this.lookupMany(ids)).found;
   }
 
   /** The signed-in user. Cached 1 minute. */
