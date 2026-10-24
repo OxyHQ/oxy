@@ -271,6 +271,74 @@ function createOxyMetroConfig(projectRoot, options = {}) {
   });
 }
 
+const COMPLETE_REACT_NATIVE = path.join(__dirname, 'react-native.js');
+/** Both spellings: Metro reports real paths, and the preset may sit behind a symlink. */
+const COMPLETE_REACT_NATIVE_PATHS = new Set([
+  COMPLETE_REACT_NATIVE,
+  fs.realpathSync(COMPLETE_REACT_NATIVE),
+]);
+/** `react-native-css/components`' entry, by any of the conditions Metro may pick. */
+const CSS_COMPONENTS_ENTRY =
+  /[/\\]react-native-css[/\\](?:dist[/\\](?:commonjs|module)[/\\]components[/\\]index\.cjs|src[/\\]components[/\\]index\.cts)$/;
+
+/**
+ * Wraps a NativeWind Metro config so that wherever NativeWind sends
+ * `react-native` to `react-native-css/components`, the import gets
+ * `./react-native.js` instead: that shim with every name of React Native's
+ * index it lacks (React Native 0.88's `AssetRegistry`, which `expo-asset`
+ * reads) forwarded to React Native. Every name the shim defines keeps its own
+ * getter, so `className` behaves exactly as NativeWind makes it.
+ *
+ * Narrow on purpose: only a request for exactly `react-native` that NativeWind
+ * resolved to the shim's entry is touched. Web (NativeWind leaves
+ * `react-native-web` imports alone at this level), deep `react-native/…`
+ * imports and every other module resolve as before.
+ *
+ * Apply it LAST, over every other resolver (NativeWind's, worklets' Bundle
+ * Mode, an app's own): it has to see the final resolution, and the completed
+ * module's own two imports must reach no redirect beneath it. They go straight
+ * to Metro's resolver (NativeWind's redirect would point the module at itself,
+ * worklets' at a module that requires it back) and resolve from the project,
+ * which sees both packages under any linker; the preset depends on neither.
+ *
+ * @param {import('metro-config').MetroConfig} config The finished config, NativeWind applied.
+ * @param {string} [projectRoot=config.projectRoot] The app package.
+ * @returns {import('metro-config').MetroConfig} `config`, its resolver wrapped.
+ */
+function withCompleteReactNative(config, projectRoot = config.projectRoot) {
+  const parentResolveRequest = config.resolver.resolveRequest;
+  const projectOrigin = path.join(projectRoot, 'package.json');
+
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (
+      COMPLETE_REACT_NATIVE_PATHS.has(context.originModulePath) &&
+      (moduleName === 'react-native' || moduleName === 'react-native-css/components')
+    ) {
+      return context.resolveRequest(
+        { ...context, originModulePath: projectOrigin },
+        moduleName,
+        platform,
+      );
+    }
+
+    const resolution = (parentResolveRequest ?? context.resolveRequest)(
+      context,
+      moduleName,
+      platform,
+    );
+    if (
+      moduleName === 'react-native' &&
+      resolution?.type === 'sourceFile' &&
+      CSS_COMPONENTS_ENTRY.test(resolution.filePath)
+    ) {
+      return { type: 'sourceFile', filePath: COMPLETE_REACT_NATIVE };
+    }
+    return resolution;
+  };
+
+  return config;
+}
+
 /**
  * Wraps a NativeWind Metro config with the Bloom single-instance rewrite and the
  * web `ws` shim. In hoisted monorepos the same Bloom version is duplicated under
@@ -300,8 +368,9 @@ function withBloomSingleInstance(nativeWindConfig, projectRoot) {
 
 /**
  * Wraps the finished config for react-native-worklets' Bundle Mode. Applied
- * LAST, so worklets' resolver sees every request first and hands the rest to
- * the Bloom and NativeWind resolvers underneath.
+ * after Bloom's and NativeWind's resolvers, so worklets' resolver sees every
+ * request before them and hands the rest down; only
+ * {@link withCompleteReactNative} sits above it.
  */
 function withWorkletsBundleMode(config, projectRoot) {
   let bundleMode;
@@ -321,11 +390,15 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
   let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
   if (staticHydrationBoundary) config = withStaticHydrationBoundary(config, projectRoot);
-  return workletsBundleMode ? withWorkletsBundleMode(config, projectRoot) : config;
+  if (workletsBundleMode) config = withWorkletsBundleMode(config, projectRoot);
+  // Outermost, so it sees the final resolution and its own module's imports
+  // reach no redirect beneath it.
+  return withCompleteReactNative(config, projectRoot);
 }
 
 module.exports = {
   createOxyMetroConfig: createOxyMetroConfigWithBloom,
   findWorkspaceRoot,
   withBloomSingleInstance,
+  withCompleteReactNative,
 };

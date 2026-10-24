@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -91,7 +91,9 @@
     "react-dom": "catalog:",
     "jsdom": "catalog:",
     "expo-router": "catalog:",
-    "@expo/router-server": "catalog:"
+    "@expo/router-server": "catalog:",
+    "react-native": "catalog:",
+    "react-native-css": "catalog:"
   },
   "peerDependenciesMeta": {
     "@oxy.so/bloom": {
