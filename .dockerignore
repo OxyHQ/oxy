@@ -23,6 +23,18 @@ node_modules
 .turbo
 **/*.tsbuildinfo
 
+# Maintained validators are rebuilt from their pinned source archives in-image.
+# Their compiler emits beside package.json rather than into dist/.
+packages/zod*/src
+packages/zod*/v3
+packages/zod*/v4
+packages/zod*/v4-mini
+packages/zod*/mini
+packages/zod*/locales
+packages/zod*/index.*
+packages/zod*/compile.*
+packages/zod*/.build-*
+
 # Secrets & environment files — NEVER copy into an image
 **/.env
 **/.env.*
