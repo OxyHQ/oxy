@@ -26,7 +26,7 @@ revocation and operation binding remain mandatory.
 | Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay and TNP runtime readbacks verified; Mention/Mercaria and remaining fleet cutovers pending | Caller→SDK→receiver tests for own and external identities |
+| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay, Moovo and TNP runtime readbacks verified; Mention/Mercaria and remaining fleet cutovers pending | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
@@ -49,6 +49,7 @@ from operator readbacks. It contains no bearer credentials or user data.
 | Peable | `7c146a945ed2df088bca75833ce9f2b631140cd7` | 118: 1/1; healthy targets |
 | CrowdSource | `0388a37eec7e599d9ea40c81ee782903bfcf7c28` | 126: 1/1; healthy targets |
 | GoWay | `28f8246f890eadb81c9e0d94e0a746d6fe3748e9` | 162: 1/1; healthy targets |
+| Moovo | `641bd5a2b6f974964c613362e393b42920d274a1` | 59: 1/1; healthy targets |
 | TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
@@ -57,6 +58,11 @@ relay; it did not activate a dormant service. GoWay's
 [deployment](https://github.com/OxyHQ/GoWay/actions/runs/40177672428) also passed.
 Published SDK receipts cover CrowdSource 3.1.0, Peable 0.5.0 and GoWay 0.7.1;
 SDK publication alone is not evidence that their consumers have deployed.
+
+Noted's [frontend deploy](https://github.com/OxyHQ/Noted/actions/runs/40180765059)
+succeeded for `b7c6c204fa349aa217575ca1e45dab36df785562`. Its HTTP/session and
+Socket.IO wire contract with Nilo is unchanged; this deployment does not claim
+Nilo's separate workload producer cutover or a signed-in user canary.
 
 Oxy [PR #1951](https://github.com/OxyHQ/oxy/pull/1951) merged as
 `f02b43785ed43ed169a6d0fe0971f7cb8d57965a`. Its

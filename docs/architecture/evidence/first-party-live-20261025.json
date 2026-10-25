@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-10-25T09:22:56.582312+00:00",
+  "generatedAt": "2026-10-25T09:34:14.467713+00:00",
   "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
   "services": [
     {
@@ -93,6 +93,18 @@
       "sourceSha": "de3db4741ff648d9de8d28d124634a9b7553652e",
       "observedAt": "2026-10-25T08:32:45.381140+00:00",
       "receiptFile": "kaana-producer-runtime-20261025.json"
+    },
+    {
+      "name": "moovo",
+      "taskDefinitionRevision": 59,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:549c61bf8a5c93662971cd5cae6a3f11e904436af73c2480587a512fa70de89d",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "641bd5a2b6f974964c613362e393b42920d274a1",
+      "observedAt": "2026-10-25T09:31:16.529513+00:00",
+      "receiptFile": "moovo-runtime-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -156,5 +168,11 @@
       "https://console.oxy.so/"
     ],
     "authenticatedSignInPerformed": false
+  },
+  "notedFrontendDeploy": {
+    "conclusion": "success",
+    "headSha": "b7c6c204fa349aa217575ca1e45dab36df785562",
+    "updatedAt": "2026-10-25T09:30:19Z",
+    "url": "https://github.com/OxyHQ/Noted/actions/runs/40180765059"
   }
 }
