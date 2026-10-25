@@ -1,4 +1,5 @@
 import React from 'react';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -50,7 +51,10 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
         <View
           style={[
             styles.iconBubble,
-            { backgroundColor: colors.error + '22', borderColor: colors.error + '55' },
+            {
+              backgroundColor: withAlpha(colors.error, 0.13),
+              borderColor: withAlpha(colors.error, 0.33),
+            },
           ]}
         >
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.error} />

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../stores/authStore';
 import LogoIcon from './logo/LogoIcon';
@@ -80,7 +80,7 @@ export const OxyAuthPrompt: React.FC<OxyAuthPromptProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <View style={[styles.logoBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+      <View style={[styles.logoBadge, { backgroundColor: withAlpha(theme.colors.primary, 0.08) }]}>
         <LogoIcon height={44} color={theme.colors.primary} />
       </View>
 
