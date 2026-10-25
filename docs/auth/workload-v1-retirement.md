@@ -96,3 +96,27 @@ At the draft checkpoint, focused verification passed:
 
 These checks establish source behavior, not fleet readiness.
 No production cleanup, binding revocation or database backfill has run here.
+
+## Core release version and consumer compatibility
+
+Prepare a **7.x minor release** when the retirement gates are satisfied
+(`7.4.0` if that is still the next available version), rather than publishing
+these changes under the existing `7.3.0` version or unconditionally choosing 8.
+The public signatures of `serviceToken`, `serviceTokenFor`, `createServiceClient`
+and the credential/principal types are unchanged. The removed
+`requestLegacyWorkloadServiceToken` helper is internal and was not exported by
+the package entry point; the public `requestWorkloadServiceToken` already emits
+v2 in Core 7.3. The observable own-workload change is ending the explicitly
+finite v1 bridge, after all producers and launchers have migrated and the token
+drain has passed. External credentials, OAuth and supported external `oxy-api`
+audiences retain their existing contracts.
+
+This version choice keeps published product peers such as `>=7.1.0 <8`
+compatible. Before the release, compare the actual packed public exports/types
+against the then-current registry package and run representative product SDK
+compositions with that artifact, including session, workload, external-key and
+external OAuth regressions. If that review reveals a public API removal or a
+supported external behavior change, stop the minor release and prepare the
+necessary major-version consumer migration first; do not silently override or
+widen consumers' peer ranges. Normal CI, version/lock updates and the registry
+release remain required. This draft does not bump, publish or activate Core.
