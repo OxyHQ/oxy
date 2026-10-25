@@ -244,7 +244,8 @@ remove the global v1 bridge.
 Schedio's DNS/domain decision and rolled-back producer remain unresolved.
 The documentation-only [PR #73](https://github.com/OxyHQ/Schedio/pull/73) merged;
 its main CI was intentionally cancelled to preserve the hold, and both deployment
-jobs were skipped. DNS is still absent and producer PR #72 remains held. The
+jobs were skipped. DNS is still absent; SDK/update PR #72 remains held, while
+producer PR #71 is merged but not live. The
 storefront cookies instruction conflict still requires the owner's decision;
 this ledger does not change that policy. Syra's follow-up SDK publication,
 consumer adoption and acceptance remain pending. Native physical-device

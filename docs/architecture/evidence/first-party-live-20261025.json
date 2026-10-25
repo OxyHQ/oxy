@@ -1166,7 +1166,8 @@
       "apiDeploy": 40192399564,
       "frontendDeploy": 40192399528,
       "deployConclusions": "skipped",
-      "producerPr72": "held; DNS absent"
+      "sdkUpdatePr72": "held; DNS absent",
+      "producerPr71": "merged source; producer not live after rollback"
     }
   },
   "v1RetirementDraft": {
