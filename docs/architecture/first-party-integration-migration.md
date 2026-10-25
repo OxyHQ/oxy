@@ -27,6 +27,7 @@ revocation and operation binding remain mandatory.
 | Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; 782 old definitions and separate probe retired; exact two obsolete SSM parameters removed; post-cleanup runtime verified | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 151 and publisher 152 verified on `8bba965d` | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
+| Mercaria storefront commerce transport | Owner-approved header-only source merged in PR #1159; deployment and live acceptance pending | Preserve Oxy-owned carts and independent guest/portal authority; bounded referral preservation only |
 | Registry/workload migration and deploy | Environment preflight and recorded product rollouts complete; Schedio and final v1 retirement remain operationally gated; product acceptance is listed separately | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
@@ -274,8 +275,46 @@ confirmed `Shipped commit 6d077057888cadf68dcb9e6d27eab128a087b73c` in runs
 skipped deploy jobs did not establish that rollout. Mercaria's
 [API deployment](https://github.com/OxyHQ/Mercaria/actions/runs/40195196170)
 also succeeded; revision 145 was independently verified at `13:04:03Z`, 1/1
-healthy and drained on the matching source/runtime digest. These releases do
-not change the unresolved storefront cookie contract.
+healthy and drained on the matching source/runtime digest. These are historical
+receipts for `6d077057`; the later approved cookie-free source change below is
+not covered by those deployment receipts.
+
+### Mercaria cookie-free commerce decision and merged source (2026-10-25)
+
+The owner approved removal of storefront cookies while preserving carts and
+existing access. Mercaria [PR #1159](https://github.com/OxyHQ/Mercaria/pull/1159)
+merged as `714f3ec411b9abcaaa465278ad42a4fb75823a2b` at `16:26:15Z`.
+**Deployment and production acceptance of this source remain pending.** The
+[cutover runbook](https://github.com/OxyHQ/Mercaria/blob/714f3ec411b9abcaaa465278ad42a4fb75823a2b/docs/reviews/2026-10-25-cookie-free-commerce.md)
+and amended Mercaria ADR 0003 govern that change; the owner's decision is no
+longer an unresolved policy gate.
+
+The permanent storefront transport uses Oxy's shared linked client with cookies
+omitted. Guest cart credentials (`mgs_`) and order-portal grants (`mgp_`) travel
+in explicit headers and remain independent domain credentials, not Oxy identities
+or application scopes. Ownership, financial rules, revocation and absolute
+expiry remain enforced. Durable persistence and account/domain-response fences
+prevent stale responses from restoring cleared credentials or crossing account
+contexts. Old clients without header support are refused before issuance or
+one-time link consumption; they cannot silently create a replacement cart.
+
+The [sanitized population evidence](https://github.com/OxyHQ/Mercaria/blob/714f3ec411b9abcaaa465278ad42a4fb75823a2b/docs/reviews/evidence/2026-10-25-cookie-free-commerce-population.json)
+records read-only snapshots at `15:00:46.286Z` and `15:29:53.639Z`: both found
+zero guest sessions and portal grants, with three carts all owned by Oxy
+accounts; the second also verified zero guest checkouts and guest-origin orders. Guest and referral issuance remained disabled
+in the observed revision 145 configuration. Consequently this implementation
+performs no guest/portal backfill or exchange and leaves those carts untouched.
+A fresh aggregate/configuration preflight is required before rollout; unexpected
+legacy credentials stop the cutover for a preservation plan.
+
+Only historical signed referral cookies have a temporary preservation path:
+exact-origin exchange and acknowledgement copy the original signed carrier,
+click time and expiry, without minting authority or enabling referrals. A carrier
+must have been issued at or before the fixed `2026-10-25T15:00:46Z` cutoff; the bridge ends at
+`2027-01-23T15:00:46Z`. Cookie deletion follows durable storage and exact-carrier
+acknowledgement. Credentialed CORS is limited to those two endpoints; ordinary
+storefront requests remain cookie-free. This finite exception does not change
+Oxy's zero-cookie identity contract or authorize global protocol-v1 retirement.
 
 ### Bounded protocol-retirement evidence (2026-10-25)
 
@@ -303,13 +342,15 @@ protocol-v1 dependency.
 
 ### Remaining acceptance and operational holds
 
-Schedio's DNS/domain decision and rolled-back producer remain unresolved.
+Schedio's required Cloudflare zone access, DNS and ACM certificate readiness
+and its rolled-back producer remain unresolved. This is an infrastructure-access
+and validation gate, not a decision to purchase or own the domain.
 The documentation-only [PR #73](https://github.com/OxyHQ/Schedio/pull/73) merged;
 its main CI was intentionally cancelled to preserve the hold, and both deployment
 jobs were skipped. DNS is still absent; SDK/update PR #72 remains held, while
-producer PR #71 is merged but not live. The
-storefront cookies instruction conflict still requires the owner's decision;
-this ledger does not change that policy. Syra 0.24.0 publication and Mention's
+producer PR #71 is merged but not live. Mercaria's cookie-free decision is
+approved and its implementation is merged; the separate cutover above still
+requires deployment and live acceptance. Syra 0.24.0 publication and Mention's
 consumer adoption are recorded above; they do not establish signed-in production
 live-room/player acceptance. Native physical-device
 acceptance and desktop/store distribution are not established.
@@ -339,8 +380,9 @@ removed exactly `/oxy/mercaria/SERVICE_SECRET` and
 The safety census covered 170 active definitions in four selected families and
 all current runtime references. No active or live references to those two
 parameters remained. The post-deletion health and exact image readback confirmed
-Mercaria 144 healthy on `5ef09822`. This bounded cleanup does not resolve the storefront
-cookies decision or activate global v1 retirement.
+Mercaria 144 healthy on `5ef09822`. That cleanup receipt predates the approved
+cookie-free commerce change above and establishes neither its deployment nor
+activation of global v1 retirement.
 
 [Infrastructure docs PR #399](https://github.com/OxyHQ/oxy-infra/pull/399)
 merged as `39eaf793`; the operational receipts, rather than documentation,
