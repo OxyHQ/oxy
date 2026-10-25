@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T09:51:23.022110+00:00",
+  "generatedAt": "2026-10-25T09:52:12.721205+00:00",
   "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
   "services": [
     {
@@ -241,5 +241,23 @@
     "pr": 65,
     "sourceSha": "c7142727142e237639c142281c4cfe2a2663fae0",
     "status": "merged after CI; native distribution and device sign-in not established"
+  },
+  "qaSessionAcceptance": {
+    "success": true,
+    "checks": [
+      "normal-session-authenticated-account",
+      "own-files-readable-without-app-grant",
+      "session-inference-catalogue-readable"
+    ],
+    "profileCount": 0,
+    "observedAt": "2026-10-25T09:51:24.226Z",
+    "identity": "new dedicated QA account",
+    "inferenceGenerationPerformed": false,
+    "receiptFile": "qa-session-readback-20261025.json"
+  },
+  "alloSource": {
+    "pr": 268,
+    "sourceSha": "f69c1274b50b6fa630e2569e03eb0a670c8ca9b3",
+    "status": "merged after verified Homiio API and worker; runtime receipt pending"
   }
 }

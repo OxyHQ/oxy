@@ -95,6 +95,14 @@ email/username sign-in dialog without scopes/permission text, with zero cookies
 and no page errors. No personal account was signed in; this is a public-dialog
 smoke, not authenticated Console settings or end-to-end sign-in acceptance.
 
+A newly created, dedicated QA account completed normal signed registration and
+session authentication at `2026-10-25T09:51:24.226Z`. Its empty personal Files
+collection was readable without an app grant, and its session could read the
+inference catalogue (HTTP 200, zero profiles). This establishes catalogue
+reachability only: **no generation or inference execution was tested**. No
+existing user's data or credentials were used. Session/account cleanup has a
+separate guarded receipt and is not implied by this readback.
+
 Alia's stage A is live and its server SDK 1.2.0 is published. This does **not**
 unlock Nilo's capability-event producer: the stage-A event receiver still
 forwards the Alia-audience bearer to Oxy and requires the legacy
@@ -102,8 +110,10 @@ forwards the Alia-audience bearer to Oxy and requires the legacy
 remains held until the stage-B event receiver is live and verified. Alia's own
 agent authority, producer cutover and secret removal remain separate gates.
 
-Both Homiio API and worker now satisfy Allo's receiver deployment prerequisite;
-this receipt does not claim Allo has deployed. Mercaria must precede the new
+Both Homiio API and worker now satisfy Allo's receiver deployment prerequisite.
+Allo [PR #268](https://github.com/OxyHQ/Allo/pull/268) merged as
+`f69c1274b50b6fa630e2569e03eb0a670c8ca9b3` after CI; this receipt does not claim
+Allo has deployed. Mercaria must precede the new
 Clarity producer; Mention must precede Move/Schedio. The finite v1 bridge
 and credential cleanup remain gated on all inventoried consumers and live
 canaries. These readbacks do **not** mark the fleet migration complete.
