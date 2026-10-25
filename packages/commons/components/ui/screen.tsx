@@ -1,13 +1,26 @@
-import React, { useMemo } from 'react';
+import React, { isValidElement, useMemo } from 'react';
 import { RefreshControl, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { Screen as BloomScreen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useMinimizeOnScroll, useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useTheme } from '@oxy.so/bloom/theme';
+import {
+  InsideScreenContext,
+  PageTitle,
+  ScreenHeader,
+  StackHeader,
+  type StackHeaderProps,
+} from './stack-header';
 
-/** Horizontal gutter shared by every Commons screen. */
-export const SCREEN_PADDING = 22;
+/**
+ * Horizontal gutter shared by every Commons screen: Bloom's `screen-margin`.
+ * Bloom's grouped lists (`SettingsListGroup`) no longer inset themselves; the
+ * ONE horizontal inset is the screen's, so cards, section labels and banners
+ * all line up on it. A screen that zeroed this to let the list "own" its
+ * gutter drew every card edge to edge with its rounded corners clipped.
+ */
+export const SCREEN_PADDING = 20;
 /** Vertical air between top-level sections. */
 const SECTION_GAP = 32;
 
@@ -24,12 +37,11 @@ export const FAB_MD_DIAMETER = 50;
 const FAB_CLEARANCE_GAP = 16;
 
 /**
- * Top air above a screen's first element, ON TOP of the safe-area inset.
- * Preserved geometry, not a design: 64 of it is clearance for a floating header
- * this app does not render. Probably too much, but tightening it wants a device
- * to judge.
+ * Air between the bottom of the screen's header and its first element. The
+ * header itself (Bloom's floating `PageHeader` in the screen's header slot)
+ * owns the safe-area inset and its own height, which Bloom reserves.
  */
-const SCREEN_TOP_AIR = 72;
+const SCREEN_TOP_AIR = 8;
 
 /**
  * Bottom inset every Commons screen leaves free for the floating tab bar.
@@ -80,6 +92,19 @@ interface ScreenProps {
   bottomClearance?: number;
 }
 
+/** A leading `StackHeader` child, which the screen lifts into its header slot. */
+function splitHeader(children: React.ReactNode): {
+  header: StackHeaderProps | null;
+  content: React.ReactNode[];
+} {
+  const content = React.Children.toArray(children);
+  const first = content[0];
+  if (isValidElement(first) && first.type === StackHeader) {
+    return { header: first.props as StackHeaderProps, content: content.slice(1) };
+  }
+  return { header: null, content };
+}
+
 /**
  * The canonical Commons scroll surface: a single vertical scroller on the flat
  * `background` (no stacked cards), with a 22pt gutter, a 32pt rhythm between
@@ -100,11 +125,14 @@ export function Screen({
 }: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { header, content } = splitHeader(children);
   const screenBottomPad = useScreenBottomPad();
   const bottomPad = bottomClearance ?? screenBottomPad;
   const minimizeOnScroll = useMinimizeOnScroll();
 
-  const topPad = insets.top + SCREEN_TOP_AIR;
+  // Bloom reserves the header's measured height (safe area included) above the
+  // scroller's content; this is only the air under it.
+  const topPad = SCREEN_TOP_AIR;
 
   const contentContainerStyle = useMemo(
     () => [
@@ -116,7 +144,12 @@ export function Screen({
   );
 
   return (
-    <BloomScreen contentClearance={bottomPad}>
+    <BloomScreen
+      contentClearance={bottomPad}
+      // Always a header: it owns the status bar area, so scrolled content
+      // passes under its scrim instead of drawing over the clock.
+      header={<ScreenHeader {...(header ?? {})} />}
+    >
       <ScreenScrollView
         handler={minimizeOnScroll}
         contentContainerStyle={contentContainerStyle}
@@ -129,13 +162,16 @@ export function Screen({
               onRefresh={onRefresh}
               tintColor={colors.tint}
               colors={[colors.tint]}
-              progressViewOffset={topPad + 8}
+              progressViewOffset={insets.top + topPad + 8}
               progressBackgroundColor={colors.background}
             />
           ) : undefined
         }
       >
-        {children}
+        <InsideScreenContext.Provider value>
+          {header ? <PageTitle title={header.title} subtitle={header.subtitle} /> : null}
+          {content}
+        </InsideScreenContext.Provider>
       </ScreenScrollView>
     </BloomScreen>
   );

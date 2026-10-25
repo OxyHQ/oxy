@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
@@ -208,7 +208,7 @@ export default function PersonhoodScreen() {
           />
         </SettingsListGroup>
 
-        <View style={styles.gutter}>
+        <View>
           <Text style={[styles.footnote, { color: colors.textSecondary }]}>
             {t('civic.personhood.footnote')}
           </Text>
@@ -218,27 +218,19 @@ export default function PersonhoodScreen() {
   };
 
   return (
-    // Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-    // header and custom hero content are padded to align with it.
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader
-          title={t('civic.personhood.title')}
-          onBack={handleClose}
-          backAccessibilityLabel={t('common.back')}
-        />
-      </View>
+    <Screen gap={16}>
+      <StackHeader
+        title={t('civic.personhood.title')}
+        onBack={handleClose}
+        backAccessibilityLabel={t('common.back')}
+      />
       <SessionGate>{renderBody()}</SessionGate>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-  gutter: { paddingHorizontal: 20 },
   topBlock: {
-    paddingHorizontal: 20,
     gap: 18,
   },
   boundValue: {

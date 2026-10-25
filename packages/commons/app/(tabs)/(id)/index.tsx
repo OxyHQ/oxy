@@ -196,9 +196,7 @@ export default function IdScreen() {
 
   return (
     <View className="flex-1">
-      {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-          centered hero and the DID/callout blocks are padded to align with it. */}
-      <Screen contentStyle={styles.flush} gap={16} bottomClearance={fabClearance}>
+      <Screen gap={16} bottomClearance={fabClearance}>
         {/* Shown once after onboarding on devices where the identity has no
             device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it.
             FIRST on the screen: below the card it came to rest under the QR
@@ -287,7 +285,7 @@ export default function IdScreen() {
         </SettingsListGroup>
 
         {did && (
-          <View style={styles.gutter}>
+          <View>
             <Section title={t('civic.id.didLabel')}>
               <Text
                 style={[styles.didValue, { color: colors.textSecondary }]}
@@ -301,7 +299,7 @@ export default function IdScreen() {
         )}
 
         {state === 'pending' && (
-          <View style={styles.gutter}>
+          <View>
             <Admonition type="warning">{t('civic.id.pendingNote')}</Admonition>
           </View>
         )}
@@ -339,8 +337,6 @@ export default function IdScreen() {
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  gutter: { paddingHorizontal: 20 },
   qrPlaceholder: {
     flex: 1,
     alignItems: 'center',

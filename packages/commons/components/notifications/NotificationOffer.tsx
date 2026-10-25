@@ -46,7 +46,7 @@ export function NotificationOffer() {
   if (!showOffer || backupPromptShowing) return null;
 
   return (
-    <View style={styles.gutter} testID="notification-offer">
+    <View testID="notification-offer">
       <ImportantBanner type="info" title={t('notificationOffer.title')}>
         {t('notificationOffer.body')}
       </ImportantBanner>
@@ -69,6 +69,6 @@ export function NotificationOffer() {
 }
 
 const styles = StyleSheet.create({
-  gutter: { paddingHorizontal: 16, gap: 12 },
+  gutter: { gap: 12 },
   actions: { gap: 8 },
 });

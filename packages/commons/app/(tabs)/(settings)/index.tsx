@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -58,14 +58,11 @@ export default function SettingsScreen() {
   }, [showBottomSheet]);
 
   return (
-    // Bloom's SettingsListGroup owns its own 16pt horizontal gutter, so the
-    // Screen column runs flush (no SCREEN_PADDING) — otherwise the cards would be
-    // double-inset (22 + 16). Non-grouped content (the header) is padded to align
-    // with Bloom's section titles.
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
-      </View>
+    // The Screen's one gutter (Bloom's screen-margin) insets the cards, their
+    // section labels and the banner alike. The StackHeader is lifted into the
+    // Screen's header: a real page title, and nothing scrolls under the clock.
+    <Screen gap={16}>
+      <StackHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       {/* No device backup on this device (OxyHQ/oxy#1388): stays until the user
           confirms they saved the recovery phrase. */}
@@ -148,7 +145,4 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-});
+const styles = StyleSheet.create({});

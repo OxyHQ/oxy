@@ -1079,7 +1079,9 @@
     "encryptedBackup": "Set up an encrypted backup",
     "rotate": "Rotate to a key with a recovery phrase",
     "notNow": "Not now",
-    "confirm": "I've saved my recovery phrase"
+    "confirm": "I've saved my recovery phrase",
+    "promptBody": "Your identity has no automatic backup on this device. See what to do in Settings.",
+    "review": "Review in Settings"
   },
   "rotateKey": {
     "settingsEntry": "Rotate your key",
