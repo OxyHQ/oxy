@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 7.4.0
+
+### Changed
+
+- Complete the finite own-workload protocol transition: `serviceToken()` and
+  `serviceTokenFor()` now request scope-free protocol 2, as shared service clients
+  already do. All workload token paths share the recipient cache and invalidate
+  it after a 401. Deploy only after old producers are stopped or migrated and
+  their bounded tokens have drained.
+- Retire the verified legacy-workload introspection projection in service
+  middleware. Current own callers still require live workload, environment,
+  recipient and requester checks. Explicit customer credentials, external service
+  tokens, OAuth/MCP scopes and public SDK signatures retain their contracts.
+
 ## 7.3.0
 
 ### Added

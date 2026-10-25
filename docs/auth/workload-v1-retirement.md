@@ -31,9 +31,13 @@ post-deployment migration and must not remove external application/key scopes.
   launch definitions and dormant one-shot jobs cannot launch an old producer.
   Kaana's credential-admin launcher must retain its separately verified image;
   do not create missing credential-control services during this cleanup.
-- Move and Schedio are activated only after the Mention receiver; Clarity's
-  reader/backfill and Mercaria receiver precede its producer. Legacy queued jobs
-  keep their recorded original account/operation and are never promoted by brand.
+- Enabled products retain their verified receiver-before-producer rollout. Move
+  follows the Mention receiver; Clarity's reader/backfill and Mercaria receiver
+  precede their producers. Schedio is explicitly deferred before launch, as
+  described below; neither its DNS nor its launch is a prerequisite for this
+  retirement. Its old issuer must nevertheless be verifiably parked. Legacy
+  queued jobs keep their recorded original account/operation and are never
+  promoted by brand.
 - The Oxy-hosted Inbox client, catalog registrar and normalized-event outbox
   have migrated to the shared workload provider and exact Alia recipient in
   #1985. Source `7f2d10dc800948757155a7a085877a0690b1b4a4` was verified on API
@@ -56,8 +60,9 @@ post-deployment migration and must not remove external application/key scopes.
   v1 mints alone does not prove this drain: identify the last possible old
   producer, including scheduled/manual/rollback launches, and establish the
   deployed token lifetime ceiling before starting the clock.
-- The changed Core emitter requires a version bump, CI and normal registry release
-  at activation; the draft deliberately does not publish or bump a package now.
+- The changed Core emitter has a prepared local Core 7.4.0 bump. CI and packed
+  consumer checks may run before parking/drain; normal registry publication and
+  activation remain gated. This draft does not publish a package.
 - Root records the complete fleet and launcher inventory plus final authorization
   to retire the bridge. Until then, keep this PR draft and production unchanged.
 
@@ -76,11 +81,20 @@ POS 40213492781). Website API revision 70 and its frontend run
 `a30d271115fe9afb95e038e46d84e1ba51adff12`. Neither replaces account-specific
 acceptance tests or establishes whole-fleet readiness.
 
-Schedio remains on rollback revision 17: public DNS access and ACM validation
-are unresolved technical prerequisites for its new producer. The user has
-authorized continuing the migration; that authorization does not make the
-undeployed producer ready. Keep v1 retirement on hold until Schedio's actual
-new runtime, scheduled publisher and recipient canary are verified.
+The user explicitly deferred Schedio before launch. Do not make Cloudflare zone
+access, DNS/ACM validation or launching its new producer prerequisites for the
+rest of the migration. The last verified old runtime was revision 17; prelaunch
+status alone does not prove that its tasks, scheduled publisher or binding have
+stopped issuing. Before the drain begins, record a fresh Schedio inventory and
+an exact parking receipt: no old issuer can run with usable workload authority,
+including pending/stopping tasks, schedules, manual workflows and rollback
+launchers. This can be established by a reviewed reversible shutdown/launcher
+restriction plus unusable issuer binding; no such production change is asserted
+by this draft. Preserve the public application/client and external customer
+credentials. Future launch must use current v2-compatible artifacts and its own
+normal DNS/ACM and receiver-canary process; it cannot restore an old v1 launcher.
+The inventory and parking operation remain to be completed by the rollout
+coordinator, not silently waived because Schedio is unlaunched.
 
 Mercaria's public HTTP/Chromium acceptance passed at
 `2026-10-25T16:58:19.383Z`: ordinary requests omit cookies, old cookie-only clients
@@ -96,8 +110,9 @@ and its linked runtime, preflight, diagnostic-cleanup and public-acceptance
 receipts. Mercaria is no longer a pending migration prerequisite. Its finite
 referral bridge is separate from workload v1 and must not be removed by this PR.
 
-The remaining activation gates are Schedio's DNS/ACM and verified producer rollout,
-a fresh complete runtime/binding/launcher inventory and live authorization checks,
+The remaining activation gates are evidence that Schedio's old prelaunch issuer
+is parked, a fresh complete runtime/binding/launcher inventory and live
+authorization checks,
 the full deployed old-token lifetime drain (currently at least 300 seconds after
 the last possible old producer stops), and CI/artifact compatibility for the final
 Core minor release. Global v1 retirement remains on hold; no global drain or
@@ -136,7 +151,11 @@ that upstream evidence, the identical cohort fixture's location and its four tes
 imports. Core and all production runtime files remain byte-identical. Complete
 Jest discovery and AGENTS/diff checks were repeated; the 49 consumer tests and full
 Core results below remain applicable without duplicating them for a docs-only
-upstream rebase. Final branch CI is still required before any later activation.
+upstream rebase. Final branch CI 40215450916 and scaffold smoke 40215450924 both
+completed successfully on `e61b56ddc2848293089f504b18f31687862240ba`, including
+all four API shards. The later Schedio-deferral edit changes documentation only.
+Versioned release artifacts and fresh production/drain evidence remain required
+before activation.
 
 The previous composition rebased without conflicts onto main `df3876fe8` on 2026-10-25, preserving the
 upstream streaming file-close fixture from #1990 and the verified rollout ledger
@@ -146,7 +165,7 @@ tests), 74 API tests in five PostgreSQL/HTTP suites, the API/dependency build,
 script typechecking, AGENTS validation and strict Core lint. Regenerating OpenAPI
 produced no diff. The Core production files and package manifest are byte-identical
 to the prior retirement checkpoint, so its public API audit remains applicable;
-there is no version bump or publication. Evidence is in
+no version bump or publication occurred in that checkpoint. Evidence is in
 `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-rebase-df387/`.
 
 Root repeated the full Core suite on retirement head
@@ -163,8 +182,8 @@ API shards passed. The fixture now lives under the existing `__fixtures__`
 convention and its four test imports were updated, without changing Jest's test
 pattern or production code. Local reproduction confirmed the original failure;
 complete discovery now excludes only that data file and preserves all 763 real
-suites. All four consuming PostgreSQL/HTTP suites pass (49 tests). The next CI
-run remains required; these focused checks do not assert a new full API CI pass.
+suites. All four consuming PostgreSQL/HTTP suites pass (49 tests). The corrected final branch subsequently passed all four API shards in
+CI 40215450916; the focused checks alone were not treated as a full CI result.
 Evidence: `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-fixture-ci/`.
 
 The previous checkpoint on main `0a312b9b1` (including the Inbox producer in
@@ -196,8 +215,8 @@ No production cleanup, binding revocation or database backfill has run here.
 
 ## Core release version and consumer compatibility
 
-Prepare a **7.x minor release** when the retirement gates are satisfied
-(`7.4.0` if that is still the next available version), rather than publishing
+Release the prepared **7.4.0 minor** only when the retirement gates are satisfied
+(rechecking registry availability before publication), rather than publishing
 these changes under the existing `7.3.0` version or unconditionally choosing 8.
 The public signatures of `serviceToken`, `serviceTokenFor`, `createServiceClient`
 and the credential/principal types are unchanged. The removed
@@ -216,4 +235,68 @@ external OAuth regressions. If that review reveals a public API removal or a
 supported external behavior change, stop the minor release and prepare the
 necessary major-version consumer migration first; do not silently override or
 widen consumers' peer ranges. Normal CI, version/lock updates and the registry
-release remain required. This draft does not bump, publish or activate Core.
+release remain required. Core 7.4.0 is now prepared locally for review; this draft does not publish or
+activate it.
+
+### Concrete release sequence after the parking decision
+
+1. Record the fresh fleet and launcher inventory, including the exact Schedio
+   parked issuer disposition. Identify the latest possible v1 issuance time
+   across every old producer; wait the deployed maximum lifetime (currently
+   300 seconds) after that bound and perform the final readback/canaries. This
+   clock cannot start from a source merge or a quiet mint metric alone.
+2. Recheck registry availability, then prepare only the Core minor bump,
+   changelog and workspace lock metadata. Registry readback on 2026-10-25 found
+   latest `@oxy.so/core@7.3.0` with `7.4.0` unallocated. Contracts/public types
+   have no new release requirement. Published `@alia.onl/sdk@22.0.1` accepts
+   `>=7.1.0 <8`, and `@oxy.so/services@13.6.0` accepts `^7.3.0`; neither needs
+   its peer widened. Do not republish unchanged packages just because their
+   workspace development dependency resolves to the new Core version.
+3. Build Core and its dependencies in order; pack with `bun pm pack`. Inspect
+   every CJS/ESM/types export and all dependency sections for unresolved
+   workspace/catalog/file/link protocols. Compare the packed public signatures
+   and export map against the integrity-verified current registry Core artifact.
+   Re-run release/lock checks and the affected final composition's CI.
+4. Install the actual packed artifact into isolated representative consumers,
+   keeping their published peer ranges: Services/Alia session transport, Alia
+   server and Clarity workload factories, Kaana HTTP/streaming credentials, and
+   MCP transport. Exercise refresh/replay, requester/account isolation,
+   recipient mismatch and explicit external-key/OAuth scope/revocation
+   regressions. Do not validate only workspace source aliases or a stale
+   previously installed tarball. A supported public/API regression stops the
+   minor release rather than prompting casts or peer overrides.
+5. Only after the inventory, drain and artifact gates, merge through normal CI
+   and release Actions. Verify registry integrity/provenance, exact API runtime
+   digest and v1 rejection/own-v2/external compatibility canaries. Existing
+   compatible Core 7.x consumers already using the explicit-v2 product factories
+   do not need a forced reinstall before that API cutover. Any remaining manual
+   workload-token caller must adopt the new minor before it is allowed to launch.
+
+This sequence is preparation, not authorization recorded as completed execution.
+It neither starts Schedio nor changes production bindings, flags or task counts.
+
+### Prepared Core 7.4.0 artifact validation
+
+The local version bump changes Core's manifest/changelog and generated workspace
+lock metadata; production source remains identical to the green `e61b56ddc`
+retirement checkpoint. Four dependency/Core builds passed, as did frozen install.
+The packed artifact has 46 checked export targets with unchanged export maps and
+179 declaration files reviewed against the SHA-512-verified registry Core 7.3.0.
+Only documentation, a private method name, non-exported legacy helpers and literal
+union ordering differ; normalized public signatures remain identical. All packed
+dependency sections have resolved published ranges.
+
+A fresh isolated consumer install verifies every Core file against that tarball,
+loads both CJS and ESM entries, and typechecks actual published Services, Alia,
+Clarity, Kaana and MCP compositions without casts or peer overrides. Five local
+HTTP tests pass using that artifact: workload manual/factory cache refresh,
+explicit external credentials, canonical product audiences/requester binding,
+Kaana attribution/MCP transport, and Alia session JSON replay/account switching.
+Only renderer hooks are stubbed for the pure Alia transport; issuer/receiver
+fixtures are synthetic. These tests do not claim React/native or production
+acceptance, nor replace the live-grant/OAuth regressions in full branch CI.
+Receipts, declaration review, test logs and the tarball are under
+`/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-core-7.4/`.
+
+No artifact has been published. Versioned-branch CI and the parked-issuer,
+launcher, fresh binding and full-lifetime drain receipts still gate activation.
