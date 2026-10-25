@@ -34,10 +34,12 @@ post-deployment migration and must not remove external application/key scopes.
 - Move and Schedio are activated only after the Mention receiver; Clarity's
   reader/backfill and Mercaria receiver precede its producer. Legacy queued jobs
   keep their recorded original account/operation and are never promoted by brand.
-- The Oxy-hosted Inbox client, catalog registrar and normalized-event outbox must
-  first stop using `INBOX_APPLICATION_KEY`/`INBOX_APPLICATION_SECRET` and manual
-  Alia token/fetch retry. They require a separate producer deployment with the
-  shared workload provider and exact Alia recipient before this draft activates.
+- The Oxy-hosted Inbox client, catalog registrar and normalized-event outbox
+  have migrated to the shared workload provider and exact Alia recipient in
+  #1985. Source `7f2d10dc800948757155a7a085877a0690b1b4a4` was verified on API
+  revision 1077 with its producer canary. Preserve that evidence and check that
+  current and rollback launchers retain the same authority contract; this is no
+  longer an outstanding source/deployment prerequisite.
 - No owned consumer or operator script still depends on scoped workload issuance,
   raw forwarded owner headers or a v1 introspection serializer. External scoped
   clients are not counted as violations of the own-workload migration.
@@ -50,11 +52,40 @@ post-deployment migration and must not remove external application/key scopes.
   and verifiers use it. Record the deployed version/digest and wait at least
   300 seconds after the last old producer stops (including delayed launches),
   then perform the final readback. Recheck the constant at activation rather
-  than relying on historical one-hour comments.
+  than relying on historical one-hour comments. An interval with zero observed
+  v1 mints alone does not prove this drain: identify the last possible old
+  producer, including scheduled/manual/rollback launches, and establish the
+  deployed token lifetime ceiling before starting the clock.
 - The changed Core emitter requires a version bump, CI and normal registry release
   at activation; the draft deliberately does not publish or bump a package now.
 - Root records the complete fleet and launcher inventory plus final authorization
   to retire the bridge. Until then, keep this PR draft and production unchanged.
+
+### Current holds and completed prerequisites (2026-10-25)
+
+The [migration ledger](../architecture/first-party-integration-migration.md)
+records the verified product receiver/producer deployments, Inbox rollout,
+Noted's exact retired workload binding and completed Alia/commerce secret cleanup.
+Those completed operations must not be repeated by this draft. In particular,
+Mercaria API revision 145 runs source
+`6d077057888cadf68dcb9e6d27eab128a087b73c`; its frontend, dashboard and POS
+deployments also succeeded. Website API revision 70 and its frontend run
+`a30d271115fe9afb95e038e46d84e1ba51adff12`. Neither replaces account-specific
+acceptance tests or establishes whole-fleet readiness.
+
+Schedio remains on rollback revision 17: public DNS access and ACM validation
+are unresolved technical prerequisites for its new producer. The user has
+authorized continuing the migration; that authorization does not make the
+undeployed producer ready. Keep v1 retirement on hold until Schedio's actual
+new runtime, scheduled publisher and recipient canary are verified.
+
+The user also approved Mercaria's cookie-free commerce migration while
+preserving carts. That implementation and browser acceptance are in progress,
+not an undecided user preference. The read-only production census at
+`2026-10-25T15:00:46.286Z` found zero guest sessions, zero portal grants and
+three Oxy-owned carts; it did not establish absence of stateless referral
+cookies. The bounded referral-only transition remains separate from workload
+v1 retirement. No release, rollout or drain completion is asserted here.
 
 ## Operator scripts
 
@@ -81,8 +112,20 @@ authorized external test credentials; it cannot reuse Noted's retired own keys.
 
 ## Validation
 
-After rebasing onto main `0a312b9b1` (including the Inbox producer in #1985
-and the Noted binding retirement in #1987), local verification passed:
+Rebased without conflicts onto main `df3876fe8` on 2026-10-25, preserving the
+upstream streaming file-close fixture from #1990 and the verified rollout ledger
+from #1988/#1989. The changed-composition checks passed: 45 Core tests in six
+suites (including the real HTTP 401 cache regression and streaming close/abort
+tests), 74 API tests in five PostgreSQL/HTTP suites, the API/dependency build,
+script typechecking, AGENTS validation and strict Core lint. Regenerating OpenAPI
+produced no diff. The Core production files and package manifest are byte-identical
+to the prior retirement checkpoint, so its public API audit remains applicable;
+there is no version bump or publication. Evidence is in
+`/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-rebase-df387/`.
+
+The previous checkpoint on main `0a312b9b1` (including the Inbox producer in
+#1985 and the Noted binding retirement in #1987) passed the following local
+verification. These are historical results, not a repeat on the later rebase:
 
 - Core: the full 227-suite run passed all 2,754 tests, including the 30 focused
   retirement tests for v2 token helpers, cache/audience boundaries, stale live
