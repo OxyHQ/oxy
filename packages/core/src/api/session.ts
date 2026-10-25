@@ -240,7 +240,7 @@ export class SessionApi {
     await this.ctx.request('POST', url, undefined, { cache: false });
   }
 
-  /** Sign out every session beside `sessionId`, and it. */
+  /** Sign out the other sessions for this account; preserve `sessionId`. */
   async logoutAll(sessionId: string): Promise<void> {
     await this.ctx.request('POST', `/session/logout-all/${sessionId}`, undefined, { cache: false });
   }

@@ -328,7 +328,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [kaana-grants.md](./kaana-grants.md) | Kaana ADR 0002 phase 2: the grant and settlement API Kaana calls to serve `kaana.ai/v1`, who pays per lane, Console limits |
 | [request-routing.md](./request-routing.md) | which product features go through Alia and which call Oxy directly, and provider-key custody |
 | [sdk.md](./sdk.md) | `OxyInferenceClient`, the OpenAI SDK in TypeScript and Python, response headers |
-| [credentials.md](./credentials.md) | service tokens, `oxy_sk_*` machine keys, scopes |
+| [credentials.md](./credentials.md) | own workload identity, external service/machine credentials and their scopes |
 | [catalogue.md](./catalogue.md) | reading the model catalogue, what an entry contains, and the Kaana catalogue sync |
 | [routing.md](./routing.md) | routing policies and every control, fallback switches, and the exact route-ordering rule |
 | [streaming.md](./streaming.md) | stream events, cancellation, retryability and idempotency |
@@ -338,7 +338,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [attribution.md](./attribution.md) | who is charged, and delegated users |
 | [byok.md](./byok.md) | using your own provider key |
 | [data-policy.md](./data-policy.md) | what is retained, and what a route does with your data |
-| [alia.md](./alia.md) | Alia as an inference consumer: registration, scopes, product agents |
+| [alia.md](./alia.md) | Alia as an inference consumer: workload identity, account boundaries, product agents |
 | [inbox-point-inference.md](./inbox-point-inference.md) | Inbox's one-shot features and their bootstrap |
 | [inbox-principal-readback.md](./inbox-principal-readback.md) | Read-only proof of the Inbox principal, its authority and its granted credit |
 | [jev-principals-readback.md](./jev-principals-readback.md) | Metadata-only readback of the Mention workload and Kaana principals |

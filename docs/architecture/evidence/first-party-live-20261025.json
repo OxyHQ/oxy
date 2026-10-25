@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T09:34:14.467713+00:00",
+  "generatedAt": "2026-10-25T09:56:48.052748+00:00",
   "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
   "services": [
     {
@@ -105,6 +105,68 @@
       "sourceSha": "641bd5a2b6f974964c613362e393b42920d274a1",
       "observedAt": "2026-10-25T09:31:16.529513+00:00",
       "receiptFile": "moovo-runtime-20261025.json"
+    },
+    {
+      "name": "alia",
+      "taskDefinitionRevision": 606,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:e20fe0dd32e5c097c8c6acd75b0514504bf400cbb6dd014db2a69c7577e9aee7",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "850b2f96177a1ef07ed635bf1d88307919eec300",
+      "observedAt": "2026-10-25T09:46:55.149652+00:00",
+      "receiptFile": "alia-runtime-20261025.json",
+      "sourceImageIndexDigest": "sha256:9d313f510208268a48ec4fa2179fabf21ae85e84dc395c938842a738b2123e6a"
+    },
+    {
+      "name": "alia-integrations",
+      "taskDefinitionRevision": 186,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:5a139569281a7d2289dc596db33a9212c4792e184548bf4c2e0de84e034aa9a8",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "850b2f96177a1ef07ed635bf1d88307919eec300",
+      "observedAt": "2026-10-25T09:46:54.058108+00:00",
+      "receiptFile": "alia-integrations-runtime-20261025.json",
+      "sourceImageIndexDigest": "sha256:4c2509115e8c17d6ebf475390f88c964e307599a36b2dd49bf06ff5f766a157f"
+    },
+    {
+      "name": "homiio",
+      "taskDefinitionRevision": 274,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:69f9eeaeb3921e41d66984040e9f8909eb5cc4a5497757cc8aea0aff0f16120e",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "c672a3321ee9c874329bd1308681e3988eb5c033",
+      "observedAt": "2026-10-25T09:47:47.163953+00:00",
+      "receiptFile": "homiio-runtime-20261025.json"
+    },
+    {
+      "name": "homiio-worker",
+      "taskDefinitionRevision": 277,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:2070f9f08defcc74e25a0858ff5d19f113bee8b9762a112b208673d04926238b",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "c672a3321ee9c874329bd1308681e3988eb5c033",
+      "observedAt": "2026-10-25T09:49:34.761319+00:00",
+      "receiptFile": "homiio-worker-runtime-20261025.json"
+    },
+    {
+      "name": "willo",
+      "taskDefinitionRevision": 35,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:3664ac2f27374a84ecd9b923dddd127ccd9d41dabdfd6bf645eb15ff3c7508b7",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "b8b221aa2dd786a301ebb9183ac59d1e74da32c6",
+      "observedAt": "2026-10-25T09:45:25.054102+00:00",
+      "receiptFile": "willo-runtime-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -174,5 +236,60 @@
     "headSha": "b7c6c204fa349aa217575ca1e45dab36df785562",
     "updatedAt": "2026-10-25T09:30:19Z",
     "url": "https://github.com/OxyHQ/Noted/actions/runs/40180765059"
+  },
+  "authenticatorSource": {
+    "pr": 65,
+    "sourceSha": "c7142727142e237639c142281c4cfe2a2663fae0",
+    "status": "merged after CI; native distribution and device sign-in not established"
+  },
+  "qaSessionAcceptance": {
+    "success": true,
+    "checks": [
+      "normal-session-authenticated-account",
+      "own-files-readable-without-app-grant",
+      "session-inference-catalogue-readable"
+    ],
+    "profileCount": 0,
+    "observedAt": "2026-10-25T09:51:24.226Z",
+    "identity": "new dedicated QA account",
+    "inferenceGenerationPerformed": false,
+    "receiptFile": "qa-session-readback-20261025.json"
+  },
+  "alloSource": {
+    "pr": 268,
+    "sourceSha": "f69c1274b50b6fa630e2569e03eb0a670c8ca9b3",
+    "status": "merged after verified Homiio API and worker; runtime receipt pending"
+  },
+  "qaPrivateFileAcceptance": {
+    "success": true,
+    "checks": [
+      "private-upload-without-app-grant",
+      "own-private-bytes-match",
+      "anonymous-private-read-refused",
+      "own-test-file-deleted"
+    ],
+    "observedAt": "2026-10-25T09:56:00.867Z",
+    "receiptFile": "qa-private-file-smoke-20261025.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
+  },
+  "aliaReaderCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-refused",
+      "scope-free-exact-workload-reaches-missing-synthetic-link",
+      "wrong-recipient-refused",
+      "raw-account-header-refused"
+    ],
+    "observedAt": "2026-10-25T09:55:05.558Z",
+    "source": "850b2f96177a1ef07ed635bf1d88307919eec300",
+    "receiptFile": "alia-reader-canary-20261025.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
+  },
+  "qaSessionRevocation": {
+    "operation": "revoke",
+    "bearerRefused": true,
+    "observedAt": "2026-10-25T09:53:11.459Z",
+    "receiptFile": "qa-private/revoke-receipt.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
   }
 }
