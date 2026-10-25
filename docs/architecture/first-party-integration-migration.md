@@ -21,20 +21,19 @@ revocation and operation binding remain mandatory.
 | Oxy auth, OAuth finalizers, Commons | Foundation `4d8cc12a` deployed; shared SDKs published; human fleet adoption remains | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
 | Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS and live readback; product fleet cutovers remain |
 | Oxy core/contracts service authority | Core 7.0.0 / contracts 6.0.0 published; foundation live canary passed | Workload proof, environment and audience; customer key stays external |
-| Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority canary passed; product/private-data canaries remain | Account/resource isolation without own scope/grant dependencies |
+| Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority and dedicated QA private-file canaries passed; inference execution and remaining product canaries remain | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Foundation frontend deployed; public sign-in dialog smoke passed; authenticated settings smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Alia own-app levels and tool admission | Stage B `81819a95` deployed; SDK 22 published; stage C contained in verified runtime `029702fb` | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Workload gateway 189 and API 609 verified on `029702fb`; infrastructure secret cleanup remains separately gated | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay, Moovo and TNP runtime readbacks verified; Mention/Mercaria and remaining fleet cutovers pending | Caller→SDK→receiver tests for own and external identities |
+| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Mention, Syra, Move and Nilo runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. The Oxy authority runtime is deployed and its service canary passed. Alia and
-the product fleet still require their own SDK pins, deployments and acceptance;
+caller is updated. The Oxy authority runtime is deployed and its service canary passed. Remaining product and native consumers still require their own SDK pins, deployments and acceptance;
 this checkpoint is not fleet completion.
 
 ## Verified rollout update (2026-10-25)
@@ -54,6 +53,13 @@ from operator readbacks. It contains no bearer credentials or user data.
 | Alia stage A API / integrations | `850b2f96177a1ef07ed635bf1d88307919eec300` | 606: 2/2; 186: 1/1; healthy targets / integration task |
 | Homiio API / worker | `c672a3321ee9c874329bd1308681e3988eb5c033` | 274: 2/2; 277: 1/1; old tasks drained |
 | Willo | `b8b221aa2dd786a301ebb9183ac59d1e74da32c6` | 35: 1/1; healthy targets |
+| Allo | `f69c1274b50b6fa630e2569e03eb0a670c8ca9b3` | 180: 2/2; healthy targets |
+| Alia stage B API / integrations | `81819a95cd99279d155df2171df02ce3f5654adc` | 608: 2/2; 188: 1/1; verified before producers |
+| Alia containing stage C API / integrations | `029702fbd3703bb85d1dd258324b2d058063f293` | 609: 2/2; 189: 1/1; matching ARM64 child digests |
+| Mention API / MCP | `0ce0f417e039b96c3490bfb29b4f19ff333b3bd8` | 721: 2/2; 421: 1/1; healthy targets |
+| Syra | `7ee33926b95e26792b7f153de7a45c212a7b4fce` | 173: 2/2; healthy targets |
+| Move | `0f095e3eb40435be1bfb41186962525961e26a09` | 50: 1/1; healthy targets |
+| Nilo | `5ad257adadde9c12018fe2be8cc1aae73105f9e4` | 109: 2/2; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running
@@ -117,20 +123,44 @@ wrong-recipient and forged raw-account requests. This verifies the reader's
 authentication boundary, not a real user's linked data or the separate event
 receiver required by Nilo.
 
-Alia's stage A is live and its server SDK 1.2.0 is published. This does **not**
-unlock Nilo's capability-event producer: the stage-A event receiver still
-forwards the Alia-audience bearer to Oxy and requires the legacy
-`capability-events:publish` scope. Nilo [PR #147](https://github.com/OxyHQ/Nilo/pull/147)
-remains held until the stage-B event receiver is live and verified. Alia's own
-agent authority, producer cutover and secret removal remain separate gates.
+The dedicated QA account was deleted normally using its own signed key proof at
+`2026-10-25T09:58:35.192Z`. Its previous bearer returned 401, and the guarded
+helper removed its local identity and session files. The preceding private-file
+fixture had already been deleted. This does not claim inference generation,
+real-user data access or physical-device acceptance.
 
-Both Homiio API and worker now satisfy Allo's receiver deployment prerequisite.
-Allo [PR #268](https://github.com/OxyHQ/Allo/pull/268) merged as
-`f69c1274b50b6fa630e2569e03eb0a670c8ca9b3` after CI; this receipt does not claim
-Allo has deployed. Mercaria must precede the new
-Clarity producer; Mention must precede Move/Schedio. The finite v1 bridge
-and credential cleanup remain gated on all inventoried consumers and live
-canaries. These readbacks do **not** mark the fleet migration complete.
+Alia's stage-B API and integrations were verified live before Nilo's producer
+was released. The event canary at `2026-10-25T10:38:14.605Z` used the Nilo
+workload with its actual `noted` catalogue: anonymous and wrong-recipient
+requests were refused, while the own workload reached the live catalogue's
+invalid-event validation. It performed zero writes. Nilo
+[PR #147](https://github.com/OxyHQ/Nilo/pull/147) subsequently deployed revision
+109. SDK 22.0.0 is public; installed consumer copies were checked against all
+212 files and the integrity of its registry archive.
+
+Both Homiio API and worker satisfied Allo's receiver prerequisite before
+[PR #268](https://github.com/OxyHQ/Allo/pull/268). Allo revision 180 and its
+[frontend deployment](https://github.com/OxyHQ/Allo/actions/runs/40182305470)
+then passed. Alia stage C is included in runtime `029702fb`, which also contains
+the Codea/Cowork source changes from [PR #899](https://github.com/OxyHQ/Alia/pull/899).
+Local VSIX and Linux AppImage artifacts were built; there is no claim of
+Marketplace/Electron distribution, signing, or native desktop sign-in acceptance.
+Infrastructure secret removal still requires its separate reviewed plan/apply.
+
+Atlas's [frontend deployment](https://github.com/OxyHQ/Atlas/actions/runs/40185771456)
+and Inbox's [frontend deployment, attempt 2](https://github.com/OxyHQ/Inbox/actions/runs/40185828152)
+succeeded on their recorded SDK-22 consumer commits. OxyOS's
+[shell CI](https://github.com/OxyHQ/OxyOS/actions/runs/40185833072) passed; that
+is not an installed ISO or physical-device acceptance. Website's consumer
+update and Alia's separate app/Syra transport follow-up remain source/CI gates,
+not evidence of deployed behavior.
+
+Mention's readers and Move's producer are verified. Schedio's public DNS smoke
+failed and its backend automatically rolled back to revision 17; its new
+producer is **not deployed**. The finite v1 bridge retirement remains held on
+that unresolved rollout and the remaining inventoried producers, including the
+Oxy Inbox producer. Mercaria must still satisfy the separate Clarity producer
+prerequisite. These dated readbacks do **not** mark the fleet migration complete.
 
 ## Audited runtime graph
 
@@ -346,10 +376,12 @@ remains inert pending archival.
 
 Validation: full API 2,693 tests; PostgreSQL 43; focused task/managed-account and
 channel-renewal HTTP tests; affected app 85 tests; API/app types and API build.
-These used locally packed candidate core/contracts. No local package path is
-committed. Final acceptance still requires published core/contracts pins and
-lockfile, combined gateway/SDK receiver tests, reader-first deploy, live binding
-and catalogue re-registration/readback, and the controlled channel conversion.
+Those initial tests used locally packed candidate core/contracts; no local
+package path was committed. Published pins, the combined gateway/SDK receivers,
+and the stage-B/stage-C deployments are now recorded above. The pre-cutover
+channel inventory contained zero linked bots or connected channels, so the live
+rollout does not establish a populated legacy-channel conversion. Task, bot and
+account behavior still requires its operation-specific acceptance evidence.
 App-owned Files artifacts/reference reconciliation remain service-domain data;
 personal Files access uses the requester facade. The remaining ecosystem rows
 above are pending until their own caller→receiver changes and canaries are proven.
