@@ -33,6 +33,8 @@ interface RateLimitOptions {
   windowMs: number;
   max: number;
   keyGenerator?: (req: Request) => string;
+  /** Do not retain unsuccessful responses in this limiter's budget. */
+  skipFailedRequests?: boolean;
   message?: string;
   /** Structured errors for new cross-product APIs. */
   errorFormat?: 'nested';
@@ -117,6 +119,7 @@ export function rateLimit(options: RateLimitOptions) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,
+    ...(options.skipFailedRequests ? { skipFailedRequests: true } : {}),
     ...(options.skip ? { skip: options.skip } : {}),
     // hashedIpKey already buckets IPv6 to /56 before HMAC (see ipKey.ts); the v8
     // static source scan false-positives on req.ip and spams ERR_ERL_KEY_GEN_IPV6.
