@@ -1,0 +1,217 @@
+{
+  "scope": "Schedio prelaunch parking and bounded own-workload retirement readiness; no global protocol activation.",
+  "ownerDeferredPublicLaunch": true,
+  "sources": {
+    "schedio": "5be56680bc678768b1dfb16afb0e99e852d8775a",
+    "infra": "c6e80da0436f1aed00a4f33a092c5dfe4d3f2da8"
+  },
+  "publishingCensus": {
+    "observedAt": "2026-10-25T19:33:42.003Z",
+    "readOnly": true,
+    "connections": 0,
+    "posts": 0,
+    "deliveries": 0,
+    "scheduledDeliveries": 0
+  },
+  "cohortCensusBeforeParking": {
+    "databaseObservedAt": "2026-10-25 19:30:08.685606+00",
+    "reviewedTuples": 27,
+    "outsideCohort": 0,
+    "allApplicationOwnerReadinessHealthy": true,
+    "notedExpired": true,
+    "schedioWasUnexpired": true
+  },
+  "parking": {
+    "lastOldProcessStoppedAt": "2026-10-25T19:36:26.289Z",
+    "workflowsDisabled": true,
+    "serviceDesired": 0,
+    "serviceRunning": 0,
+    "servicePending": 0,
+    "bindingId": "01a14433-6e30-7ae9-b22f-172dbdd64822",
+    "applicationId": "6a37b02cd55f88733615197c",
+    "roleName": "oxy-schedio-task",
+    "environment": "production",
+    "previousExpiry": null,
+    "newExpiry": "2026-10-25 19:19:48.513173+00",
+    "updatedAtUnchanged": true,
+    "otherFieldsFingerprintUnchanged": true,
+    "commitObservedAt": "2026-10-25T19:38:09.468Z",
+    "postCommitReadOnlyObservedAt": "2026-10-25 19:38:09.471726+00",
+    "signedMintRefusal": {
+      "observedAt": "2026-10-25T19:39:15.618Z",
+      "status": 403,
+      "reason": "unbound_workload"
+    },
+    "diagnosticsStoppedAndInactive": true
+  },
+  "drain": {
+    "start": "2026-10-25T19:39:52.720361+00:00",
+    "minimumSeconds": 300,
+    "notBefore": "2026-10-25T19:44:52.720361+00:00",
+    "completed": true,
+    "basis": "Conservative boundary after the actual old process stopped, exact binding COMMIT/readback, real signed mint refusal and all diagnostic tasks stopped with definitions inactive; not the retroactive expiry or quiet logs."
+  },
+  "preserved": "Service, DB records, application, public client, role, external credentials and historical images/definitions; only the exact binding expires_at changed.",
+  "remaining": [
+    "PR #1984 final publication and production rollout remain separate.",
+    "Product acceptance limits (real identity, native devices, inference execution and desktop distribution) are distinct from service-token retirement."
+  ],
+  "historicDashboardRunAnomaly": {
+    "repository": "OxyHQ/Mercaria",
+    "run": 37170987475,
+    "readApi": "queued with no jobs",
+    "normalCancel": "reported completed",
+    "forceCancel": "HTTP409 reported not queued yet",
+    "cancellationPerformed": false,
+    "scope": "Historical frontend control-state anomaly; verified714f3ec dashboard deployment remains authoritative. Not evidence of an active own workload producer."
+  },
+  "sourceReceipts": [
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/workflow-hold-before.json",
+      "sha256": "23e06e3bf699129085eabc446cf1ed6e7295beb48ea18f53a620df533f4c19cb"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/workflow-hold-after.json",
+      "sha256": "620433d999ad82a8e819a03337a7c603439ed063869c892b05fffc44b128e83a"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/census/readback.json",
+      "sha256": "0db1d1adadfac6a97a992ec38610d67c466296b5f8b67e7b2c1a540a3ac01f45"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/census/cleanup.json",
+      "sha256": "afbd6f9e178203c452b4fb5f952e0adaffe67ae752a079c21533bf5ef78e64a0"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/service-stop-before.json",
+      "sha256": "c1dc1f399033f005b879015942e0ded26b72902721451674a187927b003e3052"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/service-stop-request.json",
+      "sha256": "736189bef60e1a7ff08fd53a7bf020da9d5ac4493d137dfcc4bdd8d83e4f9a48"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/terraform-apply-readback.json",
+      "sha256": "7583f6ff44651b053a63c3a18950e0e832116f30579a589c93b4ca32cb0967d9"
+    },
+    {
+      "operatorReceipt": "commerce/schedio-binding-expiry-cas-20261025/producer-stopped.json",
+      "sha256": "a81bd25a12d0d7ce4a9b6b79c0f96066fcc3e8cdaee7bd7b8f6f6958f21edfc2"
+    },
+    {
+      "operatorReceipt": "commerce/schedio-binding-expiry-cas-20261025/cas-receipt.json",
+      "sha256": "a3c2b06e4dcc9391e86fe88b2bb96ff936fbe9e0fd20de5dccbd9043b497fad2"
+    },
+    {
+      "operatorReceipt": "commerce/schedio-binding-expiry-cas-20261025/commit-observed.json",
+      "sha256": "7ef98604142b87a3847896ecb2637045b70236ebb1e55ca818073648ab2e0307"
+    },
+    {
+      "operatorReceipt": "commerce/schedio-binding-expiry-cas-20261025/cleanup.json",
+      "sha256": "690b45d50c3b81d15ce7df6fba13d2fa7d6de41f1976a8c16a055b6c789e5e95"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/mint-refusal/readback.json",
+      "sha256": "66f10004d738d7faed2a1d9594f24c969806c767c78e530b648a6cda5fbb001b"
+    },
+    {
+      "operatorReceipt": "first-party-root/schedio-prelaunch-parking/mint-refusal/cleanup.json",
+      "sha256": "6b8d68a46a21e87b7bc709584415b7aa3b9169a30d330e29c7230553994cf98d"
+    },
+    {
+      "operatorReceipt": "commerce/own-workload-readback-20261025-final/readback.json",
+      "sha256": "c6574838d922941414ab1a28f7b09134bce1fff45d19ac907a24b2545cdc8082"
+    },
+    {
+      "operatorReceipt": "commerce/own-workload-readback-20261025-final/cleanup.json",
+      "sha256": "b6c91340b11c4dff615cc7066f92a2855afac16e47f4d40fac443b09d1dfa9f8"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/live-launchers-20261025.json",
+      "sha256": "b6af5468ffed1a791ae105b456f65a99612f98c48a931c9ca0a354efed5db359"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/standalone-tasks-20261025.json",
+      "sha256": "d7091d61c274ce7b6c38fb29eb0ee280b7a21384af31ee51797978f40fb74d4b"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/mint-protocol-observation-20261025.json",
+      "sha256": "1b96503e8a63ebdcabd0123a1d6a74319bc21ef4962d062280f63e6229ccf1f2"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/runtime-drift-20261025.json",
+      "sha256": "adf00e53983dd5bff47f0397dcc19af134d1f22fc396982c866a0d63d52aae5e"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/standalone-followup-20261025.json",
+      "sha256": "81f1cd503da6c658e59bf6fd9ed24f1ca2c47e20f0a8bbe31cf988de50c2cc83"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/kaana-manual-image-retention-20261025.json",
+      "sha256": "48f778611a8c6aa8bc1a9c0c74ee319931de8308ece5319abb802316895c04fe"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/transient-standalone-20261025.json",
+      "sha256": "24556c5e6147f28c4c8bdaa350dc6239b6793bc047da229ea2a30f6e27149c14"
+    },
+    {
+      "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/mint-protocol-followup-20261025.json",
+      "sha256": "8ee840886c6ca02e97e9001a4115d36046a63104a808bef532b7c39046293e27"
+    }
+  ],
+  "globalV1Retired": false,
+  "postDrain": {
+    "servicesObservedAt": "2026-10-25T19:45:27.061373+00:00",
+    "stableServices": 30,
+    "schedioDesiredRunningPending": [
+      0,
+      0,
+      0
+    ],
+    "schedulerSchedules": 0,
+    "eventBridgeRules": 6,
+    "fixedTaskDefinitionTargets": 0,
+    "tasksObservedAt": "2026-10-25T19:45:29.836637+00:00",
+    "runningTasks": 47,
+    "standaloneTasks": 0,
+    "mintWindowStart": "2026-10-25T19:39:52.720000+00:00",
+    "mintWindowEnd": "2026-10-25T19:45:05.578000+00:00",
+    "mintEvents": 84,
+    "protocol2Events": 84,
+    "protocol1Events": 0,
+    "unparsedEvents": 0,
+    "runtimeDigestsObservedAt": "2026-10-25T19:47:32.547592+00:00",
+    "changedRunningImages": [],
+    "lastTaskReadbackAt": "2026-10-25T19:49:43.502975+00:00",
+    "lastRunningTasks": 47,
+    "lastStandaloneTasks": 0,
+    "limitation": "Bounded current fleet, supported deployment/rollback paths and named launchers. Quiet issuer logs are supporting evidence, not proof that dormant code cannot mint. Historical definitions and images are preserved; arbitrary administrative launches of unsupported old producers are outside the supported rollout procedure.",
+    "followupIssuerObservation": {
+      "observedAt": "2026-10-25T19:50:53.659217+00:00",
+      "windowStart": "2026-10-25T19:39:52.720000+00:00",
+      "windowEnd": "2026-10-25T19:50:51.657000+00:00",
+      "events": 178,
+      "protocol2Events": 178,
+      "protocol1Events": 0,
+      "unparsedEvents": 0
+    },
+    "transientScheduledTask": {
+      "definition": "oxy-mention:723",
+      "launcher": "mention-sitemaps",
+      "roleName": "oxy-mention-task",
+      "createdAt": "2026-10-25T19:47:28.761Z",
+      "startedAt": "2026-10-25T19:47:36.951Z",
+      "stoppedAt": "2026-10-25T19:47:40.563Z",
+      "exitCode": 0,
+      "runtimeDigest": "sha256:eb8324fa348aaeea4a9fdcc49a302b07c19f09924013d9d1e8b7a29c40e9db6a",
+      "sameMigratedImageAsLiveService": true,
+      "interpretation": "The reviewed scheduled launcher resolved the live service revision, as designed; this was not an old or unknown producer."
+    }
+  },
+  "kaanaManualImageRetention": {
+    "observedAt": "2026-10-25T19:47:36.239546+00:00",
+    "index": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
+    "indexAndBothChildrenAvailableAndPinned": true,
+    "interpretation": "The original launcher report filtered retention tags for credential/admin substrings and omitted pinned-* tags. Exact ECR readback confirms no retention regression."
+  }
+}
