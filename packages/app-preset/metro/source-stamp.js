@@ -10,11 +10,15 @@
  * that is fine and name a command (`build:all`) that cannot fix it.
  *
  * A package opts in with `"oxySourceStamp": "<output dir>"` in its
- * package.json and runs this file last in its `build`:
+ * package.json and, last in its `build` (cwd = the package), calls
+ * `writeStamp(process.cwd())` from this file when the file is there:
  *
- *   node ../app-preset/metro/source-stamp.js
+ *   node -e "const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())"
  *
- * (cwd = the package). The stamp is `<output dir>/.oxy-source-digest`.
+ * The guard is for builds that never reach Metro: the API and node Docker
+ * images copy only the packages they build, not app-preset, and a missing
+ * stamp only matters to a Metro release bundle, which then refuses it. The
+ * stamp is `<output dir>/.oxy-source-digest`.
  */
 const crypto = require('node:crypto');
 const fs = require('node:fs');

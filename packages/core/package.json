@@ -163,7 +163,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs && node ../app-preset/metro/source-stamp.js",
+    "build": "node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",

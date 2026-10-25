@@ -121,7 +121,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types && node ../app-preset/metro/source-stamp.js",
+    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
     "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:types": "tsc -p tsconfig.types.json && node scripts/mark-types-cjs.mjs",

@@ -226,7 +226,11 @@ test('every workspace package an app bundles from dist/ writes the stamp in its 
       fs.readFileSync(path.join(packagesDir, name, 'package.json'), 'utf8'),
     );
     assert.equal(manifest.oxySourceStamp, 'dist', `${name} declares oxySourceStamp`);
-    assert.match(manifest.scripts.build, /node \.\.\/app-preset\/metro\/source-stamp\.js$/, name);
+    assert.match(
+      manifest.scripts.build,
+      /require\('node:fs'\)\.existsSync\(p\)&&require\(p\)\.writeStamp\(process\.cwd\(\)\)"$/,
+      name,
+    );
     assert.ok(manifest.files.includes(`!dist/${STAMP_FILE}`), `${name} keeps the stamp off npm`);
   }
 });
