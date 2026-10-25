@@ -45,6 +45,8 @@ post-deployment migration and must not remove external application/key scopes.
   binding revocation, external customer scope ceilings and external OAuth/MCP
   revocation. After old producers stop, drain existing tokens for their full
   maximum lifetime before removing the accepting readers.
+- The changed Core emitter requires a version bump, CI and normal registry release
+  at activation; the draft deliberately does not publish or bump a package now.
 - Root records the complete fleet and launcher inventory plus final authorization
   to retire the bridge. Until then, keep this PR draft and production unchanged.
 
@@ -75,7 +77,7 @@ authorized external test credentials; it cannot reuse Noted's retired own keys.
 
 At the draft checkpoint, focused verification passed:
 
-- Core: 29 tests in four suites (all token helpers use v2, cache/audience boundaries,
+- Core: 30 tests in four suites (all token helpers use v2, cache/audience boundaries,
   stale live projection refusal, explicit external credentials).
 - API: 286 tests in 19 suites against an isolated local PostgreSQL 17 database,
   including scope-bounded external services, raw keys, OAuth, managed sessions,

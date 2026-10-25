@@ -405,7 +405,7 @@ export class OxyServer extends OxyServices {
     const audience = options.audience;
     const mint = () => this.workloadServiceToken(audience);
     client.setAuthRefreshHandler(async () => {
-      this.serviceTokens.delete(audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:2`));
+      this.serviceTokens.delete(audienceCacheKey(audience, WORKLOAD_CACHE_KEY));
       return mint();
     });
     const fetchOptions = {
