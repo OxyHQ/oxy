@@ -161,14 +161,19 @@ function isAbort(error: unknown): boolean {
 /**
  * `fetch`, traced. Same signature and behaviour as the global; the global is
  * read at call time, so a test that replaces `globalThis.fetch` still sees the
- * call.
+ * call. An optional shared SDK transport retains tracing around its authenticated
+ * request without copying its bearer or replacing its refresh/origin checks.
  */
-export async function tracedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function tracedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  transport?: { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> },
+): Promise<Response> {
   const parent = context.active();
   const url = requestUrl(input);
   if (!url) {
     // Not a URL fetch can resolve either; let fetch produce its own error.
-    return globalThis.fetch(input, init);
+    return transport ? transport.fetch(input, init) : globalThis.fetch(input, init);
   }
 
   const methodOriginal = requestMethod(input, init);
@@ -186,7 +191,9 @@ export async function tracedFetch(input: RequestInfo | URL, init?: RequestInit):
   const effectiveInit = withPropagationHeaders(input, init, carrier);
 
   try {
-    const response = await context.with(spanContext, () => globalThis.fetch(input, effectiveInit));
+    const response = await context.with(spanContext, () =>
+      transport ? transport.fetch(input, effectiveInit) : globalThis.fetch(input, effectiveInit),
+    );
     span.setAttribute('http.response.status_code', response.status);
     if (response.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR });
     return response;

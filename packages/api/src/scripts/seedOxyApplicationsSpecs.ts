@@ -370,7 +370,8 @@ export const WILLO_APPLICATION_ID = 'b043569d14d358371cb545b5';
 export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
 
 /** Exact opaque identity verified against the active production Alia row. */
-export const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+export { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
+import { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
 
 /** Exact opaque identity already assigned to Homiio in production. */
 export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';

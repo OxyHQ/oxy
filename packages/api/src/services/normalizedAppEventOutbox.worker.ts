@@ -11,6 +11,7 @@ import {
 } from '../capabilities/inbox-service-client';
 import { logger } from '../utils/logger';
 import { tracedFetch } from '../utils/tracedFetch';
+import { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
 
 export const NORMALIZED_EVENT_OUTBOX_MAX_ATTEMPTS = 12;
 export const NORMALIZED_EVENT_OUTBOX_LEASE_MS = 60_000;
@@ -24,30 +25,28 @@ function aliaApiUrl(): string {
   return (process.env.ALIA_API_URL ?? 'https://api.alia.onl').replace(/\/$/, '');
 }
 
-async function postEvent(event: NormalizedAppEvent, token: string): Promise<Response> {
-  return tracedFetch(`${aliaApiUrl()}/webhooks/oxy`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      'idempotency-key': event.eventId,
-    },
-    body: JSON.stringify(event),
-    signal: AbortSignal.timeout(10_000),
-  });
-}
-
-/** Deliver with Oxy service identity; no user bearer or shared HMAC is stored. */
+/** Shared v2 transport owns mint, recipient binding and the one safe 401 refresh. */
 export async function deliverNormalizedAppEvent(event: NormalizedAppEvent): Promise<void> {
   const parsed = normalizedAppEventSchema.parse(event);
-  const client = requiredInboxServiceClient();
-  let response = await postEvent(parsed, await client.serviceToken());
-  if (response.status === 401) {
-    client.invalidateServiceToken();
-    response = await postEvent(parsed, await client.serviceToken());
-  }
-  if (!response.ok) {
-    throw new Error(`Alia rejected ${parsed.appId} event (${response.status})`);
+  const transport = requiredInboxServiceClient().createServiceClient({
+    baseURL: aliaApiUrl(),
+    audience: `oxy-service:${ALIA_APPLICATION_ID}`,
+  });
+  try {
+    const response = await tracedFetch(
+      `${aliaApiUrl()}/webhooks/oxy`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': parsed.eventId },
+        body: JSON.stringify(parsed),
+        signal: AbortSignal.timeout(10_000),
+      },
+      transport,
+    );
+    await response.body?.cancel();
+    if (!response.ok) throw new Error(`Alia rejected ${parsed.appId} event (${response.status})`);
+  } finally {
+    transport.dispose();
   }
 }
 
@@ -219,12 +218,8 @@ export function startNormalizedEventOutboxWorker(): boolean {
     logger.info('[NormalizedEventOutbox] Inbox worker disabled; events remain durable');
     return false;
   }
-  if (!inboxServiceClient()) {
-    logger.error(
-      '[NormalizedEventOutbox] Inbox worker requires an Inbox identity (a full key pair or an attestable task role)',
-    );
-    return false;
-  }
+  // Validate retired configuration immediately; provider resolution happens at mint.
+  inboxServiceClient();
   if (timer) return true;
   const intervalMs = Math.max(
     getEnvNumber('INBOX_EVENT_OUTBOX_POLL_INTERVAL_MS', DEFAULT_POLL_INTERVAL_MS),
