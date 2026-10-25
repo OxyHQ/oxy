@@ -11,17 +11,9 @@ import {
   accountClosureFences,
   users,
 } from '../db/schema';
-import {
-  intersectScopes,
-  isValidApplicationScope,
-  workloadBindingScopes,
-} from '../utils/applicationScopes';
+import { intersectScopes, isValidApplicationScope } from '../utils/applicationScopes';
 import { selectSeedEntriesByExactIds } from './seedEntrySelection';
-import {
-  MENTION_APPLICATION_ID,
-  MENTION_TASK_WORKLOAD_IDENTITY,
-  SEED_APPS,
-} from './seedOxyApplicationsSpecs';
+import { SEED_APPS } from './seedOxyApplicationsSpecs';
 
 const sorted = (values: readonly string[]) => [...new Set(values)].sort();
 const fail = (code: string): never => {
@@ -149,7 +141,7 @@ export async function seedOxyApplicationScopes(options: ScopeSeedOptions) {
             id: applicationWorkloadIdentities.id,
             provider: applicationWorkloadIdentities.provider,
             subject: applicationWorkloadIdentities.subject,
-            scopes: applicationWorkloadIdentities.scopes,
+            environment: applicationWorkloadIdentities.environment,
             expiresAt: applicationWorkloadIdentities.expiresAt,
           })
           .from(applicationWorkloadIdentities)
@@ -171,29 +163,12 @@ export async function seedOxyApplicationScopes(options: ScopeSeedOptions) {
           .orderBy(asc(applicationCredentials.id));
         const credentials = await (options.apply ? credentialQuery.for('update') : credentialQuery);
         const expansions: Array<{
-          kind: 'binding' | 'credential';
+          kind: 'credential';
           id: string;
           added: string[];
         }> = [];
-        for (const binding of bindings) {
-          const before = workloadBindingScopes(binding.scopes, app.scopes);
-          const added = workloadBindingScopes(binding.scopes, desired).filter(
-            (scope) => !before.includes(scope),
-          );
-          const own =
-            app.id === MENTION_APPLICATION_ID &&
-            binding.id === MENTION_TASK_WORKLOAD_IDENTITY.bindingId &&
-            binding.subject === MENTION_TASK_WORKLOAD_IDENTITY.subject &&
-            binding.provider === 'aws-iam';
-          if (added.length && !own)
-            expansions.push({
-              kind: 'binding',
-              id: binding.id,
-              added: sorted(added),
-            });
-        }
         for (const credential of credentials) {
-          if (credential.type === 'workload') continue; // Its binding, not attribution-row scopes, is authoritative.
+          if (credential.type === 'workload') continue; // Workload identity is independent of external scope ceilings.
           const before =
             credential.type === 'service' && !credential.scopes.length
               ? app.scopes

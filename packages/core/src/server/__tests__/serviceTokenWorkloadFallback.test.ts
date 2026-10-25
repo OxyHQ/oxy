@@ -11,16 +11,16 @@ const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-  requestLegacyWorkloadServiceToken: jest.fn(async () => ({
+  requestWorkloadServiceToken: jest.fn(async () => ({
     token: mockToken,
     expiresIn: 300,
     appName: 'Mention',
   })),
 }));
 
-import { requestLegacyWorkloadServiceToken } from '../workloadIdentity';
+import { requestWorkloadServiceToken } from '../workloadIdentity';
 
-const attestations = requestLegacyWorkloadServiceToken as unknown as jest.Mock;
+const attestations = requestWorkloadServiceToken as unknown as jest.Mock;
 
 function client() {
   return new OxyServer({ baseURL: 'https://api.oxy.so' });

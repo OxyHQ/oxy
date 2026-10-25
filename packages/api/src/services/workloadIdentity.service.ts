@@ -1,8 +1,3 @@
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
-import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
-import { audienceRefusal } from '../config/serviceTokenAudiences';
-import { workloadBindingScopes } from '../utils/applicationScopes';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import crypto from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
@@ -180,8 +175,6 @@ export async function exchangeWorkloadAttestation(input: {
       ownerStatus: users.accountStatus,
       ownerClosure: accountClosureFences.accountId,
       environment: applicationWorkloadIdentities.environment,
-      bindingScopes: applicationWorkloadIdentities.scopes,
-      applicationScopes: applications.scopes,
       status: applications.status,
       type: applications.type,
       isOfficial: applications.isOfficial,
@@ -240,70 +233,29 @@ export async function exchangeWorkloadAttestation(input: {
     );
   }
 
-  const firstParty = input.protocolVersion === 2;
-  if (
-    !firstParty &&
-    !isLegacyWorkloadCohort({
-      id: binding.bindingId,
-      applicationId: binding.applicationId,
-      provider: attested.provider,
-      subject: attested.subject,
-    })
-  ) {
+  if (input.protocolVersion !== 2) {
     throw new WorkloadIdentityError(
       400,
       'workload_protocol_upgrade_required',
       'Upgrade the service SDK to workload protocol version 2.',
     );
   }
-  if (
-    firstParty &&
-    (binding.environment === null || binding.environment !== deploymentCredentialEnvironment())
-  ) {
+  if (binding.environment === null || binding.environment !== deploymentCredentialEnvironment()) {
     throw new WorkloadIdentityError(
       403,
       'workload_environment_unbound',
       'The workload must be bound to this environment before it can mint.',
     );
   }
-  if (firstParty && input.scopes !== undefined) {
+  if (input.scopes !== undefined) {
     throw new WorkloadIdentityError(
       400,
       'workload_scopes_unsupported',
       'First-party workloads authenticate without scopes.',
     );
   }
-  const environment = firstParty
-    ? binding.environment!
-    : (binding.environment ?? workloadTokenEnvironment());
-  if (environment !== deploymentCredentialEnvironment()) {
-    throw new WorkloadIdentityError(
-      403,
-      'workload_environment_unbound',
-      'The workload belongs to another environment.',
-    );
-  }
-  let legacyScopes: string[] | undefined;
-  if (!firstParty) {
-    const granted = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
-    legacyScopes =
-      input.scopes === undefined ? granted : serviceTokenScopesSchema.parse(input.scopes);
-    if (legacyScopes.some((scope) => !new Set<string>(granted).has(scope))) {
-      throw new WorkloadIdentityError(
-        403,
-        'scope_not_granted',
-        'A requested service scope is not granted.',
-      );
-    }
-    const refusal = audienceRefusal(audience, binding.applicationId, legacyScopes);
-    if (refusal || audience.startsWith('oxy-service:')) {
-      throw new WorkloadIdentityError(
-        403,
-        refusal ?? 'invalid_service_audience',
-        'Upgrade the service SDK for this audience.',
-      );
-    }
-  }
+  const environment = binding.environment;
+
   if (await isSupervised(binding.ownerAccountId)) {
     throw new WorkloadIdentityError(403, 'owner_unavailable', 'The owning account cannot operate.');
   }
@@ -353,7 +305,7 @@ export async function exchangeWorkloadAttestation(input: {
    *
    * Doing it here also means the bindings already live in production need no
    * backfill: their next mint writes the row. It is one indexed probe per mint,
-   * and a mint is once an hour per task.
+   * and token reuse is bounded by the shared service-token lifetime ceiling.
    */
   let attribution;
   try {
@@ -403,9 +355,7 @@ export async function exchangeWorkloadAttestation(input: {
       // Only a trusted application passes the gate above: a workload identity is
       // always one of Oxy's own.
       tier: 'internal',
-      ...(firstParty
-        ? { authority: 'first_party' as const }
-        : { authority: 'external' as const, scopes: legacyScopes! }),
+      authority: 'first_party',
     },
     audience,
   );
@@ -422,8 +372,8 @@ export async function exchangeWorkloadAttestation(input: {
     attestationId: attribution.credentialId,
     /** `created` the first time this workload ever mints; otherwise `unchanged`. */
     attribution: attribution.state,
-    authority: firstParty ? 'first_party' : 'external',
-    protocolVersion: firstParty ? 2 : 1,
+    authority: 'first_party',
+    protocolVersion: 2,
     environment,
     audience,
   });

@@ -1,5 +1,4 @@
 import { utf16MinLength } from '@oxy.so/contracts';
-import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import {
   assertExternalDocumentUpload,
   assertExternalDocumentContinuation,
@@ -3592,9 +3591,7 @@ router.post(
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner =
-      req.serviceApp?.authority === 'first_party' ||
-      Boolean(req.serviceApp && (await resolveLegacyResourceWorkload(req.serviceApp)));
+    const revealOwner = req.serviceApp?.authority === 'first_party';
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {

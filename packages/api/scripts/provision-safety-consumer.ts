@@ -56,7 +56,7 @@ async function main(): Promise<void> {
           applicationId: applicationWorkloadIdentities.applicationId,
           provider: applicationWorkloadIdentities.provider,
           subject: applicationWorkloadIdentities.subject,
-          scopes: applicationWorkloadIdentities.scopes,
+          environment: applicationWorkloadIdentities.environment,
           expiresAt: applicationWorkloadIdentities.expiresAt,
         })
         .from(applicationWorkloadIdentities)
@@ -107,14 +107,6 @@ async function main(): Promise<void> {
             .update(applications)
             .set({ scopes: after.application.scopes, capabilities: after.application.capabilities })
             .where(eq(applications.id, application.id));
-        for (const desired of after.workloads) {
-          const observed = rows.find((row) => row.id === desired.id);
-          if (JSON.stringify(observed?.scopes) !== JSON.stringify(desired.scopes))
-            await tx
-              .update(applicationWorkloadIdentities)
-              .set({ scopes: desired.scopes })
-              .where(eq(applicationWorkloadIdentities.id, desired.id));
-        }
         await tx.insert(securityActivities).values({
           userId: target.ownerAccountId,
           eventType: 'security_settings_changed',

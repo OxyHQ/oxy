@@ -77,37 +77,15 @@ export const applicationWorkloadIdentities = pgTable(
      */
     subject: text().notNull(),
 
-    /** Provisioned before the new issuer; legacy readers continue to ignore it. */
+    /** Explicit administrative binding; an absent environment cannot authenticate. */
     environment: text({ enum: ['development', 'staging', 'production'] }),
 
     /** Free text for whoever reads this table a year from now. */
     description: text(),
 
-    /**
-     * Scopes this binding may mint, or empty for "names none".
-     *
-     * Same column shape, same default and the same CHECK as
-     * `application_credentials.scopes`, because it plays the same part: the
-     * mint intersects it with the owning application's scopes
-     * (`intersectScopes`), so a binding can never exceed its application's
-     * authority, and empty means the legacy answer — the application's
-     * non-privileged grants.
-     *
-     * ## Why a binding may name authority when a bare attestation may not
-     *
-     * An attestation says WHAT is calling and nothing about what it may do, so
-     * it can never widen an application's authority. That rule is unchanged.
-     * This column is not the attestation: it is a row staff wrote, naming one
-     * IAM role and one application, with a human-authored `description` beside
-     * it — the attestation path's equivalent of an `ApplicationCredential`, and
-     * gated the same way when it is written
-     * (`services/workloadIdentityBinding.service.ts`). Privileged authority is
-     * therefore still named on something a human granted deliberately; the only
-     * change is which deliberate thing.
-     *
-     * Empty was the whole vocabulary before this column existed, and it still
-     * means exactly what the mint did then — so every binding written before it
-     * keeps behaving identically without a backfill.
+    /** Historical inert column retained for additive rollout and forensic readback.
+     * Runtime authorization and provisioning never read or write its values.
+     * Drop only in a separately reviewed migration after all old images retire.
      */
     scopes: text().array().notNull().default(sql`'{}'::text[]`),
 

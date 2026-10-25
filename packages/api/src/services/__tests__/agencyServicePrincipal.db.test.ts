@@ -72,6 +72,7 @@ describe('live agency service principal', () => {
 
     const principal = await resolveLiveAgencyServicePrincipal(fixture.token);
 
+    expect(principal).not.toBeNull();
     expect(principal?.scopes).toEqual(['capabilities:read']);
     expect(principal?.capabilities).toContain('agency:coordinate');
   });
@@ -166,11 +167,12 @@ describe('live agency workload principal', () => {
     );
     expect(principal?.applicationId).toBe(fixture.application.id);
     expect(principal?.handle).toBe(workloadAttestationHandle(fixture.subject));
-    expect(principal?.scopes).toEqual(['inference:invoke', 'acting-as:offline']);
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
-  /** The application is the ceiling for a binding, as it is for a credential. */
-  it('intersects the binding with the application, so a scope staff removed is gone at once', async () => {
+  /** External application scope ceilings do not narrow workload identity. */
+  it('keeps workload identity independent of external application scope changes', async () => {
     const fixture = await workloadFixture();
     await getDb()
       .update(applications)
@@ -181,19 +183,20 @@ describe('live agency workload principal', () => {
       'aws-iam',
       fixture.subject,
     );
-    expect(principal?.scopes).toEqual(['inference:invoke']);
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
-  /** Empty is "names none" — the application's NON-privileged grants, as the mint does. */
-  it("gives a scopeless binding the application's non-privileged grants only", async () => {
+  /** Historical empty binding scopes do not project any authority list. */
+  it('never manufactures scopes for a historical empty binding', async () => {
     const fixture = await workloadFixture({ bindingScopes: [] });
     const principal = await resolveLiveAgencyWorkload(
       fixture.application.id,
       'aws-iam',
       fixture.subject,
     );
-    expect(principal?.scopes).toEqual(['inference:invoke', 'user:read']);
-    expect(principal?.scopes).not.toContain('acting-as:offline');
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
   it('rejects a binding that was deleted — how a compromised workload is cut off', async () => {

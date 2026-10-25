@@ -8,11 +8,10 @@ import express, { type Request } from 'express';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
 import { resourceIntrospectionSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import { CLARITY_BACKEND_APPLICATION_ID } from '../../config/firstPartyApplications';
 import {
   applications,
@@ -105,28 +104,28 @@ async function introspect(bearer: string, token: string) {
 const clarityIndex = LEGACY_WORKLOAD_BINDINGS.findIndex(
   (binding) => binding.applicationId === CLARITY_BACKEND_APPLICATION_ID,
 );
-// The deployed old Clarity parser requires scopes even when tier is internal.
-const oldClarity = z.object({
-  active: z.literal(true),
-  accountId: z.string(),
-  applicationId: z.string(),
-  scopes: z.array(z.string()),
-  tier: z.enum(['internal', 'external']),
-});
-it('projects the exact v1 cohort in the format of the authenticated receiver', async () => {
+it('retires historical v1 callers and receivers instead of projecting own authority', async () => {
   const receiver = await workload(clarityIndex);
   const caller = await workload(0);
-  const legacy = await introspect(receiver.legacy, caller.legacy);
-  expect(oldClarity.parse(legacy)).toMatchObject({ tier: 'internal', scopes: ['clarity:search'] });
-  expect(legacy).not.toHaveProperty('authority');
-  const modern = resourceIntrospectionSchema.parse(
-    await introspect(receiver.modern, caller.legacy),
+  expect(
+    (
+      await request(server)
+        .post('/introspect')
+        .auth(receiver.legacy, { type: 'bearer' })
+        .send({ token: caller.legacy })
+    ).status,
+  ).toBe(401);
+  expect(await introspect(receiver.modern, caller.legacy)).toMatchObject({ active: false });
+  const callerToken = mintServiceToken(
+    { ...caller.common, authority: 'first_party' },
+    `oxy-service:${receiver.tuple.applicationId}`,
   );
+  const modern = resourceIntrospectionSchema.parse(await introspect(receiver.modern, callerToken));
   expect(modern).toMatchObject({
     active: true,
     kind: 'service',
     authority: 'first_party',
-    audience: 'oxy-api',
+    audience: `oxy-service:${receiver.tuple.applicationId}`,
     accountId: caller.owner.id,
   });
   expect(modern).not.toHaveProperty('scopes');
@@ -134,11 +133,7 @@ it('projects the exact v1 cohort in the format of the authenticated receiver', a
     .update(applicationWorkloadIdentities)
     .set({ environment: null })
     .where(eq(applicationWorkloadIdentities.id, caller.tuple.id));
-  expect(await introspect(receiver.modern, caller.legacy)).toMatchObject({ authority: 'external' });
-  await getDb()
-    .delete(applicationWorkloadIdentities)
-    .where(eq(applicationWorkloadIdentities.id, caller.tuple.id));
-  expect((await introspect(receiver.modern, caller.legacy)).active).toBe(false);
+  expect(await introspect(receiver.modern, callerToken)).toMatchObject({ active: false });
 });
 it('does not promote non-cohort bindings, wrong audience, or service credentials on an official app', async () => {
   const receiver = await workload(clarityIndex);
@@ -162,7 +157,7 @@ it('does not promote non-cohort bindings, wrong audience, or service credentials
     applicationId: caller.tuple.applicationId,
     subject: caller.tuple.subject,
   });
-  expect(await introspect(receiver.modern, caller.legacy)).toMatchObject({ authority: 'external' });
+  expect(await introspect(receiver.modern, caller.legacy)).toMatchObject({ active: false });
   const [credential] = await getDb()
     .insert(applicationCredentials)
     .values({
@@ -180,7 +175,7 @@ it('does not promote non-cohort bindings, wrong audience, or service credentials
     credentialId: credential.id,
     scopes: ['clarity:search'],
   });
-  for (const bearer of [receiver.modern, receiver.legacy]) {
+  for (const bearer of [receiver.modern]) {
     const body = await introspect(bearer, external);
     expect(body).toMatchObject({
       authority: 'external',
@@ -280,7 +275,7 @@ it('keeps a raw machine key scoped even when issued on an own application', asyn
       scopes: ['clarity:search'],
     })
     .returning();
-  for (const bearer of [receiver.modern, receiver.legacy]) {
+  for (const bearer of [receiver.modern]) {
     const body = resourceIntrospectionSchema.parse(await introspect(bearer, key.token));
     expect(body).toMatchObject({ kind: 'key', authority: 'external', scopes: ['clarity:search'] });
     expect(body).not.toHaveProperty('audience');

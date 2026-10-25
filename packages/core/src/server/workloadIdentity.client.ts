@@ -21,6 +21,3 @@ export async function attestWorkloadIdentity(_options: {
 }): Promise<WorkloadAttestation> {
   throw new Error('Workload identity is only available on a Node host');
 }
-
-/** @internal Server rollout helper; unavailable on clients. */
-export const requestLegacyWorkloadServiceToken = requestWorkloadServiceToken;

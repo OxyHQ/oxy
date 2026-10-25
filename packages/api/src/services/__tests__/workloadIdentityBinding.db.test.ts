@@ -44,7 +44,6 @@ it('creates an attributable identity without scopes, canonicalizes its role and 
     state: 'created',
     binding: {
       environment: 'development',
-      scopes: [],
       subject: `arn:aws:iam::237343248947:role/${roleName}`,
     },
   });
@@ -104,8 +103,13 @@ it('backfills only a null environment with compare-and-set, without changing his
   expect(results[0].binding).toMatchObject({
     id: row.id,
     description: 'before',
-    scopes: ['user:read'],
   });
+  expect(results[0].binding).not.toHaveProperty('scopes');
+  const [preserved] = await getDb()
+    .select()
+    .from(applicationWorkloadIdentities)
+    .where(eq(applicationWorkloadIdentities.id, row.id));
+  expect(preserved.scopes).toEqual(['user:read']);
   await expect(bindWorkloadIdentity({ ...request, environment: 'staging' })).rejects.toMatchObject({
     reason: 'environment_conflict',
   });

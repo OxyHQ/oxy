@@ -74,7 +74,7 @@ import {
 } from '../../db/schema';
 import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.service';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { verifyServiceToken } from '../../middleware/serviceToken';
@@ -398,7 +398,7 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     expect(await listen(serviceToken({ legacy: true })).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
   });
 
-  it('temporarily admits only an exact live inventoried legacy workload', async () => {
+  it('refuses v1 even for an exact live historical cohort workload', async () => {
     const tuple = LEGACY_WORKLOAD_BINDINGS[0];
     await getDb().insert(applications).values({
       id: tuple.applicationId,
@@ -420,12 +420,6 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
       appId: tuple.applicationId,
       credentialId: workloadAttestationHandle(tuple.subject),
     });
-    const heard = listen(token);
-    await eventually(() => heard.heartbeats > 0, 'legacy cohort heartbeat');
-    await getDb()
-      .update(applicationWorkloadIdentities)
-      .set({ expiresAt: new Date(0) })
-      .where(eq(applicationWorkloadIdentities.id, tuple.id));
     expect(await listen(token).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
   });
 

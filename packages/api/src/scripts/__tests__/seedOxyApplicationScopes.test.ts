@@ -165,25 +165,17 @@ describe('existing official application scopes-only seed', () => {
     ).rejects.toThrow('scope_seed_plan_changed');
     expect(await app()).toEqual(before);
   });
-  it('refuses an empty non-target MCP binding expansion without touching any row', async () => {
+  it('does not derive own workload authority from historical binding scopes', async () => {
+    const before = await dry();
     await getDb()
       .update(applicationWorkloadIdentities)
       .set({ scopes: [] })
       .where(eq(applicationWorkloadIdentities.id, 'scope-seed-mcp'));
-    const before = await ownedRows();
-    const plan = await dry();
-    expect(plan.applyEligible).toBe(false);
-    expect(plan.applications[0].nonTargetExpansions[0].id).toBe('scope-seed-mcp');
-    await expect(
-      seedOxyApplicationScopes({
-        ...options,
-        apply: true,
-        expectedPlanSha256: plan.planSha256,
-      }),
-    ).rejects.toThrow('scope_seed_non_target_expansion');
-    expect(await ownedRows()).toEqual(before);
+    const after = await dry();
+    expect(after.applications[0].nonTargetExpansions).toEqual([]);
+    expect(after.applyEligible).toBe(before.applyEligible);
   });
-  it('rechecks binding expiry and current scopes in the plan hash', async () => {
+  it('rechecks binding expiry in the plan hash', async () => {
     const plan = await dry();
     await getDb()
       .update(applicationWorkloadIdentities)

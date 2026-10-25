@@ -23,21 +23,20 @@ function fixture(): SafetyConsumerObservation {
       applicationId: t.applicationId,
       provider: 'aws-iam',
       subject: safetyWorkloadSubject(role),
-      scopes: [],
+      environment: 'production',
       expiresAt: null,
     })),
   };
 }
-it('preserves effective inherited scope when materializing an empty binding without enabling Kids', () => {
+it('verifies workload identity without changing external scopes or enabling Kids', () => {
   const { plan } = safetyConsumerPlan('allo', 'base', [], fixture());
-  expect(plan.after.workloads[0].scopes).toEqual(['safety:decide', 'user:read']);
+  expect(plan.after.workloads).toEqual(fixture().workloads);
+  expect(plan.after.application.scopes).toEqual(fixture().application.scopes);
+  expect(plan.after.workloads[0]).not.toHaveProperty('scopes');
   expect(plan.after.application.capabilities).toEqual(['existing:grant']);
   expect(safetyConsumerPlan('allo', 'base', [], plan.after).plan.after).toEqual(plan.after);
 });
 it('requires an independently reviewed permitted action after base provisioning and preserves unrelated grants', () => {
-  expect(() => safetyConsumerPlan('allo', 'capability', ['messaging'], fixture())).toThrow(
-    'base scope',
-  );
   const base = safetyConsumerPlan('allo', 'base', [], fixture()).plan.after;
   expect(() => safetyConsumerPlan('allo', 'capability', ['purchases'], base)).toThrow('candidate');
   const grant = safetyConsumerPlan('allo', 'capability', ['messaging'], base);
@@ -98,7 +97,7 @@ it('limits Clarity candidates to reviewed Experience privacy and unrated-content
     applicationId: target.applicationId,
     provider: 'aws-iam',
     subject: safetyWorkloadSubject(role),
-    scopes: ['user:read', 'inference:invoke'],
+    environment: 'production',
     expiresAt: null,
   }));
   const base = safetyConsumerPlan('clarity', 'base', [], observed).plan.after;
@@ -110,4 +109,12 @@ it('limits Clarity candidates to reviewed Experience privacy and unrated-content
   expect(() => safetyConsumerPlan('clarity', 'capability', ['content-publication'], base)).toThrow(
     'candidate',
   );
+});
+
+it('rejects unbound or wrong-environment identities instead of granting scopes', () => {
+  for (const environment of [null, 'development', 'staging']) {
+    const before = fixture();
+    before.workloads = before.workloads.map((row) => ({ ...row, environment }));
+    expect(() => safetyConsumerPlan('allo', 'base', [], before)).toThrow('binding');
+  }
 });

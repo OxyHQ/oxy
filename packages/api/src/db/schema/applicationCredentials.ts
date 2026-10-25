@@ -88,7 +88,7 @@
  *     token endpoint, the service-token mint or the machine bearer lane to
  *     compare against;
  *   * it names NO scopes. An attested caller's authority is the binding's,
- *     decided live by `workloadBindingScopes`; a scope array here would be a
+ *     verified live without scope lists; a scope array here would be a
  *     second, stale place to read authority from;
  *   * its `id` starts with `wl_` and no other row's does. That makes the routing
  *     assumption in `isWorkloadAttestationHandle` — that the handle space and the
@@ -460,7 +460,7 @@ export const applicationCredentials = pgTable(
     // machine biconditional above, so those three together leave no lane
     // anything to verify. The empty `scopes` is the second half and is about
     // drift rather than about a lane: an attested caller's authority is the
-    // binding's, decided live by `workloadBindingScopes`, and a copy here would
+    // binding's, verified live without scope lists, and a copy here would
     // be a stale second answer to the same question.
     check(
       'application_credentials_workload_inert_check',

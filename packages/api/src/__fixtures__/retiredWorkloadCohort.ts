@@ -1,8 +1,4 @@
-/** Finite compatibility cohort observed read-only on 2026-10-23.
- * Remove after all recorded deployments request protocolVersion: 2.
- * Source ECS task f561800e3dbb4e379d086c22569240de; evidence SHA256
- * d5bf0e16bc91dcbf11fd0664d64c673ed220dd9e4f56098a3cf53bfe710cc9f9.
- */
+/** Historical 2026-10-23 inventory for rejection regressions only. Never runtime authority. */
 export const LEGACY_WORKLOAD_BINDINGS = [
   {
     id: '01a0b9bc-40bb-772f-aba4-c763fcfe1ca5',
@@ -167,18 +163,3 @@ export const LEGACY_WORKLOAD_BINDINGS = [
     subject: 'arn:aws:iam::237343248947:role/oxy-willo-task',
   },
 ] as const;
-
-export function isLegacyWorkloadCohort(binding: {
-  id: string;
-  applicationId: string;
-  provider: string;
-  subject: string;
-}): boolean {
-  return LEGACY_WORKLOAD_BINDINGS.some(
-    (entry) =>
-      entry.id === binding.id &&
-      entry.applicationId === binding.applicationId &&
-      entry.provider === binding.provider &&
-      entry.subject === binding.subject,
-  );
-}

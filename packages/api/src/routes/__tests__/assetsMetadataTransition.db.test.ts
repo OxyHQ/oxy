@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import {
   applicationCredentials,
   applications,
@@ -109,12 +109,10 @@ function metadata(token: string) {
     .auth(token, { type: 'bearer' })
     .send({ ids: [assetId] });
 }
-it('preserves the owner check used by old Mention imports without changing the service authority', async () => {
+it('preserves owner metadata for v2 and rejects the retired v1 owner projection', async () => {
   const fixture = await workload();
-  for (const token of [
-    fixture.token,
-    mintServiceToken({ ...fixture.common, authority: 'first_party' }),
-  ]) {
+  expect((await metadata(fixture.token)).status).toBe(401);
+  for (const token of [mintServiceToken({ ...fixture.common, authority: 'first_party' })]) {
     const response = await metadata(token);
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([
@@ -124,10 +122,12 @@ it('preserves the owner check used by old Mention imports without changing the s
   }
 });
 it.each(['binding', 'application', 'owner'] as const)(
-  'rejects the legacy caller after %s revocation',
+  'rejects the v2 caller after %s revocation',
   async (kind) => {
     const fixture = await workload();
-    expect((await metadata(fixture.token)).status).toBe(200);
+    expect(
+      (await metadata(mintServiceToken({ ...fixture.common, authority: 'first_party' }))).status,
+    ).toBe(200);
     if (kind === 'binding')
       await getDb()
         .delete(applicationWorkloadIdentities)
@@ -142,11 +142,13 @@ it.each(['binding', 'application', 'owner'] as const)(
         .update(users)
         .set({ accountStatus: 'archived' })
         .where(eq(users.id, fixture.owner.id));
-    expect((await metadata(fixture.token)).status).toBe(401);
+    expect(
+      (await metadata(mintServiceToken({ ...fixture.common, authority: 'first_party' }))).status,
+    ).toBe(401);
   },
 );
 it.each(['token', 'binding', 'application'] as const)(
-  'requires files:read in the legacy %s scope ceiling',
+  'rejects retired workload authority regardless of the %s scope ceiling',
   async (kind) => {
     const fixture = await workload();
     let token = fixture.token;
@@ -161,7 +163,7 @@ it.each(['token', 'binding', 'application'] as const)(
         .update(applications)
         .set({ scopes: ['user:read'] })
         .where(eq(applications.id, fixture.tuple.applicationId));
-    expect((await metadata(token)).status).toBe(403);
+    expect((await metadata(token)).status).toBe(401);
   },
 );
 it('never reveals ownership to a customer key branded internal on the same official application', async () => {
@@ -209,7 +211,6 @@ it.each(['unbound environment', 'replacement binding'] as const)(
       });
     }
     const response = await metadata(fixture.token);
-    expect(response.status).toBe(200);
-    expect(response.body.data[0]).not.toHaveProperty('ownerUserId');
+    expect(response.status).toBe(401);
   },
 );

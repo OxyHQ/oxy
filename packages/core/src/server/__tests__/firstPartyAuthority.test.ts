@@ -127,27 +127,19 @@ it('requires requester proof and preserves the independent billing account', asy
   });
 });
 
-it('promotes a legacy workload only after the central finite-cohort verdict, retaining the original tuple', async () => {
+it('rejects an external-authority workload even if stale introspection tries to promote it', async () => {
   const token = signEdDSA(
     { ...claims, authority: 'external', scopes: ['files:read'], aud: 'oxy-api' },
     key,
   );
-  const live = jest
-    .spyOn(oxy, 'introspectServiceToken')
-    .mockResolvedValue({ ...active, audience: 'oxy-api' });
+  jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({ ...active, audience: 'oxy-api' });
   const req = request(token);
-  const next = jest.fn();
-  await oxy.middleware.auth({ expectedAudience: audience })(req, response(), next);
-  expect(next).toHaveBeenCalledTimes(1);
-  expect(req).toMatchObject({
-    serviceApp: { authority: 'first_party', tier: 'internal', credentialId: 'wl_sender' },
-  });
-  expect((req as { serviceApp?: unknown }).serviceApp).not.toHaveProperty('scopes');
-  live.mockResolvedValue({ active: false });
   const res = response();
-  await oxy.middleware.auth({ expectedAudience: audience })(request(token), res, next);
+  const next = jest.fn();
+  await oxy.middleware.auth({ expectedAudience: audience })(req, res, next);
   expect(res.statusCode).toBe(401);
-  expect(next).toHaveBeenCalledTimes(1);
+  expect(next).not.toHaveBeenCalled();
+  expect(req).not.toHaveProperty('serviceApp');
 });
 it.each([
   'accountId',
@@ -157,12 +149,11 @@ it.each([
   'audience',
   'expiresAt',
 ] as const)(
-  'refuses central legacy projection whose %s differs from the verified token',
+  'refuses live workload identity whose %s differs from the verified token',
   async (field) => {
-    const token = signEdDSA({ ...claims, authority: 'external', scopes: [], aud: 'oxy-api' }, key);
+    const token = signEdDSA(claims, key);
     jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
       ...active,
-      audience: 'oxy-api',
       [field]: field === 'expiresAt' ? new Date((expiry + 1) * 1000).toISOString() : 'other',
     } as typeof active);
     const res = response();
@@ -172,14 +163,24 @@ it.each([
     expect(next).not.toHaveBeenCalled();
   },
 );
-it('keeps non-cohort authority external, narrows its live scopes, and ignores legacy tier branding', async () => {
+it('keeps customer credential authority external, narrows its live scopes, and ignores legacy tier branding', async () => {
   const token = signEdDSA(
-    { ...claims, authority: 'external', scopes: ['files:read'], aud: 'oxy-api' },
+    {
+      ...claims,
+      credentialId: 'customer-credential',
+      authority: 'external',
+      scopes: ['files:read'],
+      aud: 'oxy-api',
+    },
     key,
   );
-  jest
-    .spyOn(oxy, 'introspectServiceToken')
-    .mockResolvedValue({ ...active, authority: 'external', scopes: [], audience: 'oxy-api' });
+  jest.spyOn(oxy, 'introspectServiceToken').mockResolvedValue({
+    ...active,
+    credentialId: 'customer-credential',
+    authority: 'external',
+    scopes: [],
+    audience: 'oxy-api',
+  });
   const req = request(token);
   const next = jest.fn();
   const res = response();
