@@ -1,16 +1,14 @@
 import { eq, inArray } from 'drizzle-orm';
 
-const mockGetServiceToken = jest.fn();
-const mockInvalidateServiceToken = jest.fn();
+const mockTransportFetch = jest.fn();
+const mockDispose = jest.fn();
+const mockCreateServiceClient = jest.fn(() => ({
+  fetch: mockTransportFetch,
+  dispose: mockDispose,
+}));
 jest.mock('../../capabilities/inbox-service-client', () => ({
-  inboxServiceClient: () => ({
-    serviceToken: (...args: unknown[]) => mockGetServiceToken(...args),
-    invalidateServiceToken: (...args: unknown[]) => mockInvalidateServiceToken(...args),
-  }),
-  requiredInboxServiceClient: () => ({
-    serviceToken: (...args: unknown[]) => mockGetServiceToken(...args),
-    invalidateServiceToken: (...args: unknown[]) => mockInvalidateServiceToken(...args),
-  }),
+  inboxServiceClient: () => ({ createServiceClient: mockCreateServiceClient }),
+  requiredInboxServiceClient: () => ({ createServiceClient: mockCreateServiceClient }),
 }));
 
 import {
@@ -58,27 +56,30 @@ afterAll(async () => {
 });
 
 describe('normalized Inbox event outbox', () => {
-  it('delivers with service bearer auth and eventId idempotency, refreshing once on 401', async () => {
-    const eventInput = input();
-    const normalized = buildInboxMessageEvents(eventInput)[0];
-    mockGetServiceToken.mockResolvedValueOnce('expired-token').mockResolvedValueOnce('fresh-token');
-    const fetchMock = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(null, { status: 202 }));
-
+  it('delivers the unchanged event with stable idempotency through the exact shared Alia transport', async () => {
+    const normalized = buildInboxMessageEvents(input())[0];
+    mockTransportFetch.mockResolvedValueOnce(new Response(null, { status: 202 }));
     await deliverNormalizedAppEvent(normalized);
-
-    expect(mockInvalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      expect.stringMatching(/\/webhooks\/oxy$/),
+    expect(mockCreateServiceClient).toHaveBeenCalledWith({
+      baseURL: 'https://api.alia.onl',
+      audience: 'oxy-service:6a2f851751b784a86fd0e934',
+    });
+    expect(mockTransportFetch).toHaveBeenCalledWith(
+      'https://api.alia.onl/webhooks/oxy',
       expect.objectContaining({
-        headers: expect.objectContaining({
-          authorization: 'Bearer fresh-token',
-          'idempotency-key': normalized.eventId,
-        }),
+        headers: expect.objectContaining({ 'idempotency-key': normalized.eventId }),
+        body: JSON.stringify(normalized),
       }),
     );
+    expect(mockDispose).toHaveBeenCalledTimes(1);
+  });
+  it('releases its transport on a failed delivery without marking an event delivered', async () => {
+    mockTransportFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await expect(deliverNormalizedAppEvent(buildInboxMessageEvents(input())[0])).rejects.toThrow(
+      '(503)',
+    );
+    expect(mockTransportFetch).toHaveBeenCalledTimes(1);
+    expect(mockDispose).toHaveBeenCalledTimes(1);
   });
 
   it('rolls event insertion back with its surrounding domain transaction', async () => {

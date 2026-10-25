@@ -63,6 +63,32 @@ describe('tracedFetch with the SDK started', () => {
     sdk.start();
   });
 
+  it('traces a shared authenticated transport without bypassing it or copying a bearer', async () => {
+    const globalFetch = stubFetch(async () => {
+      throw new Error('Must not bypass transport');
+    });
+    const transport = {
+      fetch: jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(isInsideTracedFetch()).toBe(true);
+        expect(headerOf(init, 'traceparent')).toMatch(/^00-/);
+        expect(headerOf(init, 'authorization')).toBeNull();
+        return new Response(null, { status: 202 });
+      }),
+    };
+    await tracedFetch(
+      'https://api.alia.onl/webhooks/oxy',
+      { method: 'POST', body: '{}' },
+      transport,
+    );
+    expect(transport.fetch).toHaveBeenCalledTimes(1);
+    expect(globalFetch).not.toHaveBeenCalled();
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.instrumentationScope.name === TRACED_FETCH_TRACER_NAME);
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes['http.response.status_code']).toBe(202);
+  });
+
   it('records one CLIENT span with the undici attribute set and injects its traceparent', async () => {
     let insideDuringCall = false;
     const mock = stubFetch(async () => {

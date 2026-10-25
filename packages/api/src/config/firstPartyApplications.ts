@@ -18,3 +18,6 @@ export const CLARITY_APPLICATION_ID = '01a0646a-2382-74a3-a795-788924d55722';
  * consumer of the `clarity-kaana` metered relationship.
  */
 export const CLARITY_BACKEND_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
+
+/** Alia's canonical recipient for own service events and agent requests. */
+export const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
