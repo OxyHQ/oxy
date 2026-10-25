@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-25T09:56:48.052748+00:00",
-  "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
+  "generatedAt": "2026-10-25T11:16:31.185131+00:00",
+  "scope": "Dated deployment and dedicated QA readbacks; not fleet completion, native distribution or existing-user end-to-end acceptance",
   "services": [
     {
       "name": "tnp-api",
@@ -167,6 +167,138 @@
       "sourceSha": "b8b221aa2dd786a301ebb9183ac59d1e74da32c6",
       "observedAt": "2026-10-25T09:45:25.054102+00:00",
       "receiptFile": "willo-runtime-20261025.json"
+    },
+    {
+      "name": "allo",
+      "taskDefinitionRevision": 180,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:1084ff42b3bc427a475f0890fd0830aa70f6923c9720c5ed4d538339ccc9cf01",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "f69c1274b50b6fa630e2569e03eb0a670c8ca9b3",
+      "observedAt": "2026-10-25T09:58:36.310758+00:00",
+      "receiptFile": "allo-runtime-20261025.json"
+    },
+    {
+      "name": "alia",
+      "taskDefinitionRevision": 608,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:3e7a89407263407830464821aea13917f8809ca1a4eda05ce80963c420b99a75",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "81819a95cd99279d155df2171df02ce3f5654adc",
+      "observedAt": "2026-10-25T10:35:04.930932+00:00",
+      "receiptFile": "alia-runtime-81819a95cd99-20261025.json"
+    },
+    {
+      "name": "alia-integrations",
+      "taskDefinitionRevision": 188,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:1ad2292a5479c9dd38b4e8678fa9050a655cbbb443fe03ed424d1f19fc5482e5",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "81819a95cd99279d155df2171df02ce3f5654adc",
+      "observedAt": "2026-10-25T10:39:08.808433+00:00",
+      "receiptFile": "alia-integrations-runtime-81819a95cd99-20261025.json"
+    },
+    {
+      "name": "alia",
+      "taskDefinitionRevision": 609,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:2ac9f868a13d789ba293e967f620db8e76f98eb472804bbbca8d8dc83f82c95b",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "029702fbd3703bb85d1dd258324b2d058063f293",
+      "observedAt": "2026-10-25T11:03:25.896207+00:00",
+      "receiptFile": "alia-runtime-029702fbd370-20261025.json"
+    },
+    {
+      "name": "alia-integrations",
+      "taskDefinitionRevision": 189,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:c4ee4a61b490dcd57ca556e6b3480a886834a40dbe506472732ede904775bc50",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "029702fbd3703bb85d1dd258324b2d058063f293",
+      "observedAt": "2026-10-25T11:00:21.950342+00:00",
+      "receiptFile": "alia-integrations-runtime-029702fbd370-20261025.json"
+    },
+    {
+      "name": "nilo",
+      "taskDefinitionRevision": 109,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:97debf9964447b2bd20c6194ac6a0c34f67abbb2d29fe10eba393cc094d9dd92",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "5ad257adadde9c12018fe2be8cc1aae73105f9e4",
+      "observedAt": "2026-10-25T10:56:25.584672+00:00",
+      "receiptFile": "nilo-runtime-5ad257adadde-20261025.json"
+    },
+    {
+      "name": "move",
+      "taskDefinitionRevision": 50,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:78cd35077c54700fc11633133018244f38b5c68ebf4e1a21c111e03cd56f8b0a",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "0f095e3eb40435be1bfb41186962525961e26a09",
+      "observedAt": "2026-10-25T10:52:00.223482+00:00",
+      "receiptFile": "move-runtime-0f095e3eb404-20261025.json"
+    },
+    {
+      "name": "mention",
+      "taskDefinitionRevision": 721,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:fb267ecd7365d2d8d8f49e1cc8973ffaf6c5dcafc792bf145acbedb51d2f4ac0",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "0ce0f417e039b96c3490bfb29b4f19ff333b3bd8",
+      "observedAt": "2026-10-25T10:37:20.863507+00:00",
+      "receiptFile": "mention-runtime-0ce0f417e039-20261025.json"
+    },
+    {
+      "name": "mention-mcp",
+      "taskDefinitionRevision": 421,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:bb642aa01df435eec82c31088659f60531d3b1da993071751c32079033fcc1a9",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "0ce0f417e039b96c3490bfb29b4f19ff333b3bd8",
+      "observedAt": "2026-10-25T10:37:20.733584+00:00",
+      "receiptFile": "mention-mcp-runtime-0ce0f417e039-20261025.json"
+    },
+    {
+      "name": "syra",
+      "taskDefinitionRevision": 173,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:badb074c954ebc68b7fc9bd01bfc50a8f69a567685f2e11ddd6fd4d34096d689",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "7ee33926b95e26792b7f153de7a45c212a7b4fce",
+      "observedAt": "2026-10-25T10:21:52.835576+00:00",
+      "receiptFile": "syra-runtime-7ee33926b95e-20261025.json"
+    },
+    {
+      "name": "mercaria",
+      "taskDefinitionRevision": 142,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:3a8e28c1601cdd1a43412513fa5b3b52fd84f1914faee39127020d915d13805f",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
+      "observedAt": "2026-10-25T11:08:00.617649+00:00",
+      "receiptFile": "mercaria-runtime-c25757347589-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -258,7 +390,7 @@
   "alloSource": {
     "pr": 268,
     "sourceSha": "f69c1274b50b6fa630e2569e03eb0a670c8ca9b3",
-    "status": "merged after verified Homiio API and worker; runtime receipt pending"
+    "status": "Runtime revision 180 verified; see dated service readback"
   },
   "qaPrivateFileAcceptance": {
     "success": true,
@@ -291,5 +423,78 @@
     "observedAt": "2026-10-25T09:53:11.459Z",
     "receiptFile": "qa-private/revoke-receipt.json",
     "scope": "Dedicated acceptance fixtures only; no existing user data"
+  },
+  "qaAccountDeletion": {
+    "operation": "delete",
+    "bearerRefused": true,
+    "observedAt": "2026-10-25T09:58:35.192Z",
+    "receiptFile": "qa-private/delete-receipt.json",
+    "localIdentityAndSessionFilesRemoved": true,
+    "scope": "Dedicated QA account deleted using its own signed key proof; no existing-user data"
+  },
+  "aliaEventCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-refused",
+      "scope-free-nilo-identity-and-live-catalogue-ownership",
+      "wrong-recipient-refused"
+    ],
+    "writes": 0,
+    "observedAt": "2026-10-25T10:38:14.605Z",
+    "sourceSha": "81819a95cd99279d155df2171df02ce3f5654adc",
+    "receiptFile": "alia-event-canary-3-20261025.json",
+    "scope": "Nilo workload and live noted catalogue ownership; synthetic invalid event, no writes"
+  },
+  "frontendDeployments": {
+    "atlas": {
+      "source": "c4c48ddcfb5097f69fab53352faab7bdc94513ac",
+      "frontendDeploy": 40185771456,
+      "conclusion": "success"
+    },
+    "inbox": {
+      "source": "15bb5ba36a1a31cfddc6773a979c533e8176093f",
+      "frontend": 40185828152,
+      "attempt": 2,
+      "conclusion": "success"
+    }
+  },
+  "oxyOsShellCi": {
+    "sourceSha": "7434bd440d57802ef34ef9092844047580aaa24a",
+    "run": 40185833072,
+    "conclusion": "success",
+    "nativeDeviceAcceptance": false,
+    "distributionEstablished": false
+  },
+  "desktopSource": {
+    "sourceSha": "029702fbd3703bb85d1dd258324b2d058063f293",
+    "pr": 899,
+    "codeaVersion": "1.0.8",
+    "coworkVersion": "1.0.1",
+    "localVsixAndLinuxAppImageBuilt": true,
+    "distributionEstablished": false
+  },
+  "aliaSdk22": {
+    "version": "22.0.0",
+    "installedFileCount": 212,
+    "publicRegistryArchiveVerified": true,
+    "integrity": "sha512-NM26B17Ele/2OfB4q/UISACPPHg8hdIM1JDdYy5ko9MwaEcQSEKqotlCB/b6UYJZ09ZGCO0fEn082Xn1h74Dfg=="
+  },
+  "schedioRolloutHold": {
+    "sourceSha": "07618821895ca7f4c5c61c5a6a23e3e4d238db38",
+    "run": 40186013122,
+    "result": "Public DNS smoke failed; automatic backend rollback to revision 17",
+    "v1RetirementAllowed": false
+  },
+  "mercariaReaderCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-catalogue-preserved",
+      "scope-free-workload-catalogue",
+      "wrong-recipient-refused",
+      "unproved-account-refused"
+    ],
+    "observedAt": "2026-10-25T11:10:10.567Z",
+    "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
+    "receiptFile": "mercaria-canary-20261025.json"
   }
 }
