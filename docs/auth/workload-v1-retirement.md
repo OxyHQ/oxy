@@ -1,9 +1,14 @@
-# Workload protocol v1 retirement — draft cutover
+# Workload protocol v1 retirement — verified cutover
 
-Status: source preparation only. This branch must not merge, release or deploy
-until the root rollout coordinator records every gate below. The running fleet
-still uses the finite compatibility bridge; this document does not claim its
-retirement. No binding, credential, secret or database row is changed by this work.
+Status: [PR #1984](https://github.com/OxyHQ/oxy/pull/1984) merged as
+`dc1c21186dab603c6e2ec216e61f7c45d7f37537` at `2026-10-25T20:01:29Z`,
+after normal queue CI, image and reviewed activation gates passed. Core 7.4.0
+is published and integrity/provenance verified. Accounts, Auth and
+Console deployed the same source successfully. API revision 1080 and asset worker
+545 are verified on the exact image, with prior tasks drained; live authority
+canaries passed. The parked Schedio role was again refused by the new API.
+The bounded parking and token drain below are complete. Historical
+validation checkpoints remain dated evidence, not instructions to repeat them.
 
 ADR 0049 assigns scope-free authority to verified own workloads. Final retirement
 makes all SDK workload token methods emit protocol 2, including maintenance calls
@@ -12,7 +17,8 @@ use their external lane. A historical `wl_` token carrying external authority is
 refused, not reclassified; current live workload proofs require the provisioned
 environment, original application/owner and unrevoked binding.
 
-The draft removes the runtime 27-binding whitelist and compatibility projections
+The merged change removes the runtime 27-binding whitelist and compatibility
+projections
 from resource introspection, linked accounts, personal owner metadata, service
 revocation events and managed-account session switching. The historical tuple
 fixture remains only in rejection tests. Customer keys, external service JWTs
@@ -22,13 +28,15 @@ still applies to all own calls. Historical workload scope columns remain inert
 for an additive rollout; a physical column drop requires a separate reviewed
 post-deployment migration and must not remove external application/key scopes.
 
-## Required evidence before activation
+## Activation requirements and recorded disposition
 
 - Every current API, worker, publisher, integration process and MCP server has
   a verified running digest which produces protocol 2 and accepts its recipient's
   exact audience. A source merge or npm release alone is insufficient.
-- Scheduled tasks, EventBridge targets, manual administrative workflows, rollback
-  launch definitions and dormant one-shot jobs cannot launch an old producer.
+- Supported scheduled, manual and rollback paths must resolve reviewed migrated
+  producers; old dormant producers must lack usable workload authority. Historical
+  definitions and images remain preserved, and arbitrary administrative launches
+  of unsupported old code are outside this supported procedure.
   Kaana's credential-admin launcher must retain its separately verified image;
   do not create missing credential-control services during this cleanup.
 - Enabled products retain their verified receiver-before-producer rollout. Move
@@ -47,9 +55,13 @@ post-deployment migration and must not remove external application/key scopes.
 - No owned consumer or operator script still depends on scoped workload issuance,
   raw forwarded owner headers or a v1 introspection serializer. External scoped
   clients are not counted as violations of the own-workload migration.
-- Fresh live canaries cover own v2, recipient mismatch, requester/account mismatch,
-  binding revocation, external customer scope ceilings and external OAuth/MCP
-  revocation. After old producers stop, drain existing tokens for their full
+- Final live canaries cover scope-free own v2, canonical introspection, recipient
+  mismatch, refused v1 issuance, invalid bearers and the parked Schedio binding.
+  Requester/account isolation, external customer scope ceilings and external
+  OAuth/MCP revocation are covered by the exact-source signed-HTTP/PostgreSQL
+  regressions and earlier dated product probes. Those evidence types remain
+  distinct; the final canary did not exercise a real external customer credential.
+- After old producers stop, drain existing tokens for their full
   maximum lifetime before removing the accepting readers. The current shared
   `OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS` in
   `packages/core/src/server/serviceTokenLifetime.ts` is **300 seconds**; API mint
@@ -60,18 +72,18 @@ post-deployment migration and must not remove external application/key scopes.
   v1 mints alone does not prove this drain: identify the last possible old
   producer, including scheduled/manual/rollback launches, and establish the
   deployed token lifetime ceiling before starting the clock.
-- The changed Core emitter has a prepared local Core 7.4.0 bump. CI and packed
-  consumer checks may run before parking/drain; normal registry publication and
-  activation remain gated. This draft does not publish a package.
-- Root records the complete fleet and launcher inventory plus final authorization
-  to retire the bridge. Until then, keep this PR draft and production unchanged.
+- Core 7.4.0 passed the packed public API and consumer checks below. Its version
+  change merged through normal CI; registry and production evidence are recorded
+  separately from the source merge.
+- The rollout coordinator approved the final inventory, parking and drain gates
+  before promotion. Do not repeat completed parking or binding mutations.
 
-### Current holds and completed prerequisites (2026-10-25)
+### Completed parking and release verification (2026-10-25)
 
 The [migration ledger](../architecture/first-party-integration-migration.md)
 records the verified product receiver/producer deployments, Inbox rollout,
 Noted's exact retired workload binding and completed Alia/commerce secret cleanup.
-Those completed operations must not be repeated by this draft. In particular,
+Those completed operations must not be repeated. In particular,
 Mercaria's cookie-free transition is now deployed and verified: API revision 146
 runs source `714f3ec411b9abcaaa465278ad42a4fb75823a2b` from #1159, with
 matching image digest, healthy targets and the previous revision drained. Its
@@ -81,20 +93,29 @@ POS 40213492781). Website API revision 70 and its frontend run
 `a30d271115fe9afb95e038e46d84e1ba51adff12`. Neither replaces account-specific
 acceptance tests or establishes whole-fleet readiness.
 
-The user explicitly deferred Schedio before launch. Do not make Cloudflare zone
-access, DNS/ACM validation or launching its new producer prerequisites for the
-rest of the migration. The last verified old runtime was revision 17; prelaunch
-status alone does not prove that its tasks, scheduled publisher or binding have
-stopped issuing. Before the drain begins, record a fresh Schedio inventory and
-an exact parking receipt: no old issuer can run with usable workload authority,
-including pending/stopping tasks, schedules, manual workflows and rollback
-launchers. This can be established by a reviewed reversible shutdown/launcher
-restriction plus unusable issuer binding; no such production change is asserted
-by this draft. Preserve the public application/client and external customer
-credentials. Future launch must use current v2-compatible artifacts and its own
-normal DNS/ACM and receiver-canary process; it cannot restore an old v1 launcher.
-The inventory and parking operation remain to be completed by the rollout
-coordinator, not silently waived because Schedio is unlaunched.
+The owner deferred Schedio before launch. Its deployment workflows are disabled,
+and the service is parked at desired/running/pending `0/0/0`. The last old process
+stopped at `19:36:26.289Z`. An exact-tuple CAS committed at `19:38:09.468Z`,
+changing only that workload binding's expiry; application, public client, role,
+customer credentials and product data were preserved. A real signed mint under
+the Schedio role returned `403 unbound_workload` at `19:39:15.618Z`. Diagnostic
+tasks stopped and their definitions became inactive before the conservative
+drain boundary `19:39:52.720361Z`.
+
+The deployed lifetime ceiling was 300 seconds. The final readback after
+`19:44:52.720361Z` confirmed 30 stable services, no running Schedio process,
+unchanged reviewed image digests, and supported launchers using their reviewed
+images or the live service revision. The intervening Mention sitemap task used
+exactly the migrated revision 723 and exited successfully. Issuer observations
+through `19:50:51.657Z` contained 178 emissions, all protocol 2. These logs support
+the actual stop, binding expiry and signed refusal; absence of v1 events alone
+would not establish a drain. See the durable
+[parking and drain evidence](../architecture/evidence/first-party-prelaunch-parking-20261025.json).
+
+Cloudflare access, DNS/ACM validation and public launch are future Schedio launch
+requirements, not blockers for this parked producer. Relaunch must use current
+v2 artifacts, reviewed binding administration and the normal receiver canary;
+never restore an old v1 launcher or unconditionally clear the expired binding.
 
 Mercaria's public HTTP/Chromium acceptance passed at
 `2026-10-25T16:58:19.383Z`: ordinary requests omit cookies, old cookie-only clients
@@ -110,13 +131,13 @@ and its linked runtime, preflight, diagnostic-cleanup and public-acceptance
 receipts. Mercaria is no longer a pending migration prerequisite. Its finite
 referral bridge is separate from workload v1 and must not be removed by this PR.
 
-The remaining activation gates are evidence that Schedio's old prelaunch issuer
-is parked, a fresh complete runtime/binding/launcher inventory and live
-authorization checks,
-the full deployed old-token lifetime drain (currently at least 300 seconds after
-the last possible old producer stops), and CI/artifact compatibility for the final
-Core minor release. Global v1 retirement remains on hold; no global drain or
-activation is claimed here.
+Parking, current fleet/launcher readback, the full token-lifetime drain and final
+artifact compatibility gates are complete. The actual Core publication, exact
+API/worker
+production rollout and live retirement canaries are also verified.
+Real-person Console settings, inference execution, physical native devices and
+desktop distribution remain distinct product-acceptance limits; they do not
+reopen a completed service-token drain.
 
 ## Operator scripts
 
@@ -141,7 +162,10 @@ The historical Noted issuer-canary launcher also refuses before AWS access or
 secret injection. The external-credential probe remains available for explicitly
 authorized external test credentials; it cannot reuse Noted's retired own keys.
 
-## Validation
+## Historical validation checkpoints
+
+The following checkpoints record the checks that preceded the approved merge.
+References to pending activation describe that checkpoint, not current status.
 
 The final documentation/fixture composition was rebased without conflicts onto
 actual main `aba819b17fbf5df181788fef888ead5454966699` after #1993 merged.
@@ -215,9 +239,9 @@ No production cleanup, binding revocation or database backfill has run here.
 
 ## Core release version and consumer compatibility
 
-Release the prepared **7.4.0 minor** only when the retirement gates are satisfied
-(rechecking registry availability before publication), rather than publishing
-these changes under the existing `7.3.0` version or unconditionally choosing 8.
+The approved release is **7.4.0 minor**. The registry check and packed review
+preceded the merge; these changes must not be published under the existing
+`7.3.0` version or relabelled as a major without a public compatibility change.
 The public signatures of `serviceToken`, `serviceTokenFor`, `createServiceClient`
 and the credential/principal types are unchanged. The removed
 `requestLegacyWorkloadServiceToken` helper is internal and was not exported by
@@ -235,10 +259,10 @@ external OAuth regressions. If that review reveals a public API removal or a
 supported external behavior change, stop the minor release and prepare the
 necessary major-version consumer migration first; do not silently override or
 widen consumers' peer ranges. Normal CI, version/lock updates and the registry
-release remain required. Core 7.4.0 is now prepared locally for review; this draft does not publish or
-activate it.
+release were completed for Core 7.4.0. The actual registry and runtime verification
+below establish release completion.
 
-### Concrete release sequence after the parking decision
+### Release procedure and future audit reference
 
 1. Record the fresh fleet and launcher inventory, including the exact Schedio
    parked issuer disposition. Identify the latest possible v1 issuance time
@@ -272,8 +296,10 @@ activate it.
    do not need a forced reinstall before that API cutover. Any remaining manual
    workload-token caller must adopt the new minor before it is allowed to launch.
 
-This sequence is preparation, not authorization recorded as completed execution.
-It neither starts Schedio nor changes production bindings, flags or task counts.
+Steps 1–4, the normal merge and registry verification in step 5 are complete.
+API/worker production verification and live canaries in step 5 also passed.
+This procedure does not authorize starting
+Schedio or repeating any binding mutation.
 
 ### Prepared Core 7.4.0 artifact validation
 
@@ -298,5 +324,47 @@ acceptance, nor replace the live-grant/OAuth regressions in full branch CI.
 Receipts, declaration review, test logs and the tarball are under
 `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-core-7.4/`.
 
-No artifact has been published. Versioned-branch CI and the parked-issuer,
-launcher, fresh binding and full-lifetime drain receipts still gate activation.
+Versioned branch and queue CI, parked-issuer, launcher, fresh binding and
+full-lifetime drain receipts passed before merge. Registry publication and exact
+production activation are tracked separately at the top of this document.
+
+### Actual registry and frontend verification
+
+At `2026-10-25T20:07:29Z`, the actual public Core 7.4.0 artifact passed SHA-512
+integrity and Sigstore verification against source `dc1c21186` and release
+[40228796623](https://github.com/OxyHQ/oxy/actions/runs/40228796623). A fresh
+registry-only install verified 713 shipped files, 46 export targets and 179
+declarations; normalized public signatures remain compatible. CJS/ESM imports,
+consumer types and five HTTP composition tests (24 assertions) passed without
+peer overrides. The registry artifact differs from the candidate only in one
+declaration's literal-union ordering. These are actual published bytes with
+synthetic HTTP fixtures, not production or mounted native acceptance.
+
+Frontend deployment [40228796647](https://github.com/OxyHQ/oxy/actions/runs/40228796647)
+completed actual Accounts, Auth and Console deployment steps on the same source,
+including the Accounts CSP and Auth IdP smoke gates. The sanitized
+[evidence](../architecture/evidence/first-party-prelaunch-parking-20261025.json)
+records the source receipt hashes and exact verification boundaries.
+
+### Exact production runtime and live authority canary
+
+AWS deployment [40228796566](https://github.com/OxyHQ/oxy/actions/runs/40228796566)
+performed the actual rollout. API revision 1080 (3/3) and asset worker 545 (8/8)
+run source `dc1c21186` with matching source/runtime image digest
+`sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766`.
+Their previous tasks drained, and the API target groups are healthy.
+
+At `20:14:09.701Z`, the live canary passed scope-free v2 identity (200), canonical
+recipient introspection (active), wrong-recipient refusal (401), v1 issuance
+refusal (400), and invalid-bearer refusal (401). The diagnostic exited 0; its
+definition was inactive with no active family tasks by `20:15:52Z`. No raw token
+or customer secret is retained in the committed evidence. The invalid-bearer
+negative is not a positive live external-customer key/OAuth exercise: those
+compatibility paths retain their dedicated source and real-HTTP regression
+coverage, rather than being inferred from this canary.
+
+The post-release Schedio probe at `20:16:47.538Z` used the exact parked workload
+role against the new API 1080 and again returned `403 unbound_workload`. Its task
+exited 0 and its definition was inactive by `20:17:38Z`. This confirms parking
+remained enforced after the runtime change; it does not authorize a future
+Schedio launch or change the approved binding expiry.
