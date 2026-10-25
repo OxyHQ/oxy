@@ -1,5 +1,5 @@
 {
-  "scope": "Schedio prelaunch parking and bounded own-workload retirement readiness; no global protocol activation.",
+  "scope": "Completed own-workload v1 retirement, bounded Schedio prelaunch parking and verified release/production evidence.",
   "ownerDeferredPublicLaunch": true,
   "sources": {
     "schedio": "5be56680bc678768b1dfb16afb0e99e852d8775a",
@@ -53,8 +53,8 @@
   },
   "preserved": "Service, DB records, application, public client, role, external credentials and historical images/definitions; only the exact binding expires_at changed.",
   "remaining": [
-    "PR #1984 final publication and production rollout remain separate.",
-    "Product acceptance limits (real identity, native devices, inference execution and desktop distribution) are distinct from service-token retirement."
+    "Separate product-acceptance limits remain: real-person Console settings, inference execution, physical native devices and desktop distribution.",
+    "Schedio public launch remains deferred; future launch requires current v2 artifacts and its normal DNS/ACM/receiver process."
   ],
   "historicDashboardRunAnomaly": {
     "repository": "OxyHQ/Mercaria",
@@ -157,9 +157,49 @@
     {
       "operatorReceipt": "commerce/auth-scope-readiness-20261025-postdrain/mint-protocol-followup-20261025.json",
       "sha256": "8ee840886c6ca02e97e9001a4115d36046a63104a808bef532b7c39046293e27"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-activation-gates-20261025.json",
+      "sha256": "75c3557b3598f9eb9ace2d81702ffa7ae934005461968003c9cd050f7c1358fe"
+    },
+    {
+      "operatorReceipt": "first-party-core-tmp/retirement-registry-verification/published-dc1c21186dab/registry-verification-receipt.json",
+      "sha256": "af66f1b801494cffa8c89eff691084d95d4b68305ac480eeae477b06bfd7d2a6"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-frontends-dc1c21186-20261025.json",
+      "sha256": "546a444992fd14624b12fcf1838bebb5f37fcc3b663ad433c9875c71cbec6c7e"
+    },
+    {
+      "operatorReceipt": "first-party-root/oxy-api-runtime-dc1c21186dab-20261025.json",
+      "sha256": "80c8da5c4afbd5323a9bc183b151891ae1527cf0008523314ef34bce3a0e61a0"
+    },
+    {
+      "operatorReceipt": "first-party-root/oxy-asset-variant-worker-runtime-dc1c21186dab-20261025.json",
+      "sha256": "04a12602242b6e3fef67f9b3c03458a2cac1657452c085c26b762af8ac7b7764"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-deploy-dc1c21186-20261025.json",
+      "sha256": "a068c5be3afc3e0b2bc07d249f6a9a49eececc0a43c6d7e0479bd0606e2c9527"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-authority-dc1c21186-20261025/readback.json",
+      "sha256": "6a396431e0e8c1b8eb2052239226baa60f5c2b19da17bbc647ebe9be8bfdadc4"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-authority-dc1c21186-20261025/cleanup.json",
+      "sha256": "d0f93d759c59f8dcc765ee89f42072f85de5ddc52e88b1e7f66b1264d317bc61"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-schedio-refusal-dc1c21186-20261025/readback.json",
+      "sha256": "201ea833e08640cad607266c12ef0db47982d78dedfa32bd1045562a4b6da23c"
+    },
+    {
+      "operatorReceipt": "first-party-root/retirement-schedio-refusal-dc1c21186-20261025/cleanup.json",
+      "sha256": "2bf88783c4e115ff4fc4a813ad9edd397029d30e780dc7a0dcca5b1d6d761aeb"
     }
   ],
-  "globalV1Retired": false,
+  "globalV1Retired": true,
   "postDrain": {
     "servicesObservedAt": "2026-10-25T19:45:27.061373+00:00",
     "stableServices": 30,
@@ -213,5 +253,137 @@
     "index": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
     "indexAndBothChildrenAvailableAndPinned": true,
     "interpretation": "The original launcher report filtered retention tags for credential/admin substrings and omitted pinned-* tags. Exact ECR readback confirms no retention regression."
+  },
+  "release": {
+    "pullRequest": 1984,
+    "mergedSource": "dc1c21186dab603c6e2ec216e61f7c45d7f37537",
+    "mergedAt": "2026-10-25T20:01:29Z",
+    "coreVersion": "7.4.0",
+    "registryVerified": true,
+    "productionVerified": true,
+    "registry": {
+      "observedAt": "2026-10-25T20:07:29.469376+00:00",
+      "sourceSha": "dc1c21186dab603c6e2ec216e61f7c45d7f37537",
+      "releaseRun": 40228796623,
+      "version": "7.4.0",
+      "registryIntegrity": "sha512-Oc3f7i58Ze1PUjULLczI9xTsg6lZIePDveVYfODQRsz36N79nnhLFxHiKBm4XRHFnBkBKeQbbHtIZEAP99pBBA==",
+      "registryArtifactBytes": 2168502,
+      "sigstoreVerified": true,
+      "certificateIssuer": "https://token.actions.githubusercontent.com",
+      "certificateIdentity": "https://github.com/OxyHQ/oxy/.github/workflows/npm-release.yml@refs/heads/main",
+      "provenanceInvocation": "https://github.com/OxyHQ/oxy/actions/runs/40228796623/attempts/1",
+      "installedRegistryFilesVerified": 713,
+      "exportsChecked": 46,
+      "declarationsChecked": 179,
+      "normalizedPublicSignaturesIdentical": true,
+      "publicCjsAndEsmImportsPassed": true,
+      "consumerTypesPassed": true,
+      "httpCompositionTestsPassed": 5,
+      "httpAssertions": 24,
+      "freshRegistryOnlyInstall": true,
+      "frozenInstallPassed": true,
+      "peerOverrides": false,
+      "candidateTarballIdentical": false,
+      "candidateDifference": "Only dist/types/server/safety.d.ts literal-union ordering differs; normalized declaration comparison passes; all other files byte-identical. Registry integrity is recorded separately.",
+      "consumers": [
+        "@alia.onl/sdk@22.0.1",
+        "@alia.onl/server@1.2.0",
+        "@clarity.surf/sdk@0.10.0",
+        "@kaana.ai/sdk@3.3.0",
+        "@oxy.so/mcp@1.4.0",
+        "@oxy.so/services@13.6.0"
+      ],
+      "limits": "Actual published SDK bytes, synthetic local HTTP issuer/receivers; renderer hooks only stubbed for Alia pure transport. Not live production, mounted React/native or an external customer credential exercise. Root owns runtime/canary acceptance."
+    },
+    "frontends": {
+      "verifiedAt": "2026-10-25T20:08:05.875143+00:00",
+      "source": "dc1c21186dab603c6e2ec216e61f7c45d7f37537",
+      "run": 40228796647,
+      "conclusion": "success",
+      "actualDeployJobs": [
+        "deploy-accounts",
+        "deploy-auth",
+        "deploy-console"
+      ],
+      "smokesPassed": [
+        "Accounts CSP",
+        "Auth IdP"
+      ]
+    },
+    "runtime": [
+      {
+        "name": "oxy-api",
+        "observedAt": "2026-10-25T20:13:15.402877+00:00",
+        "revision": "1080",
+        "desired": 3,
+        "running": 3,
+        "sourceImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
+        "runtimeImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
+        "allTargetsHealthy": true,
+        "oldTasksDrained": true
+      },
+      {
+        "name": "oxy-asset-variant-worker",
+        "observedAt": "2026-10-25T20:10:37.955803+00:00",
+        "revision": "545",
+        "desired": 8,
+        "running": 8,
+        "sourceImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
+        "runtimeImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
+        "allTargetsHealthy": true,
+        "oldTasksDrained": true
+      }
+    ],
+    "awsDeployRun": 40228796566,
+    "awsActualRolloutSucceeded": true,
+    "liveAuthorityCanary": {
+      "success": true,
+      "mode": "authority",
+      "source": "dc1c21186dab603c6e2ec216e61f7c45d7f37537",
+      "observedAt": "2026-10-25T20:14:09.701Z",
+      "checks": [
+        {
+          "check": "v2-scope-free-live-identity",
+          "status": 200
+        },
+        {
+          "check": "canonical-recipient-live-introspection",
+          "active": true
+        },
+        {
+          "check": "wrong-recipient-refused",
+          "status": 401
+        },
+        {
+          "check": "v1-issuer-refused",
+          "status": 400,
+          "reason": null
+        },
+        {
+          "check": "invalid-bearer-refused-not-external-positive-proof",
+          "status": 401
+        }
+      ],
+      "diagnosticExitCode": 0,
+      "diagnosticDefinitionStatus": "INACTIVE",
+      "diagnosticCleanedAt": "2026-10-25T20:15:52.446991+00:00",
+      "limits": "The invalid bearer negative is not a positive live external-customer credential/OAuth exercise. Those compatibility paths retain source/real-HTTP regression coverage; no customer secret was used in this canary."
+    },
+    "parkedSchedioPostReleaseCanary": {
+      "success": true,
+      "mode": "parked-schedio",
+      "source": "dc1c21186dab603c6e2ec216e61f7c45d7f37537",
+      "observedAt": "2026-10-25T20:16:47.538Z",
+      "checks": [
+        {
+          "check": "schedio-attested-unbound-mint-refused",
+          "status": 403,
+          "reason": "unbound_workload"
+        }
+      ],
+      "diagnosticExitCode": 0,
+      "diagnosticDefinitionStatus": "INACTIVE",
+      "diagnosticCleanedAt": "2026-10-25T20:17:38.185009+00:00"
+    }
   }
 }
