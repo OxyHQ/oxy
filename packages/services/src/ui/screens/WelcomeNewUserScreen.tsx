@@ -5,7 +5,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { H1, Text } from '@oxy.so/bloom/typography';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -390,7 +390,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
                 size={120}
                 name={welcomeName}
                 source={avatarUri}
-                placeholderColor={`${colors.primary}20`}
+                placeholderColor={withAlpha(colors.primary, 0.125)}
                 style={styles.avatar}
               />
               <Button appearance="solid" tone="accent" size="sm" onPress={openAvatarPicker}>

@@ -4,9 +4,9 @@ import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-nati
 import { useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, SessionGate } from '@/components/ui';
+import { Screen, StackHeader, SessionGate, SettingsListItem } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';

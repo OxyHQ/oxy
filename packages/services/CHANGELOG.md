@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.6.1] - 2026-10-25
+
+### Fixed
+
+- Translucent washes are built with Bloom's `withAlpha` instead of appending two hex digits to a theme colour: the sign-in prompt's logo badge, the new-user welcome's avatar placeholder and two payment surfaces. Bloom's theme tokens are `rgb(...)` strings, so `${colors.primary}22` was an invalid colour, which Android drew opaque.
+
 ## [13.6.0] - 2026-10-25
 
 ### Fixed
