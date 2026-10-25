@@ -24,7 +24,7 @@ revocation and operation binding remain mandatory.
 | Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority and dedicated QA private-file canaries passed; inference execution and remaining product canaries remain | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Foundation frontend deployed; public sign-in dialog smoke passed; authenticated settings smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
 | Alia own-app levels and tool admission | Stage B/C deployed; SDK 22 published; app transport follow-up `b1b0f981` verified live | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Workload gateway 191 and API 611 verified on `b1b0f981`; operational secret cleanup is not executed | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; old-definition retirement is in progress; no SSM deletion | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
@@ -147,7 +147,8 @@ the Codea/Cowork source changes from [PR #899](https://github.com/OxyHQ/Alia/pul
 Local VSIX and Linux AppImage artifacts were built; there is no claim of
 Marketplace/Electron distribution, signing, or native desktop sign-in acceptance.
 Infrastructure secret-removal source and its reviewed apply are separate from
-operational credential cleanup, which has not been executed.
+operational credential cleanup. Old-definition retirement is now in progress;
+no SSM parameter deletion or completed cleanup is recorded.
 
 Atlas's [frontend deployment](https://github.com/OxyHQ/Atlas/actions/runs/40185771456)
 and Inbox's [frontend deployment, attempt 2](https://github.com/OxyHQ/Inbox/actions/runs/40185828152)
@@ -174,8 +175,10 @@ complete.
 | Runtime | Verified source | Live revisions / count |
 |---|---|---|
 | Alia app transport follow-up | `b1b0f9811f2ff028c25d7d4c90fb81bb9ab31822` | API 611: 2/2; integrations 191: 1/1; healthy and drained |
+| Alia SDK metadata patch | `596f8a7dfecb0c3a80faf3077a7989143745ddbd` | API 612: 2/2; integrations 192: 1/1; healthy and drained |
 | Clarity producer | `9903515501271a982c2fba40b7a13af4099406c5` | API 159 and worker 145: each 1/1; healthy and drained |
 | Oxy Inbox event producer | `7f2d10dc800948757155a7a085877a0690b1b4a4` | Oxy API 1077: 3/3; exact runtime digest verified |
+| Oxy targeted Noted retirement | `0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d` | Oxy API 1078: 3/3; exact runtime digest verified |
 
 The Clarity canary at `2026-10-25T11:26:47.532Z` used the deployed Clarity
 image and workload identity with the published Mercaria SDK. It reached the
@@ -194,6 +197,11 @@ not deploy a new backend image: its verified backend remains revision 60 on
 [PR #746](https://github.com/OxyHQ/Homiio/pull/746) merged as `2263ccad`; its
 source and passing CI are not a new runtime readback.
 
+Alia SDK 22.0.1 is published with verified registry integrity and provenance
+for `596f8a7`. It removes only the obsolete Bloom peer upper bound; the
+core/services minimums remain. This metadata release does not require a
+consumer runtime change from the already compatible SDK 22.0.0.
+
 ### Retired Noted backend identity
 
 Oxy [PR #1987](https://github.com/OxyHQ/oxy/pull/1987), merged as `0a312b9b1`,
@@ -203,7 +211,10 @@ expired only the retired Noted workload binding. Read-only verification at
 `72a274e859055594fa5bb2cbfed3e277c26e01d4695a92e77ef036ef51031291`.
 The migration ledger matches the committed SQL bytes. Noted's public client
 and application remain active; Nilo's active workload and application remain
-unchanged. This targeted retirement does not remove the global v1 bridge.
+unchanged. The operator verification at `2026-10-25T11:51:09.149102+00:00`
+and successful [API deployment](https://github.com/OxyHQ/oxy/actions/runs/40189808422)
+record the same source and migration hash. This targeted retirement does not
+remove the global v1 bridge.
 
 ### Remaining acceptance and operational holds
 
@@ -215,10 +226,18 @@ follow-ups, the remaining product socket changes, and Syra's follow-up SDK
 publication/adoption need their own rollout receipts. Native physical-device
 acceptance and desktop/store distribution are not established.
 
-Alia operational credential cleanup has **not** been executed.
+Alia's bounded retirement of 782 old task definitions started at
+`2026-10-25T11:52:42.699Z`. This checkpoint records 52 unique definitions
+confirmed `INACTIVE` by `2026-10-25T11:54:09.135Z`; the operation is
+**still in progress**, not complete. Probe revision 1 was separately confirmed
+`INACTIVE` at `2026-10-25T11:52:14.771756+00:00`. No SSM parameters or
+historical records have been deleted. The running API 612 and gateway 192 are
+outside that retirement set.
+
 [Infrastructure docs PR #399](https://github.com/OxyHQ/oxy-infra/pull/399)
-merged as `39eaf793`, but documentation is not a cleanup receipt. The finite
-v1 retirement remains on hold; this checkpoint does not declare fleet completion.
+merged as `39eaf793`; the partial operational receipts above, rather than that
+documentation, establish progress. The finite v1 retirement remains on hold;
+this checkpoint does not declare completed cleanup or fleet completion.
 
 ## Audited runtime graph
 

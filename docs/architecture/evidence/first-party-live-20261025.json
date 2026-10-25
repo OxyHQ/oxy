@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T11:52:51.797608+00:00",
+  "generatedAt": "2026-10-25T11:55:36.121730+00:00",
   "scope": "Dated deployment and dedicated QA readbacks; not fleet completion, native distribution or existing-user end-to-end acceptance",
   "services": [
     {
@@ -431,6 +431,42 @@
       "sourceSha": "999b1d1341c854f1032a1e54ecf7527148554c00",
       "observedAt": "2026-10-25T11:26:00.750514+00:00",
       "receiptFile": "moovo-runtime-999b1d1341c8-20261025.json"
+    },
+    {
+      "name": "alia",
+      "taskDefinitionRevision": 612,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:4137243f28fbb54e38f29f301df24fb4d81d93d5acac3b19110183dda1999e63",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
+      "observedAt": "2026-10-25T11:51:16.125839+00:00",
+      "receiptFile": "alia-runtime-596f8a7dfecb-20261025.json"
+    },
+    {
+      "name": "alia-integrations",
+      "taskDefinitionRevision": 192,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:bf1a910db0e3b0ece73b7bc8326311f36bdfe5da761ed919ee35567f876580ee",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
+      "observedAt": "2026-10-25T11:51:15.982592+00:00",
+      "receiptFile": "alia-integrations-runtime-596f8a7dfecb-20261025.json"
+    },
+    {
+      "name": "oxy-api",
+      "taskDefinitionRevision": 1078,
+      "desired": 3,
+      "running": 3,
+      "imageDigest": "sha256:70e05ac5dd7647c7b57c00ed0d1fb2f10d3809c9b0870bf1d5cd7149f77b2eb9",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
+      "observedAt": "2026-10-25T11:54:18.580883+00:00",
+      "receiptFile": "oxy-api-runtime-0a312b9b1fb2-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -679,7 +715,18 @@
       "expiresAt": null
     },
     "applicationsRemainActive": true,
-    "globalV1Retired": false
+    "globalV1Retired": false,
+    "operatorVerification": {
+      "verifiedAt": "2026-10-25T11:51:09.149102+00:00",
+      "source": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
+      "migrationHash": "72a274e859055594fa5bb2cbfed3e277c26e01d4695a92e77ef036ef51031291",
+      "retiredBinding": "01a12a46-0ab6-721d-86a0-c63669a4e9b6",
+      "expiresAt": "2026-10-25T00:00:00.000Z",
+      "publicClientsApplicationsNiloUnchanged": true,
+      "globalV1Retired": false,
+      "receiptFile": "noted-retirement-verified-20261025.json"
+    },
+    "deploymentRun": 40189808422
   },
   "remainingAcceptance": {
     "schedio": "Public DNS smoke failed; runtime rolled back to revision17; domain decision pending",
@@ -687,8 +734,39 @@
     "website": "Consumer PR206 remains in queue/deployment acceptance; no live receipt in this checkpoint",
     "sockets": "Peable172 and Moovo177 source/CI plus remaining product socket follow-ups require rollout verification",
     "syra": "Follow-up SDK publication and consumer adoption pending",
-    "aliaCleanup": "Docs399 merged39eaf793; operational secret cleanup has not been executed",
+    "aliaCleanup": "782-definition retirement started; bounded52-confirmation snapshot, still in progress; probe1 separately INACTIVE; no SSM parameters deleted",
     "native": "No physical device sign-in or desktop/store distribution established",
     "v1RetirementAllowed": false
+  },
+  "aliaSdk2201": {
+    "name": "@alia.onl/sdk",
+    "version": "22.0.1",
+    "integrity": "sha512-+Z/xqGmsiyPe6w0piWOSsKEzX16gx4lwBIi1PDHv0kvJadYxhLDH4XaBK09/SxSXmNX7fWb2RMfcVJFlSUa2PQ==",
+    "source": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
+    "observedAt": "2026-10-25T11:49:35.968336+00:00",
+    "receiptFile": "alia.onl-sdk-22.0.1-registry.json",
+    "provenanceCommitMatched": true,
+    "scope": "Metadata-only Bloom peer upper-bound removal; core/services floors retained"
+  },
+  "aliaProbeRetirement": {
+    "family": "oxy-alia-probe",
+    "revision": 1,
+    "status": "INACTIVE",
+    "observedAt": "2026-10-25T11:52:14.771756+00:00",
+    "parametersDeleted": false,
+    "historyDeleted": false,
+    "receiptFile": "alia-probe-retirement-20261025.json"
+  },
+  "aliaDefinitionRetirementProgress": {
+    "startedAt": "2026-10-25T11:52:42.699Z",
+    "manifestSha256": "ae60a27bc86b1227c5d1de0e5a7347cbfa7285b34b40afe2e499ac3ab54fcb46",
+    "plannedDefinitionCount": 782,
+    "confirmedInactiveAtCheckpoint": 52,
+    "observedAt": "2026-10-25T11:54:09.135Z",
+    "status": "in_progress",
+    "parametersDeleted": false,
+    "historyDeleted": false,
+    "receiptFile": "alia-definition-retirement-20261025.jsonl",
+    "scope": "Bounded partial snapshot; probe revision1 is recorded separately; no completion claim"
   }
 }
