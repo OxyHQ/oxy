@@ -60,7 +60,7 @@ stages remain as dated history in the narrative and receipt array.
 | Homiio API / worker | `2263ccad44e6918354e5643c8fe782008fe66e5d` | 275: 2/2; 278: 1/1; healthy and drained |
 | Website API | `a30d271115fe9afb95e038e46d84e1ba51adff12` | 70: 2/2; healthy and drained |
 | Mention API / MCP | `7587a6af619fa6c02d6b650bdf0ded8cb9746a07` | 723: 2/2; 423: 1/1; healthy and drained |
-| Syra | `1d12889b726ccb2117800e8fc68cf772b3cfc786` | 174: 2/2; healthy and drained |
+| Syra | `41da86f21471a44bcee898c6ab93a25a8dbec496` | 175: 2/2; healthy and drained |
 | Move | `a1c041b758c47ff6766beb134b1618a0e4d54fad` | 52: 1/1; healthy and drained |
 | Nilo | `a240f145de6844a0a871469e748d743eba8599fa` | 110: 2/2; healthy and drained |
 | Mercaria | `6d077057888cadf68dcb9e6d27eab128a087b73c` | 145: 1/1; healthy and drained |
@@ -250,7 +250,11 @@ require Core `>=7.1.0 <8.0.0` and Services `>=13.0.0 <14.0.0`; the packed
 socket entry was also tested against the actual published Core 7.1.0 minimum.
 Real Socket.IO tests cover concurrent leases, account changes, late cleanup and
 aborting a pending refresh after the last consumer leaves. External credential
-connections remain a separate supported path.
+connections remain a separate supported path. Syra's
+[backend deployment](https://github.com/OxyHQ/Syra/actions/runs/40193313588)
+also performed its rollout. Revision 175 was independently verified at
+`13:07:04Z`, 2/2 healthy and drained, with the ECR source tag and both running
+image digests matching that same `41da86f2` source.
 
 Mention [PR #1628](https://github.com/OxyHQ/Mention/pull/1628) pins that published
 artifact. Queue CI `40194448512` passed and merged
