@@ -146,6 +146,17 @@ in 40.055 seconds. The log is
 The Mercaria completion update changes documentation only; it does not invalidate
 those byte-identical Core results or repeat deployment operations.
 
+CI run 40206743109 on `cb18` exposed one test-discovery error in API shard 1:
+the historical cohort data lived under `__tests__`, so Jest treated it as an empty
+suite. The 173 real suites in that shard passed (2,531 tests); the other three
+API shards passed. The fixture now lives under the existing `__fixtures__`
+convention and its four test imports were updated, without changing Jest's test
+pattern or production code. Local reproduction confirmed the original failure;
+complete discovery now excludes only that data file and preserves all 763 real
+suites. All four consuming PostgreSQL/HTTP suites pass (49 tests). The next CI
+run remains required; these focused checks do not assert a new full API CI pass.
+Evidence: `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-fixture-ci/`.
+
 The previous checkpoint on main `0a312b9b1` (including the Inbox producer in
 #1985 and the Noted binding retirement in #1987) passed the following local
 verification. These are historical results, not a repeat on the later rebase:

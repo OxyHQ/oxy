@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../__tests__/fixtures/retiredWorkloadCohort';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import {
   applicationCredentials,
   applications,

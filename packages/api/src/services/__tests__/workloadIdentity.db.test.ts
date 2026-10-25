@@ -450,9 +450,7 @@ describe('finite protocol transition', () => {
   });
 
   it('retires v1 for the historical cohort without inventing an environment or scopes', async () => {
-    const { LEGACY_WORKLOAD_BINDINGS } = await import(
-      '../../__tests__/fixtures/retiredWorkloadCohort'
-    );
+    const { LEGACY_WORKLOAD_BINDINGS } = await import('../../__fixtures__/retiredWorkloadCohort');
     const expected = LEGACY_WORKLOAD_BINDINGS[0];
     const app = await applicationFixture({ id: expected.applicationId, scopes: [] });
     await getDb()

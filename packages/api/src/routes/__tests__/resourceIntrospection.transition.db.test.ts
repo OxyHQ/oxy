@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 import { resourceIntrospectionSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../__tests__/fixtures/retiredWorkloadCohort';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import { CLARITY_BACKEND_APPLICATION_ID } from '../../config/firstPartyApplications';
 import {
   applications,

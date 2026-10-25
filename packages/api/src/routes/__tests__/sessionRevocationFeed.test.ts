@@ -74,7 +74,7 @@ import {
 } from '../../db/schema';
 import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.service';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../__tests__/fixtures/retiredWorkloadCohort';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { verifyServiceToken } from '../../middleware/serviceToken';
