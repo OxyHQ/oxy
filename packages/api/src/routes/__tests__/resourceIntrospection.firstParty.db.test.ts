@@ -77,7 +77,7 @@ it('introspects exact receiver audience with live identity and no scope grants',
     ).body.active,
   ).toBe(false);
 });
-it('refuses receiver substitution, wrong environment and external promotion', async () => {
+it('refuses receiver substitution, wrong environment and retired scoped workload tokens', async () => {
   const caller = await identity();
   const receiver = await identity();
   const other = await identity();
@@ -111,7 +111,7 @@ it('refuses receiver substitution, wrong environment and external promotion', as
         .auth(receiver.token, { type: 'bearer' })
         .send({ token: external })
     ).body,
-  ).toMatchObject({ active: true, authority: 'external', scopes: [] });
+  ).toMatchObject({ active: false });
 });
 it('revokes the receiver identity itself immediately', async () => {
   const receiver = await identity();

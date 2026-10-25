@@ -704,7 +704,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             ? decoded.scopes === undefined &&
               credentialId?.toString().startsWith('wl_') &&
               decoded.tier === 'internal'
-            : Array.isArray(decoded.scopes) &&
+            : !(typeof credentialId === 'string' && credentialId.startsWith('wl_')) &&
+              Array.isArray(decoded.scopes) &&
               decoded.scopes.every(
                 (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
               ) &&
@@ -753,13 +754,6 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
-          // Temporary reader-first bridge: a legacy workload is only a candidate.
-          // Oxy must verify its exact finite cohort and live identity centrally.
-          const legacyCandidate =
-            !firstParty &&
-            expectedAudience.startsWith('oxy-service:') &&
-            decoded.aud === OXY_JWT_AUDIENCE &&
-            credentialId.startsWith('wl_');
           let effectiveScopes = decoded.scopes as string[];
           if (firstParty || expectedAudience.startsWith('oxy-service:')) {
             let live: ServiceIntrospection | undefined;
@@ -775,7 +769,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (
               !live.active ||
               (firstParty && live.authority !== 'first_party') ||
-              (!firstParty && !legacyCandidate && live.authority !== 'external') ||
+              (!firstParty && live.authority !== 'external') ||
               live.applicationId !== appId ||
               live.credentialId !== credentialId ||
               live.accountId !== ownerAccountId ||

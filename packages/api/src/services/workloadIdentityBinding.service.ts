@@ -17,8 +17,8 @@ import {
 } from './workloadAttributionIdentity.service';
 
 /** Staff-managed workload identities bind an application and deployment environment.
- * Scopes belong to external credentials. Legacy binding scopes are retained only
- * for reading old tokens during the transition; no new mint uses them.
+ * Scopes belong to external credentials. The historical database column is inert
+ * and omitted from this runtime API; a later migration can drop it.
  */
 
 /** Why a bind was refused. Every value is a deliberate no, never a failure. */
@@ -52,8 +52,6 @@ export interface WorkloadBindingRow {
   subject: string;
   description: string | null;
   environment: OxyServiceEnvironment | null;
-  /** Legacy metadata; not first-party authority. */
-  scopes: string[];
   /**
    * The `credentialId` every token minted through this binding will carry.
    *
@@ -70,7 +68,7 @@ export interface WorkloadBindingRow {
 }
 
 /**
- * Who is asking, for the privileged-scope gate.
+ * Who is asking, for the staff-managed identity gate.
  *
  * The application routes ask `isStaffUser(req)`. There is no request here and
  * no route — a bind is an operator at a terminal with this environment's
@@ -150,7 +148,6 @@ const BINDING_COLUMNS = {
   subject: applicationWorkloadIdentities.subject,
   description: applicationWorkloadIdentities.description,
   environment: applicationWorkloadIdentities.environment,
-  scopes: applicationWorkloadIdentities.scopes,
   expiresAt: applicationWorkloadIdentities.expiresAt,
   createdAt: applicationWorkloadIdentities.createdAt,
 } as const;
@@ -238,7 +235,6 @@ async function requireApplication(applicationId: string) {
       id: applications.id,
       name: applications.name,
       status: applications.status,
-      scopes: applications.scopes,
       type: applications.type,
       isOfficial: applications.isOfficial,
       isInternal: applications.isInternal,

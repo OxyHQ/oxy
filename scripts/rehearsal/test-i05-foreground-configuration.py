@@ -87,7 +87,6 @@ def main():
         assert sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db) == before
         command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',
                    'src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts',
-                   'src/scripts/__tests__/foregroundPilotHttps.test.ts',
                    'src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts',
                    'src/scripts/__tests__/seedOxyApplicationsPlan.test.ts']
         result = subprocess.run(command, cwd=ROOT / 'packages/api', env=env,

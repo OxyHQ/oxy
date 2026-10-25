@@ -60,7 +60,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
-it('isolates legacy manual mint/cache from v2 namespaces, receiver introspection and product transport', async () => {
+it('uses one v2 mint/cache for manual calls, namespaces, receiver introspection and product transport', async () => {
   const oxy = new OxyServer({
     baseURL,
     workloadCredentials: async () => ({
@@ -70,7 +70,7 @@ it('isolates legacy manual mint/cache from v2 namespaces, receiver introspection
     }),
   });
   try {
-    expect(await oxy.serviceToken()).toBe(serviceToken(1));
+    expect(await oxy.serviceToken()).toBe(serviceToken(2));
     await oxy.serviceRequest('GET', '/metadata');
     await expect(
       oxy.verifyActingAs('sender', 'person', { requesterToken: 'requester-proof' }),
@@ -86,8 +86,8 @@ it('isolates legacy manual mint/cache from v2 namespaces, receiver introspection
     const client = oxy.createServiceClient({ baseURL, audience: 'oxy-api' });
     await client.fetch('/product');
     client.dispose();
-    expect(await oxy.serviceToken()).toBe(serviceToken(1));
-    expect(versions).toEqual([1, 2]);
+    expect(await oxy.serviceToken()).toBe(serviceToken(2));
+    expect(versions).toEqual([2]);
     expect(received).toHaveLength(4);
     expect(received.every((bearer) => bearer === `Bearer ${serviceToken(2)}`)).toBe(true);
   } finally {

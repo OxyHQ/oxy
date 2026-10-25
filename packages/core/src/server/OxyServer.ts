@@ -69,7 +69,6 @@ import { logger } from '../logger';
 import {
   canAttestWorkloadIdentity,
   requestWorkloadServiceToken,
-  requestLegacyWorkloadServiceToken,
   type WorkloadCredentialProvider,
 } from './workloadIdentity';
 import {
@@ -404,7 +403,7 @@ export class OxyServer extends OxyServices {
     const client = new HttpService({ baseURL: options.baseURL, enableCache: false });
     let disposed = false;
     const audience = options.audience;
-    const mint = () => this.workloadServiceToken(audience, 2);
+    const mint = () => this.workloadServiceToken(audience);
     client.setAuthRefreshHandler(async () => {
       this.serviceTokens.delete(audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:2`));
       return mint();
@@ -631,25 +630,18 @@ export class OxyServer extends OxyServices {
     apiSecret?: string,
     options: ServiceTokenOptions = {},
   ): Promise<string> {
-    return this.serviceTokenForProtocol(1, audience, apiKey, apiSecret, options);
+    return this.mintServiceTokenFor(audience, apiKey, apiSecret, options);
   }
 
   private platformServiceToken(options: ServiceTokenOptions = {}): Promise<string> {
     // Explicit external credential configuration keeps the public credential lane.
     if (this.serviceApiKey || this.serviceApiSecret)
       return this.serviceToken(undefined, undefined, options);
-    return this.serviceTokenForProtocol(
-      2,
-      DEFAULT_SERVICE_TOKEN_AUDIENCE,
-      undefined,
-      undefined,
-      options,
-    );
+    return this.mintServiceTokenFor(DEFAULT_SERVICE_TOKEN_AUDIENCE, undefined, undefined, options);
   }
 
-  /** Temporary reader-first rollout: manual tokens stay v1 until receivers migrate. */
-  private async serviceTokenForProtocol(
-    protocolVersion: 1 | 2,
+  /** Workloads always use scope-free v2; explicit customer credentials remain external. */
+  private async mintServiceTokenFor(
     audience: ServiceTokenAudience = DEFAULT_SERVICE_TOKEN_AUDIENCE,
     apiKey?: string,
     apiSecret?: string,
@@ -661,7 +653,7 @@ export class OxyServer extends OxyServices {
 
     if (!key && !secret && (this.workloadCredentials || canAttestWorkloadIdentity())) {
       if (scopes !== undefined) throw new Error('First-party workloads do not request scopes');
-      return this.workloadServiceToken(audience, protocolVersion);
+      return this.workloadServiceToken(audience);
     }
     if (!key || !secret) {
       throw new Error(
@@ -1114,11 +1106,8 @@ export class OxyServer extends OxyServices {
   }
 
   /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
-  private async workloadServiceToken(
-    audience: ServiceTokenAudience,
-    protocolVersion: 1 | 2,
-  ): Promise<string> {
-    const cacheKey = audienceCacheKey(audience, `${WORKLOAD_CACHE_KEY}:${protocolVersion}`);
+  private async workloadServiceToken(audience: ServiceTokenAudience): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY);
     const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
@@ -1138,9 +1127,7 @@ export class OxyServer extends OxyServices {
     this.serviceTokens.set(cacheKey, seeded);
 
     const pending = (async () => {
-      const mint =
-        protocolVersion === 2 ? requestWorkloadServiceToken : requestLegacyWorkloadServiceToken;
-      const granted = await mint({
+      const granted = await requestWorkloadServiceToken({
         baseUrl: this.baseURL,
         ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
         ...(this.workloadCredentials ? { credentials: this.workloadCredentials } : {}),

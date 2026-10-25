@@ -1,5 +1,3 @@
-import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { isSupervised } from './supervisionPolicy.service';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
@@ -9,11 +7,7 @@ import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
-import {
-  intersectScopes,
-  workloadBindingScopes,
-  type ApplicationScope,
-} from '../utils/applicationScopes';
+import { intersectScopes } from '../utils/applicationScopes';
 import { deploymentCredentialEnvironment } from '../utils/credentialEnvironment';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
@@ -88,7 +82,7 @@ async function loadPrincipal(applicationId: string, credentialId: string, requir
  * Re-resolve live app, workload/credential and owner before every service call.
  * Own workloads require a provisioned environment, active binding and trusted
  * registry identity; their authority contains no scopes. External credentials
- * and the finite legacy workload cohort retain their live scope intersection.
+ * retain their live scope intersection; legacy workload tokens are refused.
  * Token owner/environment claims must match this current administrative binding.
  */
 export async function resolveLiveAgencyServicePrincipal(
@@ -96,6 +90,7 @@ export async function resolveLiveAgencyServicePrincipal(
 ): Promise<LiveAgencyServicePrincipal | null> {
   if (await isSupervised(token.ownerAccountId)) return null;
   if (isWorkloadAttestationHandle(token.credentialId)) {
+    if (token.authority !== 'first_party') return null;
     const binding = await resolveLiveAgencyWorkloadByHandle(token.appId, token.credentialId);
     if (
       binding === null ||
@@ -112,15 +107,7 @@ export async function resolveLiveAgencyServicePrincipal(
       // ceiling.
       credentialId: binding.handle,
       ownerAccountId: binding.ownerAccountId,
-      // `token ∩ live`, the same composition the credential arm applies: an
-      // hour-old token can never do more than a fresh mint would give it, and
-      // never more than it already claimed.
-      ...(token.authority === 'first_party'
-        ? { authority: 'first_party' as const }
-        : {
-            authority: 'external' as const,
-            scopes: intersectScopes(token.scopes ?? [], binding.scopes),
-          }),
+      authority: 'first_party',
       capabilities: binding.capabilities,
     };
   }
@@ -191,15 +178,14 @@ export async function resolveLiveAgencyCoordinator(
   authority: 'first_party' | 'external' = 'external',
 ): Promise<LiveAgencyServicePrincipal | null> {
   if (isWorkloadAttestationHandle(credentialId)) {
+    if (authority !== 'first_party') return null;
     const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credentialId);
     if (binding === null || (authority === 'first_party' && !binding.environmentBound)) return null;
     return {
       applicationId: binding.applicationId,
       credentialId: binding.handle,
       ownerAccountId: binding.ownerAccountId,
-      ...(authority === 'first_party'
-        ? { authority: 'first_party' as const }
-        : { authority: 'external' as const, scopes: binding.scopes }),
+      authority: 'first_party',
       capabilities: binding.capabilities,
     };
   }
@@ -235,8 +221,6 @@ export interface LiveAgencyWorkloadPrincipal {
   /** `wl_…` — what a token minted from this binding carries as `credentialId`. */
   readonly handle: string;
   readonly ownerAccountId: string;
-  /** What `workloadBindingScopes` decides, in its own vocabulary. */
-  readonly scopes: readonly ApplicationScope[];
   /**
    * The APPLICATION's capabilities, read exactly as the credential arm reads
    * them.
@@ -268,9 +252,8 @@ export interface LiveAgencyWorkloadPrincipal {
  *   * the owner account was suspended or is behind a closure fence;
  *   * the administratively bound environment differs from this deployment.
  *
- * Scopes are projected only for the finite legacy workload protocol. They do
- * not authorize first-party callers; the caller's explicit authority chooses
- * that lane only after this live identity check.
+ * Workload scopes are never projected. Explicit first-party authority is accepted
+ * only after this live identity check.
  */
 export async function resolveLiveAgencyWorkload(
   applicationId: string,
@@ -288,9 +271,7 @@ export async function resolveLiveAgencyWorkload(
       applicationType: applications.type,
       applicationIsOfficial: applications.isOfficial,
       applicationIsInternal: applications.isInternal,
-      applicationScopes: applications.scopes,
       capabilities: applications.capabilities,
-      bindingScopes: applicationWorkloadIdentities.scopes,
       environment: applicationWorkloadIdentities.environment,
       ownerAccountStatus: users.accountStatus,
       ownerClosureFence: accountClosureFences.accountId,
@@ -314,9 +295,8 @@ export async function resolveLiveAgencyWorkload(
 
   if (
     row?.applicationStatus !== 'active' ||
-    (row.environment === null &&
-      !isLegacyWorkloadCohort({ id: row.bindingId, applicationId, provider, subject })) ||
-    (row.environment ?? workloadTokenEnvironment()) !== deploymentCredentialEnvironment() ||
+    row.environment === null ||
+    row.environment !== deploymentCredentialEnvironment() ||
     !isTrustedApplication({
       type: row.applicationType,
       isOfficial: row.applicationIsOfficial,
@@ -333,11 +313,10 @@ export async function resolveLiveAgencyWorkload(
     applicationId: row.applicationId,
     provider,
     subject,
-    environment: row.environment ?? workloadTokenEnvironment(),
+    environment: row.environment,
     environmentBound: row.environment !== null,
     handle: workloadAttestationHandle(subject),
     ownerAccountId: row.ownerAccountId,
-    scopes: workloadBindingScopes(row.bindingScopes, row.applicationScopes),
     capabilities: row.capabilities,
   };
 }

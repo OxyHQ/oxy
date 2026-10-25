@@ -1,5 +1,3 @@
-import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
-import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 /**
  * `/linked-accounts` — a local Oxy user proves they own a Mastodon-API or
  * Bluesky account by OAuth, and Oxy records the link. Oxy keeps NO third-party
@@ -17,8 +15,7 @@ import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrin
  *   user who started the flow; anyone else burns it.
  * - `GET /` and `DELETE /:id` (user session) — list and revoke.
  * - `GET /by-user/:userId` requires an own workload and requester proof for
- *   that account. The finite legacy workload cohort retains its old read lane
- *   only until Move adopts the shared requester API.
+ *   that account. Historical scoped workload tokens are refused.
  * - `GET /atproto/client-metadata.json` (public) — the atproto OAuth client_id.
  */
 
@@ -53,7 +50,6 @@ import {
 } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
-import type { ApplicationScope } from '../utils/applicationScopes';
 import {
   markChallengeVerified,
   readChallengeReturn,
@@ -91,13 +87,6 @@ import {
 
 const router = Router();
 
-/**
- * The scope `GET /by-user/:userId` requires. Typed `ApplicationScope` so a
- * rename of the vocabulary entry breaks this line instead of leaving the route
- * checking for a string no token can carry.
- */
-const LINKED_ACCOUNTS_READ_SCOPE: ApplicationScope = 'linked-accounts:read';
-
 const startLimiter = rateLimit({
   prefix: 'rl:linked-accounts:start:',
   windowMs: 60 * 1000,
@@ -133,18 +122,8 @@ router.get(
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     const { userId } = req.params as { userId: string };
     const service = req.serviceApp;
-    if (service?.authority === 'first_party') {
-      if (req.serviceRequester?.subjectAccountId !== userId)
-        throw new ForbiddenError('A verified requester for this account is required.');
-    } else {
-      // Reader-first transition only: signed oxy-api token, exact inventoried
-      // workload binding, live environment/owner and its original bounded scope.
-      // Customer keys never enter this lane, including official app credentials.
-      const legacy = service && (await resolveLegacyResourceWorkload(service));
-      const live = legacy && service && (await resolveLiveAgencyServicePrincipal(service));
-      if (!live?.scopes?.includes(LINKED_ACCOUNTS_READ_SCOPE))
-        throw new ForbiddenError('Linked accounts require a verified workload requester.');
-    }
+    if (service?.authority !== 'first_party' || req.serviceRequester?.subjectAccountId !== userId)
+      throw new ForbiddenError('A verified workload requester for this account is required.');
     const linkedAccounts = await listLinkedAccountsForService(userId);
     sendSuccess(res, serviceLinkedAccountListResponseSchema.parse({ userId, linkedAccounts }));
   }),

@@ -22,11 +22,9 @@ import { serviceActingAsAuthorityEpochs } from '../db/schema/serviceActingAsAuth
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
-import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
 import { isWorkloadAttestationHandle } from './workloadAttestation.service';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { intersectScopes } from '../utils/applicationScopes';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import type { OxyServiceEnvironment } from '@oxy.so/core/server';
 
 /** The database handle a helper runs on — the pool, or an open transaction. */
@@ -172,15 +170,9 @@ export async function resolveServiceActingAsGrant(
       let liveScopes: readonly string[] = application.scopes;
       if (credential) {
         if (credential.ownerAccountId !== application.ownerId) return denied;
+        // Own workloads use requester proofs, never external OAuth grants.
         if (isWorkloadAttestationHandle(credential.credentialId)) {
-          const binding = await resolveLiveAgencyWorkloadByHandle(
-            applicationId,
-            credential.credentialId,
-            new Date(),
-            tx,
-          );
-          if (!binding || credential.environment !== workloadTokenEnvironment()) return denied;
-          liveScopes = binding.scopes;
+          return denied;
         } else {
           const [key] = await tx
             .select()

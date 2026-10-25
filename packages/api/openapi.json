@@ -16719,16 +16719,6 @@
                       2
                     ]
                   },
-                  "scopes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "minItems": 1,
-                    "maxItems": 100
-                  },
                   "provider": {
                     "type": "string",
                     "enum": [
@@ -16749,6 +16739,7 @@
                   }
                 },
                 "required": [
+                  "protocolVersion",
                   "provider",
                   "nonce",
                   "attestation"

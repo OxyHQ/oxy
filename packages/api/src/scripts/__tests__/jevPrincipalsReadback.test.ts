@@ -54,7 +54,7 @@ function validInput(): JevPrincipalsReadbackInput {
           applicationId: JEV_MENTION_APPLICATION_ID,
           provider: 'aws-iam',
           subject: JEV_MENTION_WORKLOAD_ROLE_ARN,
-          scopes: ['inference:invoke', 'federation:write'],
+          environment: 'production',
           expiresAt: null,
         },
       ],
@@ -284,20 +284,20 @@ describe('Jev principals readback', () => {
       ).toThrow('exact Mention provider and subject');
     });
 
-    it("blocks when the binding's scopes do not reach inference:invoke", () => {
+    it('blocks an unbound workload environment', () => {
       expect(
-        reasonsFor(
-          withMention({ bindings: [{ ...mentionBinding, scopes: ['federation:write'] }] }),
-        ),
+        reasonsFor(withMention({ bindings: [{ ...mentionBinding, environment: null }] })),
       ).toEqual(['mention_effective_invoke_missing']);
     });
 
-    it('blocks when the application no longer grants inference:invoke', () => {
+    it('does not apply external scope ceilings to own workload authority', () => {
       expect(
-        reasonsFor(
-          withMention({ applications: [{ ...mentionApp, scopes: ['federation:write'] }] }),
-        ),
-      ).toEqual(['mention_effective_invoke_missing']);
+        validateJevPrincipalsReadback(
+          withMention({
+            applications: [{ ...mentionApp, scopes: ['federation:write'] }],
+          }),
+        ).status,
+      ).toBe('ready');
     });
   });
 
@@ -691,7 +691,7 @@ describe('distinct Alia Auto metadata candidate', () => {
     const input = withAlia();
     (
       required(input.alia).bindings as JevPrincipalsReadbackInput['mention']['bindings'][number][]
-    )[0] = { ...required(required(input.alia).bindings[0]), scopes: ['user:read'] };
+    )[0] = { ...required(required(input.alia).bindings[0]), environment: null };
     expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain(
       'alia_effective_invoke_missing',
     );
@@ -754,7 +754,7 @@ describe('distinct Alia Auto metadata candidate', () => {
       },
     });
   });
-  it.each(['schema', 'concurrency', 'daily', 'scope', 'credential'] as const)(
+  it.each(['schema', 'concurrency', 'daily', 'environment', 'credential'] as const)(
     'keeps technical/identity gate %s independent of funding',
     (fault) => {
       const input = internalInput();
@@ -788,8 +788,8 @@ describe('distinct Alia Auto metadata candidate', () => {
               },
             }
           : {}),
-        ...(fault === 'scope'
-          ? { bindings: input.alia.bindings.map((b) => ({ ...b, scopes: ['user:read'] })) }
+        ...(fault === 'environment'
+          ? { bindings: input.alia.bindings.map((b) => ({ ...b, environment: null })) }
           : {}),
         ...(fault === 'credential'
           ? { credentials: input.alia.credentials.map((c) => ({ ...c, status: 'revoked' })) }

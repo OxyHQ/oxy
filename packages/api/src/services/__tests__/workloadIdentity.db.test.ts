@@ -449,48 +449,36 @@ describe('finite protocol transition', () => {
     ).rejects.toMatchObject({ reason: 'workload_protocol_upgrade_required' });
   });
 
-  it('keeps only the observed cohort on bounded legacy scopes until its SDK upgrades', async () => {
-    const { LEGACY_WORKLOAD_BINDINGS } = await import('../../config/legacyWorkloadTransition');
-    const { resolveLiveAgencyServicePrincipal } = await import('../agencyServicePrincipal.service');
+  it('retires v1 for the historical cohort without inventing an environment or scopes', async () => {
+    const { LEGACY_WORKLOAD_BINDINGS } = await import(
+      '../../__tests__/fixtures/retiredWorkloadCohort'
+    );
     const expected = LEGACY_WORKLOAD_BINDINGS[0];
-    const app = await applicationFixture({
-      id: expected.applicationId,
-      scopes: ['user:read', 'inference:invoke'],
-    });
+    const app = await applicationFixture({ id: expected.applicationId, scopes: [] });
     await getDb()
       .insert(applicationWorkloadIdentities)
       .values({ ...expected, environment: null, scopes: ['user:read'] });
     const { nonce } = await issueWorkloadChallenge();
-    const grant = await exchangeWorkloadAttestation({
-      provider: 'aws-iam',
-      nonce,
-      attestation: { subject: expected.subject, answersNonce: nonce },
-    });
-    const verified = verifyServiceToken(grant.token);
-    expect(verified).toMatchObject({
-      ok: true,
-      payload: { authority: 'external', scopes: ['user:read'] },
-    });
-    if (!verified.ok) throw new Error('No legacy token');
-    expect(await resolveLiveAgencyServicePrincipal(verified.payload)).toMatchObject({
-      authority: 'external',
-      scopes: ['user:read'],
-    });
+    await expect(
+      exchangeWorkloadAttestation({
+        provider: 'aws-iam',
+        nonce,
+        attestation: { subject: expected.subject, answersNonce: nonce },
+      }),
+    ).rejects.toMatchObject({ reason: 'workload_protocol_upgrade_required' });
     await expect(exchange(expected.subject)).rejects.toMatchObject({
       reason: 'workload_environment_unbound',
     });
-    await getDb().update(applications).set({ scopes: [] }).where(eq(applications.id, app.id));
-    expect(await resolveLiveAgencyServicePrincipal(verified.payload)).toMatchObject({
-      authority: 'external',
-      scopes: [],
+    await getDb()
+      .update(applicationWorkloadIdentities)
+      .set({ environment: 'development' })
+      .where(eq(applicationWorkloadIdentities.id, expected.id));
+    const grant = await exchange(expected.subject);
+    const verified = verifyServiceToken(grant.token);
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: { authority: 'first_party', appId: app.id },
     });
-    // A first-party marker on a signed token does not invent the missing environment binding.
-    expect(
-      await resolveLiveAgencyServicePrincipal({
-        ...verified.payload,
-        authority: 'first_party',
-        scopes: undefined,
-      }),
-    ).toBeNull();
+    if (verified.ok) expect(verified.payload).not.toHaveProperty('scopes');
   });
 });

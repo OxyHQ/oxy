@@ -26,7 +26,7 @@ def plan():
         'network': {'awsvpcConfiguration': {'subnets': ['synthetic'], 'securityGroups': ['synthetic'], 'assignPublicIp': 'DISABLED'}},
         'logGroup': '/oxy/ecs', 'logStreamPrefix': 'oxy-api'}
     value = {'schemaVersion': 1, 'kind': 'i05-foreground-dispatch', 'preparedAt': int(time.time()), 'nonce': NONCE,
-        'operation': 'execute', 'definition': 'oxy-oxy-api:999', 'sourceHead': HEAD, 'sourceSha256': pilot.source_pins(),
+        'operation': 'retire', 'definition': 'oxy-oxy-api:999', 'sourceHead': HEAD, 'sourceSha256': pilot.source_pins(),
         # The real TS definition parser is exercised by 73 source SQL/HTTPS tests;
         # this unit only isolates the AWS carrier protocol, never claims authority.
         'configuration': {'schemaVersion': 1, 'kind': 'i05-foreground-configuration', 'nonce': NONCE}, 'live': live}
@@ -41,13 +41,14 @@ def stopped(value):
 
 
 def operations():
-    rows = [{'kind': 'i05-foreground-operation', 'nonce': NONCE, 'phase': phase} for phase in [
-        'configuration-intent', 'configuration-confirmed', 'credential-intent', 'credential-confirmed',
-        'mint-intent', 'mint-confirmed', 'register-intent', 'register-confirmed', 'cleanup-confirmed']]
-    return rows + [{'kind': 'i05-foreground-operation', 'nonce': NONCE, 'operation': 'execute', 'status': 'confirmed'}]
+    return [{'kind': 'i05-foreground-operation', 'nonce': NONCE, 'operation': 'retire', 'status': 'confirmed'}]
 
 
 class Transport(unittest.TestCase):
+    def test_retired_provisioning_rejected_before_dispatch(self):
+        for operation in ['execute', 'rollback']:
+            value = plan(); value['operation'] = operation
+            with self.assertRaises(RuntimeError): pilot.build_definition(value)
     def setUp(self):
         self.value = plan(); self.temp = tempfile.TemporaryDirectory(); self.directory = Path(self.temp.name) / 'operation'
         self.head = patch.object(pilot, 'git_head', return_value=HEAD); self.head.start()
@@ -84,7 +85,7 @@ class Transport(unittest.TestCase):
         container = definition['containerDefinitions'][0]
         self.assertEqual(container['secrets'], [self.value['live']['databaseSecret']])
         self.assertEqual(container['entryPoint'], ['/usr/local/bin/node'])
-        self.assertEqual(container['command'][:2], ['dist/scripts/foregroundPilotExecutor.js', 'execute'])
+        self.assertEqual(container['command'][:2], ['dist/scripts/foregroundPilotExecutor.js', 'retire'])
         self.assertEqual(container['stopTimeout'], 120)
     def test_positive_checks_durable_intents_exact_image_protocol_and_cleanup(self):
         with patch.object(pilot.base, 'aws', side_effect=self.aws): pilot.execute(self.value, self.directory)
