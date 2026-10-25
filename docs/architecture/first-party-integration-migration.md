@@ -18,49 +18,54 @@ revocation and operation binding remain mandatory.
 
 | Area | Source state | Required acceptance |
 |---|---|---|
-| Oxy auth, OAuth finalizers, Commons | Foundation `4d8cc12a` deployed; shared SDKs published; human fleet adoption remains | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
-| Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS and live readback; product fleet cutovers remain |
-| Oxy core/contracts service authority | Core 7.0.0 / contracts 6.0.0 published; foundation live canary passed | Workload proof, environment and audience; customer key stays external |
-| Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority and dedicated QA private-file canaries passed; inference execution and remaining product canaries remain | Account/resource isolation without own scope/grant dependencies |
+| Oxy auth, OAuth finalizers, Commons | Oxy API 1078 deployed; shared SDKs and registered native public clients adopted; dedicated QA session accepted | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
+| Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS and live readback; final retirement remains gated |
+| Oxy core/contracts service authority | Core 7.3.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
+| Oxy API files/inference/agency/introspection | Oxy API 1078 deployed; service authority, Inbox event and QA private-file canaries passed; inference execution remains untested | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Foundation frontend deployed; public sign-in dialog smoke passed; authenticated settings smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Stage B/C deployed; SDK 22 published; app transport follow-up `b1b0f981` verified live | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; old-definition retirement is in progress; no SSM deletion | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
-| Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
-| Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
+| Alia own-app levels and tool admission | Stage B/C and app transport deployed in `596f8a7`; SDK 22.0.1 published | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; 782 old definitions and separate probe retired; exact two obsolete SSM parameters removed; post-cleanup runtime verified | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Kaana inference own-service receiver | Contracts 8.0.1 published; API 151 and publisher 152 verified on `8bba965d` | Retain requester/account, external scopes, audience and revocation |
+| Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
+| Registry/workload migration and deploy | Environment preflight and recorded product rollouts complete; Schedio, remaining Syra acceptance and final v1 retirement remain gated | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
 consumer dependency/lockfile updates. Migrate receivers before producers require
 the new service audience, and retire compatibility only after every inventoried
-caller is updated. The Oxy authority runtime is deployed and its service canary passed. Remaining product and native consumers still require their own SDK pins, deployments and acceptance;
-this checkpoint is not fleet completion.
+caller is updated. The Oxy authority runtime and the product deployments
+recorded below are live.
+Unresolved acceptance is listed explicitly under Remaining acceptance and
+operational holds; this checkpoint is not fleet completion.
 
 ## Verified rollout update (2026-10-25)
 
 The [sanitized deployment receipt](evidence/first-party-live-20261025.json)
 records source commits, exact image digests, task revisions and running counts
-from operator readbacks. It contains no bearer credentials or user data.
+from operator readbacks. It contains no bearer credentials or user data. The
+following table shows the latest verified revision for each service; earlier
+stages remain as dated history in the narrative and receipt array.
 
 | Runtime | Verified source | Live revisions / count |
 |---|---|---|
-| Kaana and publisher | `de3db4741ff648d9de8d28d124634a9b7553652e` | API 150: 2/2; publisher 151: 1/1 |
-| Peable | `dea5f1a7f7a08537f839a37e8d3768b9140a72cf` | 120: 1/1; healthy targets |
-| CrowdSource | `75b10396787abf6d994682192519d925d4e49e61` | 127: 1/1; healthy targets |
-| GoWay | `541158ea968605afcd9a523cf3c1a87fdf633378` | 163: 1/1; healthy targets |
-| Moovo | `999b1d1341c854f1032a1e54ecf7527148554c00` | 60: 1/1; healthy targets |
+| Oxy API | `0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d` | 1078: 3/3; healthy and drained |
+| Alia API / integrations | `596f8a7dfecb0c3a80faf3077a7989143745ddbd` | 612: 2/2; 192: 1/1; healthy and drained |
+| Kaana API / publisher | `8bba965d4b5aa2bb64b52238442c9559207344ac` | 151: 2/2; 152: 1/1; healthy and drained |
+| Clarity API / worker | `9903515501271a982c2fba40b7a13af4099406c5` | 159: 1/1; 145: 1/1; healthy and drained |
+| Peable | `3224178c28c5a0c34152aa242a834ab171bf5883` | 122: 1/1; healthy and drained |
+| CrowdSource | `75b10396787abf6d994682192519d925d4e49e61` | 127: 1/1; healthy and drained |
+| GoWay | `6e80a1edd9c943fa53a4b65de1b4f07b92b648cb` | 164: 1/1; healthy and drained |
+| Moovo | `4438de919dcc3968fa2b385650c7d33189a8c129` | 61: 1/1; healthy and drained |
+| Homiio API / worker | `2263ccad44e6918354e5643c8fe782008fe66e5d` | 275: 2/2; 278: 1/1; healthy and drained |
+| Website API | `c8746a7f4b1f30beedb989a768d68907535e28be` | 69: 2/2; healthy and drained |
+| Mention API / MCP | `683adf44925fc1e68163646603c35d59f9ee18eb` | 722: 2/2; 422: 1/1; healthy and drained |
+| Syra | `1d12889b726ccb2117800e8fc68cf772b3cfc786` | 174: 2/2; healthy and drained |
+| Move | `a1c041b758c47ff6766beb134b1618a0e4d54fad` | 52: 1/1; healthy and drained |
+| Nilo | `a240f145de6844a0a871469e748d743eba8599fa` | 110: 2/2; healthy and drained |
+| Mercaria | `5ef098222cfcb7e0e6d12226cfcce70ea7f999fd` | 144: 1/1; healthy and drained |
+| Allo | `7582c9678a99c70cb718eaacd93c543db0a3f4e9` | 181: 2/2; healthy and drained |
+| Willo | `42a8f738e0b84324eaa2a99af41b58317fc2460e` | 36: 1/1; healthy and drained |
 | TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
-| Alia stage A API / integrations | `850b2f96177a1ef07ed635bf1d88307919eec300` | 606: 2/2; 186: 1/1; healthy targets / integration task |
-| Homiio API / worker | `c672a3321ee9c874329bd1308681e3988eb5c033` | 274: 2/2; 277: 1/1; old tasks drained |
-| Willo | `42a8f738e0b84324eaa2a99af41b58317fc2460e` | 36: 1/1; healthy targets |
-| Allo | `7582c9678a99c70cb718eaacd93c543db0a3f4e9` | 181: 2/2; healthy targets |
-| Alia stage B API / integrations | `81819a95cd99279d155df2171df02ce3f5654adc` | 608: 2/2; 188: 1/1; verified before producers |
-| Alia containing stage C API / integrations | `029702fbd3703bb85d1dd258324b2d058063f293` | 609: 2/2; 189: 1/1; matching ARM64 child digests |
-| Mention API / MCP | `0ce0f417e039b96c3490bfb29b4f19ff333b3bd8` | 721: 2/2; 421: 1/1; healthy targets |
-| Syra | `7ee33926b95e26792b7f153de7a45c212a7b4fce` | 173: 2/2; healthy targets |
-| Move | `0f095e3eb40435be1bfb41186962525961e26a09` | 50: 1/1; healthy targets |
-| Nilo | `5ad257adadde9c12018fe2be8cc1aae73105f9e4` | 109: 2/2; healthy targets |
-| Mercaria | `c257573475899a400efa96bc6d4bbfe0cf63bac8` | 142: 1/1; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running
@@ -147,16 +152,16 @@ the Codea/Cowork source changes from [PR #899](https://github.com/OxyHQ/Alia/pul
 Local VSIX and Linux AppImage artifacts were built; there is no claim of
 Marketplace/Electron distribution, signing, or native desktop sign-in acceptance.
 Infrastructure secret-removal source and its reviewed apply are separate from
-operational credential cleanup. Old-definition retirement is now in progress;
-no SSM parameter deletion or completed cleanup is recorded.
+operational credential cleanup. The later bounded definition-retirement receipt
+below confirms that step and deletion of the exact two obsolete Alia parameters.
 
 Atlas's [frontend deployment](https://github.com/OxyHQ/Atlas/actions/runs/40185771456)
 and Inbox's [frontend deployment, attempt 2](https://github.com/OxyHQ/Inbox/actions/runs/40185828152)
 succeeded on their recorded SDK-22 consumer commits. OxyOS's
 [shell CI](https://github.com/OxyHQ/OxyOS/actions/runs/40185833072) passed; that
-is not an installed ISO or physical-device acceptance. Website's consumer
-update still requires queue/deployment acceptance. Alia's separate app/Syra
-transport follow-up now has the runtime receipts recorded below.
+is not an installed ISO or physical-device acceptance. Website API 69 and its
+frontend are now deployed; its installed-SDK canary is recorded below. Alia's
+separate app/Syra transport follow-up also has runtime receipts.
 
 Mention's readers and Move's producer are verified. Schedio's public DNS smoke
 failed and its backend automatically rolled back to revision 17; its new
@@ -189,13 +194,31 @@ were refused, while the own workload reached catalogue validation. It also
 performed zero writes. These are service-boundary checks, not private user
 operations or inference-generation acceptance.
 
-The table above retains earlier rollout stages as dated evidence. Newer
-consumer readbacks update Allo to revision 181, Peable to 120, CrowdSource to
-127, GoWay to 163 and Willo to 36. Moovo's frontend-only Axios correction did
-not deploy a new backend image: its verified backend remains revision 60 on
-`999b1d1341c854f1032a1e54ecf7527148554c00`. Homiio's SDK-22/import update
-[PR #746](https://github.com/OxyHQ/Homiio/pull/746) merged as `2263ccad`; its
-source and passing CI are not a new runtime readback.
+The earlier Moovo frontend-only Axios correction kept backend revision 60.
+The later socket lifecycle change actually deployed revision 61 on `4438de91`;
+all four Moovo web deployments passed. Peable's socket update deployed revision
+122 on `3224178c`; GoWay's documentation follow-up also triggered a real rollout
+of revision 164 on `6e80a1ed`. Homiio API 275 and worker 278 are both live on
+`2263ccad`; its frontend deployment succeeded on attempt 2 after an external
+Cloudflare upload failure. These later receipts supersede the earlier runtime
+rows without attributing skipped jobs to a new backend image.
+
+Website API 69 and its frontend are deployed on `c8746a7`. At
+`2026-10-25T12:13:43.729Z`, the actual Website image and workload role used its
+production Oxy client and installed Clarity factory for a filtered careers read.
+Own authority had no scopes, the exact Clarity audience passed, and the platform
+audience was rejected. It performed zero domain writes. The diagnostic task
+stopped with exit 0 and its definition was confirmed `INACTIVE`.
+
+Mention [PR #1627](https://github.com/OxyHQ/Mention/pull/1627) deployed its
+frontend on `0ed30746`; backend and MCP deployment jobs were skipped. The live
+API 722 and MCP 422 therefore remain on `683adf44`. Syra
+[PR #258](https://github.com/OxyHQ/Syra/pull/258) and
+[PR #259](https://github.com/OxyHQ/Syra/pull/259) are merged; publication and
+consumer acceptance of that follow-up SDK remain pending. Mercaria backend 144
+is verified on `5ef09822`; its separate renderer fix
+[PR #1158](https://github.com/OxyHQ/Mercaria/pull/1158) is merged and is not a
+new backend runtime receipt.
 
 Alia SDK 22.0.1 is published with verified registry integrity and provenance
 for `596f8a7`. It removes only the obsolete Bloom peer upper bound; the
@@ -219,32 +242,61 @@ remove the global v1 bridge.
 ### Remaining acceptance and operational holds
 
 Schedio's DNS/domain decision and rolled-back producer remain unresolved.
-Website's consumer change still needs queue/deployment acceptance. The
+The documentation-only [PR #73](https://github.com/OxyHQ/Schedio/pull/73) merged;
+its main CI was intentionally cancelled to preserve the hold, and both deployment
+jobs were skipped. DNS is still absent and producer PR #72 remains held. The
 storefront cookies instruction conflict still requires the owner's decision;
-this ledger does not resolve or change that policy. Peable and Moovo socket
-follow-ups, the remaining product socket changes, and Syra's follow-up SDK
-publication/adoption need their own rollout receipts. Native physical-device
+this ledger does not change that policy. Syra's follow-up SDK publication,
+consumer adoption and acceptance remain pending. Native physical-device
 acceptance and desktop/store distribution are not established.
 
-Alia's bounded retirement of 782 old task definitions started at
-`2026-10-25T11:52:42.699Z`. This checkpoint records 52 unique definitions
-confirmed `INACTIVE` by `2026-10-25T11:54:09.135Z`; the operation is
-**still in progress**, not complete. Probe revision 1 was separately confirmed
-`INACTIVE` at `2026-10-25T11:52:14.771756+00:00`. No SSM parameters or
-historical records have been deleted. The running API 612 and gateway 192 are
-outside that retirement set.
+Alia's bounded retirement completed with 782 unique old definitions confirmed
+`INACTIVE`. The final successful attempt inspected all 782, retired the remaining
+182 and verified 600 already inactive. Its complete final snapshot at
+`2026-10-25T12:25:32.905Z` found no remaining references within exactly the two
+Alia task-definition families. Two earlier attempts stopped safely when AWS
+returned an incomplete task snapshot; the reviewed retry then succeeded.
+Probe revision 1 is separately `INACTIVE`. Running API 612 and gateway 192 were
+preserved. The exact `/oxy/alia/INTEGRATIONS_SECRET` and
+`/oxy/alia/SERVICE_SECRET` parameters were deleted; metadata readback at
+`2026-10-25T12:27:04.684Z` confirmed both absent, without reading their values.
+The fresh safety census inspected 46 active definitions in nine selected Alia
+and diagnostic families plus all current runtime references. Subsequent checks
+confirmed API 612 and gateway 192 healthy on source `596f8a7`, comparing the
+correct ARM64 image child digest. This is not a global historical secret census.
+The earlier 52-definition progress snapshot remains dated history in the JSON
+evidence.
+
+The separate commerce cleanup retired only obsolete Mercaria task definition 3,
+preserving live revision 144 and Terraform's protected revision 128. It then
+removed exactly `/oxy/mercaria/SERVICE_SECRET` and
+`/oxy/marketplace/SERVICE_SECRET`; metadata readback at
+`2026-10-25T12:29:19.748Z` confirmed both absent without reading their values.
+The safety census covered 170 active definitions in four selected families and
+all current runtime references. No active or live references to those two
+parameters remained. The post-deletion health and exact image readback confirmed
+Mercaria 144 healthy on `5ef09822`. This bounded cleanup does not resolve the storefront
+cookies decision or activate global v1 retirement.
 
 [Infrastructure docs PR #399](https://github.com/OxyHQ/oxy-infra/pull/399)
-merged as `39eaf793`; the partial operational receipts above, rather than that
-documentation, establish progress. The finite v1 retirement remains on hold;
-this checkpoint does not declare completed cleanup or fleet completion.
+merged as `39eaf793`; the operational receipts, rather than documentation,
+establish the bounded retirement. Oxy
+[PR #1984](https://github.com/OxyHQ/oxy/pull/1984) remains draft at `fa3bebc0a`,
+rebased onto current main and locally validated. Independent comparison against
+the actual Core 7.3.0 archive found no public API removal, supporting a 7.x minor
+once all retirement gates pass. It has not bumped a version or activated v1
+retirement. Full release gates, remaining producer acceptance, launcher inventory
+and at least the verified 300-second token drain are still required. This
+checkpoint does not declare fleet completion.
 
-## Audited runtime graph
+## Historical source audit (2026-10-23)
 
 The following edges were inspected at remote `origin/main` on 2026-10-23.
-A runtime code path is not evidence that the feature is enabled in production.
+This is the original source inventory, not the current backlog: the verified
+rollouts and explicit remaining holds above supersede it. A runtime code path
+alone is not evidence that a feature is enabled in production.
 
-| Caller → receiver | Transport and identity found | Remaining work |
+| Caller → receiver | Transport and identity found at audit | Initial work identified |
 |---|---|---|
 | Mention, Clarity, Homiio, Inbox → Alia | Alia SDK; human session, linked client, app assertion | Adopt SDK; test account switching and own agent tools |
 | Mention → Clarity Experience | Clarity SDK; public read or linked human session | Preserve resource owner and session-switch protection |
@@ -460,8 +512,8 @@ channel inventory contained zero linked bots or connected channels, so the live
 rollout does not establish a populated legacy-channel conversion. Task, bot and
 account behavior still requires its operation-specific acceptance evidence.
 App-owned Files artifacts/reference reconciliation remain service-domain data;
-personal Files access uses the requester facade. The remaining ecosystem rows
-above are pending until their own caller→receiver changes and canaries are proven.
+personal Files access uses the requester facade. The current rollout table and
+explicit remaining holds above supersede the historical source inventory below.
 
 
 ## Verified deployment checkpoint: Oxy environment preflight (2026-10-23)

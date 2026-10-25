@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T11:55:36.121730+00:00",
+  "generatedAt": "2026-10-25T12:31:07.016588+00:00",
   "scope": "Dated deployment and dedicated QA readbacks; not fleet completion, native distribution or existing-user end-to-end acceptance",
   "services": [
     {
@@ -441,8 +441,9 @@
       "runtimeDigestVerified": true,
       "allTargetsHealthy": true,
       "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
-      "observedAt": "2026-10-25T11:51:16.125839+00:00",
-      "receiptFile": "alia-runtime-596f8a7dfecb-20261025.json"
+      "observedAt": "2026-10-25T12:28:29.353804+00:00",
+      "receiptFile": "alia-runtime-596f8a7dfecb-20261025.json",
+      "postSecretRetirementVerified": true
     },
     {
       "name": "alia-integrations",
@@ -453,8 +454,9 @@
       "runtimeDigestVerified": true,
       "allTargetsHealthy": true,
       "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
-      "observedAt": "2026-10-25T11:51:15.982592+00:00",
-      "receiptFile": "alia-integrations-runtime-596f8a7dfecb-20261025.json"
+      "observedAt": "2026-10-25T12:28:28.354843+00:00",
+      "receiptFile": "alia-integrations-runtime-596f8a7dfecb-20261025.json",
+      "postSecretRetirementVerified": true
     },
     {
       "name": "oxy-api",
@@ -467,6 +469,175 @@
       "sourceSha": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
       "observedAt": "2026-10-25T11:54:18.580883+00:00",
       "receiptFile": "oxy-api-runtime-0a312b9b1fb2-20261025.json"
+    },
+    {
+      "name": "peable",
+      "taskDefinitionRevision": 122,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:1a4357da48deef2d39b3228af2c14530b12d73b19f5fc5af1ad24b5823a2ba2d",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "3224178c28c5a0c34152aa242a834ab171bf5883",
+      "observedAt": "2026-10-25T12:02:47.262262+00:00",
+      "receiptFile": "peable-runtime-3224178c28c5-20261025.json"
+    },
+    {
+      "name": "moovo",
+      "taskDefinitionRevision": 61,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:780c8335dae62eb9da902f62d015b0df60d86fbd9d4b890797ccd4244ddfe91c",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "4438de919dcc3968fa2b385650c7d33189a8c129",
+      "observedAt": "2026-10-25T12:06:17.663338+00:00",
+      "receiptFile": "moovo-runtime-4438de919dcc-20261025.json"
+    },
+    {
+      "name": "goway",
+      "taskDefinitionRevision": 164,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:ad17f45eff0c07f8d83eff00c51aa0284347dfccf317fd03272233220366580f",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "6e80a1edd9c943fa53a4b65de1b4f07b92b648cb",
+      "observedAt": "2026-10-25T12:07:22.837373+00:00",
+      "receiptFile": "goway-runtime-6e80a1edd9c9-20261025.json"
+    },
+    {
+      "name": "homiio",
+      "taskDefinitionRevision": 275,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:9975367cf1cadfbd37c59e711088034d53a223ae2035f2a623892b64902cbc4e",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "2263ccad44e6918354e5643c8fe782008fe66e5d",
+      "observedAt": "2026-10-25T12:01:45.190750+00:00",
+      "receiptFile": "homiio-runtime-2263ccad44e6-20261025.json"
+    },
+    {
+      "name": "homiio-worker",
+      "taskDefinitionRevision": 278,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:215577a74ecfcd0cbc85b1e0b5c99bd8de1e1299a1554a8fb2b11bb67e4eec96",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "2263ccad44e6918354e5643c8fe782008fe66e5d",
+      "observedAt": "2026-10-25T12:04:16.885634+00:00",
+      "receiptFile": "homiio-worker-runtime-2263ccad44e6-20261025.json"
+    },
+    {
+      "name": "kaana",
+      "taskDefinitionRevision": 151,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:364636319114b0af4a2463a0c6c0ff1e6f6d8742468ff3d8bacc51f86c30d91c",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "8bba965d4b5aa2bb64b52238442c9559207344ac",
+      "observedAt": "2026-10-25T12:12:13.264247+00:00",
+      "receiptFile": "kaana-runtime-8bba965d4b5a-20261025.json"
+    },
+    {
+      "name": "kaana-publisher",
+      "taskDefinitionRevision": 152,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:364636319114b0af4a2463a0c6c0ff1e6f6d8742468ff3d8bacc51f86c30d91c",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "8bba965d4b5aa2bb64b52238442c9559207344ac",
+      "observedAt": "2026-10-25T12:13:41.940988+00:00",
+      "receiptFile": "kaana-publisher-runtime-8bba965d4b5a-20261025.json"
+    },
+    {
+      "name": "website-api",
+      "taskDefinitionRevision": 69,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:95d6e76b335604b57c8323a7420d10b74214e0014b4a1a216c0f5d192d1c3c3c",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "c8746a7f4b1f30beedb989a768d68907535e28be",
+      "observedAt": "2026-10-25T12:04:27.295596+00:00",
+      "receiptFile": "website-api-runtime-c8746a7f4b1f-20261025.json"
+    },
+    {
+      "name": "mercaria",
+      "taskDefinitionRevision": 144,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:12bb89d0c7bf0f6de67504a45f23becc02eee9fdea6f78fd2320f9d29ea7e3ca",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "5ef098222cfcb7e0e6d12226cfcce70ea7f999fd",
+      "observedAt": "2026-10-25T12:29:46.428511+00:00",
+      "receiptFile": "mercaria-runtime-5ef098222cfc-20261025.json",
+      "postSecretRetirementVerified": true
+    },
+    {
+      "name": "mention",
+      "taskDefinitionRevision": 722,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:c27e67de66c915ccc7f31ccf4c7bc6a4e3b4ac076b326ab036045cd6b82684f5",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "683adf44925fc1e68163646603c35d59f9ee18eb",
+      "observedAt": "2026-10-25T11:32:47.450226+00:00",
+      "receiptFile": "mention-runtime-683adf44925f-20261025.json"
+    },
+    {
+      "name": "mention-mcp",
+      "taskDefinitionRevision": 422,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:cc942d7e8db482b0fe14419f843f11645f926e747fd1fc6175f963e42cf336d0",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "683adf44925fc1e68163646603c35d59f9ee18eb",
+      "observedAt": "2026-10-25T11:32:48.602524+00:00",
+      "receiptFile": "mention-mcp-runtime-683adf44925f-20261025.json"
+    },
+    {
+      "name": "syra",
+      "taskDefinitionRevision": 174,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:76b845537e2d17a870da358b6aed520134693cb5a2caf0fd90240a9cfc3e7f27",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "1d12889b726ccb2117800e8fc68cf772b3cfc786",
+      "observedAt": "2026-10-25T11:35:09.821032+00:00",
+      "receiptFile": "syra-runtime-1d12889b726c-20261025.json"
+    },
+    {
+      "name": "move",
+      "taskDefinitionRevision": 52,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:01906c9d4d34a7e3607e2a63caf3962a3c812fa21930864a3524d4bcce1ddaa2",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "a1c041b758c47ff6766beb134b1618a0e4d54fad",
+      "observedAt": "2026-10-25T11:38:32.379352+00:00",
+      "receiptFile": "move-runtime-a1c041b758c4-20261025.json"
+    },
+    {
+      "name": "nilo",
+      "taskDefinitionRevision": 110,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:08cbee9c8c52a38069d608eefc3c8d58096697604f686d08d2d633f117a87f50",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "a240f145de6844a0a871469e748d743eba8599fa",
+      "observedAt": "2026-10-25T11:29:18.636755+00:00",
+      "receiptFile": "nilo-runtime-a240f145de68-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -624,6 +795,20 @@
       "frontend": 40185828152,
       "attempt": 2,
       "conclusion": "success"
+    },
+    "website": {
+      "source": "c8746a7f4b1f30beedb989a768d68907535e28be",
+      "frontendDeploy": 40191057001,
+      "conclusion": "success",
+      "deployJobConclusion": "success",
+      "completedAt": "2026-10-25T12:24:35Z"
+    },
+    "mention": {
+      "source": "0ed3074671569ba90e04949c84b66f94ab025503",
+      "frontendDeploy": 40192350490,
+      "conclusion": "success",
+      "deployJobConclusion": "success",
+      "completedAt": "2026-10-25T12:24:21Z"
     }
   },
   "oxyOsShellCi": {
@@ -731,10 +916,10 @@
   "remainingAcceptance": {
     "schedio": "Public DNS smoke failed; runtime rolled back to revision17; domain decision pending",
     "cookies": "User decision on the storefront instruction conflict pending; no authorization policy change recorded",
-    "website": "Consumer PR206 remains in queue/deployment acceptance; no live receipt in this checkpoint",
-    "sockets": "Peable172 and Moovo177 source/CI plus remaining product socket follow-ups require rollout verification",
-    "syra": "Follow-up SDK publication and consumer adoption pending",
-    "aliaCleanup": "782-definition retirement started; bounded52-confirmation snapshot, still in progress; probe1 separately INACTIVE; no SSM parameters deleted",
+    "website": "API69 and frontend c8746a7 deployed; live installed SDK canary passed; not a private user-data or inference-generation acceptance claim",
+    "sockets": "Peable172 and Moovo177 deployed; Mention1627 frontend deployed with backend/MCP jobs skipped; remaining Syra publication/adoption acceptance tracked separately",
+    "syra": "PR258/259 merged; follow-up SDK publication, consumer adoption and acceptance pending",
+    "aliaCleanup": "Completed bounded782-definition retirement plus separate probe1; exact two obsolete Alia SSM parameters deleted and metadata absent; source596f8 API612/gateway192 healthy after deletion; not a global historical secret census",
     "native": "No physical device sign-in or desktop/store distribution established",
     "v1RetirementAllowed": false
   },
@@ -768,5 +953,360 @@
     "historyDeleted": false,
     "receiptFile": "alia-definition-retirement-20261025.jsonl",
     "scope": "Bounded partial snapshot; probe revision1 is recorded separately; no completion claim"
+  },
+  "websiteClarityCanary": {
+    "success": true,
+    "checks": [
+      "production-website-scope-free-authority-and-canonical-audience",
+      "platform-audience-refused-by-clarity",
+      "installed-clarity-factory-filtered-careers-read"
+    ],
+    "writes": 0,
+    "observedAt": "2026-10-25T12:13:43.729Z",
+    "sourceSha": "c8746a7f4b1f30beedb989a768d68907535e28be",
+    "runtimeImageDigest": "sha256:95d6e76b335604b57c8323a7420d10b74214e0014b4a1a216c0f5d192d1c3c3c",
+    "taskStatus": "STOPPED",
+    "exitCode": 0,
+    "taskDefinitionStatus": "INACTIVE",
+    "receiptFile": "website-clarity-canary-20261025.json",
+    "scope": "Actual Website image, task role, production oxyService and installed Clarity SDK; filtered careers read; no catalog or user-data writes"
+  },
+  "consumerDeploymentJobs": {
+    "observedAt": "2026-10-25T12:13:43.664585+00:00",
+    "receiptFile": "owned-consumer-actions-20261025.json",
+    "scope": "GitHub workflow/job readbacks; skipped jobs are not deployment evidence. ECS receipts are separate.",
+    "repositories": {
+      "Peable": {
+        "sourceSha": "3224178c28c5a0c34152aa242a834ab171bf5883",
+        "runs": [
+          {
+            "id": 40190893079,
+            "name": "Deploy checkout to Cloudflare Pages",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190893005,
+            "name": "Deploy frontend to Cloudflare Pages",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190893001,
+            "name": "Deploy to AWS",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      "Moovo": {
+        "sourceSha": "4438de919dcc3968fa2b385650c7d33189a8c129",
+        "runs": [
+          {
+            "id": 40191075615,
+            "name": "Deploy to AWS",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190675174,
+            "name": "Deploy Moovo Tracker",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy-app",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190675203,
+            "name": "Deploy Moovo Hub",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy-app",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190675247,
+            "name": "Deploy Frontend",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy-app",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190675187,
+            "name": "Deploy Moovo Go",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy-app",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      "GoWay": {
+        "sourceSha": "6e80a1edd9c943fa53a4b65de1b4f07b92b648cb",
+        "runs": [
+          {
+            "id": 40190676506,
+            "name": "CI",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "Deploy frontend / Build and publish the web app",
+                "conclusion": "success"
+              },
+              {
+                "name": "Deploy / deploy",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      "Homiio": {
+        "sourceSha": "2263ccad44e6918354e5643c8fe782008fe66e5d",
+        "runs": [
+          {
+            "id": 40191580526,
+            "name": "Deploy Frontends",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "deploy-frontend",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "id": 40190185826,
+            "name": "CI",
+            "conclusion": "success",
+            "deploymentJobs": [
+              {
+                "name": "Deploy backend to AWS / scope",
+                "conclusion": "success"
+              },
+              {
+                "name": "Deploy backend to AWS / tip",
+                "conclusion": "success"
+              },
+              {
+                "name": "Deploy backend to AWS / deploy",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "mergedFollowups": {
+    "mention": {
+      "pr": 1627,
+      "sourceSha": "0ed3074671569ba90e04949c84b66f94ab025503",
+      "frontend": "deployed",
+      "apiDeploy": 40192350440,
+      "mcpDeploy": 40192350447,
+      "backendJobConclusion": "skipped",
+      "runtimeSourceUnchanged": "683adf44925fc1e68163646603c35d59f9ee18eb"
+    },
+    "syra": {
+      "prs": [
+        258,
+        259
+      ],
+      "sources": [
+        "d9e6720f1f9ca2bbcb099f8bfa89081fcb126bec",
+        "41da86f21471a44bcee898c6ab93a25a8dbec496"
+      ],
+      "releaseRun": 40192840084,
+      "status": "merged; SDK publication, adoption and acceptance pending"
+    },
+    "mercariaRenderer": {
+      "pr": 1158,
+      "sourceSha": "6e67951e5c2588324735d82b97a80cad2269dd9d",
+      "status": "merged; separate from verified backend144 source5ef0982"
+    },
+    "schedioDocs": {
+      "pr": 73,
+      "sourceSha": "05b64c324233c3ae506db0ca80508b5d9eb4a85a",
+      "mainCi": 40192273248,
+      "mainCiConclusion": "cancelled intentionally to preserve DNS hold",
+      "apiDeploy": 40192399564,
+      "frontendDeploy": 40192399528,
+      "deployConclusions": "skipped",
+      "producerPr72": "held; DNS absent"
+    }
+  },
+  "v1RetirementDraft": {
+    "pr": 1984,
+    "head": "fa3bebc0ac693beb9b5bc8a346c2523fa3812527",
+    "base": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
+    "draft": true,
+    "activated": false,
+    "publicApiAssessment": "Compatible 7.x minor after operational retirement gates; registry7.3 SHA512 and all declarations compared, no public signature/export removals",
+    "localCoreTests": 2754,
+    "localCoreSuites": 227,
+    "localApiTests": 286,
+    "localApiSuites": 19,
+    "offlineLauncherTests": 13,
+    "remainingReleaseGates": [
+      "Full API CI",
+      "Final versioned artifact consumer compositions",
+      "Complete deployed/launcher inventory and acceptance",
+      "At least300 seconds after last old producer stops, then final readback"
+    ]
+  },
+  "aliaDefinitionRetirementCompletion": {
+    "observedAt": "2026-10-25T12:25:52.803188+00:00",
+    "manifestSha": "ae60a27bc86b1227c5d1de0e5a7347cbfa7285b34b40afe2e499ac3ab54fcb46",
+    "confirmedUniqueInactive": 782,
+    "successfulFinalAttempt": {
+      "inspected": 782,
+      "deregistered": 182,
+      "alreadyInactive": 600
+    },
+    "remaining": [],
+    "zeroReferenceScope": "ACTIVE definitions in oxy-alia and oxy-alia-integrations ONLY; excludes other families/regions/SSM",
+    "ssmDeleted": false,
+    "interruptions": [
+      {
+        "at": "2026-10-25T12:06:44.365Z",
+        "message": "Incomplete task read; refresh inventory before retry"
+      },
+      {
+        "at": "2026-10-25T12:08:14.404Z",
+        "message": "Incomplete task read; refresh inventory before retry"
+      }
+    ],
+    "receiptFile": "alia-definition-retirement-complete-20261025.json",
+    "liveRevisionsPreserved": [
+      612,
+      192
+    ],
+    "finalSnapshotComplete": true,
+    "finalSnapshotAt": "2026-10-25T12:25:32.905Z",
+    "probeRecordedSeparately": true
+  },
+  "aliaSecretRetirement": {
+    "observedAt": "2026-10-25T12:27:04.684Z",
+    "definitionRetirement": "alia-definition-retirement-complete-20261025.json",
+    "probeRetirement": "alia-probe-retirement-20261025.json",
+    "deletedParameters": [
+      "/oxy/alia/INTEGRATIONS_SECRET",
+      "/oxy/alia/SERVICE_SECRET"
+    ],
+    "metadataAfter": [],
+    "valuesRead": false,
+    "inspectedDefinitions": 46,
+    "inspectedActiveFamilies": [
+      "oxy-alia",
+      "oxy-alia-integrations",
+      "oxy-activity-canary-metadata",
+      "oxy-alia-census",
+      "oxy-alia-migrate",
+      "oxy-alia-pgledger",
+      "oxy-alia-pgprobe",
+      "oxy-alia-probe",
+      "oxy-api-accounts-migration"
+    ],
+    "allCurrentRuntimeReferencesInspected": true,
+    "zeroReferenceScope": "Selected Alia/diagnostic families and all current runtime references; not global historical census",
+    "globalV1RetirementActivated": false,
+    "progress": "alia-ssm-retirement-20261025.jsonl",
+    "receiptFile": "alia-retired-secrets-complete-20261025.json",
+    "postDeletionRuntimeReadbacks": [
+      {
+        "service": "alia",
+        "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
+        "revision": 612,
+        "running": 2,
+        "desired": 2,
+        "observedAt": "2026-10-25T12:28:29.353804+00:00",
+        "sourceIndexDigest": "sha256:382062cde3a443d8ed0acef91c59c0424186ebbedd882a4611e1e26422c5d34e",
+        "runtimeArm64ChildDigest": "sha256:4137243f28fbb54e38f29f301df24fb4d81d93d5acac3b19110183dda1999e63",
+        "receiptFile": "alia-runtime-596f8a7dfecb-20261025.json"
+      },
+      {
+        "service": "alia-integrations",
+        "sourceSha": "596f8a7dfecb0c3a80faf3077a7989143745ddbd",
+        "revision": 192,
+        "running": 1,
+        "desired": 1,
+        "observedAt": "2026-10-25T12:28:28.354843+00:00",
+        "sourceIndexDigest": "sha256:935acd5ae4901943f9506dcdc213f0f8b5ce5c2606858814d3eb610e886bdccb",
+        "runtimeArm64ChildDigest": "sha256:bf1a910db0e3b0ece73b7bc8326311f36bdfe5da761ed919ee35567f876580ee",
+        "receiptFile": "alia-integrations-runtime-596f8a7dfecb-20261025.json"
+      }
+    ]
+  },
+  "commerceSecretRetirement": {
+    "observedAt": "2026-10-25T12:29:19.748Z",
+    "deletedParameters": [
+      "/oxy/marketplace/SERVICE_SECRET",
+      "/oxy/mercaria/SERVICE_SECRET"
+    ],
+    "metadataAfter": [],
+    "valuesRead": false,
+    "inspectedDefinitions": 170,
+    "inspectedActiveFamilies": [
+      "oxy-activity-canary-metadata",
+      "oxy-api-accounts-migration",
+      "oxy-mercaria",
+      "oxy-mercaria-taxonomy"
+    ],
+    "allCurrentRuntimeReferencesInspected": true,
+    "activeReferences": [],
+    "liveReferences": [],
+    "globalHistoricalDefinitionCensus": false,
+    "globalV1RetirementActivated": false,
+    "retiredDefinition": {
+      "family": "oxy-mercaria",
+      "revision": 3,
+      "status": "INACTIVE"
+    },
+    "liveRevisionPreserved": 144,
+    "terraformRevisionPreserved": 128,
+    "receiptFile": "commerce-retired-secrets-complete-20261025.json",
+    "postDeletionRuntimeReadback": {
+      "sourceSha": "5ef098222cfcb7e0e6d12226cfcce70ea7f999fd",
+      "revision": 144,
+      "running": 1,
+      "desired": 1,
+      "imageDigest": "sha256:12bb89d0c7bf0f6de67504a45f23becc02eee9fdea6f78fd2320f9d29ea7e3ca",
+      "observedAt": "2026-10-25T12:29:46.428511+00:00",
+      "receiptFile": "mercaria-runtime-5ef098222cfc-20261025.json"
+    }
   }
 }
