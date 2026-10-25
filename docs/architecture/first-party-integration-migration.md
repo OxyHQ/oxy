@@ -14,7 +14,7 @@ audiences are `oxy-service:<applicationId>`; Kaana's audience is `kaana.ai`.
 Correct requester/account/resource, external-grant restrictions, domain rules,
 revocation and operation binding remain mandatory.
 
-## Workstreams
+## Workstreams (updated 2026-10-25)
 
 | Area | Source state | Required acceptance |
 |---|---|---|
@@ -22,11 +22,11 @@ revocation and operation binding remain mandatory.
 | Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS and live readback; product fleet cutovers remain |
 | Oxy core/contracts service authority | Core 7.0.0 / contracts 6.0.0 published; foundation live canary passed | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | Foundation `4d8cc12a` deployed; service authority canary passed; product/private-data canaries remain | Account/resource isolation without own scope/grant dependencies |
-| Oxy Console application settings/credentials | Foundation frontend deploy passed; interactive smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
+| Oxy Console application settings/credentials | Foundation frontend deployed; public sign-in dialog smoke passed; authenticated settings smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
 | Alia own-app levels and tool admission | Source `fc0ef827b`, `c8c9fbfe5`, `bd8e64616`; candidate SDK validation, no rollout | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Implemented source (`816d2f6c8`, `04d0866e6`); audio/activity/producer follow-ups prepared, registry pins and rollout pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
-| Kaana inference own-service receiver | Contracts 8.0.1 published and deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity, Mention, CrowdSource, Peable and Mercaria source prepared with caller/receiver tests; remaining fleet adoption and production rollout pending | Caller→SDK→receiver tests for own and external identities |
+| Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
+| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay and TNP runtime readbacks verified; Mention/Mercaria and remaining fleet cutovers pending | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
@@ -36,6 +36,58 @@ the new service audience, and retire compatibility only after every inventoried
 caller is updated. The Oxy authority runtime is deployed and its service canary passed. Alia and
 the product fleet still require their own SDK pins, deployments and acceptance;
 this checkpoint is not fleet completion.
+
+## Verified rollout update (2026-10-25)
+
+The [sanitized deployment receipt](evidence/first-party-live-20261025.json)
+records source commits, exact image digests, task revisions and running counts
+from operator readbacks. It contains no bearer credentials or user data.
+
+| Runtime | Verified source | Live revisions / count |
+|---|---|---|
+| Kaana and publisher | `de3db4741ff648d9de8d28d124634a9b7553652e` | API 150: 2/2; publisher 151: 1/1 |
+| Peable | `7c146a945ed2df088bca75833ce9f2b631140cd7` | 118: 1/1; healthy targets |
+| CrowdSource | `0388a37eec7e599d9ea40c81ee782903bfcf7c28` | 126: 1/1; healthy targets |
+| GoWay | `28f8246f890eadb81c9e0d94e0a746d6fe3748e9` | 162: 1/1; healthy targets |
+| TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
+
+TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
+and image-pin reconciliation succeeded. This preserved the existing running
+relay; it did not activate a dormant service. GoWay's
+[deployment](https://github.com/OxyHQ/GoWay/actions/runs/40177672428) also passed.
+Published SDK receipts cover CrowdSource 3.1.0, Peable 0.5.0 and GoWay 0.7.1;
+SDK publication alone is not evidence that their consumers have deployed.
+
+Oxy [PR #1951](https://github.com/OxyHQ/oxy/pull/1951) merged as
+`f02b43785ed43ed169a6d0fe0971f7cb8d57965a`. Its
+[API deployment](https://github.com/OxyHQ/oxy/actions/runs/40068112086),
+[frontend deployment](https://github.com/OxyHQ/oxy/actions/runs/40068112085) and
+[package release](https://github.com/OxyHQ/oxy/actions/runs/40068112127) succeeded.
+Core 7.1.0 is published: explicit streaming replay, the linked socket getter and
+restricted private-document mediation are available to consumers. Later core
+minors do not change the historical 7.0.0 foundation receipt below.
+
+Clarity's reader reconciliation processed 512,538 evidenced own records with
+zero remaining own records; it preserved 6,847 revoked external records and did
+not release 38 pending external records. This does not establish the separate
+Clarity-to-Mercaria producer cutover.
+
+Authenticator and OxyOS are now registered active **public** clients in
+production, with empty application/client scopes, no secret and zero workload
+bindings. Bounded provisioning and repeat idempotence checks passed. Their
+redirects are `oxyauthenticator://` and `tauri://localhost`, respectively.
+Registration is not proof of native binary adoption or a completed device sign-in.
+
+At `2026-10-25T09:24:48.294Z`, the production Console displayed its ordinary
+email/username sign-in dialog without scopes/permission text, with zero cookies
+and no page errors. No personal account was signed in; this is a public-dialog
+smoke, not authenticated Console settings or end-to-end sign-in acceptance.
+
+Alia still requires mixed-version readers before producer cutover and secret
+removal. Homiio must precede the new Allo producer; Mercaria must precede the
+new Clarity producer; Mention must precede Move/Schedio. The finite v1 bridge
+and credential cleanup remain gated on all inventoried consumers and live
+canaries. These readbacks do **not** mark the fleet migration complete.
 
 ## Audited runtime graph
 
@@ -63,7 +115,7 @@ A runtime code path is not evidence that the feature is enabled in production.
 | Syra/Nilo/Clarity/Homiio/Alia → Oxy Files | Shared server/client assets APIs | Remove own app-grants/scopes; preserve file ownership and references |
 | Own callers/external merchants → Peable | Shared Oxy service middleware + payments scopes | Distinguish proven own workload from bounded external credentials |
 
-## Remaining audited callers and explicit exclusions
+## Audited caller inventory and explicit exclusions (2026-10-23)
 
 | Caller → receiver | Current seam | Required change / invariant |
 |---|---|---|
@@ -93,10 +145,10 @@ Cloudflare PoP data, with no bearer or Oxy SDK: no credential migration follows
 from those reads. Fresh Astro `origin/main` at
 `5a6bf7d71c11` has no Alia, `@oxy.so`, `@alia.onl`, or `api.oxy.so` references
 in source/manifests; the earlier informational-panel description was stale.
-No Oxy API consumer was found in Eufesio. Fresh OxyOS source
-(`815c65f`) has an Alia panel using a legacy manual SSE client. Its migration
-requires the shared Alia SDK and an actual registered Oxy public client; the live
-registry lookup found no OxyOS registration, so activation remains pending. GWJ explicitly excludes itself
+No Oxy API consumer was found in Eufesio. The original OxyOS audit
+(`815c65f`) found a legacy manual SSE client and no public registration. The
+2026-10-25 readback above supersedes that registry finding; shared Alia SDK
+adoption and native runtime acceptance remain separate checks. GWJ explicitly excludes itself
 from the Oxy ecosystem in its own instructions and is excluded from this change.
 Examples' Next/Vite/Expo third-party OAuth and website's external Claude MCP
 OAuth are intentional external paths and remain scoped. Use remote refs for
@@ -164,8 +216,8 @@ product receiver, human interaction, background task, or private-data path in
 production. The temporary manual-v1 issuance and finite compatibility projections
 (including trusted metadata owner fields) remain until inventoried callers and
 readers have moved. Core 7.1's explicit streaming replay, linked socket getter,
-and private-document mediation are a separate queued follow-up, not part of
-this published 7.0.0 receipt.
+and private-document mediation subsequently shipped through PR #1951 as recorded
+above; they are not part of this historical 7.0.0 receipt.
 
 ## Auth source acceptance
 
@@ -215,8 +267,8 @@ Verification on `feat/first-party-console`: Console Jest 289 tests / 31 suites,
 Console typecheck, lint and web export, and root AGENTS validation. Dependencies built locally
 in the isolated worktree (contracts → protocol → core → services). No manifest,
 version or lockfile changes; no package release or Console deployment performed.
-Release acceptance still needs the combined Oxy API/SDK rollout and a production
-Console own-app/external-credential smoke check. See the Console README and
+The combined Oxy API/SDK rollout and public sign-in dialog smoke have since
+passed. An authenticated Console own-app/external-credential smoke remains. See the Console README and
 `credential-authority.test.tsx` for the tested boundary.
 
 ## Verified deployment checkpoint: Kaana (2026-10-23)
