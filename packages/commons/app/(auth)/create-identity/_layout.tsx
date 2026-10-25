@@ -9,11 +9,14 @@ import { Stack } from 'expo-router';
  *   2. `recovery-phrase` — MUST be shown before anything else; gesture
  *                          back is disabled so users can't accidentally
  *                          skip writing down their phrase
- *   3. `interests`       — pick interest tags
- *   4. `username`        — pick a username; this registers the account, key
+ *   3. `username`        — pick a username; this registers the account, key
  *                          and username together (offline: on reconnect)
- *   5. `/enable-notifications` (a root route, see that file) — request push
+ *   4. `/enable-notifications` (a root route, see that file) — request push
  *      permission, finish onboarding
+ *
+ * There is no interests step: what it collected was never stored (the Oxy
+ * account has no field for a person's interests), so asking was a promise the
+ * app did not keep.
  */
 export default function CreateIdentityLayout() {
   return (
@@ -32,7 +35,6 @@ export default function CreateIdentityLayout() {
           gestureEnabled: false,
         }}
       />
-      <Stack.Screen name="interests" />
       <Stack.Screen name="username" />
     </Stack>
   );

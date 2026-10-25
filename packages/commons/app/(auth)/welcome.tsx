@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { Checkbox } from 'expo-checkbox';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
@@ -175,10 +175,9 @@ export default function WelcomeScreen() {
       <Animated.View style={[styles.footer, footerStyle]}>
         <View className="flex-row items-start mb-space-32">
           <Checkbox
-            value={termsAccepted}
-            onValueChange={setTermsAccepted}
+            checked={termsAccepted}
+            onCheckedChange={setTermsAccepted}
             style={styles.checkbox}
-            color={textColor}
             accessibilityLabel={consentPlainText(t('auth.welcome.termsAgree'))}
           />
           {/* The sentence toggles the box; its two links open the documents
@@ -222,17 +221,15 @@ export default function WelcomeScreen() {
           </Button>
         </View>
 
-        <TouchableOpacity
-          className="mt-space-20 items-center"
+        <Button
+          appearance="plain"
+          tone="neutral"
+          className="mt-space-20"
           onPress={handleRestore}
-          activeOpacity={0.7}
-          accessibilityRole="button"
           accessibilityLabel={t('auth.welcome.restore')}
         >
-          <Text style={[styles.restoreText, { color: textColor }]}>
-            {t('auth.welcome.restore')}
-          </Text>
-        </TouchableOpacity>
+          {t('auth.welcome.restore')}
+        </Button>
       </Animated.View>
     </View>
   );

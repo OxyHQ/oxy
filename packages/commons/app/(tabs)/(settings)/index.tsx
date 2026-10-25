@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
@@ -8,6 +8,7 @@ import { Screen, StackHeader } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { useNotificationOffer } from '@/hooks/notifications/useNotificationOffer';
 
 /**
  * Settings tab — identity & vault management.
@@ -23,6 +24,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { showBottomSheet } = useOxy();
+  const notifications = useNotificationOffer();
 
   const handleBackupRecovery = useCallback(() => {
     router.push('/(tabs)/(settings)/backup-recovery');
@@ -84,6 +86,25 @@ export default function SettingsScreen() {
           onPress={handleRotateKey}
         />
       </SettingsListGroup>
+
+      {/* Notifications: the one setting a sign-in request needs to reach this
+          phone. Asks when Commons never has; otherwise opens the system
+          settings, the only place an answered permission can change. */}
+      {notifications.snapshot?.supported ? (
+        <SettingsListGroup title={t('notificationSettings.section')}>
+          <SettingsListItem
+            icon={<Icons.notification size="md" fill={colors.text} />}
+            title={t('notificationSettings.title')}
+            description={
+              notifications.snapshot.granted
+                ? t('notificationSettings.on')
+                : t('notificationSettings.off')
+            }
+            onPress={() => void notifications.pressSettingsRow()}
+            testID="settings-notifications"
+          />
+        </SettingsListGroup>
+      ) : null}
 
       {/* Trust & verification — Fase 3 personhood + Fase 4 credentials */}
       <SettingsListGroup title={t('civic.personhood.settingsSection')}>

@@ -1,18 +1,36 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@oxy.so/bloom/button';
 import { IDENTITY_ERROR_CODES } from '@oxy.so/contracts';
-import { IdentityAlreadyExistsError, KeyManager } from '@oxy.so/core/crypto';
+import {
+  deriveIdentityLinkCode,
+  IdentityAlreadyExistsError,
+  KeyManager,
+} from '@oxy.so/core/crypto';
+import { handleHttpError } from '@oxy.so/core';
+import type { IdentityLinkState } from '@oxy.so/contracts';
 import { useOxy } from '@oxy.so/services';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import { useIdentityStore } from '@/hooks/identity/identityStore';
+import {
+  persistOnboardingFlow,
+  persistRecoveryPhraseAcknowledged,
+  useIdentityStore,
+} from '@/hooks/identity/identityStore';
 import { useColors } from '@/hooks/useColors';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useTranslation } from '@/lib/i18n';
 import { awaitLinkCompletion } from '@/lib/link-account/awaitLinkCompletion';
 import { setLinkInProgress } from '@/lib/link-account/linkInProgress';
+import {
+  abandonPendingLink,
+  clearPendingLink,
+  pendingLinkVerdict,
+  persistPendingLink,
+  readPendingLink,
+  type PendingLink,
+} from '@/lib/link-account/pendingLink';
 
 type Step =
   | { name: 'loading' }
@@ -32,6 +50,12 @@ type Step =
  * over the code's challenge and shows the 6-digit code the other screen shows
  * for that key. The person confirms there with a code sent to the account's
  * email; once the request completes, this key signs in as the account.
+ *
+ * The key made here is a PENDING link until the request completes
+ * (`lib/link-account/pendingLink.ts`). Opened again for the same request (the
+ * app was closed half-way; onboarding resumes here), the screen picks up where
+ * the request stands. Leaving it removes the key when nothing can ever sign in
+ * with it, so onboarding never offers to register it as a new account.
  */
 export default function LinkAccountConfirmScreen() {
   const router = useRouter();
@@ -52,27 +76,122 @@ export default function LinkAccountConfirmScreen() {
   );
   const aborter = useRef(new AbortController());
 
+  /** This screen made, or resumed with, a key for the request: leaving it must decide that key. */
+  const engagedRef = useRef(false);
+
+  /** The request, or `null` when it is gone; throws when it cannot be read. */
+  const readLink = useCallback(
+    async (linkId: string): Promise<IdentityLinkState | null> => {
+      try {
+        return await oxyServices.identity.links.get(linkId);
+      } catch (error) {
+        if (handleHttpError(error).status === 404) return null;
+        throw error;
+      }
+    },
+    [oxyServices],
+  );
+
+  /**
+   * Leave this link for good: remove the key made for it if nothing can ever
+   * sign in with it (never while the other screen can still confirm it).
+   */
+  const abandon = useCallback(async () => {
+    const pending = await readPendingLink();
+    if (!pending || pending.linkId !== id) return;
+    const outcome = await abandonPendingLink({
+      link: pending,
+      getState: () => readLink(pending.linkId),
+      currentPublicKey: () => KeyManager.getPublicKey(),
+      isKeyRegistered: async (key) => (await oxyServices.auth.isKeyRegistered(key)).registered,
+      deleteKey: async () => {
+        // An unregistered key nobody can sign in with: no Oxy backup to keep.
+        await KeyManager.deleteIdentity(true, false, true);
+        await Promise.all([persistOnboardingFlow(null), persistRecoveryPhraseAcknowledged(false)]);
+      },
+    }).catch(() => 'kept' as const);
+    if (outcome !== 'kept') setRecoveryPhraseAcknowledged(false);
+  }, [id, oxyServices, readLink, setRecoveryPhraseAcknowledged]);
+
+  // Leaving the screen ends this attempt. `abandon` removes the key only when
+  // nothing can sign in with it, so leaving while the other screen can still
+  // confirm keeps it (and onboarding resumes here).
+  const abandonRef = useRef(abandon);
+  useEffect(() => {
+    abandonRef.current = abandon;
+  }, [abandon]);
   useEffect(
     () => () => {
       aborter.current.abort();
       setLinkInProgress(false);
+      if (engagedRef.current) void abandonRef.current();
     },
     [],
   );
 
+  /** Wait for the other screen to confirm, then sign in with this key. */
+  const awaitConfirmation = useCallback(
+    async (linkId: string) => {
+      const outcome = await awaitLinkCompletion({
+        getState: () => oxyServices.identity.links.get(linkId),
+        signal: aborter.current.signal,
+      });
+      if (outcome === 'aborted') return;
+      setLinkInProgress(false);
+      if (outcome !== 'completed') {
+        setStep({ name: 'error', message: t('linkAccount.expired') });
+        return;
+      }
+      await clearPendingLink();
+      // The key is the account's root now: sign in with it.
+      await syncIdentity();
+      router.replace('/');
+    },
+    [oxyServices, router, syncIdentity, t],
+  );
+
+  // Read where the request stands ONCE per request: the callbacks below are
+  // recreated on renders, and re-running this would reset a later step (the
+  // phrase, the code) back to the confirmation.
+  const loadedForRef = useRef<string | null>(null);
   useEffect(() => {
     if (!id || !c) return;
-    oxyServices.identity.links
-      .get(id)
-      .then((state) =>
+    const request = `${id}:${c}`;
+    if (loadedForRef.current === request) return;
+    loadedForRef.current = request;
+    void (async () => {
+      try {
+        const [state, pending] = await Promise.all([readLink(id), readPendingLink()]);
+        if (aborter.current.signal.aborted) return;
+        // Resumed: this phone already made a key for THIS request.
+        if (pending && pending.linkId === id) {
+          engagedRef.current = true;
+          const verdict = pendingLinkVerdict(pending, state);
+          if (verdict === 'signIn') {
+            await clearPendingLink();
+            await syncIdentity();
+            router.replace('/');
+            return;
+          }
+          if (verdict === 'wait') {
+            setLinkInProgress(true);
+            setStep({ name: 'code', code: deriveIdentityLinkCode(id, pending.publicKey) });
+            await awaitConfirmation(id);
+            return;
+          }
+        }
         setStep(
-          state.status === 'pending' && Date.now() < state.expiresAt
+          state && state.status === 'pending' && Date.now() < state.expiresAt
             ? { name: 'confirm', username: state.username }
             : { name: 'error', message: t('linkAccount.expired') },
-        ),
-      )
-      .catch(() => setStep({ name: 'error', message: t('linkAccount.expired') }));
-  }, [id, c, oxyServices, t]);
+        );
+      } catch {
+        if (!aborter.current.signal.aborted) {
+          setStep({ name: 'error', message: t('linkAccount.expired') });
+        }
+      }
+    })();
+  }, [id, c, readLink, syncIdentity, router, awaitConfirmation, t]);
 
   const fail = useCallback(
     (error: unknown) => {
@@ -96,24 +215,11 @@ export default function LinkAccountConfirmScreen() {
     try {
       const { code } = await oxyServices.identity.links.sign(id, c);
       setStep({ name: 'code', code });
-
-      const outcome = await awaitLinkCompletion({
-        getState: () => oxyServices.identity.links.get(id),
-        signal: aborter.current.signal,
-      });
-      if (outcome === 'aborted') return;
-      setLinkInProgress(false);
-      if (outcome !== 'completed') {
-        setStep({ name: 'error', message: t('linkAccount.expired') });
-        return;
-      }
-      // The key is the account's root now: sign in with it.
-      await syncIdentity();
-      router.replace('/');
+      await awaitConfirmation(id);
     } catch (error) {
       fail(error);
     }
-  }, [id, c, oxyServices, syncIdentity, router, t, fail]);
+  }, [id, c, oxyServices, awaitConfirmation, fail]);
 
   /** This phone's key, and its phrase shown before anything is linked. */
   const link = useCallback(async () => {
@@ -129,6 +235,14 @@ export default function LinkAccountConfirmScreen() {
         if (!(error instanceof IdentityAlreadyExistsError)) throw error;
         words = (await KeyManager.getRecoveryMnemonicForCurrentIdentity())?.split(' ') ?? null;
       }
+      // From here until the request completes this key is a PENDING link, not
+      // an identity onboarding may register: resume comes back here.
+      const publicKey = await KeyManager.getPublicKey();
+      if (id && c && publicKey) {
+        const pending: PendingLink = { linkId: id, challenge: c, publicKey };
+        await Promise.all([persistPendingLink(pending), persistOnboardingFlow('link')]);
+        engagedRef.current = true;
+      }
       if (words) {
         setStep({ name: 'phrase', words });
         return;
@@ -137,7 +251,7 @@ export default function LinkAccountConfirmScreen() {
     } catch (error) {
       fail(error);
     }
-  }, [createIdentity, finish, fail]);
+  }, [id, c, createIdentity, finish, fail]);
 
   const container = [
     styles.container,
@@ -232,7 +346,10 @@ export default function LinkAccountConfirmScreen() {
             >
               {t('linkAccount.scanAgain')}
             </Button>
-            <Button appearance="subtle" onPress={() => router.replace('/(auth)/welcome')}>
+            <Button
+              appearance="subtle"
+              onPress={() => void abandon().then(() => router.replace('/(auth)/welcome'))}
+            >
               {t('common.back')}
             </Button>
           </View>

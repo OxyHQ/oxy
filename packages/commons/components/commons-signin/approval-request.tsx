@@ -1,8 +1,7 @@
-import React from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { GlyphButton } from '@oxy.so/bloom/button';
-import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { View, Image, StyleSheet } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
 import {
@@ -278,18 +277,26 @@ export function ApprovalRequest({
       {hasLegalLinks ? (
         <View className="flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 px-5 pt-5">
           {privacyPolicyUrl ? (
-            <Pressable onPress={() => onOpenLink(privacyPolicyUrl)} accessibilityRole="link">
-              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
-                {t('signInApproval.approve.privacyLink')}
-              </Text>
-            </Pressable>
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="sm"
+              accessibilityRole="link"
+              onPress={() => onOpenLink(privacyPolicyUrl)}
+            >
+              {t('signInApproval.approve.privacyLink')}
+            </Button>
           ) : null}
           {termsUrl ? (
-            <Pressable onPress={() => onOpenLink(termsUrl)} accessibilityRole="link">
-              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
-                {t('signInApproval.approve.termsLink')}
-              </Text>
-            </Pressable>
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="sm"
+              accessibilityRole="link"
+              onPress={() => onOpenLink(termsUrl)}
+            >
+              {t('signInApproval.approve.termsLink')}
+            </Button>
           ) : null}
         </View>
       ) : null}

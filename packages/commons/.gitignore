@@ -41,3 +41,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase config for push (see push-config.js); provided at build time, never committed
+google-services.json

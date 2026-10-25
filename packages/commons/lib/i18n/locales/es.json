@@ -170,20 +170,14 @@
       "wordPlaceholder": "palabra",
       "import": "Importar identidad",
       "createInstead": "Crear una nueva identidad en su lugar",
-      "wrongWordCount": "Una frase de recuperación tiene 12 palabras. Lo que pegaste tiene {{count}}."
+      "wrongWordCount": "Una frase de recuperación tiene 12 palabras. Lo que pegaste tiene {{count}}.",
+      "wordLabel": "Palabra {{number}}"
     },
     "notificationsStep": {
       "title": "Recibe aquí las solicitudes de inicio de sesión",
       "subtitle": "Cuando inicies sesión en una app de Oxy desde otro dispositivo, Commons puede pedirte aquí que lo apruebes. Puedes desactivarlo cuando quieras en los ajustes del teléfono.",
       "enable": "Activar notificaciones",
       "notNow": "Ahora no"
-    },
-    "interestsStep": {
-      "title": "Construye en torno\na lo que te gusta",
-      "subtitle": "Toca lo que va contigo. Arrastra y lanza el resto.",
-      "pickAny": "Elige todas las que quieras",
-      "selected": "{{count}} seleccionadas",
-      "skip": "Omitir por ahora"
     }
   },
   "home": {
@@ -467,7 +461,9 @@
       "failedDefault": "No se pudo eliminar la cuenta. Inténtalo de nuevo.",
       "localKeyPurgeWarning": "Tu cuenta se eliminó, pero no se pudo borrar la clave de identidad de este dispositivo. Reinstala la app para borrarla por completo.",
       "thisAccount": "esta cuenta",
-      "confirmInputLabel": "Escribe tu nombre de usuario para confirmar la eliminación de cuenta"
+      "confirmInputLabel": "Escribe tu nombre de usuario para confirmar la eliminación de cuenta",
+      "confirmDialogTitle": "¿Eliminar tu cuenta?",
+      "confirmDialogBody": "{{name}} y todo su contenido se eliminarán para siempre. No se puede deshacer."
     },
     "backup": {
       "title": "Crear copia de seguridad",
@@ -1274,7 +1270,19 @@
       "card": {
         "backFooterNote": "AUTOCUSTODIA · SIN CONTRASEÑA · TÚ TIENES LA CLAVE",
         "qrFooterTitle": "FIRMADA · IDENTIDAD EN AUTOCUSTODIA",
-        "qrFooterNote": "Se resuelve y verifica en la red de Oxy"
+        "qrFooterNote": "Se resuelve y verifica en la red de Oxy",
+        "docTypeIdentity": "Documento de identidad",
+        "name": "Nombre",
+        "type": "Tipo",
+        "selfCustody": "Autocustodia",
+        "username": "Usuario",
+        "idNumber": "Número de ID",
+        "issued": "Expedido",
+        "notAvailable": "N/D",
+        "docTypePublicKey": "Clave pública",
+        "publicKey": "Clave pública",
+        "holder": "Titular",
+        "docTypeVerify": "Verificar"
       }
     },
     "card": {
@@ -1904,7 +1912,8 @@
     "startOverConfirmTitle": "¿Empezar de nuevo?",
     "startOverConfirmBody": "Esto borra permanentemente la identidad protegida de este dispositivo. Sin tu frase de recuperación de 12 palabras, tu cuenta será irrecuperable.",
     "startOverConfirmCta": "Borrar y empezar de nuevo",
-    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo."
+    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo.",
+    "differentIdentity": "Esta frase pertenece a una identidad distinta de la que tenía este teléfono ({{key}}), que todavía se puede restaurar. Introduce la frase de esa identidad, o vuelve atrás y elige Empezar de nuevo para usar otra."
   },
   "linkAccount": {
     "entry": "Tengo una cuenta de Oxy en la web",
@@ -1926,6 +1935,20 @@
     "waiting": "Esperando a la otra pantalla…",
     "expired": "La vinculación se canceló o caducó. Empieza de nuevo en la otra pantalla.",
     "alreadyLinked": "Esta cuenta ya usa Commons.",
-    "failed": "No se ha podido vincular esta cuenta. Inténtalo de nuevo."
+    "failed": "No se ha podido vincular esta cuenta. Inténtalo de nuevo.",
+    "permissionBlockedBody": "El acceso a la cámara está desactivado para Commons. Actívalo en los ajustes del teléfono para escanear el código.",
+    "openSettings": "Abrir ajustes"
+  },
+  "notificationOffer": {
+    "title": "Recibe aquí las solicitudes de inicio de sesión",
+    "body": "Activa las notificaciones para que, cuando inicies sesión en una app de Oxy en otro dispositivo, Commons te pida aprobarlo aquí. Siempre puedes escanear el código QR del inicio de sesión.",
+    "turnOn": "Activar notificaciones",
+    "notNow": "Ahora no"
+  },
+  "notificationSettings": {
+    "section": "Notificaciones",
+    "title": "Solicitudes de inicio de sesión",
+    "on": "Activadas: las solicitudes de inicio de sesión llegan a este teléfono.",
+    "off": "Desactivadas: aprueba los inicios de sesión escaneando su código QR."
   }
 }

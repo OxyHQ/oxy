@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { Icons } from '@/constants/icons';
 import { parseIdentityLinkQrPayload } from '@oxy.so/contracts/client';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
+import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -16,14 +17,33 @@ import { useTranslation } from '@/lib/i18n';
  * Lives in the `(auth)` flow, not `(scan)`: the person has no identity on this
  * device yet, and `(scan)` is only reachable once signed in. Only a link QR is
  * accepted here; it carries the request's id and the challenge Commons signs.
+ *
+ * A camera permission the person refused for good (`canAskAgain: false`) can
+ * only be changed in the system settings: the screen then says so and opens
+ * them, and re-reads the permission when Commons comes back to the foreground.
  */
 export default function ScanLinkScreen() {
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const [invalid, setInvalid] = useState(false);
+
+  // The system settings do not update Expo's permission hook by themselves.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void getPermission();
+    });
+    return () => subscription.remove();
+  }, [getPermission]);
+
+  const blocked = Boolean(permission && !permission.granted && !permission.canAskAgain);
+  const openSettings = useCallback(() => {
+    void (Platform.OS === 'ios' ? Linking.openURL('app-settings:') : Linking.openSettings()).catch(
+      () => undefined,
+    );
+  }, []);
 
   const handleScanned = useCallback(
     ({ data }: BarcodeScanningResult) => {
@@ -47,15 +67,18 @@ export default function ScanLinkScreen() {
         style={[styles.centered, { backgroundColor: colors.background, paddingTop: insets.top }]}
       >
         <Text style={[styles.title, { color: colors.text }]}>{t('linkAccount.scanTitle')}</Text>
-        <Text style={[styles.body, { color: colors.text }]}>{t('linkAccount.permissionBody')}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>
+          {blocked ? t('linkAccount.permissionBlockedBody') : t('linkAccount.permissionBody')}
+        </Text>
         {permission ? (
           <Button
             appearance="solid"
             tone="accent"
-            onPress={() => void requestPermission()}
+            onPress={blocked ? openSettings : () => void requestPermission()}
             style={styles.button}
+            testID={blocked ? 'link-account-open-settings' : 'link-account-grant-camera'}
           >
-            {t('linkAccount.grantPermission')}
+            {blocked ? t('linkAccount.openSettings') : t('linkAccount.grantPermission')}
           </Button>
         ) : null}
         <Button appearance="subtle" onPress={() => router.back()}>
@@ -78,25 +101,22 @@ export default function ScanLinkScreen() {
           {invalid ? t('linkAccount.invalidCode') : t('linkAccount.scanInstructions')}
         </Text>
         {invalid ? (
-          <TouchableOpacity
-            style={styles.control}
+          <Button
+            appearance="outline"
+            tone="neutral"
+            leadingIcon={Icons.refresh}
             onPress={() => setInvalid(false)}
-            accessibilityRole="button"
-            accessibilityLabel={t('linkAccount.scanAgain')}
           >
-            <Icons.refresh size="xl" fill="#fff" />
-            <Text style={styles.controlText}>{t('linkAccount.scanAgain')}</Text>
-          </TouchableOpacity>
+            {t('linkAccount.scanAgain')}
+          </Button>
         ) : null}
       </View>
-      <TouchableOpacity
-        style={[styles.close, { top: insets.top + 16 }]}
+      <FrostedIconButton
+        icon={Icons.close}
         onPress={() => router.back()}
-        accessibilityRole="button"
         accessibilityLabel={t('common.close')}
-      >
-        <Icons.close size="xl" fill="#fff" />
-      </TouchableOpacity>
+        style={[styles.close, { top: insets.top + 16 }]}
+      />
     </View>
   );
 }
@@ -120,16 +140,5 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   panelText: { color: '#fff', fontSize: 16, lineHeight: 22, textAlign: 'center' },
-  control: { alignItems: 'center', gap: 8 },
-  controlText: { color: '#fff', fontSize: 12 },
-  close: {
-    position: 'absolute',
-    right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  close: { position: 'absolute', right: 20 },
 });

@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useImageResolver } from '@oxy.so/bloom/image-resolver';
 import { Fonts } from '@/constants/theme';
 import { HolographicLogo } from './holographic-logo';
+import { useTranslation } from '@/lib/i18n';
 import { AVATAR_ELEVATION, ParallaxLayer, TEXT_ELEVATION } from './tilt-context';
 
 interface FrontSideProps {
@@ -55,6 +56,10 @@ export const FrontSide: React.FC<FrontSideProps> = ({
   accountCreated,
   publicKeyShort,
 }) => {
+  const { t } = useTranslation();
+  // Printed labels are engraved capitals in every language; the MRZ below is
+  // machine-readable and stays ICAO's A-Z alphabet.
+  const label = (key: string) => t(`civic.id.card.${key}`).toLocaleUpperCase();
   const mrzLines = useMemo(() => {
     const name = sanitizeMrz(username ?? displayName, MRZ_WIDTH - 5);
     const line1 = `IDOXY${name}`.padEnd(MRZ_WIDTH, '<').slice(0, MRZ_WIDTH);
@@ -86,7 +91,9 @@ export const FrontSide: React.FC<FrontSideProps> = ({
       {/* Issuer header */}
       <View style={styles.header}>
         <HolographicLogo size={22} />
-        <Text style={styles.docType}>IDENTITY CARD</Text>
+        <Text style={styles.docType} numberOfLines={1} adjustsFontSizeToFit>
+          {label('docTypeIdentity')}
+        </Text>
       </View>
 
       {/* Portrait + primary name */}
@@ -113,7 +120,7 @@ export const FrontSide: React.FC<FrontSideProps> = ({
           )}
         </View>
         <View style={styles.primaryCol}>
-          <Text style={styles.fieldLabel}>NAME</Text>
+          <Text style={styles.fieldLabel}>{label('name')}</Text>
           <Text
             style={styles.primaryValue}
             numberOfLines={primaryNameLines}
@@ -124,8 +131,8 @@ export const FrontSide: React.FC<FrontSideProps> = ({
           >
             {primaryName}
           </Text>
-          <Text style={styles.fieldLabel}>TYPE</Text>
-          <Text style={styles.fieldValueSmall}>SELF-CUSTODY</Text>
+          <Text style={styles.fieldLabel}>{label('type')}</Text>
+          <Text style={styles.fieldValueSmall}>{label('selfCustody')}</Text>
         </View>
       </ParallaxLayer>
 
@@ -133,21 +140,21 @@ export const FrontSide: React.FC<FrontSideProps> = ({
       <ParallaxLayer elevation={TEXT_ELEVATION} style={styles.fields}>
         {username && (
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>USERNAME</Text>
+            <Text style={styles.fieldLabel}>{label('username')}</Text>
             <Text style={styles.fieldValueSmall} numberOfLines={1}>
               {username}
             </Text>
           </View>
         )}
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>ID NUMBER</Text>
+          <Text style={styles.fieldLabel}>{label('idNumber')}</Text>
           <Text style={styles.idNumber} numberOfLines={1}>
-            {publicKeyShort || 'N/A'}
+            {publicKeyShort || t('civic.id.card.notAvailable')}
           </Text>
         </View>
         {issued && (
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>ISSUED</Text>
+            <Text style={styles.fieldLabel}>{label('issued')}</Text>
             <Text style={styles.fieldValueSmall}>{issued}</Text>
           </View>
         )}

@@ -142,7 +142,12 @@ export const ONBOARDING_COMPLETE_STORAGE_KEY = 'oxy_onboarding_complete';
  */
 export const ONBOARDING_FLOW_STORAGE_KEY = 'oxy_onboarding_flow';
 
-export type OnboardingFlow = 'create' | 'import';
+/**
+ * Which wizard an unfinished onboarding resumes in. `link`: the key on this
+ * phone was made to link a web account (ADR 0029 D3) and must never be
+ * registered as a new one; it resumes at the link (`lib/link-account/pendingLink.ts`).
+ */
+export type OnboardingFlow = 'create' | 'import' | 'link';
 
 /**
  * Storage key for the username the user chose at the username step but that is
@@ -382,7 +387,7 @@ export const persistOnboardingFlow = async (flow: OnboardingFlow | null): Promis
 export const getOnboardingFlowFromStorage = async (): Promise<OnboardingFlow | null> => {
   try {
     const flow = await storage.getItem(ONBOARDING_FLOW_STORAGE_KEY);
-    return flow === 'create' || flow === 'import' ? flow : null;
+    return flow === 'create' || flow === 'import' || flow === 'link' ? flow : null;
   } catch (error) {
     console.error('[IdentityStore] Failed to read onboarding flow', error);
     return null;

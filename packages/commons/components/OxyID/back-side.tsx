@@ -16,16 +16,16 @@ interface BackSideProps {
   accountCreated?: string;
 }
 
-const formatPublicKey = (key?: string) => {
-  if (!key) return 'N/A';
+const formatPublicKey = (key: string | undefined, notAvailable: string) => {
+  if (!key) return notAvailable;
   const cleanKey = key.replace(/^0x/i, '');
   return cleanKey.match(/.{1,8}/g)?.join(' ') || cleanKey;
 };
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return 'N/A';
+const formatDate = (dateString: string | undefined, notAvailable: string) => {
+  if (!dateString) return notAvailable;
   const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return 'N/A';
+  if (Number.isNaN(date.getTime())) return notAvailable;
   const dd = String(date.getDate()).padStart(2, '0');
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const yyyy = date.getFullYear();
@@ -34,23 +34,27 @@ const formatDate = (dateString?: string) => {
 
 export const BackSide: React.FC<BackSideProps> = ({ publicKey, displayName, accountCreated }) => {
   const { t } = useTranslation();
+  const label = (key: string) => t(`civic.id.card.${key}`).toLocaleUpperCase();
+  const notAvailable = t('civic.id.card.notAvailable');
   return (
     <View style={styles.container}>
       {/* Header — mirrors the front. */}
       <View style={styles.header}>
         <HolographicLogo size={20} />
-        <Text style={styles.docType}>PUBLIC KEY</Text>
+        <Text style={styles.docType} numberOfLines={1} adjustsFontSizeToFit>
+          {label('docTypePublicKey')}
+        </Text>
       </View>
 
       {/* The public key, engraved and readable. */}
       <View style={styles.keySection}>
-        <Text style={styles.keyLabel}>PUBLIC KEY</Text>
+        <Text style={styles.keyLabel}>{label('publicKey')}</Text>
         <Text style={styles.keyValue} selectable>
-          {formatPublicKey(publicKey)}
+          {formatPublicKey(publicKey, notAvailable)}
         </Text>
         {displayName ? (
           <>
-            <Text style={[styles.keyLabel, styles.holderLabel]}>HOLDER</Text>
+            <Text style={[styles.keyLabel, styles.holderLabel]}>{label('holder')}</Text>
             <Text style={styles.holderValue} numberOfLines={1}>
               {displayName}
             </Text>
@@ -61,8 +65,8 @@ export const BackSide: React.FC<BackSideProps> = ({ publicKey, displayName, acco
       {/* Footer — issue date + self-custody note. */}
       <View style={styles.footer}>
         <View style={styles.infoRow}>
-          <Text style={styles.footerStrong}>ISSUED</Text>
-          <Text style={styles.footerStrong}>{formatDate(accountCreated)}</Text>
+          <Text style={styles.footerStrong}>{label('issued')}</Text>
+          <Text style={styles.footerStrong}>{formatDate(accountCreated, notAvailable)}</Text>
         </View>
         <Text style={styles.footerNote}>{t('civic.id.card.backFooterNote')}</Text>
       </View>

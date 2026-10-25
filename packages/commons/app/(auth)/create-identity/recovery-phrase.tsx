@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -79,7 +79,7 @@ export default function RecoveryPhraseScreen() {
     // Persist the acknowledgement to disk so the next launch doesn't
     // re-nag the user.
     setRecoveryPhraseAcknowledgedPersisted(true);
-    router.replace('/(auth)/create-identity/interests');
+    router.replace('/(auth)/create-identity/username');
   }, [acknowledged, acknowledgeRecoveryPhrase, router, setRecoveryPhraseAcknowledgedPersisted]);
 
   const handleMissingPhrase = useCallback(() => {

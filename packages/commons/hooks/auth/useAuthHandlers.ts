@@ -8,6 +8,7 @@ import { useAuthStore } from '@oxy.so/services';
 import { requestNotificationPermission } from '@oxy.so/services/notifications';
 import { isNetworkOrTimeoutError, extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { registerVaultPushToken, vaultChannelCopy } from '@/lib/notifications/push-registration';
+import { markNotificationOfferAnswered } from '@/hooks/notifications/useNotificationOffer';
 import { STORE_UPDATE_DELAY_MS } from '@/constants/auth';
 import { useTranslation } from '@/lib/i18n';
 
@@ -236,6 +237,8 @@ export function useAuthHandlers({
       // false`) resolves false without issuing a request the OS would ignore.
       // Either way a resumed onboarding never re-prompts.
       const granted = await requestNotificationPermission();
+      // Asked: the ID tab's one-time offer never repeats the question.
+      await markNotificationOfferAnswered();
       if (granted && oxyServices) {
         // Fire-and-forget: a failed registration costs the user the push
         // convenience, never their onboarding. The QR handoff still works.
@@ -267,6 +270,8 @@ export function useAuthHandlers({
         return;
       }
     }
+    // "Not now" is an answer too: the ID tab does not ask again.
+    await markNotificationOfferAnswered();
     router.replace('/(tabs)/(id)');
   }, [isAuthenticated, router, completeSignIn]);
 

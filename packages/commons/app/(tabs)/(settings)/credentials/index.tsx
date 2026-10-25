@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
@@ -88,15 +88,7 @@ export default function CredentialsScreen() {
           icon={Icons.alert}
           title={t('civic.credentials.error.title')}
           description={t('civic.credentials.error.body')}
-          footer={
-            <TouchableOpacity
-              style={[styles.retry, { backgroundColor: colors.tint }]}
-              onPress={() => query.refetch()}
-              accessibilityRole="button"
-            >
-              <Text style={styles.retryText}>{t('common.retry')}</Text>
-            </TouchableOpacity>
-          }
+          action={{ label: t('common.retry'), onPress: () => void query.refetch() }}
           minHeight={STATE_MIN_HEIGHT}
         />
       );

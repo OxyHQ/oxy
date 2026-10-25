@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
@@ -29,6 +29,7 @@ import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { NotificationOffer } from '@/components/notifications/NotificationOffer';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
@@ -205,6 +206,9 @@ export default function IdScreen() {
             "Write down your recovery phrase" action (Pixel 8a, no Play
             services). */}
         <DeviceBackupWarning variant="prompt" />
+        {/* Once, for an identity never asked about notifications (it finished
+            onboarding before that step existed); after the backup prompt. */}
+        <NotificationOffer />
 
         <View className="items-center gap-space-16 pt-space-8">
           <OxyID

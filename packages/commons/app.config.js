@@ -1,4 +1,5 @@
 const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
+const { resolvePushConfig } = require('./push-config');
 
 // App variant — lets a development build sit next to the production app on the
 // SAME device by giving it a distinct applicationId/bundleId + name.
@@ -20,6 +21,10 @@ const OXY_CLIENT_ID =
   process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
   'oxy_dk_f65326da2a0d106bf98e873ce19b0ca9094d6c0c1f845a18';
 
+// Push: the EAS project id and Firebase's google-services.json come from the
+// build environment, never the repo (see push-config.js for what to provide).
+const PUSH = resolvePushConfig({ packageName: APP_ID });
+
 // Channel this binary polls. `production` unless a preview build overrides it;
 // `oxy-ship publish --channel <name>` writes to the matching channel.
 const OXY_UPDATES_CHANNEL = process.env.EXPO_PUBLIC_OXY_UPDATES_CHANNEL ?? 'production';
@@ -32,8 +37,10 @@ module.exports = {
     // policy 'appVersion'): bump it whenever the native layer changes, so a
     // binary built from older native code never receives JS that needs newer
     // native modules. 1.2.0 is the first Expo SDK 58 build; 1.3.0 links
-    // expo-image-picker and expo-clipboard.
-    version: '1.3.0',
+    // expo-image-picker and expo-clipboard; 1.4.0 is the first binary that
+    // verifies Oxy Updates signatures (the certificate is baked in), so no
+    // update is ever published for a runtime that would run it unverified.
+    version: '1.4.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /
@@ -54,7 +61,8 @@ module.exports = {
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
-      versionCode: 4,
+      versionCode: 5,
+      ...(PUSH.googleServicesFile ? { googleServicesFile: PUSH.googleServicesFile } : {}),
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
       permissions: ['android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT'],
@@ -217,7 +225,9 @@ module.exports = {
     extra: {
       router: {},
       eas: {
-        projectId: '',
+        // Read by the SDK's getExpoPushToken; `undefined` when not provided,
+        // never a placeholder that would mint nothing.
+        projectId: PUSH.easProjectId,
       },
     },
     owner: 'oxyhq',
