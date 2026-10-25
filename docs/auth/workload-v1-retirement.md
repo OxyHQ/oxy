@@ -81,20 +81,30 @@ authorized external test credentials; it cannot reuse Noted's retired own keys.
 
 ## Validation
 
-At the draft checkpoint, focused verification passed:
+After rebasing onto main `0a312b9b1` (including the Inbox producer in #1985
+and the Noted binding retirement in #1987), local verification passed:
 
-- Core: 30 tests in four suites (all token helpers use v2, cache/audience boundaries,
-  stale live projection refusal, explicit external credentials).
+- Core: the full 227-suite run passed all 2,754 tests, including the 30 focused
+  retirement tests for v2 token helpers, cache/audience boundaries, stale live
+  projections and explicit external credentials.
 - API: 286 tests in 19 suites against an isolated local PostgreSQL 17 database,
   including scope-bounded external services, raw keys, OAuth, managed sessions,
   requester proofs, revocation, historical token refusal and operator cleanup.
 - The API and its eight build dependencies compile; script typechecking, generated
   OpenAPI, AGENTS validation and strict Core Biome checks pass. Existing unrelated
   API lint warnings remain unchanged in the touched legacy files.
-- Twelve offline ECS launcher tests pass. The actual emitted Node executor rejects
+- Thirteen offline ECS launcher tests pass. The actual emitted Node executor rejects
   both obsolete provisioning and rollback before configuring a database.
 
-These checks establish source behavior, not fleet readiness.
+The registry Core 7.3.0 tarball was independently checked against its published
+SHA-512 integrity. Comparing every declaration file found only a renamed private
+OxyServer method and removal of the two internal legacy-helper declarations;
+public export maps, signatures and types remain unchanged. The rebased Core
+artifact also builds and packs locally without changing its version or publishing.
+
+These checks establish source behavior, not fleet readiness. Full API CI and
+representative consumer compositions against the final versioned release artifact
+remain required before activation.
 No production cleanup, binding revocation or database backfill has run here.
 
 ## Core release version and consumer compatibility
