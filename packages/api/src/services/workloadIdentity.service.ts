@@ -305,7 +305,7 @@ export async function exchangeWorkloadAttestation(input: {
    *
    * Doing it here also means the bindings already live in production need no
    * backfill: their next mint writes the row. It is one indexed probe per mint,
-   * and a mint is once an hour per task.
+   * and token reuse is bounded by the shared service-token lifetime ceiling.
    */
   let attribution;
   try {

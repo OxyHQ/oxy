@@ -44,7 +44,13 @@ post-deployment migration and must not remove external application/key scopes.
 - Fresh live canaries cover own v2, recipient mismatch, requester/account mismatch,
   binding revocation, external customer scope ceilings and external OAuth/MCP
   revocation. After old producers stop, drain existing tokens for their full
-  maximum lifetime before removing the accepting readers.
+  maximum lifetime before removing the accepting readers. The current shared
+  `OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS` in
+  `packages/core/src/server/serviceTokenLifetime.ts` is **300 seconds**; API mint
+  and verifiers use it. Record the deployed version/digest and wait at least
+  300 seconds after the last old producer stops (including delayed launches),
+  then perform the final readback. Recheck the constant at activation rather
+  than relying on historical one-hour comments.
 - The changed Core emitter requires a version bump, CI and normal registry release
   at activation; the draft deliberately does not publish or bump a package now.
 - Root records the complete fleet and launcher inventory plus final authorization

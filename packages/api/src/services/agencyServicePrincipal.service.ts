@@ -240,7 +240,7 @@ export interface LiveAgencyWorkloadPrincipal {
  * The live registered identity for an attested caller, looked up by its subject.
  *
  * Every refusal below is a live revocation taking effect on the next call,
- * which is the property this exists for — an attested token lives an hour, and
+ * which is the property this exists for — an attested token remains valid up to the shared lifetime ceiling, and
  * nothing in it may outlive the row that authorised it:
  *
  *   * the binding row was DELETED (how a compromised workload is cut off) or
