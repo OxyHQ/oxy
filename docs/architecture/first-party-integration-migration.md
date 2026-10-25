@@ -100,8 +100,22 @@ session authentication at `2026-10-25T09:51:24.226Z`. Its empty personal Files
 collection was readable without an app grant, and its session could read the
 inference catalogue (HTTP 200, zero profiles). This establishes catalogue
 reachability only: **no generation or inference execution was tested**. No
-existing user's data or credentials were used. Session/account cleanup has a
-separate guarded receipt and is not implied by this readback.
+existing user's data or credentials were used.
+
+A separate private-file canary at `2026-10-25T09:56:00.867Z` uploaded a QA file
+without an app grant, matched its exact bytes through the owner's session,
+refused anonymous access and deleted the test file. Guarded session revocation
+at `2026-10-25T09:53:11.459Z` confirmed the original bearer returned 401 after
+closing the other sessions and then the calling session. `logoutAll` alone
+preserves the calling session; its SDK comment is corrected in this update.
+These receipts do not claim the QA account has been deleted or that subsequent
+QA sessions have been revoked.
+
+Alia's live stage-A reader canary at `2026-10-25T09:55:05.558Z` admitted the
+exact scope-less workload to a missing synthetic link, while refusing anonymous,
+wrong-recipient and forged raw-account requests. This verifies the reader's
+authentication boundary, not a real user's linked data or the separate event
+receiver required by Nilo.
 
 Alia's stage A is live and its server SDK 1.2.0 is published. This does **not**
 unlock Nilo's capability-event producer: the stage-A event receiver still

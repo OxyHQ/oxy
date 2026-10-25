@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T09:52:12.721205+00:00",
+  "generatedAt": "2026-10-25T09:56:48.052748+00:00",
   "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
   "services": [
     {
@@ -259,5 +259,37 @@
     "pr": 268,
     "sourceSha": "f69c1274b50b6fa630e2569e03eb0a670c8ca9b3",
     "status": "merged after verified Homiio API and worker; runtime receipt pending"
+  },
+  "qaPrivateFileAcceptance": {
+    "success": true,
+    "checks": [
+      "private-upload-without-app-grant",
+      "own-private-bytes-match",
+      "anonymous-private-read-refused",
+      "own-test-file-deleted"
+    ],
+    "observedAt": "2026-10-25T09:56:00.867Z",
+    "receiptFile": "qa-private-file-smoke-20261025.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
+  },
+  "aliaReaderCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-refused",
+      "scope-free-exact-workload-reaches-missing-synthetic-link",
+      "wrong-recipient-refused",
+      "raw-account-header-refused"
+    ],
+    "observedAt": "2026-10-25T09:55:05.558Z",
+    "source": "850b2f96177a1ef07ed635bf1d88307919eec300",
+    "receiptFile": "alia-reader-canary-20261025.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
+  },
+  "qaSessionRevocation": {
+    "operation": "revoke",
+    "bearerRefused": true,
+    "observedAt": "2026-10-25T09:53:11.459Z",
+    "receiptFile": "qa-private/revoke-receipt.json",
+    "scope": "Dedicated acceptance fixtures only; no existing user data"
   }
 }
