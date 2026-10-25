@@ -67,6 +67,10 @@ rejects ownership drift and remains idempotent after receipt expiry. Historical
 scope fields survive only in this receipt validator and test fixtures; they do
 not read or grant runtime workload authority.
 
+The historical Noted issuer-canary launcher also refuses before AWS access or
+secret injection. The external-credential probe remains available for explicitly
+authorized external test credentials; it cannot reuse Noted's retired own keys.
+
 ## Validation
 
 At the draft checkpoint, focused verification passed:
