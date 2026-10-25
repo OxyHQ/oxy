@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { SECRET_INPUT_PROPS } from '@/lib/recovery-phrase/secret-input';
@@ -45,23 +45,25 @@ export function PhraseInputGrid({
       {words.map((word, index) => (
         <View key={index} style={styles.wordInputContainer}>
           <Text style={[styles.wordNumber, { color: colors.text, opacity: 0.6 }]}>{index + 1}</Text>
-          <TextInput
-            style={[styles.wordInput, { color: colors.text, borderColor: colors.border }]}
-            value={word}
-            editable={editable}
-            onChangeText={(text) => {
-              // Detect paste: multiple space-separated words dropped into the
-              // first field are treated as the whole phrase.
-              if (index === 0 && text.includes(' ') && text.split(/\s+/).length > 1) {
-                onPaste(text);
-              } else {
-                onWordChange(index, text);
-              }
-            }}
-            placeholder={t('auth.importStep.wordPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
-            {...SECRET_INPUT_PROPS}
-          />
+          <View style={styles.wordField}>
+            <TextFieldInput
+              label={t('auth.importStep.wordLabel', { number: index + 1 })}
+              size="sm"
+              value={word}
+              disabled={!editable}
+              onChangeText={(text) => {
+                // Detect paste: multiple space-separated words dropped into the
+                // first field are treated as the whole phrase.
+                if (index === 0 && text.includes(' ') && text.split(/\s+/).length > 1) {
+                  onPaste(text);
+                } else {
+                  onWordChange(index, text);
+                }
+              }}
+              placeholder={t('auth.importStep.wordPlaceholder')}
+              {...SECRET_INPUT_PROPS}
+            />
+          </View>
         </View>
       ))}
     </View>
@@ -87,10 +89,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     width: 20,
   },
-  wordInput: {
-    flex: 1,
-    borderBottomWidth: 1,
-    paddingVertical: 4,
-    fontSize: 14,
-  },
+  wordField: { flex: 1 },
 });

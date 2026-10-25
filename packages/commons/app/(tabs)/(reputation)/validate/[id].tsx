@@ -1,11 +1,11 @@
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Badge } from '@oxy.so/bloom/badge';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import {
@@ -206,16 +206,9 @@ export default function ValidationVoteScreen() {
           {t('civic.validate.vote.abstain')}
         </Button>
 
-        <TouchableOpacity
-          className="py-space-12 items-center"
-          onPress={deny}
-          disabled={busy}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.recuseText, { color: colors.textSecondary }]}>
-            {t('civic.validate.vote.recuse')}
-          </Text>
-        </TouchableOpacity>
+        <Button appearance="plain" tone="neutral" onPress={deny} disabled={busy}>
+          {t('civic.validate.vote.recuse')}
+        </Button>
 
         {busy && (
           <Text style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>

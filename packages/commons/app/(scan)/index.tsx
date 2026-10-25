@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
+import { Button } from '@oxy.so/bloom/button';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { AppIcon, Icons } from '@/constants/icons';
+import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { parseScan, type ScanResult } from '@/lib/commons-signin/parse-scan';
@@ -206,48 +208,45 @@ export default function ScanSignInScreen() {
                     ? t('signInApproval.scan.expiredBody')
                     : t('signInApproval.scan.invalidBody')}
                 </Text>
-                <TouchableOpacity
-                  className="items-center gap-space-8"
+                <Button
+                  appearance="outline"
+                  tone="neutral"
+                  leadingIcon={Icons.refresh}
                   onPress={handleScanAgain}
-                  accessibilityRole="button"
                   accessibilityLabel={t('signInApproval.scan.a11y.scanAgain')}
                 >
-                  <Icons.refresh size="xl" fill="#fff" />
-                  <Text style={styles.controlText}>{t('signInApproval.scan.scanAgain')}</Text>
-                </TouchableOpacity>
+                  {t('signInApproval.scan.scanAgain')}
+                </Button>
               </>
             ) : (
               <>
                 <Text style={styles.instructionText}>{t('signInApproval.scan.instructions')}</Text>
-                <TouchableOpacity
-                  className="items-center gap-space-8"
-                  onPress={toggleFlash}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    flashOn
-                      ? t('signInApproval.scan.a11y.flashOff')
-                      : t('signInApproval.scan.a11y.flashOn')
-                  }
-                  accessibilityState={{ selected: flashOn }}
-                >
-                  <AppIcon name={'flash'} size="xl" fill="#fff" />
+                <View className="items-center gap-space-8">
+                  <FrostedIconButton
+                    icon={Icons.flash}
+                    checked={flashOn}
+                    onCheckedChange={() => toggleFlash()}
+                    accessibilityLabel={
+                      flashOn
+                        ? t('signInApproval.scan.a11y.flashOff')
+                        : t('signInApproval.scan.a11y.flashOn')
+                    }
+                  />
                   <Text style={styles.controlText}>
                     {flashOn ? t('signInApproval.scan.flashOn') : t('signInApproval.scan.flashOff')}
                   </Text>
-                </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.closeButton}
+        <FrostedIconButton
+          icon={Icons.close}
           onPress={handleClose}
-          accessibilityRole="button"
           accessibilityLabel={t('signInApproval.scan.a11y.close')}
-        >
-          <Icons.close size="xl" fill="#fff" />
-        </TouchableOpacity>
+          style={styles.closeButton}
+        />
       </CameraView>
 
       {attest.status !== 'idle' ? (
@@ -357,17 +356,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
   },
-  closeButton: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  closeButton: { position: 'absolute', top: 60, right: 20 },
   text: {
     fontSize: 16,
   },

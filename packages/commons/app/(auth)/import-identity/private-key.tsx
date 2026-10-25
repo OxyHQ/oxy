@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -8,14 +9,13 @@ import {
   IdentityUnavailableError,
 } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
-import { Fonts } from '@/constants/theme';
-import { withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
+import { shortenKey } from '@/utils/shorten-key';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
@@ -85,7 +85,11 @@ export default function ImportPrivateKeyScreen() {
       router.replace('/(auth)/import-identity/username');
     } catch (err: unknown) {
       if (err instanceof IdentityMayExistError) {
-        router.replace('/(auth)/recover-identity');
+        // This phone held a DIFFERENT identity, which is still recoverable, and
+        // importing would overwrite it. Say so here, with the key it holds,
+        // instead of silently bouncing back to the recovery screen: the person
+        // can correct the words, or go back and choose Start over.
+        setError(t('recovery.differentIdentity', { key: shortenKey(err.markerPublicKey) }));
         return;
       }
       if (err instanceof IdentityUnavailableError) {
@@ -112,22 +116,14 @@ export default function ImportPrivateKeyScreen() {
           {t('importPrivateKey.subtitle')}
         </Text>
 
-        <TextInput
+        <Textarea
+          label={t('importPrivateKey.title')}
+          rows={4}
           value={privateKey}
           onChangeText={handleChange}
           placeholder={t('importPrivateKey.placeholder')}
-          placeholderTextColor={withAlpha(colors.text, 0.4)}
-          editable={!isLoading}
+          disabled={isLoading}
           {...SECRET_INPUT_PROPS}
-          multiline
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              borderColor: withAlpha(colors.text, 0.2),
-              backgroundColor: colors.card,
-            },
-          ]}
         />
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
@@ -173,15 +169,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  input: {
-    minHeight: 96,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 15,
-    fontFamily: Fonts.mono,
-    textAlignVertical: 'top',
   },
   errorText: {
     fontSize: 14,

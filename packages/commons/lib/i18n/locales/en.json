@@ -170,20 +170,14 @@
       "wordPlaceholder": "word",
       "import": "Import Identity",
       "createInstead": "Create a new identity instead",
-      "wrongWordCount": "A recovery phrase has 12 words. What you pasted has {{count}}."
+      "wrongWordCount": "A recovery phrase has 12 words. What you pasted has {{count}}.",
+      "wordLabel": "Word {{number}}"
     },
     "notificationsStep": {
       "title": "Get sign-in requests on this phone",
       "subtitle": "When you sign in to an Oxy app on another device, Commons can ask you here to approve it. You can turn this off at any time in your phone's settings.",
       "enable": "Turn on notifications",
       "notNow": "Not now"
-    },
-    "interestsStep": {
-      "title": "Build around\nwhat you love",
-      "subtitle": "Tap what feels like you. Drag and toss the rest.",
-      "pickAny": "Pick as many as you like",
-      "selected": "{{count}} selected",
-      "skip": "Skip for now"
     }
   },
   "home": {
@@ -467,7 +461,9 @@
       "failedDefault": "Failed to delete account. Please try again.",
       "localKeyPurgeWarning": "Your account was deleted, but the identity key could not be removed from this device. Reinstall the app to clear it fully.",
       "thisAccount": "this account",
-      "confirmInputLabel": "Type your username to confirm account deletion"
+      "confirmInputLabel": "Type your username to confirm account deletion",
+      "confirmDialogTitle": "Delete your account?",
+      "confirmDialogBody": "{{name}} and everything in it will be deleted for good. This cannot be undone."
     },
     "backup": {
       "title": "Create backup",
@@ -1274,7 +1270,19 @@
       "card": {
         "backFooterNote": "SELF-CUSTODY · NO PASSWORD · YOU HOLD THE KEY",
         "qrFooterTitle": "SIGNED · SELF-CUSTODY IDENTITY",
-        "qrFooterNote": "Resolves and verifies on the Oxy network"
+        "qrFooterNote": "Resolves and verifies on the Oxy network",
+        "docTypeIdentity": "Identity card",
+        "name": "Name",
+        "type": "Type",
+        "selfCustody": "Self-custody",
+        "username": "Username",
+        "idNumber": "ID number",
+        "issued": "Issued",
+        "notAvailable": "N/A",
+        "docTypePublicKey": "Public key",
+        "publicKey": "Public key",
+        "holder": "Holder",
+        "docTypeVerify": "Verify"
       }
     },
     "card": {
@@ -1904,7 +1912,8 @@
     "startOverConfirmTitle": "Start over?",
     "startOverConfirmBody": "This permanently erases the protected identity on this device. Without your 12-word recovery phrase, your account will be unrecoverable.",
     "startOverConfirmCta": "Erase and start over",
-    "startOverFailed": "We couldn't clear the identity from this device. Unlock it and try again."
+    "startOverFailed": "We couldn't clear the identity from this device. Unlock it and try again.",
+    "differentIdentity": "This phrase belongs to a different identity than the one this phone held ({{key}}), which can still be restored. Enter that identity's phrase, or go back and choose Start over to use a different one."
   },
   "linkAccount": {
     "entry": "I have an Oxy account on the web",
@@ -1926,6 +1935,20 @@
     "waiting": "Waiting for the other screen…",
     "expired": "The link was cancelled or expired. Start again on the other screen.",
     "alreadyLinked": "This account already uses Commons.",
-    "failed": "Couldn't link this account. Try again."
+    "failed": "Couldn't link this account. Try again.",
+    "permissionBlockedBody": "Camera access is turned off for Commons. Turn it on in your phone's settings to scan the code.",
+    "openSettings": "Open settings"
+  },
+  "notificationOffer": {
+    "title": "Get sign-in requests on this phone",
+    "body": "Turn on notifications so that when you sign in to an Oxy app on another device, Commons can ask you to approve it here. You can always scan the sign-in's QR code instead.",
+    "turnOn": "Turn on notifications",
+    "notNow": "Not now"
+  },
+  "notificationSettings": {
+    "section": "Notifications",
+    "title": "Sign-in requests",
+    "on": "On: sign-in requests reach this phone.",
+    "off": "Off: approve sign-ins by scanning their QR code."
   }
 }

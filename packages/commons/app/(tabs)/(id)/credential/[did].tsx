@@ -1,11 +1,14 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Icons } from '@/constants/icons';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { Chip } from '@oxy.so/bloom/chip';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, Section, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
@@ -190,23 +193,13 @@ export default function IssueCredentialScreen() {
             {CREDENTIAL_PRESETS.map((preset) => {
               const selected = preset.id === presetId;
               return (
-                <TouchableOpacity
+                <Chip
                   key={preset.id}
-                  onPress={() => setPresetId(preset.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  style={[
-                    styles.presetChip,
-                    { borderColor: selected ? colors.tint : colors.border },
-                    selected && { backgroundColor: colors.primarySubtle },
-                  ]}
+                  checked={selected}
+                  onCheckedChange={() => setPresetId(preset.id)}
                 >
-                  <Text
-                    style={[styles.presetText, { color: selected ? colors.tint : colors.text }]}
-                  >
-                    {t(`civic.credentials.issue.preset.${preset.id}`)}
-                  </Text>
-                </TouchableOpacity>
+                  {t(`civic.credentials.issue.preset.${preset.id}`)}
+                </Chip>
               );
             })}
           </View>
@@ -215,14 +208,13 @@ export default function IssueCredentialScreen() {
               <BloomText style={[styles.fieldLabel, { color: colors.textSecondary }]}>
                 {t('civic.credentials.issue.customLabel')}
               </BloomText>
-              <TextInput
+              <TextFieldInput
+                label={t('civic.credentials.issue.customLabel')}
                 value={customLabel}
                 onChangeText={setCustomLabel}
-                editable={!busy}
+                disabled={busy}
                 placeholder={t('civic.credentials.issue.customPlaceholder')}
-                placeholderTextColor={colors.textSecondary}
                 accessibilityLabel={t('civic.credentials.issue.customLabel')}
-                style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               />
             </View>
           )}
@@ -233,20 +225,14 @@ export default function IssueCredentialScreen() {
           title={t('civic.credentials.issue.statementTitle')}
           subtitle={t('civic.credentials.issue.statementHint')}
         >
-          <TextInput
+          <Textarea
+            label={t('civic.credentials.issue.statementTitle')}
             value={statement}
             onChangeText={setStatement}
-            editable={!busy}
-            multiline
-            numberOfLines={4}
+            disabled={busy}
+            rows={4}
             placeholder={t('civic.credentials.issue.statementPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
             accessibilityLabel={t('civic.credentials.issue.statementTitle')}
-            style={[
-              styles.input,
-              styles.multiline,
-              { color: colors.text, borderColor: colors.border },
-            ]}
           />
         </Section>
 
@@ -255,17 +241,16 @@ export default function IssueCredentialScreen() {
           title={t('civic.credentials.issue.expiryTitle')}
           subtitle={t('civic.credentials.issue.expiryHint')}
         >
-          <TextInput
+          <TextFieldInput
+            label={t('civic.credentials.issue.expiryTitle')}
             value={expiryText}
             onChangeText={setExpiryText}
-            editable={!busy}
+            disabled={busy}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="numbers-and-punctuation"
             placeholder={t('civic.credentials.issue.expiryPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
             accessibilityLabel={t('civic.credentials.issue.expiryTitle')}
-            style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
           {!expiry.valid && (
             <BloomText style={[styles.fieldError, { color: colors.warning }]}>
@@ -370,18 +355,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-  },
-  input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    fontSize: 15,
-  },
-  multiline: {
-    minHeight: 96,
-    textAlignVertical: 'top',
   },
   fieldError: {
     fontSize: 13,

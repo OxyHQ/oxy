@@ -1,10 +1,11 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
-import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
@@ -211,15 +212,17 @@ export default function VouchScreen() {
             <BloomText style={[styles.stakeLabel, { color: colors.text }]}>
               {t('civic.vouch.confirm.stakeLabel')}
             </BloomText>
-            <TextInput
-              value={stakeText}
-              onChangeText={setStakeText}
-              keyboardType="number-pad"
-              maxLength={3}
-              editable={!busy}
-              accessibilityLabel={t('civic.vouch.confirm.stakeLabel')}
-              style={[styles.stakeInput, { color: colors.text, borderColor: colors.border }]}
-            />
+            <View style={styles.stakeField}>
+              <TextFieldInput
+                label={t('civic.vouch.confirm.stakeLabel')}
+                value={stakeText}
+                onChangeText={setStakeText}
+                keyboardType="number-pad"
+                maxLength={3}
+                disabled={busy}
+                accessibilityLabel={t('civic.vouch.confirm.stakeLabel')}
+              />
+            </View>
           </View>
         </Section>
 
@@ -302,17 +305,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  stakeInput: {
-    minWidth: 64,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 12,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+  stakeField: { width: 72 },
   inlineWarn: {
     fontSize: 13,
     lineHeight: 18,

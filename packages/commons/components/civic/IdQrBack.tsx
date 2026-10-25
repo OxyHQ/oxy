@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Canvas, Group, LinearGradient, RoundedRect, vec } from '@shopify/react-native-skia';
@@ -62,7 +61,9 @@ export function IdQrBack({ payload, caption }: IdQrBackProps) {
       {/* Header — mirrors the front. */}
       <View style={styles.header}>
         <HolographicLogo size={20} />
-        <Text style={styles.docType}>VERIFY</Text>
+        <Text style={styles.docType} numberOfLines={1} adjustsFontSizeToFit>
+          {t('civic.id.card.docTypeVerify').toLocaleUpperCase()}
+        </Text>
       </View>
 
       {/* Verification zone. */}

@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { AppState } from 'react-native';
 import {
   __EXPO_PUSH_TOKEN as EXPO_TOKEN,
   __resetNotificationAdapter,
@@ -180,5 +181,81 @@ describe('usePushRegistration', () => {
 
     await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
     expect(result.current).toBeUndefined();
+  });
+
+  describe('a permission granted later, in the system settings', () => {
+    type Listener = (state: 'active' | 'background') => void;
+    let listeners: Listener[];
+
+    beforeEach(() => {
+      listeners = [];
+      jest.spyOn(AppState, 'addEventListener').mockImplementation(((
+        _type: 'change',
+        listener: Listener,
+      ) => {
+        listeners.push(listener);
+        return { remove: () => listeners.splice(listeners.indexOf(listener), 1) };
+      }) as unknown as typeof AppState.addEventListener);
+    });
+
+    const foreground = async () => {
+      await act(async () => {
+        for (const listener of [...listeners]) listener('active');
+        await Promise.resolve();
+      });
+    };
+
+    it('is picked up when Commons comes back to the foreground, without a cold start', async () => {
+      hasNotificationPermission.mockResolvedValue(false);
+      const services = installSession({ canUsePrivateApi: true });
+
+      renderPushRegistration();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(services.registerPushToken).not.toHaveBeenCalled();
+
+      // The person opens Settings > Notifications, turns them on, comes back.
+      hasNotificationPermission.mockResolvedValue(true);
+      await foreground();
+
+      await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
+      // Still never prompts.
+      expect(requestNotificationPermission).not.toHaveBeenCalled();
+    });
+
+    it('stops once registered: later foregrounds send nothing', async () => {
+      const services = installSession({ canUsePrivateApi: true });
+
+      renderPushRegistration();
+      await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
+
+      await foreground();
+      await foreground();
+      expect(services.registerPushToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a failed registration on the next foreground', async () => {
+      const services = installSession({ canUsePrivateApi: true });
+      services.registerPushToken.mockRejectedValueOnce(new Error('offline'));
+
+      renderPushRegistration();
+      await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
+
+      await foreground();
+      await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(2));
+    });
+
+    it('ignores going to the background', async () => {
+      hasNotificationPermission.mockResolvedValue(false);
+      const services = installSession({ canUsePrivateApi: true });
+      renderPushRegistration();
+      hasNotificationPermission.mockResolvedValue(true);
+      await act(async () => {
+        for (const listener of [...listeners]) listener('background');
+        await Promise.resolve();
+      });
+      expect(services.registerPushToken).not.toHaveBeenCalled();
+    });
   });
 });

@@ -45,6 +45,7 @@ import {
 } from '@oxy.so/expo-splash';
 import { installIdentityDeviceBackup } from '@/lib/identity-backup';
 import { PUSH_SOURCE } from '@/lib/commons-signin/approval-return';
+import { coldLaunchTargetFromUrl, type ColdLaunchTarget } from '@/lib/cold-launch/target';
 import { installIdentitySigner } from '@/lib/identity-signer';
 import { DEVICE_BACKUP_WARNING_QUERY_KEY } from '@/hooks/identity/useDeviceBackupWarning';
 
@@ -97,66 +98,6 @@ export const unstable_settings = {
 };
 
 /**
- * A typed expo-router `Href` for a cold-launch handoff target. The object form
- * (not a raw string) is required because `typedRoutes` is on: a runtime-built
- * string can't narrow to the generated path union, whereas the
- * `{ pathname, params }` shape does — mirroring `app/(scan)/index.tsx`.
- *
- * `approve` is a ROOT `transparentModal` route (`/approve`); `attest` stays in
- * the `(scan)` fullScreenModal group (`/(scan)/attest`).
- */
-type ScanReplayHref =
-  | { pathname: '/approve'; params: Record<string, string> }
-  | { pathname: '/(scan)/attest'; params: Record<string, string> };
-
-/**
- * Map a cold-launch deep link onto its in-app `(scan)` target, or `null` when
- * it is not a scan intent.
- *
- * The sign-in / real-life-attestation handoffs arrive as
- * `oxycommons://approve?...` / `oxycommons://attest?...` (also the `commons://`
- * scheme). `+native-intent` passes these through as `/approve` / `/attest`.
- * `approve` resolves to the root `transparentModal` route; `attest` resolves
- * into the `(scan)` group. We strip any scheme + leading slashes and, when the
- * first path segment is `approve` or `attest`, return the typed href with the
- * query decoded into `params` (expo-router re-encodes them when it builds the
- * URL). Card links (`/card/<did>`, a `(tabs)` route) and anything else yield
- * `null` so they are never force-routed here.
- */
-function scanTargetFromColdLaunch(url: string): ScanReplayHref | null {
-  const stripped = url
-    .trim()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .replace(/^\/+/, '');
-  const [pathPart, query = ''] = stripped.split(/[?#]/);
-  const segment = pathPart.toLowerCase();
-  if (segment !== 'approve' && segment !== 'attest') {
-    return null;
-  }
-
-  const params: Record<string, string> = {};
-  for (const pair of query.split('&')) {
-    if (!pair) continue;
-    const eq = pair.indexOf('=');
-    const rawKey = eq === -1 ? pair : pair.slice(0, eq);
-    const rawValue = eq === -1 ? '' : pair.slice(eq + 1);
-    try {
-      params[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue);
-    } catch (error) {
-      // A malformed percent-sequence in a scanned/tapped payload: keep the raw
-      // bytes for this param rather than dropping the whole intent — the target
-      // (scan) screen validates params and rejects anything unusable.
-      console.warn('[commons] cold-start deep-link param decode failed', error);
-      params[rawKey] = rawValue;
-    }
-  }
-
-  return segment === 'approve'
-    ? { pathname: '/approve', params }
-    : { pathname: '/(scan)/attest', params };
-}
-
-/**
  * What the app was cold-launched to do, from EITHER source that can start
  * Commons with an intent: a system deep link, or a tapped push (issue #691,
  * Phase 4).
@@ -177,7 +118,7 @@ function scanTargetFromColdLaunch(url: string): ScanReplayHref | null {
  * readiness flag always flips.
  */
 interface ColdLaunchIntent {
-  target: ScanReplayHref | null;
+  target: ColdLaunchTarget | null;
   systemNotificationId: string | null;
 }
 
@@ -194,7 +135,7 @@ async function resolveColdLaunchIntent(): Promise<ColdLaunchIntent> {
   const launchData = await takeLaunchNotificationData();
   const systemNotificationId = systemNotificationIdFromPush(launchData);
 
-  const fromDeepLink = url ? scanTargetFromColdLaunch(url) : null;
+  const fromDeepLink = url ? coldLaunchTargetFromUrl(url) : null;
   if (fromDeepLink) {
     return { target: fromDeepLink, systemNotificationId };
   }
@@ -459,7 +400,7 @@ function AppStackContent() {
   // the replay race-free: it fires only once BOTH the launch target has been
   // read AND the gate has settled, guarded by a ref so later renders never
   // re-navigate.
-  const pendingScanTargetRef = useRef<ScanReplayHref | null>(null);
+  const pendingScanTargetRef = useRef<ColdLaunchTarget | null>(null);
   const scanReplayDoneRef = useRef(false);
   const [initialUrlResolved, setInitialUrlResolved] = useState(false);
 
@@ -494,7 +435,14 @@ function AppStackContent() {
     const target = pendingScanTargetRef.current;
     pendingScanTargetRef.current = null;
     if (!needsAuth && target) {
-      router.replace(target);
+      // A card opens ON the ID tab (back returns to it). `navigate`, not `push`:
+      // if the router already resolved the rewritten URL itself, the card is
+      // not opened twice. An approval or attestation replaces the landing screen.
+      if (target.pathname === '/(tabs)/(id)/card/[did]') {
+        router.navigate(target);
+      } else {
+        router.replace(target);
+      }
     }
   }, [initialUrlResolved, splashReady, needsAuth]);
 

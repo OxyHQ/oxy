@@ -1,12 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  type LayoutChangeEvent,
-} from 'react-native';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, type LayoutChangeEvent } from 'react-native';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -221,17 +215,10 @@ export function UsernameStep({
         </Text>
 
         <View className="mt-space-24 mb-space-8">
-          <TextInput
-            style={[
-              styles.usernameInput,
-              {
-                color: textColor,
-                backgroundColor: colors.card,
-                borderColor: validation.error ? colors.error : colors.border,
-              },
-            ]}
+          <TextFieldInput
+            label={t('auth.usernameStep.title')}
+            invalid={Boolean(validation.error)}
             placeholder={t('auth.usernameStep.placeholder')}
-            placeholderTextColor={colors.textSecondary}
             value={username}
             onChangeText={handleTextChange}
             autoCapitalize="none"
@@ -370,12 +357,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  usernameInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
   },
   inputHint: {
     fontSize: 12,

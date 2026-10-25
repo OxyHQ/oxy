@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import {
   RecoveryPhraseService,
@@ -15,6 +15,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
+import { shortenKey } from '@/utils/shorten-key';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -120,7 +121,11 @@ export default function ImportIdentityPhraseScreen() {
       router.replace('/(auth)/import-identity/username');
     } catch (err: unknown) {
       if (err instanceof IdentityMayExistError) {
-        router.replace('/(auth)/recover-identity');
+        // This phone held a DIFFERENT identity, which is still recoverable, and
+        // importing would overwrite it. Say so here, with the key it holds,
+        // instead of silently bouncing back to the recovery screen: the person
+        // can correct the words, or go back and choose Start over.
+        setAuthError(t('recovery.differentIdentity', { key: shortenKey(err.markerPublicKey) }));
         return;
       }
       if (err instanceof IdentityUnavailableError) {
