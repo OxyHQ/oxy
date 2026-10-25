@@ -115,7 +115,7 @@
     "revision": 70,
     "receiptFile": "website-api-runtime-a30d271115fe-20261025.json"
   },
-  "generatedAt": "2026-10-25T13:04:42.833569+00:00",
+  "generatedAt": "2026-10-25T13:07:04.014169+00:00",
   "mention": {
     "sourceSha": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
     "pullRequest": "https://github.com/OxyHQ/Mention/pull/1628",
@@ -232,5 +232,21 @@
     "allTargetsHealthy": true,
     "receiptFile": "mercaria-runtime-6d077057888c-20261025.json",
     "deploymentRun": 40195196170
+  },
+  "syraRuntime": {
+    "sourceSha": "41da86f21471a44bcee898c6ab93a25a8dbec496",
+    "observedAt": "2026-10-25T13:07:04.014169+00:00",
+    "revision": 175,
+    "desired": 2,
+    "running": 2,
+    "sourceImageDigest": "sha256:f7d637de38595ec6ee43e6df62d3fa63b4a52fda2d6a61eee15bc16df68c4d91",
+    "runtimeImageDigest": "sha256:f7d637de38595ec6ee43e6df62d3fa63b4a52fda2d6a61eee15bc16df68c4d91",
+    "runtimeDigestVerified": true,
+    "allTargetsHealthy": true,
+    "oldDeploymentDrained": true,
+    "deploymentRun": 40193313588,
+    "deploymentStepConclusion": "success",
+    "ecrSourceTagMatched": true,
+    "receiptFile": "syra-runtime-41da86f21471-20261025.json"
   }
 }
