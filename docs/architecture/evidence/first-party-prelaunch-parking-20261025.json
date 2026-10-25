@@ -320,7 +320,8 @@
         "sourceImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
         "runtimeImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
         "allTargetsHealthy": true,
-        "oldTasksDrained": true
+        "oldTasksDrained": true,
+        "targetGroupCount": 2
       },
       {
         "name": "oxy-asset-variant-worker",
@@ -331,7 +332,8 @@
         "sourceImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
         "runtimeImageDigest": "sha256:698c2ec9df5accb0de8b795116e11b60e187f1ae3bbc1ec4e9b08fe45eeb1766",
         "allTargetsHealthy": true,
-        "oldTasksDrained": true
+        "oldTasksDrained": true,
+        "targetGroupCount": 0
       }
     ],
     "awsDeployRun": 40228796566,
