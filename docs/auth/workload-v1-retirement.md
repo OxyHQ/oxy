@@ -128,7 +128,17 @@ authorized external test credentials; it cannot reuse Noted's retired own keys.
 
 ## Validation
 
-Rebased without conflicts onto main `df3876fe8` on 2026-10-25, preserving the
+The final documentation/fixture composition was rebased without conflicts onto
+actual main `aba819b17fbf5df181788fef888ead5454966699` after #1993 merged.
+Its Mercaria rollout ledger and committed evidence are preserved unchanged.
+Compared with tested retirement head `cb18`, the only changes are documentation,
+that upstream evidence, the identical cohort fixture's location and its four test
+imports. Core and all production runtime files remain byte-identical. Complete
+Jest discovery and AGENTS/diff checks were repeated; the 49 consumer tests and full
+Core results below remain applicable without duplicating them for a docs-only
+upstream rebase. Final branch CI is still required before any later activation.
+
+The previous composition rebased without conflicts onto main `df3876fe8` on 2026-10-25, preserving the
 upstream streaming file-close fixture from #1990 and the verified rollout ledger
 from #1988/#1989. The changed-composition checks passed: 45 Core tests in six
 suites (including the real HTTP 401 cache regression and streaming close/abort
