@@ -60,7 +60,7 @@ from operator readbacks. It contains no bearer credentials or user data.
 | Syra | `7ee33926b95e26792b7f153de7a45c212a7b4fce` | 173: 2/2; healthy targets |
 | Move | `0f095e3eb40435be1bfb41186962525961e26a09` | 50: 1/1; healthy targets |
 | Nilo | `5ad257adadde9c12018fe2be8cc1aae73105f9e4` | 109: 2/2; healthy targets |
-| Mercaria | `c257573475899a400efa96bc6d4bbfe0cf63bac8` | 142: 2/2; healthy targets |
+| Mercaria | `c257573475899a400efa96bc6d4bbfe0cf63bac8` | 142: 1/1; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running
