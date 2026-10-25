@@ -1527,6 +1527,13 @@
       "when": 1792783240589,
       "tag": "0218_validate_first_party_task_link",
       "breakpoints": true
+    },
+    {
+      "idx": 219,
+      "version": "7",
+      "when": 1792927246585,
+      "tag": "0219_retire_noted_workload_binding",
+      "breakpoints": true
     }
   ]
 }
