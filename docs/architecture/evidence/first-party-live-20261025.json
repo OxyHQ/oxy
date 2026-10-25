@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T11:16:31.185131+00:00",
+  "generatedAt": "2026-10-25T11:52:51.797608+00:00",
   "scope": "Dated deployment and dedicated QA readbacks; not fleet completion, native distribution or existing-user end-to-end acceptance",
   "services": [
     {
@@ -299,6 +299,138 @@
       "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
       "observedAt": "2026-10-25T11:08:00.617649+00:00",
       "receiptFile": "mercaria-runtime-c25757347589-20261025.json"
+    },
+    {
+      "name": "alia",
+      "taskDefinitionRevision": 611,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:ec192fa5cb146fdf3d448bc10f310adec8164e63ec97bd7f82e7db9df8225b71",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "b1b0f9811f2ff028c25d7d4c90fb81bb9ab31822",
+      "observedAt": "2026-10-25T11:31:57.150969+00:00",
+      "receiptFile": "alia-runtime-b1b0f9811f2f-20261025.json"
+    },
+    {
+      "name": "alia-integrations",
+      "taskDefinitionRevision": 191,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:5df794de3d8c9a26d12b49b76006e7fd18954cd5edf6f578d2cf0af9a02fbb10",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "b1b0f9811f2ff028c25d7d4c90fb81bb9ab31822",
+      "observedAt": "2026-10-25T11:30:23.678217+00:00",
+      "receiptFile": "alia-integrations-runtime-b1b0f9811f2f-20261025.json"
+    },
+    {
+      "name": "clarity-api",
+      "taskDefinitionRevision": 159,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:b49afb81bc7cbec82c56eb47d324cf206dcab81d8af7ce5b591e6832df94156f",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "9903515501271a982c2fba40b7a13af4099406c5",
+      "observedAt": "2026-10-25T11:25:58.405254+00:00",
+      "receiptFile": "clarity-api-runtime-990351550127-20261025.json"
+    },
+    {
+      "name": "clarity-worker",
+      "taskDefinitionRevision": 145,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:b49afb81bc7cbec82c56eb47d324cf206dcab81d8af7ce5b591e6832df94156f",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "9903515501271a982c2fba40b7a13af4099406c5",
+      "observedAt": "2026-10-25T11:25:58.415402+00:00",
+      "receiptFile": "clarity-worker-runtime-990351550127-20261025.json"
+    },
+    {
+      "name": "oxy-api",
+      "taskDefinitionRevision": 1077,
+      "desired": 3,
+      "running": 3,
+      "imageDigest": "sha256:b09470ee4b8686d8367278848aad4d06c92dc5d36ee150b2529a52a2a9006e93",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "7f2d10dc800948757155a7a085877a0690b1b4a4",
+      "observedAt": "2026-10-25T11:22:42.521006+00:00",
+      "receiptFile": "oxy-api-runtime-7f2d10dc8009-20261025.json"
+    },
+    {
+      "name": "allo",
+      "taskDefinitionRevision": 181,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:eeb1954935b727c4bc85918bd0f1a969ae7b864d42a037d92c77dd4f173905f1",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "7582c9678a99c70cb718eaacd93c543db0a3f4e9",
+      "observedAt": "2026-10-25T11:18:43.897197+00:00",
+      "receiptFile": "allo-runtime-7582c9678a99-20261025.json"
+    },
+    {
+      "name": "peable",
+      "taskDefinitionRevision": 120,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:fd2acc77aa0833dd4e21fea1499874d51be56be4be83fb0a64e905fa7465054a",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "dea5f1a7f7a08537f839a37e8d3768b9140a72cf",
+      "observedAt": "2026-10-25T11:18:43.830452+00:00",
+      "receiptFile": "peable-runtime-dea5f1a7f7a0-20261025.json"
+    },
+    {
+      "name": "crowdsource",
+      "taskDefinitionRevision": 127,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:edae900865d3a274a42db2ceb58087355a7364cffca7d71755e0aa790c5ea485",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "75b10396787abf6d994682192519d925d4e49e61",
+      "observedAt": "2026-10-25T11:18:43.865444+00:00",
+      "receiptFile": "crowdsource-runtime-75b10396787a-20261025.json"
+    },
+    {
+      "name": "goway",
+      "taskDefinitionRevision": 163,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:fc69ad46091fb1f686423934b8130cad25ea63ebf821f0eb31307fcc3290ec00",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "541158ea968605afcd9a523cf3c1a87fdf633378",
+      "observedAt": "2026-10-25T11:24:45.637166+00:00",
+      "receiptFile": "goway-runtime-541158ea9686-20261025.json"
+    },
+    {
+      "name": "willo",
+      "taskDefinitionRevision": 36,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:9ab3003cf6f2d9a6ca03d31cd5ebb57b874e9e25945daca2b635b7c077a1c38a",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "42a8f738e0b84324eaa2a99af41b58317fc2460e",
+      "observedAt": "2026-10-25T11:18:43.832100+00:00",
+      "receiptFile": "willo-runtime-42a8f738e0b8-20261025.json"
+    },
+    {
+      "name": "moovo",
+      "taskDefinitionRevision": 60,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:90d9cc16868170ce944c23887f14419270f78fca1cff1dc3baa1e6bc048e3286",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "999b1d1341c854f1032a1e54ecf7527148554c00",
+      "observedAt": "2026-10-25T11:26:00.750514+00:00",
+      "receiptFile": "moovo-runtime-999b1d1341c8-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -496,5 +628,67 @@
     "observedAt": "2026-10-25T11:10:10.567Z",
     "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
     "receiptFile": "mercaria-canary-20261025.json"
+  },
+  "clarityProducerCanary": {
+    "success": true,
+    "checks": [
+      "exact-clarity-scope-free-workload",
+      "published-sdk-canonical-recipient-catalogue"
+    ],
+    "writes": 0,
+    "observedAt": "2026-10-25T11:26:47.532Z",
+    "receiptFile": "clarity-producer-canary-20261025.json",
+    "receiverSource": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
+    "callerSource": "9903515501271a982c2fba40b7a13af4099406c5",
+    "scope": "Live source workload and published SDK/catalogue boundary; zero writes, no private-user operation"
+  },
+  "inboxEventCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-refused",
+      "scope-free-oxy-inbox-identity-and-live-catalogue-ownership",
+      "wrong-recipient-refused"
+    ],
+    "writes": 0,
+    "observedAt": "2026-10-25T11:23:23.219Z",
+    "receiptFile": "inbox-event-canary-20261025.json",
+    "receiverSource": "029702fbd3703bb85d1dd258324b2d058063f293",
+    "scope": "Live source workload and published SDK/catalogue boundary; zero writes, no private-user operation"
+  },
+  "notedWorkloadRetirement": {
+    "sourceSha": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
+    "pr": 1987,
+    "observedAt": "2026-10-25T11:47:07.102Z",
+    "receiptFile": "noted-retirement-postapply-20261025/readback.json",
+    "readOnlyVerification": true,
+    "migration": "0219_retire_noted_workload_binding.sql",
+    "migrationSha256": "72a274e859055594fa5bb2cbfed3e277c26e01d4695a92e77ef036ef51031291",
+    "ledgerHashMatched": true,
+    "retiredBindingId": "01a12a46-0ab6-721d-86a0-c63669a4e9b6",
+    "expiresAt": "2026-10-25T00:00:00.000Z",
+    "publicClientPreserved": {
+      "id": "6a37b3e71ddfd195b65681d8",
+      "applicationId": "6a37b3e71ddfd195b65681d2",
+      "type": "public",
+      "status": "active"
+    },
+    "niloBindingPreserved": {
+      "id": "01a0bd08-1bf1-717c-a00e-7d0573de537c",
+      "applicationId": "ed143b1b58d60eab417f7d5c",
+      "environment": "production",
+      "expiresAt": null
+    },
+    "applicationsRemainActive": true,
+    "globalV1Retired": false
+  },
+  "remainingAcceptance": {
+    "schedio": "Public DNS smoke failed; runtime rolled back to revision17; domain decision pending",
+    "cookies": "User decision on the storefront instruction conflict pending; no authorization policy change recorded",
+    "website": "Consumer PR206 remains in queue/deployment acceptance; no live receipt in this checkpoint",
+    "sockets": "Peable172 and Moovo177 source/CI plus remaining product socket follow-ups require rollout verification",
+    "syra": "Follow-up SDK publication and consumer adoption pending",
+    "aliaCleanup": "Docs399 merged39eaf793; operational secret cleanup has not been executed",
+    "native": "No physical device sign-in or desktop/store distribution established",
+    "v1RetirementAllowed": false
   }
 }
