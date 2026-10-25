@@ -8,8 +8,10 @@
  * const inference = createInferenceClient(oxy); // the session's bearer
  * ```
  *
- * A server holding an Oxy API key builds `new OxyInferenceClient({ credential })`
- * directly — one surface, two credential lanes. See `docs/inference/sdk.md`.
+ * External API consumers can build `new OxyInferenceClient({ credential })` with
+ * their machine key. Own backends use workload identity through OxyServer's
+ * createServiceClient (or the product SDK factory), without app scopes or a
+ * static API key. See `docs/inference/sdk.md` for the distinct lanes.
  */
 import type { OxyServices } from '../OxyServices';
 import { OxyInferenceClient, type OxyInferenceClientOptions } from './OxyInferenceClient';

@@ -1394,8 +1394,9 @@ export function createInferenceEdgeRouter(options: InferenceEdgeRouterOptions = 
    * `GET /v1/generations/:id` — the usage and cost receipt.
    *
    * `:id` is the `requestId` from `X-Oxy-Request-Id`, or the `generationId`.
-   * A caller without `inference:usage:read`, or one whose application did not
-   * make the request, is told the receipt does not exist — the entitlement
+   * An external caller without `inference:usage:read`, or any caller outside
+   * the original receipt authority, is told it does not exist. Own workloads
+   * do not request app scopes; receipt ownership still applies. The entitlement
    * answer and the existence answer are deliberately the same, so this endpoint
    * cannot be used to probe another application's spend.
    *
