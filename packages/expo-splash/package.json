@@ -38,8 +38,10 @@
     "plugin",
     "config",
     "assets",
-    "app.plugin.js"
+    "app.plugin.js",
+    "!dist/.oxy-source-digest"
   ],
+  "oxySourceStamp": "dist",
   "keywords": [
     "oxyhq",
     "expo",
@@ -60,7 +62,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "bun run build:cjs && bun run build:esm && bun run build:types && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",

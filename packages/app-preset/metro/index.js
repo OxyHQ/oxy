@@ -49,6 +49,8 @@ const path = require('node:path');
 const { resolveOxyBuildId } = require('../build-id');
 const { requireFromProject } = require('../plugin/requireFromProject');
 const { withStaticHydrationBoundary } = require('./static-hydration/resolver');
+const { withLinkedNativePackagesOnly } = require('./linked-native-packages');
+const { withFreshWorkspaceBuilds } = require('./fresh-workspace-builds');
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -391,6 +393,16 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
   if (staticHydrationBoundary) config = withStaticHydrationBoundary(config, projectRoot);
   if (workletsBundleMode) config = withWorkletsBundleMode(config, projectRoot);
+  // Sees every resolution but the complete-react-native module's own two
+  // imports: an optional probe for a native package autolinking does not link
+  // is answered "not found" (see the module header for the launch crash).
+  config = withLinkedNativePackagesOnly(config, projectRoot);
+  // A production bundle never ships a workspace package's build output that is
+  // older than its sources (the same launch crash, second cause).
+  config = withFreshWorkspaceBuilds(
+    config,
+    options.workspaceRoot ? path.resolve(options.workspaceRoot) : findWorkspaceRoot(projectRoot),
+  );
   // Outermost, so it sees the final resolution and its own module's imports
   // reach no redirect beneath it.
   return withCompleteReactNative(config, projectRoot);
@@ -401,4 +413,6 @@ module.exports = {
   findWorkspaceRoot,
   withBloomSingleInstance,
   withCompleteReactNative,
+  withLinkedNativePackagesOnly,
+  withFreshWorkspaceBuilds,
 };

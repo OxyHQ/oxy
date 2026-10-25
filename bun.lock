@@ -227,7 +227,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "dependencies": {
         "parse5": "catalog:",
       },
