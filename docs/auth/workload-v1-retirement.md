@@ -67,9 +67,12 @@ The [migration ledger](../architecture/first-party-integration-migration.md)
 records the verified product receiver/producer deployments, Inbox rollout,
 Noted's exact retired workload binding and completed Alia/commerce secret cleanup.
 Those completed operations must not be repeated by this draft. In particular,
-Mercaria API revision 145 runs source
-`6d077057888cadf68dcb9e6d27eab128a087b73c`; its frontend, dashboard and POS
-deployments also succeeded. Website API revision 70 and its frontend run
+Mercaria's cookie-free transition is now deployed and verified: API revision 146
+runs source `714f3ec411b9abcaaa465278ad42a4fb75823a2b` from #1159, with
+matching image digest, healthy targets and the previous revision drained. Its
+storefront, dashboard and POS each completed an actual deployment of that source
+(API workflow 40213492751; storefront 40213492875; dashboard 40213492844;
+POS 40213492781). Website API revision 70 and its frontend run
 `a30d271115fe9afb95e038e46d84e1ba51adff12`. Neither replaces account-specific
 acceptance tests or establishes whole-fleet readiness.
 
@@ -79,13 +82,26 @@ authorized continuing the migration; that authorization does not make the
 undeployed producer ready. Keep v1 retirement on hold until Schedio's actual
 new runtime, scheduled publisher and recipient canary are verified.
 
-The user also approved Mercaria's cookie-free commerce migration while
-preserving carts. That implementation and browser acceptance are in progress,
-not an undecided user preference. The read-only production census at
-`2026-10-25T15:00:46.286Z` found zero guest sessions, zero portal grants and
-three Oxy-owned carts; it did not establish absence of stateless referral
-cookies. The bounded referral-only transition remains separate from workload
-v1 retirement. No release, rollout or drain completion is asserted here.
+Mercaria's public HTTP/Chromium acceptance passed at
+`2026-10-25T16:58:19.383Z`: ordinary requests omit cookies, old cookie-only clients
+fail safely, invalid Authorization does not downgrade, and only the finite
+referral migration paths permit credentialed CORS. This is public transport
+acceptance, not native or real-account acceptance. The final preflight preserved
+the zero guest-session/portal-grant/durable guest-checkout population and three
+Oxy-owned carts; stateless historical referral evidence retains its bounded
+transition. Post-deployment flags remain absent/default-false, with no flag secret
+references. Preserve the consolidated receipt
+`/home/nate/Oxy/.scratch/first-party-root/mercaria-cookie-free-rollout-20261025.json`
+and its linked runtime, preflight, diagnostic-cleanup and public-acceptance
+receipts. Mercaria is no longer a pending migration prerequisite. Its finite
+referral bridge is separate from workload v1 and must not be removed by this PR.
+
+The remaining activation gates are Schedio's DNS/ACM and verified producer rollout,
+a fresh complete runtime/binding/launcher inventory and live authorization checks,
+the full deployed old-token lifetime drain (currently at least 300 seconds after
+the last possible old producer stops), and CI/artifact compatibility for the final
+Core minor release. Global v1 retirement remains on hold; no global drain or
+activation is claimed here.
 
 ## Operator scripts
 
@@ -122,6 +138,13 @@ produced no diff. The Core production files and package manifest are byte-identi
 to the prior retirement checkpoint, so its public API audit remains applicable;
 there is no version bump or publication. Evidence is in
 `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-rebase-df387/`.
+
+Root repeated the full Core suite on retirement head
+`cb18f9ccb5c5f9072065a707613824db20ee7404`: **227 suites / 2,754 tests passed**
+in 40.055 seconds. The log is
+`/home/nate/Oxy/.scratch/first-party-root/retirement-cb18-full-core.log`.
+The Mercaria completion update changes documentation only; it does not invalidate
+those byte-identical Core results or repeat deployment operations.
 
 The previous checkpoint on main `0a312b9b1` (including the Inbox producer in
 #1985 and the Noted binding retirement in #1987) passed the following local
