@@ -1,0 +1,178 @@
+{
+  "generatedAt": "2026-10-25T09:34:14.467713+00:00",
+  "scope": "Deployment readback; not fleet completion or authenticated human end-to-end acceptance",
+  "services": [
+    {
+      "name": "tnp-api",
+      "taskDefinitionRevision": 29,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:a033f34798cbff55683d516dedfd0c6545433e9b9de208772bed5f3c7ed632a9",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "be3303312ea4068c18a654c4358dc4362478c026",
+      "observedAt": "2026-10-25T09:02:35.414369+00:00",
+      "receiptFile": "tnp-runtime-20261025.json"
+    },
+    {
+      "name": "tnp-dns",
+      "taskDefinitionRevision": 23,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:0aa2632a7c99cdedc57bd532b1fe0a1454cb4ba5aa0743ae599806c472369b0c",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "be3303312ea4068c18a654c4358dc4362478c026",
+      "observedAt": "2026-10-25T09:02:35.414369+00:00",
+      "receiptFile": "tnp-runtime-20261025.json"
+    },
+    {
+      "name": "tnp-relay",
+      "taskDefinitionRevision": 15,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:6a24f143292c5f5c18dad4bb55f39414e12734a8743b7071751ba785e416f245",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "be3303312ea4068c18a654c4358dc4362478c026",
+      "observedAt": "2026-10-25T09:02:35.414369+00:00",
+      "receiptFile": "tnp-runtime-20261025.json"
+    },
+    {
+      "name": "goway",
+      "taskDefinitionRevision": 162,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:fd5a98be6d4a27aaec063c9c717ffe488be7424a177151ef818b928c4b08d8ff",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "28f8246f890eadb81c9e0d94e0a746d6fe3748e9",
+      "observedAt": "2026-10-25T09:02:57.182537+00:00",
+      "receiptFile": "goway-runtime-20261025.json"
+    },
+    {
+      "name": "crowdsource",
+      "taskDefinitionRevision": 126,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:8b69045968055fae9c4a4caf99ceefa44298976fd162381bb24c239550ac43d5",
+      "allTargetsHealthy": true,
+      "sourceSha": "0388a37eec7e599d9ea40c81ee782903bfcf7c28",
+      "observedAt": "2026-10-25T08:54:09.616037+00:00",
+      "receiptFile": "crowdsource-runtime-20261025.json"
+    },
+    {
+      "name": "peable",
+      "taskDefinitionRevision": 118,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:4034765cb658a0a3c48161405fedabfc2793e05b20a57227515f45141e9fb54a",
+      "allTargetsHealthy": true,
+      "sourceSha": "7c146a945ed2df088bca75833ce9f2b631140cd7",
+      "observedAt": "2026-10-25T08:36:07.253859+00:00",
+      "receiptFile": "peable-runtime-20261025.json"
+    },
+    {
+      "name": "kaana",
+      "taskDefinitionRevision": 150,
+      "desired": 2,
+      "running": 2,
+      "imageDigest": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
+      "runtimeDigestVerified": true,
+      "sourceSha": "de3db4741ff648d9de8d28d124634a9b7553652e",
+      "observedAt": "2026-10-25T08:32:45.381140+00:00",
+      "receiptFile": "kaana-producer-runtime-20261025.json"
+    },
+    {
+      "name": "kaana-publisher",
+      "taskDefinitionRevision": 151,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
+      "runtimeDigestVerified": true,
+      "sourceSha": "de3db4741ff648d9de8d28d124634a9b7553652e",
+      "observedAt": "2026-10-25T08:32:45.381140+00:00",
+      "receiptFile": "kaana-producer-runtime-20261025.json"
+    },
+    {
+      "name": "moovo",
+      "taskDefinitionRevision": 59,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:549c61bf8a5c93662971cd5cae6a3f11e904436af73c2480587a512fa70de89d",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "641bd5a2b6f974964c613362e393b42920d274a1",
+      "observedAt": "2026-10-25T09:31:16.529513+00:00",
+      "receiptFile": "moovo-runtime-20261025.json"
+    }
+  ],
+  "oxyFollowup": {
+    "pr": 1951,
+    "source": "f02b43785ed43ed169a6d0fe0971f7cb8d57965a",
+    "release": 40068112127,
+    "apiDeploy": 40068112086,
+    "frontendDeploy": 40068112085,
+    "coreReleased": "7.1.0"
+  },
+  "clarityReconciliation": {
+    "source": "dacfd59f33627952d9540bd00a15acd1a328aaf8",
+    "reconciled": 512538,
+    "remainingOwn": 0,
+    "revokedExternalPreserved": 6847,
+    "pendingExternalNotReleased": 38
+  },
+  "nativePublicRegistry": {
+    "observedAt": "2026-10-25T08:49:17.689Z",
+    "clients": [
+      {
+        "name": "Authenticator by Oxy",
+        "id": "01a1723b-3cfa-71c6-8506-61a1832ad058",
+        "status": "active",
+        "redirect_uris": [
+          "oxyauthenticator://"
+        ],
+        "scopes": [],
+        "client_type": "public",
+        "client_status": "active",
+        "environment": "production",
+        "credential_scopes": [],
+        "has_secret": false,
+        "workloads": "0"
+      },
+      {
+        "name": "OxyOS",
+        "id": "01a1723e-f6d5-764b-b811-b09a4fa72a6d",
+        "status": "active",
+        "redirect_uris": [
+          "tauri://localhost"
+        ],
+        "scopes": [],
+        "client_type": "public",
+        "client_status": "active",
+        "environment": "production",
+        "credential_scopes": [],
+        "has_secret": false,
+        "workloads": "0"
+      }
+    ]
+  },
+  "consoleSignInSmoke": {
+    "observedAt": "2026-10-25T09:24:48.294Z",
+    "url": "https://console.oxy.so/",
+    "dialog": "Sign in\nUse your Oxy account\nEmail or username\nDon't have an account? Create account\nContinue\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nScan with Commons to sign in",
+    "errors": [],
+    "cookieCount": 0,
+    "permissionPrompt": false,
+    "pages": [
+      "https://console.oxy.so/"
+    ],
+    "authenticatedSignInPerformed": false
+  },
+  "notedFrontendDeploy": {
+    "conclusion": "success",
+    "headSha": "b7c6c204fa349aa217575ca1e45dab36df785562",
+    "updatedAt": "2026-10-25T09:30:19Z",
+    "url": "https://github.com/OxyHQ/Noted/actions/runs/40180765059"
+  }
+}
