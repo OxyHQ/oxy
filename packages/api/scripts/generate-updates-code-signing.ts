@@ -93,12 +93,18 @@ async function main(): Promise<void> {
 
   await fs.mkdir(path.dirname(keyOutputPath), { recursive: true, mode: 0o700 });
   // `wx`: fail if it appeared since the check above; 0600 from creation, never chmod'ed later.
-  await fs.writeFile(keyOutputPath, privateKeyBase64, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  await fs.writeFile(keyOutputPath, privateKeyBase64, {
+    encoding: 'utf8',
+    mode: 0o600,
+    flag: 'wx',
+  });
   await fs.writeFile(certOutputPath, certificatePEM, { encoding: 'utf8' });
 
   process.stdout.write('Oxy Updates code-signing keypair generated.\n');
   process.stdout.write(`  public certificate: ${certOutputPath} (commit it)\n`);
-  process.stdout.write(`  private key (base64 PEM, mode 0600): ${keyOutputPath} (never commit it)\n`);
+  process.stdout.write(
+    `  private key (base64 PEM, mode 0600): ${keyOutputPath} (never commit it)\n`,
+  );
   process.stdout.write(
     'Next: aws ssm put-parameter --type SecureString --name ' +
       `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY --value file://${keyOutputPath}\n`,

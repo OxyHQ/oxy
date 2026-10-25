@@ -131,7 +131,10 @@ module.exports = function withOxyUpdates(config, options = {}) {
     const certificate = fs.existsSync(certificatePath)
       ? fs.readFileSync(certificatePath, 'utf8')
       : null;
-    if (certificate !== null && !/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(certificate)) {
+    if (
+      certificate !== null &&
+      !/-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(certificate)
+    ) {
       // Never wire a file expo-updates cannot parse: the binary would fail every
       // update check, or worse, a later native change could treat it as absent.
       throw new Error(

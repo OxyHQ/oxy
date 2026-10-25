@@ -39,7 +39,11 @@ import {
   updateChannels,
 } from '../../db/schema';
 import { updateAssetCdnUrl, sha256HexToBase64Url } from './assetKeys';
-import { CodeSigningNotConfiguredError, isCodeSigningConfigured, signPartBytes } from './signing.service';
+import {
+  CodeSigningNotConfiguredError,
+  isCodeSigningConfigured,
+  signPartBytes,
+} from './signing.service';
 
 /** Parsed, validated inputs for a manifest resolution. */
 export interface ManifestRequest {
@@ -390,13 +394,10 @@ export async function buildManifestResponse(input: ManifestRequest): Promise<Man
   }
 
   if (decision.kind === 'rollBackToEmbedded') {
-    return jsonPartResponse(
-      'directive',
-      {
-        type: 'rollBackToEmbedded',
-        parameters: { commitTime: decision.commitTime.toISOString() },
-      },
-    );
+    return jsonPartResponse('directive', {
+      type: 'rollBackToEmbedded',
+      parameters: { commitTime: decision.commitTime.toISOString() },
+    });
   }
 
   return jsonPartResponse('directive', { type: 'noUpdateAvailable' });
