@@ -51,6 +51,9 @@ from operator readbacks. It contains no bearer credentials or user data.
 | GoWay | `28f8246f890eadb81c9e0d94e0a746d6fe3748e9` | 162: 1/1; healthy targets |
 | Moovo | `641bd5a2b6f974964c613362e393b42920d274a1` | 59: 1/1; healthy targets |
 | TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
+| Alia stage A API / integrations | `850b2f96177a1ef07ed635bf1d88307919eec300` | 606: 2/2; 186: 1/1; healthy targets / integration task |
+| Homiio API / worker | `c672a3321ee9c874329bd1308681e3988eb5c033` | 274: 2/2; 277: 1/1; old tasks drained |
+| Willo | `b8b221aa2dd786a301ebb9183ac59d1e74da32c6` | 35: 1/1; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running
@@ -82,16 +85,26 @@ Authenticator and OxyOS are now registered active **public** clients in
 production, with empty application/client scopes, no secret and zero workload
 bindings. Bounded provisioning and repeat idempotence checks passed. Their
 redirects are `oxyauthenticator://` and `tauri://localhost`, respectively.
-Registration is not proof of native binary adoption or a completed device sign-in.
+Authenticator [PR #65](https://github.com/OxyHQ/Authenticator/pull/65) merged
+as `c7142727142e237639c142281c4cfe2a2663fae0` after CI, adopting the registered
+public client and published shared packages. Registration and a merged app
+build are not proof of native distribution or a completed device sign-in.
 
 At `2026-10-25T09:24:48.294Z`, the production Console displayed its ordinary
 email/username sign-in dialog without scopes/permission text, with zero cookies
 and no page errors. No personal account was signed in; this is a public-dialog
 smoke, not authenticated Console settings or end-to-end sign-in acceptance.
 
-Alia still requires mixed-version readers before producer cutover and secret
-removal. Homiio must precede the new Allo producer; Mercaria must precede the
-new Clarity producer; Mention must precede Move/Schedio. The finite v1 bridge
+Alia's stage A is live and its server SDK 1.2.0 is published. This does **not**
+unlock Nilo's capability-event producer: the stage-A event receiver still
+forwards the Alia-audience bearer to Oxy and requires the legacy
+`capability-events:publish` scope. Nilo [PR #147](https://github.com/OxyHQ/Nilo/pull/147)
+remains held until the stage-B event receiver is live and verified. Alia's own
+agent authority, producer cutover and secret removal remain separate gates.
+
+Both Homiio API and worker now satisfy Allo's receiver deployment prerequisite;
+this receipt does not claim Allo has deployed. Mercaria must precede the new
+Clarity producer; Mention must precede Move/Schedio. The finite v1 bridge
 and credential cleanup remain gated on all inventoried consumers and live
 canaries. These readbacks do **not** mark the fleet migration complete.
 
