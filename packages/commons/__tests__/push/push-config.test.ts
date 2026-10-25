@@ -48,10 +48,12 @@ describe('resolvePushConfig', () => {
 
   it('warns, and configures nothing, when neither is provided (a development build)', () => {
     const warn = jest.fn();
-    expect(resolvePushConfig({ env: {}, projectRoot: root(), packageName: PACKAGE, warn })).toEqual({
-      easProjectId: undefined,
-      googleServicesFile: undefined,
-    });
+    expect(resolvePushConfig({ env: {}, projectRoot: root(), packageName: PACKAGE, warn })).toEqual(
+      {
+        easProjectId: undefined,
+        googleServicesFile: undefined,
+      },
+    );
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/push is NOT configured/));
   });
 
@@ -94,7 +96,11 @@ describe('resolvePushConfig', () => {
 
   it('app.config.js never ships a placeholder project id', () => {
     const appConfig = require('../../app.config.js') as {
-      expo: { extra: { eas: { projectId?: string } }; version: string; android: { versionCode: number } };
+      expo: {
+        extra: { eas: { projectId?: string } };
+        version: string;
+        android: { versionCode: number };
+      };
     };
     const id = appConfig.expo.extra.eas.projectId;
     expect(id === undefined || /^[0-9a-f-]{36}$/i.test(id)).toBe(true);
