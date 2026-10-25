@@ -139,6 +139,21 @@ try {
     nodeInstall?.includes('--production') && nodeInstall.includes('--frozen-lockfile'),
     'The data-node production graph must be frozen and scoped',
   );
+  const nodeBuilder = join(temporary, 'node-builder');
+  const nodeBuilderInstall = nodeDockerfile
+    .split(/FROM [^\n]+ AS builder\n/)[1]
+    ?.split('\nFROM ')[0]
+    .match(/^RUN bun (install[^\n]*?)(?:\s*\\)?$/m)?.[1]
+    ?.trim()
+    .split(/\s+/);
+  assert.ok(nodeBuilderInstall?.includes('--frozen-lockfile'));
+  prepareWorkspaceManifests(root, nodeBuilder);
+  execFileSync('bun', [...nodeBuilderInstall, '--ignore-scripts'], {
+    cwd: nodeBuilder,
+    stdio: 'inherit',
+    timeout: 600_000,
+  });
+  buildRuntimeValidators(root, nodeBuilder, ['zod4']);
   const nodeFixture = join(temporary, 'node-runtime');
   prepareWorkspaceManifests(root, nodeFixture);
   execFileSync('bun', [...nodeInstall, '--ignore-scripts'], {
@@ -146,8 +161,8 @@ try {
     stdio: 'inherit',
     timeout: 600_000,
   });
-  stageRuntimeValidators(builder, nodeFixture);
-  verifyRuntimeValidators(nodeFixture);
+  stageRuntimeValidators(nodeBuilder, nodeFixture, ['zod4']);
+  verifyRuntimeValidators(nodeFixture, ['zod4']);
   console.log(
     'Forge absent; sealed native API/CLI production bytes and installed Expo compatibility verified.',
   );

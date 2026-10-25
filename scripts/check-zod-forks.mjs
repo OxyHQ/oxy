@@ -304,11 +304,18 @@ export function installedZodCopies(nodeModulesRoots, workspaceRoots = []) {
     visitModules(join(path, 'node_modules'));
   }
   for (const root of nodeModulesRoots) visitModules(root);
-  for (const root of workspaceRoots) visitPackage(root);
+  // Full-manifest Docker installs retain unselected workspace manifests. They
+  // are not parser artifacts; any source/build file or dependency link makes
+  // the workspace part of the physical census. Linked packages above are
+  // always checked, including broken manifest-only targets.
+  for (const root of workspaceRoots)
+    if (existsSync(root) && readdirSync(root).some((entry) => entry !== 'package.json'))
+      visitPackage(root);
   return [...copies].sort();
 }
 
-export function verifyInstallation(root) {
+export function verifyInstallation(root, requiredForks = Object.keys(FORKS)) {
+  assert.ok(requiredForks.length > 0 && requiredForks.every((name) => Object.hasOwn(FORKS, name)));
   const roots = [join(root, 'node_modules')];
   const workspaces = [];
   for (const group of ['packages', 'apps', 'workers']) {
@@ -322,8 +329,7 @@ export function verifyInstallation(root) {
   const copies = installedZodCopies(roots, workspaces);
   assert.ok(copies.length > 0, 'No installed Zod inventory; run the frozen install first');
   const names = new Set(copies.map((path) => metadata(path).name));
-  for (const name of Object.keys(FORKS))
-    assert.ok(names.has(name), `Missing installed fork ${name}`);
+  for (const name of requiredForks) assert.ok(names.has(name), `Missing installed fork ${name}`);
   return copies.map((path) => ({ path, results: verifyPackage(path) }));
 }
 
@@ -335,6 +341,17 @@ async function main() {
     console.log(JSON.stringify(await probePackage(resolve(args[1]), args[2], args[3] === 'true')));
   } else if (args[0] === '--package' && args.length === 2) {
     console.log(JSON.stringify(verifyPackage(resolve(args[1])), null, 2));
+  } else if (args[0] === '--installation' && args.length > 1) {
+    console.log(
+      JSON.stringify(
+        verifyInstallation(
+          resolve(dirname(script), '..'),
+          args.slice(1).map((name) => `@oxy.so/${name}`),
+        ),
+        null,
+        2,
+      ),
+    );
   } else {
     assert.equal(args.length, 0, 'Usage: node scripts/check-zod-forks.mjs [--package directory]');
     const root = resolve(dirname(script), '..');

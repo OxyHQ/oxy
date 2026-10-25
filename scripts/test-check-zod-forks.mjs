@@ -76,6 +76,24 @@ test('inventory checks staged workspaces even when no consumer creates a depende
   );
 });
 
+test('manifest-only unused workspaces are not installed parsers, but linked targets remain checked', () => {
+  const root = fixture();
+  const unused = pkg(join(root, 'packages', 'zod3'), '@oxy.so/zod3', '3.25.77');
+  assert.deepEqual(installedZodCopies([], [unused]), []);
+  mkdirSync(join(root, 'node_modules'));
+  symlinkSync(unused, join(root, 'node_modules', 'zod'));
+  assert.deepEqual(installedZodCopies([join(root, 'node_modules')], [unused]), [unused]);
+  assert.throws(() => verifyPackage(unused), /ENOENT/);
+});
+
+test('unlinked source or build artifacts cannot escape the workspace census', () => {
+  const root = fixture();
+  const unlinked = pkg(join(root, 'packages', 'zod3'), 'zod', '3.25.76');
+  writeFileSync(join(unlinked, 'index.cjs'), 'module.exports = {}');
+  assert.deepEqual(installedZodCopies([], [unlinked]), [unlinked]);
+  assert.throws(() => verifyInstallation(root, ['@oxy.so/zod3']), /Missing installed fork/);
+});
+
 test('stock Zod4 is rejected despite its package-level patched version', () => {
   const stock = pkg(fixture(), 'zod', '4.6.7');
   assert.throws(() => verifyPackage(stock), /Unreviewed Zod distribution/);

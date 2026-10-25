@@ -35,13 +35,13 @@ export function prepareWorkspaceManifests(root, destination) {
   }
 }
 
-export function buildRuntimeValidators(root, builder) {
+export function buildRuntimeValidators(root, builder, names = ['zod3', 'zod4']) {
   // Check the actual filtered install, not an ancestor development dependency.
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   mkdirSync(join(builder, 'scripts'), { recursive: true });
   for (const name of ['build-zod-fork.mjs', 'check-zod-forks.mjs', 'prepare-api-workspaces.mjs'])
     copyFileSync(join(root, 'scripts', name), join(builder, 'scripts', name));
-  for (const name of ['zod3', 'zod4']) {
+  for (const name of names) {
     const directory = join(builder, 'packages', name);
     const load = createRequire(join(directory, 'package.json'));
     const compiler = load.resolve('zshy');
@@ -62,10 +62,10 @@ export function buildRuntimeValidators(root, builder) {
   }
 }
 
-export function stageRuntimeValidators(builder, runtime) {
+export function stageRuntimeValidators(builder, runtime, names = ['zod3', 'zod4']) {
   execFileSync(
     process.execPath,
-    ['scripts/prepare-api-workspaces.mjs', join(runtime, 'packages')],
+    ['scripts/prepare-api-workspaces.mjs', join(runtime, 'packages'), ...names],
     {
       cwd: builder,
       stdio: 'inherit',
@@ -79,7 +79,7 @@ export function stageRuntimeValidators(builder, runtime) {
   );
 }
 
-export function verifyRuntimeValidators(runtime) {
+export function verifyRuntimeValidators(runtime, names = ['zod3', 'zod4']) {
   const load = createRequire(join(runtime, 'package.json'));
   assert.throws(
     () => load.resolve('zshy'),
@@ -87,7 +87,7 @@ export function verifyRuntimeValidators(runtime) {
     'The production graph must not contain the validator compiler',
   );
   // Exercise the exact final-image command on Bun, including source exports.
-  execFileSync('bun', ['scripts/check-zod-forks.mjs'], {
+  execFileSync('bun', ['scripts/check-zod-forks.mjs', '--installation', ...names], {
     cwd: runtime,
     stdio: 'inherit',
     timeout: 300_000,

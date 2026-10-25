@@ -110,6 +110,32 @@ test('old declared version cannot accept newly installed CLI bytes', () =>
     assert.throws(() => inspectImage(root, expected), /strictly equal/);
   }));
 
+function assertNativeArchiveStages(contents, required) {
+  const stages = contents.split(/^FROM /m).slice(1);
+  const manifests = stages.find((stage) =>
+    stage.split('\n')[0].endsWith(' AS workspace-manifests'),
+  );
+  assert.ok(manifests, 'Shared workspace manifest stage is required');
+  const copies = manifests
+    .split('\n')
+    .filter((line) => line.startsWith('COPY vendor/expo-native/'));
+  for (const archive of required)
+    assert.ok(
+      copies.some((copy) => copy.split(/\s+/).includes(archive)),
+      `Manifest stage omits ${archive}`,
+    );
+  const installers = stages.filter((stage) => /^RUN bun install /m.test(stage));
+  assert.equal(installers.length, 2, 'Check both builder and production dependency installs');
+  for (const stage of installers) {
+    const installOffset = stage.indexOf('RUN bun install ');
+    assert.match(
+      stage.slice(0, installOffset),
+      /^COPY --from=workspace-manifests \/app\/ \.\/$/m,
+      'Every install must receive the full manifest stage before resolving file dependencies',
+    );
+  }
+}
+
 test('each file-install Docker stage receives both declared native archives', () => {
   const root = path.resolve(import.meta.dirname, '..');
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -118,12 +144,25 @@ test('each file-install Docker stage receives both declared native archives', ()
   );
   for (const file of ['Dockerfile', 'packages/node/Dockerfile']) {
     const contents = fs.readFileSync(path.join(root, file), 'utf8');
-    const copies = contents
-      .split('\n')
-      .filter((line) => line.startsWith('COPY vendor/expo-native/'));
-    assert.equal(copies.length, file === 'Dockerfile' ? 1 : 2);
-    for (const copy of copies)
-      for (const archive of required)
-        assert(copy.split(/\s+/).includes(archive), `${file} omits ${archive}`);
+    assertNativeArchiveStages(contents, required);
+    for (const archive of required)
+      assert.throws(
+        () => assertNativeArchiveStages(contents.replace(archive, ''), required),
+        /omits/,
+      );
+    const inherited = 'COPY --from=workspace-manifests /app/ ./';
+    assert.throws(
+      () => assertNativeArchiveStages(contents.replace(inherited, ''), required),
+      /Every install/,
+    );
+    const lastCopy = contents.lastIndexOf(inherited);
+    assert.throws(
+      () =>
+        assertNativeArchiveStages(
+          contents.slice(0, lastCopy) + contents.slice(lastCopy + inherited.length),
+          required,
+        ),
+      /Every install/,
+    );
   }
 });

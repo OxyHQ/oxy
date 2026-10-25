@@ -7,10 +7,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPackage } from './check-zod-forks.mjs';
 
-export function prepareRuntimeValidators(root, destination) {
+export function prepareRuntimeValidators(root, destination, names = ['zod3', 'zod4']) {
+  assert.ok(names.length > 0 && names.every((name) => ['zod3', 'zod4'].includes(name)));
   const temporary = mkdtempSync(join(tmpdir(), 'oxy-runtime-validators-'));
   try {
-    for (const name of ['zod3', 'zod4']) {
+    for (const name of names) {
       const archive = join(temporary, `${name}.tgz`);
       // Packing uses the package's actual publish file list. It excludes local
       // compiler dependencies and stale non-published build directories.
@@ -41,13 +42,13 @@ export function prepareRuntimeValidators(root, destination) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  assert.equal(
-    process.argv.length,
-    3,
-    'Usage: node scripts/prepare-api-workspaces.mjs destination',
+  assert.ok(
+    process.argv[2],
+    'Usage: node scripts/prepare-api-workspaces.mjs destination [zod3 zod4]',
   );
   prepareRuntimeValidators(
     resolve(dirname(fileURLToPath(import.meta.url)), '..'),
     resolve(process.argv[2]),
+    process.argv.length > 3 ? process.argv.slice(3) : undefined,
   );
 }

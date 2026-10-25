@@ -54,7 +54,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 # Preserve the complete lock graph while materializing only this server and
-# both maintained validator generations checked in its runtime image.
+# its maintained Zod4 validator, including the embedded v3 compatibility export.
 COPY --from=workspace-manifests /app/ ./
 RUN bun install --frozen-lockfile --filter @oxy.so/node --filter @oxy.so/zod4
 
@@ -64,12 +64,10 @@ COPY packages/telemetry/ packages/telemetry/
 COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
 COPY packages/node/ packages/node/
-COPY packages/zod3/ packages/zod3/
 COPY packages/zod4/ packages/zod4/
 COPY scripts/build-zod-fork.mjs scripts/check-zod-forks.mjs scripts/prepare-api-workspaces.mjs scripts/
 
-RUN bun run --filter @oxy.so/zod3 build \
-    && bun run --filter @oxy.so/zod4 build
+RUN bun run --filter @oxy.so/zod4 build
 
 # Build contracts, then protocol (the signed-record crypto base node verifies
 # with), then telemetry and core (core depends on @oxy.so/telemetry; node
@@ -79,7 +77,7 @@ RUN bun run --filter @oxy.so/protocol build
 RUN bun run --filter @oxy.so/telemetry build
 RUN bun run --filter @oxy.so/core build
 RUN cd packages/node && bunx tsc
-RUN node scripts/prepare-api-workspaces.mjs /app/runtime-workspaces
+RUN node scripts/prepare-api-workspaces.mjs /app/runtime-workspaces zod4
 
 # ── Production image: Bun ─────────────────────────────────────────
 # The same digest-pinned Bun as the builder's binary. Alpine (musl), like the
@@ -99,11 +97,10 @@ COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/telemetry/dist packages/telemetry/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
-COPY --from=builder /app/runtime-workspaces/zod3 packages/zod3
 COPY --from=builder /app/runtime-workspaces/zod4 packages/zod4
 COPY --from=builder /app/scripts/check-zod-forks.mjs scripts/check-zod-forks.mjs
 
-RUN bun scripts/check-zod-forks.mjs
+RUN bun scripts/check-zod-forks.mjs --installation zod4
 
 # Default data directory (mount a volume here to persist the SQLite DB + blobs).
 ENV OXY_NODE_DATA_DIR=/data
