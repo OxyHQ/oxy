@@ -243,32 +243,44 @@ Native third-party apps do **not** use the Commons QR flow; that is the first-pa
 
 ---
 
-## Explicit re-consent in an official app
+## Own applications do not request scope consent
 
-An official app still needs the user's consent for scopes classified as
-consent-required. If a resource server reports that such a grant is missing or
-revoked, render a user-facing action and call `requestOAuthConsent` from that
-press. Never call it on mount or automatically from the failed request: every
-trip to the IdP must begin with a real user gesture.
+Official Oxy products, including assistant and inference integrations, use the
+shared session or registered workload authority. They never call
+`requestOAuthConsent`, request an internal grant, or show an app permission
+button. Account ownership, organization roles, task revocation and resource
+policy still apply. A refusal must be handled under that actual account or
+operation contract, not by asking for broader app scopes. See
+[first-party platform access](first-party-platform-access.md) and
+[durable task authority](first-party-tasks.md).
+
+## Explicit re-consent for external connections
+
+A third-party OAuth application may need renewed consent for a missing or
+revoked external grant. In that external application's registered provider,
+render a user-facing action and call `requestOAuthConsent` from its press.
+Never call it on mount or automatically from a failed request. This flow is
+reserved for the external connection; it does not grant access between Oxy's
+own applications.
 
 ```tsx
 import { Button, Platform } from 'react-native';
 import { useOxy } from '@oxy.so/services';
 
-const SINDI_SCOPES = ['inference:invoke', 'acting-as:offline'] as const;
+const EXTERNAL_SCOPES = ['files:read'] as const;
 
-function AllowSindiButton() {
+function AllowExternalFilesButton() {
   const { requestOAuthConsent } = useOxy();
   return (
     <Button
-      title="Allow Sindi"
+      title="Allow file access"
       onPress={async () => {
         const result = await requestOAuthConsent({
-          scopes: SINDI_SCOPES,
+          scopes: EXTERNAL_SCOPES,
           redirectUri:
             Platform.OS === 'web'
-              ? 'https://homiio.com'
-              : 'homiio://oauth/consent',
+              ? 'https://external.example/oauth/consent'
+              : 'external-app://oauth/consent',
         });
         if (result.status === 'consented') {
           // Retry the refused operation once, now that consent completed.

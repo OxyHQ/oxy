@@ -27,7 +27,7 @@ revocation and operation binding remain mandatory.
 | Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; 782 old definitions and separate probe retired; exact two obsolete SSM parameters removed; post-cleanup runtime verified | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 151 and publisher 152 verified on `8bba965d` | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
-| Registry/workload migration and deploy | Environment preflight and recorded product rollouts complete; Schedio, remaining Syra acceptance and final v1 retirement remain gated | Reviewed readback, rollout order, actual task digests and live canaries |
+| Registry/workload migration and deploy | Environment preflight and recorded product rollouts complete; Schedio and final v1 retirement remain operationally gated; product acceptance is listed separately | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
@@ -42,8 +42,9 @@ operational holds; this checkpoint is not fleet completion.
 
 The [sanitized deployment receipt](evidence/first-party-live-20261025.json)
 records source commits, exact image digests, task revisions and running counts
-from operator readbacks. It contains no bearer credentials or user data. The
-following table shows the latest verified revision for each service; earlier
+from operator readbacks; the [follow-up receipt](evidence/first-party-followups-20261025.json)
+adds later package, runtime and bounded readiness observations. Neither contains
+bearer credentials or user data. The following table shows the latest verified revision for each service; earlier
 stages remain as dated history in the narrative and receipt array.
 
 | Runtime | Verified source | Live revisions / count |
@@ -57,12 +58,12 @@ stages remain as dated history in the narrative and receipt array.
 | GoWay | `6e80a1edd9c943fa53a4b65de1b4f07b92b648cb` | 164: 1/1; healthy and drained |
 | Moovo | `4438de919dcc3968fa2b385650c7d33189a8c129` | 61: 1/1; healthy and drained |
 | Homiio API / worker | `2263ccad44e6918354e5643c8fe782008fe66e5d` | 275: 2/2; 278: 1/1; healthy and drained |
-| Website API | `c8746a7f4b1f30beedb989a768d68907535e28be` | 69: 2/2; healthy and drained |
-| Mention API / MCP | `683adf44925fc1e68163646603c35d59f9ee18eb` | 722: 2/2; 422: 1/1; healthy and drained |
-| Syra | `1d12889b726ccb2117800e8fc68cf772b3cfc786` | 174: 2/2; healthy and drained |
+| Website API | `a30d271115fe9afb95e038e46d84e1ba51adff12` | 70: 2/2; healthy and drained |
+| Mention API / MCP | `7587a6af619fa6c02d6b650bdf0ded8cb9746a07` | 723: 2/2; 423: 1/1; healthy and drained |
+| Syra | `41da86f21471a44bcee898c6ab93a25a8dbec496` | 175: 2/2; healthy and drained |
 | Move | `a1c041b758c47ff6766beb134b1618a0e4d54fad` | 52: 1/1; healthy and drained |
 | Nilo | `a240f145de6844a0a871469e748d743eba8599fa` | 110: 2/2; healthy and drained |
-| Mercaria | `5ef098222cfcb7e0e6d12226cfcce70ea7f999fd` | 144: 1/1; healthy and drained |
+| Mercaria | `6d077057888cadf68dcb9e6d27eab128a087b73c` | 145: 1/1; healthy and drained |
 | Allo | `7582c9678a99c70cb718eaacd93c543db0a3f4e9` | 181: 2/2; healthy and drained |
 | Willo | `42a8f738e0b84324eaa2a99af41b58317fc2460e` | 36: 1/1; healthy and drained |
 | TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
@@ -211,11 +212,11 @@ audience was rejected. It performed zero domain writes. The diagnostic task
 stopped with exit 0 and its definition was confirmed `INACTIVE`.
 
 Mention [PR #1627](https://github.com/OxyHQ/Mention/pull/1627) deployed its
-frontend on `0ed30746`; backend and MCP deployment jobs were skipped. The live
-API 722 and MCP 422 therefore remain on `683adf44`. Syra
+frontend on `0ed30746`; backend and MCP deployment jobs were skipped. At that
+stage, API 722 and MCP 422 remained on `683adf44`. Syra
 [PR #258](https://github.com/OxyHQ/Syra/pull/258) and
-[PR #259](https://github.com/OxyHQ/Syra/pull/259) are merged; publication and
-consumer acceptance of that follow-up SDK remain pending. Mercaria backend 144
+[PR #259](https://github.com/OxyHQ/Syra/pull/259) are merged; the published SDK
+and consumer follow-up below supersedes their initial publication-pending status. Mercaria backend 144
 is verified on `5ef09822`; its separate renderer fix
 [PR #1158](https://github.com/OxyHQ/Mercaria/pull/1158) is merged and is not a
 new backend runtime receipt.
@@ -239,6 +240,67 @@ and successful [API deployment](https://github.com/OxyHQ/oxy/actions/runs/401898
 record the same source and migration hash. This targeted retirement does not
 remove the global v1 bridge.
 
+### Published socket SDK and consumer follow-up (2026-10-25)
+
+Syra SDK **0.24.0** was published by
+[release 40192840084](https://github.com/OxyHQ/Syra/actions/runs/40192840084)
+from `41da86f21471a44bcee898c6ab93a25a8dbec496`. Registry provenance, archive
+integrity and installed Mention JS/declaration bytes matched. The optional peers
+require Core `>=7.1.0 <8.0.0` and Services `>=13.0.0 <14.0.0`; the packed
+socket entry was also tested against the actual published Core 7.1.0 minimum.
+Real Socket.IO tests cover concurrent leases, account changes, late cleanup and
+aborting a pending refresh after the last consumer leaves. External credential
+connections remain a separate supported path. Syra's
+[backend deployment](https://github.com/OxyHQ/Syra/actions/runs/40193313588)
+also performed its rollout. Revision 175 was independently verified at
+`13:07:04Z`, 2/2 healthy and drained, with the ECR source tag and both running
+image digests matching that same `41da86f2` source.
+
+Mention [PR #1628](https://github.com/OxyHQ/Mention/pull/1628) pins that published
+artifact. Queue CI `40194448512` passed and merged
+`7587a6af619fa6c02d6b650bdf0ded8cb9746a07`. API 723 and MCP 423 are verified
+healthy and drained on the exact source image digests. Its
+[frontend deployment](https://github.com/OxyHQ/Mention/actions/runs/40195079813)
+also succeeded: real-browser gate, Worker promotion, exact production smoke,
+unauthenticated shell refusal and public-apex smoke all passed; the deployment
+record was written and rollback was skipped. These deployment receipts do not
+establish a signed-in production room/player or cross-account operation canary.
+
+Website's API 70 is verified on `a30d271115fe9afb95e038e46d84e1ba51adff12`;
+its [frontend deployment](https://github.com/OxyHQ/website/actions/runs/40193616550)
+also succeeded. Mercaria's storefront, dashboard and POS deployment steps each
+confirmed `Shipped commit 6d077057888cadf68dcb9e6d27eab128a087b73c` in runs
+`40195196181`, `40195196168` and `40195196169`. Earlier successful workflows with
+skipped deploy jobs did not establish that rollout. Mercaria's
+[API deployment](https://github.com/OxyHQ/Mercaria/actions/runs/40195196170)
+also succeeded; revision 145 was independently verified at `13:04:03Z`, 1/1
+healthy and drained on the matching source/runtime digest. These releases do
+not change the unresolved storefront cookie contract.
+
+### Bounded protocol-retirement evidence (2026-10-25)
+
+The follow-up receipt records a read-only census at `12:42:44Z`: 30 stable ECS
+services in `us-west-2`/`oxy-cluster`, no obsolete own-auth configuration names
+in those live definitions, zero Scheduler entries and six EventBridge rules
+without fixed task-definition targets. The two Mention scheduled Lambda handlers
+matched the reviewed infra source bytes and resolve the live service definition.
+The Kaana credential-admin launcher points to reviewed source `de3db474` and its
+verified image index; the index and both child manifests have retention tags.
+No launcher was invoked and no infrastructure was created by this audit.
+
+Oxy's asset-variant worker revision 543 was independently verified at `12:43:55Z`,
+8/8 on the exact `0a312b9b` source image. The issuer observation from
+`12:30:24Z` to `12:45:24Z` contained 232 parsed mints, all protocol 2 with
+`first_party` authority. **Zero observed v1 mints does not prove that Schedio,
+dormant launchers or rollback images have migrated.** It does not start the drain
+clock or authorize retirement. The final process/launcher inventory, reviewed
+Core minor release and consumer composition remain required. After the last old
+producer stops, wait at least the deployed `OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS`
+value (currently 300 seconds in `packages/core/src/server/serviceTokenLifetime.ts`)
+before removing compatibility. Product acceptance below remains a separate set
+of checks; an untested native app or Console screen is not itself evidence of a
+protocol-v1 dependency.
+
 ### Remaining acceptance and operational holds
 
 Schedio's DNS/domain decision and rolled-back producer remain unresolved.
@@ -247,8 +309,9 @@ its main CI was intentionally cancelled to preserve the hold, and both deploymen
 jobs were skipped. DNS is still absent; SDK/update PR #72 remains held, while
 producer PR #71 is merged but not live. The
 storefront cookies instruction conflict still requires the owner's decision;
-this ledger does not change that policy. Syra's follow-up SDK publication,
-consumer adoption and acceptance remain pending. Native physical-device
+this ledger does not change that policy. Syra 0.24.0 publication and Mention's
+consumer adoption are recorded above; they do not establish signed-in production
+live-room/player acceptance. Native physical-device
 acceptance and desktop/store distribution are not established.
 
 Alia's bounded retirement completed with 782 unique old definitions confirmed
