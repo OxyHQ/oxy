@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T11:11:49.522613+00:00",
+  "generatedAt": "2026-10-25T11:16:31.185131+00:00",
   "scope": "Dated deployment and dedicated QA readbacks; not fleet completion, native distribution or existing-user end-to-end acceptance",
   "services": [
     {
@@ -287,6 +287,18 @@
       "sourceSha": "7ee33926b95e26792b7f153de7a45c212a7b4fce",
       "observedAt": "2026-10-25T10:21:52.835576+00:00",
       "receiptFile": "syra-runtime-7ee33926b95e-20261025.json"
+    },
+    {
+      "name": "mercaria",
+      "taskDefinitionRevision": 142,
+      "desired": 1,
+      "running": 1,
+      "imageDigest": "sha256:3a8e28c1601cdd1a43412513fa5b3b52fd84f1914faee39127020d915d13805f",
+      "runtimeDigestVerified": true,
+      "allTargetsHealthy": true,
+      "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
+      "observedAt": "2026-10-25T11:08:00.617649+00:00",
+      "receiptFile": "mercaria-runtime-c25757347589-20261025.json"
     }
   ],
   "oxyFollowup": {
@@ -472,5 +484,17 @@
     "run": 40186013122,
     "result": "Public DNS smoke failed; automatic backend rollback to revision 17",
     "v1RetirementAllowed": false
+  },
+  "mercariaReaderCanary": {
+    "success": true,
+    "checks": [
+      "anonymous-catalogue-preserved",
+      "scope-free-workload-catalogue",
+      "wrong-recipient-refused",
+      "unproved-account-refused"
+    ],
+    "observedAt": "2026-10-25T11:10:10.567Z",
+    "sourceSha": "c257573475899a400efa96bc6d4bbfe0cf63bac8",
+    "receiptFile": "mercaria-canary-20261025.json"
   }
 }

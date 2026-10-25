@@ -26,7 +26,7 @@ revocation and operation binding remain mandatory.
 | Alia own-app levels and tool admission | Stage B `81819a95` deployed; SDK 22 published; stage C contained in verified runtime `029702fb` | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Workload gateway 189 and API 609 verified on `029702fb`; infrastructure secret cleanup remains separately gated | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; receiver and workload producer deployed; evidence below | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Mention, Syra, Move and Nilo runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
+| Product receivers and SDK adopters | Clarity reader reconciled; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; remaining cutovers are separately gated | Caller→SDK→receiver tests for own and external identities |
 | Registry/workload migration and deploy | Exact 27-binding environment preflight and Oxy authority rollout complete; product cutovers pending | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
@@ -60,6 +60,7 @@ from operator readbacks. It contains no bearer credentials or user data.
 | Syra | `7ee33926b95e26792b7f153de7a45c212a7b4fce` | 173: 2/2; healthy targets |
 | Move | `0f095e3eb40435be1bfb41186962525961e26a09` | 50: 1/1; healthy targets |
 | Nilo | `5ad257adadde9c12018fe2be8cc1aae73105f9e4` | 109: 2/2; healthy targets |
+| Mercaria | `c257573475899a400efa96bc6d4bbfe0cf63bac8` | 142: 2/2; healthy targets |
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running
@@ -159,8 +160,12 @@ Mention's readers and Move's producer are verified. Schedio's public DNS smoke
 failed and its backend automatically rolled back to revision 17; its new
 producer is **not deployed**. The finite v1 bridge retirement remains held on
 that unresolved rollout and the remaining inventoried producers, including the
-Oxy Inbox producer. Mercaria must still satisfy the separate Clarity producer
-prerequisite. These dated readbacks do **not** mark the fleet migration complete.
+Oxy Inbox producer's deployment. Mercaria revision 142 and its reader canary
+passed at `2026-10-25T11:10:10.567Z`: anonymous and own-workload catalogue reads
+succeeded, while wrong-recipient and unproved-account requests were refused.
+This satisfies Clarity's receiver prerequisite; Clarity's producer deployment
+still needs its own readback. These dated observations do **not** mark the
+fleet migration complete.
 
 ## Audited runtime graph
 
