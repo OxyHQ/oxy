@@ -384,3 +384,24 @@ candidate count and recorded failures with the initial count to monitor progress
 After completed generations publish, consumers that persist rendition metadata
 must reconcile the new `hls_master.readyAt` value. Oxy's original is unchanged,
 and completing a rendition does not currently emit an application file event.
+
+
+### Retained terminal rendition jobs
+
+A pre-durable BullMQ job can remain in `completed` or `failed` and reserve the
+stable per-file ID. Admission reconciles that record under the fleet scheduler
+lock before adding a due request: an explicitly older terminal request (or an
+unstamped legacy job created before the durable request) is removed through
+BullMQ, while a matching terminal result settles only that exact PostgreSQL
+request. This does not reset the completed/exhausted request's retry budget.
+Active, waiting, paused and delayed jobs retain their ownership and attempts;
+newer or invalid request identities are not retired. A failed removal/add rolls
+back the lease, leaving durable work available to the next pass.
+
+Normal producers share admission ownership; the database-outage fallback only
+adds/deduplicates and does not retry terminal jobs. There is no application API
+for manually retrying these jobs. Any future manual recovery must coordinate
+with the scheduler lock or stop admission: BullMQ removal refuses an active
+worker lock, but `getState()` followed by `remove()` is not an atomic comparison
+against arbitrary administrative state changes. Do not bulk-delete or re-seed
+the queue to recover a retained terminal head.

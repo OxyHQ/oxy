@@ -4,7 +4,7 @@
  * a UUID queue and removes only that queue, never flushes the shared database.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
-import { Queue, Worker, type Job } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { eq, inArray, sql } from 'drizzle-orm';
 
 jest.mock('../../services/s3ServiceSingleton', () => ({ s3Service: {} }));
@@ -358,4 +358,194 @@ it('recovers an expired lease after Redis loss and preserves a new request while
   expect(next.data.requestedAt).toBe(renewed.requestedAt.toISOString());
   await finish(next);
   expect(await getDb().select().from(fileRenditionRequests)).toEqual([]);
+});
+
+async function requestFor(fileId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(fileRenditionRequests)
+    .where(eq(fileRenditionRequests.fileId, fileId));
+  return row;
+}
+
+async function retainedJob(fileId: string, state: 'completed' | 'failed', requestedAt?: string) {
+  const request = await requestFor(fileId);
+  await queue.add(
+    'generate',
+    { fileId, ...(requestedAt === undefined ? {} : { requestedAt }) },
+    {
+      jobId: assetVariantsJobId(fileId),
+      timestamp: request.requestedAt.getTime() - 60_000,
+      attempts: 1,
+      removeOnComplete: false,
+      removeOnFail: false,
+    },
+  );
+  const job = await take();
+  if (state === 'completed') await job.moveToCompleted(null, token, false);
+  else await job.moveToFailed(new Error('old source failure'), token, false);
+  expect(await job.getState()).toBe(state);
+  return job;
+}
+
+it.each([
+  ['completed', 'legacy'],
+  ['failed', 'legacy'],
+  ['completed', 'versioned'],
+  ['failed', 'versioned'],
+] as const)(
+  'replaces an obsolete %s %s repair head and then processes the following repair',
+  async (state, identity) => {
+    const ids = await seed('repair', 2);
+    const [head, following] = await getDb()
+      .select()
+      .from(fileRenditionRequests)
+      .orderBy(fileRenditionRequests.requestedAt, fileRenditionRequests.fileId);
+    const oldStamp =
+      identity === 'legacy'
+        ? undefined
+        : new Date(head.requestedAt.getTime() - 60_000).toISOString();
+    await retainedJob(head.fileId, state, oldStamp);
+    expect((await dispatch()).enqueued).toBe(1);
+    const replacement = await take();
+    expect(replacement.data).toMatchObject({
+      fileId: head.fileId,
+      requestedAt: head.requestedAt.toISOString(),
+    });
+    expect(replacement.attemptsMade).toBe(0);
+    expect(replacement.opts.attempts).toBe(3);
+    expect((await requestFor(head.fileId)).enqueuedUntil).not.toBeNull();
+    await finish(replacement);
+    expect((await dispatch()).enqueued).toBe(1);
+    const next = await take();
+    expect(next.data.fileId).toBe(following.fileId);
+    await finish(next);
+    expect(
+      await getDb()
+        .select()
+        .from(fileRenditionRequests)
+        .where(inArray(fileRenditionRequests.fileId, ids)),
+    ).toEqual([]);
+  },
+);
+
+it.each(['completed', 'failed'] as const)(
+  'settles a retained matching %s request without resetting attempts or deleting its record',
+  async (state) => {
+    const [id] = await seed('repair', 1);
+    const request = await requestFor(id);
+    await retainedJob(id, state, request.requestedAt.toISOString());
+    const before = await queue.getJob(assetVariantsJobId(id));
+    expect((await dispatch()).enqueued).toBe(0);
+    expect(await requestFor(id)).toBeUndefined();
+    const after = await queue.getJob(assetVariantsJobId(id));
+    expect(after?.data).toEqual(before?.data);
+    expect(after?.attemptsMade).toBe(before?.attemptsMade);
+    expect(after?.timestamp).toBe(before?.timestamp);
+    expect(await after?.getState()).toBe(state);
+  },
+);
+
+it.each(['newer', 'invalid', 'wrong-file', 'wrong-file-matching-stamp'] as const)(
+  'does not retire a terminal record with %s request identity',
+  async (identity) => {
+    const [id] = await seed('repair', 1);
+    const request = await requestFor(id);
+    const stamp =
+      identity === 'newer'
+        ? new Date(request.requestedAt.getTime() + 60_000).toISOString()
+        : identity === 'invalid'
+          ? 'not-a-date'
+          : identity === 'wrong-file-matching-stamp'
+            ? request.requestedAt.toISOString()
+            : new Date(request.requestedAt.getTime() - 60_000).toISOString();
+    const job = await retainedJob(id, 'failed', stamp);
+    if (identity === 'wrong-file' || identity === 'wrong-file-matching-stamp')
+      await job.updateData({ fileId: 'different-file', requestedAt: stamp });
+    const before = await queue.getJob(assetVariantsJobId(id));
+    expect((await dispatch()).enqueued).toBe(0);
+    const after = await queue.getJob(assetVariantsJobId(id));
+    expect(after?.data).toEqual(before?.data);
+    expect(after?.attemptsMade).toBe(before?.attemptsMade);
+    expect(await after?.getState()).toBe('failed');
+    expect((await requestFor(id)).enqueuedUntil).toBeNull();
+  },
+);
+
+it.each(['waiting', 'paused', 'delayed', 'active'] as const)(
+  'preserves an older %s job and its attempt budget',
+  async (state) => {
+    const [id] = await seed('repair', 1);
+    const request = await requestFor(id);
+    await queue.add(
+      'generate',
+      { fileId: id, requestedAt: new Date(request.requestedAt.getTime() - 60_000).toISOString() },
+      {
+        jobId: assetVariantsJobId(id),
+        attempts: 3,
+        backoff: { type: 'fixed', delay: 60_000 },
+      },
+    );
+    let active: Job<Data> | undefined;
+    if (state === 'paused') await queue.pause();
+    if (state === 'active' || state === 'delayed') active = await take();
+    if (state === 'delayed') {
+      if (!active) throw new Error('Expected active retry');
+      await active.moveToFailed(new Error('retryable source'), token, false);
+    }
+    const before = await queue.getJob(assetVariantsJobId(id));
+    const beforeState = await before?.getState();
+    expect((await dispatch()).enqueued).toBe(0);
+    const after = await queue.getJob(assetVariantsJobId(id));
+    expect(after?.data).toEqual(before?.data);
+    expect(after?.attemptsMade).toBe(before?.attemptsMade);
+    expect(after?.opts.attempts).toBe(3);
+    expect(await after?.getState()).toBe(beforeState);
+    expect((await requestFor(id)).enqueuedUntil).toBeNull();
+    if (state === 'active') {
+      if (!active) throw new Error('Expected active job');
+      await active.moveToCompleted(null, token, false);
+    }
+  },
+);
+
+it('keeps the durable repair due when admission fails after retiring the obsolete terminal record', async () => {
+  const [id] = await seed('repair', 1);
+  await retainedJob(id, 'failed');
+  const add = jest
+    .spyOn(queue, 'addBulk')
+    .mockRejectedValueOnce(new Error('admission interrupted'));
+  await expect(dispatch()).rejects.toThrow('admission interrupted');
+  expect(await queue.getJob(assetVariantsJobId(id))).toBeUndefined();
+  expect((await requestFor(id)).enqueuedUntil).toBeNull();
+  add.mockRestore();
+  expect((await dispatch()).enqueued).toBe(1);
+  await finish(await take());
+  expect(await requestFor(id)).toBeUndefined();
+});
+
+it('rolls back admission if a terminal job acquires an active lock before removal', async () => {
+  const [id] = await seed('repair', 1);
+  const retained = await retainedJob(id, 'failed');
+  const getState = Job.prototype.getState;
+  let active: Job<Data> | undefined;
+  const state = jest.spyOn(Job.prototype, 'getState').mockImplementationOnce(async function (
+    this: Job<Data>,
+  ) {
+    const observed = await getState.call(this);
+    await retained.retry();
+    active = await take();
+    return observed;
+  });
+  try {
+    await expect(dispatch()).rejects.toThrow('locked');
+    expect((await requestFor(id)).enqueuedUntil).toBeNull();
+    expect(await queue.getJob(assetVariantsJobId(id))).toBeDefined();
+  } finally {
+    state.mockRestore();
+    if (active) await active.moveToCompleted(null, token, false);
+  }
+  expect((await dispatch()).enqueued).toBe(1);
+  await finish(await take());
+  expect(await requestFor(id)).toBeUndefined();
 });

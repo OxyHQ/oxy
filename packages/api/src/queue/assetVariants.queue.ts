@@ -66,7 +66,7 @@ import { normalizeInfrastructureRegion } from '@oxy.so/telemetry/collector';
 import { sql } from 'drizzle-orm';
 import { observeAssetJob } from '../services/workerActivity.service';
 import { ErrorCode, Queue, Worker, type Job, type JobsOptions } from 'bullmq';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { logger } from '../utils/logger';
 import { getAssetVariantQueueConnectionOptions, getAssetVariantQueueUrl } from './connection';
 import { VariantService } from '../services/variantService';
@@ -380,6 +380,48 @@ export interface SchedulerPass {
 }
 
 /**
+ * A retained terminal job can outlive its old request and reserve the stable
+ * file ID forever. Durable admissions share the scheduler lock; the best-effort
+ * outage producer only adds/deduplicates and never retries terminal jobs. There
+ * is no application terminal-retry API. Manual recovery must coordinate with
+ * this lock (or stop admission), since getState/remove is not a Redis state CAS.
+ * BullMQ refuses active worker locks; that failure rolls this pass's leases back.
+ * Return false when the retained result already settles this exact request.
+ */
+async function reconcileTerminalRenditionJob(
+  request: RenditionRequest,
+  job: Job<AssetVariantsJobData> | undefined,
+  tx: DatabaseOrTransaction,
+): Promise<boolean> {
+  if (!job || job.data.fileId !== request.fileId) return true;
+  const previous = requestOf(job.data);
+  const previousAt =
+    previous?.requestedAt.getTime() ??
+    (job.data.requestedAt === undefined ? job.timestamp : Number.NaN);
+  if (!Number.isFinite(previousAt) || previousAt <= 0 || previousAt > request.requestedAt.getTime())
+    return true;
+  const state = await job.getState();
+  if (state !== 'completed' && state !== 'failed') return true;
+  if (previous && previousAt === request.requestedAt.getTime()) {
+    // Completed and exhausted jobs already consumed this request. Preserve the
+    // terminal record/attempt budget and use the same versioned settlement as
+    // the worker, rather than starting another retry cycle.
+    await settleRenditionRequest(request, tx);
+    return false;
+  }
+  // A legacy job without request identity needs an older creation timestamp;
+  // equality cannot prove that it belongs to a superseded request.
+  if (previousAt === request.requestedAt.getTime()) return true;
+  await job.remove({ removeChildren: false });
+  logger.info('Obsolete terminal asset variant job retired', {
+    component: 'assetVariants',
+    fileId: request.fileId,
+    state,
+  });
+  return true;
+}
+
+/**
  * One scheduler pass, under a transaction-scoped advisory lock so the fleet
  * runs one at a time:
  *
@@ -462,7 +504,13 @@ export async function runAssetVariantSchedulerPass(
     // a turn. Empty/capped lanes donate only to lanes with admission headroom.
     const capacity =
       Math.floor(room / RENDITION_DISPATCH_ROUND.length) * RENDITION_DISPATCH_ROUND.length;
-    const due = await claimDueRenditionRequests(capacity, ASSET_VARIANT_REQUEST_LEASE_MS, tx);
+    const claimed = await claimDueRenditionRequests(capacity, ASSET_VARIANT_REQUEST_LEASE_MS, tx);
+    const existing = await Promise.all(
+      claimed.map((request) => q.getJob(assetVariantsJobId(request.fileId))),
+    );
+    const due: RenditionRequest[] = [];
+    for (const [index, request] of claimed.entries())
+      if (await reconcileTerminalRenditionJob(request, existing[index], tx)) due.push(request);
     let enqueued = due.length;
     if (due.length > 0) {
       await q.addBulk(
@@ -484,7 +532,10 @@ export async function runAssetVariantSchedulerPass(
         due.map((request) => q.getJob(assetVariantsJobId(request.fileId))),
       );
       for (const [index, request] of due.entries()) {
-        if (storedJobs[index]?.data.requestedAt !== request.requestedAt.toISOString()) {
+        if (
+          storedJobs[index]?.data.fileId !== request.fileId ||
+          storedJobs[index]?.data.requestedAt !== request.requestedAt.toISOString()
+        ) {
           await releaseRenditionRequest(request, tx);
           enqueued--;
         }
