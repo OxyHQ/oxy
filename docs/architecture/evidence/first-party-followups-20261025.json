@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "scope": "Bounded publication, deployment and read-only readiness evidence; does not authorize v1 retirement or establish full product acceptance.",
+  "sdkPublication": {
+    "package": "@syra.fm/sdk",
+    "observedAt": "2026-10-25T12:34:46.470Z",
+    "version": "0.24.0",
+    "integrity": "sha512-R+N5nA0BUf0WkDYSlOAFRjXjrqGttHKo0hL/SOxwOY/Ge9wKs30xQ5uiqKc4uTGYt0YhkOSZcQeS/HQJxHBT4g==",
+    "source": "41da86f21471a44bcee898c6ab93a25a8dbec496",
+    "releaseRun": "https://github.com/OxyHQ/Syra/actions/runs/40192840084",
+    "registryProvenance": {
+      "source": "41da86f21471a44bcee898c6ab93a25a8dbec496",
+      "invocation": "https://github.com/OxyHQ/Syra/actions/runs/40192840084/attempts/1",
+      "subjectSha512": "47e3799c0d0151fd1690361294e0054635e3aea1adb472a8d212ff48ec70398fc67bdc0ab37d31439ba2a8a738b93198b7462190e499710792fc7409c47053e2"
+    },
+    "artifactBytesAndInstalledConsumerVerified": true,
+    "optionalCorePeer": ">=7.1.0 <8.0.0",
+    "optionalServicesPeer": ">=13.0.0 <14.0.0"
+  },
+  "readiness": {
+    "census": {
+      "observedAt": "2026-10-25T12:42:44.956459+00:00",
+      "region": "us-west-2",
+      "cluster": "oxy-cluster",
+      "serviceCount": 30,
+      "allServicesStable": true,
+      "configuredLegacyAuthNameCount": 0,
+      "schedulerEntryCount": 0,
+      "eventRuleCount": 6,
+      "fixedEventTaskDefinitionCount": 0,
+      "receiptFile": "live-launchers-20261025.json"
+    },
+    "launchers": {
+      "observedAt": "2026-10-25T12:44:23.332120+00:00",
+      "mention": [
+        {
+          "function": "oxy-mention-sitemaps-scheduler",
+          "sourceSha": "23e6c7745b4bd29990892e3ae545934a157617db",
+          "handlerSha256": "24ba1e4746b2b9fec271847a25364e2ab96cd05f0bfc674820a2cfc4e84e48fc",
+          "handlerMatchesSource": true,
+          "resolvesLiveServiceDefinition": true
+        },
+        {
+          "function": "oxy-mention-video-metadata-scheduler",
+          "sourceSha": "23e6c7745b4bd29990892e3ae545934a157617db",
+          "handlerSha256": "24ba1e4746b2b9fec271847a25364e2ab96cd05f0bfc674820a2cfc4e84e48fc",
+          "handlerMatchesSource": true,
+          "resolvesLiveServiceDefinition": true
+        }
+      ],
+      "kaana": {
+        "sourceSha": "de3db4741ff648d9de8d28d124634a9b7553652e",
+        "imageDigest": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
+        "ecrSourceTagMatched": true,
+        "retainedManifests": [
+          {
+            "digest": "sha256:882eb76a904e60da364b352f3a0b6c98ce87dc50566d127e53587d50101dc2ec",
+            "pinnedRetentionTagVerified": true
+          },
+          {
+            "digest": "sha256:6efd7be3cf986bfdbcaf1516e95acdf4b319726980f724fe880bc596c68b704c",
+            "pinnedRetentionTagVerified": true
+          },
+          {
+            "digest": "sha256:3823943d63eed89385f10d51f28c145fb64456967493ff43aa10745c4cd7a682",
+            "pinnedRetentionTagVerified": true
+          }
+        ]
+      },
+      "readOnly": true,
+      "noFunctionsInvoked": true,
+      "noInfrastructureCreated": true,
+      "receiptFile": "launcher-code-20261025.json"
+    },
+    "assetVariantWorker": {
+      "observedAt": "2026-10-25T12:43:55.224531+00:00",
+      "sourceSha": "0a312b9b1fb26f26a6dfbb0d0bc8bb9da1c82d3d",
+      "taskDefinitionRevision": 543,
+      "desired": 8,
+      "running": 8,
+      "imageDigest": "sha256:70e05ac5dd7647c7b57c00ed0d1fb2f10d3809c9b0870bf1d5cd7149f77b2eb9",
+      "allRuntimeDigestsMatchSource": true,
+      "receiptFile": "oxy-asset-variant-worker-runtime-0a312b9b1fb2-20261025.json"
+    },
+    "issuerObservation": {
+      "observedAt": "2026-10-25T12:45:27.688664+00:00",
+      "windowStart": "2026-10-25T12:30:24.906000+00:00",
+      "windowEnd": "2026-10-25T12:45:24.906000+00:00",
+      "eventCount": 232,
+      "unparsedEvents": 0,
+      "limitation": "Issuer observations only; absence of mints does not prove dormant/rollback producers are upgraded. No tokens or user fields retained.",
+      "allObservedMintsProtocol2FirstParty": true,
+      "sumOfCounts": 232
+    }
+  },
+  "retirementActivated": false,
+  "holds": [
+    "Schedio producer remains on revision17 after DNS rollback; source merge and zero observed v1 mints do not prove that producer migrated.",
+    "Storefront cookie policy requires the owner decision; no policy change is inferred.",
+    "Final Core7.x release gates, pack and consumer composition, final process and launcher inventory, and >=300 seconds after the last old producer stops are still required."
+  ],
+  "productAcceptanceLimitations": [
+    "Authenticated Console own-app/external-credential settings smoke.",
+    "Actual inference generation and operation-specific account/bot/task acceptance.",
+    "Native physical-device acceptance and desktop/store distribution."
+  ],
+  "websiteApi": {
+    "sourceSha": "a30d271115fe9afb95e038e46d84e1ba51adff12",
+    "observedAt": "2026-10-25T12:41:55.539400+00:00",
+    "desired": 2,
+    "running": 2,
+    "sourceImageDigest": "sha256:c79124f90b64d80ae32efc1fdb5c00a01226b1cf1b193b3b4b634542b91f653a",
+    "runtimeImageDigest": "sha256:c79124f90b64d80ae32efc1fdb5c00a01226b1cf1b193b3b4b634542b91f653a",
+    "allTargetsHealthy": true,
+    "revision": 70,
+    "receiptFile": "website-api-runtime-a30d271115fe-20261025.json"
+  },
+  "generatedAt": "2026-10-25T13:04:42.833569+00:00",
+  "mention": {
+    "sourceSha": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
+    "pullRequest": "https://github.com/OxyHQ/Mention/pull/1628",
+    "queueCi": {
+      "run": 40194448512,
+      "conclusion": "success"
+    },
+    "services": [
+      {
+        "name": "mention",
+        "observedAt": "2026-10-25T13:00:04.961308+00:00",
+        "sourceSha": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
+        "revision": 723,
+        "desired": 2,
+        "running": 2,
+        "imageDigest": "sha256:eb8324fa348aaeea4a9fdcc49a302b07c19f09924013d9d1e8b7a29c40e9db6a",
+        "sourceImageDigest": "sha256:eb8324fa348aaeea4a9fdcc49a302b07c19f09924013d9d1e8b7a29c40e9db6a",
+        "runtimeDigestVerified": true,
+        "allTargetsHealthy": true,
+        "oldDeploymentDrained": true,
+        "deploymentRun": 40195079836,
+        "receiptFile": "mention-runtime-7587a6af619f-20261025.json"
+      },
+      {
+        "name": "mention-mcp",
+        "observedAt": "2026-10-25T12:57:46.768416+00:00",
+        "sourceSha": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
+        "revision": 423,
+        "desired": 1,
+        "running": 1,
+        "imageDigest": "sha256:351be4c38500a662e23f0ca7432528174a9b5806f05fc861c5ac635055672c71",
+        "sourceImageDigest": "sha256:351be4c38500a662e23f0ca7432528174a9b5806f05fc861c5ac635055672c71",
+        "runtimeDigestVerified": true,
+        "allTargetsHealthy": true,
+        "oldDeploymentDrained": true,
+        "deploymentRun": 40195079884,
+        "receiptFile": "mention-mcp-runtime-7587a6af619f-20261025.json"
+      }
+    ],
+    "frontend": {
+      "run": 40195079813,
+      "sourceSha": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
+      "workflowConclusion": "success",
+      "deploymentJobConclusion": "success",
+      "deploymentRecorded": true,
+      "verifiedSteps": [
+        {
+          "name": "Smoke test the exact preview deployment",
+          "conclusion": "success"
+        },
+        {
+          "name": "Gate the candidate build in a real browser",
+          "conclusion": "success"
+        },
+        {
+          "name": "Promote the validated assets to the shell Worker",
+          "conclusion": "success"
+        },
+        {
+          "name": "Smoke test the exact production deployment",
+          "conclusion": "success"
+        },
+        {
+          "name": "The shell Worker refuses an unauthenticated caller",
+          "conclusion": "success"
+        },
+        {
+          "name": "Smoke test the apex after the backend rollout",
+          "conclusion": "success"
+        }
+      ],
+      "rollbackStepConclusion": "skipped"
+    }
+  },
+  "websiteFrontend": {
+    "sourceSha": "a30d271115fe9afb95e038e46d84e1ba51adff12",
+    "run": 40193616550,
+    "deploymentStepConclusion": "success",
+    "workflowConclusion": "success"
+  },
+  "mercariaFrontends": {
+    "sourceSha": "6d077057888cadf68dcb9e6d27eab128a087b73c",
+    "receiptFile": "deployment-jobs-readback.json",
+    "runs": [
+      {
+        "app": "storefront",
+        "run": 40195196181,
+        "deploymentStepConclusion": "success",
+        "shippedSourceVerified": true
+      },
+      {
+        "app": "dashboard",
+        "run": 40195196168,
+        "deploymentStepConclusion": "success",
+        "shippedSourceVerified": true
+      },
+      {
+        "app": "pos",
+        "run": 40195196169,
+        "deploymentStepConclusion": "success",
+        "shippedSourceVerified": true
+      }
+    ],
+    "storefrontCookiePolicyChanged": false
+  },
+  "mercariaApi": {
+    "sourceSha": "6d077057888cadf68dcb9e6d27eab128a087b73c",
+    "observedAt": "2026-10-25T13:04:03.898239+00:00",
+    "revision": 145,
+    "desired": 1,
+    "running": 1,
+    "sourceImageDigest": "sha256:16552ee70aa10cd686b4a2586027e538a0d042f500427edc65e87b5c3f8443f3",
+    "runtimeImageDigest": "sha256:16552ee70aa10cd686b4a2586027e538a0d042f500427edc65e87b5c3f8443f3",
+    "allTargetsHealthy": true,
+    "receiptFile": "mercaria-runtime-6d077057888c-20261025.json",
+    "deploymentRun": 40195196170
+  }
+}
