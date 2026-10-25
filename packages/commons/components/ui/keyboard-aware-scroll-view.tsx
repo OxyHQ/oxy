@@ -1,7 +1,8 @@
 import React from 'react';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { StyleSheet, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 import { useScreenBottomPad } from './screen';
 
@@ -28,6 +29,10 @@ interface KeyboardAwareScrollViewWrapperProps {
    * with no navigator header (every Settings stack screen): without it the
    * first element — the title — renders under the status bar. Auth/onboarding
    * steps that already pad their container with the inset leave this off.
+   *
+   * It also paints the status-bar area with the page colour, ABOVE the
+   * scroller, so scrolled content passes under it instead of drawing over the
+   * clock.
    */
   reserveTopInset?: boolean;
 }
@@ -62,7 +67,7 @@ export function KeyboardAwareScrollViewWrapper({
     ? insets.top + (typeof callerTopPadding === 'number' ? callerTopPadding : 0)
     : undefined;
 
-  return (
+  const scroller = (
     <KeyboardAwareScrollView
       style={[styles.container, style]}
       contentContainerStyle={[
@@ -79,6 +84,26 @@ export function KeyboardAwareScrollViewWrapper({
       {children}
     </KeyboardAwareScrollView>
   );
+
+  if (!reserveTopInset) return scroller;
+  return (
+    <View style={styles.container}>
+      {scroller}
+      <StatusBarScrim height={insets.top} />
+    </View>
+  );
+}
+
+/** The page colour over the status bar, so nothing scrolls under the clock. */
+function StatusBarScrim({ height }: { height: number }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      pointerEvents="none"
+      testID="status-bar-scrim"
+      style={[styles.scrim, { height, backgroundColor: colors.background }]}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -88,4 +113,5 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
   },
+  scrim: { position: 'absolute', top: 0, left: 0, right: 0 },
 });

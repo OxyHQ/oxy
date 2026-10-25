@@ -1079,7 +1079,9 @@
     "encryptedBackup": "Configura una copia cifrada",
     "rotate": "Rotar a una clave con frase de recuperación",
     "notNow": "Ahora no",
-    "confirm": "Ya guardé mi frase de recuperación"
+    "confirm": "Ya guardé mi frase de recuperación",
+    "promptBody": "Tu identidad no tiene copia de seguridad automática en este dispositivo. Mira qué hacer en Ajustes.",
+    "review": "Revisar en Ajustes"
   },
   "rotateKey": {
     "settingsEntry": "Rota tu clave",

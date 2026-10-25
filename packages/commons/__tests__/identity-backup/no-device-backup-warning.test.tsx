@@ -1,11 +1,3 @@
-/**
- * The warning Commons shows when the identity cannot have a device backup
- * (OxyHQ/oxy#1388): Android without Google Play services, where Block Store
- * rejects with SERVICE_INVALID, or a binary built without the native module.
- * There, a sibling app's "Clear storage" erases the identity and only the
- * recovery phrase brings it back.
- */
-import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { requireOptionalNativeModule } from 'expo';
@@ -220,18 +212,24 @@ describe('<DeviceBackupWarning />', () => {
     expect(again.queryByTestId('device-backup-warning-prompt')).toBeNull();
   });
 
-  it('offers the recovery phrase and the encrypted backup', async () => {
+  it('the ID tab shows ONE compact notice that leads to Settings, which holds the actions', async () => {
     requireOptional.mockReturnValue(nativeThatRejects(serviceInvalid()));
     const view = renderWarning('prompt');
     const router = __getMockRouter();
 
-    fireEvent.click(await view.findByText('Write down your recovery phrase'));
-    expect(router.push).toHaveBeenLastCalledWith('/(tabs)/(settings)/recovery-phrase');
+    // Not the full three-button block: that lives in Settings only.
+    await view.findByText('Review in Settings');
+    expect(view.queryByText('Write down your recovery phrase')).toBeNull();
+    expect(view.queryByText('Set up an encrypted backup')).toBeNull();
 
-    // Acting on the prompt retires it, like "Not now".
+    fireEvent.click(view.getByText('Review in Settings'));
+    expect(router.push).toHaveBeenLastCalledWith('/(tabs)/(settings)');
+    // Acting on the notice retires it, like "Not now".
     await waitFor(() => expect(view.queryByTestId('device-backup-warning-prompt')).toBeNull());
 
     const settings = renderWarning('settings');
+    fireEvent.click(await settings.findByText('Write down your recovery phrase'));
+    expect(router.push).toHaveBeenLastCalledWith('/(tabs)/(settings)/recovery-phrase');
     fireEvent.click(await settings.findByText('Set up an encrypted backup'));
     expect(router.push).toHaveBeenLastCalledWith('/(tabs)/(settings)/create-backup');
     // Settings keeps the banner: only the confirmation retires it.

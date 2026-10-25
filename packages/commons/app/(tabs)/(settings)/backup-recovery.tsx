@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -69,26 +69,22 @@ export default function BackupRecoveryScreen() {
   const noPhrase = status === 'absent';
 
   return (
-    // Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-    // header and status callouts are padded to align with it (see settings index).
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader
-          title={t('backupRecovery.title')}
-          subtitle={t('backupRecovery.subtitle')}
-          onBack={() => router.back()}
-          backAccessibilityLabel={t('common.back')}
-        />
-      </View>
+    <Screen gap={16}>
+      <StackHeader
+        title={t('backupRecovery.title')}
+        subtitle={t('backupRecovery.subtitle')}
+        onBack={() => router.back()}
+        backAccessibilityLabel={t('common.back')}
+      />
 
       {status === 'present' && (
-        <View style={styles.gutter}>
+        <View>
           <Admonition type="info">{t('backupRecovery.statusPresent')}</Admonition>
         </View>
       )}
 
       {noPhrase && (
-        <View style={[styles.gutter, styles.stack]}>
+        <View style={styles.stack}>
           <Admonition type="warning">{t('backupRecovery.statusAbsent')}</Admonition>
           <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
@@ -125,8 +121,5 @@ export default function BackupRecoveryScreen() {
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-  gutter: { paddingHorizontal: 20 },
   stack: { gap: 12 },
 });

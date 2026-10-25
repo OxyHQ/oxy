@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -178,7 +178,7 @@ export default function AboutIdentityScreen() {
 
   if (loading) {
     return (
-      <Screen contentStyle={styles.flush}>
+      <Screen>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.tint} />
           <Text style={[styles.loadingText, { color: colors.text }]}>
@@ -251,17 +251,13 @@ export default function AboutIdentityScreen() {
   );
 
   return (
-    // Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-    // header + footnote are padded to align with it.
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader
-          title={t('aboutIdentity.title')}
-          subtitle={t('aboutIdentity.subtitle')}
-          onBack={() => router.back()}
-          backAccessibilityLabel={t('common.back')}
-        />
-      </View>
+    <Screen gap={16}>
+      <StackHeader
+        title={t('aboutIdentity.title')}
+        subtitle={t('aboutIdentity.subtitle')}
+        onBack={() => router.back()}
+        backAccessibilityLabel={t('common.back')}
+      />
 
       <SessionGate>{renderBody()}</SessionGate>
     </Screen>
@@ -269,12 +265,9 @@ export default function AboutIdentityScreen() {
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
   footnote: {
     fontSize: 12.5,
     lineHeight: 18,
-    paddingHorizontal: 20,
     marginTop: 4,
   },
   valueTrail: {

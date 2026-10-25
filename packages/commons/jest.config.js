@@ -50,6 +50,7 @@ module.exports = {
     '^@oxy.so/bloom/text-field$': '<rootDir>/__mocks__/bloom-text-field.tsx',
     '^@oxy.so/bloom/textarea$': '<rootDir>/__mocks__/bloom-text-field.tsx',
     '^@oxy.so/bloom/checkbox$': '<rootDir>/__mocks__/bloom-checkbox.tsx',
+    '^@oxy.so/bloom/page-header$': '<rootDir>/__mocks__/bloom-page-header.tsx',
     '^@oxy.so/bloom/badge$': '<rootDir>/__mocks__/bloom-badge.tsx',
     '^@oxy.so/bloom/admonition$': '<rootDir>/__mocks__/bloom-admonition.tsx',
     '^@oxy.so/bloom/typography$': '<rootDir>/__mocks__/bloom-typography.tsx',
