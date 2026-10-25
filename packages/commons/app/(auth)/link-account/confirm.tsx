@@ -150,13 +150,19 @@ export default function LinkAccountConfirmScreen() {
     [oxyServices, router, syncIdentity, t],
   );
 
+  // Read where the request stands ONCE per request: the callbacks below are
+  // recreated on renders, and re-running this would reset a later step (the
+  // phrase, the code) back to the confirmation.
+  const loadedForRef = useRef<string | null>(null);
   useEffect(() => {
     if (!id || !c) return;
-    let cancelled = false;
+    const request = `${id}:${c}`;
+    if (loadedForRef.current === request) return;
+    loadedForRef.current = request;
     void (async () => {
       try {
         const [state, pending] = await Promise.all([readLink(id), readPendingLink()]);
-        if (cancelled) return;
+        if (aborter.current.signal.aborted) return;
         // Resumed: this phone already made a key for THIS request.
         if (pending && pending.linkId === id) {
           engagedRef.current = true;
@@ -180,12 +186,11 @@ export default function LinkAccountConfirmScreen() {
             : { name: 'error', message: t('linkAccount.expired') },
         );
       } catch {
-        if (!cancelled) setStep({ name: 'error', message: t('linkAccount.expired') });
+        if (!aborter.current.signal.aborted) {
+          setStep({ name: 'error', message: t('linkAccount.expired') });
+        }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [id, c, readLink, syncIdentity, router, awaitConfirmation, t]);
 
   const fail = useCallback(
