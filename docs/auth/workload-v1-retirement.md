@@ -55,9 +55,13 @@ post-deployment migration and must not remove external application/key scopes.
 - No owned consumer or operator script still depends on scoped workload issuance,
   raw forwarded owner headers or a v1 introspection serializer. External scoped
   clients are not counted as violations of the own-workload migration.
-- Fresh live canaries cover own v2, recipient mismatch, requester/account mismatch,
-  binding revocation, external customer scope ceilings and external OAuth/MCP
-  revocation. After old producers stop, drain existing tokens for their full
+- Final live canaries cover scope-free own v2, canonical introspection, recipient
+  mismatch, refused v1 issuance, invalid bearers and the parked Schedio binding.
+  Requester/account isolation, external customer scope ceilings and external
+  OAuth/MCP revocation are covered by the exact-source signed-HTTP/PostgreSQL
+  regressions and earlier dated product probes. Those evidence types remain
+  distinct; the final canary did not exercise a real external customer credential.
+- After old producers stop, drain existing tokens for their full
   maximum lifetime before removing the accepting readers. The current shared
   `OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS` in
   `packages/core/src/server/serviceTokenLifetime.ts` is **300 seconds**; API mint
