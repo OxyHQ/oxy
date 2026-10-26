@@ -219,10 +219,10 @@ describe('generated physical cleanup and bounded operational evidence', () => {
   const moduleUrl = pathToFileURL(
     resolve(root, 'scripts/auth/read-workload-schema-cleanup.mjs'),
   ).href;
-  const runOperator = (code: string) =>
+  const runOperator = (code: string, runtime = process.execPath) =>
     JSON.parse(
       execFileSync(
-        process.execPath,
+        runtime,
         [
           '--input-type=module',
           '-e',
@@ -342,6 +342,13 @@ describe('generated physical cleanup and bounded operational evidence', () => {
     });
     currentColumnPresent = false;
     const after = readReceipt();
+    const bunReceipt = runOperator(
+      `process.stdout.write(JSON.stringify(await readWorkloadSchemaCleanup(process.env.DATABASE_URL)));`,
+      'bun',
+    );
+    expect(bunReceipt.bindings).toEqual(after.bindings);
+    expect(bunReceipt.externalScopeColumns).toEqual(after.externalScopeColumns);
+
     const result = runOperator(
       `process.stdout.write(JSON.stringify(compareWorkloadSchemaCleanup(${JSON.stringify(before)}, ${JSON.stringify(after)})));`,
     );

@@ -6,7 +6,8 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(`${process.cwd()}/package.json`);
-const postgres = require('postgres');
+const postgresModule = require('postgres');
+const postgres = postgresModule.default ?? postgresModule;
 const MAX_ROWS = 1000;
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const summary = (rows) => {
