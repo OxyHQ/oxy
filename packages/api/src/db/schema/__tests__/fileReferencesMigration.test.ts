@@ -13,7 +13,8 @@
  * `file_references`. Each describe takes a fully migrated throwaway database,
  * drops `file_references`, recreates `file_links` from the statements that
  * created it (`0004_nebulous_warbound.sql`), seeds it, and only then runs the
- * migrations under test.
+ * migrations under test. It also restores the historical workload scope column
+ * and check which 0171 widens, since 0220 removes them from a fresh database.
  *
  * ## What it pins
  *
@@ -79,6 +80,22 @@ async function migrate(sql: Sql, file: string): Promise<void> {
 async function legacyDatabase(): Promise<{ url: string; sql: Sql }> {
   const url = await createTestDatabase({ assignEnv: false });
   const sql = postgres(url, { max: 1, onnotice: () => {} });
+  // Replay 0171 against the schema it actually encountered. Migration 0220
+  // removes this unrelated historical column/check from the fully migrated
+  // database; 0171 still widens that check as part of its original SQL.
+  const legacyScopeDdl = [
+    ...statements('0102_workload_identity_scopes.sql').filter((chunk) =>
+      chunk.includes('ALTER TABLE "application_workload_identities" ADD COLUMN "scopes"'),
+    ),
+    ...statements('0170_application_owned_files.sql').filter((chunk) =>
+      chunk.includes(
+        'ALTER TABLE "application_workload_identities" ADD CONSTRAINT "application_workload_identities_scopes_check"',
+      ),
+    ),
+  ];
+  if (legacyScopeDdl.length !== 2)
+    throw new Error('expected historical workload scope column and check');
+  for (const statement of legacyScopeDdl) await sql.unsafe(statement);
   await sql.unsafe('DROP TABLE file_references');
   for (const statement of legacyFileLinksDdl()) await sql.unsafe(statement);
   return { url, sql };
