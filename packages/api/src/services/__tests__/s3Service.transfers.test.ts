@@ -1,5 +1,6 @@
 import { promises as fsPromises } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { getEventListeners } from 'node:events';
 import {
   createServer,
   type IncomingHttpHeaders,
@@ -8,6 +9,8 @@ import {
 } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough, Readable } from 'node:stream';
+import type { S3Client } from '@aws-sdk/client-s3';
 import { S3Service } from '../s3Service';
 
 /** Real SDK transport: failures happen after HTTP bytes arrive, not in a mocked send/Upload. */
@@ -43,7 +46,8 @@ beforeEach(async () => {
       requests.push(record);
       handler(record, response);
     } catch (error) {
-      serverErrors.push(error);
+      // A caller cancellation deliberately interrupts in-flight request bodies.
+      if (!request.aborted) serverErrors.push(error);
       response.destroy();
     }
   });
@@ -105,6 +109,7 @@ async function localFile(bytes: Buffer): Promise<string> {
 
 describe('replayable file uploads', () => {
   it('replays the complete small PUT after a transient response without losing object headers', async () => {
+    const controller = new AbortController();
     const bytes = Buffer.from('a complete encoded video, including its index');
     handler = (_request, response) => {
       if (requests.length === 1) return s3Error(response, 503, 'ServiceUnavailable');
@@ -115,7 +120,9 @@ describe('replayable file uploads', () => {
       contentType: 'video/mp4',
       cacheControl: 'public, max-age=31536000, immutable',
       metadata: { profile: 'video-v2' },
+      abortSignal: controller.signal,
     });
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
     expect(uploaded.key).toBe('encoded.mp4');
     expect(requests).toHaveLength(2);
     for (const request of requests) {
@@ -157,13 +164,17 @@ describe('replayable file uploads', () => {
   });
 
   it('aborts multipart storage on a nonretryable part failure and never completes it', async () => {
+    const controller = new AbortController();
     handler = (request, response) => {
       if (multipart(request, response)) return;
       s3Error(response, 403, 'AccessDenied');
     };
     await expect(
-      service.uploadFile('encoded.mp4', await localFile(Buffer.alloc(6 * 1024 * 1024))),
+      service.uploadFile('encoded.mp4', await localFile(Buffer.alloc(6 * 1024 * 1024)), {
+        abortSignal: controller.signal,
+      }),
     ).rejects.toThrow(/AccessDenied|Injected transport failure/);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
     const parts = requests.filter((request) => request.url.searchParams.has('partNumber'));
     expect(parts.length).toBeGreaterThan(0);
     expect(new Set(parts.map((request) => request.url.searchParams.get('partNumber'))).size).toBe(
@@ -188,6 +199,73 @@ describe('replayable file uploads', () => {
       service.uploadFile('encoded.mp4', await localFile(Buffer.from('denied'))),
     ).rejects.toThrow(/AccessDenied|Injected transport failure/);
     expect(requests).toHaveLength(1);
+  });
+
+  it('bounds pending parts after cancellation, destroys the source and eventually discards multipart storage', async () => {
+    // Upload.abort() rejects its public promise before SDK requests settle.
+    // Exercise the real transport inactivity bound without waiting two minutes.
+    const { s3Client } = service as unknown as { s3Client: S3Client };
+    s3Client.config.requestHandler.updateHttpClientConfig('socketTimeout', 250);
+    const controller = new AbortController();
+    let confirmAbort: (() => void) | undefined;
+    const abortSeen = new Promise<void>((resolve) => {
+      confirmAbort = resolve;
+    });
+    const source = Readable.from(
+      (async function* () {
+        for (let index = 0; index < 20; index++) yield Buffer.alloc(5 * 1024 * 1024, index);
+      })(),
+    );
+    handler = (request, response) => {
+      if (request.method === 'DELETE') confirmAbort?.();
+      if (multipart(request, response)) return;
+      // The SDK has opened multipart storage and sent at least one whole part.
+      // Keep its response pending while the caller cancels the operation.
+      controller.abort();
+    };
+    await expect(
+      service.uploadStream('encoded.mp4', source, { abortSignal: controller.signal }),
+    ).rejects.toThrow();
+    expect(source.destroyed).toBe(true);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        abortSeen,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Multipart cancellation was not cleaned up')),
+            5_000,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    expect(requests.some((request) => request.url.searchParams.has('partNumber'))).toBe(true);
+    expect(requests.filter((request) => request.method === 'DELETE')).toHaveLength(1);
+    expect(
+      requests.filter(
+        (request) => request.method === 'POST' && request.url.searchParams.has('uploadId'),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('disposes a live source already cancelled before upload without issuing HTTP', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const source = new PassThrough();
+    source.write('bytes waiting for an upload consumer');
+    try {
+      await expect(
+        service.uploadStream('encoded.mp4', source, { abortSignal: controller.signal }),
+      ).rejects.toThrow();
+      expect(source.destroyed).toBe(true);
+      expect(requests).toHaveLength(0);
+      expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    } finally {
+      source.destroy();
+    }
   });
 });
 
