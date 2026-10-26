@@ -45,7 +45,8 @@
         "running": 2,
         "imageDigest": "sha256:7210eca68354c268986b8d5d01ace6e10ede47a6bd547509a31bd50a75c03933",
         "healthyAndDrained": true
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Atlas",
@@ -66,7 +67,8 @@
         "name": "atlas-rollout-69883ae.json",
         "sha256": "583898a4fcaa955bc9ad6b205908850f42b3bbce95c61fc4feb218d555f89fd3"
       },
-      "mergedSource": "69883ae4544e18af82cc5ae599321ef853ec1b98"
+      "mergedSource": "69883ae4544e18af82cc5ae599321ef853ec1b98",
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Clarity",
@@ -88,7 +90,8 @@
         "name": "clarity-rollout-e4b44ce.json",
         "sha256": "c3785235d81f15f49e39dec4461c2f17455c712bf6439a7469d78134610eefff"
       },
-      "mergedSource": "e4b44ce102899cc63d45b3a9b99eba59599c7445"
+      "mergedSource": "e4b44ce102899cc63d45b3a9b99eba59599c7445",
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "CrowdSource",
@@ -121,7 +124,8 @@
       "privateReceipt": {
         "name": "crowdsource-rollout-5177a846.json",
         "sha256": "c2d63ce727205054cd526b3ad1d9029287c7ac4b75f87d2476d28c1cd6ea0dd2"
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "GoWay",
@@ -145,7 +149,8 @@
       "privateReceipt": {
         "name": "goway-rollout-7bbba4da.json",
         "sha256": "9276141d9f8f4d0149ca7d277be3a576d70332b0dfe89d9beb81fa1dc9dc59da"
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Homiio",
@@ -171,7 +176,8 @@
       "privateReceipt": {
         "name": "homiio-rollout-f48b1bbd.json",
         "sha256": "90842f25571197d97cba6e40095f6c83b5b6e5cb178e4583fe20c936e8c37360"
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Inbox",
@@ -194,7 +200,8 @@
         "name": "inbox-rollout-0d318d80.json",
         "sha256": "288a475ca723b4cd4a3c8ed3f8a4cab52c696198933a395d9dcd8933d40bb8ca"
       },
-      "mergedSource": "0d318d80d9dc8d432e5676f1a0eaa021c9f4428c"
+      "mergedSource": "0d318d80d9dc8d432e5676f1a0eaa021c9f4428c",
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Mercaria",
@@ -212,7 +219,8 @@
         "frozen install",
         "214 published archive files matched"
       ],
-      "mergedSource": "b16277537fb7522a3dfc3d0b9bd83b2c07b16bf5"
+      "mergedSource": "b16277537fb7522a3dfc3d0b9bd83b2c07b16bf5",
+      "deploymentScopeState": "pending"
     },
     {
       "repository": "OxyOS",
@@ -232,7 +240,8 @@
         "name": "oxyos-source-1257bf80.json",
         "sha256": "f6520b6b7f8bd4436c9fbd905396c07e2c4080b55ae9b2f8431364e06bbfd667"
       },
-      "mergedSource": "1257bf803db7862cc0b07d50d1f3aa19d5b3104e"
+      "mergedSource": "1257bf803db7862cc0b07d50d1f3aa19d5b3104e",
+      "deploymentScopeState": "source-only"
     },
     {
       "repository": "Mention",
@@ -247,7 +256,8 @@
         "frontend": 40303955438,
         "api": 40303955350,
         "mcp": 40303955254
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "oxy",
@@ -261,7 +271,8 @@
       "deploymentRuns": {
         "aws": 40305021114,
         "frontends": 40305020999
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Moovo",
@@ -304,7 +315,8 @@
           "name": "rollouts/moovo-cb0b17906133/moovo-runtime-20261025.json",
           "sha256": "58c885becd3dcc12438ba3e090306ae27c251ab1fdd4eb39e4eedff2c820c7c6"
         }
-      ]
+      ],
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Move",
@@ -318,7 +330,8 @@
       "deploymentRuns": {
         "api": 40309576519,
         "frontend": 40309576834
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Nilo",
@@ -332,7 +345,8 @@
       "deploymentRuns": {
         "api": 40308267594,
         "frontend": 40307134521
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Noted",
@@ -345,7 +359,8 @@
       "mergedSource": "3e47bdadd61f1a101a18509ae4e395800cc6dc40",
       "deploymentRuns": {
         "frontend": 40306487200
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Peable",
@@ -364,7 +379,8 @@
       "relatedPullRequests": [
         "https://github.com/OxyHQ/Peable/pull/174"
       ],
-      "deploymentSourceExplanation": "Final deployed0eeb6763 contains SDK adoption173 and the subsequent documentation174; reviewedHead records173, not the174 merge commit."
+      "deploymentSourceExplanation": "Final deployed0eeb6763 contains SDK adoption173 and the subsequent documentation174; reviewedHead records173, not the174 merge commit.",
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Syra",
@@ -393,7 +409,8 @@
           "name": "syra-runtime-20261025.json",
           "sha256": "540515b211b89fa4c00ae869aacb91c35973579d2fdb83bdef3dd5e916c6ef06"
         }
-      ]
+      ],
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "Willo",
@@ -407,7 +424,8 @@
       "deploymentRuns": {
         "api": 40306935738,
         "frontend": 40306935447
-      }
+      },
+      "deploymentScopeState": "verified"
     },
     {
       "repository": "website",
@@ -435,7 +453,8 @@
           "name": "public-smoke.json",
           "sha256": "a1e95b3bf1b6cdc91981d2c39a70515cff87cc03f74cf9b15f4bf8ed0b2e06b3"
         }
-      ]
+      ],
+      "deploymentScopeState": "verified"
     }
   ],
   "stopAcceptance": {
