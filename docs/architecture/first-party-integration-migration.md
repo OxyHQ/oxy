@@ -592,7 +592,7 @@ from shipping an updated app to every native device.
 | Allo | `d68e817697f0`; API 182 and Worker `e2becb3d`; workflows 40309994747/40309409443 | Web and backend rollout verified; healthy and drained |
 | Move | `8299d226b31c`; API 53 and Worker `0a34ebed`; workflows 40309576519/40309576834 | Web and backend rollout verified; healthy and drained |
 | Syra | `d69b40d9e499`; frontend Pages `f6363ad5`, studio Pages `18d42454`; workflows 40309572723/40309572253 | Web and Studio published; backend verification pending |
-| CrowdSource | Merged #300 as `5177a8469efe`; console/reviewer tests, types and exports passed | Main CI and rollout pending |
+| CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
 | GoWay | Reviewed PR #283, `53bd8cbcf248`; package, types, UI and export checks passed | Draft; rollout pending |
 | Homiio | Reviewed PR #749, `dbaa0c9bc412`; package, types, UI and export checks passed | Draft; rollout pending |
 | Mercaria | Reviewed PR #1160, `0c020dac3d18`; full CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Draft; rollout pending |

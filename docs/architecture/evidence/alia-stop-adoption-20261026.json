@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-10-26T10:49:32.584795+00:00",
+  "recordedAt": "2026-10-26T11:00:46.097218+00:00",
   "status": "partial-rollout-checkpoint; pending rows are not deployment claims",
   "authority": "Own applications remain scope-free; external OAuth/API-key ceilings and account/resource boundaries remain enforced.",
   "published": {
@@ -93,8 +93,8 @@
       "pullRequest": "https://github.com/OxyHQ/CrowdSource/pull/300",
       "reviewedHead": "dbc5bc4d71a37d54cf63b796e89805183f79bb19",
       "sdk": "22.1.1",
-      "state": "pending; no runtime verification for this adoption",
-      "mergeStatus": "merged; mainCI and rollout pending",
+      "state": "Verified console, reviewer and backend; no native distribution claim",
+      "mergeStatus": "merged normally",
       "localChecks": [
         "two UI typechecks",
         "console118/reviewer139 tests",
@@ -104,7 +104,22 @@
         "frozen lock guard",
         "214 published archive files matched in both apps"
       ],
-      "mergedSource": "5177a8469efe951279581617a6867f3e542b64bd"
+      "mergedSource": "5177a8469efe951279581617a6867f3e542b64bd",
+      "deploymentRuns": {
+        "aws": 40311021603,
+        "frontends": 40311021466
+      },
+      "runtime": {
+        "taskDefinitionRevision": 129,
+        "desired": 1,
+        "running": 1,
+        "imageDigest": "sha256:75d4d0af6cb2bac7c670353ce988f5bc8d1d6fe3ae29b79b356592f0676137e8",
+        "healthyAndDrained": true
+      },
+      "privateReceipt": {
+        "name": "crowdsource-rollout-5177a846.json",
+        "sha256": "c2d63ce727205054cd526b3ad1d9029287c7ac4b75f87d2476d28c1cd6ea0dd2"
+      }
     },
     {
       "repository": "GoWay",
