@@ -1423,6 +1423,19 @@ jobs:
         if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
         run: bun run build
         working-directory: ./packages/services
+      # PR/nightly composition lives in scaffold-smoke. Queue/push must also
+      # exercise the exact tree release-packages will publish, inside this
+      # existing required job rather than another runner or permissive release.
+      - name: 'Core Tests: published product SDK composition'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' && github.event_name != 'pull_request' }}
+        run: |
+          bun run --cwd packages/mcp build
+          mkdir -p "$RUNNER_TEMP/product-sdk-tarballs"
+          for package in contracts protocol telemetry core services mcp; do
+            bun pm pack --ignore-scripts --cwd "packages/$package" --destination "$RUNNER_TEMP/product-sdk-tarballs"
+          done
+          node packages/core/scripts/test-product-sdk-composition.mjs "$RUNNER_TEMP/product-sdk-tarballs" "$RUNNER_TEMP/product-sdk-composition"
+
       - name: 'Services Tests: enforce services web bundle budget'
         if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
         run: bun run build && bun run check:bundle-budget
