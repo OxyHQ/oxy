@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-10-26T11:59:38.422699+00:00",
-  "status": "partial-rollout-checkpoint; pending rows are not deployment claims",
+  "recordedAt": "2026-10-26T12:38:49.990699+00:00",
+  "status": "nineteen consumer adoptions closed at their declared scope: eighteen web/runtime verified, OxyOS source-only; acceptance and distribution limits remain explicit",
   "authority": "Own applications remain scope-free; external OAuth/API-key ceilings and account/resource boundaries remain enforced.",
   "published": {
     "uiSdk": {
@@ -208,7 +208,7 @@
       "pullRequest": "https://github.com/OxyHQ/Mercaria/pull/1160",
       "reviewedHead": "0c020dac3d180f95a0039722a80d4ea28c9067aa",
       "sdk": "22.1.1",
-      "state": "MainCI40316704776 and API/three-frontend rollout pending",
+      "state": "API 147 stable 1/1 with exact source/runtime digest, healthy targets and no old tasks; all three Workers published, canonical shells and nine exact build JavaScript entries returned HTTP 200 without Set-Cookie",
       "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "all3 UI typechecks",
@@ -220,7 +220,32 @@
         "214 published archive files matched"
       ],
       "mergedSource": "b16277537fb7522a3dfc3d0b9bd83b2c07b16bf5",
-      "deploymentScopeState": "pending"
+      "deploymentScopeState": "verified",
+      "deploymentRuns": {
+        "frontend": 40322728049,
+        "dashboard": 40322728011,
+        "pos": 40322728295,
+        "api": 40322728111
+      },
+      "runtime": {
+        "observedAt": "2026-10-26T12:37:55.555343+00:00",
+        "revision": 147,
+        "desired": 1,
+        "running": 1,
+        "sourceImageDigest": "sha256:6dfbf79bc160a934808248fd61ff7f97af8bb373ba36d5e5d2fedf261745be5a",
+        "runtimeImageDigest": "sha256:6dfbf79bc160a934808248fd61ff7f97af8bb373ba36d5e5d2fedf261745be5a",
+        "healthyAndDrained": true
+      },
+      "workerVersions": {
+        "frontend": "9f8986d0-998b-48cf-b219-a6d0b86b1712",
+        "dashboard": "c6a2de81-fc94-49b8-a9c8-228afa6c0942",
+        "pos": "3b2accc0-b5fc-42e2-8ee5-d74c9c931e23"
+      },
+      "privateReceipt": {
+        "name": "mercaria-rollout-b1627753.json",
+        "sha256": "f9fb1c826d8ba47459b417afbf15261222fc9fd8fb23111f0ef1f56bf8edfcda"
+      },
+      "ci": "Run 40316704776 attempt 2 passed at the same source SHA. Attempt 1 exhausted the existing 25-minute job limit after a 12m39s dependency download; one targeted retry, with no source or timeout change."
     },
     {
       "repository": "OxyOS",

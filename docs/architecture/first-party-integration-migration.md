@@ -597,7 +597,7 @@ made, and this does not establish store distribution to other devices.
 | CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
 | GoWay | `7bbba4da6660`; API 165, Worker `4497093a`, workflow 40314962480; canonical shell/build entry verified | Web and API rollout verified; healthy and drained; GPU-worker execution not claimed |
 | Homiio | `f48b1bbd8ba2`; API 276 (2/2), listing worker 279 (1/1), Worker `0be37d60`; workflows 40311903345/40314376407 | Web, API and listing-worker rollout verified; healthy and drained |
-| Mercaria | Merged #1160 as `b16277537fb7`; reviewed CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Main CI and API/three-frontend rollout pending |
+| Mercaria | `b16277537fb7`; API 147; Workers storefront `9f8986d0`, dashboard `c6a2de81`, POS `3b2accc0`; workflows 40322728111/40322728049/40322728011/40322728295; canonical shells and exact build entries verified | API and all three web surfaces verified; healthy and drained |
 | Moovo | `cb0b17906133`; API 62; Pages main `d1e0d6c9`, Go `d2f86d3c`, Hub `b80066a0`, Tracker `e54950fb`; AWS 40316856359 and four public shell checks | API and four web surfaces verified; healthy and drained |
 | Website | `090d45e9b95c`; API 71, Pages `f869d689`; workflows 40313209189/40313209023; canonical shell/build entry verified | Web and API rollout verified; healthy and drained |
 
