@@ -24,9 +24,9 @@ revocation and operation binding remain mandatory.
 | Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS, live readback and completed v1 retirement |
 | Oxy core/contracts service authority | Core 7.5.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | Service authority, Inbox events and private Files verified; Mention → Alia text generation and Kaana two-task realtime admission/settlement verified | Account/resource isolation without own scope/grant dependencies |
-| Oxy Console application settings/credentials | Authenticated account/security settings, two-account switching, logout/reload and zero cookies passed; application-credential editing is not claimed by that journey | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Stage B/C deployed; Stop receiver verified at API 614 on `bbfc740b`; SDK 22.1.1/server 1.3.0 published; consumer adoption and live Stop acceptance pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Gateway 193 and API 613 verified on `aec9ae04`; old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Oxy Console application settings/credentials | Authenticated account/security settings, two-account switching, logout/reload and zero cookies passed; application-credential editing is not claimed by that journey | General does not mutate scopes; workload identity separate from external API products; external service/API-key credentials explicitly scoped; own workloads are scope-free |
+| Alia own-app levels and tool admission | Stage B/C and Stop receiver verified at API 619/integrations 198 on `e2c85110` (10:09 UTC); SDK 22.1.1/server 1.3.1/CLI 3.1.0 published; [19 consumer adoptions closed at their declared scope](#stop-consumer-adoption-checkpoint-2026-10-26); live Stop acknowledged and cancelled, estimated usage remains unresolved | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Integrations 198 and API 619 verified on `e2c85110` (10:09 UTC); old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 152 and publisher 153 verified on `95ac4fa9`; real two-task resume after Kaana cookie removal preserves one admission/settlement | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; Schedio is explicitly parked before launch | Caller→SDK→receiver tests for own and external identities |
 | Mercaria storefront commerce transport | PR #1159 deployed: API 146 and all three frontends verified on `714f3ec4`; public HTTP/Chromium transport acceptance passed | Preserve Oxy-owned carts and independent guest/portal authority; bounded referral preservation only; real-identity/native acceptance not claimed |
@@ -513,9 +513,11 @@ for the request. All three DB-only diagnostic tasks exited successfully and thei
 temporary definitions are inactive.
 
 Alia's owner relay is deployed, but its live two-task voice journey has not yet
-completed. The dedicated QA account's ordinary entitlement readback does not
-include voice; no entitlement or policy was changed to force the test. The first
-three tunnel preparations made no QA call; the third reached only health checks. No persisted Alia-call → Kaana-request correlation is asserted.
+completed. The dedicated QA account lacked voice. A later bounded read-only check
+confirmed an eligible existing account, but the matching ordinary account approval
+is still pending; no entitlement or policy was changed to force the test. The first
+three tunnel preparations made no QA call; the third reached only health checks.
+No persisted Alia-call → Kaana-request correlation is asserted.
 
 Kaana's separate cookie removal is complete. The
 [post-removal receipt](evidence/kaana-cookie-free-acceptance-20261026.json) records
@@ -537,10 +539,12 @@ disconnection and explicit Stop. The Stop receiver from Alia
 194 on `bbfc740b` at `08:32:00Z`; the later correlation receiver was verified at
 API 615 on `b3d3b006` at `08:49:56Z`. These are dated deployment proofs, not a
 claim of the latest task revision. SDK 22.1.1, including the delayed-Stop
-acknowledgement fix, and server 1.3.0 were verified in the registry with matching
-source provenance. Consumer deployment remains pending. The server 1.3.1/CLI
-3.1.0 follow-up is merged, but its publication is not yet claimed here. Live
-Stop/partial-settlement acceptance remains pending. Core 7.5 supplies
+acknowledgement fix, server 1.3.1 and CLI 3.1.0 are verified registry releases
+with matching source provenance. The [consumer adoption checkpoint](#stop-consumer-adoption-checkpoint-2026-10-26)
+records 18 verified web/runtime adoptions and OxyOS source-only adoption, with
+native and desktop distribution limits kept separate.
+Live explicit Stop was acknowledged and the canonical turn is cancelled; its
+estimated usage remains unresolved as described below. Core 7.5 supplies
 authoritative receipt lookup by idempotency key; publication alone is not a
 claim that the new Stop UI is deployed.
 Codea and Cowork have separate Stop callers; updating the shared UI package alone
@@ -552,9 +556,79 @@ tasks; older tasks that expired from ECS history retain their frozen successful
 STOPPED receipts. The source Oxy API image remains present. The final Alia
 relay cleanup readback at `08:38:48.884Z` separately verified both exact owned
 temporary paths absent and zero matching processes (SSM command
-`259d4975-b20f-4e3a-b9ff-c382d6242642`, success/exit 0). QA account/device cleanup
-remains pending. No production credentials, prompts, audio or private user content
+`259d4975-b20f-4e3a-b9ff-c382d6242642`, success/exit 0). The dedicated QA accounts and conversations were subsequently deleted through
+normal product APIs, with old credentials rejected and deleted conversations
+absent. The isolated Android QA profile was removed at `10:52:13Z`; owner 0
+and its Commons identity were preserved. Private QA copies were removed while
+sanitized receipts were retained. No production credentials, prompts, audio or private user content
 are included in the receipts.
+
+## Stop consumer adoption checkpoint (2026-10-26)
+
+This is a dated rollout checkpoint, not a claim that every installed client has
+updated. The [sanitized evidence index](evidence/alia-stop-adoption-20261026.json)
+records each reviewed source and the limits of its deployment evidence. SDK 22.1.1 was published from Alia `18abd054`; server 1.3.1 and CLI 3.1.0
+were published from `b0ad8da4`. Registry archive integrity, source provenance and
+installed package bytes were checked before consumer adoption. The CLI's public
+package passed help/version smoke on Node 24 without authentication or inference.
+
+Codea VSIX 1.0.10 and Cowork Linux AppImage 1.0.3 were built from reviewed source
+`e9d84c7e` (merged in Alia `e2c85110`). These are local artifacts only: no
+Marketplace, installer-channel distribution or installed desktop acceptance is
+claimed. Mention's signed Android APK from `521b11e18eab` passed a dedicated
+QA-profile session and existing-conversation read-only journey with SDK 22.1.1.
+No native generation or Stop was invoked, no new Commons broker/import claim is
+made, and this does not establish store distribution to other devices.
+
+| Consumer | Dated source and evidence | State |
+|---|---|---|
+| Mention | `521b11e18eab`; API 724/MCP 424 and Worker `23711077`; workflows 40303955350/40303955254/40303955438 | Web and backend rollout verified; dedicated UI Stop evidence below |
+| Oxy | `91e34bbf9af9`; API 1087/worker 552; Auth, Accounts and Console deployments; workflows 40305021114/40305020999 | Web and paired backend rollout verified; native distribution separate |
+| Clarity | `e4b44ce102899`; API 160/worker 146, Worker `ae33d150`; workflows 40306045930/40306045831 | Web and paired backend rollout verified; healthy and drained |
+| Atlas | `69883ae4544e`; Pages `bb3d73f5`, workflow 40305790135; canonical/deployment HTML and scripts match with normal browser user agent | Web rollout verified; default Python user agent receives Cloudflare 1010 |
+| Inbox | `0d318d80d9dc`; workflow 40306260649; canonical `/release.txt` returned exact source | Web rollout verified |
+| Noted | `3e47bdadd61f`; Worker `b0d96901`, workflow 40306487200 | Web rollout verified; no backend |
+| Willo | `654021d9f11a`; API 37, Worker `891f1449`; workflows 40306935738/40306935447 | Web and backend rollout verified; healthy and drained |
+| Nilo | `a52a0cfe2715`; API 111, Worker `ba747e0d`; workflows 40308267594/40307134521 | Web and backend rollout verified; healthy and drained |
+| Peable | SDK #173 plus docs #174 in `0eeb6763d5de`; API 124, frontend Pages `385ea480` and checkout `0666fd67`; workflows 40307906665/40307906541/40307906630 | Web and backend rollout verified; healthy and drained |
+| OxyOS | `1257bf803db7`; Shell CI 40309083574 passed | Source/shell adoption verified; ISO and installed distribution not claimed |
+| Allo | `d68e817697f0`; API 182 and Worker `e2becb3d`; workflows 40309994747/40309409443 | Web and backend rollout verified; healthy and drained |
+| Move | `8299d226b31c`; API 53 and Worker `0a34ebed`; workflows 40309576519/40309576834 | Web and backend rollout verified; healthy and drained |
+| Syra | `d69b40d9e499`; API 176, frontend Pages `f6363ad5`, studio `18d42454`; workflows 40314484323/40309572723/40309572253 | Web, Studio and API rollout verified; healthy and drained |
+| CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
+| GoWay | `7bbba4da6660`; API 165, Worker `4497093a`, workflow 40314962480; canonical shell/build entry verified | Web and API rollout verified; healthy and drained; GPU-worker execution not claimed |
+| Homiio | `f48b1bbd8ba2`; API 276 (2/2), listing worker 279 (1/1), Worker `0be37d60`; workflows 40311903345/40314376407 | Web, API and listing-worker rollout verified; healthy and drained |
+| Mercaria | `b16277537fb7`; API 147; Workers storefront `9f8986d0`, dashboard `c6a2de81`, POS `3b2accc0`; workflows 40322728111/40322728049/40322728011/40322728295; canonical shells and exact build entries verified | API and all three web surfaces verified; healthy and drained |
+| Moovo | `cb0b17906133`; API 62; Pages main `d1e0d6c9`, Go `d2f86d3c`, Hub `b80066a0`, Tracker `e54950fb`; AWS 40316856359 and four public shell checks | API and four web surfaces verified; healthy and drained |
+| Website | `090d45e9b95c`; API 71, Pages `f869d689`; workflows 40313209189/40313209023; canonical shell/build entry verified | Web and API rollout verified; healthy and drained |
+
+The dedicated Mention UI completed one normal turn and then a separate explicit
+Stop journey. The latter issued the authenticated cancel request and received
+HTTP 200; read-only Alia state independently confirmed `cancelled` with the
+expected account/application identity. The browser's aborted response body is
+consistent with the SDK deliberately cancelling that body after successful
+headers, not a failed acknowledgement. No further generation was made to retry
+this result.
+
+Readbacks at `10:31:32Z` (Alia) and `10:34:50Z` (Oxy) found one settled
+internal-metered record with provider-reported usage for the normal turn, and
+Alia had finalized the corresponding measured credits. The stopped turn
+has one settled/cancelled internal-metered record whose usage source is
+`estimated` and whose units are zero. **That is unknown usage, not evidence of a
+zero bill.** Alia retained the admitted credit operation without a measured final
+charge or a refund. Its existing bounded recovery policy makes up to 32 attempts
+before manual review; source review and five PostgreSQL regression tests verified
+that policy. No balance, subscription or inference policy was manually altered; ordinary
+QA usage was recorded.
+Both read-only diagnostic tasks exited successfully and their definitions are
+inactive. These receipts establish explicit Stop acceptance and conservative
+handling of unknown usage, not provider-measured partial charging.
+
+Schedio remains explicitly parked and excluded. Kaana's cookie-free resume
+acceptance above is complete; Alia's separate cookie-removal acceptance still
+awaits the matching ordinary authenticated account. These package updates
+introduce no internal application consent grants. Native and desktop distribution
+remain separate from the nineteen source/web adoption rows.
 
 ## Historical source audit (2026-10-23)
 
