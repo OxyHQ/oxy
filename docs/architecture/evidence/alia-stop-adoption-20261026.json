@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-10-26T11:24:32.129830+00:00",
+  "recordedAt": "2026-10-26T11:59:38.422699+00:00",
   "status": "partial-rollout-checkpoint; pending rows are not deployment claims",
   "authority": "Own applications remain scope-free; external OAuth/API-key ceilings and account/resource boundaries remain enforced.",
   "published": {
@@ -128,7 +128,7 @@
       "pullRequest": "https://github.com/OxyHQ/GoWay/pull/283",
       "reviewedHead": "53bd8cbcf24825c1429e051254d0fcceb5b93a68",
       "sdk": "22.1.1",
-      "state": "MainCI and web/backend rollout pending; no GPU-worker execution claim",
+      "state": "Verified API165 and Worker4497093a; independent canonical shell/exact deployed build entry200; no GPU-worker execution or native distribution claim",
       "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
@@ -138,7 +138,14 @@
         "frozen lock guard",
         "214 published archive files matched"
       ],
-      "mergedSource": "7bbba4da6660eaf07bbdd001722f1e96b92e9900"
+      "mergedSource": "7bbba4da6660eaf07bbdd001722f1e96b92e9900",
+      "deploymentRuns": {
+        "ciAndDeployments": 40314962480
+      },
+      "privateReceipt": {
+        "name": "goway-rollout-7bbba4da.json",
+        "sha256": "9276141d9f8f4d0149ca7d277be3a576d70332b0dfe89d9beb81fa1dc9dc59da"
+      }
     },
     {
       "repository": "Homiio",
@@ -194,8 +201,8 @@
       "pullRequest": "https://github.com/OxyHQ/Mercaria/pull/1160",
       "reviewedHead": "0c020dac3d180f95a0039722a80d4ea28c9067aa",
       "sdk": "22.1.1",
-      "state": "pending; no runtime verification for this adoption",
-      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "state": "MainCI40316704776 and API/three-frontend rollout pending",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "all3 UI typechecks",
         "frontend208/dashboard267/POS10 tests",
@@ -204,7 +211,8 @@
         "AGENTS/Biome",
         "frozen install",
         "214 published archive files matched"
-      ]
+      ],
+      "mergedSource": "b16277537fb7522a3dfc3d0b9bd83b2c07b16bf5"
     },
     {
       "repository": "OxyOS",
@@ -260,9 +268,43 @@
       "pullRequest": "https://github.com/OxyHQ/Moovo/pull/178",
       "reviewedHead": "567af4ea6351e0e1c7e3c3670a5d32d984be3eb1",
       "sdk": "22.1.1",
-      "state": "pending; no rollout evidence collected by this agent",
-      "mergeStatus": "draft; no auto; waiting root slot",
-      "localChecks": "Frontend TypeScript +8 worker tests +actual web export/edge build passed;214 registry files; frozen/strict Biome"
+      "state": "Complete: API TD62 exactcb0b1790 stable1/1/healthy/no old; AWS40316856359SUCCESS. Four exactPages +4publicshell/noSetCookie smokesPASS.",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
+      "localChecks": "Frontend TypeScript +8 worker tests +actual web export/edge build passed;214 registry files; frozen/strict Biome",
+      "mergedSource": "cb0b17906133f79319f383f907f46a081c4c9ada",
+      "deploymentRuns": {
+        "frontend": 40316101805,
+        "tracker": 40316101971,
+        "hub": 40316101806,
+        "go": 40316101840,
+        "api": 40316856359
+      },
+      "privateReceipts": [
+        {
+          "name": "rollouts/moovo-cb0b17906133/frontend-production.json",
+          "sha256": "194d4f555928c9fbc04d16ba7bb404731a55b19b361bb099ece09d185e425652"
+        },
+        {
+          "name": "rollouts/moovo-cb0b17906133/go-production.json",
+          "sha256": "f8216f236daf3382caea5c657410514211dee6222cf6473690b4226ef87b6da2"
+        },
+        {
+          "name": "rollouts/moovo-cb0b17906133/hub-production.json",
+          "sha256": "79934bfad2ad47b209971493a0c0fe286ce7f69a4d11b175090af96a78390739"
+        },
+        {
+          "name": "rollouts/moovo-cb0b17906133/tracker-production.json",
+          "sha256": "06ae2eb76045a9ec58cc47e0a48f3154266ee322128797a973e25ad93102be30"
+        },
+        {
+          "name": "rollouts/moovo-cb0b17906133/public-pages-smoke.json",
+          "sha256": "7d669c0b3eea3af490bce4bf545a3ecddee5a3566e3def59e502e6b697000882"
+        },
+        {
+          "name": "rollouts/moovo-cb0b17906133/moovo-runtime-20261025.json",
+          "sha256": "58c885becd3dcc12438ba3e090306ae27c251ab1fdd4eb39e4eedff2c820c7c6"
+        }
+      ]
     },
     {
       "repository": "Move",
@@ -318,21 +360,40 @@
         "api": 40307906665,
         "frontend": 40307906541,
         "checkout": 40307906630
-      }
+      },
+      "relatedPullRequests": [
+        "https://github.com/OxyHQ/Peable/pull/174"
+      ],
+      "deploymentSourceExplanation": "Final deployed0eeb6763 contains SDK adoption173 and the subsequent documentation174; reviewedHead records173, not the174 merge commit."
     },
     {
       "repository": "Syra",
       "pullRequest": "https://github.com/OxyHQ/Syra/pull/260",
       "reviewedHead": "3db4a00a75678b659412977aa86610a75fa36329",
       "sdk": "22.1.1",
-      "state": "Actual Pages frontendf6363ad5 and studio18d42454 both exactd69b40d9. MainQuality40309572588 still running; API workflow awaits success.",
+      "state": "Verified API176 exactsource/digest stable/healthy/drained and actual frontend/Studio Pages publication",
       "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "Frontend294/42 +studio39/5 tests and both types passed after minimum Bloom15.10.1 correction; frozen/Biome/214 public files; installed peer ranges green; paired source-map web builds attribute required Bloom UI; unchanged budget guard passes measured ceilings",
       "mergedSource": "d69b40d9e499bddef63f57b5c6bf941a449a74b8",
       "deploymentRuns": {
         "frontend": 40309572723,
-        "studio": 40309572253
-      }
+        "studio": 40309572253,
+        "api": 40314484323
+      },
+      "privateReceipts": [
+        {
+          "name": "frontend-production.json",
+          "sha256": "c30a3cf15f60b4220576445fa9e7e8fe037bce3930db1a564d8be3a78f4403c1"
+        },
+        {
+          "name": "studio-production.json",
+          "sha256": "e398753a1a5d894103a857d9c1ba95a4323fab08a8b5cea653db5eb7be76f35e"
+        },
+        {
+          "name": "syra-runtime-20261025.json",
+          "sha256": "540515b211b89fa4c00ae869aacb91c35973579d2fdb83bdef3dd5e916c6ef06"
+        }
+      ]
     },
     {
       "repository": "Willo",
@@ -353,14 +414,28 @@
       "pullRequest": "https://github.com/OxyHQ/website/pull/208",
       "reviewedHead": "6c406ec40aebc8fb24ff2d97555b40241cca67d6",
       "sdk": "22.1.1",
-      "state": "API TD71 verified exact090d45e9 source/digest stable/healthy/no old; AWS40313209189 SUCCESS. Frontend40313209023 still building.",
+      "state": "Verified API71 healthy/drained and Pagesf869d689; independent canonical shell/entry script match/200/noSetCookie",
       "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "tsc -b/server types +3 real transport tests passed;214 registry files; frozen/Biome",
       "mergedSource": "090d45e9b95c32becc9467c3801a12bee4579785",
       "deploymentRuns": {
         "frontend": 40313209023,
         "api": 40313209189
-      }
+      },
+      "privateReceipts": [
+        {
+          "name": "frontend-production.json",
+          "sha256": "cf2b9091e6a907231ee543e4b8bbfa75b3105fd3b665192deb0bd1347b4233dc"
+        },
+        {
+          "name": "website-api-runtime-20261025.json",
+          "sha256": "9fda6cd4df89a3e3341df6d541afba09c3e62b6aa46d0a553b7ce9890191a54b"
+        },
+        {
+          "name": "public-smoke.json",
+          "sha256": "a1e95b3bf1b6cdc91981d2c39a70515cff87cc03f74cf9b15f4bf8ed0b2e06b3"
+        }
+      ]
     }
   ],
   "stopAcceptance": {
@@ -414,6 +489,10 @@
       "testPath": "packages/api/src/lib/__tests__/credit-reconciliation.pgdb.test.ts",
       "result": "5 tests/1 suite passed on disposable PostgreSQL; source clean; no production query or financial write by reviewer",
       "privateAssessmentSha256": "973734e08cda543a104c1bfec6ae76b0ec45d3f67b36b420b7ef0f1995806a03"
+    },
+    "readbackObservedAt": {
+      "alia-db": "2026-10-26T10:31:32.275Z",
+      "oxy-db": "2026-10-26T10:34:50.378Z"
     }
   },
   "limits": [

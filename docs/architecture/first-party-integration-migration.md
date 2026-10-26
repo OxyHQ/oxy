@@ -589,17 +589,17 @@ made, and this does not establish store distribution to other devices.
 | Noted | `3e47bdadd61f`; Worker `b0d96901`, workflow 40306487200 | Web rollout verified; no backend |
 | Willo | `654021d9f11a`; API 37, Worker `891f1449`; workflows 40306935738/40306935447 | Web and backend rollout verified; healthy and drained |
 | Nilo | `a52a0cfe2715`; API 111, Worker `ba747e0d`; workflows 40308267594/40307134521 | Web and backend rollout verified; healthy and drained |
-| Peable | `0eeb6763d5de`; API 124, frontend Pages `385ea480` and checkout `0666fd67`; workflows 40307906665/40307906541/40307906630 | Web and backend rollout verified; healthy and drained |
+| Peable | SDK #173 plus docs #174 in `0eeb6763d5de`; API 124, frontend Pages `385ea480` and checkout `0666fd67`; workflows 40307906665/40307906541/40307906630 | Web and backend rollout verified; healthy and drained |
 | OxyOS | `1257bf803db7`; Shell CI 40309083574 passed | Source/shell adoption verified; ISO and installed distribution not claimed |
 | Allo | `d68e817697f0`; API 182 and Worker `e2becb3d`; workflows 40309994747/40309409443 | Web and backend rollout verified; healthy and drained |
 | Move | `8299d226b31c`; API 53 and Worker `0a34ebed`; workflows 40309576519/40309576834 | Web and backend rollout verified; healthy and drained |
-| Syra | `d69b40d9e499`; frontend Pages `f6363ad5`, studio Pages `18d42454`; workflows 40309572723/40309572253 | Web and Studio published; backend verification pending |
+| Syra | `d69b40d9e499`; API 176, frontend Pages `f6363ad5`, studio `18d42454`; workflows 40314484323/40309572723/40309572253 | Web, Studio and API rollout verified; healthy and drained |
 | CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
-| GoWay | Merged #283 as `7bbba4da6660`; package, types, UI and export checks passed | Main CI and web/backend rollout pending; GPU-worker execution not claimed |
+| GoWay | `7bbba4da6660`; API 165, Worker `4497093a`, workflow 40314962480; canonical shell/build entry verified | Web and API rollout verified; healthy and drained; GPU-worker execution not claimed |
 | Homiio | `f48b1bbd8ba2`; API 276 (2/2), listing worker 279 (1/1), Worker `0be37d60`; workflows 40311903345/40314376407 | Web, API and listing-worker rollout verified; healthy and drained |
-| Mercaria | Reviewed PR #1160, `0c020dac3d18`; full CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Draft; rollout pending |
-| Moovo | Reviewed PR #178, `567af4ea6351`; CI, frontend types and export passed | Draft; rollout pending |
-| Website | `090d45e9b95c`; API 71, workflow 40313209189; frontend workflow 40313209023 | API verified; frontend verification pending |
+| Mercaria | Merged #1160 as `b16277537fb7`; reviewed CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Main CI and API/three-frontend rollout pending |
+| Moovo | `cb0b17906133`; API 62; Pages main `d1e0d6c9`, Go `d2f86d3c`, Hub `b80066a0`, Tracker `e54950fb`; AWS 40316856359 and four public shell checks | API and four web surfaces verified; healthy and drained |
+| Website | `090d45e9b95c`; API 71, Pages `f869d689`; workflows 40313209189/40313209023; canonical shell/build entry verified | Web and API rollout verified; healthy and drained |
 
 The dedicated Mention UI completed one normal turn and then a separate explicit
 Stop journey. The latter issued the authenticated cancel request and received
@@ -609,8 +609,9 @@ consistent with the SDK deliberately cancelling that body after successful
 headers, not a failed acknowledgement. No further generation was made to retry
 this result.
 
-The normal turn has one settled internal-metered Oxy record with provider-reported
-usage, and Alia finalized the corresponding measured credits. The stopped turn
+Readbacks at `10:31:32Z` (Alia) and `10:34:50Z` (Oxy) found one settled
+internal-metered record with provider-reported usage for the normal turn, and
+Alia had finalized the corresponding measured credits. The stopped turn
 has one settled/cancelled internal-metered record whose usage source is
 `estimated` and whose units are zero. **That is unknown usage, not evidence of a
 zero bill.** Alia retained the admitted credit operation without a measured final

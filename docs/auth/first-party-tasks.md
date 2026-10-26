@@ -154,6 +154,13 @@ next request, including a repeated URL import.
 
 ## Deployment order
 
+**Historical procedure — completed.** The [protocol-v1 retirement](workload-v1-retirement.md) was verified on
+2026-10-25, followed by the [compatible physical schema cleanup](workload-schema-cleanup.md)
+on 2026-10-26. The procedure below records the original fleet migration; it is
+not an instruction to repeat legacy cohort provisioning or the completed scope
+column removal. The linked records contain the deployment and preservation
+evidence; external scope provisioning remains active.
+
 The workload environment binding is provisioned metadata, never inferred from a
 role name or supplied by the client. Before starting an API that requires bound
 identities (including Inbox), deploy the nullable environment schema and run the

@@ -102,8 +102,11 @@ The [verified protocol-v1 retirement](workload-v1-retirement.md) removed the fin
 legacy workload cohort, old resource-introspection serializers and owner-metadata
 projection bridge. Core 7.4.0 publication, API/worker rollout, supported launcher
 inventory, Schedio parking and token drain were verified on 2026-10-25; the linked
-record distinguishes those facts from source and consumer tests. The remaining
-historical workload database column requires its own compatible migration. External customer service tokens retain their supported
+record distinguishes those facts from source and consumer tests. The subsequent
+[compatible writer and physical schema cleanup](workload-schema-cleanup.md)
+completed on 2026-10-26: the historical workload scope column/check was removed
+after the rollback-compatible writer was deployed, with preservation checks
+verified. External customer service tokens retain their supported
 legacy `oxy-api` audience and live scope ceilings; no external credential becomes
 an own workload.
 
