@@ -34,7 +34,7 @@
     ],
     "catalog": {
       "zod": "^4.6.7",
-      "@alia.onl/sdk": "22.0.0",
+      "@alia.onl/sdk": "22.1.1",
       "@hugeicons/core-free-icons": "^3.3.0",
       "@lottiefiles/dotlottie-react": "^0.19.9",
       "@noble/curves": "^1.9.7",
