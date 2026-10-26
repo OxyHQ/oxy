@@ -53,7 +53,7 @@ stages remain as dated history in the narrative and receipt array.
 
 | Runtime | Verified source | Live revisions / count |
 |---|---|---|
-| Oxy API / asset worker | `dc1c21186dab603c6e2ec216e61f7c45d7f37537` | 1080: 3/3; worker 545: 8/8; exact runtime images, stable and drained |
+| Oxy API / asset worker | `e734c03c413142930b7215249639959de6faef26` | 1084: 3/3; worker 549: 8/8; exact runtime images, both API target groups healthy; schema follow-up verified 2026-10-26 |
 | Alia API / integrations | `596f8a7dfecb0c3a80faf3077a7989143745ddbd` | 612: 2/2; 192: 1/1; healthy and drained |
 | Kaana API / publisher | `8bba965d4b5aa2bb64b52238442c9559207344ac` | 151: 2/2; 152: 1/1; healthy and drained |
 | Clarity API / worker | `9903515501271a982c2fba40b7a13af4099406c5` | 159: 1/1; 145: 1/1; healthy and drained |
@@ -71,6 +71,16 @@ stages remain as dated history in the narrative and receipt array.
 | Allo | `7582c9678a99c70cb718eaacd93c543db0a3f4e9` | 181: 2/2; healthy and drained |
 | Willo | `42a8f738e0b84324eaa2a99af41b58317fc2460e` | 36: 1/1; healthy and drained |
 | TNP API / DNS / relay | `be3303312ea4068c18a654c4358dc4362478c026` | 29 / 23 / 15: each 1/1; healthy targets |
+
+The [2026-10-26 schema completion receipt](evidence/workload-scope-schema-cleanup-20261026.json)
+records the subsequent Oxy-only follow-up: bridge #1996 was verified on
+1082/547 before #1998 removed the workload `scopes` column/check with migration
+0220. API 1084 and worker 549 match the removal image. Read-only pre/post
+comparison preserved all 27 binding and 27 attribution identities, two binding
+relations, and the two external scope columns/three checks. Both diagnostic
+tasks exited successfully and their temporary definitions are inactive. This
+closes the historical workload schema cleanup; account/resource authorization,
+external scopes and the separate acceptance limits below are unchanged.
 
 TNP's [targeted infra apply](https://github.com/OxyHQ/oxy-infra/actions/runs/40178370575)
 and image-pin reconciliation succeeded. This preserved the existing running

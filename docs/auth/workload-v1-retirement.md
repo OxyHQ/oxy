@@ -24,11 +24,14 @@ revocation events and managed-account session switching. The historical tuple
 fixture remains only in rejection tests. Customer keys, external service JWTs
 (including the supported `oxy-api` audience), OAuth/MCP grants and live scope
 intersections retain their contracts. Product resource and account authorization
-still applies to all own calls. The historical `application_workload_identities.scopes` column remains inert
-for authority. The retirement image's ORM can still name it as DEFAULT in provisioning INSERTs;
-the [two-release schema cleanup](workload-schema-cleanup.md) prepares a compatible
-rollback writer before the separately reviewed physical migration. External `applications.scopes` and
-`application_credentials.scopes` remain active and must not be removed.
+still applies to all own calls. The [two-release schema cleanup](workload-schema-cleanup.md)
+subsequently removed the historical `application_workload_identities.scopes`
+column/check on 2026-10-26, after deploying the compatible rollback writer.
+API 1084 and asset worker 549 run the verified removal image; pre/post binding
+and attribution hashes are unchanged. The retirement image cited above remains
+historical evidence, not a supported post-DROP provisioning rollback target.
+External `applications.scopes` and `application_credentials.scopes` remain
+active and must not be removed.
 
 ## Activation requirements and recorded disposition
 
