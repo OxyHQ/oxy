@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "2026-10-26T09:41:04.966327+00:00",
+  "scope": "Kaana-only cookie removal and exact post-change silent realtime canary; Alia cookie removal remains pending",
+  "sourceReceipts": [
+    {
+      "name": "infrastructure",
+      "file": "first-party-followups-20261026/kaana-cookie-after.json",
+      "sha256": "84900b40d30264e5419eb796f5f05439a55e236ac998a1e483900440486ae864"
+    },
+    {
+      "name": "driver",
+      "file": "kaana-postoff1/acceptance-receipts.json",
+      "sha256": "0ef4d2f35a351b8015909ecd7014d739d7ab20eb18e2ccca39b6a5b0c7c54e7c"
+    },
+    {
+      "name": "driverCleanup",
+      "file": "kaana-postoff1/cleanup.json",
+      "sha256": "d2bd98a7463a1123d62f0d106f7da1c771c221facd538e164cfa6ad6d28213aa"
+    },
+    {
+      "name": "kaana",
+      "file": "kaana-peer-after2/readback.json",
+      "sha256": "62b4d9ec9bcef25e16910d95005907db13da94a5f7ee348d6f17fb6bddf30954"
+    },
+    {
+      "name": "kaanaCleanup",
+      "file": "kaana-peer-after2/cleanup.json",
+      "sha256": "a6941721e8ad64732caa3ae65e9ce4222e935d2e0c78c32aafcea88aa9c68fec"
+    },
+    {
+      "name": "oxy",
+      "file": "kaana-oxy-admission-final/readback.json",
+      "sha256": "25fdda13c75e812c68d2d93aa4085ce644944320ed217755503ce3888da09ab4"
+    },
+    {
+      "name": "oxyCleanup",
+      "file": "kaana-oxy-admission-final/cleanup.json",
+      "sha256": "9d7e07a8d164379123f9dbcde3767b728deb1086767eaef9a208e1194c3e7294"
+    },
+    {
+      "name": "stopReceiver",
+      "file": "first-party-followups-20261026/alia-runtime-bbfc.json",
+      "sha256": "09eaf8eaf726540fd8c93d64ae6a567884d67cb90261815ac3edde5b897a18c7"
+    },
+    {
+      "name": "stopCorrelationReceiver",
+      "file": "first-party-followups-20261026/alia-runtime-b3d3.json",
+      "sha256": "f29babcbfaff49f6949213e4b4f510ceb60feab156ae08c603344d9dc8d0c358"
+    },
+    {
+      "name": "publishedStopPackages",
+      "file": "first-party-followups-20261026/alia221-server130-release.json",
+      "sha256": "8f814c273fa415307731917d9c96b3db670d98ed9a1bfe1e21ec01242671b9ca"
+    },
+    {
+      "name": "diagnosticImageCleanup",
+      "file": "kaana-final-image-cleanup.json",
+      "sha256": "f691a1089252990aefed8de529a595ee01ac09cc54c186d8ce50f3b921586104"
+    }
+  ],
+  "infrastructure": {
+    "source": "b73950b291fa56a486cf5cca49f1ab09c73efe7e",
+    "pullRequest": 404,
+    "applyRun": 40298152300,
+    "observedAt": "2026-10-26T09:18:35.932125+00:00",
+    "terraformJobSuccess": true,
+    "stickinessEnabled": false,
+    "healthyTargets": 2,
+    "runtimeRevision": 152,
+    "publicHttp": [
+      {
+        "path": "/v1/models",
+        "status": 401,
+        "setCookieNames": []
+      },
+      {
+        "path": "/v1/chat/completions",
+        "status": 400,
+        "setCookieNames": []
+      }
+    ]
+  },
+  "canary": {
+    "observedAt": "2026-10-26T09:32:35.560Z",
+    "source": "95ac4fa98c53a6c5488114e638b4910d6a729813",
+    "success": true,
+    "requestId": "req_whqooun7ld67urkxewu7o2jqny",
+    "resumedSameRequest": true,
+    "closeSettled": true,
+    "distinctServingTasks": 2,
+    "elapsedMs": 1124,
+    "canonicalOrigin": "wss://kaana.ai",
+    "audioSent": false,
+    "textSent": false
+  },
+  "kaana": {
+    "observedAt": "2026-10-26T09:34:54.573Z",
+    "remainingOwners": 0,
+    "remainingRequestPlacements": 0,
+    "providerAttempts": [
+      {
+        "request_id": "req_whqooun7ld67urkxewu7o2jqny",
+        "attempts": 1,
+        "served_attempts": 1
+      }
+    ],
+    "settlements": [
+      {
+        "request_id": "req_whqooun7ld67urkxewu7o2jqny",
+        "settlement_id": "stl_lsuetaj2k5z6u732nvotzaogqa",
+        "grant_id": "01a1778e-0005-76f9-98bb-88202144729c",
+        "created_at": "2026-10-26T09:32:38.351Z",
+        "attempts": 1,
+        "delivered_at": "2026-10-26T09:32:38.396Z",
+        "delivered_status": "settled",
+        "outcome": "cancelled",
+        "usage_source": "oxy_measured",
+        "units": []
+      }
+    ]
+  },
+  "oxy": {
+    "observedAt": "2026-10-26T09:36:13.348Z",
+    "requestId": "req_whqooun7ld67urkxewu7o2jqny",
+    "grantId": "01a1778e-0005-76f9-98bb-88202144729c",
+    "grantAdmissions": 1,
+    "technicalAdmissions": 1,
+    "applicationId": "6a2f851751b784a86fd0e934",
+    "credentialId": "wl_d50a0056191d0448024900b4",
+    "environment": "production",
+    "economicTreatment": "internal_metered",
+    "status": "settled",
+    "settlementId": "stl_lsuetaj2k5z6u732nvotzaogqa",
+    "outcome": "cancelled",
+    "usageSource": "oxy_measured",
+    "allMeasuredUnitsZero": true,
+    "noDelegatedIdentity": true,
+    "payerIsApplicationOwner": true,
+    "financial": {
+      "reservations": 0,
+      "receipts": 0
+    }
+  },
+  "cleanup": {
+    "driver": {
+      "observedAt": "2026-10-26T09:33:10.542509+00:00",
+      "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/80f319288ef0426a84c2611a505f7d10",
+      "taskStopped": true,
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-cookie-free-canary:2",
+      "taskDefinitionStatus": "INACTIVE"
+    },
+    "diagnostics": [
+      {
+        "observedAt": "2026-10-26T09:35:40.310826+00:00",
+        "definitionStatus": "INACTIVE",
+        "noActiveFamilyTasks": true,
+        "exitCode": 0
+      },
+      {
+        "observedAt": "2026-10-26T09:37:06.395203+00:00",
+        "definitionStatus": "INACTIVE",
+        "noActiveFamilyTasks": true,
+        "exitCode": 0
+      }
+    ],
+    "temporaryImageTag": {
+      "observedAt": "2026-10-26T09:41:04.966327+00:00",
+      "repository": "oxy/kaana",
+      "tag": "qa-peer-reader-20261026-8902642",
+      "deletedBy": "imageTag",
+      "expectedIndexDigest": "sha256:8902642d2c091450a8db61d65943bafeae79119eb90ced94f1ecdd1479e13072",
+      "tagAbsent": true,
+      "sourceOxyApiImageStillPresent": true,
+      "verifiedReaderFamilies": 5,
+      "allDefinitionsInactive": true,
+      "allFamiliesInactive": true,
+      "historicalTaskEvidence": [
+        {
+          "namespace": "kaana-peer-before3",
+          "taskEvidence": "expired_from_ecs_history; frozen STOPPED exit0 collection verified",
+          "lastVerifiedStatus": "STOPPED",
+          "exitCode": 0
+        },
+        {
+          "namespace": "kaana-peer-after1",
+          "taskEvidence": "expired_from_ecs_history; frozen STOPPED exit0 collection verified",
+          "lastVerifiedStatus": "STOPPED",
+          "exitCode": 0
+        },
+        {
+          "namespace": "kaana-peer-after2",
+          "taskEvidence": "current ECS STOPPED exit0 readback",
+          "lastVerifiedStatus": "STOPPED",
+          "exitCode": 0
+        },
+        {
+          "namespace": "kaana-oxy-admission",
+          "taskEvidence": "expired_from_ecs_history; frozen STOPPED exit0 collection verified",
+          "lastVerifiedStatus": "STOPPED",
+          "exitCode": 0
+        },
+        {
+          "namespace": "kaana-oxy-admission-final",
+          "taskEvidence": "current ECS STOPPED exit0 readback",
+          "lastVerifiedStatus": "STOPPED",
+          "exitCode": 0
+        }
+      ]
+    }
+  },
+  "stopReceiver": {
+    "source": "bbfc740b9d01a12313f38517942e2128d5408472",
+    "observedAt": "2026-10-26T08:32:00.830242+00:00",
+    "apiRevision": 614,
+    "apiRunning": 2,
+    "integrationsRevision": 194,
+    "integrationsRunning": 1,
+    "deployRun": 40291444230,
+    "laterCorrelationSource": "b3d3b006dde0ce2450996bfa090bec0c764083d2",
+    "laterCorrelationObservedAt": "2026-10-26T08:49:56.289733+00:00",
+    "laterCorrelationApiRevision": 615,
+    "scope": "Dated verified deployments, not a claim of the latest live task revision"
+  },
+  "stopPackages": {
+    "observedAt": "2026-10-26T09:06:59.041498+00:00",
+    "published": [
+      {
+        "package": "@alia.onl/sdk",
+        "version": "22.1.0",
+        "source": "79221d4981a589c18a1a75d17c22e75066bce3bc",
+        "releaseRun": 40294856570,
+        "integrity": "sha512-GMsOJ/rKys9ApdkTpJk7FVlTUJGUohET+726vy8S5HOnIFZI/eh8Len2haI9hfJtwGWmN8ZqlH3bA4kFtJbwpQ=="
+      },
+      {
+        "package": "@alia.onl/server",
+        "version": "1.3.0",
+        "source": "79221d4981a589c18a1a75d17c22e75066bce3bc",
+        "releaseRun": 40294856570,
+        "integrity": "sha512-7D8AFHFUdi3G4RyEVnFnOFYMu/yG4wchKwE2qNoBmrkDICg65ZFFh4oS52rFM+XIooe6Dg9O0Irk8sX3EgWYMA=="
+      }
+    ],
+    "pending": [
+      "SDK22.1.1 registry publication and consumer rollout",
+      "server1.3.1 and CLI3.1.0 registry publication",
+      "live explicit Stop/partial-usage acceptance"
+    ]
+  },
+  "limits": [
+    "Silent canary: no audio quality or nonzero-usage cancellation claim",
+    "Alia human voice entitlement/two-task acceptance and cookie removal remain separate",
+    "No new grants or application permissions introduced",
+    "No release/adoption claim for pending SDK versions",
+    "QA accounts/devices and relay temporary-file cleanup remain separate"
+  ]
+}
