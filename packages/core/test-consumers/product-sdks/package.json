@@ -1,0 +1,24 @@
+{
+  "name": "oxy-product-sdk-composition",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@oxy.so/core": "7.4.0",
+    "@oxy.so/services": "13.6.0",
+    "@alia.onl/sdk": "22.0.1",
+    "@alia.onl/server": "1.2.0",
+    "@clarity.surf/sdk": "0.10.0",
+    "@kaana.ai/sdk": "3.3.0",
+    "@oxy.so/mcp": "1.4.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "@types/node": "22.20.1",
+    "vitest": "5.0.5",
+    "semver": "7.7.4"
+  }
+}
