@@ -25,8 +25,8 @@ revocation and operation binding remain mandatory.
 | Oxy core/contracts service authority | Core 7.5.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | Service authority, Inbox events and private Files verified; Mention → Alia text generation and Kaana two-task realtime admission/settlement verified | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Authenticated account/security settings, two-account switching, logout/reload and zero cookies passed; application-credential editing is not claimed by that journey | General does not mutate scopes; workload identity separate from external API products; external service/API-key credentials explicitly scoped; own workloads are scope-free |
-| Alia own-app levels and tool admission | Stage B/C deployed; Stop receiver verified at API 614 on `bbfc740b`; SDK 22.1.1/server 1.3.1/CLI 3.1.0 published; consumer rollout underway; live Stop acknowledged and cancelled, estimated usage remains unresolved | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Gateway 193 and API 613 verified on `aec9ae04`; old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Alia own-app levels and tool admission | Stage B/C and Stop receiver verified at API 619/integrations 198 on `e2c85110` (10:09 UTC); SDK 22.1.1/server 1.3.1/CLI 3.1.0 published; consumer rollout underway; live Stop acknowledged and cancelled, estimated usage remains unresolved | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Integrations 198 and API 619 verified on `e2c85110` (10:09 UTC); old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 152 and publisher 153 verified on `95ac4fa9`; real two-task resume after Kaana cookie removal preserves one admission/settlement | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; Schedio is explicitly parked before launch | Caller→SDK→receiver tests for own and external identities |
 | Mercaria storefront commerce transport | PR #1159 deployed: API 146 and all three frontends verified on `714f3ec4`; public HTTP/Chromium transport acceptance passed | Preserve Oxy-owned carts and independent guest/portal authority; bounded referral preservation only; real-identity/native acceptance not claimed |
@@ -595,11 +595,11 @@ made, and this does not establish store distribution to other devices.
 | Move | `8299d226b31c`; API 53 and Worker `0a34ebed`; workflows 40309576519/40309576834 | Web and backend rollout verified; healthy and drained |
 | Syra | `d69b40d9e499`; frontend Pages `f6363ad5`, studio Pages `18d42454`; workflows 40309572723/40309572253 | Web and Studio published; backend verification pending |
 | CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
-| GoWay | Reviewed PR #283, `53bd8cbcf248`; package, types, UI and export checks passed | Draft; rollout pending |
-| Homiio | Merged #749 as `f48b1bbd8ba2`; package, types, UI and export checks passed | Main CI and web/API/listing-worker rollout pending |
+| GoWay | Merged #283 as `7bbba4da6660`; package, types, UI and export checks passed | Main CI and web/backend rollout pending; GPU-worker execution not claimed |
+| Homiio | `f48b1bbd8ba2`; API 276 (2/2), listing worker 279 (1/1), Worker `0be37d60`; workflows 40311903345/40314376407 | Web, API and listing-worker rollout verified; healthy and drained |
 | Mercaria | Reviewed PR #1160, `0c020dac3d18`; full CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Draft; rollout pending |
 | Moovo | Reviewed PR #178, `567af4ea6351`; CI, frontend types and export passed | Draft; rollout pending |
-| Website | Reviewed PR #208, `6c406ec40aeb`; types and real transport tests passed | Ready/in normal merge queue; rollout pending |
+| Website | `090d45e9b95c`; API 71, workflow 40313209189; frontend workflow 40313209023 | API verified; frontend verification pending |
 
 The dedicated Mention UI completed one normal turn and then a separate explicit
 Stop journey. The latter issued the authenticated cancel request and received

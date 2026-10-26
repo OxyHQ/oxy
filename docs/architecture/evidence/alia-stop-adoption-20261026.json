@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-10-26T11:00:46.097218+00:00",
+  "recordedAt": "2026-10-26T11:24:32.129830+00:00",
   "status": "partial-rollout-checkpoint; pending rows are not deployment claims",
   "authority": "Own applications remain scope-free; external OAuth/API-key ceilings and account/resource boundaries remain enforced.",
   "published": {
@@ -24,7 +24,7 @@
       "reviewedHead": "c7bf7dd5ddd592318673c4b9ac11ee191bea96a3",
       "sdk": "22.1.1",
       "state": "Verified web and backend rollout; no native distribution claim",
-      "mergeStatus": "merged d68e817697f04710c295f41f6c4a7a3028930b06",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "363 tests/50 suites",
@@ -53,7 +53,7 @@
       "reviewedHead": "48af7e59ee0fffc407ead222114f7be529408273",
       "sdk": "22.1.1",
       "state": "VERIFIED Pages40305790135 completed; canonical and exact deployment HTML +3script URLs match with normal browser UA; default Python UA Cloudflare1010",
-      "mergeStatus": "merged69883ae4544e18af82cc5ae599321ef853ec1b98",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "5 tests",
@@ -65,7 +65,8 @@
       "privateReceipt": {
         "name": "atlas-rollout-69883ae.json",
         "sha256": "583898a4fcaa955bc9ad6b205908850f42b3bbce95c61fc4feb218d555f89fd3"
-      }
+      },
+      "mergedSource": "69883ae4544e18af82cc5ae599321ef853ec1b98"
     },
     {
       "repository": "Clarity",
@@ -73,7 +74,7 @@
       "reviewedHead": "f9ce11a65ba84af887768864f15acbe2802301fc",
       "sdk": "22.1.1",
       "state": "VERIFIED frontend Worker +API160/worker146 exactsource/index a8d8c393 singleCOMPLETED healthy/drained",
-      "mergeStatus": "merged e4b44ce102899cc63d45b3a9b99eba59599c7445",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "65 tests/8 suites",
@@ -86,7 +87,8 @@
       "privateReceipt": {
         "name": "clarity-rollout-e4b44ce.json",
         "sha256": "c3785235d81f15f49e39dec4461c2f17455c712bf6439a7469d78134610eefff"
-      }
+      },
+      "mergedSource": "e4b44ce102899cc63d45b3a9b99eba59599c7445"
     },
     {
       "repository": "CrowdSource",
@@ -94,7 +96,7 @@
       "reviewedHead": "dbc5bc4d71a37d54cf63b796e89805183f79bb19",
       "sdk": "22.1.1",
       "state": "Verified console, reviewer and backend; no native distribution claim",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "two UI typechecks",
         "console118/reviewer139 tests",
@@ -126,8 +128,8 @@
       "pullRequest": "https://github.com/OxyHQ/GoWay/pull/283",
       "reviewedHead": "53bd8cbcf24825c1429e051254d0fcceb5b93a68",
       "sdk": "22.1.1",
-      "state": "pending; no runtime verification for this adoption",
-      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "state": "MainCI and web/backend rollout pending; no GPU-worker execution claim",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "1879 tests/180 files",
@@ -135,15 +137,16 @@
         "AGENTS/Biome",
         "frozen lock guard",
         "214 published archive files matched"
-      ]
+      ],
+      "mergedSource": "7bbba4da6660eaf07bbdd001722f1e96b92e9900"
     },
     {
       "repository": "Homiio",
       "pullRequest": "https://github.com/OxyHQ/Homiio/pull/749",
       "reviewedHead": "dbaa0c9bc412e3ea9ec6d059ae45a628cf5c2b7d",
       "sdk": "22.1.1",
-      "state": "pending; no runtime verification for this adoption",
-      "mergeStatus": "Merged; mainCI and web/API/listing-worker rollout pending",
+      "state": "Verified web, API and listing worker; no native distribution claim",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "920 tests/72 suites",
@@ -152,7 +155,16 @@
         "frozen lock guard",
         "214 published archive files matched"
       ],
-      "mergedSource": "f48b1bbd8ba2cec8a3f67318741050675c397b1b"
+      "mergedSource": "f48b1bbd8ba2cec8a3f67318741050675c397b1b",
+      "deploymentRuns": {
+        "backend": 40311903345,
+        "frontend": 40314376407
+      },
+      "workerVersion": "0be37d60-3c82-4961-be78-e369ff0e7035",
+      "privateReceipt": {
+        "name": "homiio-rollout-f48b1bbd.json",
+        "sha256": "90842f25571197d97cba6e40095f6c83b5b6e5cb178e4583fe20c936e8c37360"
+      }
     },
     {
       "repository": "Inbox",
@@ -160,7 +172,7 @@
       "reviewedHead": "061064c110a1b5716142ea3a7b6e3a69aa6e2771",
       "sdk": "22.1.1",
       "state": "VERIFIED Cloudflare40306260649 actual deploy success; canonical release.txt200 exact0d318d80",
-      "mergeStatus": "merged0d318d80d9dc8d432e5676f1a0eaa021c9f4428c",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "types",
         "518 tests/72 suites and worker tests",
@@ -174,7 +186,8 @@
       "privateReceipt": {
         "name": "inbox-rollout-0d318d80.json",
         "sha256": "288a475ca723b4cd4a3c8ed3f8a4cab52c696198933a395d9dcd8933d40bb8ca"
-      }
+      },
+      "mergedSource": "0d318d80d9dc8d432e5676f1a0eaa021c9f4428c"
     },
     {
       "repository": "Mercaria",
@@ -199,7 +212,7 @@
       "reviewedHead": "c4ca1ac3560ca826f47b519f55cb54546dca530b",
       "sdk": "22.1.1",
       "state": "Source/shell gate complete; ISO distribution not performed",
-      "mergeStatus": "merged1257bf803db7862cc0b07d50d1f3aa19d5b3104e",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": [
         "integration test",
         "types and two Vite builds",
@@ -210,7 +223,8 @@
       "privateReceipt": {
         "name": "oxyos-source-1257bf80.json",
         "sha256": "f6520b6b7f8bd4436c9fbd905396c07e2c4080b55ae9b2f8431364e06bbfd667"
-      }
+      },
+      "mergedSource": "1257bf803db7862cc0b07d50d1f3aa19d5b3104e"
     },
     {
       "repository": "Mention",
@@ -218,7 +232,7 @@
       "reviewedHead": "fed4bf57e0273e1c8db1d6c8332674718d8a7741",
       "sdk": "22.1.1",
       "state": "API724 + MCP424 exact source verified stable/healthy/no old; frontend Worker23711077-b80e-4aee-92a4-eb10de7b28c4 actual production10:10:17Z with candidate Chromium/shell/apex smokes",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "392 suites/3115 frontend tests; frontend/backend types; 214 registry files; frozen/lock validator",
       "mergedSource": "521b11e18eab833f2c0740d8c9d2a6064e24690b",
       "deploymentRuns": {
@@ -233,7 +247,7 @@
       "reviewedHead": "ebeb351deb5ea5fd2e79e1b2c643fdc212440bdf",
       "sdk": "22.1.1",
       "state": "Verified exact91e34bbf: API1087 stable3/3 +worker552 stable8/8, exact ECR/runtime digest, healthy targets/no old deployment; Auth/Accounts/Console actual frontend IDs archived. AWS40305021114 and frontend40305020999 SUCCESS.",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "166 Accounts tests/20 suites; Accounts+Expo harness types;6 HTTP composition tests+types/imports;6 builds/packs;214 registry files; frozen/lock sync",
       "mergedSource": "91e34bbf9af992f2cf0f59c80dd8ba0c92b35bc1",
       "deploymentRuns": {
@@ -256,7 +270,7 @@
       "reviewedHead": "274accddf6dd4dbdf4c4204f457910bae9561dd6",
       "sdk": "22.1.1",
       "state": "Verified API TD53 exact8299d226 source/digest stable/healthy/no old; actual frontend Worker0a34ebed-c062-4b56-b5c0-9d59a249d454 + live smoke PASS",
-      "mergeStatus": "merged normally; main CI then frontend+API rollout pending",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "Frontend source/test types +13 tests/3 files passed; required Bloom15.10.1 aligned;214 registry files; frozen/Biome",
       "mergedSource": "8299d226b31cd35dabb024cc5d29801fb104c79c",
       "deploymentRuns": {
@@ -270,7 +284,7 @@
       "reviewedHead": "32192eab2defcbdb1b8a6d96e1826fc31bbf11f9",
       "sdk": "22.1.1",
       "state": "Verified API TD111 stable exact source/digest, healthy/no old deployment; frontend actual Workerba747e0d-645c-4f8e-a8a5-38edc7e4015d.",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "App types +931 tests/146 suites passed;214 registry files; frozen/Biome",
       "mergedSource": "a52a0cfe2715903fbee9e83f4431ade3e61a10e4",
       "deploymentRuns": {
@@ -284,7 +298,7 @@
       "reviewedHead": "0e6ecec702a31e2e121fc68c1b0dc3c39ec5d24b",
       "sdk": "22.1.1",
       "state": "Frontend Workerb0d96901-e57e-4ea8-a6d3-5797e9a6ebec exact3e47bdadd61f published10:21:05Z; no backend",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "1073 tests/110 suites; shared DTO build + frontend types;214 registry files; frozen/Biome",
       "mergedSource": "3e47bdadd61f1a101a18509ae4e395800cc6dc40",
       "deploymentRuns": {
@@ -297,7 +311,7 @@
       "reviewedHead": "c3950cb869c1faea3582dbe4dc1a3660d8de6dad",
       "sdk": "22.1.1",
       "state": "API TD124 exactfinal0eeb6763 stable/healthy/no old; frontend Pages385ea480 and checkout Pages0666fd67 actualfinalsource, both successful production deployments.",
-      "mergeStatus": "SDK173 + docs174 merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "Frontend types +404 tests/50 files;4 dependency builds;214 registry files; frozen/strict Biome",
       "mergedSource": "0eeb6763d5decf9abf9ddbb8aaf664e52716d43b",
       "deploymentRuns": {
@@ -312,7 +326,7 @@
       "reviewedHead": "3db4a00a75678b659412977aa86610a75fa36329",
       "sdk": "22.1.1",
       "state": "Actual Pages frontendf6363ad5 and studio18d42454 both exactd69b40d9. MainQuality40309572588 still running; API workflow awaits success.",
-      "mergeStatus": "merged normally; frontend/studio/API production verification pending",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "Frontend294/42 +studio39/5 tests and both types passed after minimum Bloom15.10.1 correction; frozen/Biome/214 public files; installed peer ranges green; paired source-map web builds attribute required Bloom UI; unchanged budget guard passes measured ceilings",
       "mergedSource": "d69b40d9e499bddef63f57b5c6bf941a449a74b8",
       "deploymentRuns": {
@@ -326,7 +340,7 @@
       "reviewedHead": "e3aa8ad82876b8d89de90328caaf3fab23fb6db9",
       "sdk": "22.1.1",
       "state": "Verified API TD37 stable1/1 exact source/digest, healthy/no old deployment; frontend actual Worker891f1449-7f83-447f-ac26-f61ce1253147.",
-      "mergeStatus": "merged normally",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
       "localChecks": "80 tests/14 files; UI/frontend/backend types;214 registry files; frozen/Biome",
       "mergedSource": "654021d9f11a60b1749e04f5282a65a0dfd0cd91",
       "deploymentRuns": {
@@ -339,9 +353,14 @@
       "pullRequest": "https://github.com/OxyHQ/website/pull/208",
       "reviewedHead": "6c406ec40aebc8fb24ff2d97555b40241cca67d6",
       "sdk": "22.1.1",
-      "state": "pending; no rollout evidence collected by this agent",
-      "mergeStatus": "Ready/in normal merge queue; rollout pending",
-      "localChecks": "tsc -b/server types +3 real transport tests passed;214 registry files; frozen/Biome"
+      "state": "API TD71 verified exact090d45e9 source/digest stable/healthy/no old; AWS40313209189 SUCCESS. Frontend40313209023 still building.",
+      "mergeStatus": "Merged normally; deployment state is recorded separately",
+      "localChecks": "tsc -b/server types +3 real transport tests passed;214 registry files; frozen/Biome",
+      "mergedSource": "090d45e9b95c32becc9467c3801a12bee4579785",
+      "deploymentRuns": {
+        "frontend": 40313209023,
+        "api": 40313209189
+      }
     }
   ],
   "stopAcceptance": {
@@ -429,7 +448,8 @@
         "name": "private-copy-cleanup.json",
         "sha256": "5fe9a763dc5effeaa39cf9ef957caf1f9bd0c12bb7daf6dd9a689a88cd35c102"
       }
-    ]
+    ],
+    "retentionEvidence": "Existing usage/recovery retention was source-reviewed; no post-deletion byte-for-byte database comparison is claimed. Normal account deletion may archive identity references."
   },
   "nativeMentionAcceptance": {
     "sourceSha": "521b11e18eab833f2c0740d8c9d2a6064e24690b",
@@ -443,5 +463,63 @@
       "No store or general installed distribution claim"
     ],
     "privateReceiptSha256": "b1bebfb48894418bddac305d7d7b0ea61f6d0608ac27e9f6fcfdf6f028992107"
+  },
+  "aliaRuntimeFoundation": {
+    "observedAt": "2026-10-26T10:09:07.309712+00:00",
+    "sourceSha": "e2c851102090e2fd9eddb10831502b7ae4aab6ca",
+    "deployments": [
+      {
+        "runId": 40303782939,
+        "surface": "api",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40303782928,
+        "surface": "integrations",
+        "conclusion": "success"
+      },
+      {
+        "runId": 40303782970,
+        "surface": "frontends",
+        "conclusion": "success"
+      }
+    ],
+    "services": [
+      {
+        "name": "alia",
+        "revision": 619,
+        "desired": 2,
+        "running": 2,
+        "sourceImageDigest": "sha256:b8a670e5b7f9ac23be8b611d30e5d207575398a72f793977eb7a34e81e4f88a5",
+        "runtimeImageDigest": "sha256:388f0dd5f02516ffb5d8b4c68b3fc7e7e0568ee81f88ef0ad7b971fe6b9f24bf",
+        "allTargetsHealthy": true
+      },
+      {
+        "name": "alia-integrations",
+        "revision": 198,
+        "desired": 1,
+        "running": 1,
+        "sourceImageDigest": "sha256:77a523d96e62125294be4f4c1a9264b9aa4d1ea83561b6d1b483dd99af6081a3",
+        "runtimeImageDigest": "sha256:1beaea569ced476213783631ce7a48ae51dacf24ab5f2750b3adeda8a800f7ae",
+        "allTargetsHealthy": true
+      }
+    ],
+    "workerVersions": [
+      {
+        "job": "deploy-app",
+        "versionId": "8ccda6b1-abec-4c1e-a048-7eecd0c2a051",
+        "timestamp": "2026-10-26T10:02:55.1288324Z"
+      },
+      {
+        "job": "deploy-canvas",
+        "versionId": "7112ed3f-c3de-4906-aaad-e680779c896a",
+        "timestamp": "2026-10-26T10:02:22.1687289Z"
+      }
+    ],
+    "privateReceiptSha256": "442d0415c8941ab7b4afee2f9ac7bcc266d7e5ea8c30bcb0f4d3deee3c6ec7c2",
+    "limits": [
+      "No user generation or voice session was executed for this readback.",
+      "Desktop artifact/source completion is separate from marketplace or installer distribution."
+    ]
   }
 }
