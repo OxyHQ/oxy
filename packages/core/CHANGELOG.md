@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.5.0
+
+### Added
+
+- `OxyInferenceClient.getGenerationRecordByIdempotencyKey(key, options)` reads
+  authoritative settled usage after a response was lost before its request id.
+  It uses the existing credential-bound API, preserves delegated attribution,
+  and supports financial receipts and internal metered records. Missing or
+  pending records remain errors, never zero-cost results or inference retries.
+
 ## 7.4.0
 
 ### Changed

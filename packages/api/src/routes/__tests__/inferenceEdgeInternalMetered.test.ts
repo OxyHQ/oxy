@@ -10,6 +10,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import express from 'express';
+import { OxyInferenceClient } from '@oxy.so/core/inference';
 import {
   normalizeResponsesRequest,
   responsesRequestSchema,
@@ -2087,6 +2088,34 @@ describe('original-key receipt recovery', () => {
     expect(executions).toBe(1);
     expect(await readOriginal(caller, `unknown-${tag()}`)).toMatchObject({ status: 404 });
     expect(await readOriginal(caller, '')).toMatchObject({ status: 400 });
+  });
+
+  it('composes the public SDK recovery with the real edge and preserves caller isolation', async () => {
+    const caller = await recoveryCaller();
+    const foreign = await recoveryCaller();
+    const key = `sdk-lost-${tag()}`;
+    const first = await post(body(caller), {
+      ...bearer(caller.machineToken),
+      'Idempotency-Key': key,
+    });
+    expect(first.status).toBe(200);
+    const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const client = new OxyInferenceClient({ baseURL, credential: caller.machineToken });
+    const before = await moneyRowsFor(caller.accountId);
+    const record = await client.getGenerationRecordByIdempotencyKey(key);
+    expect(record.requestId).toBe(first.body.requestId);
+    expect(record.schemaVersion).toBe(1);
+    await expect(
+      new OxyInferenceClient({
+        baseURL,
+        credential: foreign.machineToken,
+      }).getGenerationRecordByIdempotencyKey(key),
+    ).rejects.toMatchObject({ status: 404, code: 'model_not_found' });
+    await expect(
+      client.getGenerationRecordByIdempotencyKey(key, { delegatedUserId: 'different-user' }),
+    ).rejects.toMatchObject({ status: 404, code: 'model_not_found' });
+    expect(await moneyRowsFor(caller.accountId)).toEqual(before);
+    expect(executions).toBe(1);
   });
   it('separates identical keys across apps, credentials and delegation', async () => {
     const caller = await recoveryCaller();

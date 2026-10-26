@@ -87,6 +87,8 @@ life.
 | `respond(request, options?)` | `POST /v1/responses` |
 | `stream(request, options?)` | `POST /v1/responses` with validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
+| `getGenerationRecord(id)` | Same read, accepting internal technical records as well as financial receipts |
+| `getGenerationRecordByIdempotencyKey(key)` | `GET /v1/generations/by-idempotency-key`, original key in a header; read-only recovery before a request id was received |
 
 `stream(request, options?)` is merged and published in `@oxy.so/core` by
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana

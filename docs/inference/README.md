@@ -357,10 +357,11 @@ Typed nonstreaming classifications: [Decisions](decisions.md) (granted on `kaana
 ### Recovering usage after a lost response
 
 `GET /v1/generations/by-idempotency-key`, carrying the original key in the
-`Idempotency-Key` header, reads the record back. `@oxy.so/core` has no method
-for it since 6.0.0 (its only caller moved to `kaana.ai/v1`); call the route
-directly. Use the same credential and delegated-user selector as
-the original request, with `inference:usage:read`. Authentication still checks
+`Idempotency-Key` header, reads the record back. Core 7.5 adds
+`getGenerationRecordByIdempotencyKey(key, { delegatedUserId, signal })` for this
+platform read, including internal metered usage. Use the same credential and
+delegated-user selector as the original request. External callers require
+`inference:usage:read`; verified own workloads do not request app scopes. Authentication still checks
 current expiry and revocation. The lookup is bound to the original credential,
 application, account and environment; credential rotation does not turn an
 opaque original key into a cross-credential selector. If the request ID was
