@@ -549,9 +549,11 @@ does not cover them. Schedio remains deliberately excluded from launch/adoption.
 The temporary Kaana diagnostic-image tag was removed by tag only after the final
 readback. All five owned reader definitions are inactive with no active family
 tasks; older tasks that expired from ECS history retain their frozen successful
-STOPPED receipts. The source Oxy API image remains present. QA account/device
-cleanup and the final Alia relay temporary-file absence checks remain separate
-operational follow-ups. No production credentials, prompts, audio or private user content
+STOPPED receipts. The source Oxy API image remains present. The final Alia
+relay cleanup readback at `08:38:48.884Z` separately verified both exact owned
+temporary paths absent and zero matching processes (SSM command
+`259d4975-b20f-4e3a-b9ff-c382d6242642`, success/exit 0). QA account/device cleanup
+remains pending. No production credentials, prompts, audio or private user content
 are included in the receipts.
 
 ## Historical source audit (2026-10-23)

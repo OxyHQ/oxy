@@ -62,6 +62,11 @@
       "name": "publishedSdk2211",
       "file": "alia2211-release.json",
       "sha256": "ff3f9e7e1537db0dd38b9c79dd53da0b9f90f50fa3616946d790c7fce03f9fb4"
+    },
+    {
+      "name": "aliaFinalRelayCleanup",
+      "file": "alia-canary3-run/cleanup-readback-result.json",
+      "sha256": "4b63a9fe180fe02d25541b3f213ed3345d1465901b91bb8cad744457c1bdc753"
     }
   ],
   "infrastructure": {
@@ -212,6 +217,15 @@
           "exitCode": 0
         }
       ]
+    },
+    "aliaFinalRelay": {
+      "observedAt": "2026-10-26T08:38:48.884Z",
+      "commandId": "259d4975-b20f-4e3a-b9ff-c382d6242642",
+      "status": "Success",
+      "exitCode": 0,
+      "exactOwnedPathsChecked": 2,
+      "allPathsAbsent": true,
+      "matchingProcessCount": 0
     }
   },
   "stopReceiver": {
@@ -254,8 +268,8 @@
   "limits": [
     "Silent canary: no audio quality or nonzero-usage cancellation claim",
     "Alia human voice entitlement/two-task acceptance and cookie removal remain separate",
-    "No new grants or application permissions introduced",
+    "No application consent grants or permission changes introduced",
     "No release/adoption claim for pending SDK versions",
-    "QA accounts/devices and relay temporary-file cleanup remain separate"
+    "QA account/device cleanup remains pending; final relay temporary-file absence verified separately"
   ]
 }
