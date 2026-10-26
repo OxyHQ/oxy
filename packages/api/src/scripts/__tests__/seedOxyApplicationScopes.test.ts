@@ -103,14 +103,12 @@ beforeEach(async () => {
         applicationId: appId,
         provider: 'aws-iam',
         subject: MENTION_TASK_WORKLOAD_IDENTITY.subject,
-        scopes: initialScopes,
       },
       {
         id: 'scope-seed-mcp',
         applicationId: appId,
         provider: 'aws-iam',
         subject: 'arn:aws:iam::237343248947:role/oxy-mention-mcp-synthetic',
-        scopes: ['user:read'],
       },
     ]);
   await getDb().insert(applicationCredentials).values({

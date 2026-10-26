@@ -1534,6 +1534,13 @@
       "when": 1792927246585,
       "tag": "0219_retire_noted_workload_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 220,
+      "version": "7",
+      "when": 1792994033212,
+      "tag": "0220_drop_workload_scope_column",
+      "breakpoints": true
     }
   ]
 }

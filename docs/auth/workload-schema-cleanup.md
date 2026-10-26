@@ -1,7 +1,9 @@
 # Historical workload scope column — compatible removal
 
 ADR 0049 and the verified protocol-v1 retirement removed scope-based workload
-authority. `application_workload_identities.scopes` remains historical storage.
+authority. Release 2 removes the inert `application_workload_identities.scopes`
+column and its check. Until that separate post migration is deployed, the
+column remains historical storage.
 The external `applications.scopes`, `application_credentials.scopes` and OAuth
 grant columns remain active and are outside this migration.
 
@@ -21,7 +23,7 @@ would not make the previous image compatible with that already-applied DROP.
 
 ### Release 1: rollback-compatible binding writer and inventories
 
-This change keeps the database, ORM field, constraint and migration snapshots
+The bridge release keeps the database, ORM field, constraint and migration snapshots
 unchanged. Binding creation temporarily uses an explicit-column, parameterized
 INSERT without `scopes`, within the same transaction as attribution creation.
 It returns the id and reads the existing named projection with Drizzle's date
@@ -42,10 +44,11 @@ other suites use that worker. This is compatibility evidence, not production DDL
 
 ### Release 2: physical removal
 
-Prepare a separate reviewed migration after Release 1 is deployed. Remove only
-the workload binding's ORM field and its check, generate the matching Drizzle
-SQL/snapshot/journal through `bun run db:generate`, and mark the DROP as `post`.
-Restore ordinary ORM insertion once its schema no longer names the column.
+The separately reviewed `0220_drop_workload_scope_column.sql` removes only the
+workload binding column/check. Its ORM, snapshot and journal were generated
+through `bun run db:generate`; its phase is `post`. Ordinary ORM insertion is
+restored because its schema no longer names the removed column. Enqueue this
+release only after the exact Release 1 deployment is verified.
 Do not edit or renumber published historical migrations. Preserve the
 compatibility regression: it also runs when the migrated schema has no column.
 
@@ -62,8 +65,10 @@ Before approving that release, the coordinator records:
   images are not rollback paths. Preserve historical evidence without running it.
 - Fresh-install and upgrade tests pass with the generated migration; replay the
   bridge writer/readers against the post-DROP schema as the automatic-rollback
-  check. Confirm the deployment still runs post migrations only after worker and
-  API steady state, and record the reviewed migration hash.
+  check. Confirm the API health gate and worker replacement start still precede
+  post migrations, and record the reviewed migration hash. Worker steady-state
+  verification happens after post tasks: any retiring old worker must therefore
+  also be the compatible bridge, not an earlier image.
 
 The production post migration needs a short lock timeout and a bounded statement
 timeout. A lock failure aborts instead of waiting indefinitely; normal deployment
@@ -74,3 +79,37 @@ binding/attribution identities and working scope-free mint/live resolution.
 
 No production column drop is authorized by this document or by Release 1. Its
 separate migration review and exact deployment evidence are the activation gate.
+
+## Bounded production pre/post evidence
+
+The coordinator uses `scripts/auth/read-workload-schema-cleanup.mjs` from the
+reviewed source in a DB-only one-shot task. Importing it performs no connection;
+call `readWorkloadSchemaCleanup(process.env.DATABASE_URL)` from `packages/api`
+and serialize the returned receipt. Do not start the application, supply
+workload credentials, or invoke any binding writer for this check. Keep the
+same database, reviewed operator source and UTC settings for both snapshots.
+
+The operator uses a repeatable-read, read-only transaction, 15-second statement
+and 3-second lock limits, a 30-second idle limit and 1,000-row bounds. It returns
+counts and SHA-256 digests of explicitly selected binding/attribution metadata,
+relations, triggers, views, routine references and the external scope columns
+and checks. It never returns scope values, credentials, routine bodies or row
+contents. `pg_depend` reports unexpected registered column dependencies; routine
+source and attached trigger functions are separately scanned for textual scope
+references. Computed dynamic SQL identifiers cannot be ruled out by this scan:
+the source/operator inventory remains a separate required review. Investigate
+nonzero routine, trigger or view counts even when they do not name `scopes`.
+
+Keep the pre-receipt before deployment and the post-receipt after successful
+DDL. `compareWorkloadSchemaCleanup(before, after)` requires column/check removal,
+no unexpected registered or textual scope dependency, and identical counts and
+digests for every preserved category. Concurrent legitimate binding changes can
+make comparison refuse; reconcile those changes rather than accepting a changed
+hash. Neither the reader nor comparator changes data or executes the DROP.
+
+The disposable PostgreSQL regression executes the actual generated migration,
+proves before/after digest equality and external scope preservation, and rejects
+an unexpected view, a `NEW.scopes` trigger and changed preservation digests.
+Fresh-install migrations and the bridge's present/absent-column regressions are
+separate gates. Production execution and its receipts remain pending until the
+coordinator records the exact bridge deployment and approves the second release.

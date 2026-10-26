@@ -33,9 +33,8 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 
-import { APPLICATION_SCOPES } from '../../utils/applicationScopes';
 import { applications } from './applications';
 
 /**
@@ -83,13 +82,6 @@ export const applicationWorkloadIdentities = pgTable(
     /** Free text for whoever reads this table a year from now. */
     description: text(),
 
-    /** Historical inert column retained for additive rollout and forensic readback.
-     * Runtime authority never reads it; provisioning supplies no scope values.
-     * The current ORM may still name it as DEFAULT in INSERT SQL.
-     * Drop only in a separately reviewed migration after all old images retire.
-     */
-    scopes: text().array().notNull().default(sql`'{}'::text[]`),
-
     /**
      * When set, the binding stops working at this instant.
      *
@@ -119,14 +111,6 @@ export const applicationWorkloadIdentities = pgTable(
     check(
       'application_workload_identities_environment_check',
       sql`${table.environment} in ('development', 'staging', 'production')`,
-    ),
-    /** Historical storage validation only. ADR 0049 removed workload scope
-     * authority; no mint or live resolver consults this array. Keep the column
-     * and constraint together until the separately reviewed physical migration.
-     */
-    check(
-      'application_workload_identities_scopes_check',
-      sql`${table.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
     ),
   ],
 );

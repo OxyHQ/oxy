@@ -87,7 +87,6 @@ it('backfills only a null environment with compare-and-set, without changing his
       applicationId: app.id,
       provider: 'aws-iam',
       subject,
-      scopes: ['user:read'],
       description: 'before',
     })
     .returning();
@@ -109,7 +108,8 @@ it('backfills only a null environment with compare-and-set, without changing his
     .select()
     .from(applicationWorkloadIdentities)
     .where(eq(applicationWorkloadIdentities.id, row.id));
-  expect(preserved.scopes).toEqual(['user:read']);
+  expect(preserved.description).toBe('before');
+  expect(preserved).not.toHaveProperty('scopes');
   await expect(bindWorkloadIdentity({ ...request, environment: 'staging' })).rejects.toMatchObject({
     reason: 'environment_conflict',
   });

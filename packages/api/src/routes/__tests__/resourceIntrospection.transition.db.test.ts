@@ -71,7 +71,7 @@ async function workload(index: number) {
     });
   await getDb()
     .insert(applicationWorkloadIdentities)
-    .values({ ...tuple, environment: 'development', scopes: ['user:read', 'clarity:search'] });
+    .values({ ...tuple, environment: 'development' });
   await ensureWorkloadAttributionIdentity({
     bindingId: tuple.id,
     applicationId: tuple.applicationId,
@@ -150,7 +150,6 @@ it('does not promote non-cohort bindings, wrong audience, or service credentials
       ...caller.tuple,
       id: replacementId,
       environment: 'development',
-      scopes: ['clarity:search'],
     });
   await ensureWorkloadAttributionIdentity({
     bindingId: replacementId,

@@ -86,7 +86,6 @@ async function workload() {
     .values({
       ...tuple,
       environment: 'development',
-      scopes: ['files:read'],
     });
   await ensureWorkloadAttributionIdentity({
     bindingId: tuple.id,
@@ -203,7 +202,7 @@ it.each(['unbound environment', 'replacement binding'] as const)(
       const id = randomUUID();
       await getDb()
         .insert(applicationWorkloadIdentities)
-        .values({ ...fixture.tuple, id, environment: 'development', scopes: ['files:read'] });
+        .values({ ...fixture.tuple, id, environment: 'development' });
       await ensureWorkloadAttributionIdentity({
         bindingId: id,
         applicationId: fixture.tuple.applicationId,
