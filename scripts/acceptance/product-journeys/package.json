@@ -1,0 +1,15 @@
+{
+  "name": "oxy-product-journey-acceptance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test guards.test.mjs browser.test.mjs alia-ownership.test.mjs",
+    "qa": "node qa.mjs",
+    "test:live": "OXY_QA_LIVE=1 node --test browser.test.mjs alia-ownership.test.mjs"
+  },
+  "dependencies": {
+    "@oxy.so/core": "7.4.0",
+    "@oxy.so/protocol": "1.5.1",
+    "playwright": "1.64.1"
+  }
+}
