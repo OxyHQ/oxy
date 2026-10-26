@@ -98,12 +98,12 @@ revoked or expired sockets, and serializes outgoing batches so a heartbeat canno
 overtake a pending revocation. The SDK drops cached session validations when the
 feed disconnects or loses its heartbeat.
 
-The [protocol-v1 retirement draft](workload-v1-retirement.md) removes the finite
+The [verified protocol-v1 retirement](workload-v1-retirement.md) removed the finite
 legacy workload cohort, old resource-introspection serializers and owner-metadata
-projection bridge. Its source must remain unreleased until all running and
-scheduled producers, rollback launchers and token drain gates are verified.
-Production rollout status is recorded in the migration ledger, not inferred from
-this source change. External customer service tokens retain their supported
+projection bridge. Core 7.4.0 publication, API/worker rollout, supported launcher
+inventory, Schedio parking and token drain were verified on 2026-10-25; the linked
+record distinguishes those facts from source and consumer tests. The remaining
+historical workload database column requires its own compatible migration. External customer service tokens retain their supported
 legacy `oxy-api` audience and live scope ceilings; no external credential becomes
 an own workload.
 

@@ -36,7 +36,7 @@ const PROJECTIONS = {
       'application_id',
       'provider',
       'subject',
-      'scopes',
+      'environment',
       'expires_at',
     ],
     app_grants: ['id', 'user_id', 'application_id', 'scopes'],

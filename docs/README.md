@@ -116,7 +116,7 @@ topics and remain authoritative for their areas:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system architecture: identity vs auth, device-first sessions, DB schema
 - [AUTHENTICATION.md](AUTHENTICATION.md) — auth integration guide (Expo, Web, Node, WebSockets)
 - [SESSION-ARCHITECTURE.md](SESSION-ARCHITECTURE.md) — session architecture in depth
-- [SERVICE_TOKENS.md](SERVICE_TOKENS.md) — service-to-service auth (OAuth2 client credentials)
+- [SERVICE_TOKENS.md](SERVICE_TOKENS.md) — own workload identity and external service credentials
 - [INFRASTRUCTURE.md](INFRASTRUCTURE.md) — AWS resources (ECS, ALB, ECR, ElastiCache, RDS PostgreSQL)
 - [DEPLOYMENT.md](DEPLOYMENT.md) — GitHub OIDC, ECS Fargate, env vars, Cloudflare Pages
 - [REDIS.md](REDIS.md) — ElastiCache Valkey: rate limiting, Socket.IO adapter, caching
