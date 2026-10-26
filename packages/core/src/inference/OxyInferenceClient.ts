@@ -683,6 +683,27 @@ export class OxyInferenceClient {
     return body.data;
   }
 
+  /**
+   * Recover settled usage when a disconnected request never delivered its id.
+   * Uses the ORIGINAL key and current caller/attribution, never starts inference.
+   * A not-found response can mean pending or unauthorized; it is not zero usage
+   * and does not authorize replaying the generation. The key stays in a header.
+   */
+  async getGenerationRecordByIdempotencyKey(
+    idempotencyKey: string,
+    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+  ): Promise<OxyGenerationRecord> {
+    if (!idempotencyKey.trim() || idempotencyKey.length > 128 || /[\r\n]/.test(idempotencyKey)) {
+      throw new TypeError('A nonempty Idempotency-Key of at most 128 characters is required.');
+    }
+    const body = await this.#request<{ data: OxyGenerationRecord }>(
+      'GET',
+      '/v1/generations/by-idempotency-key',
+      { ...options, idempotencyKey },
+    );
+    return body.data;
+  }
+
   /** The bearer for this request, from whichever lane was configured. */
   async #bearer(): Promise<string> {
     const value =

@@ -979,6 +979,67 @@ describe('financial and internal generation records', () => {
     expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
     if (record.schemaVersion === 2) expect(record.customerCharge.status).toBe('not_charged');
   });
+  it('recovers a pre-metadata cancellation by original key without starting inference or putting it in the URL', async () => {
+    const { impl, calls } = stubFetch([
+      { status: 200, body: { data: { ...internal, outcome: 'cancelled' } } },
+    ]);
+    const credential = jest.fn(async () => 'fresh-workload');
+    const client = new OxyInferenceClient({
+      credential,
+      baseURL: 'http://test.invalid',
+      fetch: impl,
+    });
+    const signal = new AbortController().signal;
+    const record = await client.getGenerationRecordByIdempotencyKey('original-key', {
+      delegatedUserId: 'user-1',
+      signal,
+    });
+    expect(record.outcome).toBe('cancelled');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('http://test.invalid/v1/generations/by-idempotency-key');
+    expect(calls[0].init.method).toBe('GET');
+    expect(calls[0].init.body).toBeUndefined();
+    expect(calls[0].init.signal).toBe(signal);
+    expect(headerOf(calls[0].init, 'Idempotency-Key')).toBe('original-key');
+    expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
+    expect(headerOf(calls[0].init, 'Authorization')).toBe('Bearer fresh-workload');
+  });
+  it('preserves a missing, pending or inaccessible record as a typed refusal without retrying generation', async () => {
+    const { impl, calls } = stubFetch([
+      {
+        status: 404,
+        body: {
+          error: {
+            code: 'model_not_found',
+            message: 'No record available',
+            requestId: 'lookup-1',
+            retryable: false,
+          },
+        },
+      },
+    ]);
+    const client = new OxyInferenceClient({
+      credential: 'other-caller',
+      baseURL: 'http://test.invalid',
+      fetch: impl,
+    });
+    await expect(
+      client.getGenerationRecordByIdempotencyKey('original-key', { delegatedUserId: 'other-user' }),
+    ).rejects.toMatchObject({ code: 'model_not_found', status: 404 });
+    expect(calls).toHaveLength(1);
+    expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('other-user');
+  });
+  it.each(['', ' ', 'x'.repeat(129), 'a\r\nb'])(
+    'refuses an invalid recovery key before acquiring a credential',
+    async (key) => {
+      const { impl } = stubFetch([]);
+      const credential = jest.fn(async () => 'secret');
+      const client = new OxyInferenceClient({ credential, fetch: impl });
+      await expect(client.getGenerationRecordByIdempotencyKey(key)).rejects.toThrow(TypeError);
+      expect(credential).not.toHaveBeenCalled();
+      expect(impl).not.toHaveBeenCalled();
+    },
+  );
   it('preserves the financial method signature and rejects technical records without exposing response or bearer', async () => {
     const { impl } = stubFetch([
       { status: 200, body: { data: { ...internal, secretBody: 'private-body' } } },
