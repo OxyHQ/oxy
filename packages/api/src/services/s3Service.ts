@@ -17,7 +17,8 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import type { Readable } from 'stream';
+import { Transform, type Readable } from 'stream';
+import { rm, statfs } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'path';
 import type {
@@ -38,6 +39,14 @@ export interface UploadOptions extends S3UploadOptions {
    * rejects. Used by the cache stream-upload to cancel cleanly when the client
    * disconnects or the request times out.
    */
+  abortSignal?: AbortSignal;
+}
+
+export interface DownloadFileOptions {
+  /** Free filesystem headroom retained while acquiring a temporary source. */
+  minFreeBytes?: number;
+  maxBytes?: number;
+  timeoutMs?: number;
   abortSignal?: AbortSignal;
 }
 
@@ -90,6 +99,10 @@ export class S3Service {
       // refuse, and R2 is free to start checking.
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
+      // Bound stalled connections, including multipart requests that Upload's
+      // abort() cannot interrupt until the SDK request settles. This is socket
+      // inactivity, not a total deadline for a large, progressing transfer.
+      requestHandler: { connectionTimeout: 10_000, socketTimeout: 120_000 },
     };
 
     // Add a custom endpoint for non-AWS S3-compatible services.
@@ -121,44 +134,16 @@ export class S3Service {
     filePath: string | Buffer,
     options: UploadOptions = {},
   ): Promise<FileInfo> {
+    if (Buffer.isBuffer(filePath)) return this.uploadBuffer(key, filePath, options);
+    const body = createReadStream(filePath);
     try {
-      let body: Buffer | Readable;
-      let contentType = options.contentType;
-
-      if (typeof filePath === 'string') {
-        body = createReadStream(filePath);
-        contentType = contentType || this.getContentTypeFromPath(filePath);
-      } else {
-        body = filePath;
-        contentType = contentType || 'application/octet-stream';
-      }
-
-      const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
-
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: finalKey,
-        // `Buffer | Readable` are both members of the AWS SDK's node-runtime
-        // `StreamingBlobPayloadInputTypes`, so no cast is needed.
-        Body: body,
-        ContentType: contentType,
-        CacheControl: cacheControl,
-        Metadata: metadata,
-        ACL: acl,
+      // Upload buffers bounded parts, so SDK retries can replay the exact bytes.
+      return await this.uploadStream(key, body, {
+        ...options,
+        contentType: options.contentType || this.getContentTypeFromPath(filePath),
       });
-
-      const response = await this.s3Client.send(command);
-
-      return {
-        key: finalKey,
-        size: 0, // Will be updated below
-        lastModified: new Date(),
-        contentType,
-        metadata: metadata || {},
-        url: options.publicRead ? this.generatePublicUrl(finalKey) : undefined,
-      };
-    } catch (error) {
-      throw new Error(`Failed to upload file to S3: ${error}`);
+    } finally {
+      body.destroy();
     }
   }
 
@@ -208,42 +193,27 @@ export class S3Service {
     const contentType = options.contentType || 'application/octet-stream';
     const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
 
+    const upload = new Upload({
+      client: this.s3Client,
+      leavePartsOnError: false,
+      params: {
+        Bucket: this.bucketName,
+        Key: finalKey,
+        Body: body,
+        ContentType: contentType,
+        CacheControl: cacheControl,
+        Metadata: metadata,
+        ACL: acl,
+      },
+    });
+    const abort = () => {
+      body.destroy(new Error('S3 upload aborted'));
+      upload.abort().catch(() => undefined);
+    };
+    const { abortSignal } = options;
+    abortSignal?.addEventListener('abort', abort, { once: true });
     try {
-      const upload = new Upload({
-        client: this.s3Client,
-        params: {
-          Bucket: this.bucketName,
-          Key: finalKey,
-          Body: body,
-          ContentType: contentType,
-          CacheControl: cacheControl,
-          Metadata: metadata,
-          ACL: acl,
-        },
-      });
-
-      // Cancel the in-flight multipart upload if the caller aborts (client
-      // disconnect / request timeout). `upload.abort()` rejects `done()`.
-      const { abortSignal } = options;
-      if (abortSignal) {
-        if (abortSignal.aborted) {
-          await upload.abort();
-        } else {
-          abortSignal.addEventListener(
-            'abort',
-            () => {
-              upload.abort().catch((abortError) => {
-                logger.warn('Failed to abort in-flight S3 upload', {
-                  key: finalKey,
-                  error: abortError instanceof Error ? abortError.message : String(abortError),
-                });
-              });
-            },
-            { once: true },
-          );
-        }
-      }
-
+      if (abortSignal?.aborted) throw new Error('S3 upload aborted');
       await upload.done();
 
       return {
@@ -255,32 +225,104 @@ export class S3Service {
         url: options.publicRead ? this.generatePublicUrl(finalKey) : undefined,
       };
     } catch (error) {
-      throw new Error(`Failed to upload stream to S3: ${error}`);
+      throw new Error(`Failed to upload stream to S3: ${error}`, { cause: error });
+    } finally {
+      abortSignal?.removeEventListener('abort', abort);
+      body.destroy();
     }
   }
 
   /**
    * Download a file from S3 to local path
    */
-  async downloadFile(key: string, localPath: string): Promise<void> {
-    try {
-      const command = new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      const response = await this.s3Client.send(command);
-
-      if (!response.Body) {
-        throw new Error('File not found or empty');
+  async downloadFile(
+    key: string,
+    localPath: string,
+    options: DownloadFileOptions = {},
+  ): Promise<void> {
+    const deadline = new AbortController();
+    const signal = options.abortSignal
+      ? AbortSignal.any([deadline.signal, options.abortSignal])
+      : deadline.signal;
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(
+            () => deadline.abort(new Error('S3 download deadline exceeded')),
+            options.timeoutMs,
+          );
+    timer?.unref();
+    const maxBytes = options.maxBytes ?? Number.POSITIVE_INFINITY;
+    const diskCheckInterval = 1024 * 1024;
+    const checkDisk = async (pendingBytes = 0) => {
+      if (options.minFreeBytes === undefined) return;
+      const space = await statfs(path.dirname(localPath));
+      if (space.bavail * space.bsize < options.minFreeBytes + diskCheckInterval + pendingBytes) {
+        throw Object.assign(new Error('Insufficient temporary disk space for video source'), {
+          code: 'ENOSPC',
+        });
       }
-
-      const writeStream = createWriteStream(localPath);
-      // In the Node runtime the S3 GetObject `Body` is a `Readable`; pipe it
-      // straight to disk (narrowing the streaming-output union to `Readable`).
-      await pipeline(response.Body as Readable, writeStream);
+    };
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await checkDisk();
+        // Header/status retries belong to the SDK. Only an interrupted body is
+        // restarted here, once, under the same byte cap and overall deadline.
+        const response = await this.s3Client.send(
+          new GetObjectCommand({ Bucket: this.bucketName, Key: key }),
+          { abortSignal: signal },
+        );
+        const body = response.Body as Readable | undefined;
+        if (!body) throw new Error('S3 download has no body');
+        let received = 0;
+        let diskCheckedAt = -diskCheckInterval;
+        let overLimit = false;
+        try {
+          if (response.ContentLength !== undefined && response.ContentLength > maxBytes) {
+            overLimit = true;
+            throw new Error('S3 download exceeds maximum source size');
+          }
+          const meter = new Transform({
+            transform(chunk: Buffer, _encoding, callback) {
+              received += chunk.length;
+              if (received > maxBytes) {
+                overLimit = true;
+                callback(new Error('S3 download exceeds maximum source size'));
+              } else if (
+                options.minFreeBytes !== undefined &&
+                received - diskCheckedAt >= diskCheckInterval
+              ) {
+                diskCheckedAt = received;
+                checkDisk(chunk.length).then(() => callback(null, chunk), callback);
+              } else callback(null, chunk);
+            },
+          });
+          // createWriteStream truncates a previous partial attempt.
+          await pipeline(body, meter, createWriteStream(localPath), { signal });
+          if (response.ContentLength !== undefined && received !== response.ContentLength) {
+            throw Object.assign(new Error('Incomplete S3 download'), {
+              code: 'ERR_STREAM_PREMATURE_CLOSE',
+            });
+          }
+          return;
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          const interrupted = [
+            'ECONNRESET',
+            'ETIMEDOUT',
+            'EPIPE',
+            'ERR_STREAM_PREMATURE_CLOSE',
+          ].includes(code ?? '');
+          if (attempt > 0 || signal.aborted || overLimit || !interrupted) throw error;
+        } finally {
+          body.destroy();
+        }
+      }
     } catch (error) {
-      throw new Error(`Failed to download file from S3: ${error}`);
+      await rm(localPath, { force: true });
+      throw new Error(`Failed to download file from S3: ${error}`, { cause: error });
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

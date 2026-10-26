@@ -9,6 +9,7 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { users } from '../../db/schema/users';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { deploymentCredentialEnvironment } from '../../utils/credentialEnvironment';
 import { resolveLiveAgencyWorkloadByHandle } from '../agencyServicePrincipal.service';
 import {
@@ -16,12 +17,16 @@ import {
   listWorkloadIdentityBindings,
 } from '../workloadIdentityBinding.service';
 
-let originalColumnPresent = false;
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
 let currentColumnPresent = false;
-let constraint: string | null = null;
-let historicalValues: { id: string; scopes: string[] }[] = [];
+let operatorBindingId: string;
 
 beforeAll(async () => {
+  // Operator inventories are deliberately bounded. Other suites leave more
+  // than 20 catalog:oxy applications in the worker database; this schema test
+  // needs its own migrated database, not altered production inventory limits.
+  ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
   // Jest owns a disposable migrated database. Never run this DDL against the
   // configured base database, a shared application database or production.
@@ -34,49 +39,38 @@ beforeAll(async () => {
     SELECT 1 FROM information_schema.columns
     WHERE table_schema='public' AND table_name='application_workload_identities' AND column_name='scopes'
   `);
-  originalColumnPresent = columns.length > 0;
-  currentColumnPresent = originalColumnPresent;
-  if (!originalColumnPresent) return;
-  historicalValues = await getDb().execute<{ id: string; scopes: string[] }>(sql`
-    SELECT id, scopes FROM application_workload_identities
-  `);
-  const [check] = await getDb().execute<{ definition: string }>(sql`
-    SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
-    WHERE conrelid='public.application_workload_identities'::regclass
-      AND conname='application_workload_identities_scopes_check'
-  `);
-  constraint = check?.definition ?? null;
-});
+  currentColumnPresent = columns.length > 0;
+  const app = await application({
+    // The inference operator selects this fixed pilot id; catalog:oxy also
+    // includes the same synthetic application in the registrar's projection.
+    id: '6a2f851751b784a86fd0e934',
+    capabilities: ['catalog:oxy'],
+  });
+  const result = await bindWorkloadIdentity({
+    applicationId: app.id,
+    subject: `arn:aws:iam::237343248947:role/test-operator-${randomUUID()}`,
+    environment: deploymentCredentialEnvironment(),
+    actor,
+  });
+  operatorBindingId = result.binding.id;
+}, 60_000);
 
 afterAll(async () => {
   try {
-    if (originalColumnPresent && !currentColumnPresent) {
-      await getDb().execute(sql`
-        ALTER TABLE application_workload_identities ADD COLUMN scopes text[] NOT NULL DEFAULT '{}'::text[]
-      `);
-      for (const row of historicalValues) {
-        await getDb().execute(sql`
-          UPDATE application_workload_identities SET scopes=${sql.param(row.scopes)}::text[] WHERE id=${row.id}
-        `);
-      }
-      if (constraint) {
-        await getDb().execute(sql`
-          ALTER TABLE application_workload_identities ADD CONSTRAINT application_workload_identities_scopes_check
-          ${sql.raw(constraint)}
-        `);
-      }
-    }
-    if (!originalColumnPresent && currentColumnPresent) {
-      await getDb().execute(sql`ALTER TABLE application_workload_identities DROP COLUMN scopes`);
-    }
-  } finally {
     await closePostgres();
+  } finally {
+    try {
+      if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    } finally {
+      if (originalDatabaseUrl === undefined) Reflect.deleteProperty(process.env, 'DATABASE_URL');
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
   }
-});
+}, 60_000);
 
 const actor = { isPlatformStaff: true, describedAs: 'column compatibility test' };
 
-async function application() {
+async function application(values: { id?: string; capabilities?: string[] } = {}) {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const [app] = await getDb()
     .insert(applications)
@@ -86,6 +80,7 @@ async function application() {
       isOfficial: true,
       status: 'active',
       scopes: ['user:read'],
+      ...values,
     })
     .returning({ id: applications.id });
   return app;
@@ -197,6 +192,8 @@ describe.each([true, false])('physical workload scopes column present=%s', (pres
     const binding = result.tables.application_workload_identities;
     process.stdout.write(JSON.stringify({
       readOnly: result.readOnly, status: binding.status,
+      applicationsStatus: result.tables.applications.status,
+      fixtureIncluded: binding.rows.some(row => row.id === ${JSON.stringify(operatorBindingId)}),
       scopesProjected: binding.rows.some(row => Object.hasOwn(row, 'scopes')),
       environmentsProjected: binding.rows.every(row => Object.hasOwn(row, 'environment')),
     }));
@@ -207,6 +204,8 @@ describe.each([true, false])('physical workload scopes column present=%s', (pres
     expect(JSON.parse(output)).toEqual({
       readOnly: true,
       status: 'complete',
+      applicationsStatus: 'complete',
+      fixtureIncluded: true,
       scopesProjected: false,
       environmentsProjected: true,
     });
