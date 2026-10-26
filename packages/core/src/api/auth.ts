@@ -1448,11 +1448,9 @@ export class AuthApi {
       { cache: false, skipAuth: true, ...requestOptions },
     );
 
-    // Plant the freshly-minted tokens, mirroring `auth.claimSession`.
-    // `/auth/verify` returns the first access token (and refresh token) in
-    // its body, so installing it here means callers get an authenticated
-    // client without a second round-trip. Refresh stays in the httpOnly
-    // cookie slot set by the API.
+    // Install the returned access bearer, mirroring `auth.claimSession`,
+    // without a second round-trip. Session renewal uses the shared SDK's
+    // explicit credential transport; this flow neither sets nor reads cookies.
     if (res?.accessToken && options.plantTokens !== false) {
       this.ctx.oxy.session.setAccessToken(res.accessToken);
     }
@@ -1485,7 +1483,7 @@ export class AuthApi {
    * `POST /auth/session/authorize/{sessionToken}` (bearer-authed) and
    * the auth socket / poll loop notifies this client, the client
    * exchanges its `sessionToken` here for the first access token,
-   * refresh token, sessionId, and the authorized user.
+   * sessionId, and the authorized user.
    *
    * This call requires no Authorization header — the high-entropy
    * `sessionToken` IS the credential (RFC 8628 §3.4). The exchange is

@@ -3,7 +3,9 @@
 Decision: [ADR 0049](../adr/0049-first-party-platform-authority.md), 2026-10-23.
 This ledger distinguishes source implementation from production evidence. Only
 the explicit deployment records below establish a released runtime; source
-commits alone do not establish live acceptance.
+commits alone do not establish live acceptance. The current
+[product checkpoint](#product-acceptance-and-realtime-checkpoint-2026-10-26)
+supersedes earlier untested entries only for its explicitly verified journeys.
 
 ## Accepted contract
 
@@ -14,21 +16,21 @@ audiences are `oxy-service:<applicationId>`; Kaana's audience is `kaana.ai`.
 Correct requester/account/resource, external-grant restrictions, domain rules,
 revocation and operation binding remain mandatory.
 
-## Workstreams (updated 2026-10-25)
+## Workstreams (updated 2026-10-26)
 
 | Area | Source state | Required acceptance |
 |---|---|---|
-| Oxy auth, OAuth finalizers, Commons | Oxy API 1080 deployed; shared SDKs and registered native public clients adopted; dedicated QA session accepted | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
+| Oxy auth, OAuth finalizers, Commons | Own sign-in deployed; dedicated QA browser and Android broker journeys accepted as bounded below | Own sign-in has no scopes/grant/permission screen; external PKCE/isolation/revocation pass |
 | Oxy workload environment preflight | Deployed and provisioned; foundation v2 canary passed | Nullable DDL, exact 27-binding CAS, live readback and completed v1 retirement |
-| Oxy core/contracts service authority | Core 7.4.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
-| Oxy API files/inference/agency/introspection | Oxy API 1080 deployed; service authority, Inbox event and QA private-file canaries passed; inference execution remains untested | Account/resource isolation without own scope/grant dependencies |
-| Oxy Console application settings/credentials | Foundation frontend deployed; public sign-in dialog smoke passed; authenticated settings smoke remains | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Stage B/C and app transport deployed in `596f8a7`; SDK 22.0.1 published | No app-level switches; owner/requester/bot and scheduled-task isolation |
-| Alia gateway/integrations workload transport | Workload gateway 192 and API 612 verified on `596f8a7`; 782 old definitions and separate probe retired; exact two obsolete SSM parameters removed; post-cleanup runtime verified | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
-| Kaana inference own-service receiver | Contracts 8.0.1 published; API 151 and publisher 152 verified on `8bba965d` | Retain requester/account, external scopes, audience and revocation |
+| Oxy core/contracts service authority | Core 7.5.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
+| Oxy API files/inference/agency/introspection | Service authority, Inbox events and private Files verified; Mention → Alia text generation and Kaana two-task realtime admission/settlement verified | Account/resource isolation without own scope/grant dependencies |
+| Oxy Console application settings/credentials | Authenticated account/security settings, two-account switching, logout/reload and zero cookies passed; application-credential editing is not claimed by that journey | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
+| Alia own-app levels and tool admission | Stage B/C deployed; API 613 on `aec9ae04` includes voice relay; SDK 22.0.1 published; explicit Stop producer release/adoption pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia gateway/integrations workload transport | Gateway 193 and API 613 verified on `aec9ae04`; old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
+| Kaana inference own-service receiver | Contracts 8.0.1 published; API 152 and publisher 153 verified on `95ac4fa9`; real two-task resume preserves one admission/settlement | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; Schedio is explicitly parked before launch | Caller→SDK→receiver tests for own and external identities |
 | Mercaria storefront commerce transport | PR #1159 deployed: API 146 and all three frontends verified on `714f3ec4`; public HTTP/Chromium transport acceptance passed | Preserve Oxy-owned carts and independent guest/portal authority; bounded referral preservation only; real-identity/native acceptance not claimed |
-| Registry/workload migration and deploy | Environment preflight, product rollouts and v1 retirement verified; Core 7.4 published and Oxy API 1080/worker 545 deployed; Schedio parked before launch; product acceptance listed separately | Reviewed readback, rollout order, actual task digests and live canaries |
+| Registry/workload migration and deploy | Workload-v1 retirement and physical scope-column removal verified; Schedio parked before launch; current runtime and separate product limits recorded below | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
@@ -53,9 +55,9 @@ stages remain as dated history in the narrative and receipt array.
 
 | Runtime | Verified source | Live revisions / count |
 |---|---|---|
-| Oxy API / asset worker | `e734c03c413142930b7215249639959de6faef26` | 1084: 3/3; worker 549: 8/8; exact runtime images, both API target groups healthy; schema follow-up verified 2026-10-26 |
-| Alia API / integrations | `596f8a7dfecb0c3a80faf3077a7989143745ddbd` | 612: 2/2; 192: 1/1; healthy and drained |
-| Kaana API / publisher | `8bba965d4b5aa2bb64b52238442c9559207344ac` | 151: 2/2; 152: 1/1; healthy and drained |
+| Oxy API / asset worker | `7bf17cbdfbc15b33b012423f26c73b79ff54e3df` | 1085: 3/3; worker 550: 8/8; exact runtime images and both API target groups healthy, verified 2026-10-26 |
+| Alia API / integrations | `aec9ae0443c952bd22faa8416fd62d64f7fee323` | 613: 2/2; 193: 1/1; exact images and healthy API targets, verified 2026-10-26 |
+| Kaana API / publisher | `95ac4fa98c53a6c5488114e638b4910d6a729813` | 152: 2/2; 153: 1/1; exact images and healthy API targets, verified 2026-10-26 |
 | Clarity API / worker | `9903515501271a982c2fba40b7a13af4099406c5` | 159: 1/1; 145: 1/1; healthy and drained |
 | Peable | `3224178c28c5a0c34152aa242a834ab171bf5883` | 122: 1/1; healthy and drained |
 | CrowdSource | `4ff8cb5904295b77fc52ec22deae00312852f1be` | 128: 1/1; healthy and drained; runtime unchanged by its documentation-only follow-up |
@@ -431,8 +433,8 @@ Mercaria's cookie-free decision is
 approved, deployed and publicly transport-tested as recorded above; real-identity
 and native product acceptance remain outside that probe's scope. Syra 0.24.0
 publication and Mention's consumer adoption are recorded above; they do not establish signed-in production
-live-room/player acceptance. Native physical-device
-acceptance and desktop/store distribution are not established.
+live-room/player acceptance. The dedicated Android Mention broker journey below is verified;
+current-source Commons UI, iOS and desktop/store distribution remain unverified.
 
 Alia's bounded retirement completed with 782 unique old definitions confirmed
 `INACTIVE`. The final successful attempt inspected all 782, retired the remaining
@@ -482,8 +484,54 @@ signed Schedio mint against API 1080 was also refused with `403 unbound_workload
 at `20:16:47.538Z`; its diagnostic exited 0 and was fully retired by `20:17:38Z`.
 The [retirement runbook](../auth/workload-v1-retirement.md) records the completed
 gates and distinguishes them from product-acceptance limits. Schedio's future
-public launch is not a prerequisite; real identity, native devices, inference
-execution and desktop distribution retain their separate acceptance limits.
+public launch is not a prerequisite. The subsequent 2026-10-26 product checkpoint
+below supersedes earlier untested identity/inference entries only for its stated
+journeys; other device and desktop-distribution limits remain.
+
+## Product acceptance and realtime checkpoint (2026-10-26)
+
+The [product-journey receipt](../release-evidence/product-journeys-2026-10-26/README.md)
+records the actual Console account dialog, authenticated account/security settings,
+two-account switching and logout/reload with zero cookies. It also records a
+short text response through Mention's Ask Alia UI, ownership refusal for a second
+QA account, and Android Mention broker sign-in/cold start in a dedicated secondary
+Pixel user. These are bounded product results; they do not establish every Console
+application-credential operation, current-source Commons onboarding, iOS or desktop
+distribution. Earlier 2026-10-25 public-dialog/catalogue-only statements describe
+those earlier probes, not the current acceptance state.
+
+The [realtime checkpoint receipt](evidence/product-realtime-checkpoint-20261026.json)
+records exact deployed Alia and Kaana source/image observations and a silent Kaana
+session opened on one serving task, resumed on the other, and closed with the same
+request ID. Read-only evidence independently found **one Oxy grant admission, one
+technical usage admission, one provider attempt and one delivered settlement**.
+The settlement is `cancelled` with `oxy_measured` zero units; no audio or text was
+sent. This demonstrates cross-task routing without a second admission, not audio
+quality or a nonzero-usage cancellation charge. No owner-directory entry remained
+for the request. All three DB-only diagnostic tasks exited successfully and their
+temporary definitions are inactive.
+
+Alia's owner relay is deployed, but its live two-task voice journey has not yet
+completed. The dedicated QA account's ordinary entitlement readback does not
+include voice; no entitlement or policy was changed to force the test. The first
+three tunnel preparations made no QA call; the third reached only health checks. No persisted Alia-call → Kaana-request correlation is asserted.
+The shared infrastructure cookie removal remains pending this acceptance and the
+reviewed drain checks; a deployed relay alone does not prove zero cookies.
+
+The earlier aborted text probe exposed the distinction between incidental
+disconnection and explicit Stop. The Stop receiver source is merged in Alia
+[#904](https://github.com/OxyHQ/Alia/pull/904); receiver rollout, SDK 22.1/server 1.3
+publication, consumer adoption and live Stop/partial-settlement acceptance remain
+separate pending steps at this checkpoint. Core 7.5 supplies authoritative receipt
+lookup by idempotency key; publication is not a claim that the new Stop UI is live.
+Codea and Cowork have separate Stop callers; updating the shared UI package alone
+does not cover them. Schedio remains deliberately excluded from launch/adoption.
+
+QA account/device cleanup, the retained temporary Kaana diagnostic-image tag and
+the final Alia relay temporary-file absence checks remain explicit operational
+follow-ups. Diagnostic cleanup already verified is recorded separately from those
+pending items. No production credentials, prompts, audio or private user content
+are included in the receipts.
 
 ## Historical source audit (2026-10-23)
 

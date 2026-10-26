@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "2026-10-26T08:21:22.918159+00:00",
+  "sourceReceipts": [
+    {
+      "name": "aliaRuntime",
+      "file": "alia-runtime-aec9.json",
+      "sha256": "6ea562ef5660e7b87279c684651b22e074f6876110a972db192483dd392d30e9"
+    },
+    {
+      "name": "kaanaRuntime",
+      "file": "kaana-runtime-95ac.json",
+      "sha256": "f3181eee2e590ce1168ec1039c7fbd2c43a99c6ac0cec18aae6329d2716c71e7"
+    },
+    {
+      "name": "canary",
+      "file": "acceptance-receipts.json",
+      "sha256": "2c8105a740f0a42ae19a69f08a1c3b324563320a45fae73654a4818a8576d44a"
+    },
+    {
+      "name": "kaanaReadback",
+      "file": "readback.json",
+      "sha256": "bfd725f95472272539e42c64f17840f74f68143760075e7aaa1c177a14ad25cb"
+    },
+    {
+      "name": "oxyReadback",
+      "file": "readback.json",
+      "sha256": "0fa8f5bd43a1cb6bc746a0b36f1f25a8bc6f0424208046076f9679374e289224"
+    },
+    {
+      "name": "oxyRuntime",
+      "file": "core750-runtime-7bf.json",
+      "sha256": "ae4b869047878830f7b2d825ac2067a5c4b8f169d1f5e6c2bbd9c0a978cd814c"
+    }
+  ],
+  "runtimes": [
+    {
+      "service": "alia",
+      "source": "aec9ae0443c952bd22faa8416fd62d64f7fee323",
+      "observedAt": "2026-10-26T07:29:33.287750+00:00",
+      "revision": 613,
+      "running": 2,
+      "imageIndex": "sha256:a27c214d5ff5116401826b06834f78ea3f693e5045d4eada8422f64c35c7221e",
+      "runtimeDigests": [
+        "sha256:ac58fb104c84a8be86fd34bca1e62f4ec26b9d43bfb35a0214e2b7cb62b70372"
+      ],
+      "healthyTargets": 2
+    },
+    {
+      "service": "alia-integrations",
+      "source": "aec9ae0443c952bd22faa8416fd62d64f7fee323",
+      "observedAt": "2026-10-26T07:29:33.287750+00:00",
+      "revision": 193,
+      "running": 1,
+      "imageIndex": "sha256:bc235d3fe47fff50815d217276763e2abced294ddae1ebe1d1fad6d175768ce0",
+      "runtimeDigests": [
+        "sha256:36bb10fd1bb64c40555fe865da2eb98a4a591a271926a46f18b99f7b7d2737a8"
+      ],
+      "healthyTargets": 0
+    },
+    {
+      "service": "kaana",
+      "source": "95ac4fa98c53a6c5488114e638b4910d6a729813",
+      "observedAt": "2026-10-26T07:20:13.524353+00:00",
+      "revision": 152,
+      "running": 2,
+      "imageIndex": "sha256:82098b6b0d4d14e7773f8afb8ef97631a747d4b4c9cfa5148b8627443d856901",
+      "runtimeDigests": [
+        "sha256:82098b6b0d4d14e7773f8afb8ef97631a747d4b4c9cfa5148b8627443d856901"
+      ],
+      "healthyTargets": 2
+    },
+    {
+      "service": "kaana-publisher",
+      "source": "95ac4fa98c53a6c5488114e638b4910d6a729813",
+      "observedAt": "2026-10-26T07:23:16.799920+00:00",
+      "revision": 153,
+      "running": 1,
+      "imageIndex": "sha256:82098b6b0d4d14e7773f8afb8ef97631a747d4b4c9cfa5148b8627443d856901",
+      "runtimeDigests": [
+        "sha256:82098b6b0d4d14e7773f8afb8ef97631a747d4b4c9cfa5148b8627443d856901"
+      ],
+      "healthyTargets": 0
+    },
+    {
+      "service": "oxy-api",
+      "source": "7bf17cbdfbc15b33b012423f26c73b79ff54e3df",
+      "observedAt": "2026-10-26T08:21:22.918159+00:00",
+      "revision": 1085,
+      "running": 3,
+      "desired": 3,
+      "imageIndex": "sha256:8902642d2c091450a8db61d65943bafeae79119eb90ced94f1ecdd1479e13072",
+      "runtimeDigests": [
+        "sha256:8902642d2c091450a8db61d65943bafeae79119eb90ced94f1ecdd1479e13072"
+      ],
+      "healthyTargets": 6
+    },
+    {
+      "service": "oxy-asset-variant-worker",
+      "source": "7bf17cbdfbc15b33b012423f26c73b79ff54e3df",
+      "observedAt": "2026-10-26T08:21:22.918159+00:00",
+      "revision": 550,
+      "running": 8,
+      "desired": 8,
+      "imageIndex": "sha256:8902642d2c091450a8db61d65943bafeae79119eb90ced94f1ecdd1479e13072",
+      "runtimeDigests": [
+        "sha256:8902642d2c091450a8db61d65943bafeae79119eb90ced94f1ecdd1479e13072"
+      ],
+      "healthyTargets": 0
+    }
+  ],
+  "canary": {
+    "observedAt": "2026-10-26T08:02:52.791Z",
+    "success": true,
+    "requestId": "req_zj55lpqobcqarlrwws7riexos4",
+    "resumedSameRequest": true,
+    "closeSettled": true,
+    "elapsedMs": 658,
+    "distinctServingTasks": 2,
+    "audioSent": false,
+    "textSent": false
+  },
+  "kaana": {
+    "observedAt": "2026-10-26T08:05:10.529Z",
+    "migration": {
+      "version": "0023",
+      "checksum": "38d178a6d3db0acf015e3590ec13a7c734504b47671a8ee3778b720a531041a1",
+      "applied_at": "2026-10-26T07:13:44.849Z"
+    },
+    "remainingOwners": 0,
+    "remainingRequestPlacements": 0,
+    "providerAttempts": [
+      {
+        "request_id": "req_zj55lpqobcqarlrwws7riexos4",
+        "attempts": 1,
+        "served_attempts": 1
+      }
+    ],
+    "settlements": [
+      {
+        "request_id": "req_zj55lpqobcqarlrwws7riexos4",
+        "settlement_id": "stl_k2c2is2fzolibxrh4taxu37qai",
+        "grant_id": "01a1773b-e176-7245-8c9f-64aedfcb7e32",
+        "created_at": "2026-10-26T08:02:56.034Z",
+        "attempts": 1,
+        "delivered_at": "2026-10-26T08:02:56.084Z",
+        "delivered_status": "settled",
+        "outcome": "cancelled",
+        "usage_source": "oxy_measured",
+        "units": []
+      }
+    ]
+  },
+  "oxy": {
+    "observedAt": "2026-10-26T08:12:21.136Z",
+    "requestId": "req_zj55lpqobcqarlrwws7riexos4",
+    "grantId": "01a1773b-e176-7245-8c9f-64aedfcb7e32",
+    "grantAdmissions": 1,
+    "technicalAdmissions": 1,
+    "applicationId": "6a2f851751b784a86fd0e934",
+    "credentialId": "wl_d50a0056191d0448024900b4",
+    "environment": "production",
+    "economicTreatment": "internal_metered",
+    "status": "settled",
+    "settlementId": "stl_k2c2is2fzolibxrh4taxu37qai",
+    "outcome": "cancelled",
+    "usageSource": "oxy_measured",
+    "allMeasuredUnitsZero": true,
+    "financial": {
+      "reservations": 0,
+      "receipts": 0
+    }
+  },
+  "diagnosticCleanup": [
+    {
+      "name": "kaana-peer-before3",
+      "observedAt": "2026-10-26T07:56:03.347205+00:00",
+      "definitionStatus": "INACTIVE",
+      "noActiveFamilyTasks": true,
+      "receiptSha256": "6916f4768de654fe27d2389328afe3bfb1cc412cb54fea9afcb124bcb0f9df34"
+    },
+    {
+      "name": "kaana-peer-after1",
+      "observedAt": "2026-10-26T08:07:24.863473+00:00",
+      "definitionStatus": "INACTIVE",
+      "noActiveFamilyTasks": true,
+      "receiptSha256": "ebb606aba3d96a5a1265ffbee103b5869228616f60a6981ce08ccaeba01b86f8"
+    },
+    {
+      "name": "kaana-oxy-admission",
+      "observedAt": "2026-10-26T08:13:37.638888+00:00",
+      "definitionStatus": "INACTIVE",
+      "noActiveFamilyTasks": true,
+      "receiptSha256": "0d5619d1ef5924b098338cea55e9c88355d74e9583e3562024d5ec512e27a6ed"
+    }
+  ],
+  "pending": [
+    "Alia live two-task voice acceptance",
+    "Infrastructure cookie removal after acceptance/drain",
+    "Stop receiver rollout, SDK publication/adoption and live partial-usage acceptance",
+    "QA account/device cleanup",
+    "Temporary Kaana diagnostic-image tag removal after final readback",
+    "Alia attempt3 exact temporary-path absence confirmation"
+  ]
+}
