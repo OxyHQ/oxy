@@ -1,15 +1,28 @@
 # Historical workload scope column — compatible removal
 
-ADR 0049 and the verified protocol-v1 retirement removed scope-based workload
-authority. Release 2 removes the inert `application_workload_identities.scopes`
-column and its check. Until that separate post migration is deployed, the
-column remains historical storage.
-The external `applications.scopes`, `application_credentials.scopes` and OAuth
-grant columns remain active and are outside this migration.
+Status: **completed and verified on 2026-10-26**. The compatible bridge
+[PR #1996](https://github.com/OxyHQ/oxy/pull/1996), source `6a6d6f029`, was
+verified on API 1082 and asset worker 547 before the physical-removal release
+[PR #1998](https://github.com/OxyHQ/oxy/pull/1998), source `e734c03c4`, moved
+API/worker to 1084/549. Both running fleets matched their reviewed image digests.
+
+The post-DDL readback at `07:02:31Z` confirms that
+`application_workload_identities.scopes` and its check are absent. The
+06:33:21Z pre-receipt and post-receipt have identical preservation hashes:
+27 bindings, 27 attribution rows, two binding relations, two external scope
+columns and three external scope checks. The comparator passed; the DB-only
+diagnostic tasks stopped with exit 0 and their definitions are inactive.
+See the [sanitized completion receipt](../architecture/evidence/workload-scope-schema-cleanup-20261026.json).
+
+ADR 0049 and the earlier protocol-v1 retirement removed scope-based workload
+authority; this second release also removed its historical storage. External
+`applications.scopes`, `application_credentials.scopes` and OAuth grant columns
+remain active. The procedure below records the completed compatibility gates;
+it is not an instruction to repeat the DROP or restore the retired column.
 
 ## Why two releases
 
-The deployed retirement source `dc1c21186` uses explicit workload projections in
+The preceding retirement source `dc1c21186` used explicit workload projections in
 the mint, live principal resolver and binding administration. However, its
 ordinary Drizzle binding INSERT names every modeled column, including `scopes`
 as DEFAULT even when `.values()` omits it. Dropping the column would break that
@@ -77,8 +90,10 @@ failure may do the same after the DROP committed. Neither case restores scopes
 or changes authority. The final readback verifies column/check absence, unchanged
 binding/attribution identities and working scope-free mint/live resolution.
 
-No production column drop is authorized by this document or by Release 1. Its
-separate migration review and exact deployment evidence are the activation gate.
+The separate migration review and verified bridge deployment gated the completed
+activation. Release 1 alone did not authorize or execute the physical DROP.
+Rollback may use that compatible bridge; pre-bridge images are no longer valid
+binding-provisioning rollback targets.
 
 ## Bounded production pre/post evidence
 
@@ -110,6 +125,6 @@ hash. Neither the reader nor comparator changes data or executes the DROP.
 The disposable PostgreSQL regression executes the actual generated migration,
 proves before/after digest equality and external scope preservation, and rejects
 an unexpected view, a `NEW.scopes` trigger and changed preservation digests.
-Fresh-install migrations and the bridge's present/absent-column regressions are
-separate gates. Production execution and its receipts remain pending until the
-coordinator records the exact bridge deployment and approves the second release.
+Fresh-install migrations and the bridge's present/absent-column regressions were
+separate passing gates. The recorded production execution and comparison above
+complete the physical schema cleanup; they do not broaden external authority.
