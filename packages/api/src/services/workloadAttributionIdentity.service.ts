@@ -11,7 +11,7 @@ import { workloadAttestationHandle } from './workloadAttestation.service';
  * ## The problem, exactly
  *
  * ADR 0026's attested caller authenticates correctly — the binding is found, the
- * application is trusted, the scopes are live — and then dies in the usage
+ * application and bound environment are live — and then dies in the usage
  * ledger:
  *
  *     insert or update on table "usage_reservations" violates foreign key

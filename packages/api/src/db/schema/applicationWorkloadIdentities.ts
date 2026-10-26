@@ -84,7 +84,8 @@ export const applicationWorkloadIdentities = pgTable(
     description: text(),
 
     /** Historical inert column retained for additive rollout and forensic readback.
-     * Runtime authorization and provisioning never read or write its values.
+     * Runtime authority never reads it; provisioning supplies no scope values.
+     * The current ORM may still name it as DEFAULT in INSERT SQL.
      * Drop only in a separately reviewed migration after all old images retire.
      */
     scopes: text().array().notNull().default(sql`'{}'::text[]`),
@@ -119,14 +120,9 @@ export const applicationWorkloadIdentities = pgTable(
       'application_workload_identities_environment_check',
       sql`${table.environment} in ('development', 'staging', 'production')`,
     ),
-    /**
-     * Only real scopes, mirroring `application_credentials_scopes_check`.
-     *
-     * The mint drops an unknown scope anyway (`intersectScopes` refuses
-     * anything outside the vocabulary), so this is not what makes the mint
-     * safe. What it prevents is the row: a typo'd scope written here would sit
-     * in the table reading as granted, and the failure would surface as a 403
-     * from some other service with nothing pointing back at this row.
+    /** Historical storage validation only. ADR 0049 removed workload scope
+     * authority; no mint or live resolver consults this array. Keep the column
+     * and constraint together until the separately reviewed physical migration.
      */
     check(
       'application_workload_identities_scopes_check',

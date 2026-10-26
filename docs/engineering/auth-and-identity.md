@@ -1,13 +1,13 @@
 # Auth, sessions and identity — the mechanisms
 
-> Moved out of `AGENTS.md` unchanged. The one-line rules stay there.
+> Mechanisms referenced by `AGENTS.md`; the one-line rules stay there.
 
 ## First-party authority
 
-[ADR 0049](../adr/0049-first-party-platform-authority.md) supersedes the internal
-scope and consent provisioning described by older sections below. Use the
-[canonical integration contract](../auth/first-party-platform-access.md); keep
-historical provisioning commands only for migration/external credentials.
+[ADR 0049](../adr/0049-first-party-platform-authority.md) defines scope-free own
+workloads and shared sessions. Use the
+[canonical integration contract](../auth/first-party-platform-access.md); OAuth
+scopes, consent and customer service credentials belong to external lanes.
 
 ## Auth / Session Contract
 
@@ -89,238 +89,79 @@ Registering an `Application` (with `redirectUris`) now auto-authorizes that app'
 - Service-token JWT now embeds `credentialId` alongside `appId` (= applicationId); both are on `req.serviceApp`. The JWT claim name `appId` is unchanged.
 - Secrets are sha256-hashed (`secretHash`), returned exactly once on create or rotate, never retrievable again.
 
-## Service Tokens (Internal Service-to-Service Auth)
+## Service tokens and workload identity
 
-Internal Oxy ecosystem apps authenticate via short-lived service JWTs (OAuth2 Client Credentials pattern).
+[ADR 0049](../adr/0049-first-party-platform-authority.md) governs own products;
+[service tokens](../SERVICE_TOKENS.md) describes the two authority lanes. Own
+backends use `OxyServer` and the temporary infrastructure credential provider,
+then a product SDK factory or `createServiceClient`. They never provision a
+customer key pair or a workload scope list. The shared transport owns the
+challenge, protocol-2 mint, cache, refresh, recipient binding and cancellation.
 
-**Flow:**
-1. Create an `Application` with `type: 'internal'` and an `ApplicationCredential` with `type: 'service'` (DB-only or Console staff view)
-2. Service exchanges `publicKey` (client_id) + `secret` → `POST /auth/service-token` → 1h JWT
-3. Service uses JWT as `Authorization: Bearer <token>` + `X-Oxy-User-Id: <userId>` for delegation
-4. `@oxy.so/core/server` `middleware.auth()` recognizes `type: 'service'` JWTs (stateless, no session DB lookup)
+A verified workload binding maps `(provider, canonical subject)` to an active
+own application and an explicit environment. On AWS the subject is the IAM role
+ARN derived from the signed STS identity, not an environment variable asserting
+who the process is. The issuer and live authority resolver recheck the binding,
+application and owning account. `expires_at` can cut off a binding without deleting
+its attribution/history. Missing environments and expired bindings fail closed.
+The `wl_…` credential handle remains stable for that subject and identifies the
+inert usage-attribution row; it is not a bearer credential or a scope ceiling.
 
-Service tokens are EdDSA only, verified against `/.well-known/jwks.json` (ADR 0012). HS256 is refused everywhere. `oxy-api` does not boot in production without `SERVICE_TOKEN_PRIVATE_KEY` + `SERVICE_TOKEN_SIGNING_KEY_ID`, and outside production it mints with a per-process ephemeral key. Decide "is this a service token?" with `verifyServiceToken`, never with `jwt.verify(…, ACCESS_TOKEN_SECRET)`.
+Own tokens carry `authority: 'first_party'` and no `scopes`. Product recipients
+use `oxy-service:<applicationId>`; Oxy uses `oxy-api`, and inference uses
+`kaana.ai`. The issuer and both JWT verifiers enforce at most **300 seconds**
+(`packages/core/src/server/serviceTokenLifetime.ts`). Use the canonical
+[SDK examples](../inference/sdk.md), not application-local bearer refresh.
 
-**Workload identity — a first-party service with NO credential (ADR 0026):**
+Private data still requires the original requester and effective account. Shared
+session, durable task and derived requester-context proofs retain account,
+resource and operation boundaries. A caller-selected `X-Oxy-User-Id` alone
+confers no authority. See [first-party tasks](../auth/first-party-tasks.md).
+Oxy-hosted Inbox and ecosystem activity use this same workload transport;
+neither restores an internal key fallback.
 
-An official service does not need step 1 or 2. It proves what it IS to the
-infrastructure it runs on and receives the same 1h JWT:
+External service credentials remain bounded by their live application and
+credential scopes, revocation and any required external delegation grant. A key
+created under an official application is still external. An external token
+forwarded by an own backend never becomes first-party authority.
 
-1. `POST /auth/service-token/workload/challenge` → a single-use nonce (60s, Redis)
-2. `POST /auth/service-token/workload` with `{ provider, nonce, attestation }` → the same 1h JWT
+### Binding administration
 
-On AWS the attestation is a SigV4-signed `GetCallerIdentity` the caller never
-sends; Oxy replays it to STS and believes STS's answer. The verifier is the only
-module that knows which cloud we are on — another provider is one more
-implementation of `AttestationVerifier`, with no change to callers or verifiers of
-the token.
-
-`application_workload_identities` maps `(provider, subject)` → application. On AWS
-the subject is the ROLE ARN (`arn:aws:iam::<account>:role/<name>`): STS answers with
-the per-task `assumed-role/<name>/<session>`, and the verifier reduces it, so a
-binding survives the tasks that present it. The row carries no secret, is created at
-deploy time, and deleting it is how a workload is cut off. The mint re-applies
-`isTrustedApplication` and stamps the DEPLOYMENT's environment (an attestation
-cannot ask for one).
-
-**Scopes come from the BINDING, decided exactly as the credential path decides
-them** (ADR 0026, amended 2026-09-19). The binding names scopes → the
-intersection with the application's, so a privileged scope survives only when
-BOTH hold it; the binding names none → the application's non-privileged grants,
-which is what every binding written before the column says. The attestation
-contributes nothing here: it selects a binding, and the binding — a row staff
-wrote, naming one role and one application — names the authority, the way an
-`ApplicationCredential` does. Naming a privileged scope on a binding is
-staff-only, under the same gate as `POST /applications/:appId/credentials`.
-
-**What an attested token says minted it.** `credentialId` is `wl_` + 96 bits of
-SHA-256 over the canonical subject — the ROLE — so it is ONE value for every
-task of a service, across every deploy, forever. It is a thing a consumer can
-pin, and `bind-workload-identity.ts` prints it so nobody has to capture a token
-to learn it. A service that asserts a fixed `credentialId` today (Homiio's Sindi
-check, Clarity's exact-claims check) accepts both its credential id and the
-`wl_…` handle, deploys, migrates, then drops the old one. The binding row's id
-was considered instead and rejected: delete-and-recreate is this path's only way
-to move a binding, so a row id would break every pin on an operator action that
-changed no identity, and it is not derivable without a production query.
-
-**An Oxy lane that pins one credential needs its own line, not just a binding.**
-A check comparing `credentialId` to a fixed UUID refuses an attested caller
-however good its binding is. Such a lane declares the canonical IAM role and
-derives the handle with `workloadAttestationHandle`, so the value is reviewable
-and computable from a task definition rather than a digest nobody can check. The
-role is written out in reviewed source and NOT read from
-`application_workload_identities` — binding a role is a routine deploy step, and
-it must never be, by itself, a grant of a pinned lane. (ADR 0025's entry points
-were the one such lane; ADR 0042 retired it.) An attested caller then re-reads
-its BINDING as the live ceiling
-(`resolveLiveAgencyWorkload`), on the same grounds a credential-minted one
-re-reads its credential.
-
-**Before a service gives up its key pair, its binding must name every privileged
-scope the credential named.** Not a nicety: removing Mention's pair first cost
-313 × `Missing required scope: federation:write` in one morning. Bind with
-`--scopes`, check the token, then remove the pair.
-
-**A host acting as an application it hosts proves itself to itself.** oxy-api
-acts as Oxy Inbox, and Inbox point inference resolves that authority in-process
-(no token). Without a key pair it learns its own role exactly as it learns a
-caller's — `attestWorkloadIdentity` (`@oxy.so/core/server`) signs
-`GetCallerIdentity` over a local nonce and `verifyWorkloadAttestation` replays it
-to STS (`services/ownWorkloadIdentity.service.ts`) — then reads that role's live
-Inbox binding through `resolveLiveAgencyWorkloadByHandle`. A role name read from
-configuration would be the process's own word for what it is.
-
-Ecosystem activity publishing follows the same path: `createEcosystemTraffic`
-accepts a process with no key pair when it can attest, so removing
-`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` from a task definition no longer
-kills the service at boot.
-
-Third-party applications keep the credential flow above: they run where we cannot
-attest, which is exactly where registration belongs.
-
-**Creating a binding — the one manual step:**
+The reviewed staff entrypoint is `packages/api/scripts/bind-workload-identity.ts`:
 
 ```bash
 bun run packages/api/scripts/bind-workload-identity.ts \
-  --app-id <application id> \
-  --role-arn arn:aws:iam::237343248947:role/oxy-mention-task \
-  [--provider aws-iam] [--description "Mention ECS task role"] \
-  [--scopes federation:write,signals:write,catalogs:write] \
-  [--expires-at 2026-12-31T00:00:00Z]
+  --app-id <application-id> \
+  --role-arn arn:aws:iam::237343248947:role/<reviewed-role> \
+  --environment production \
+  --description "Reviewed production workload"
 
-bun run packages/api/scripts/bind-workload-identity.ts --app-id <id> --list
+bun run packages/api/scripts/bind-workload-identity.ts --app-id <application-id> --list
 ```
 
-Once per service, against that environment's database, by staff. There is no
-route: a binding says one service IS one application, and exposing that over HTTP
-means designing who may call it when the honest answer is "an operator, out of
-band, when the service is deployed". The script is a thin entrypoint over
-`services/workloadIdentityBinding.service.ts`, which is where the decisions are and
-where they are tested. Exit codes: `0` done, `1` bad invocation, `2` refused.
+Run against the intended environment's database with the existing operator
+procedure. `--expires-at` is optional for a new binding. `--scopes` is rejected,
+including an empty value. The service canonicalizes the AWS subject, refuses
+untrusted/inactive applications and repointing to another application, and
+requires platform staff for creation or an explicit environment backfill. An
+existing non-null environment cannot change. An identical bind is idempotent;
+description/expiry drift is reported rather than silently applied. Review an
+exact-tuple update separately when retiring or reactivating a binding. In
+particular, ordinary provisioning must not undo Schedio's recorded parking.
 
-`--role-arn` takes either form — the role ARN, or the `assumed-role/<name>/<session>`
-one a running task reports — and runs it through the verifier's own
-`canonicalAwsSubject`, so what is stored and what will be attested are the same
-string by construction rather than by inspection. What that function does NOT do is
-judge: it passes an ARN it does not recognise through unchanged, which is right for
-reporting what AWS said and wrong for an operator at a terminal, so the script
-refuses anything that is not a role ARN afterwards. A role with an IAM path must be
-given without it, because the assumed-role ARN omits the path and the pathless form
-is the only one an attestation can present.
+Runtime implementation: `workloadAttestation.service.ts` verifies infrastructure
+proof; `workloadIdentity.service.ts` mints own authority;
+`workloadIdentityBinding.service.ts` administers bindings;
+`agencyServicePrincipal.service.ts` resolves live authority. These are all under
+`packages/api/src/services/`. The shared receiver is `OxyServer.middleware.*`.
+Do not recreate those checks in each product.
 
-A binding grants IDENTITY, and — with `--scopes` — the authority the mint gives
-that identity. What it can never do is exceed the application: the app's own
-grants are the ceiling, refused at the write and intersected away at every mint.
-A privileged scope may be named, because a human writes this row; running the
-script IS the staff check `isStaffUser` performs on a route, and the service
-takes that as an explicit claim rather than a default, so a future caller with a
-real actor to check must say so and fails closed if it does not. The environment
-is still the deployment's, so a staging workload can never mint a production
-token.
-
-`--scopes` takes a comma-separated list. OMITTING it leaves an existing
-binding's scopes untouched — the deploy step re-running this command predates
-the flag and must not revoke what it never mentioned, which is exactly how
-Mention's granted `signals:write` was wiped by routine application edits.
-`--scopes=` is the explicit way to say "name none".
-
-What the script refuses, and the failure each refusal prevents:
-
-- **Repointing a subject already bound to another application.** The loud one. A
-  repoint is silent and total — the old service keeps attesting, keeps receiving
-  tokens, and every token now carries someone else's `applicationId`, so its writes
-  land in another tenant's data with confident audit attribution to the wrong party.
-  Moving a role means deleting the old row first, which leaves a trace.
-- **An unknown application id**, on bind and on `--list` alike. An empty list and a
-  mistyped id look identical in a terminal, and what follows the mistake is a second
-  binding created under the id somebody meant.
-- **An inactive or third-party application.** The mint re-applies both gates, so the
-  row would be written, read as a finished rollout, and 403 at every use.
-- **A subject that is not a role** — an IAM user, the account root, a federated
-  user, a typo. All of them imply a long-lived secret, a human, or nothing at all.
-- **A scope the application was never granted**, for staff too. The mint would
-  drop it, leaving a row that reads as granting authority every token it
-  produced silently lacked. Granting it on the application is a separate,
-  deliberate act with its own staff gate.
-- **A privileged scope from a caller that is not staff**, or from one that never
-  said who is asking. Omitting an already-named privileged scope does not revoke
-  it either: it is preserved and said out loud, because a re-run's silence is
-  the arguments a deploy step has always carried, not a decision.
-- **A misspelt scope.** It would sit in the table reading as granted while the
-  mint dropped it, and surface as a 403 from another service with nothing
-  pointing back at the row.
-
-Re-running an identical bind is a no-op that reports the existing row, because a
-bind is part of deploying a service and will be run twice. A re-run asking for a
-different description or expiry says so and changes nothing, rather than letting
-a create quietly become an edit.
-
-Scopes are the one field a re-run DOES apply (`updated`, naming what moved), and
-the asymmetry is deliberate: every service migrating today already HAS a binding
-row, so naming its scopes on the existing row is the migration step. Under a
-no-edit rule the only alternative is delete-and-recreate, which cuts a running
-workload off between two commands. And unlike an expiry, a scope change cannot
-be a silent widening — it is bounded by the application's grants and staff-gated
-before the write is reached.
-
-Nothing in the output is a secret. Unlike `create-service-credential.ts`, which
-encrypts what it emits, a binding is an account number, a role name and an
-application id — worthless without possession of the IAM role it names, which is
-the whole reason ADR 0026 prefers it to a shared secret.
-
-**Key files:**
-- `packages/api/src/routes/auth.ts` — `POST /auth/service-token` (credential) and `/auth/service-token/workload*` (attestation)
-- `packages/api/src/services/workloadAttestation.service.ts` — the provider seam; AWS STS verifier; `workloadAttestationHandle` (the pinnable `wl_…` id)
-- `packages/api/src/services/workloadIdentity.service.ts` — challenge, binding lookup, scope and trust gates
-- `packages/api/src/services/workloadIdentityBinding.service.ts` — creating a binding: canonicalisation, idempotence, refusals
-- `packages/api/src/services/agencyServicePrincipal.service.ts` — the LIVE ceiling for both paths: `resolveLiveAgencyCoordinator` (credential) and `resolveLiveAgencyWorkload` (binding)
-- `packages/api/scripts/bind-workload-identity.ts` — the operator entrypoint (`--app-id`, `--role-arn`, `--scopes`, `--list`)
-- `packages/api/src/services/serviceTokenMint.service.ts` — the ONE signer both paths share
-- `packages/api/src/models/Application.ts` — `isInternal`, `type` field
-- `packages/api/src/models/ApplicationCredential.ts` — `publicKey`, `secretHash`, `type: 'service'`
-- `packages/core/src/server/middleware.ts` — `middleware.auth()` service token handling, `middleware.service()`
-- `packages/core/src/server/OxyServer.ts` — `serviceToken()`, `serviceRequest()`, `configureServiceAuth()`
-
-**Usage in consuming services:**
-```typescript
-import { OxyServer } from '@oxy.so/core/server';
-
-const oxy = new OxyServer({
-  baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: 'oxy_dk_...', apiSecret: 'secret...' },
-});
-
-// Auto-cached, auto-refreshed service token
-const token = await oxy.serviceToken();
-
-// Or act as a user
-const result = await oxy.serviceRequest('POST', '/some/endpoint', data, { actAs: userId });
-```
-
-**Middleware for protecting internal endpoints:**
-```typescript
-// Only allows service tokens (rejects user JWTs and API keys)
-app.use('/internal', oxy.middleware.service());
-```
-
-**A refusal is always observable to the host, and never to the client.** Every
-branch of `middleware.auth()` that rejects a PRESENTED credential records
-`req.oxyAuthRefusal` (`{ code, stage, reason, status, optional }`, read it with
-`getOxyAuthRefusal` from `@oxy.so/core/server`), logs one `warn` carrying that
-code, and calls the optional `onRefusal` observer — on the `optional: true`
-mount too, where the request otherwise continues unauthenticated and the host
-answers its own generic 401 with nothing written down anywhere. Response bodies
-are unchanged, and a request carrying NO credential is an absence, not a
-refusal. Delegation against a verifier that holds no service credential of its
-own cannot reach `/internal/service-acting-as/verify` and so refuses every user:
-verify with a credentialed client, or refuse at startup.
-
-**The failure this was bought for:** `/.well-known/jwks.json` served
-`{"keys":[]}` — no Ed25519 signing key bound — so every service token failed
-`Oxy service-token key set is unavailable`, the optional mount swallowed it,
-and the fault existed in no log on either side. That reason now reaches the
-host's own logs.
+A presented-credential refusal is observable through `getOxyAuthRefusal` from
+`@oxy.so/core/server` and the middleware's `onRefusal` observer. The observer records refusals even when an optional mount continues anonymously.
+Endpoints that must reject an invalid presented bearer configure
+`strictOptionalBearer: true`; ordinary optional auth does not imply that policy.
+A receiver that needs central authority verification must have its own working
+workload identity and cannot treat an unavailable authority check as success.
 
 ## Self-Sovereign Identity Layer (PR #415)
 

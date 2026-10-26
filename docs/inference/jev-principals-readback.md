@@ -56,10 +56,10 @@ the snapshot (the live resolver reads outside it):
   assumed live and never created here.
 - **Application and owner**: Mention `active` and trusted first-party
   (`isTrustedApplication`); owner `active` with no closure fence.
-- **Authority**: `workloadBindingScopes(binding.scopes, application.scopes)`
-  includes `inference:invoke` — the definition the mint and the live ceiling
-  share. A workload row holds no scopes (its CHECK keeps them empty), so it
-  narrows nothing; it must exist, be bound and be live.
+- **Authority**: the verified own workload, its live application/owner and the
+  binding's explicit `production` environment. ADR 0049 removes workload scope
+  intersections; a missing/wrong environment refuses. The materialized
+  attribution row must still exist, be bound and be live. It grants no scopes.
 - **Billing**: `resolveBillingAccount(tx, owner)` on the same transaction, so
   the account that would actually be charged, ancestors included
   (`inheritedFromAncestor` says which). Its USD `account_balances` projection

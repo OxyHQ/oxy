@@ -1,8 +1,11 @@
 # Grants and settlements for `kaana.ai/v1`
 
-**Rolling out** (Kaana ADR 0002, phase 2). Oxy's side is built and deployable
-with no caller: nothing reaches it until Kaana serves `https://kaana.ai/v1`
-(phase 3). The old edge (`api.oxy.so/v1`) keeps serving until phase 5.
+This is the grant/settlement mechanism introduced in Kaana ADR 0002 phase 2.
+Its original "built, no caller until phase 3" status is historical. Current
+source lives at the paths below; verified deployment and authority cutovers are
+recorded in the [migration ledger](../architecture/first-party-integration-migration.md).
+Neither source presence nor a service-identity probe proves a particular model,
+provider route or paid generation has executed.
 
 Kaana serves the public API and keeps the request's content. Oxy keeps
 identity, Console policy, the ledger and billing, and answers two questions
@@ -15,7 +18,7 @@ over a private API:
 
 Shapes are `@kaana.ai/contracts/internal` (`grant.ts`, `settlement.ts`,
 `catalogue.ts`), the published npm package pinned exactly in
-`packages/api/package.json` (**4.4.0**).
+[`packages/api/package.json`](../../packages/api/package.json).
 Code: `packages/api/src/routes/internalKaana.ts`,
 `services/kaanaGrant.service.ts`, `kaanaGrantRoutes.service.ts`,
 `kaanaDeclaredCatalogue.service.ts`, `kaanaGrantReads.service.ts`,
@@ -28,7 +31,7 @@ catalogue — identity, licence, provenance, data policy, capabilities, voices,
 audience, power class and the **list price per unit** — is Kaana's
 `configs/public-catalogue.json`, and nobody else's. Kaana relays it, whole, as
 the `declaredCatalogue` member of its signed `GET /internal/v1/models`
-(`declaredCatalogueSchema`, contract set 4.3.0). Oxy does not own a catalogue
+(`declaredCatalogueSchema` in that pinned contract package). Oxy does not own a catalogue
 any more; it **rates grants by reading Kaana's**.
 
 ```text
@@ -176,16 +179,19 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
   limits on the **same Redis buckets**, so a key has one budget across both
   surfaces. Over it: `429 rate_limited` with `retryAfterMs`.
 - A service token minted with **`audience: "kaana.ai"`** (`POST /auth/service-token`
-  or the workload mint). The mint refuses `kaana.ai` unless the minted scopes
-  include `inference:invoke`; Oxy's own API refuses `kaana.ai` tokens and the
-  grant API refuses `oxy-api` ones.
+  for external credentials, or protocol-2 workload mint for own services).
+  External tokens require the live `inference:invoke` scope. Own workloads
+  carry `authority: 'first_party'` without scopes and retain live binding,
+  owner, environment and inference-domain checks. Oxy's ordinary API refuses
+  `kaana.ai` tokens and the grant API refuses `oxy-api` ones.
 - A user session (`product_session`) is **not granted yet** (see below).
 
 ## The grant
 
 `kind: "inference"`, from Kaana's content-free facts (counts, never content):
 
-1. `inference:invoke`; `X-Oxy-User-Id` (`onBehalfOfUserId`) is attribution only.
+1. Verified own workload authority, or external `inference:invoke`;
+   `X-Oxy-User-Id` (`onBehalfOfUserId`) is attribution only.
 2. Treatment from the versioned relationships (`config/inferenceEconomicPolicy.ts`).
 3. The operation's hold units from the facts — a missing fact is `invalid_request`
    naming it: completions `estimatedInputTokens` (+ `maxOutputTokens`, else the

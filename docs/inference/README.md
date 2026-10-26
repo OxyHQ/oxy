@@ -237,7 +237,7 @@ share one status). The full rules are in [streaming.md](./streaming.md#retries).
 | Codes | Meaning | What your app does |
 |---|---|---|
 | `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem | fix the request. Never retry it as it is |
-| `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, scopes or app policy, or the model isn't visible to this app | fix the configuration. `policy_violation` names the policy control that excluded every route |
+| `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, external scopes or account/routing policy, or the model isn't visible to this caller | fix the configuration. `policy_violation` names the policy control that excluded every route |
 | `insufficient_balance`, `spending_limit_exceeded`, `quota_exceeded` | money or quota on **your** account | tell the user or the account owner |
 | `rate_limited`, `deployment_unavailable`, `provider_error`, `provider_timeout`, `provider_overloaded` (`retryable: true`) | the platform retried and every authorized route is still failing | show "try again later". A background job may be rescheduled after `retryAfterMs`. Don't loop |
 | `no_route_available`, `service_unavailable`, `provider_credential_invalid`, `provider_billing_refused`, `internal_error` | a platform-side problem, not yours | report it with the `requestId` |

@@ -24,9 +24,11 @@ revocation events and managed-account session switching. The historical tuple
 fixture remains only in rejection tests. Customer keys, external service JWTs
 (including the supported `oxy-api` audience), OAuth/MCP grants and live scope
 intersections retain their contracts. Product resource and account authorization
-still applies to all own calls. Historical workload scope columns remain inert
-for an additive rollout; a physical column drop requires a separate reviewed
-post-deployment migration and must not remove external application/key scopes.
+still applies to all own calls. The historical `application_workload_identities.scopes` column remains inert
+for authority. The retirement image's ORM can still name it as DEFAULT in provisioning INSERTs;
+the [two-release schema cleanup](workload-schema-cleanup.md) prepares a compatible
+rollback writer before the separately reviewed physical migration. External `applications.scopes` and
+`application_credentials.scopes` remain active and must not be removed.
 
 ## Activation requirements and recorded disposition
 
@@ -178,8 +180,8 @@ Core results below remain applicable without duplicating them for a docs-only
 upstream rebase. Final branch CI 40215450916 and scaffold smoke 40215450924 both
 completed successfully on `e61b56ddc2848293089f504b18f31687862240ba`, including
 all four API shards. The later Schedio-deferral edit changes documentation only.
-Versioned release artifacts and fresh production/drain evidence remain required
-before activation.
+At that checkpoint, versioned release artifacts and fresh production/drain
+evidence were still required; the completed cutover is recorded above.
 
 The previous composition rebased without conflicts onto main `df3876fe8` on 2026-10-25, preserving the
 upstream streaming file-close fixture from #1990 and the verified rollout ledger
@@ -232,10 +234,10 @@ OxyServer method and removal of the two internal legacy-helper declarations;
 public export maps, signatures and types remain unchanged. The rebased Core
 artifact also builds and packs locally without changing its version or publishing.
 
-These checks establish source behavior, not fleet readiness. Full API CI and
-representative consumer compositions against the final versioned release artifact
-remain required before activation.
-No production cleanup, binding revocation or database backfill has run here.
+These checks established source behavior, not fleet readiness. At that
+checkpoint, full API CI and final-artifact consumer compositions remained
+prerequisites, and no production cleanup, binding revocation or backfill had run.
+The completed release and runtime verification below supersede those pending gates.
 
 ## Core release version and consumer compatibility
 

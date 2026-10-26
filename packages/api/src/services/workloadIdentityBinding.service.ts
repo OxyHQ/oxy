@@ -1,5 +1,6 @@
 import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { isUniqueViolation, sqlColumnName, uuidv7 } from '@oxy.so/db';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -402,13 +403,6 @@ async function reconcileExisting(
   };
 }
 
-/** Postgres's unique_violation. */
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505'
-  );
-}
-
 /**
  * Bind a workload identity to an application, idempotently.
  *
@@ -490,17 +484,32 @@ export async function bindWorkloadIdentity(
      * reservation — the exact state ADR 0026 was stuck in.
      */
     const created = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .insert(applicationWorkloadIdentities)
-        .values({
-          applicationId: application.id,
-          provider,
-          subject,
-          environment: request.environment,
-          ...(request.description !== undefined ? { description: request.description } : {}),
-          ...(expiresAt !== null ? { expiresAt } : {}),
-        })
-        .returning(BINDING_COLUMNS);
+      // Compatibility release before the historical scopes column is dropped.
+      // Drizzle's ordinary INSERT enumerates every modeled column (including
+      // omitted values as DEFAULT), so omission from .values is insufficient.
+      // Keep this image usable as the subsequent schema release's rollback.
+      const table = applicationWorkloadIdentities;
+      const columns = [
+        table.id,
+        table.applicationId,
+        table.provider,
+        table.subject,
+        table.environment,
+        table.description,
+        table.expiresAt,
+      ].map((column) => sql.identifier(sqlColumnName(column)));
+      const [inserted] = await tx.execute<{ id: string }>(sql`
+        INSERT INTO ${table} (${sql.join(columns, sql`, `)})
+        VALUES (${uuidv7()}, ${application.id}, ${provider}, ${subject},
+          ${request.environment}, ${request.description ?? null},
+          ${expiresAt?.toISOString() ?? null})
+        RETURNING ${table.id}
+      `);
+      if (!inserted) throw new Error('Workload binding insert returned no identity.');
+      // Let Drizzle apply its timestamp/nullability mappers to the established
+      // public projection; the insert and read remain in the same transaction.
+      const [row] = await tx.select(BINDING_COLUMNS).from(table).where(eq(table.id, inserted.id));
+      if (!row) throw new Error('Inserted workload binding could not be read.');
       await ensureWorkloadAttributionIdentity(
         { bindingId: row.id, applicationId: application.id, subject },
         tx,
@@ -528,7 +537,8 @@ export async function bindWorkloadIdentity(
      * owes its caller is whatever the row now says, including the refusal when
      * the winner named a different application.
      */
-    if (!isUniqueViolation(error)) throw error;
+    if (!isUniqueViolation(error, 'application_workload_identities_provider_subject_key'))
+      throw error;
     const raced = await findBinding(provider, subject);
     if (!raced) throw error;
     return reconcileExisting(raced, reconcileAgainst);

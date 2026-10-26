@@ -28,7 +28,7 @@ Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
 
 ## The one-paragraph version
 
-Oxy is the **control plane**: accounts, applications, credentials, scopes,
+Oxy is the **control plane**: accounts, applications, workload identity, external credential scopes,
 attribution, the model catalogue, routing policy, BYOK metadata, the financial
 ledger, the usage API and the Console. **Kaana** is the inference data plane:
 provider adapters, routing execution, streaming, measurement and the encrypted
@@ -48,8 +48,8 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | Realtime sessions | `packages/api/src/routes/inferenceRealtime.ts` | `GET /v1/realtime` WebSocket, conversation sessions only, on models whose catalogue declares them — [realtime.md](./realtime.md) |
 | `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
-| Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
-| The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
+| Own workload / external service tokens (maximum 300-second JWT) | `/auth/service-token/workload` (own), `/auth/service-token` (external) | Yes — own scope-free protocol 2; external scopes retained |
+| External `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. The reviewed exact-route writer is `packages/api/scripts/bootstrap-kaana-catalogue.ts`; its main-only dry-run/SHA/apply lane is `.github/workflows/bootstrap-kaana-catalogue.yml`. Source presence is not evidence that either ran in production, and public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
 | Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not). `allowedRoutingProfileIds` restricts which power levels a request may name |
@@ -61,7 +61,7 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxy.so/contracts` |
 | The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()`, typed `stream()` and generation reads are merged and published in `@oxy.so/core` by [#1145](https://github.com/OxyHQ/oxy/pull/1145). Publication proves the client surface, not a live Kaana route — [sdk.md](./sdk.md) |
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
-| Grant and settlement API for `kaana.ai/v1` (Kaana ADR 0002 phase 2) | `packages/api/src/routes/internalKaana.ts` | Mounted at `/internal/kaana/v1`, Kaana's workload only; **no caller** until Kaana's public server (phase 3) — [kaana-grants.md](./kaana-grants.md) |
+| Grant and settlement API for `kaana.ai/v1` (Kaana ADR 0002 phase 2) | `packages/api/src/routes/internalKaana.ts` | Mounted at `/internal/kaana/v1`, Kaana's verified workload only; current deployment evidence is separate from model/provider execution acceptance — [kaana-grants.md](./kaana-grants.md) |
 | Per-application inference limits (realtime sessions, internal capacity) | `application_inference_limits`, `GET/PUT /inference/routing-policies/applications/:id/limits` | Yes — Console (Inference → Routing); read by the grant API only |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
