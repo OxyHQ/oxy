@@ -143,7 +143,7 @@
       "reviewedHead": "dbaa0c9bc412e3ea9ec6d059ae45a628cf5c2b7d",
       "sdk": "22.1.1",
       "state": "pending; no runtime verification for this adoption",
-      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "mergeStatus": "Merged; mainCI and web/API/listing-worker rollout pending",
       "localChecks": [
         "types",
         "920 tests/72 suites",
@@ -151,7 +151,8 @@
         "AGENTS/Biome",
         "frozen lock guard",
         "214 published archive files matched"
-      ]
+      ],
+      "mergedSource": "f48b1bbd8ba2cec8a3f67318741050675c397b1b"
     },
     {
       "repository": "Inbox",
@@ -429,5 +430,18 @@
         "sha256": "5fe9a763dc5effeaa39cf9ef957caf1f9bd0c12bb7daf6dd9a689a88cd35c102"
       }
     ]
+  },
+  "nativeMentionAcceptance": {
+    "sourceSha": "521b11e18eab833f2c0740d8c9d2a6064e24690b",
+    "sdk": "22.1.1",
+    "apkSha256": "90134d4e5c307eded8ed931875277de22d5712d366d42f866f6bf8fd572b8fa6",
+    "observedAt": "2026-10-26T10:28:51.128068+00:00",
+    "result": "Exact signed APK installed only in isolated QA profile; existing QA session and conversation read-only access passed; owner profile restored",
+    "limits": [
+      "No native generation or Stop invoked",
+      "No new Commons broker/import assertion",
+      "No store or general installed distribution claim"
+    ],
+    "privateReceiptSha256": "b1bebfb48894418bddac305d7d7b0ea61f6d0608ac27e9f6fcfdf6f028992107"
   }
 }

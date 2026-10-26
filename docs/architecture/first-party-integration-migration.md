@@ -574,8 +574,10 @@ package passed help/version smoke on Node 24 without authentication or inference
 Codea VSIX 1.0.10 and Cowork Linux AppImage 1.0.3 were built from reviewed source
 `e9d84c7e` (merged in Alia `e2c85110`). These are local artifacts only: no
 Marketplace, installer-channel distribution or installed desktop acceptance is
-claimed. The dedicated Android Mention session/read-only journey is separate
-from shipping an updated app to every native device.
+claimed. Mention's signed Android APK from `521b11e18eab` passed a dedicated
+QA-profile session and existing-conversation read-only journey with SDK 22.1.1.
+No native generation or Stop was invoked, no new Commons broker/import claim is
+made, and this does not establish store distribution to other devices.
 
 | Consumer | Dated source and evidence | State |
 |---|---|---|
@@ -594,7 +596,7 @@ from shipping an updated app to every native device.
 | Syra | `d69b40d9e499`; frontend Pages `f6363ad5`, studio Pages `18d42454`; workflows 40309572723/40309572253 | Web and Studio published; backend verification pending |
 | CrowdSource | `5177a8469efe`; API 129, console Worker `0c068c54` and reviewer `343f6280`; workflows 40311021603/40311021466 | Both web interfaces and backend rollout verified; healthy and drained |
 | GoWay | Reviewed PR #283, `53bd8cbcf248`; package, types, UI and export checks passed | Draft; rollout pending |
-| Homiio | Reviewed PR #749, `dbaa0c9bc412`; package, types, UI and export checks passed | Draft; rollout pending |
+| Homiio | Merged #749 as `f48b1bbd8ba2`; package, types, UI and export checks passed | Main CI and web/API/listing-worker rollout pending |
 | Mercaria | Reviewed PR #1160, `0c020dac3d18`; full CI, three frontend builds and the API build passed; three apps share one Bloom runtime | Draft; rollout pending |
 | Moovo | Reviewed PR #178, `567af4ea6351`; CI, frontend types and export passed | Draft; rollout pending |
 | Website | Reviewed PR #208, `6c406ec40aeb`; types and real transport tests passed | Ready/in normal merge queue; rollout pending |
