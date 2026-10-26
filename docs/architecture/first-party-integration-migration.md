@@ -25,7 +25,7 @@ revocation and operation binding remain mandatory.
 | Oxy core/contracts service authority | Core 7.5.0 / contracts 6.0.0 published; own authority and producer canaries passed | Workload proof, environment and audience; customer key stays external |
 | Oxy API files/inference/agency/introspection | Service authority, Inbox events and private Files verified; Mention → Alia text generation and Kaana two-task realtime admission/settlement verified | Account/resource isolation without own scope/grant dependencies |
 | Oxy Console application settings/credentials | Authenticated account/security settings, two-account switching, logout/reload and zero cookies passed; application-credential editing is not claimed by that journey | General does not mutate scopes; workload identity separate from external API products; all service/API-key credentials explicitly scoped |
-| Alia own-app levels and tool admission | Stage B/C deployed; Stop receiver verified at API 614 on `bbfc740b`; SDK 22.1.0/server 1.3.0 published; SDK 22.1.1 adoption and live Stop acceptance pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
+| Alia own-app levels and tool admission | Stage B/C deployed; Stop receiver verified at API 614 on `bbfc740b`; SDK 22.1.1/server 1.3.0 published; consumer adoption and live Stop acceptance pending | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Gateway 193 and API 613 verified on `aec9ae04`; old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 152 and publisher 153 verified on `95ac4fa9`; real two-task resume after Kaana cookie removal preserves one admission/settlement | Retain requester/account, external scopes, audience and revocation |
 | Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; Schedio is explicitly parked before launch | Caller→SDK→receiver tests for own and external identities |
@@ -536,10 +536,10 @@ disconnection and explicit Stop. The Stop receiver from Alia
 [#904](https://github.com/OxyHQ/Alia/pull/904) was verified at API 614/integrations
 194 on `bbfc740b` at `08:32:00Z`; the later correlation receiver was verified at
 API 615 on `b3d3b006` at `08:49:56Z`. These are dated deployment proofs, not a
-claim of the latest task revision. SDK 22.1.0 and server 1.3.0 were verified in
-the registry with matching source provenance. The SDK 22.1.1 delayed-Stop
-acknowledgement fix and server 1.3.1/CLI 3.1.0 follow-up are merged, but their
-publication and subsequent consumer adoption are not yet claimed here. Live
+claim of the latest task revision. SDK 22.1.1, including the delayed-Stop
+acknowledgement fix, and server 1.3.0 were verified in the registry with matching
+source provenance. Consumer deployment remains pending. The server 1.3.1/CLI
+3.1.0 follow-up is merged, but its publication is not yet claimed here. Live
 Stop/partial-settlement acceptance remains pending. Core 7.5 supplies
 authoritative receipt lookup by idempotency key; publication alone is not a
 claim that the new Stop UI is deployed.
