@@ -749,7 +749,6 @@ describe('the credential Kaana forwards', () => {
         subject,
         description: 'first-party grant fixture',
         environment: 'development',
-        scopes: [],
       })
       .returning({ id: applicationWorkloadIdentities.id });
     await ensureWorkloadAttributionIdentity({

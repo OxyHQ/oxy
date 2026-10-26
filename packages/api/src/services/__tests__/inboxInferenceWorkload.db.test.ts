@@ -94,12 +94,7 @@ function input() {
 
 /** A role, bound (or not) to `applicationId`, which this task then attests as. */
 async function taskRunningAs(
-  options: {
-    applicationId?: string | null;
-    scopes?: string[];
-    expiresAt?: Date;
-    attribute?: boolean;
-  } = {},
+  options: { applicationId?: string | null; expiresAt?: Date; attribute?: boolean } = {},
 ) {
   const subject = `arn:aws:iam::237343248947:role/oxy-inbox-test-${randomUUID().slice(0, 8)}`;
   const applicationId =
@@ -114,12 +109,6 @@ async function taskRunningAs(
         subject,
         description: 'Inbox workload test binding',
         environment: workloadTokenEnvironment(),
-        scopes: options.scopes ?? [
-          'capability-events:publish',
-          'catalogs:write',
-          'inference:invoke',
-          'user:read',
-        ],
         ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
       })
       .returning({ id: applicationWorkloadIdentities.id });
@@ -194,7 +183,7 @@ describe('Inbox point inference as the task role', () => {
   });
 
   it('serves a first-party binding with no scopes', async () => {
-    await taskRunningAs({ scopes: [] });
+    await taskRunningAs();
     await executeInboxPointInference(input());
     expect(mockExecuteInferenceRequest).toHaveBeenCalledTimes(1);
     expect(mockExecuteInferenceRequest.mock.calls[0][0].principal).not.toHaveProperty('scopes');

@@ -409,7 +409,7 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     });
     await getDb()
       .insert(applicationWorkloadIdentities)
-      .values({ ...tuple, environment: 'development', scopes: [] });
+      .values({ ...tuple, environment: 'development' });
     await ensureWorkloadAttributionIdentity({
       bindingId: tuple.id,
       applicationId: tuple.applicationId,

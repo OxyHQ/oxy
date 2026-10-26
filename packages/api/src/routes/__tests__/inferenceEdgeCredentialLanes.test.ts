@@ -835,7 +835,7 @@ describe('the service-token lane, with a delegated user', () => {
  */
 async function bindWorkload(
   fixture: Fixture,
-  options: { scopes?: string[]; attribute?: boolean } = {},
+  options: { attribute?: boolean } = {},
 ): Promise<{ readonly subject: string; readonly handle: string; readonly bindingId: string }> {
   const subject = `arn:aws:iam::237343248947:role/oxy-lane-${suffix()}-task`;
 
@@ -852,7 +852,6 @@ async function bindWorkload(
       subject,
       description: `lane suite ${suffix()}`,
       environment: 'development',
-      scopes: options.scopes ?? [],
     })
     .returning({ id: applicationWorkloadIdentities.id });
 

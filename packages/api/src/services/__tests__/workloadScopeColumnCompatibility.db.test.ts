@@ -1,5 +1,6 @@
 /** The rollback bridge must provision and resolve authority after the later DROP. */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -210,5 +211,166 @@ describe.each([true, false])('physical workload scopes column present=%s', (pres
       scopesProjected: false,
       environmentsProjected: true,
     });
+  });
+});
+
+describe('generated physical cleanup and bounded operational evidence', () => {
+  const root = resolve(__dirname, '../../../../..');
+  const moduleUrl = pathToFileURL(
+    resolve(root, 'scripts/auth/read-workload-schema-cleanup.mjs'),
+  ).href;
+  const runOperator = (code: string) =>
+    JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `
+      const { readWorkloadSchemaCleanup, compareWorkloadSchemaCleanup } = await import(${JSON.stringify(moduleUrl)});
+      ${code}
+    `,
+        ],
+        { cwd: resolve(root, 'packages/api'), env: process.env, encoding: 'utf8' },
+      ),
+    );
+  const readReceipt = () =>
+    runOperator(
+      `process.stdout.write(JSON.stringify(await readWorkloadSchemaCleanup(process.env.DATABASE_URL)));`,
+    );
+
+  it('drops only the retired column/check and preserves binding metadata, relations and external scope schema', async () => {
+    const oldSnapshot = JSON.parse(
+      readFileSync(resolve(root, 'packages/api/drizzle/meta/0219_snapshot.json'), 'utf8'),
+    );
+    const oldCheck =
+      oldSnapshot.tables['public.application_workload_identities'].checkConstraints
+        .application_workload_identities_scopes_check.value;
+    await getDb().execute(
+      sql`ALTER TABLE application_workload_identities ADD COLUMN scopes text[] NOT NULL DEFAULT '{}'::text[]`,
+    );
+    currentColumnPresent = true;
+    await getDb().execute(
+      sql.raw(
+        `ALTER TABLE application_workload_identities ADD CONSTRAINT application_workload_identities_scopes_check CHECK (${oldCheck})`,
+      ),
+    );
+    const app = await application();
+    await bindWorkloadIdentity({
+      applicationId: app.id,
+      subject: `arn:aws:iam::237343248947:role/drop-${randomUUID()}`,
+      environment: deploymentCredentialEnvironment(),
+      actor,
+    });
+
+    const [externalCredential] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: app.id,
+        name: 'External ceiling preserved',
+        publicKey: `oxy_dk_${randomUUID()}`,
+        secretHash: 'test-only-secret-hash',
+        type: 'service',
+        environment: 'production',
+        scopes: ['user:read'],
+        status: 'active',
+      })
+      .returning({ id: applicationCredentials.id });
+
+    // Unexpected dependencies must be reviewed, never silently CASCADE-dropped.
+    await getDb().execute(
+      sql`CREATE VIEW workload_scope_cleanup_test_view AS SELECT scopes FROM application_workload_identities`,
+    );
+    const blocked = readReceipt();
+    expect(blocked.unexpectedDependencies.length).toBeGreaterThan(0);
+    expect(
+      runOperator(
+        `try { compareWorkloadSchemaCleanup(${JSON.stringify(blocked)}, ${JSON.stringify(blocked)}); process.stdout.write('false'); } catch { process.stdout.write('true'); }`,
+      ),
+    ).toBe(true);
+    await getDb().execute(sql`DROP VIEW workload_scope_cleanup_test_view`);
+    await getDb().execute(
+      sql`CREATE FUNCTION workload_scope_cleanup_test_function() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN PERFORM NEW.scopes; RETURN NEW; END;$$`,
+    );
+    await getDb().execute(
+      sql`CREATE TRIGGER workload_scope_cleanup_test_trigger BEFORE UPDATE ON application_workload_identities FOR EACH ROW EXECUTE FUNCTION workload_scope_cleanup_test_function()`,
+    );
+    const triggerBlocked = readReceipt();
+    expect(triggerBlocked.triggerScopeReferences.count).toBe(1);
+    expect(
+      runOperator(
+        `try { compareWorkloadSchemaCleanup(${JSON.stringify(triggerBlocked)}, ${JSON.stringify(triggerBlocked)}); process.stdout.write('false'); } catch { process.stdout.write('true'); }`,
+      ),
+    ).toBe(true);
+    await getDb().execute(
+      sql`DROP TRIGGER workload_scope_cleanup_test_trigger ON application_workload_identities`,
+    );
+    await getDb().execute(sql`DROP FUNCTION workload_scope_cleanup_test_function()`);
+    // SQL-language string bodies are not reliably represented by pg_depend.
+    await getDb().execute(
+      sql`CREATE FUNCTION workload_scope_cleanup_test_routine() RETURNS integer LANGUAGE sql AS $$SELECT cardinality(scopes) FROM application_workload_identities LIMIT 1$$`,
+    );
+    const routineBlocked = readReceipt();
+    expect(routineBlocked.routineReferences.count).toBe(1);
+    expect(routineBlocked.routineScopeReferences.count).toBe(1);
+    expect(
+      runOperator(
+        `try { compareWorkloadSchemaCleanup(${JSON.stringify(routineBlocked)}, ${JSON.stringify(routineBlocked)}); process.stdout.write('false'); } catch { process.stdout.write('true'); }`,
+      ),
+    ).toBe(true);
+    await getDb().execute(sql`DROP FUNCTION workload_scope_cleanup_test_routine()`);
+    const before = readReceipt();
+    expect(before).toMatchObject({
+      readOnly: true,
+      legacyColumnPresent: true,
+      legacyConstraintPresent: true,
+      unexpectedDependencies: [],
+    });
+    expect(before.bindings.count).toBeGreaterThan(0);
+    expect(before.workloadAttribution.count).toBeGreaterThan(0);
+
+    const migration = readFileSync(
+      resolve(root, 'packages/api/drizzle/0220_drop_workload_scope_column.sql'),
+      'utf8',
+    );
+    expect(migration).toContain('-- oxy:deploy-phase=post');
+    await getDb().transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL lock_timeout='3000ms'`);
+      for (const statement of migration.split('--> statement-breakpoint')) {
+        if (statement.trim()) await tx.execute(sql.raw(statement));
+      }
+    });
+    currentColumnPresent = false;
+    const after = readReceipt();
+    const result = runOperator(
+      `process.stdout.write(JSON.stringify(compareWorkloadSchemaCleanup(${JSON.stringify(before)}, ${JSON.stringify(after)})));`,
+    );
+    expect(result).toMatchObject({ verified: true, columnRemoved: true });
+    expect(after).toMatchObject({ legacyColumnPresent: false, legacyConstraintPresent: false });
+    for (const key of [
+      'bindings',
+      'workloadAttribution',
+      'bindingRelations',
+      'externalScopeColumns',
+      'externalScopeChecks',
+    ]) {
+      expect(after[key]).toEqual(before[key]);
+      const changed = { ...after, [key]: { ...after[key], sha256: '0'.repeat(64) } };
+      expect(
+        runOperator(
+          `try { compareWorkloadSchemaCleanup(${JSON.stringify(before)}, ${JSON.stringify(changed)}); process.stdout.write('false'); } catch { process.stdout.write('true'); }`,
+        ),
+      ).toBe(true);
+    }
+    const [ceiling] = await getDb()
+      .select({ scopes: applications.scopes })
+      .from(applications)
+      .where(eq(applications.id, app.id));
+    expect(ceiling.scopes).toEqual(['user:read']);
+    const [credentialCeiling] = await getDb()
+      .select({ scopes: applicationCredentials.scopes })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.id, externalCredential.id));
+    expect(credentialCeiling.scopes).toEqual(['user:read']);
   });
 });
