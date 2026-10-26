@@ -1,3 +1,4 @@
+import { promises as fsPromises } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import {
   createServer,
@@ -59,6 +60,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  jest.restoreAllMocks();
   server.closeAllConnections();
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
@@ -277,4 +279,41 @@ describe('bounded source downloads', () => {
     expect(requests).toHaveLength(1);
     await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
   });
+});
+
+it('stops a source when another writer consumes disk headroom and removes the partial file', async () => {
+  const actualSpace = await fsPromises.statfs(directory);
+  const space = jest.spyOn(fsPromises, 'statfs');
+  space
+    .mockResolvedValueOnce(actualSpace)
+    .mockResolvedValueOnce(actualSpace)
+    .mockResolvedValue({ ...actualSpace, bavail: 0 });
+  const source = Buffer.alloc(3 * 1024 * 1024, 0x42);
+  handler = (_request, response) => response.end(source);
+  const destination = join(directory, 'source');
+  await expect(
+    service.downloadFile('original', destination, {
+      maxBytes: source.length,
+      timeoutMs: 5000,
+      minFreeBytes: 2 * 1024 ** 3,
+    }),
+  ).rejects.toMatchObject({ cause: { code: 'ENOSPC' } });
+  expect(space).toHaveBeenCalledTimes(3);
+  expect(requests).toHaveLength(1);
+  await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it('refuses acquisition before GET when shared disk already lacks headroom', async () => {
+  const actualSpace = await fsPromises.statfs(directory);
+  jest.spyOn(fsPromises, 'statfs').mockResolvedValue({ ...actualSpace, bavail: 0 });
+  const destination = join(directory, 'source');
+  await expect(
+    service.downloadFile('original', destination, {
+      maxBytes: 1024,
+      timeoutMs: 5000,
+      minFreeBytes: 2 * 1024 ** 3,
+    }),
+  ).rejects.toMatchObject({ cause: { code: 'ENOSPC' } });
+  expect(requests).toHaveLength(0);
+  await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
 });

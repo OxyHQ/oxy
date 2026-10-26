@@ -207,6 +207,27 @@ one tier calculation; HLS has aligned two-second segments. MP4 stores its index
 at the beginning of the file. The HLS master advertises the encoded dimensions
 and measured segment bandwidth.
 
+A background generation acquires its original once through the configured R2
+S3-compatible GET (including Sippy hydration), then probes and decodes that
+seekable local file through an inherited descriptor. The input protocol allows
+only that descriptor, so uploaded containers cannot open nested local paths or
+network URLs. On-demand poster reads retain their bounded remote range path.
+The download has a 15-minute overall deadline, the existing 8 GiB upload ceiling,
+and one restart for an interrupted body; SDK retries own HTTP/status failures.
+Temporary originals are removed on success or failure. A live disk check before
+GET and at 1 MiB body intervals preserves 2 GiB of shared host headroom. This is
+an acquisition guard, not an isolated disk quota or a reservation for encoder
+outputs; low space remains an operational error under the normal queue policy.
+
+File uploads use the existing bounded multipart upload manager (5 MiB parts,
+four in flight). Each request can replay buffered bytes on transient storage
+errors; terminal failures abort incomplete multipart uploads. Caller cancellation
+rejects immediately; SDK multipart cleanup follows after outstanding parts settle.
+Storage connections have a 10-second connection limit and 120-second socket
+inactivity limit, so a silent part cannot defer that cleanup indefinitely. Queue attempts and
+backoff remain unchanged. Probes and poster output are bounded, and failures
+retain process status plus safe local-source diagnostics without signed URLs.
+
 Each tier is encoded once into a local faststart MP4 with closed GOPs and
 keyframes at two-second boundaries. HLS remuxes that same H.264/AAC stream
 without another decode or encode; the retained MP4 is removed after remuxing,
