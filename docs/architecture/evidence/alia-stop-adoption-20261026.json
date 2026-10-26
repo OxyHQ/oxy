@@ -1,0 +1,418 @@
+{
+  "recordedAt": "2026-10-26T10:49:32.584795+00:00",
+  "status": "partial-rollout-checkpoint; pending rows are not deployment claims",
+  "authority": "Own applications remain scope-free; external OAuth/API-key ceilings and account/resource boundaries remain enforced.",
+  "published": {
+    "uiSdk": {
+      "version": "22.1.1",
+      "source": "18abd054a4e45725ddc7338676e62bc6dafcc911"
+    },
+    "server": {
+      "version": "1.3.1",
+      "source": "b0ad8da4a7ee524266b9dbb1f86929f236decf47"
+    },
+    "cli": {
+      "version": "3.1.0",
+      "source": "b0ad8da4a7ee524266b9dbb1f86929f236decf47",
+      "acceptance": "Published package help/version only; no authenticated CLI inference claim"
+    }
+  },
+  "adopters": [
+    {
+      "repository": "Allo",
+      "pullRequest": "https://github.com/OxyHQ/Allo/pull/270",
+      "reviewedHead": "c7bf7dd5ddd592318673c4b9ac11ee191bea96a3",
+      "sdk": "22.1.1",
+      "state": "Verified web and backend rollout; no native distribution claim",
+      "mergeStatus": "merged d68e817697f04710c295f41f6c4a7a3028930b06",
+      "localChecks": [
+        "types",
+        "363 tests/50 suites",
+        "Expo export",
+        "bundle/import/HTML gates",
+        "Biome",
+        "frozen install",
+        "214 published archive files matched"
+      ],
+      "mergedSource": "d68e817697f04710c295f41f6c4a7a3028930b06",
+      "deploymentRuns": {
+        "aws": 40309994747,
+        "frontend": 40309409443
+      },
+      "runtime": {
+        "taskDefinitionRevision": 182,
+        "desired": 2,
+        "running": 2,
+        "imageDigest": "sha256:7210eca68354c268986b8d5d01ace6e10ede47a6bd547509a31bd50a75c03933",
+        "healthyAndDrained": true
+      }
+    },
+    {
+      "repository": "Atlas",
+      "pullRequest": "https://github.com/OxyHQ/Atlas/pull/47",
+      "reviewedHead": "48af7e59ee0fffc407ead222114f7be529408273",
+      "sdk": "22.1.1",
+      "state": "VERIFIED Pages40305790135 completed; canonical and exact deployment HTML +3script URLs match with normal browser UA; default Python UA Cloudflare1010",
+      "mergeStatus": "merged69883ae4544e18af82cc5ae599321ef853ec1b98",
+      "localChecks": [
+        "types",
+        "5 tests",
+        "Expo export and worker build",
+        "lint",
+        "frozen install",
+        "published SDK archive byte match"
+      ],
+      "privateReceipt": {
+        "name": "atlas-rollout-69883ae.json",
+        "sha256": "583898a4fcaa955bc9ad6b205908850f42b3bbce95c61fc4feb218d555f89fd3"
+      }
+    },
+    {
+      "repository": "Clarity",
+      "pullRequest": "https://github.com/OxyHQ/Clarity/pull/191",
+      "reviewedHead": "f9ce11a65ba84af887768864f15acbe2802301fc",
+      "sdk": "22.1.1",
+      "state": "VERIFIED frontend Worker +API160/worker146 exactsource/index a8d8c393 singleCOMPLETED healthy/drained",
+      "mergeStatus": "merged e4b44ce102899cc63d45b3a9b99eba59599c7445",
+      "localChecks": [
+        "types",
+        "65 tests/8 suites",
+        "Expo export",
+        "Biome",
+        "frozen install",
+        "published SDK archive byte match",
+        "architecture14tests; stale SDK assertion updated"
+      ],
+      "privateReceipt": {
+        "name": "clarity-rollout-e4b44ce.json",
+        "sha256": "c3785235d81f15f49e39dec4461c2f17455c712bf6439a7469d78134610eefff"
+      }
+    },
+    {
+      "repository": "CrowdSource",
+      "pullRequest": "https://github.com/OxyHQ/CrowdSource/pull/300",
+      "reviewedHead": "dbc5bc4d71a37d54cf63b796e89805183f79bb19",
+      "sdk": "22.1.1",
+      "state": "pending; no runtime verification for this adoption",
+      "mergeStatus": "merged; mainCI and rollout pending",
+      "localChecks": [
+        "two UI typechecks",
+        "console118/reviewer139 tests",
+        "both Expo exports and static output checks",
+        "reviewer bundle budgets",
+        "AGENTS/Biome",
+        "frozen lock guard",
+        "214 published archive files matched in both apps"
+      ],
+      "mergedSource": "5177a8469efe951279581617a6867f3e542b64bd"
+    },
+    {
+      "repository": "GoWay",
+      "pullRequest": "https://github.com/OxyHQ/GoWay/pull/283",
+      "reviewedHead": "53bd8cbcf24825c1429e051254d0fcceb5b93a68",
+      "sdk": "22.1.1",
+      "state": "pending; no runtime verification for this adoption",
+      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "localChecks": [
+        "types",
+        "1879 tests/180 files",
+        "Expo export",
+        "AGENTS/Biome",
+        "frozen lock guard",
+        "214 published archive files matched"
+      ]
+    },
+    {
+      "repository": "Homiio",
+      "pullRequest": "https://github.com/OxyHQ/Homiio/pull/749",
+      "reviewedHead": "dbaa0c9bc412e3ea9ec6d059ae45a628cf5c2b7d",
+      "sdk": "22.1.1",
+      "state": "pending; no runtime verification for this adoption",
+      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "localChecks": [
+        "types",
+        "920 tests/72 suites",
+        "Expo export and bundle budget",
+        "AGENTS/Biome",
+        "frozen lock guard",
+        "214 published archive files matched"
+      ]
+    },
+    {
+      "repository": "Inbox",
+      "pullRequest": "https://github.com/OxyHQ/Inbox/pull/136",
+      "reviewedHead": "061064c110a1b5716142ea3a7b6e3a69aa6e2771",
+      "sdk": "22.1.1",
+      "state": "VERIFIED Cloudflare40306260649 actual deploy success; canonical release.txt200 exact0d318d80",
+      "mergeStatus": "merged0d318d80d9dc8d432e5676f1a0eaa021c9f4428c",
+      "localChecks": [
+        "types",
+        "518 tests/72 suites and worker tests",
+        "Expo export",
+        "deployment export guard",
+        "lint",
+        "AGENTS",
+        "frozen install",
+        "published SDK archive byte match"
+      ],
+      "privateReceipt": {
+        "name": "inbox-rollout-0d318d80.json",
+        "sha256": "288a475ca723b4cd4a3c8ed3f8a4cab52c696198933a395d9dcd8933d40bb8ca"
+      }
+    },
+    {
+      "repository": "Mercaria",
+      "pullRequest": "https://github.com/OxyHQ/Mercaria/pull/1160",
+      "reviewedHead": "0c020dac3d180f95a0039722a80d4ea28c9067aa",
+      "sdk": "22.1.1",
+      "state": "pending; no runtime verification for this adoption",
+      "mergeStatus": "draft; holds for root coordinated next rollout slots",
+      "localChecks": [
+        "all3 UI typechecks",
+        "frontend208/dashboard267/POS10 tests",
+        "all3 Expo exports",
+        "Oxy Doctor passed with existing upgrade advisories",
+        "AGENTS/Biome",
+        "frozen install",
+        "214 published archive files matched"
+      ]
+    },
+    {
+      "repository": "OxyOS",
+      "pullRequest": "https://github.com/OxyHQ/OxyOS/pull/26",
+      "reviewedHead": "c4ca1ac3560ca826f47b519f55cb54546dca530b",
+      "sdk": "22.1.1",
+      "state": "Source/shell gate complete; ISO distribution not performed",
+      "mergeStatus": "merged1257bf803db7862cc0b07d50d1f3aa19d5b3104e",
+      "localChecks": [
+        "integration test",
+        "types and two Vite builds",
+        "lint",
+        "frozen install",
+        "published SDK archive byte match"
+      ],
+      "privateReceipt": {
+        "name": "oxyos-source-1257bf80.json",
+        "sha256": "f6520b6b7f8bd4436c9fbd905396c07e2c4080b55ae9b2f8431364e06bbfd667"
+      }
+    },
+    {
+      "repository": "Mention",
+      "pullRequest": "https://github.com/OxyHQ/Mention/pull/1632",
+      "reviewedHead": "fed4bf57e0273e1c8db1d6c8332674718d8a7741",
+      "sdk": "22.1.1",
+      "state": "API724 + MCP424 exact source verified stable/healthy/no old; frontend Worker23711077-b80e-4aee-92a4-eb10de7b28c4 actual production10:10:17Z with candidate Chromium/shell/apex smokes",
+      "mergeStatus": "merged normally",
+      "localChecks": "392 suites/3115 frontend tests; frontend/backend types; 214 registry files; frozen/lock validator",
+      "mergedSource": "521b11e18eab833f2c0740d8c9d2a6064e24690b",
+      "deploymentRuns": {
+        "frontend": 40303955438,
+        "api": 40303955350,
+        "mcp": 40303955254
+      }
+    },
+    {
+      "repository": "oxy",
+      "pullRequest": "https://github.com/OxyHQ/oxy/pull/2004",
+      "reviewedHead": "ebeb351deb5ea5fd2e79e1b2c643fdc212440bdf",
+      "sdk": "22.1.1",
+      "state": "Verified exact91e34bbf: API1087 stable3/3 +worker552 stable8/8, exact ECR/runtime digest, healthy targets/no old deployment; Auth/Accounts/Console actual frontend IDs archived. AWS40305021114 and frontend40305020999 SUCCESS.",
+      "mergeStatus": "merged normally",
+      "localChecks": "166 Accounts tests/20 suites; Accounts+Expo harness types;6 HTTP composition tests+types/imports;6 builds/packs;214 registry files; frozen/lock sync",
+      "mergedSource": "91e34bbf9af992f2cf0f59c80dd8ba0c92b35bc1",
+      "deploymentRuns": {
+        "aws": 40305021114,
+        "frontends": 40305020999
+      }
+    },
+    {
+      "repository": "Moovo",
+      "pullRequest": "https://github.com/OxyHQ/Moovo/pull/178",
+      "reviewedHead": "567af4ea6351e0e1c7e3c3670a5d32d984be3eb1",
+      "sdk": "22.1.1",
+      "state": "pending; no rollout evidence collected by this agent",
+      "mergeStatus": "draft; no auto; waiting root slot",
+      "localChecks": "Frontend TypeScript +8 worker tests +actual web export/edge build passed;214 registry files; frozen/strict Biome"
+    },
+    {
+      "repository": "Move",
+      "pullRequest": "https://github.com/OxyHQ/Move/pull/50",
+      "reviewedHead": "274accddf6dd4dbdf4c4204f457910bae9561dd6",
+      "sdk": "22.1.1",
+      "state": "Verified API TD53 exact8299d226 source/digest stable/healthy/no old; actual frontend Worker0a34ebed-c062-4b56-b5c0-9d59a249d454 + live smoke PASS",
+      "mergeStatus": "merged normally; main CI then frontend+API rollout pending",
+      "localChecks": "Frontend source/test types +13 tests/3 files passed; required Bloom15.10.1 aligned;214 registry files; frozen/Biome",
+      "mergedSource": "8299d226b31cd35dabb024cc5d29801fb104c79c",
+      "deploymentRuns": {
+        "api": 40309576519,
+        "frontend": 40309576834
+      }
+    },
+    {
+      "repository": "Nilo",
+      "pullRequest": "https://github.com/OxyHQ/Nilo/pull/150",
+      "reviewedHead": "32192eab2defcbdb1b8a6d96e1826fc31bbf11f9",
+      "sdk": "22.1.1",
+      "state": "Verified API TD111 stable exact source/digest, healthy/no old deployment; frontend actual Workerba747e0d-645c-4f8e-a8a5-38edc7e4015d.",
+      "mergeStatus": "merged normally",
+      "localChecks": "App types +931 tests/146 suites passed;214 registry files; frozen/Biome",
+      "mergedSource": "a52a0cfe2715903fbee9e83f4431ade3e61a10e4",
+      "deploymentRuns": {
+        "api": 40308267594,
+        "frontend": 40307134521
+      }
+    },
+    {
+      "repository": "Noted",
+      "pullRequest": "https://github.com/OxyHQ/Noted/pull/239",
+      "reviewedHead": "0e6ecec702a31e2e121fc68c1b0dc3c39ec5d24b",
+      "sdk": "22.1.1",
+      "state": "Frontend Workerb0d96901-e57e-4ea8-a6d3-5797e9a6ebec exact3e47bdadd61f published10:21:05Z; no backend",
+      "mergeStatus": "merged normally",
+      "localChecks": "1073 tests/110 suites; shared DTO build + frontend types;214 registry files; frozen/Biome",
+      "mergedSource": "3e47bdadd61f1a101a18509ae4e395800cc6dc40",
+      "deploymentRuns": {
+        "frontend": 40306487200
+      }
+    },
+    {
+      "repository": "Peable",
+      "pullRequest": "https://github.com/OxyHQ/Peable/pull/173",
+      "reviewedHead": "c3950cb869c1faea3582dbe4dc1a3660d8de6dad",
+      "sdk": "22.1.1",
+      "state": "API TD124 exactfinal0eeb6763 stable/healthy/no old; frontend Pages385ea480 and checkout Pages0666fd67 actualfinalsource, both successful production deployments.",
+      "mergeStatus": "SDK173 + docs174 merged normally",
+      "localChecks": "Frontend types +404 tests/50 files;4 dependency builds;214 registry files; frozen/strict Biome",
+      "mergedSource": "0eeb6763d5decf9abf9ddbb8aaf664e52716d43b",
+      "deploymentRuns": {
+        "api": 40307906665,
+        "frontend": 40307906541,
+        "checkout": 40307906630
+      }
+    },
+    {
+      "repository": "Syra",
+      "pullRequest": "https://github.com/OxyHQ/Syra/pull/260",
+      "reviewedHead": "3db4a00a75678b659412977aa86610a75fa36329",
+      "sdk": "22.1.1",
+      "state": "Actual Pages frontendf6363ad5 and studio18d42454 both exactd69b40d9. MainQuality40309572588 still running; API workflow awaits success.",
+      "mergeStatus": "merged normally; frontend/studio/API production verification pending",
+      "localChecks": "Frontend294/42 +studio39/5 tests and both types passed after minimum Bloom15.10.1 correction; frozen/Biome/214 public files; installed peer ranges green; paired source-map web builds attribute required Bloom UI; unchanged budget guard passes measured ceilings",
+      "mergedSource": "d69b40d9e499bddef63f57b5c6bf941a449a74b8",
+      "deploymentRuns": {
+        "frontend": 40309572723,
+        "studio": 40309572253
+      }
+    },
+    {
+      "repository": "Willo",
+      "pullRequest": "https://github.com/OxyHQ/Willo/pull/56",
+      "reviewedHead": "e3aa8ad82876b8d89de90328caaf3fab23fb6db9",
+      "sdk": "22.1.1",
+      "state": "Verified API TD37 stable1/1 exact source/digest, healthy/no old deployment; frontend actual Worker891f1449-7f83-447f-ac26-f61ce1253147.",
+      "mergeStatus": "merged normally",
+      "localChecks": "80 tests/14 files; UI/frontend/backend types;214 registry files; frozen/Biome",
+      "mergedSource": "654021d9f11a60b1749e04f5282a65a0dfd0cd91",
+      "deploymentRuns": {
+        "api": 40306935738,
+        "frontend": 40306935447
+      }
+    },
+    {
+      "repository": "website",
+      "pullRequest": "https://github.com/OxyHQ/website/pull/208",
+      "reviewedHead": "6c406ec40aebc8fb24ff2d97555b40241cca67d6",
+      "sdk": "22.1.1",
+      "state": "pending; no rollout evidence collected by this agent",
+      "mergeStatus": "Ready/in normal merge queue; rollout pending",
+      "localChecks": "tsc -b/server types +3 real transport tests passed;214 registry files; frozen/Biome"
+    }
+  ],
+  "stopAcceptance": {
+    "surface": "Mention web using published UI SDK22.1.1",
+    "ordinaryTurn": {
+      "cancelRequestSent": false,
+      "canonicalTurn": "completed",
+      "meterRows": 1,
+      "usageSource": "provider_reported",
+      "aliaCreditOperation": "settled"
+    },
+    "explicitStop": {
+      "cancelHttpStatus": 200,
+      "canonicalTurn": "cancelled",
+      "expectedAuthorityMatched": true,
+      "meterRows": 1,
+      "meterStatus": "settled",
+      "meterOutcome": "cancelled",
+      "usageSource": "estimated",
+      "usageInterpretation": "Unknown; zero fields do not prove zero usage or cost",
+      "aliaCreditOperation": "admitted; measured final charge and refund remain unset",
+      "recoveryPolicy": "Existing bounded32-attempt recovery then manual review; source and five PostgreSQL tests reviewed"
+    },
+    "cleanup": "Both DB-only diagnostics STOPPED exit0; temporary task definitions INACTIVE",
+    "privateReceiptHashes": [
+      {
+        "lane": "alia-db",
+        "name": "readback.json",
+        "sha256": "312900c05e7b7793eeb59d848d007a8823ef5c19e94892fba50d325076a8f43c"
+      },
+      {
+        "lane": "alia-db",
+        "name": "cleanup.json",
+        "sha256": "65f830caeac6a20ec8b727381fd4a51e334eacf49db90a964b43af83f10e1607"
+      },
+      {
+        "lane": "oxy-db",
+        "name": "readback.json",
+        "sha256": "8b77c6d0f081f456e16ba3ccd90ca3c511344bae5f13d8755e0490648e38d405"
+      },
+      {
+        "lane": "oxy-db",
+        "name": "cleanup.json",
+        "sha256": "bf9a45507d7a141bccb6608446dabcdacb7f59c569df730cbd6836abf3f36aa7"
+      }
+    ],
+    "recoveryReview": {
+      "sourceSha": "e2c851102090e2fd9eddb10831502b7ae4aab6ca",
+      "runtimePath": "packages/api/src/lib/credit-reconciliation.ts",
+      "policyPath": "docs/explicit-chat-stop.md",
+      "testPath": "packages/api/src/lib/__tests__/credit-reconciliation.pgdb.test.ts",
+      "result": "5 tests/1 suite passed on disposable PostgreSQL; source clean; no production query or financial write by reviewer",
+      "privateAssessmentSha256": "973734e08cda543a104c1bfec6ae76b0ec45d3f67b36b420b7ef0f1995806a03"
+    }
+  },
+  "limits": [
+    "Schedio explicitly excluded and parked",
+    "No user account identifiers, subscription details, session proofs, prompts or credentials included",
+    "No native or desktop installed/distribution completion inferred from source or web rollout",
+    "Codea VSIX1.0.10 and Cowork Linux AppImage1.0.3 are reviewed local artifacts only",
+    "Kaana cookie-removal acceptance complete; Alia voice cookie removal remains pending matching ordinary authenticated-account acceptance",
+    "No balance, subscription, financial policy or authority policy was manually altered; ordinary QA usage was recorded"
+  ],
+  "qaCleanup": {
+    "dedicatedAccounts": "Deleted via normal APIs; old credentials return401",
+    "dedicatedConversations": "Deleted via normal APIs; readback404/empty",
+    "isolatedAndroidProfile": "Removed at2026-10-26T10:52:13Z; owner0 and its Commons identity preserved",
+    "privateQaFilesRemoved": 19,
+    "sanitizedReceiptsRetained": 8,
+    "financialLimit": "No manual financial correction, refund or direct ledger deletion; existing unknown-usage recovery retention remains in force",
+    "receiptHashes": [
+      {
+        "name": "execute-receipt.json",
+        "sha256": "f130908f6a8e190ee533e3bc3d361241abaf1dacb08ffc872fce91bdb9bb7eba"
+      },
+      {
+        "name": "resume-b-receipt.json",
+        "sha256": "a0a2db674af17e3d1ac7f958bda046696504e3940f7707fa57ce4883f07cb359"
+      },
+      {
+        "name": "android-removal-receipt.json",
+        "sha256": "1091619e7ea21c982dda5a57d0d2e0a21462d152dc012c9c7a37893ab42d98cf"
+      },
+      {
+        "name": "private-copy-cleanup.json",
+        "sha256": "5fe9a763dc5effeaa39cf9ef957caf1f9bd0c12bb7daf6dd9a689a88cd35c102"
+      }
+    ]
+  }
+}
