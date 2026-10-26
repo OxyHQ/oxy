@@ -18,6 +18,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { open } from 'node:fs/promises';
 import type { FileRecord } from '../types/file.types';
 
 /** One rung of the audio ladder. */
@@ -372,51 +373,60 @@ export interface FfmpegRun {
  * tail of stderr. `onStdout` receives output as it arrives; past
  * `maxStdoutBytes` the process is killed and `overflowed` is set.
  */
-export function runFfmpeg(
+export async function runFfmpeg(
   binary: string,
   args: string[],
   options: {
     timeoutMs: number;
     onStdout?: (chunk: Buffer) => void;
     maxStdoutBytes?: number;
+    /** Trusted local temporary source, exposed only as inherited descriptor 3. */
+    inputFilePath?: string;
   },
 ): Promise<FfmpegRun> {
-  return new Promise((resolve) => {
-    const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stderr = '';
-    let stdoutBytes = 0;
-    let overflowed = false;
-    let timedOut = false;
-    let settled = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, options.timeoutMs);
-    timer.unref?.();
-
-    child.stderr.on('data', (data: Buffer) => {
-      stderr = (stderr + data.toString()).slice(-STDERR_TAIL_BYTES);
-    });
-    child.stdout.on('data', (data: Buffer) => {
-      if (overflowed) return;
-      stdoutBytes += data.length;
-      if (options.maxStdoutBytes !== undefined && stdoutBytes > options.maxStdoutBytes) {
-        overflowed = true;
+  const input = options.inputFilePath ? await open(options.inputFilePath, 'r') : undefined;
+  try {
+    return await new Promise((resolve) => {
+      const child = spawn(binary, args, {
+        stdio: input ? ['ignore', 'pipe', 'pipe', input.fd] : ['ignore', 'pipe', 'pipe'],
+      });
+      let stderr = '';
+      let stdoutBytes = 0;
+      let overflowed = false;
+      let timedOut = false;
+      let settled = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
         child.kill('SIGKILL');
-        return;
-      }
-      options.onStdout?.(data);
+      }, options.timeoutMs);
+      timer.unref?.();
+
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr = (stderr + data.toString()).slice(-STDERR_TAIL_BYTES);
+      });
+      child.stdout?.on('data', (data: Buffer) => {
+        if (overflowed) return;
+        stdoutBytes += data.length;
+        if (options.maxStdoutBytes !== undefined && stdoutBytes > options.maxStdoutBytes) {
+          overflowed = true;
+          child.kill('SIGKILL');
+          return;
+        }
+        options.onStdout?.(data);
+      });
+      const done = (code: number | null, signal: NodeJS.Signals | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ code, signal, stderrTail: stderr, overflowed, timedOut });
+      };
+      child.on('close', done);
+      child.on('error', (error) => {
+        stderr = `${stderr}\n${error.message}`.slice(-STDERR_TAIL_BYTES);
+        done(-1, null);
+      });
     });
-    const done = (code: number | null, signal: NodeJS.Signals | null) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ code, signal, stderrTail: stderr, overflowed, timedOut });
-    };
-    child.on('close', done);
-    child.on('error', (error) => {
-      stderr = `${stderr}\n${error.message}`.slice(-STDERR_TAIL_BYTES);
-      done(-1, null);
-    });
-  });
+  } finally {
+    await input?.close();
+  }
 }

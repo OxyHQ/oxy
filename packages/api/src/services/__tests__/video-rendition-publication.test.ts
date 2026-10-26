@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { access, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema';
@@ -21,9 +23,9 @@ jest.mock('../cdnInvalidation', () => ({
 }));
 
 interface EncodingHarness {
-  extractVideoMetadataFromUrl(): Promise<{ width: number; height: number; duration: number }>;
-  generatePosterFrame(): Promise<NewFileVariant>;
-  generateVideoRenditions(): Promise<NewFileVariant[]>;
+  probeVideoMetadata(source: string): Promise<{ width: number; height: number; duration: number }>;
+  generatePosterFrame(...args: unknown[]): Promise<NewFileVariant>;
+  generateVideoRenditions(source: string, ...args: unknown[]): Promise<NewFileVariant[]>;
 }
 
 const sha = () => randomBytes(32).toString('hex');
@@ -51,12 +53,15 @@ function currentMaster(): NewFileVariant {
 function encoder() {
   const s3 = {
     getPresignedDownloadUrl: jest.fn(async () => 'https://example.com/video.mp4'),
+    downloadFile: jest.fn(async (_key: string, destination: string) => {
+      await writeFile(destination, 'original fixture');
+    }),
     fileExists: jest.fn(async () => true),
   } as unknown as S3Service;
   const service = new VariantService(s3);
   const harness = service as unknown as EncodingHarness;
   jest
-    .spyOn(harness, 'extractVideoMetadataFromUrl')
+    .spyOn(harness, 'probeVideoMetadata')
     .mockResolvedValue({ width: 180, height: 320, duration: 3 });
   jest
     .spyOn(harness, 'generatePosterFrame')
@@ -383,3 +388,44 @@ it('finds a complete current twin beyond older legacy owners without re-encoding
   expect(renditions).not.toHaveBeenCalled();
   expect(hasCurrentVideoRenditions((await findFileById(target.id)) ?? { variants: [] })).toBe(true);
 });
+
+it.each(['success', 'probe', 'poster', 'renditions', 'download'] as const)(
+  'acquires one original and cleans it after %s',
+  async (stage) => {
+    const original = await file();
+    const { service, s3 } = encoder();
+    const harness = service as unknown as EncodingHarness;
+    const download = jest.mocked(s3.downloadFile);
+    if (stage === 'download') {
+      download.mockImplementationOnce(async (_key, destination) => {
+        await writeFile(destination, 'partial');
+        throw new Error('download cancelled');
+      });
+    } else if (stage !== 'success') {
+      const method =
+        stage === 'probe'
+          ? 'probeVideoMetadata'
+          : stage === 'poster'
+            ? 'generatePosterFrame'
+            : 'generateVideoRenditions';
+      jest.mocked(harness[method]).mockRejectedValueOnce(new Error('stage failed'));
+    }
+    const generation = service.generateVariants(original.id, { reencode: true });
+    if (stage === 'success') await generation;
+    else await expect(generation).rejects.toThrow();
+    expect(download).toHaveBeenCalledTimes(1);
+    const source = download.mock.calls[0][1];
+    expect(download.mock.calls[0][2]).toMatchObject({
+      maxBytes: 8 * 1024 ** 3,
+      timeoutMs: 15 * 60 * 1000,
+    });
+    expect(s3.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    if (stage === 'success') {
+      expect(harness.probeVideoMetadata).toHaveBeenCalledWith(source);
+      expect(jest.mocked(harness.generatePosterFrame).mock.calls[0].at(-1)).toBe(source);
+      expect(jest.mocked(harness.generateVideoRenditions).mock.calls[0][0]).toBe(source);
+    }
+    await expect(access(source)).rejects.toThrow();
+    await expect(access(path.dirname(source))).rejects.toThrow();
+  },
+);

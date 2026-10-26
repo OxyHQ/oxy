@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -16,7 +16,17 @@ import type { S3Service } from '../s3Service';
 import type { FileVisibility, NewFileVariant } from '../../types/file.types';
 
 interface Encoder {
-  extractVideoMetadataFromUrl(url: string): Promise<{ width: number; height: number }>;
+  generatePosterFrame(
+    key: string,
+    sha: string,
+    time: number,
+    visibility: FileVisibility,
+    metadata: { width: number; height: number },
+    profile: string,
+    root: undefined,
+    local: string,
+  ): Promise<NewFileVariant>;
+  probeVideoMetadata(url: string): Promise<{ width: number; height: number }>;
   generateVideoVariant(
     url: string,
     sha: string,
@@ -174,7 +184,7 @@ it.each([
       }),
     } as unknown as S3Service;
     const encoder = new VariantService(store) as unknown as Encoder;
-    const dimensions = await encoder.extractVideoMetadataFromUrl(input);
+    const dimensions = await encoder.probeVideoMetadata(input);
     const rungs = videoRungs(dimensions);
     const rung = rungs[0];
     const display = rotation
@@ -183,6 +193,18 @@ it.each([
     expect(dimensions.width).toBe(display.width);
     expect(dimensions.height).toBe(display.height);
     const profile = `${VIDEO_RENDITION_PROFILE}/${name}`;
+    const poster = await encoder.generatePosterFrame(
+      'original-key',
+      'abcd',
+      0,
+      'private',
+      dimensions,
+      profile,
+      undefined,
+      input,
+    );
+    expect(poster.width).toBeGreaterThan(0);
+    expect(poster.height).toBeGreaterThan(0);
     const all = await encoder.generateVideoRenditions(input, 'abcd', rungs, 'private', profile);
     const mp4 = all.find((variant) => variant.type === rung.type);
     if (!mp4) throw new Error('Missing MP4 rendition');
@@ -192,6 +214,10 @@ it.each([
     expect(encodes).toHaveLength(rungs.length);
     expect(remuxes).toHaveLength(rungs.length);
     for (let index = 0; index < rungs.length; index++) {
+      expect(encodes[index][1]).toEqual(
+        expect.arrayContaining(['-protocol_whitelist', 'fd', '-fd', '3', '-i', 'fd:']),
+      );
+      expect(encodes[index][2].inputFilePath).toBe(input);
       const encodedPath = encodes[index][1].at(-1);
       expect(remuxes[index][1][1]).toBe(encodedPath);
       expect(remuxes[index][1]).not.toContain('-vf');
@@ -403,3 +429,93 @@ it.each(['mp4', 'remux', 'segment', 'playlist'] as const)(
     await expect(access(path.dirname(encodedPath))).rejects.toThrow();
   },
 );
+
+it.each(['file', 'http'])(
+  'rejects nested %s reads from an untrusted local container',
+  async (protocol) => {
+    const source = path.join(directory, `nested-${protocol}.ffconcat`);
+    const nestedMedia = path.join(directory, 'nested-target.mp4');
+    if (protocol === 'file')
+      execFileSync('ffmpeg', [
+        '-v',
+        'error',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=red:s=32x64:d=0.1',
+        '-y',
+        nestedMedia,
+      ]);
+    const target = protocol === 'file' ? `file:${nestedMedia}` : 'http://127.0.0.1:1/private';
+    await writeFile(source, `ffconcat version 1.0\nfile '${target}'\n`);
+    const result = await audioRenditions.runFfmpeg(
+      'ffprobe',
+      ['-v', 'error', '-safe', '0', '-protocol_whitelist', 'fd', '-fd', '3', '-i', 'fd:'],
+      { timeoutMs: 2000, inputFilePath: source },
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(result.stderrTail).toMatch(/not on whitelist/);
+    if (protocol === 'file') {
+      // Positive control: the same crafted input reads the local target when
+      // the forbidden protocol is admitted. It is not an invalid fixture.
+      const allowed = await audioRenditions.runFfmpeg(
+        'ffprobe',
+        ['-v', 'error', '-safe', '0', '-protocol_whitelist', 'fd,file', '-fd', '3', '-i', 'fd:'],
+        { timeoutMs: 2000, inputFilePath: source },
+      );
+      expect(allowed.code).toBe(0);
+    }
+  },
+);
+
+it('distinguishes a probe process failure from a source with no video stream', async () => {
+  const source = path.join(directory, 'invalid-media');
+  await writeFile(source, 'not a media container');
+  const encoder = new VariantService({} as S3Service) as unknown as Encoder;
+  await expect(encoder.probeVideoMetadata(source)).rejects.toThrow('Video probe failed');
+  const audio = path.join(directory, 'only-audio.wav');
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-f',
+    'lavfi',
+    '-i',
+    'sine=frequency=1000:duration=0.1',
+    '-y',
+    audio,
+  ]);
+  await expect(encoder.probeVideoMetadata(audio)).rejects.toThrow(
+    'Source contains no video stream',
+  );
+});
+
+it('bounds process runtime and diagnostic output without retaining the source descriptor', async () => {
+  const source = path.join(directory, 'runner-source');
+  await writeFile(source, 'source');
+  const timed = await audioRenditions.runFfmpeg(
+    process.execPath,
+    ['-e', 'setInterval(() => {}, 1000)'],
+    { timeoutMs: 50, inputFilePath: source },
+  );
+  expect(timed.timedOut).toBe(true);
+  expect(timed.signal).toBe('SIGKILL');
+  const output = await audioRenditions.runFfmpeg(
+    process.execPath,
+    ['-e', "process.stdout.write('x'.repeat(100000)); setInterval(() => {}, 1000)"],
+    { timeoutMs: 2000, maxStdoutBytes: 10, inputFilePath: source },
+  );
+  expect(output.overflowed).toBe(true);
+  expect(output.signal).toBe('SIGKILL');
+  const descriptors = await readdir('/proc/self/fd');
+  const links = await Promise.all(
+    descriptors.map(async (fd: string) => {
+      try {
+        return await readlink(`/proc/self/fd/${fd}`);
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  expect(links).not.toContain(source);
+});
