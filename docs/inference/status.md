@@ -111,11 +111,12 @@ an exact signed request to Kaana. It never falls back to the Alia proxy, derives
 an opaque ID from a name/order, or fabricates a completion.
 
 The grant API also admits a person's own session (`product_session`,
-[ADR 0050](../adr/0050-product-session-inference-on-kaana.md), proposed) for an
-application the session row names and the economic policy gives reviewed
-terms; Astro's (`astro-kaana-session`) are in source. Astro's sign-in is the
-shared device session, which names no application, so Astro is refused until
-ADR 0050's open question is decided. The old edge still refuses sessions.
+[ADR 0050](../adr/0050-product-session-inference-on-kaana.md)) for an
+application the session row names, or, for a shared device session, the
+application whose public client id is presented in the bearer when its reviewed
+terms accept it. Astro's terms (`astro-kaana-session`) are in source; source is
+not production, so verify the deployed revision before calling Astro served.
+The old edge still refuses sessions.
 
 ### The catalogue's contents — workstream 5
 

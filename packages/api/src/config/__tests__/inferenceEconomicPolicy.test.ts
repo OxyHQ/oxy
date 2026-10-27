@@ -306,7 +306,19 @@ describe('astro-kaana-session: Astro’s one-shot features on a person’s sessi
     }
   });
 
+  it('accepts a shared session by public client id for Astro only, and only with a per-person bound', () => {
+    expect(relationship?.sharedSessionAttribution).toBe('public_client_id');
+    const accepting = INTERNAL_METERED_RELATIONSHIPS.filter(
+      (candidate) => candidate.sharedSessionAttribution !== undefined,
+    );
+    expect(accepting.map((candidate) => candidate.relationshipId)).toEqual(['astro-kaana-session']);
+    for (const candidate of accepting) {
+      expect(candidate.lane).toBe('product_session');
+      expect(candidate.capacity.maxRequestsPerUserPerUtcDay).toBeGreaterThan(0);
+    }
+  });
+
   it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-27.1');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-27.2');
   });
 });

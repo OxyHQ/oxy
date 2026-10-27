@@ -1,7 +1,7 @@
 # ADR 0050 — A person's own session as a kaana.ai credential (`product_session`)
 
-- Status: proposed (2026-10-27); needs the owner's approval, and decision 3's
-  open question answered, before Astro can be served
+- Status: accepted (2026-10-27, option b of decision 3; the owner's approval was
+  relayed to OxyHQ/oxy#2006 and is confirmed on its review)
 - Date: 2026-10-27
 - Implements: Kaana ADR 0002 phase 2.2 («sesiones de usuario como `product_session`»)
 - Builds on: ADR 0007 (attribution), ADR 0029 (one Oxy session), ADR 0045 (app assertions)
@@ -51,7 +51,7 @@ The old edge keeps refusing sessions.
   refused, as on every other lane.
 - **The application comes from the session row** (`sessions.application_id`
   and the live public credential `sessions.client_id` names), never from a
-  claim, a header or a body field. The payer is that application's owner, read
+  claim; for a session whose row names none, only as decision 3 says. The payer is that application's owner, read
   live; there is no fallback to the person (ADR 0007).
 - The person is the session's subject account. It is the grant's `userId` and
   the usage row's `delegated_user_id`, attribution only. `X-Oxy-User-Id` may be
@@ -65,37 +65,50 @@ The old edge keeps refusing sessions.
   session never spends its application's owner's money on terms nobody
   reviewed.
 
-### 3. Open: how a SHARED session names its application
+### 3. How a SHARED session names its application: the public client id (option b)
 
 ADR 0029 gives every official app ONE device session with no client:
 `sessions.application_id` is NULL, and `@oxy.so/services` puts every
 `first_party` application on that device lane
 (`classifyApplicationSessionLane`). Only an external OAuth client gets an
-application-bound session. **Astro's session therefore names no application,
-and decision 2 refuses it** (`permission_denied`). ADR 0045 solved the same
-question for app confinement with an Oxy-signed app assertion, but it has no
-desktop protocol, and Kaana's grant contract has no field to carry one.
+application-bound session. ADR 0045 solved the same question for app
+confinement with an Oxy-signed app assertion, but it has no desktop protocol.
 
-The options, for the owner:
+The options were:
 
 - **(a) A desktop app assertion.** Extend ADR 0045 with a desktop platform and
-  carry the `OXY-APP+JWT` through Kaana (a header Kaana forwards verbatim and a
-  new authorization field in `@kaana.ai/contracts`). macOS may offer App
-  Attest; Windows and Linux offer nothing comparable.
-- **(b) The public client id, bounded by the terms.** Accept the registered
-  public client id as the application of a shared session for applications
-  whose reviewed terms say so, and nothing else. ADR 0045 rejected this for
-  confinement; for spend the bound is the terms' per-person and per-application
-  caps, which is also the whole bound under (a): a person can lift their own
-  token out of their own desktop app.
+  carry the `OXY-APP+JWT` through Kaana. macOS may offer App Attest; Windows and
+  Linux offer nothing comparable.
+- **(b) The public client id, bounded by the terms.** Chosen.
 - **(c) An application-bound session for Astro.** Reverses ADR 0029 for one app;
   ADR 0045 rejected it.
 
-Recommendation: (b), limited to `product_session` terms with a per-person
-bound, because on a desktop client every option is bounded by the caps and (a)
-adds a protocol that proves nothing more there. Until the owner decides, the
-code resolves the application from the row only, and Astro is refused.
+**Decided: (b)** (owner's approval of 2026-10-27, relayed to OxyHQ/oxy#2006 and
+confirmed on its review). A shared session is attributed to the application
+whose registered public client id the caller presents beside it, when:
 
+- the id names a live `public` credential of an active application, read from
+  its row (never a name);
+- that application's reviewed terms are a `product_session` relationship that
+  says so (`sharedSessionAttribution: 'public_client_id'`) and carry a
+  per-person daily bound; the operation must be one the terms name.
+
+Anything else is `permission_denied`. An application-bound session still
+resolves from its row; a client id presented beside it must be the row's.
+
+The public id proves nothing: anyone with an Oxy session can present it. ADR
+0045 rejected it for confinement; for spend the bound is the terms' per-person
+and per-application caps, which is also the whole bound under (a), since a
+person can lift their own token out of their own desktop app.
+
+**How it is presented.** Kaana forwards the caller's bearer verbatim and
+nothing else of its credentials, so the id travels inside the bearer:
+
+```text
+Authorization: Bearer oxy_session:<public client id>:<access token>
+```
+
+A bare access token is still accepted for an application-bound session.
 ### 4. Astro's terms (`astro-kaana-session`)
 
 `internal_metered`, like Mention's text features: Astro's owner pays, no hold,
@@ -111,7 +124,8 @@ capacity is the bound.
 | Per person | 200 requests a UTC day |
 | Per application | 10 000 requests a UTC day, 16 in flight (Console may change both) |
 
-The policy version is `oxy-inference-economics/2026-10-27.1`.
+Astro presents its public client id beside its shared session (decision 3).
+The policy version is `oxy-inference-economics/2026-10-27.2`.
 
 ## Consequences
 
@@ -120,8 +134,8 @@ The policy version is `oxy-inference-economics/2026-10-27.1`.
 - Per-person capacity is new: `claimMeteredAdmission` counts the day's rows of
   the relationship for the attributed user under the same advisory lock.
 - Inbox's in-process `product_session` principal on the old edge is unchanged;
-  its migration to the grant API (Kaana ADR 0002 phase 4) still needs Inbox's
-  session to name the Inbox application, which is decision 3's question again.
+  its migration to the grant API (Kaana ADR 0002 phase 4) would need its own
+  reviewed terms with `sharedSessionAttribution`.
 
 ## Enforcement
 
@@ -130,9 +144,14 @@ The policy version is `oxy-inference-economics/2026-10-27.1`.
   owner, `userId` the session's person; refused for a header naming someone
   else, a model or other level, a missing or larger output limit, a larger
   input, another operation, an application without terms (nothing recorded),
-  the shared device session, a revoked or forged session, and any read.
+  the shared device session presented alone, a revoked or forged session, and
+  any read. A shared session presented with the stand-in's public client id is
+  granted to it; with an unknown, revoked or termless application's id, or a
+  malformed presentation, refused; a person past the daily bound is
+  `quota_exceeded` while another is admitted; an application-bound session
+  still resolves from its row and refuses another client id beside it.
 - `services/__tests__/inferenceMeteredUsage.service.test.ts`: the per-person
   daily bound, apart from the application's, and no admission without a person.
-- `config/__tests__/inferenceEconomicPolicy.test.ts`: the terms, and that every
+- `config/__tests__/inferenceEconomicPolicy.test.ts`: the terms, that every
   `product_session` relationship names its operations, a first-party class and
-  a per-person bound.
+  a per-person bound, and that only Astro's accepts a shared session.

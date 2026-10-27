@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-27.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-27.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -330,6 +330,13 @@ export interface InternalMeteredRelationship {
   readonly consumerApplicationClass?: 'first_party';
   readonly capacity: InternalMeteredCapacity;
   readonly pilot?: InternalMeteredPilot;
+  /**
+   * `public_client_id`: a SHARED device session (ADR 0029, no application on
+   * its row) is attributed to this application when it is presented with the
+   * application's registered public client id (ADR 0050, option b). Only a `product_session` relationship with a per-person bound
+   * may say so; absent, only an application-bound session row names it.
+   */
+  readonly sharedSessionAttribution?: 'public_client_id';
 }
 
 /**
@@ -547,12 +554,16 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     providerProduct: 'kaana',
     environments: ['production'],
     lane: 'product_session',
-    // Proposed 2026-10-27 (ADR 0050), pending the owner's review. Astro's
+    // ADR 0050 option b; the owner's approval of 2026-10-27 was relayed to
+    // this change and is confirmed on its review. Astro's
     // one-shot features (name a tab group and pick its emoji, shorten a pinned
     // tab's title, propose a download's filename, summarise a YouTube
     // transcript): one small `responses` request each, no conversation.
     operations: ['responses'],
     consumerApplicationClass: 'first_party',
+    // Astro signs in on the shared device session, which names no
+    // application; it presents its public client id beside it (ADR 0050 b).
+    sharedSessionAttribution: 'public_client_id',
     // Astro has no measured traffic yet. 200 a person a day is several times
     // a heavy day of tab groups, pins and downloads; 10,000 a day for the
     // application bounds the whole day at USD 40 even if every request quoted

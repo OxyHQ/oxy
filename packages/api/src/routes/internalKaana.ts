@@ -27,10 +27,11 @@
  * SAME Redis buckets the edge uses, so a key's budget is one budget across both
  * surfaces. Refusals are the public error Kaana relays to its client.
  *
- * A bearer neither lane recognises as its own (`service_not_service`) is tried
- * as a person's session, the `product_session` lane (ADR 0050): only for a
- * grant, never for a catalogue or receipt read, and only under an
- * application's reviewed product-session terms.
+ * A bearer neither lane recognises as its own (`service_not_service`), or one
+ * presented as `oxy_session:<public client id>:<access token>`, is tried as a
+ * person's session, the `product_session` lane (ADR 0050): only for a grant,
+ * never for a catalogue or receipt read, and only under an application's
+ * reviewed product-session terms.
  */
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -58,7 +59,10 @@ import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { authenticateInferenceBearer, type EdgePrincipal } from '../services/inferenceEdge.service';
 import { authorizeInference, publicError } from '../services/kaanaGrant.service';
-import { authenticateProductSession } from '../services/productSessionPrincipal.service';
+import {
+  authenticateProductSession,
+  isPresentedSession,
+} from '../services/productSessionPrincipal.service';
 import { authorizeCatalogueRead, authorizeReceiptRead } from '../services/kaanaGrantReads.service';
 import {
   KAANA_KEY_ID_HEADER,
@@ -148,6 +152,10 @@ async function parseAndAuthenticate(
     return;
   }
   const request = parsed.data;
+  if (isPresentedSession(request.credential)) {
+    await authenticateSession(req, res, next, request);
+    return;
+  }
   const authentication = await authenticateInferenceBearer(
     request.credential,
     KAANA_PUBLIC_AUDIENCE,
@@ -184,7 +192,10 @@ async function authenticateSession(
   next: NextFunction,
   request: AuthorizationRequest,
 ): Promise<void> {
-  const session = await authenticateProductSession(request.credential);
+  const session = await authenticateProductSession(
+    request.credential,
+    request.kind === 'inference' ? request.operation : undefined,
+  );
   if (!session.ok) {
     logger.warn('inference.grant.authentication_failed', {
       requestId: request.requestId,

@@ -5,27 +5,42 @@
  *
  * ## What it proves, and from where
  *
- * The bearer is verified by the one session verification every authenticated
+ * The session is verified by the one session verification every authenticated
  * Oxy route uses (`sessionService.validateSession`): signature and expiry, a
  * live session row, the managed-account and supervision checks, and the v2
  * binding of every claim (`sid`, subject, actor, `azp`, device context) against
  * that row. A supervised account is refused there, as on every other lane.
  *
- * The APPLICATION comes from the session ROW (`sessions.application_id` and the
- * credential it was minted for, `sessions.client_id`), never from a claim, a
- * header or a body field. A session the row binds to no application — the
- * ADR 0029 device session every official app shares — names no application,
- * and is refused as `session_unbound`: nothing a request carries could say
- * which app it is without being a claim anyone can make (ADR 0045).
+ * The APPLICATION is, in this order:
+ *
+ *  - the session ROW's (`sessions.application_id` and the credential it was
+ *    minted for, `sessions.client_id`) when the row names one. A presented
+ *    client id must then be that same one;
+ *  - for a SHARED device session (ADR 0029: no application on its row), the
+ *    application whose registered public client id the caller presented
+ *    beside it, resolved from the live public credential row — and only when
+ *    that application's reviewed terms are a `product_session` relationship
+ *    with a per-person bound that accepts it (`sharedSessionAttribution`,
+ *    ADR 0050 option b). The public id names an application; it proves
+ *    nothing, so the terms' caps are the bound, as they would be for any
+ *    desktop client.
  *
  * The payer is that application's owner, read live. The person is the
  * session's subject account and is attribution only (ADR 0007).
+ *
+ * ## How a client presents it
+ *
+ * Kaana forwards the bearer and nothing else of the caller's credentials, so
+ * the client id travels inside it: `oxy_session:<public client id>:<access
+ * token>`. A bare access token is accepted for an application-bound session.
  *
  * Only the grant API calls this. The old edge (`api.oxy.so/v1`) keeps refusing
  * sessions: it is deleted in Kaana ADR 0002's phase 5.
  */
 
+import type { GrantOperation } from '@kaana.ai/contracts/internal';
 import { and, eq } from 'drizzle-orm';
+import { resolveEconomicTreatment } from '../config/inferenceEconomicPolicy';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
@@ -34,6 +49,11 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import type { EdgePrincipal } from './inferenceEdge.service';
 import sessionService from './session.service';
 import { isSupervised } from './supervisionPolicy.service';
+
+/** The bearer prefix of a session presented with its application's public client id. */
+export const PRESENTED_SESSION_PREFIX = 'oxy_session:';
+
+const PUBLIC_CLIENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
  * `authentication`: the bearer is not a live session (answered
@@ -53,20 +73,58 @@ export type ProductSessionAuthentication =
       readonly reason: string;
     };
 
+export function isPresentedSession(credential: string): boolean {
+  return credential.startsWith(PRESENTED_SESSION_PREFIX);
+}
+
+type Presented =
+  | { readonly ok: true; readonly clientId: string | undefined; readonly token: string }
+  | { readonly ok: false };
+
+function parsePresented(credential: string): Presented {
+  if (!isPresentedSession(credential)) return { ok: true, clientId: undefined, token: credential };
+  const rest = credential.slice(PRESENTED_SESSION_PREFIX.length);
+  const separator = rest.indexOf(':');
+  if (separator <= 0) return { ok: false };
+  const clientId = rest.slice(0, separator);
+  const token = rest.slice(separator + 1);
+  return PUBLIC_CLIENT_ID.test(clientId) && token.length > 0
+    ? { ok: true, clientId, token }
+    : { ok: false };
+}
+
+const unattributable = (reason: string): ProductSessionAuthentication => ({
+  ok: false,
+  refusal: 'unattributable',
+  reason,
+});
+
 export async function authenticateProductSession(
-  token: string,
+  credential: string,
+  operation?: GrantOperation,
 ): Promise<ProductSessionAuthentication> {
-  const validation = await sessionService.validateSession(token);
+  const presented = parsePresented(credential);
+  if (!presented.ok) {
+    return { ok: false, refusal: 'authentication', reason: 'session_malformed' };
+  }
+  const validation = await sessionService.validateSession(presented.token);
   if (validation === null) {
     return { ok: false, refusal: 'authentication', reason: 'session_invalid' };
   }
   const identity = validation.token;
-  if (identity.applicationId === null || identity.clientId === null) {
-    return { ok: false, refusal: 'unattributable', reason: 'session_unbound' };
+
+  const shared = identity.applicationId === null;
+  if (shared && presented.clientId === undefined) return unattributable('session_unbound');
+  if (!shared && identity.clientId === null) return unattributable('session_unbound');
+  if (!shared && presented.clientId !== undefined && presented.clientId !== identity.clientId) {
+    return unattributable('session_client_mismatch');
   }
+  const clientId = shared ? presented.clientId : identity.clientId;
+  if (clientId === undefined || clientId === null) return unattributable('session_unbound');
 
   const [row] = await getDb()
     .select({
+      applicationId: applications.id,
       credentialId: applicationCredentials.id,
       credentialType: applicationCredentials.type,
       credentialStatus: applicationCredentials.status,
@@ -82,31 +140,42 @@ export async function authenticateProductSession(
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
     .where(
       and(
-        eq(applicationCredentials.publicKey, identity.clientId),
-        eq(applicationCredentials.applicationId, identity.applicationId),
+        eq(applicationCredentials.publicKey, clientId),
+        ...(identity.applicationId === null
+          ? []
+          : [eq(applicationCredentials.applicationId, identity.applicationId)]),
       ),
     )
     .limit(1);
   if (
     row === undefined ||
     row.applicationStatus !== 'active' ||
-    (row.credentialType !== 'public' && row.credentialType !== 'confidential') ||
+    (shared
+      ? row.credentialType !== 'public'
+      : row.credentialType !== 'public' && row.credentialType !== 'confidential') ||
     !isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })
   ) {
-    return { ok: false, refusal: 'unattributable', reason: 'session_application_unavailable' };
+    return unattributable('session_application_unavailable');
+  }
+
+  const facts = {
+    lane: 'product_session' as const,
+    applicationId: row.applicationId,
+    environment: row.environment,
+    applicationType: row.type,
+    applicationIsInternal: row.isInternal,
+  };
+  if (shared && !acceptsSharedSession(facts, operation)) {
+    return unattributable('shared_session_not_accepted');
   }
   if (await isSupervised(row.ownerAccountId)) {
     return { ok: false, refusal: 'authentication', reason: 'supervised_inference_unsupported' };
   }
 
   const identityFields = {
-    lane: 'product_session' as const,
-    applicationId: identity.applicationId,
+    ...facts,
     credentialId: row.credentialId,
     ownerAccountId: row.ownerAccountId,
-    environment: row.environment,
-    applicationType: row.type,
-    applicationIsInternal: row.isInternal,
   };
   return {
     ok: true,
@@ -121,4 +190,23 @@ export async function authenticateProductSession(
       ? { ...identityFields, authority: 'first_party' }
       : { ...identityFields, authority: 'external', scopes: [] },
   };
+}
+
+/**
+ * Whether the application's reviewed terms accept a shared session presented
+ * with its public client id: the same decision the grant makes, on the same
+ * live facts, and a per-person bound in it.
+ */
+function acceptsSharedSession(
+  facts: Parameters<typeof resolveEconomicTreatment>[0],
+  operation: GrantOperation | undefined,
+): boolean {
+  if (operation === undefined) return false;
+  const economics = resolveEconomicTreatment(facts, operation);
+  return (
+    economics.treatment === 'internal_metered' &&
+    economics.relationship.lane === 'product_session' &&
+    economics.relationship.sharedSessionAttribution === 'public_client_id' &&
+    economics.relationship.capacity.maxRequestsPerUserPerUtcDay !== undefined
+  );
 }

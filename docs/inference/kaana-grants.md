@@ -185,14 +185,19 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
   owner, environment and inference-domain checks. Oxy's ordinary API refuses
   `kaana.ai` tokens and the grant API refuses `oxy-api` ones.
 - A person's Oxy session (`product_session`, [ADR 0050](../adr/0050-product-session-inference-on-kaana.md)),
-  tried when the bearer is neither: verified by `sessionService.validateSession`,
-  the application read from the session ROW (`sessions.application_id` and the
-  live public credential `client_id` names), its owner the payer, the session's
-  subject account the `userId`. Grants only (a catalogue or receipt read is
-  `permission_denied`), and only under reviewed product-session terms. A session
-  bound to no application (the shared device session of every official app,
-  ADR 0029) is `permission_denied`; an invalid, expired, revoked or supervised
-  one is `authentication_failed`. `X-Oxy-User-Id` may be omitted; naming anyone
+  tried when the bearer is neither, or is presented as
+  `oxy_session:<public client id>:<access token>`: verified by
+  `sessionService.validateSession`; the application read from the session ROW
+  (`sessions.application_id` and the live credential `client_id` names), or, for
+  the shared device session of every official app (ADR 0029, no application on
+  its row), from the live `public` credential row of the presented client id,
+  only when that application's terms accept it (`sharedSessionAttribution`);
+  its owner the payer, the session's subject account the `userId`. Grants only
+  (a catalogue or receipt read is `permission_denied`), and only under reviewed
+  product-session terms. A shared session presented alone, or with an unknown,
+  revoked or termless client id, or an application-bound one with another
+  client id, is `permission_denied`; an invalid, expired, revoked, supervised or
+  malformed one is `authentication_failed`. `X-Oxy-User-Id` may be omitted; naming anyone
   but the session's person is `permission_denied`.
 
 ## The grant
@@ -253,7 +258,7 @@ credential only) in the public shape: amount, never provider.
 | Alia naming `pro`/`ultra` (ADR 0037) | `internal_metered` | no | step 1: the level, `maxFundingTier: credit`, USD 1.00; step 2: `xhigh` on the pilot's lines and providers, USD 0.05 |
 | BYOK route | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | rated at Oxy's platform fee (`config/inferencePlatformFee.ts`), never a model price; no `maxFundingTier`; internal + BYOK is refused; no approved fee schedule yet, so refused |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
-| `product_session` of Astro, `responses` (`astro-kaana-session`, ADR 0050, proposed) | Astro's owner; `internal_metered`, `relationshipId: astro-kaana-session` | **no** | application from the session row; `instant` only (else `policy_violation`, `pilot-level`); 8 000 input, 512 output tokens (the caller's limit is required), USD 0.004 a request; 200 a person, 10 000 an application a UTC day, 16 in flight. Astro's sign-in is the shared device session, which names no application: refused until ADR 0050 decision 3 is answered |
+| `product_session` of Astro, `responses` (`astro-kaana-session`, ADR 0050) | Astro's owner; `internal_metered`, `relationshipId: astro-kaana-session` | **no** | application from the session row; `instant` only (else `policy_violation`, `pilot-level`); 8 000 input, 512 output tokens (the caller's limit is required), USD 0.004 a request; 200 a person, 10 000 an application a UTC day, 16 in flight. Astro's shared device session is attributed by its public client id in the bearer (ADR 0050 option b) |
 | `product_session` without reviewed terms (Inbox, any other app) | — | — | refused `permission_denied` (`product-session-not-enabled`); nothing is held or recorded |
 | service token of Mention in production, `decisions` (`mention-kaana-decisions`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-decisions` | **no** | decisions only, on the decisions profile; 2 in flight, 2 000 a UTC day on its own rows; first-party class, not `is_internal`; Mention's other operations are `commercial` unless the next row names them ([decisions.md](decisions.md)) |
 | service token of Mention in production, `responses` / `chat_completions` (`mention-kaana-text`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-text` | **no** | the `instant` level only (a model or other level is `policy_violation`, `pilot-level`); 32 000 input and 8 192 output tokens (the caller's limit is required), USD 0.035 a request (the dearest instant line at full size quotes USD 0.0301); 8 in flight, 5 000 a UTC day on its own rows; first-party class |
@@ -345,8 +350,6 @@ and Kaana refused every read as unsigned (`Kaana settlement feed answered 401`).
 
 - Token exchange (`POST /auth/service-token/exchange`) for Alia's product
   agents.
-- How a shared device session names its application (ADR 0050 decision 3),
-  which Astro and Inbox's migration both need.
 - Commercial realtime grants (the contract needs session ceiling facts).
 - `OxyServer.serviceToken({ audience: 'kaana.ai' })` in `@oxy.so/core`.
 - An approved BYOK platform fee amount (the schedule list ships empty).

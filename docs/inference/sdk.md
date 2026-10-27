@@ -54,7 +54,9 @@ A session is a credential on `https://kaana.ai/v1` only, for an application with
 reviewed product-session terms ([ADR 0050](../adr/0050-product-session-inference-on-kaana.md),
 [kaana-grants.md](./kaana-grants.md#the-callers-credential)): `Authorization:
 Bearer <the session's access token>`, re-read on every request, the level in
-`model` (`"instant"`) and `maxOutputTokens` set.
+`model` (`"instant"`) and `maxOutputTokens` set. An official app on the shared
+device session presents its registered public client id with it:
+`Authorization: Bearer oxy_session:<public client id>:<access token>`.
 
 Own backends use their workload-configured `OxyServer` and a product SDK's
 service factory. For the Oxy HTTP edge, the shared transport is:

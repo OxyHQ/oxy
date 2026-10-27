@@ -1886,7 +1886,9 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
    * production terms; its session is bound to it by the ROW, as an
    * application-bound session is.
    */
-  async function astroStandIn(options: { readonly terms?: boolean } = {}) {
+  async function astroStandIn(
+    options: { readonly terms?: boolean; readonly maxRequestsPerUserPerUtcDay?: number } = {},
+  ) {
     const appId = randomUUID();
     const app = await pinnedApplication(appId, 'Astro stand-in', []);
     await getDb()
@@ -1910,14 +1912,27 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
       const resolveProduction = economicPolicy.resolveEconomicTreatment;
       jest
         .spyOn(economicPolicy, 'resolveEconomicTreatment')
-        .mockImplementation((principal, operation) =>
-          resolveProduction(
+        .mockImplementation((principal, operation) => {
+          const decision = resolveProduction(
             principal.applicationId === appId
               ? { ...principal, applicationId: ASTRO_INFERENCE_CONSUMER_APPLICATION_ID }
               : principal,
             operation,
-          ),
-        );
+          );
+          return options.maxRequestsPerUserPerUtcDay === undefined ||
+            decision.treatment !== 'internal_metered'
+            ? decision
+            : {
+                ...decision,
+                relationship: {
+                  ...decision.relationship,
+                  capacity: {
+                    ...decision.relationship.capacity,
+                    maxRequestsPerUserPerUtcDay: options.maxRequestsPerUserPerUtcDay,
+                  },
+                },
+              };
+        });
     }
     const person = await makeAccount();
     const bound = await sessionService.createSession(person, { headers: {} } as Request, {
@@ -1928,7 +1943,12 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
         scopes: ['user:read'],
       },
     });
-    return { app, appId, client, person, bound };
+    const shared = await sessionService.createSession(person, { headers: {} } as Request, {
+      deviceId: randomUUID(),
+    });
+    const presented = (clientId: string, token = shared.accessToken) =>
+      `oxy_session:${clientId}:${token}`;
+    return { app, appId, client, person, bound, shared, presented };
   }
 
   async function instantLine(ownerAccountId: string) {
@@ -2096,6 +2116,115 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
       }),
     );
     expect([forged.status, forged.body.code]).toEqual([401, 'authentication_failed']);
+  });
+
+  it('attributes a shared session to the application whose public client id it is presented with', async () => {
+    const { app, appId, client, person, presented } = await astroStandIn();
+    await instantLine(app.accountId);
+    const request = inferenceRequest({
+      credential: presented(client.publicKey ?? ''),
+      target: { kind: 'level', level: 'instant' },
+      facts: smallFacts,
+    });
+    const grant = verifiedGrant(await authorize(request));
+    expect(grant.principal).toMatchObject({
+      billingAccountId: app.accountId,
+      applicationId: appId,
+      credentialId: client.id,
+      lane: 'product_session',
+      authority: 'first_party',
+    });
+    expect(grant.userId).toBe(person);
+    expect(grant.economics).toMatchObject({ relationshipId: 'astro-kaana-session' });
+  });
+
+  it('refuses a shared session presented with the client id of an application without such terms', async () => {
+    const withTerms = await astroStandIn();
+    await instantLine(withTerms.app.accountId);
+    const other = await astroStandIn({ terms: false });
+    const result = await authorize(
+      inferenceRequest({
+        credential: withTerms.presented(other.client.publicKey ?? ''),
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([result.status, result.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('refuses an unknown or revoked client id, and a malformed presentation', async () => {
+    const { app, client, presented } = await astroStandIn();
+    await instantLine(app.accountId);
+    const ask = (credential: string) =>
+      authorize(
+        inferenceRequest({
+          credential,
+          target: { kind: 'level', level: 'instant' },
+          facts: smallFacts,
+        }),
+      );
+    const unknown = await ask(presented(`oxy_dk_${tag()}`));
+    expect([unknown.status, unknown.body.code]).toEqual([403, 'permission_denied']);
+    for (const malformed of ['oxy_session:', 'oxy_session::token', 'oxy_session:no-token']) {
+      const result = await ask(malformed);
+      expect([result.status, result.body.code]).toEqual([401, 'authentication_failed']);
+    }
+    const forged = await ask(presented(client.publicKey ?? '', 'not-a-session'));
+    expect([forged.status, forged.body.code]).toEqual([401, 'authentication_failed']);
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, client.id));
+    const revoked = await ask(presented(client.publicKey ?? ''));
+    expect([revoked.status, revoked.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('still resolves an application-bound session from its row, and refuses another client id beside it', async () => {
+    const { app, appId, bound, presented, client } = await astroStandIn();
+    await instantLine(app.accountId);
+    const viaRow = verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential: presented(client.publicKey ?? '', bound.accessToken),
+          target: { kind: 'level', level: 'instant' },
+          facts: smallFacts,
+        }),
+      ),
+    );
+    expect(viaRow.principal.applicationId).toBe(appId);
+    const other = await astroStandIn();
+    const mismatch = await authorize(
+      inferenceRequest({
+        credential: presented(other.client.publicKey ?? '', bound.accessToken),
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([mismatch.status, mismatch.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('refuses a person past their daily bound with quota_exceeded, and admits another person', async () => {
+    const { app, client, presented } = await astroStandIn({ maxRequestsPerUserPerUtcDay: 1 });
+    await instantLine(app.accountId);
+    const ask = (credential: string) =>
+      authorize(
+        inferenceRequest({
+          credential,
+          target: { kind: 'level', level: 'instant' },
+          facts: smallFacts,
+        }),
+      );
+    expect((await ask(presented(client.publicKey ?? ''))).status).toBe(200);
+    const over = await ask(presented(client.publicKey ?? ''));
+    expect([over.status, over.body.code]).toEqual([429, 'quota_exceeded']);
+    const someoneElse = await sessionService.createSession(
+      await makeAccount(),
+      { headers: {} } as Request,
+      { deviceId: randomUUID() },
+    );
+    expect((await ask(presented(client.publicKey ?? '', someoneElse.accessToken))).status).toBe(
+      200,
+    );
   });
 
   it('answers a session nothing but a grant: no catalogue, no receipt', async () => {
