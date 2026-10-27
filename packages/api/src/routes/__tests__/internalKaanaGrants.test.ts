@@ -15,7 +15,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import express from 'express';
+import express, { type Request } from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash, generateKeyPairSync, randomUUID, sign, verify } from 'node:crypto';
@@ -37,6 +37,7 @@ import {
 import { KAANA_SETTLEMENT_PUBLIC_KEYS_VARIABLE } from '../../config/kaanaSettlementKeys';
 import {
   ALIA_INFERENCE_CONSUMER_APPLICATION_ID,
+  ASTRO_INFERENCE_CONSUMER_APPLICATION_ID,
   CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
   INTERNAL_METERED_RELATIONSHIPS,
   MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
@@ -81,6 +82,7 @@ import {
   syncKaanaSettlementFeed,
   type SettlementFeedReader,
 } from '../../services/kaanaSettlement.service';
+import sessionService from '../../services/session.service';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
@@ -120,6 +122,8 @@ function rawPublicKey(publicKey: typeof kaanaSettlementKey.publicKey): string {
 
 const ENVIRONMENT = {
   ...EDGE_ROLLOUT_ENVIRONMENT,
+  ACCESS_TOKEN_SECRET: `access-${randomUUID()}`,
+  REFRESH_TOKEN_SECRET: `refresh-${randomUUID()}`,
   [KAANA_BASE_URL_VARIABLE]: 'https://kaana.ai',
   [KAANA_SIGNING_KEY_ID_VARIABLE]: EDGE_KEY_ID,
   [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: oxyEdge.privateKey
@@ -1873,6 +1877,239 @@ describe('Mention under its first-party relationships (production terms)', () =>
     );
     expect(named.status).toBe(403);
     expect(named.body.code).toBe('policy_violation');
+  });
+});
+
+describe('the product_session lane: a person’s own session (ADR 0050)', () => {
+  /**
+   * A fresh first-party application stands in for Astro, under Astro's
+   * production terms; its session is bound to it by the ROW, as an
+   * application-bound session is.
+   */
+  async function astroStandIn(options: { readonly terms?: boolean } = {}) {
+    const appId = randomUUID();
+    const app = await pinnedApplication(appId, 'Astro stand-in', []);
+    await getDb()
+      .update(applications)
+      .set({ type: 'first_party', isInternal: false })
+      .where(eq(applications.id, appId));
+    const [client] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: appId,
+        name: 'Sign in with Oxy',
+        type: 'public',
+        environment: 'production',
+        publicKey: `oxy_dk_${tag()}`,
+        scopes: ['user:read'],
+        status: 'active',
+        createdByUserId: app.accountId,
+      })
+      .returning({ id: applicationCredentials.id, publicKey: applicationCredentials.publicKey });
+    if (options.terms !== false) {
+      const resolveProduction = economicPolicy.resolveEconomicTreatment;
+      jest
+        .spyOn(economicPolicy, 'resolveEconomicTreatment')
+        .mockImplementation((principal, operation) =>
+          resolveProduction(
+            principal.applicationId === appId
+              ? { ...principal, applicationId: ASTRO_INFERENCE_CONSUMER_APPLICATION_ID }
+              : principal,
+            operation,
+          ),
+        );
+    }
+    const person = await makeAccount();
+    const bound = await sessionService.createSession(person, { headers: {} } as Request, {
+      deviceId: randomUUID(),
+      application: {
+        applicationId: appId,
+        clientId: client.publicKey ?? '',
+        scopes: ['user:read'],
+      },
+    });
+    return { app, appId, client, person, bound };
+  }
+
+  async function instantLine(ownerAccountId: string) {
+    return addModelLine(ownerAccountId, {
+      prices: {
+        requests: '0',
+        input_tokens: '0.1',
+        cached_input_tokens: '0.1',
+        output_tokens: '0.4',
+        reasoning_tokens: '0.4',
+      },
+      powerClass: 'instant',
+    });
+  }
+
+  const smallFacts = {
+    estimatedInputTokens: 900,
+    maxOutputTokens: 64,
+    declaredTools: 0,
+    stream: false,
+  };
+
+  it('grants the instant level, paid by the application’s owner, for the person the session proves', async () => {
+    const { app, appId, client, person, bound } = await astroStandIn();
+    await instantLine(app.accountId);
+    const request = inferenceRequest({
+      credential: bound.accessToken,
+      target: { kind: 'level', level: 'instant' },
+      facts: smallFacts,
+    });
+    const grant = verifiedGrant(await authorize(request));
+    expect(grant.principal).toMatchObject({
+      billingAccountId: app.accountId,
+      applicationId: appId,
+      environment: 'production',
+      authority: 'first_party',
+      lane: 'product_session',
+    });
+    expect(grant.userId).toBe(person);
+    expect(grant.economics).toMatchObject({
+      treatment: 'internal_metered',
+      relationshipId: 'astro-kaana-session',
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps[0]).toMatchObject({
+      target: { kind: 'level', level: 'instant' },
+      limits: { maxPricePerRequest: { amount: '0.004', currency: 'USD' } },
+    });
+    const [credential] = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.publicKey, client.publicKey ?? ''));
+    expect(grant.principal.credentialId).toBe(credential.id);
+    expect(await meteredRow(request.requestId as string)).toMatchObject({
+      delegatedUserId: person,
+      accountId: app.accountId,
+      economicRelationshipId: 'astro-kaana-session',
+    });
+
+    const same = await authorize(
+      inferenceRequest({
+        credential: bound.accessToken,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+        onBehalfOfUserId: person,
+      }),
+    );
+    expect(verifiedGrant(same).userId).toBe(person);
+  });
+
+  it('refuses a header naming anyone but the session’s person', async () => {
+    const { app, bound } = await astroStandIn();
+    await instantLine(app.accountId);
+    const result = await authorize(
+      inferenceRequest({
+        credential: bound.accessToken,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+        onBehalfOfUserId: await makeAccount(),
+      }),
+    );
+    expect(result.status).toBe(403);
+    expect(result.body.code).toBe('permission_denied');
+  });
+
+  it('holds the request to its terms: the level, the output, the input and the operation', async () => {
+    const { app, bound } = await astroStandIn();
+    const line = await instantLine(app.accountId);
+    const ask = (options: Partial<InferenceAuthorizationOptions>) =>
+      authorize(
+        inferenceRequest({
+          credential: bound.accessToken,
+          target: { kind: 'level', level: 'instant' },
+          facts: smallFacts,
+          ...options,
+        }),
+      );
+
+    const named = await ask({ target: { kind: 'model', modelLine: line.modelLine } });
+    expect([named.status, named.body.code]).toEqual([403, 'policy_violation']);
+    const medium = await ask({ target: { kind: 'level', level: 'medium' } });
+    expect([medium.status, medium.body.code]).toEqual([403, 'policy_violation']);
+    const longOutput = await ask({ facts: { ...smallFacts, maxOutputTokens: 513 } });
+    expect([longOutput.status, longOutput.body.code]).toEqual([400, 'output_limit_exceeded']);
+    const noLimit = await ask({
+      facts: { estimatedInputTokens: 900, declaredTools: 0, stream: false },
+    });
+    expect([noLimit.status, noLimit.body.code]).toEqual([400, 'output_limit_exceeded']);
+    const longInput = await ask({ facts: { ...smallFacts, estimatedInputTokens: 8_001 } });
+    expect([longInput.status, longInput.body.code]).toEqual([400, 'context_length_exceeded']);
+    const chat = await ask({ operation: 'chat_completions' });
+    expect([chat.status, chat.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('refuses an application with no product-session terms, charging nobody', async () => {
+    const { app, appId, bound } = await astroStandIn({ terms: false });
+    await instantLine(app.accountId);
+    const request = inferenceRequest({
+      credential: bound.accessToken,
+      target: { kind: 'level', level: 'instant' },
+      facts: smallFacts,
+    });
+    const result = await authorize(request);
+    expect([result.status, result.body.code]).toEqual([403, 'permission_denied']);
+    expect(await meteredRow(request.requestId as string)).toBeUndefined();
+    expect(
+      await getDb().select().from(kaanaGrants).where(eq(kaanaGrants.applicationId, appId)),
+    ).toHaveLength(0);
+  });
+
+  it('refuses the shared device session every official app holds: it names no application', async () => {
+    const { app } = await astroStandIn();
+    await instantLine(app.accountId);
+    const person = await makeAccount();
+    const shared = await sessionService.createSession(person, { headers: {} } as Request, {
+      deviceId: randomUUID(),
+    });
+    const result = await authorize(
+      inferenceRequest({
+        credential: shared.accessToken,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([result.status, result.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('refuses a revoked session and a forged bearer as authentication failures', async () => {
+    const { app, bound } = await astroStandIn();
+    await instantLine(app.accountId);
+    await sessionService.deactivateSession(bound.sessionId);
+    const revoked = await authorize(
+      inferenceRequest({
+        credential: bound.accessToken,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([revoked.status, revoked.body.code]).toEqual([401, 'authentication_failed']);
+    const forged = await authorize(
+      inferenceRequest({
+        credential: `${bound.accessToken.slice(0, -4)}AAAA`,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([forged.status, forged.body.code]).toEqual([401, 'authentication_failed']);
+  });
+
+  it('answers a session nothing but a grant: no catalogue, no receipt', async () => {
+    const { bound } = await astroStandIn();
+    for (const kind of ['catalogue.read', 'receipt.read']) {
+      const result = await authorize({
+        schemaVersion: 1,
+        kind,
+        credential: bound.accessToken,
+        requestId: `kreq_${tag()}`,
+        ...(kind === 'receipt.read' ? { generationId: `gen_${tag()}` } : {}),
+      });
+      expect([result.status, result.body.code]).toEqual([403, 'permission_denied']);
+    }
   });
 });
 

@@ -17,7 +17,7 @@ the client reference. Status of the whole platform: [status.md](./status.md).
 | You have | Lane | How it travels |
 |---|---|---|
 | `oxy_sk_…` machine key | OpenAI-style | one bearer string, sent verbatim, no exchange |
-| An Oxy session (a signed-in app) | Oxy auth | the session's own access token, re-read per request |
+| An Oxy session (a signed-in app) | Oxy auth | the session's own access token, re-read per request; served only on `kaana.ai/v1` under reviewed terms ([ADR 0050](../adr/0050-product-session-inference-on-kaana.md)) |
 | Registered own workload | Shared service transport | short-lived scope-less authority with live binding and exact audience |
 | External `clientId` + `clientSecret` | External service token | bounded scopes and live credential revocation |
 
@@ -47,6 +47,14 @@ import { createInferenceClient } from '@oxy.so/core/inference';
 
 const inference = createInferenceClient(oxyServices);
 ```
+
+`createInferenceClient` sends the session to `api.oxy.so/v1`, which refuses it:
+the old edge never admits a session and is deleted in Kaana ADR 0002's phase 5.
+A session is a credential on `https://kaana.ai/v1` only, for an application with
+reviewed product-session terms ([ADR 0050](../adr/0050-product-session-inference-on-kaana.md),
+[kaana-grants.md](./kaana-grants.md#the-callers-credential)): `Authorization:
+Bearer <the session's access token>`, re-read on every request, the level in
+`model` (`"instant"`) and `maxOutputTokens` set.
 
 Own backends use their workload-configured `OxyServer` and a product SDK's
 service factory. For the Oxy HTTP edge, the shared transport is:

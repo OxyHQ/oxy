@@ -110,6 +110,13 @@ policy and route, reserves spend when charging is authorized, and forwards only
 an exact signed request to Kaana. It never falls back to the Alia proxy, derives
 an opaque ID from a name/order, or fabricates a completion.
 
+The grant API also admits a person's own session (`product_session`,
+[ADR 0050](../adr/0050-product-session-inference-on-kaana.md), proposed) for an
+application the session row names and the economic policy gives reviewed
+terms; Astro's (`astro-kaana-session`) are in source. Astro's sign-in is the
+shared device session, which names no application, so Astro is refused until
+ADR 0050's open question is decided. The old edge still refuses sessions.
+
 ### The catalogue's contents — workstream 5
 
 The internal catalogue's contents come from the Kaana sync (ADR 0027); verify a

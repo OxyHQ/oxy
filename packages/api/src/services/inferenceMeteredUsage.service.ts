@@ -93,7 +93,7 @@ export type MeteredAdmission =
   | { readonly status: 'duplicate' }
   | {
       readonly status: 'capacity-exceeded';
-      readonly limit: 'concurrency' | 'daily';
+      readonly limit: 'concurrency' | 'daily' | 'user-daily';
       readonly capacity: InternalMeteredCapacity;
     }
   /** A Console realtime-session limit is reached (`application` or `credential`). */
@@ -135,8 +135,9 @@ export async function readMeteredCapacity(
   applicationId: string,
   environment: InferenceEnvironment,
   relationshipId?: string,
-): Promise<{ activeAdmissions: number; dailyAdmissions: number }> {
-  const [counts] = await executeRows<{ in_flight: string; today: string }>(
+  delegatedUserId?: string,
+): Promise<{ activeAdmissions: number; dailyAdmissions: number; userDailyAdmissions: number }> {
+  const [counts] = await executeRows<{ in_flight: string; today: string; user_today: string }>(
     executor,
     sql`
       select
@@ -144,7 +145,10 @@ export async function readMeteredCapacity(
           and ${inferenceMeteredUsage.expiresAt} > now()
           and ${inferenceMeteredUsage.endpoint} <> ${REALTIME_SESSION_ENDPOINT})::text as in_flight,
         count(*) filter (where ${inferenceMeteredUsage.createdAt}
-          >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))::text as today
+          >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))::text as today,
+        count(*) filter (where ${inferenceMeteredUsage.createdAt}
+          >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc')
+          and ${inferenceMeteredUsage.delegatedUserId} = ${delegatedUserId ?? null})::text as user_today
       from ${inferenceMeteredUsage}
       where ${inferenceMeteredUsage.applicationId} = ${applicationId}
         and ${inferenceMeteredUsage.environment} = ${environment}
@@ -156,6 +160,7 @@ export async function readMeteredCapacity(
   return {
     activeAdmissions: Number(counts?.in_flight ?? 0),
     dailyAdmissions: Number(counts?.today ?? 0),
+    userDailyAdmissions: Number(counts?.user_today ?? 0),
   };
 }
 
@@ -203,12 +208,21 @@ export async function claimMeteredAdmission(
         input.applicationId,
         input.environment,
         capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined,
+        input.delegatedUserId,
       );
       if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
         return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
       }
       if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
         return { status: 'capacity-exceeded', limit: 'daily', capacity };
+      }
+      // A per-person bound with no person to count against admits nobody.
+      if (
+        capacity.maxRequestsPerUserPerUtcDay !== undefined &&
+        (input.delegatedUserId === undefined ||
+          counts.userDailyAdmissions >= capacity.maxRequestsPerUserPerUtcDay)
+      ) {
+        return { status: 'capacity-exceeded', limit: 'user-daily', capacity };
       }
     }
 

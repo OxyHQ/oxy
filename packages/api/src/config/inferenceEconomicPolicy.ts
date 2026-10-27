@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-27.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -80,6 +80,13 @@ export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e6
 export const MENTION_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
+ * Astro's application (the browser; no backend), pinned. Its one-shot features
+ * reach `kaana.ai/v1` with the signed-in person's own Oxy session, on the
+ * `product_session` lane (ADR 0050).
+ */
+export const ASTRO_INFERENCE_CONSUMER_APPLICATION_ID = 'c08f19e22ae6e86eb1d50361';
+
+/**
  * The one route Clarity's search embeddings run on: `qwen/qwen3-embedding-8b`
  * served by OpenRouter (zero data retention), as Kaana's publisher minted it.
  */
@@ -97,6 +104,12 @@ export interface InternalMeteredCapacity {
   readonly maxRequestsPerUtcDay: number;
   /** Default remains all application traffic; a reviewed feature may own a separate budget. */
   readonly scope?: 'relationship';
+  /**
+   * Requests admitted per UTC day for ONE person, counted on the same rows by
+   * their attributed user. Only a `product_session` relationship sets it: the
+   * person is the one the session proves, so the bound is theirs.
+   */
+  readonly maxRequestsPerUserPerUtcDay?: number;
 }
 
 /**
@@ -294,10 +307,13 @@ export interface InternalMeteredRelationship {
   readonly environments: readonly InferenceEnvironment[];
   /**
    * The lane the caller must have authenticated on. `service_token` is the
-   * workload/service credential lane a product backend uses; a customer-mintable
-   * machine key or a human product session never qualifies.
+   * workload/service credential lane a product backend uses. `product_session`
+   * is a person's own session for an application named by the session ROW
+   * (ADR 0050); it is admitted only under a relationship that names it, its
+   * operations and a per-person bound. A customer-mintable machine key never
+   * qualifies.
    */
-  readonly lane: 'service_token';
+  readonly lane: 'service_token' | 'product_session';
   /**
    * The operations it covers, in the grant API's vocabulary. Absent: every
    * operation. Present, the relationship applies only to a grant naming one of
@@ -521,6 +537,47 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         maxInputTokens: 32_000,
         maxOutputTokens: 8_192,
         maxPricePerRequestUsd: '0.035',
+      },
+    },
+  },
+  {
+    relationshipId: 'astro-kaana-session',
+    consumerApplicationId: ASTRO_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'astro',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'product_session',
+    // Proposed 2026-10-27 (ADR 0050), pending the owner's review. Astro's
+    // one-shot features (name a tab group and pick its emoji, shorten a pinned
+    // tab's title, propose a download's filename, summarise a YouTube
+    // transcript): one small `responses` request each, no conversation.
+    operations: ['responses'],
+    consumerApplicationClass: 'first_party',
+    // Astro has no measured traffic yet. 200 a person a day is several times
+    // a heavy day of tab groups, pins and downloads; 10,000 a day for the
+    // application bounds the whole day at USD 40 even if every request quoted
+    // the ceiling. 16 in flight covers a burst of group names. Each refuses
+    // with a 429 and never asks for a top-up; Console may change the
+    // application's two, the per-person bound is this file's.
+    capacity: {
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 10_000,
+      maxRequestsPerUserPerUtcDay: 200,
+      scope: 'relationship',
+    },
+    pilot: {
+      // The video summary sends a transcript trimmed to about 24,000
+      // characters (about 6,000 estimated tokens plus its instructions) and
+      // asks for about 400 tokens; a group name, a pinned title and a filename
+      // send under 1,000 and ask for at most 64. So 8,000 input and 512 output.
+      // The dearest `instant` lines Kaana lists (2026-10-19: USD 0.30 in /
+      // 2.50 out per 1M) quote USD 0.00368 at the full 8,000 + 512; USD 0.004
+      // admits every instant line at that size.
+      levelText: {
+        levels: ['instant'],
+        maxInputTokens: 8_000,
+        maxOutputTokens: 512,
+        maxPricePerRequestUsd: '0.004',
       },
     },
   },

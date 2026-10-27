@@ -10,7 +10,8 @@
  * ## The order, and what it reuses
  *
  * ```text
- * 1. the credential        authenticateInferenceBearer — the edge's two lanes, audience kaana.ai
+ * 1. the credential        authenticateInferenceBearer — the edge's two lanes, audience kaana.ai;
+ *                          or authenticateProductSession — a person's session (ADR 0050)
  * 2. scope, attribution    inference:invoke; X-Oxy-User-Id as attribution only
  * 3. treatment             resolveEconomicTreatment — the same versioned policy
  * 4. the operation         facts → the units its hold is sized in; unsound facts refuse
@@ -54,8 +55,9 @@
  *
  *  - A COMMERCIAL realtime session: the authorization's facts carry no session
  *    duration, so no hold Oxy could size from them would be a bound.
- *  - The `product_session` lane: a user session needs the new public
- *    credential the ADR names, and Inbox's session check, first.
+ *  - A `product_session` for an application with no reviewed terms: the lane
+ *    (ADR 0050) is admitted only under a relationship that names it, and the
+ *    person is the session's, never a header's.
  *
  * Each is a typed refusal, never a grant on different terms.
  *
@@ -192,6 +194,12 @@ export interface AuthorizeInferenceInput {
   readonly principal: EdgePrincipal;
   /** The Oxy edge key; absent when this deployment has no Kaana binding. */
   readonly signing: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'> | undefined;
+  /**
+   * The person a `product_session` principal's session proves (its subject
+   * account), from the session row. Required on that lane and absent on every
+   * other: it is the request's attributed user, never a header's.
+   */
+  readonly sessionUserId?: string;
   readonly now?: () => number;
 }
 
@@ -722,13 +730,14 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       reason: 'grant-signing-not-configured',
     });
   }
+  const economics = resolveEconomicTreatment(principal, request.operation);
+  const delegatedUserId = productSessionUser(input, economics);
   if (!hasInferenceScope(principal, 'inference:invoke')) {
     throw new GrantRefusal(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.',
     );
   }
-  const economics = resolveEconomicTreatment(principal, request.operation);
   const plan = planOperation(request);
 
   // Decisions are granted only under an economic relationship's decisions terms.
@@ -1096,7 +1105,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   const limits = await readApplicationInferenceLimits(principal.applicationId);
   const claimEconomics = withConsoleCapacity(economics, limits);
   const endpoint = GRANT_ENDPOINTS[request.operation];
-  const delegatedUserId = request.onBehalfOfUserId;
   const expiresInSeconds =
     plan.family === 'realtime' ? REALTIME_GRANT_SLOT_SECONDS : RESERVATION_TTL_SECONDS;
   const requestedReference =
@@ -1153,13 +1161,19 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
             'This application has reached its concurrent inference capacity. Try again shortly.',
             { reason: 'internal-capacity-concurrency' },
           )
-        : new GrantRefusal(
-            'quota_exceeded',
-            'This application has reached its daily inference capacity.',
-            {
-              reason: 'internal-capacity-daily',
-            },
-          );
+        : claim.limit === 'user-daily'
+          ? new GrantRefusal(
+              'quota_exceeded',
+              'You have reached this application’s daily inference limit.',
+              { reason: 'internal-capacity-user-daily' },
+            )
+          : new GrantRefusal(
+              'quota_exceeded',
+              'This application has reached its daily inference capacity.',
+              {
+                reason: 'internal-capacity-daily',
+              },
+            );
   }
   const meteredUsageId = claim.meteredUsageId;
 
@@ -1308,6 +1322,42 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * The request's attributed user. On every lane but `product_session` it is
+ * `X-Oxy-User-Id`, attribution only. On `product_session` it is the person the
+ * session proves, and the lane is admitted only under a relationship that names
+ * it (ADR 0050): with no reviewed terms the application's owner is never
+ * charged for a person's session, and a header naming someone else is refused
+ * rather than recorded.
+ */
+function productSessionUser(
+  input: AuthorizeInferenceInput,
+  economics: EconomicTreatmentDecision,
+): string | undefined {
+  const { request, principal, sessionUserId } = input;
+  if (principal.lane !== 'product_session') return request.onBehalfOfUserId;
+  if (sessionUserId === undefined) {
+    throw new GrantRefusal('authentication_failed', 'This session could not be verified.', {
+      reason: 'product-session-without-user',
+    });
+  }
+  if (economics.treatment !== 'internal_metered') {
+    throw new GrantRefusal(
+      'permission_denied',
+      'This application does not offer inference with a signed-in session.',
+      { reason: 'product-session-not-enabled' },
+    );
+  }
+  if (request.onBehalfOfUserId !== undefined && request.onBehalfOfUserId !== sessionUserId) {
+    throw new GrantRefusal(
+      'permission_denied',
+      'X-Oxy-User-Id must name the signed-in person, or be omitted.',
+      { param: 'X-Oxy-User-Id', reason: 'product-session-user-mismatch' },
+    );
+  }
+  return sessionUserId;
+}
 
 /** The caller-facing reason a named model has no route, as the edge words it. */
 function refusalForResolution(

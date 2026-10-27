@@ -26,6 +26,11 @@
  * machine lane's per-credential and per-application rate limits apply with the
  * SAME Redis buckets the edge uses, so a key's budget is one budget across both
  * surfaces. Refusals are the public error Kaana relays to its client.
+ *
+ * A bearer neither lane recognises as its own (`service_not_service`) is tried
+ * as a person's session, the `product_session` lane (ADR 0050): only for a
+ * grant, never for a catalogue or receipt read, and only under an
+ * application's reviewed product-session terms.
  */
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -53,6 +58,7 @@ import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { authenticateInferenceBearer, type EdgePrincipal } from '../services/inferenceEdge.service';
 import { authorizeInference, publicError } from '../services/kaanaGrant.service';
+import { authenticateProductSession } from '../services/productSessionPrincipal.service';
 import { authorizeCatalogueRead, authorizeReceiptRead } from '../services/kaanaGrantReads.service';
 import {
   KAANA_KEY_ID_HEADER,
@@ -71,6 +77,8 @@ export const MAX_SETTLEMENT_BYTES = 256 * 1024;
 interface GrantRequest extends MachineCredentialRequest {
   grantRequest?: AuthorizationRequest;
   grantPrincipal?: EdgePrincipal;
+  /** The session's person, on the `product_session` lane only. */
+  grantSessionUserId?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -144,6 +152,10 @@ async function parseAndAuthenticate(
     request.credential,
     KAANA_PUBLIC_AUDIENCE,
   );
+  if (!authentication.ok && authentication.reason === 'service_not_service') {
+    await authenticateSession(req, res, next, request);
+    return;
+  }
   if (!authentication.ok) {
     logger.warn('inference.grant.authentication_failed', {
       requestId: request.requestId,
@@ -160,6 +172,54 @@ async function parseAndAuthenticate(
   req.grantPrincipal = authentication.principal;
   if (authentication.machinePrincipal !== undefined)
     req.machineCredential = authentication.machinePrincipal;
+  next();
+}
+
+const SESSION_AUTHENTICATION_MESSAGE = 'The Oxy session is not valid. Sign in again, then retry.';
+
+/** The `product_session` lane: a person's session, for a grant only (ADR 0050). */
+async function authenticateSession(
+  req: GrantRequest,
+  res: Response,
+  next: NextFunction,
+  request: AuthorizationRequest,
+): Promise<void> {
+  const session = await authenticateProductSession(request.credential);
+  if (!session.ok) {
+    logger.warn('inference.grant.authentication_failed', {
+      requestId: request.requestId,
+      kind: request.kind,
+      lane: 'product_session',
+      reason: session.reason,
+    });
+    sendPublicError(
+      res,
+      session.refusal === 'authentication'
+        ? publicError(request.requestId, 'authentication_failed', SESSION_AUTHENTICATION_MESSAGE)
+        : publicError(
+            request.requestId,
+            'permission_denied',
+            'This session does not name an application that offers inference with a signed-in session.',
+          ),
+    );
+    return;
+  }
+  // A catalogue read is the application's, and a receipt is the credential's:
+  // one session must not read what another person of the same app generated.
+  if (request.kind !== 'inference') {
+    sendPublicError(
+      res,
+      publicError(
+        request.requestId,
+        'permission_denied',
+        'A signed-in session may request inference only.',
+      ),
+    );
+    return;
+  }
+  req.grantRequest = request;
+  req.grantPrincipal = session.principal;
+  req.grantSessionUserId = session.sessionUserId;
   next();
 }
 
@@ -244,6 +304,7 @@ async function respondToAuthorization(req: GrantRequest, res: Response): Promise
         request,
         principal,
         signing: plane.status === 'configured' ? plane.config : undefined,
+        ...(req.grantSessionUserId === undefined ? {} : { sessionUserId: req.grantSessionUserId }),
       });
       if (decision.status === 'refused') {
         sendPublicError(res, decision.error);
