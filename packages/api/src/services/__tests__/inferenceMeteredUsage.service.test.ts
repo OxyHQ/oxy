@@ -314,6 +314,40 @@ describe('technical capacity for internal_metered', () => {
     });
   });
 
+  it('bounds each person’s day apart from the application’s, and admits no unattributed request', async () => {
+    const fixture = await makeFixture();
+    const economics = internal(
+      {
+        maxConcurrentRequests: 10,
+        maxRequestsPerUtcDay: 10,
+        maxRequestsPerUserPerUtcDay: 2,
+        scope: 'relationship',
+      },
+      fixture.applicationId,
+    );
+    const person = randomUUID();
+    const other = randomUUID();
+    for (let i = 0; i < 2; i += 1) {
+      const claim = await claimMeteredAdmission({
+        ...admission(fixture, economics),
+        delegatedUserId: person,
+      });
+      if (claim.status !== 'claimed') throw new Error('fixture claim failed');
+      await settle(fixture, claim.meteredUsageId);
+    }
+    expect(
+      await claimMeteredAdmission({ ...admission(fixture, economics), delegatedUserId: person }),
+    ).toMatchObject({ status: 'capacity-exceeded', limit: 'user-daily' });
+    expect(
+      (await claimMeteredAdmission({ ...admission(fixture, economics), delegatedUserId: other }))
+        .status,
+    ).toBe('claimed');
+    expect(await claimMeteredAdmission(admission(fixture, economics))).toMatchObject({
+      status: 'capacity-exceeded',
+      limit: 'user-daily',
+    });
+  });
+
   it.each([0, 1])(
     'readback and admission count 32 live requests across treatments (%i internal)',
     async (internalCount) => {

@@ -34,8 +34,10 @@ export async function readJevTechnicalMetering(
   );
   if (schema?.available !== true)
     return { schemaAvailable: false, activeAdmissions: 0, dailyAdmissions: 0 };
-  return {
-    schemaAvailable: true,
-    ...(await readMeteredCapacity(executor, applicationId, environment)),
-  };
+  const { activeAdmissions, dailyAdmissions } = await readMeteredCapacity(
+    executor,
+    applicationId,
+    environment,
+  );
+  return { schemaAvailable: true, activeAdmissions, dailyAdmissions };
 }

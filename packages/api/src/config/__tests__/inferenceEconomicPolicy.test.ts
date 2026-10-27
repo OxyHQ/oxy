@@ -6,6 +6,7 @@
 
 import {
   ALIA_INFERENCE_CONSUMER_APPLICATION_ID,
+  ASTRO_INFERENCE_CONSUMER_APPLICATION_ID,
   CLARITY_EMBEDDINGS_DEPLOYMENT,
   CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
   INFERENCE_ECONOMIC_POLICY_VERSION,
@@ -226,8 +227,98 @@ describe('Mention: decisions and level text, each its own relationship; nothing 
         .treatment,
     ).toBe('commercial');
   });
+});
+
+describe('astro-kaana-session: Astro’s one-shot features on a person’s session (ADR 0050)', () => {
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'astro-kaana-session',
+  );
+  const astro: EconomicTreatmentPrincipal = {
+    lane: 'product_session',
+    applicationId: ASTRO_INFERENCE_CONSUMER_APPLICATION_ID,
+    environment: 'production',
+    applicationIsInternal: false,
+    applicationType: 'first_party',
+  };
+
+  it('pins Astro’s registered application', () => {
+    expect(ASTRO_INFERENCE_CONSUMER_APPLICATION_ID).toBe('c08f19e22ae6e86eb1d50361');
+  });
+
+  it('applies to Astro’s product session for responses only, and to no other lane or class', () => {
+    expect(resolveEconomicTreatment(astro, 'responses')).toMatchObject({
+      treatment: 'internal_metered',
+      relationship: { relationshipId: 'astro-kaana-session', lane: 'product_session' },
+    });
+    for (const operation of ['chat_completions', 'embeddings', 'audio_speech'] as const) {
+      expect(resolveEconomicTreatment(astro, operation).treatment).toBe('commercial');
+    }
+    expect(resolveEconomicTreatment(astro).treatment).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...astro, lane: 'service_token' }, 'responses').treatment,
+    ).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...astro, lane: 'machine_credential' }, 'responses').treatment,
+    ).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...astro, applicationType: 'third_party' }, 'responses').treatment,
+    ).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...astro, environment: 'development' }, 'responses').treatment,
+    ).toBe('commercial');
+  });
+
+  it('serves the instant level only, at 8,000 input and 512 output tokens, under USD 0.004', () => {
+    const pilot = relationship?.pilot;
+    expect(pilot).toBeDefined();
+    if (pilot === undefined) return;
+    expect(pilotTextTerms(pilot)).toBeUndefined();
+    expect(Object.keys(pilot)).toEqual(['levelText']);
+    expect(pilot.levelText).toEqual({
+      levels: ['instant'],
+      maxInputTokens: 8_000,
+      maxOutputTokens: 512,
+      maxPricePerRequestUsd: '0.004',
+    });
+    // The dearest instant line (USD 0.30 in, 2.50 out per 1M) at full size, in micro-dollars.
+    const quoteMicroUsd = (8_000 * 0.3 + 512 * 2.5) * 1;
+    expect(quoteMicroUsd).toBeLessThanOrEqual(4_000);
+  });
+
+  it('bounds each person’s day, the application’s day and its requests in flight', () => {
+    expect(relationship?.capacity).toEqual({
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 10_000,
+      maxRequestsPerUserPerUtcDay: 200,
+      scope: 'relationship',
+    });
+  });
+
+  it('is the only relationship on the product_session lane, and every such one bounds a person', () => {
+    const sessions = INTERNAL_METERED_RELATIONSHIPS.filter(
+      (candidate) => candidate.lane === 'product_session',
+    );
+    expect(sessions.map((candidate) => candidate.relationshipId)).toEqual(['astro-kaana-session']);
+    for (const candidate of sessions) {
+      expect(candidate.capacity.maxRequestsPerUserPerUtcDay).toBeGreaterThan(0);
+      expect(candidate.operations).toBeDefined();
+      expect(candidate.consumerApplicationClass).toBe('first_party');
+    }
+  });
+
+  it('accepts a shared session by public client id for Astro only, and only with a per-person bound', () => {
+    expect(relationship?.sharedSessionAttribution).toBe('public_client_id');
+    const accepting = INTERNAL_METERED_RELATIONSHIPS.filter(
+      (candidate) => candidate.sharedSessionAttribution !== undefined,
+    );
+    expect(accepting.map((candidate) => candidate.relationshipId)).toEqual(['astro-kaana-session']);
+    for (const candidate of accepting) {
+      expect(candidate.lane).toBe('product_session');
+      expect(candidate.capacity.maxRequestsPerUserPerUtcDay).toBeGreaterThan(0);
+    }
+  });
 
   it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-19.2');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-27.2');
   });
 });
