@@ -43,10 +43,15 @@ public class OxyAssetFilesModule: Module {
         if self.cancelled(id) {
           throw NSError(domain: "OxyAssetFiles", code: 2, userInfo: [NSLocalizedDescriptionKey: "Upload hash cancelled"])
         }
-        let data = try input.read(upToCount: 1024 * 1024) ?? Data()
-        if data.isEmpty { break }
-        digest.update(data: data)
-        loaded += data.count
+        // Drain Foundation's temporary buffers on every iteration, not at the
+        // end of a multi-gigabyte worker invocation.
+        let count = try autoreleasepool { () throws -> Int in
+          let data = try input.read(upToCount: 1024 * 1024) ?? Data()
+          digest.update(data: data)
+          return data.count
+        }
+        if count == 0 { break }
+        loaded += count
         let now = ProcessInfo.processInfo.systemUptime
         if now - lastProgress >= 0.1 || Double(loaded) == expectedSize {
           lastProgress = now
