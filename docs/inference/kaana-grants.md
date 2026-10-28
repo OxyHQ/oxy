@@ -277,14 +277,22 @@ carry its hold, so a shadow-metering deployment answers 503 instead.
 ## Realtime and transcription for `alia-kaana` (Alia ADR 0017)
 
 Terms in `config/inferenceEconomicPolicy.ts` (policy version
-`oxy-inference-economics/2026-10-15.2`, unchanged in `.3`), read only by the grant API:
+`oxy-inference-economics/2026-10-15.2`, unchanged in `.3`; `transcription`
+sessions added in `2026-10-28.2`), read only by the grant API:
 
-- **`realtime_session`** (`conversation`): a line is admitted when ONE MINUTE of
+- **`realtime_session`** (`conversation` and, since `2026-10-28.2`,
+  `transcription`: Alia's word-by-word dictation, Kaana ADR 0006 and Alia ADR
+  0024, approved by the owner on 2026-10-28): a line is admitted when ONE MINUTE of
   it quotes at most **USD 0.25**, over audio in, audio out, session time and,
   where the line prices it apart, the input transcription of that minute
   (`input_transcription_milliseconds`, `@kaana.ai/contracts` 4.1.0). Token-priced
   realtime lines have no per-minute bound and are not admitted. No hold; the
   usage row is the session's slot (`/v1/realtime`, up to 75 min unless settled).
+  A transcription line is xAI's `grok-voice-transcribe-2.0`, declared with its
+  file transcription in `audio_input_milliseconds` ($0.10/h), its stream in
+  `session_milliseconds` ($0.20/h) and `audio_output_milliseconds` at zero: a
+  minute quotes $0.005 and the stream settles its wall clock. One dictation is
+  one grant (and one capacity request) instead of one per phrase.
 - **`audio_transcriptions`**: at most **300 000 ms** (Alia's 5-minute clip) and
   **USD 0.05** per request. The hold is the measured duration; a line that also
   prices `requests` is quoted with one request, a line that prices the duration
