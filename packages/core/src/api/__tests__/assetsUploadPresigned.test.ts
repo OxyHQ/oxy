@@ -340,11 +340,16 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       const sent: SentXhr[] = [];
       installXhr(() => native, sent, order);
 
+      const onStageProgress = jest.fn();
       const result = await oxy.assets.upload(
         { uri: 'file:///data/clip.mp4', type: 'video/mp4', name: 'clip.mp4' },
-        { visibility: 'public', metadata: { source: 'camera' } },
+        { visibility: 'public', metadata: { source: 'camera' }, onStageProgress },
       );
 
+      expect(onStageProgress.mock.calls[0][0]).toEqual({ phase: 'read', loaded: 0, total: null });
+      expect(onStageProgress).toHaveBeenCalledWith({ phase: 'read', loaded: OVER, total: OVER });
+      expect(onStageProgress).toHaveBeenCalledWith({ phase: 'hash', loaded: OVER, total: OVER });
+      expect(onStageProgress).toHaveBeenCalledWith({ phase: 'upload', loaded: OVER, total: OVER });
       // Never Expo's fetch, which would copy the video into the JS heap.
       expect(fetchMock).not.toHaveBeenCalled();
       expect(order).toEqual([
@@ -385,27 +390,58 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       expect(native.closed).toBe(true);
     });
 
-    it('a uri only RN’s FormData can open still uploads multipart, as before', async () => {
+    it.each([undefined, OVER])(
+      'rejects an unreadable file (size %s) before sending an unbounded multipart body',
+      async (size) => {
+        const { oxy, order } = stubApi(() => openSession(OVER));
+        class UnreadableXhr {
+          onerror?: () => void;
+          open() {}
+          send() {
+            order.push('GET (refused)');
+            this.onerror?.();
+          }
+        }
+        Reflect.set(globalThis, 'XMLHttpRequest', UnreadableXhr);
+        const appended: unknown[] = [];
+        jest.spyOn(FormData.prototype, 'append').mockImplementation((name, value) => {
+          if (name === 'file') appended.push(value);
+        });
+        const descriptor = {
+          uri: 'ph://library/asset',
+          type: 'image/heic',
+          name: 'photo.heic',
+          size,
+        };
+
+        await expect(oxy.assets.upload(descriptor)).rejects.toThrow('Failed to read file from uri');
+
+        expect(order).toEqual(['GET (refused)']);
+        expect(appended).toEqual([]);
+      },
+    );
+
+    it('bounds a native read and reports its stage without issuing any API request', async () => {
       const { oxy, order } = stubApi(() => openSession(OVER));
-      class UnreadableXhr {
-        onerror?: () => void;
+      class TimedOutXhr {
+        timeout = 0;
+        ontimeout?: () => void;
         open() {}
         send() {
-          order.push('GET (refused)');
-          this.onerror?.();
+          expect(this.timeout).toBe(1234);
+          this.ontimeout?.();
         }
       }
-      Reflect.set(globalThis, 'XMLHttpRequest', UnreadableXhr);
-      const appended: unknown[] = [];
-      jest.spyOn(FormData.prototype, 'append').mockImplementation((name, value) => {
-        if (name === 'file') appended.push(value);
-      });
-      const descriptor = { uri: 'ph://library/asset', type: 'image/heic', name: 'photo.heic' };
-
-      await oxy.assets.upload(descriptor);
-
-      expect(order).toEqual(['GET (refused)', '/assets/upload']);
-      expect(appended).toEqual([descriptor]);
+      Reflect.set(globalThis, 'XMLHttpRequest', TimedOutXhr);
+      const onStageProgress = jest.fn();
+      await expect(
+        oxy.assets.upload(
+          { uri: 'file:///data/clip.mp4', type: 'video/mp4' },
+          { timeout: 1234, onStageProgress },
+        ),
+      ).rejects.toThrow('Native file read timed out');
+      expect(order).toEqual([]);
+      expect(onStageProgress.mock.calls).toEqual([[{ phase: 'read', loaded: 0, total: null }]]);
     });
 
     it('a descriptor whose size says small is never read in JS at all', async () => {

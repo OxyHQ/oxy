@@ -100,6 +100,7 @@ export type {
   UploadedAsset,
   AssetLinkState,
   AssetUploadOptions,
+  AssetUploadStageProgress,
   AssetLinkTarget,
   AssetDeleteResult,
   CompletedAssetUpload,

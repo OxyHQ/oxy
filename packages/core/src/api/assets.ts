@@ -119,10 +119,19 @@ export interface AssetLinkState {
   status: Asset['status'];
 }
 
+export interface AssetUploadStageProgress {
+  phase: 'read' | LargeUploadProgress['phase'];
+  loaded: number;
+  /** Null until the native file provider supplies its size. */
+  total: number | null;
+}
+
 export interface AssetUploadOptions {
   /** Server default: `private`. */
   visibility?: FileVisibility;
   metadata?: AssetMetadata;
+  /** Byte progress for native reading and the direct-upload pipeline. */
+  onStageProgress?: (progress: AssetUploadStageProgress) => void;
   /** Called with `100` once the upload completes. */
   onProgress?: (progress: number) => void;
   /**
@@ -265,11 +274,24 @@ async function sha256OfBlob(blob: Blob, onChunk?: (loaded: number) => void): Pro
  * heap. Not `fetch`: the `fetch` Expo installs reads the whole response into a
  * JS ArrayBuffer before it makes a Blob, which a video exhausts on Hermes.
  */
-function readNativeFileBlob(uri: string): Promise<Blob> {
+function readNativeFileBlob(
+  uri: string,
+  timeout: number,
+  onProgress?: AssetUploadOptions['onStageProgress'],
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', uri);
     xhr.responseType = 'blob';
+    xhr.timeout = timeout;
+    xhr.onprogress = (event) =>
+      onProgress?.({
+        phase: 'read',
+        loaded: event.loaded,
+        total: event.lengthComputable ? event.total : null,
+      });
+    xhr.ontimeout = () => reject(new Error('Native file read timed out'));
+    xhr.onabort = () => reject(new Error('Native file read aborted'));
     xhr.onload = () => {
       // A local file answers 200 (iOS) or 0 (some Android providers).
       if ((xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) && xhr.response) {
@@ -595,18 +617,15 @@ export class AssetsApi {
           descriptor.size > 0 &&
           descriptor.size <= ASSET_MULTIPART_UPLOAD_MAX_BYTES;
         if (!knownSmall && !isSvgType(declaredMime)) {
-          let read: Blob | undefined;
-          try {
-            read = await readNativeFileBlob(descriptor.uri);
-          } catch (error) {
-            // A uri only RN's FormData can open: its size cannot be learned,
-            // so it goes multipart as it always did.
-            logger.warn(
-              'Could not read the file to learn its size',
-              { component: 'oxy.assets' },
-              error,
-            );
+          options.onStageProgress?.({ phase: 'read', loaded: 0, total: descriptor.size ?? null });
+          // An unreadable, unmeasured file must never fall back to multipart:
+          // it may exceed the API proxy limit by hundreds of megabytes.
+          const read = await readNativeFileBlob(descriptor.uri, timeout, options.onStageProgress);
+          if (!Number.isFinite(read.size) || read.size < 0) {
+            releaseNativeBlob(read);
+            throw new Error('Native file provider returned an invalid size');
           }
+          options.onStageProgress?.({ phase: 'read', loaded: read.size, total: read.size });
           if (read && read.size === 0) {
             releaseNativeBlob(read);
             throw new Error('Cannot upload an empty file');
@@ -657,6 +676,7 @@ export class AssetsApi {
           {
             ...(options.visibility ? { visibility: options.visibility } : {}),
             ...(options.metadata ? { metadata: options.metadata } : {}),
+            onProgress: options.onStageProgress,
           },
           timeout,
         );
