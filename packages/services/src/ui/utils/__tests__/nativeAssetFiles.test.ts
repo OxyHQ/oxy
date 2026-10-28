@@ -159,7 +159,7 @@ test('abort cancels the native transfer and deletes its part while preserving th
     signal: controller.signal,
     onProgress: jest.fn(),
   });
-  while (!mockRequest) await Promise.resolve();
+  while (!mockRequest) await new Promise((resolve) => setTimeout(resolve, 0));
   controller.abort();
   await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   expect(mockCancel).toHaveBeenCalledTimes(1);
@@ -181,4 +181,39 @@ test('a stalled native PUT times out and cleans its temporary part', async () =>
   ).resolves.toEqual({ ok: false, status: 0 });
   expect(mockCancel).toHaveBeenCalledTimes(1);
   expect(mockFiles.size).toBe(1);
+});
+
+test('hash reads let scheduled UI work run before the complete range is read', async () => {
+  const source = await adapter()(originalUri);
+  let readsAtTick = -1;
+  const tick = new Promise<void>((resolve) =>
+    setTimeout(() => {
+      readsAtTick = mockReads.length;
+      resolve();
+    }, 0),
+  );
+  await source.readRange(0, 8 * 1024 * 1024);
+  await tick;
+  expect(readsAtTick).toBeGreaterThan(0);
+  expect(readsAtTick).toBeLessThan(8);
+});
+
+test('an abort timer interrupts part preparation before copying the complete range', async () => {
+  const source = await adapter()(originalUri);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 0);
+  await expect(
+    source.putPart({
+      url: 'https://storage.example/part',
+      start: 0,
+      end: 8 * 1024 * 1024,
+      timeoutMs: 1000,
+      signal: controller.signal,
+      onProgress: jest.fn(),
+    }),
+  ).rejects.toMatchObject({ name: 'AbortError' });
+  expect(mockReads.length).toBeLessThan(8);
+  expect(mockUpload).not.toHaveBeenCalled();
+  expect(mockFiles.size).toBe(1);
+  expect(mockFiles.has(originalUri)).toBe(true);
 });

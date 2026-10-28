@@ -7,6 +7,12 @@ const COPY_CHUNK_BYTES = 1024 * 1024;
 let partsDirectory: Promise<Directory> | undefined;
 let nextPart = 0;
 
+// FileHandle methods are synchronous: awaiting them alone only yields a
+// microtask. Let rendering, native events and abort timers run between chunks.
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function abortError(): Error {
   const error = new Error('Upload aborted');
   error.name = 'AbortError';
@@ -52,6 +58,7 @@ async function copyRange(
         if (!bytes.length) throw new Error('File changed while preparing upload');
         await writer.writeBytes(bytes);
         offset += bytes.length;
+        await yieldToEventLoop();
       }
     } finally {
       writer.close();
@@ -141,6 +148,7 @@ async function openNativeFile(uri: string): Promise<AssetFileSource> {
           if (!bytes.length) throw new Error('File changed while hashing');
           output.set(bytes, read);
           read += bytes.length;
+          await yieldToEventLoop();
         }
         return output;
       } finally {
