@@ -20,6 +20,8 @@ export function AccountLanguageBoundary({
   // compact session's fallback locale in the frame before its real preference.
   const accountReady =
     !user ||
+    !canUsePrivateApi ||
+    profile.fetchStatus === 'paused' ||
     user.languages !== undefined ||
     profile.isError ||
     (profile.dataUpdatedAt > 0 &&

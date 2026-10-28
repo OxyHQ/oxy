@@ -97,3 +97,26 @@ test('migrates the app legacy choice only when the SDK has no saved preference',
   await waitFor(() => expect(second.result.current.isLanguageReady).toBe(true));
   expect(second.result.current.currentLanguage).toBe('es-ES');
 });
+
+test.each([undefined, 'https://mention.earth/?lang=fr'])(
+  'recovers malformed stored JSON using legacy or entry preference (%s)',
+  async (entryUrl) => {
+    const storage = createMemoryStorage();
+    await storage.setItem(key, '[broken');
+    await storage.setItem('legacy', '"es-ES"');
+    const { result } = renderHook(() =>
+      useLanguageManagement({
+        storage,
+        languageKey: key,
+        user: null,
+        legacyLanguageKeys: ['legacy'],
+        entryUrl,
+      }),
+    );
+    await waitFor(() => expect(result.current.isLanguageReady).toBe(true));
+    const expected = entryUrl ? 'fr-FR' : 'es-ES';
+    expect(result.current.currentLanguage).toBe(expected);
+    expect(await storage.getItem(key)).toBe(JSON.stringify([expected]));
+    expect(await storage.getItem('legacy')).toBeNull();
+  },
+);

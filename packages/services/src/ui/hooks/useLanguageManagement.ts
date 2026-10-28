@@ -176,7 +176,13 @@ export const useLanguageManagement = ({
     try {
       function parseStored(raw: string | null): string[] {
         let stored: unknown = raw;
-        if (raw?.startsWith('[') || raw?.startsWith('"')) stored = JSON.parse(raw);
+        if (raw?.startsWith('[') || raw?.startsWith('"')) {
+          try {
+            stored = JSON.parse(raw);
+          } catch {
+            return [];
+          }
+        }
         const entries = Array.isArray(stored) ? stored : [stored];
         return [
           ...new Set(
