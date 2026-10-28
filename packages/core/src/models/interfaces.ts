@@ -778,6 +778,9 @@ export interface ServiceLinkedDownloadUrl {
   mime: string;
   size: number;
   sha256: string;
+  /** Current file visibility when the URL was minted. Missing on older API deployments;
+   * callers protecting private-only content must refuse absence, never assume private. */
+  visibility?: FileVisibility;
 }
 
 /**
