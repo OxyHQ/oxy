@@ -12,7 +12,7 @@
 
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import type { ApplicationRecognition, ApplicationRecognitionWrite } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { applicationRecognition, applicationWebOrigins } from '../db/schema/applicationRecognition';
 import { isUniqueViolation } from '@oxy.so/db';
 import { ConflictError } from '../utils/error';
@@ -112,9 +112,10 @@ export async function removeApplicationRecognition(applicationId: string): Promi
 export async function declareApplicationWebOrigins(
   applicationId: string,
   origins: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<string[]> {
   if (origins.length === 0) return [];
-  return getDb().transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const taken = await tx
       .select({ origin: applicationWebOrigins.origin })
       .from(applicationWebOrigins)
