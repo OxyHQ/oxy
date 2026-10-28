@@ -131,6 +131,47 @@ describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () 
   });
 });
 
+describe('image input (Oxy ADR 0051): Alia only, on three exact routes', () => {
+  const alia = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'alia-kaana',
+  );
+
+  it('gives Alia image terms beside its text terms, at 16 images and USD 0.15 a request', () => {
+    expect(alia?.pilot === undefined ? undefined : pilotTextTerms(alia.pilot)).toBeDefined();
+    expect(alia?.pilot?.imageInput?.maxImages).toBe(16);
+    expect(alia?.pilot?.imageInput?.maxPricePerRequestUsd).toBe('0.15');
+  });
+
+  it('names one OpenRouter route each for instant, medium and high, none of them a text tuple', () => {
+    const images = alia?.pilot?.imageInput?.deployments ?? [];
+    expect(images.map((route) => route.modelReference)).toEqual([
+      'openai/gpt-5.4-nano@observed-2026-09-01',
+      'anthropic/claude-haiku-4.5@observed-2026-09-01',
+      'anthropic/claude-sonnet-5@observed-2026-09-01',
+    ]);
+    for (const route of images) {
+      expect(route.provider).toBe('openrouter');
+      expect(route.deploymentId).toBe(
+        `dep_openrouter_${route.modelReference.split('@')[0].replace(/[/.-]/g, '_')}_observed_2026_09_01`,
+      );
+    }
+    const text = alia?.pilot === undefined ? undefined : pilotTextTerms(alia.pilot);
+    const textIds = new Set(text?.deployments.map((route) => route.deploymentId));
+    expect(images.some((route) => textIds.has(route.deploymentId))).toBe(false);
+  });
+
+  it('gives no other relationship image terms: Astro’s and Mention’s one-shot features send none', () => {
+    for (const relationship of INTERNAL_METERED_RELATIONSHIPS) {
+      if (relationship.relationshipId === 'alia-kaana') continue;
+      expect(relationship.pilot?.imageInput).toBeUndefined();
+    }
+  });
+
+  it('stamps the version that introduced them', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-28.1');
+  });
+});
+
 describe('clarity-kaana: Clarity search embeddings, and nothing else', () => {
   const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
     (candidate) => candidate.relationshipId === 'clarity-kaana',
@@ -318,7 +359,7 @@ describe('astro-kaana-session: Astro’s one-shot features on a person’s sessi
     }
   });
 
-  it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-27.2');
+  it('stamps the version that introduced it, or a later one', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION >= 'oxy-inference-economics/2026-10-27.2').toBe(true);
   });
 });

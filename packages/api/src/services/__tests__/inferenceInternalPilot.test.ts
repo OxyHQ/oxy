@@ -91,13 +91,76 @@ it('refuses modalities and operations whose pilot input is not supported', () =>
           {
             role: 'user',
             content: [
-              { type: 'image', source: { kind: 'url', url: 'https://example.test/image.png' } },
+              {
+                type: 'audio',
+                source: { kind: 'inline', mediaType: 'audio/wav', data: 'UklGRg==' },
+              },
             ],
           },
         ],
       },
     }),
   ).toBeUndefined();
+});
+
+describe('a completion carrying images (Oxy ADR 0051)', () => {
+  const withImage = (data: string): NormalizedEdgeRequest => ({
+    ...request(''),
+    input: {
+      format: 'messages',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'what does this page say?' },
+            { type: 'image', source: { kind: 'inline', mediaType: 'image/png', data } },
+          ],
+        },
+      ],
+    },
+  });
+
+  it('counts the part’s framing and never its bytes in the controlled input', () => {
+    const small = controlledInputBudget(withImage('AAAA'));
+    const large = controlledInputBudget(withImage('A'.repeat(400_000)));
+    expect(small).toBeDefined();
+    expect(large).toBe(small);
+    expect(small ?? 0).toBeLessThan(1_000);
+  });
+
+  const alia = INTERNAL_METERED_RELATIONSHIPS.find(
+    (relationship) => relationship.relationshipId === 'alia-kaana',
+  )?.pilot;
+  if (alia === undefined) throw new Error('Alia pilot missing');
+  const images = alia.imageInput;
+  if (images === undefined) throw new Error('Alia image terms missing');
+
+  it('answers to the image terms: their routes, count and quote ceiling, the text ceilings', () => {
+    const terms = pilotTermsFor(alia, COMPLETION, 2);
+    expect(terms).toEqual({
+      maxInput: alia.maxControlledInputBudget,
+      maxOutputTokens: alia.maxOutputTokens,
+      maxPricePerRequestUsd: images.maxPricePerRequestUsd,
+      deployments: images.deployments,
+      maxImages: images.maxImages,
+    });
+    expect(pilotTermsFor(alia, COMPLETION)?.maxImages).toBeUndefined();
+  });
+
+  it('signs only the image routes for a request with images, and none of them without', () => {
+    for (const route of images.deployments) {
+      expect(pilotAllowsDeployment(alia, COMPLETION, route, 1)).toBe(true);
+      expect(pilotAllowsDeployment(alia, COMPLETION, route)).toBe(false);
+    }
+    for (const route of alia.deployments ?? []) {
+      expect(pilotAllowsDeployment(alia, COMPLETION, route, 1)).toBe(false);
+    }
+  });
+
+  it('leaves images outside a pilot without image terms', () => {
+    const { imageInput: _images, ...textOnly } = alia;
+    expect(pilotTermsFor(textOnly, COMPLETION, 1)).toBeUndefined();
+  });
 });
 
 it('requires the exact deployment, model revision and provider tuple', () => {
