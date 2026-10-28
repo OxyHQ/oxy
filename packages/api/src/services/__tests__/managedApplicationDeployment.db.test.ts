@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
@@ -168,4 +168,99 @@ it('keeps Files ownership separate from platform authority and preserves the ver
   expect(
     (await mediaPrivacyService.checkMediaAccess(ownLibrary, declarationB.ownerAccountId)).allowed,
   ).toBe(true);
+});
+
+it('serializes concurrent retries without duplicating public clients or workload identities', async () => {
+  const input = await fixture();
+  const results = await Promise.all([
+    registerManagedApplicationDeployment(input, staff),
+    registerManagedApplicationDeployment(input, staff),
+  ]);
+  expect(results.map((result) => result.state).sort()).toEqual(['created', 'unchanged']);
+  expect(new Set(results.map((result) => result.applicationId)).size).toBe(1);
+  expect(new Set(results.map((result) => result.publicClientId)).size).toBe(1);
+});
+it.each(['owner', 'origin', 'public client', 'expired workload'] as const)(
+  'refuses live registry drift: %s',
+  async (change) => {
+    const { applicationCredentials } = await import('../../db/schema/applicationCredentials');
+    const { applicationWebOrigins } = await import('../../db/schema/applicationRecognition');
+    const input = await fixture();
+    const registered = await registerManagedApplicationDeployment(input, staff);
+    if (change === 'owner') {
+      const replacement = await fixture();
+      await getDb()
+        .update(applications)
+        .set({ ownerAccountId: replacement.ownerAccountId })
+        .where(eq(applications.id, registered.applicationId));
+    } else if (change === 'origin') {
+      await getDb()
+        .delete(applicationWebOrigins)
+        .where(eq(applicationWebOrigins.applicationId, registered.applicationId));
+    } else if (change === 'public client') {
+      await getDb()
+        .update(applicationCredentials)
+        .set({ status: 'revoked' })
+        .where(eq(applicationCredentials.publicKey, registered.publicClientId));
+    } else {
+      await getDb()
+        .update(applicationWorkloadIdentities)
+        .set({ expiresAt: new Date(0) })
+        .where(eq(applicationWorkloadIdentities.subject, input.backendRoleArn));
+    }
+    await expect(registerManagedApplicationDeployment(input, staff)).rejects.toThrow(
+      'revoked or changed',
+    );
+  },
+);
+it('refuses an origin that another application commits after the initial availability read', async () => {
+  const { declareApplicationWebOrigins } = await import('../applicationRecognition.service');
+  const input = await fixture();
+  const apps = await getDb()
+    .insert(applications)
+    .values(
+      ['one', 'two'].map((name) => ({
+        name,
+        ownerAccountId: input.ownerAccountId,
+        type: 'first_party' as const,
+      })),
+    )
+    .returning();
+  const [firstApp, secondApp] = apps;
+  if (!firstApp || !secondApp) throw new Error('Missing applications');
+  let release = () => {};
+  let announce = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
+  const first = getDb().transaction(async (tx) => {
+    await declareApplicationWebOrigins(firstApp.id, [input.origin], tx);
+    announce();
+    await gate;
+  });
+  await ready;
+  // Catch immediately: the expected rejection must not become an unhandled promise.
+  const second = declareApplicationWebOrigins(secondApp.id, [input.origin]).then(
+    () => 'accepted',
+    () => 'refused',
+  );
+  try {
+    const deadline = Date.now() + 5000;
+    let blocked = false;
+    while (!blocked && Date.now() < deadline) {
+      const rows = await getDb().execute(
+        sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like '%insert into "application_web_origins"%'`,
+      );
+      blocked = rows.length > 0;
+      if (!blocked) await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(blocked).toBe(true);
+  } finally {
+    release();
+    await first;
+  }
+  expect(await second).toBe('refused');
 });

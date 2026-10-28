@@ -94,8 +94,7 @@ export async function registerManagedApplicationDeployment(
         .where(eq(applicationWorkloadIdentities.applicationId, existing.applicationId));
       const now = Date.now();
       if (
-        !application ||
-        application.status !== 'active' ||
+        application?.status !== 'active' ||
         application.type !== 'first_party' ||
         application.ownerAccountId !== declaration.ownerAccountId ||
         !credential ||

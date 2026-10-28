@@ -136,6 +136,19 @@ export async function declareApplicationWebOrigins(
       .values(origins.map((origin) => ({ origin, applicationId })))
       .onConflictDoNothing()
       .returning({ origin: applicationWebOrigins.origin });
+    // A concurrent registration may win between the initial read and INSERT.
+    // ON CONFLICT must not silently report that another application's origin
+    // was declared for this one.
+    const assigned = await tx
+      .select({ origin: applicationWebOrigins.origin })
+      .from(applicationWebOrigins)
+      .where(
+        and(
+          inArray(applicationWebOrigins.origin, [...origins]),
+          ne(applicationWebOrigins.applicationId, applicationId),
+        ),
+      );
+    if (assigned.length) throw new ConflictError('Web origin is already another application’s');
     return added.map(({ origin }) => origin);
   });
 }
