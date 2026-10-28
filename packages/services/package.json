@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "13.7.0",
+  "version": "13.8.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -107,6 +107,7 @@
     "android/build.gradle",
     "android/src",
     "ios/OxyIdentityModule.swift",
+    "ios/OxyAssetFilesModule.swift",
     "ios/OxyIdentity.podspec",
     "plugins",
     "expo-module.config.json"
@@ -210,7 +211,7 @@
     "expo-video": "catalog:"
   },
   "//@oxy.so/bloom": "Bloom 11.1.0 adds the shared grouped sections, usage card, subscription plans, frame appearance and overlay navigation APIs used by this SDK. First-party Bloom peers remain open above this tested minimum.",
-  "//@oxy.so/core": "Core 7.6.0 forwards guest locale and first-touch campaign metadata through signup; 7.3.0 supplies `users.lookupMany`, with which the account members screen fails (and retries) a profile read whose chunk failed instead of caching those members as handle-less; 7.2.0 supplies `assets.cachedUrl`, with which `useFileDownloadUrl` answers an already-resolved URL in its first render; 6.16.0 supplies `requireServerVerdict` and `onHolderRejected`, with which the cold boot checks a session it painted from the cache; 6.13.0 supplies the `accounts.settings.*` strings (picture, categories) the account settings speak in every language; 6.12.0 supplies `fileManagement.contentLost` and the `lost` file status a lost file is listed with; 6.11.0 supplies the `follow.errors.*` strings the follow error codes are worded with; 6.4.0 the `follow.*` strings the follow buttons read for every verb and language; 6.1.0 the `oxy.auth.email.{startChange,change,remove}` and `oxy.auth.password.remove` the sign-in & security panels call. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
+  "//@oxy.so/core": "Core 7.7.0 supplies the bounded native asset file adapter and phase progress installed by OxyProvider; 7.6.0 forwards guest locale and first-touch campaign metadata through signup; 7.3.0 supplies `users.lookupMany`, with which the account members screen fails (and retries) a profile read whose chunk failed instead of caching those members as handle-less; 7.2.0 supplies `assets.cachedUrl`, with which `useFileDownloadUrl` answers an already-resolved URL in its first render; 6.16.0 supplies `requireServerVerdict` and `onHolderRejected`, with which the cold boot checks a session it painted from the cache; 6.13.0 supplies the `accounts.settings.*` strings (picture, categories) the account settings speak in every language; 6.12.0 supplies `fileManagement.contentLost` and the `lost` file status a lost file is listed with; 6.11.0 supplies the `follow.errors.*` strings the follow error codes are worded with; 6.4.0 the `follow.*` strings the follow buttons read for every verb and language; 6.1.0 the `oxy.auth.email.{startChange,change,remove}` and `oxy.auth.password.remove` the sign-in & security panels call. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
   "//react-native": "React Native 0.81 to 0.88, React 19.1+ and Expo SDK 54 to 58. The floors are the Expo SDK 54 stack (react-native 0.81.6, react 19.1.4, react-native-web 0.21.4, expo 54.0.38 and the module versions its bundledNativeModules.json pins), which compat/expo-54 installs as an external consumer and checks on every CI run (`bun check.mjs`): every peer here admits that stack, services' published src typechecks against its types, and <OxyProvider> mounts and settles its cold boot on iOS (React Native 0.81), web (react-native-web 0.21) and react-native-macos 0.81 with the native modules macOS lacks absent. Astro, Oxy's browser, runs react-native-macos 0.81 (0.83 is its latest release), which is why the floor is not 0.85. The SDK 56 floors these replaced were the versions current when the ranges were first written, not measurements.",
   "peerDependencies": {
     "@expo/app-integrity": ">=0.1.10 <59.0.0",

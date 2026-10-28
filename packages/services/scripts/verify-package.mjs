@@ -345,9 +345,15 @@ function main() {
   const { outDir, tarball } = packTarball();
   let files;
   let manifest;
+  let nativeModules;
   try {
     files = tarballFiles(tarball);
     manifest = tarballManifest(tarball);
+    nativeModules = JSON.parse(
+      execFileSync('tar', ['-xzOf', tarball, 'package/expo-module.config.json'], {
+        encoding: 'utf8',
+      }),
+    );
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }
@@ -358,6 +364,17 @@ function main() {
     ...floorProblems,
     ...checkDeclarations(files),
     ...checkManifestRanges(manifest),
+    // Expo autolinking consumes this metadata from the tarball. A declaration
+    // without its implementation breaks native consumers even when Metro passes.
+    ...(nativeModules.apple?.modules ?? []).flatMap((name) =>
+      files.has(`ios/${name}.swift`)
+        ? []
+        : [`Declared Apple module missing from tarball: ios/${name}.swift`],
+    ),
+    ...(nativeModules.android?.modules ?? []).flatMap((name) => {
+      const path = `android/src/main/java/${name.replaceAll('.', '/')}.kt`;
+      return files.has(path) ? [] : [`Declared Android module missing from tarball: ${path}`];
+    }),
   ];
 
   if (problems.length > 0) {

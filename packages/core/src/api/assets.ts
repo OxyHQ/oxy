@@ -18,6 +18,7 @@
  * The service-token asset routes (metadata by id / by hash, linked download
  * URLs) are `OxyServer`'s `assets` (`@oxy.so/core/server`).
  */
+import { isAssetFileSource, type AssetFileAdapter, type AssetFileSource } from './assetFileSource';
 import { isReactNative } from '@oxy.so/protocol/random';
 import type { OxyContext } from '../client/context';
 import { logger } from '../logger';
@@ -119,10 +120,17 @@ export interface AssetLinkState {
   status: Asset['status'];
 }
 
+/** Per-phase byte progress; native metadata inspection happens before hashing. */
+export type AssetUploadStageProgress = LargeUploadProgress;
+
 export interface AssetUploadOptions {
   /** Server default: `private`. */
   visibility?: FileVisibility;
   metadata?: AssetMetadata;
+  /** Byte progress while hashing, uploading and verifying a large file. */
+  onStageProgress?: (progress: AssetUploadStageProgress) => void;
+  /** Cancel an in-flight upload; direct-upload sessions remain resumable. */
+  signal?: AbortSignal;
   /** Called with `100` once the upload completes. */
   onProgress?: (progress: number) => void;
   /**
@@ -248,45 +256,33 @@ function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
  * through the identity stack's one lazy root (`../crypto/index`), after its
  * polyfill, so it costs an app's startup nothing.
  */
-async function sha256OfBlob(blob: Blob, onChunk?: (loaded: number) => void): Promise<string> {
+async function sha256OfBlob(
+  blob: Blob | AssetFileSource,
+  onChunk?: (loaded: number) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (isAssetFileSource(blob) && blob.hash) {
+    const digest = await blob.hash(onChunk, signal);
+    if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('Invalid native file digest');
+    return digest;
+  }
   const { createContentHasher } = await import('../crypto/index');
   const hash = createContentHasher();
   for (let offset = 0; offset < blob.size; offset += LARGE_UPLOAD_HASH_CHUNK_BYTES) {
     const end = Math.min(offset + LARGE_UPLOAD_HASH_CHUNK_BYTES, blob.size);
-    hash.update(new Uint8Array(await readBlobBytes(blob.slice(offset, end))));
+    if (signal?.aborted) {
+      const error = new Error('Upload aborted');
+      error.name = 'AbortError';
+      throw error;
+    }
+    const bytes = isAssetFileSource(blob)
+      ? await blob.readRange(offset, end)
+      : new Uint8Array(await readBlobBytes(blob.slice(offset, end)));
+    if (bytes.byteLength !== end - offset) throw new Error('File changed while hashing');
+    hash.update(bytes);
     onChunk?.(end);
   }
   return hash.digestHex();
-}
-
-/**
- * A React Native file uri as a NATIVE Blob, through React Native's own
- * `XMLHttpRequest`: the bytes stay in the native blob store, never in the JS
- * heap. Not `fetch`: the `fetch` Expo installs reads the whole response into a
- * JS ArrayBuffer before it makes a Blob, which a video exhausts on Hermes.
- */
-function readNativeFileBlob(uri: string): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', uri);
-    xhr.responseType = 'blob';
-    xhr.onload = () => {
-      // A local file answers 200 (iOS) or 0 (some Android providers).
-      if ((xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) && xhr.response) {
-        resolve(xhr.response as Blob);
-      } else {
-        reject(new Error(`Failed to read file from uri (status ${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Failed to read file from uri'));
-    xhr.send();
-  });
-}
-
-/** Release a React Native Blob's native bytes; nothing elsewhere. */
-function releaseNativeBlob(blob: Blob): void {
-  const close = (blob as Blob & { close?: () => void }).close;
-  if (typeof close === 'function') close.call(blob);
 }
 
 export interface AssetLinkTarget {
@@ -309,6 +305,21 @@ export interface AssetDeleteResult {
 
 export class AssetsApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  private fileAdapter?: AssetFileAdapter;
+  private fileAdapterOwner?: object;
+
+  /** Installed by OxyProvider on native; disposal cannot clear a newer owner. */
+  installFileAdapter(adapter: AssetFileAdapter): () => void {
+    const owner = {};
+    this.fileAdapterOwner = owner;
+    this.fileAdapter = adapter;
+    return () => {
+      if (this.fileAdapterOwner !== owner) return;
+      this.fileAdapter = undefined;
+      this.fileAdapterOwner = undefined;
+    };
+  }
 
   /** Upload already-admitted bytes. Sends required bucket headers, never an Oxy bearer. */
   async putPresignedUpload(init: AssetInitResponse, body: Blob): Promise<void> {
@@ -400,7 +411,7 @@ export class AssetsApi {
    * {@link upload}. `timeout`, when given, bounds the whole upload.
    */
   private async uploadPresigned(
-    blob: Blob,
+    blob: Blob | AssetFileSource,
     mime: string,
     name: string,
     options: Omit<LargeUploadOptions, 'mime' | 'name'>,
@@ -419,7 +430,11 @@ export class AssetsApi {
     const timer = timeout ? setTimeout(stop, timeout) : undefined;
     try {
       report('hash', 0);
-      const sha256 = await sha256OfBlob(blob, (loaded) => report('hash', loaded));
+      const sha256 = await sha256OfBlob(
+        blob,
+        (loaded) => report('hash', loaded),
+        controller.signal,
+      );
       if (controller.signal.aborted) {
         const error = new Error('Upload aborted');
         error.name = 'AbortError';
@@ -563,8 +578,9 @@ export class AssetsApi {
    *
    * On React Native a descriptor whose `size` says it is small goes into the
    * multipart body as-is (RN's FormData reads the file from disk). One with no
-   * `size`, or a larger one, is read into a native Blob first to learn its
-   * size, and a large one is hashed and PUT from it. On the web a plain
+   * `size`, or a larger one, uses the SDK's installed native file adapter to
+   * inspect metadata, hash bounded ranges and stream temporary parts. Without
+   * an adapter it fails before allocating the file; OxyProvider installs one. On the web a plain
    * `{ uri }` cannot be read by FormData (it would upload `[object Object]` —
    * a 0-byte asset), so the uri is materialised into a Blob first. An empty
    * file throws.
@@ -573,13 +589,17 @@ export class AssetsApi {
     file: AssetUploadInput,
     options: AssetUploadOptions = {},
   ): Promise<{ file: UploadedAsset }> {
+    if (options.signal?.aborted) {
+      const error = new Error('Upload aborted');
+      error.name = 'AbortError';
+      throw error;
+    }
     const fileName = 'name' in file && file.name ? file.name : 'unknown';
     const fileSize = 'size' in file && file.size ? file.size : 0;
     const timeout = options.timeout ?? ASSET_UPLOAD_TIMEOUT_MS;
 
     let part: Blob | RNFileDescriptor;
     let declaredMime = '';
-    let nativeBlob: Blob | undefined;
     if (
       (typeof File !== 'undefined' && file instanceof File) ||
       (typeof Blob !== 'undefined' && file instanceof Blob)
@@ -594,30 +614,31 @@ export class AssetsApi {
           typeof descriptor.size === 'number' &&
           descriptor.size > 0 &&
           descriptor.size <= ASSET_MULTIPART_UPLOAD_MAX_BYTES;
-        if (!knownSmall && !isSvgType(declaredMime)) {
-          let read: Blob | undefined;
-          try {
-            read = await readNativeFileBlob(descriptor.uri);
-          } catch (error) {
-            // A uri only RN's FormData can open: its size cannot be learned,
-            // so it goes multipart as it always did.
-            logger.warn(
-              'Could not read the file to learn its size',
-              { component: 'oxy.assets' },
-              error,
+        if (!knownSmall && !isSvgType(declaredMime) && this.fileAdapter) {
+          const source = await this.fileAdapter(descriptor.uri);
+          if (!Number.isSafeInteger(source.size) || source.size <= 0)
+            throw new Error('Cannot upload an empty or invalid file');
+          if (source.size > ASSET_MULTIPART_UPLOAD_MAX_BYTES) {
+            const completed = await this.uploadPresigned(
+              source,
+              declaredMime || 'application/octet-stream',
+              fileName,
+              {
+                visibility: options.visibility,
+                metadata: options.metadata,
+                onProgress: options.onStageProgress,
+                signal: options.signal,
+              },
+              timeout,
             );
+            options.onProgress?.(100);
+            return { file: uploadedAssetFrom(completed.file) };
           }
-          if (read && read.size === 0) {
-            releaseNativeBlob(read);
-            throw new Error('Cannot upload an empty file');
-          }
-          if (read && read.size > ASSET_MULTIPART_UPLOAD_MAX_BYTES) {
-            nativeBlob = read;
-            part = read;
-          } else if (read) {
-            // Small after all: RN's FormData reads it from disk, as ever.
-            releaseNativeBlob(read);
-          }
+          // Native metadata proved the file small; RN FormData can stream it.
+        } else if (!knownSmall && !isSvgType(declaredMime)) {
+          throw new Error(
+            'Native files with unknown or large size require a file adapter; mount OxyProvider or install an AssetFileAdapter',
+          );
         }
       } else {
         // `fetch` resolves blob:, data: and http(s): uris on the web.
@@ -646,9 +667,7 @@ export class AssetsApi {
       // The type the multipart part would have carried, as multer records it:
       // RN's FormData sends a descriptor's `type`, a browser a Blob's own.
       const partType = isBlob(part) ? part.type : '';
-      const mime =
-        (nativeBlob ? declaredMime || partType : partType || declaredMime) ||
-        'application/octet-stream';
+      const mime = partType || declaredMime || 'application/octet-stream';
       if (isBlob(part) && part.size > ASSET_MULTIPART_UPLOAD_MAX_BYTES && !isSvgType(mime)) {
         const completed = await this.uploadPresigned(
           part,
@@ -657,6 +676,8 @@ export class AssetsApi {
           {
             ...(options.visibility ? { visibility: options.visibility } : {}),
             ...(options.metadata ? { metadata: options.metadata } : {}),
+            onProgress: options.onStageProgress,
+            signal: options.signal,
           },
           timeout,
         );
@@ -670,7 +691,7 @@ export class AssetsApi {
           'POST',
           '/assets/upload',
           formData,
-          { cache: false, timeout },
+          { cache: false, timeout, signal: options.signal },
         );
       }
       options.onProgress?.(100);
@@ -682,8 +703,6 @@ export class AssetsApi {
         fileSize,
       };
       throw error;
-    } finally {
-      if (nativeBlob) releaseNativeBlob(nativeBlob);
     }
   }
 

@@ -70,3 +70,50 @@ in Oxy Files and is not moved.
 7. **S3 stops being read or written** once the soak is verified. Deleting the
    buckets, the CloudFront distribution and the migration reader is a separate,
    explicitly approved step.
+
+## Native file transport (core 7.7 / services 13.8)
+
+`OxyProvider` installs the SDK's native asset-file adapter on iOS and Android.
+Core remains platform-neutral: the adapter supplies metadata, bounded range
+reads, and binary PUTs for the existing upload-session protocol. Web keeps its
+Blob transport. The macOS provider does not import Expo FileSystem; native URI
+uploads there need a host-provided adapter when their size is unknown or large. An unknown-size or large native URI without an
+adapter fails before allocation; direct core consumers can install an
+`AssetFileAdapter` explicitly. Known-small descriptors still use native FormData.
+
+A native URI must never first become a whole-file Blob. React Native's Android
+BlobModule allocates a Java byte array for the entire file; a physical Pixel 8a
+failed a 369,812,592-byte camera video against a 268,435,456-byte Java heap. Expo
+File.slice is not a substitute: it calls bytesSync for the whole source before
+slicing. The adapter instead hashes with a native streaming worker (Android MessageDigest,
+Apple CryptoKit) using at most 1 MiB per read. Only progress and the digest cross
+the JS bridge. Hash cancellation is registered before the worker is queued.
+The bounded JS hash remains available for older native binaries after an OTA,
+but measured 370 MiB hashing took about 443 seconds on Pixel 8a/Hermes, so new
+binaries must include OxyAssetFiles. The adapter reads FileHandle chunks of at
+most 1 MiB for range copies, yields to the event loop between chunks, and copies
+only the current multipart ranges into
+private cache files, and streams those files through native binary upload tasks.
+No Oxy bearer or cookie is supplied to storage.
+
+Each part is removed after success, failure, timeout or cancellation, and the
+next JS runtime removes leftovers from terminated foreground transfers. The
+original capture is never deleted by this transport. A failed parallel part
+cancels and awaits its siblings before returning; reopening the same bytes still
+resumes the authoritative server session. File-size changes are rejected before
+hash/read or PUT; server verification detects changed content of equal size.
+`assets.upload` reports `onStageProgress` for hash/upload/verify and accepts an
+AbortSignal. Its original `onProgress(100)` completion callback remains compatible.
+
+
+Physical Android acceptance (2026-10-28, Pixel 8a): the bounded JS-hash version
+successfully server-verified a 369,770,165-byte private video without OOM, but
+spent about 443 seconds before opening the upload session and about 546 seconds
+from the upload action to composer. With the native worker, a fresh
+369,961,708-byte video reached the upload stage within seconds and composer in
+about 123 seconds; server upload plus verification took 121.081 seconds. These
+are separate live-network runs, not a network-throughput benchmark. The second
+capture remained attached in the composer after Mention's separate abandoned-
+render handoff fix. No public post was created. The physical native-worker APK
+SHA-256 was `fe71c4bc321c43fb224d1521d4ef7a66d88bf4fbc671fa679b1e1eeda52f6ec8`.
+Apple worker runtime acceptance remains unmeasured on a physical Apple device.
