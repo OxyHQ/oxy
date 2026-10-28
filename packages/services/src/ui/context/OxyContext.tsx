@@ -62,6 +62,7 @@ import {
 import { createTokenLossRecovery, TOKEN_RECOVERY_BACKOFF_MS } from '../session/tokenLossRecovery';
 import { createCachedBootStore, type CachedBootStore } from '../session/cachedBoot';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
+import { useEntryLink } from '../hooks/useEntryLink';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useAuthOperations, clearPersistedAuthSafe } from './hooks/useAuthOperations';
@@ -153,6 +154,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   sessionMode = 'account',
   webAuthMode = 'popup',
   backgroundSession = false,
+  legacyLanguageKeys,
+  captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
   onAuthStateChange,
@@ -415,8 +418,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .catch((err) => {
         // Nothing persisted can be restored; the account cache still has to
         // become ready, or RequireOxyAuth would wait forever.
-        accountQueryPersistence.setStorage(createMemoryStorage());
+        const memoryStorage = createMemoryStorage();
+        accountQueryPersistence.setStorage(memoryStorage);
         if (mounted) {
+          setStorage(memoryStorage);
           logger('Failed to initialize storage', err);
           onError?.({
             message: 'Failed to initialize storage',
@@ -430,8 +435,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
   }, [accountQueryPersistence, logger, onError, platformStorage, runtime, storageReady]);
 
+  const entryLink = useEntryLink({
+    storage,
+    storageKey: `${storageKeyPrefix}_campaign_attribution`,
+    captureCampaign: captureCampaignAttribution,
+    onError: logger,
+  });
   const {
     currentLanguage,
+    isLanguageReady,
     languages: currentLanguages,
     metadata: currentLanguageMetadata,
     languageName: currentLanguageName,
@@ -441,6 +453,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   } = useLanguageManagement({
     storage,
     languageKey: storageKeys.language,
+    entryUrl: entryLink.url,
+    entryLinkReady: entryLink.ready,
+    legacyLanguageKeys,
     user,
     onError,
     logger,
@@ -1751,6 +1766,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady: isLanguageReady && entryLink.campaignReady,
+      campaignAttribution: entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,
@@ -1808,6 +1825,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady,
+      entryLink.campaignReady,
+      entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,

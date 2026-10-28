@@ -290,3 +290,12 @@ export {
   FREE_USER_PROFILE_COLOR_PRESETS,
 } from '../profileColors.generated';
 export * from '../products/one';
+
+export {
+  CAMPAIGN_LABEL_MAX_LENGTH,
+  CAMPAIGN_CLICK_ID_MAX_LENGTH,
+  hasCampaignControlCharacters,
+} from './campaignAttribution';
+export type { CampaignAttribution } from './campaignAttribution';
+
+export { isLanguageTag } from './language';

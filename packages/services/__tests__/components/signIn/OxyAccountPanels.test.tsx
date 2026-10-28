@@ -86,6 +86,8 @@ jest.mock('../../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     oxyServices,
+    currentLanguage: 'es-ES',
+    campaignAttribution: { utmSource: 'newsletter' },
     handleWebSession,
     logout,
     user,
@@ -196,6 +198,8 @@ describe('creating an account', () => {
       username: 'ada',
       email: 'ada@example.com',
       emailTicket: TICKET,
+      languages: ['es-ES'],
+      campaignAttribution: { utmSource: 'newsletter' },
     });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });

@@ -137,3 +137,27 @@ is the one that cannot be gotten wrong or duplicated per app.
   the central value, as ordinary exports from `@oxy.so/services`"; this ADR is
   that intent's other half, host-app-facing rather than SDK-internal
 - Mention's own migration: `packages/frontend/components/providers/AppProviders.tsx`
+
+## Entry bootstrap and signup (2026-10)
+
+With `language` configured, the provider waits for guest storage, initial entry
+link, auth resolution and private account preferences before calling `onChange`.
+The first app content renders after that callback resolves. Later changes retain
+the mounted route tree. A callback failure attempts the configured fallback and
+reports failures through `onError`. Omitting `language` preserves existing app
+mount behavior.
+
+A valid `?lang=es` or `?lang=es-ES` is canonicalized against the SDK locale
+catalog and persists the guest choice. Invalid, unsupported or repeated `lang`
+parameters do not overwrite a saved preference. A signed-in account remains
+authoritative; changing its language goes through the SDK language settings.
+New email accounts inherit the resolved guest locale in the signup transaction.
+
+Apps retiring a local preference pass its old keys once through
+`language.legacyStorageKeys`. The SDK migrates the first supported saved value
+only when its own guest selection is absent, writing the canonical SDK value
+before removing the legacy key. Apps must remove their own storage reads and
+bootstrap selection effects, and retain only translation loading in `onChange`.
+
+See [entry campaign attribution](../auth/entry-campaign-attribution.md) for the
+separate, opt-in acquisition metadata collected from the same entry link.

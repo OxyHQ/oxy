@@ -182,9 +182,13 @@ export interface OxyProviderProps {
    * manages it independently of the account/device locale.
    */
   language?: OxyLanguageConfig;
+  /** Persist bounded first-touch link labels and attach them only to a new account. */
+  campaignAttribution?: boolean;
 }
 
 export interface OxyLanguageConfig {
+  /** Previous app-owned storage keys, migrated once without replacing a current SDK choice. */
+  legacyStorageKeys?: readonly string[];
   /** The exact locales this app ships a translation catalog for. */
   supportedLocales: readonly string[];
   /**
