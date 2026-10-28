@@ -106,6 +106,20 @@ export interface GrantLine {
   /** The line's ceilings, from its declared capabilities. */
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
+  /**
+   * The most input tokens one image costs on the line (its declared
+   * `imageInput`, Kaana ADR 0006); absent, the line serves no image.
+   */
+  readonly maxInputTokensPerImage: number | undefined;
+}
+
+/**
+ * What a request needs of a line's context: its text input and output, and the
+ * images it carries, each bounded at the line's own declared cost per image.
+ */
+export interface GrantCapacityRequirement extends EdgeCapacityRequirement {
+  /** Image parts the input carries (`facts.inputImages`); absent or 0: none. */
+  readonly inputImages?: number;
 }
 
 export type GrantLineResolution =
@@ -203,7 +217,7 @@ export async function resolveGrantLine(
   modelReference: string,
   constraints: RoutingConstraints,
   modality: EdgeModalityRequirement,
-  capacity: EdgeCapacityRequirement,
+  capacity: GrantCapacityRequirement,
 ): Promise<GrantLineResolution> {
   if (viewer.scopes.length === 0) return { status: 'unknown-model', modelReference };
   const { modelId, revision } = splitReference(modelReference);
@@ -231,6 +245,14 @@ export async function resolveGrantLine(
   ) {
     return { status: 'capability-unsupported', modelReference };
   }
+  // Images need the line to say what one costs: taking `image` input is not a
+  // bound a hold can be sized from (Kaana ADR 0006).
+  const inputImages = capacity.inputImages ?? 0;
+  if (inputImages > 0 && model.imageInput === undefined) {
+    return { status: 'capability-unsupported', modelReference };
+  }
+  const inputTokens =
+    capacity.inputTokens + inputImages * (model.imageInput?.maxInputTokensPerImage ?? 0);
 
   const outputTokens =
     capacity.outputTokens === 'model-maximum'
@@ -238,14 +260,14 @@ export async function resolveGrantLine(
       : capacity.outputTokens;
   if (
     capabilities.maxOutputTokens < outputTokens ||
-    capabilities.maxContextTokens < capacity.inputTokens + outputTokens
+    capabilities.maxContextTokens < inputTokens + outputTokens
   ) {
     const explicit = capacity.outputTokens === 'model-maximum' ? undefined : capacity.outputTokens;
     return {
       status: 'capacity-unavailable',
       modelReference,
       outputLimitExceeded: explicit !== undefined && capabilities.maxOutputTokens < explicit,
-      contextLimitExceeded: capabilities.maxContextTokens < capacity.inputTokens + outputTokens,
+      contextLimitExceeded: capabilities.maxContextTokens < inputTokens + outputTokens,
     };
   }
 
@@ -386,6 +408,7 @@ export async function resolveGrantLine(
       lanes,
       maxContextTokens: capabilities.maxContextTokens,
       maxOutputTokens: capabilities.maxOutputTokens,
+      maxInputTokensPerImage: model.imageInput?.maxInputTokensPerImage,
     },
   };
 }

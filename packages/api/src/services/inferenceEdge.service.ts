@@ -105,6 +105,11 @@ import { isSupervised } from './supervisionPolicy.service';
  */
 
 import { exactDecimalSchema } from '@oxy.so/contracts';
+import { checkImageInput, type ImageInputIssue } from '@kaana.ai/contracts';
+import {
+  currentDeclaredCatalogue,
+  type DeclaredCatalogueObservation,
+} from './kaanaDeclaredCatalogue.service';
 
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
@@ -968,10 +973,21 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     );
   }
 
-  // Only the text modality is served. Refusing here rather than forwarding is
-  // what keeps the input CEILING sound: an image or audio part has no
-  // character-count bound, so a hold sized from one would be a guess.
-  const nonText = firstNonTextPart(request.input);
+  // Text and images are served (Oxy ADR 0051, Kaana ADR 0006). An image is
+  // checked against the contract's rules before anything else: inline only,
+  // a known format, bounded bytes and count. The refusal names the part and
+  // never repeats it. Audio and file parts have no input bound a hold could be
+  // sized from, so they stay refused.
+  const imageInput = imageInputOf(request.input);
+  const imageIssue = imageInput.issues[0];
+  if (imageIssue !== undefined) {
+    return refuse('invalid_request', imageIssue.message, {
+      param: imageIssueParam(imageIssue),
+      reason: 'image-input',
+    });
+  }
+  const images = imageInput.images;
+  const nonText = firstUnservedPart(request.input);
   if (nonText !== undefined) {
     return refuse(
       'unsupported_modality',
@@ -981,10 +997,24 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   }
 
   const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
-  // The terms that bind THIS operation: speech has its own (characters, routes,
-  // quote ceiling); a pilot without them leaves speech outside it.
-  const pilotTerms = pilot === undefined ? undefined : pilotTermsFor(pilot, request.operation);
+  if (pilot !== undefined && images > 0 && pilot.imageInput === undefined) {
+    return refuse('unsupported_modality', 'Images are outside the controlled internal pilot.', {
+      param: 'input',
+      reason: 'pilot-image-input',
+    });
+  }
+  // The terms that bind THIS request: speech has its own (characters, routes,
+  // quote ceiling), and so does a completion carrying images; a pilot without
+  // them leaves the request outside it.
+  const pilotTerms = pilot === undefined ? undefined : pilotTermsFor(pilot, request.operation, images);
   const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request);
+  if (pilotTerms?.maxImages !== undefined && images > pilotTerms.maxImages) {
+    return refuse(
+      'invalid_request',
+      `The internal pilot carries at most ${pilotTerms.maxImages} images a request.`,
+      { param: 'input', reason: 'pilot-image-count' }
+    );
+  }
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined || pilotTerms === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
@@ -999,7 +1029,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const promotionallyAdmitted = new Set<string>();
   const acceptsPilotDeployment = (route: EdgeRoute, priority: number): boolean => {
     if (pilot === undefined) return true;
-    if (pilotAllowsDeployment(pilot, request.operation, route)) return true;
+    if (pilotAllowsDeployment(pilot, request.operation, route, images)) return true;
     if (!promotionalPriorities.has(priority) || !fundedByPromotionalCredit(route)) return false;
     promotionallyAdmitted.add(route.deploymentId);
     return true;
@@ -1062,6 +1092,26 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   }
 
   const requiredModality = requirementForRequest(request, context.apiFormat);
+  // What one image costs on each line, as Kaana declares it. Read only for a
+  // request carrying images: a line that declares nothing serves none of them.
+  let imageBounds: ReadonlyMap<string, number> | undefined;
+  if (images > 0) {
+    const declared = await currentDeclaredCatalogue();
+    if (declared.status !== 'observed') {
+      return refuse('service_unavailable', 'The model catalogue is temporarily unavailable.', {
+        reason: `declared_catalogue:${declared.status}`,
+      });
+    }
+    imageBounds = declaredImageBounds(declared);
+  }
+  let sawUndeclaredImageInput = false;
+  /** Whether the route's line declares what an image costs; always true without images. */
+  const takesImages = (route: EdgeRoute): boolean => {
+    if (imageBounds === undefined) return true;
+    if (imageBounds.has(modelLineOf(route.modelReference))) return true;
+    sawUndeclaredImageInput = true;
+    return false;
+  };
   // maxOutputTokens is a caller upper bound. Cap older Alia defaults as well as
   // omitted values before route qualification, quotes, claims and signed attempts.
   // Speech generates no tokens: its pilot terms carry no output ceiling, so the
@@ -1070,6 +1120,13 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const requestedOutput = pilotOutputCeiling === undefined ? request.maxOutputTokens
     : Math.min(request.maxOutputTokens ?? pilotOutputCeiling, pilotOutputCeiling);
   const estimatedInputTokens = pilotInputBudget ?? estimateInputTokens(request);
+  /**
+   * The input one ROUTE is bounded at: the text estimate (which never counts
+   * an image's bytes) plus every image at its line's declared bound.
+   */
+  const routeInputTokens = (route: EdgeRoute): number =>
+    estimatedInputTokens +
+    images * (imageBounds?.get(modelLineOf(route.modelReference)) ?? 0);
   const requiredCapacity = {
     inputTokens: estimatedInputTokens,
     outputTokens:
@@ -1233,6 +1290,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
       .filter((route) => acceptsPilotDeployment(route, priority))
+      .filter(takesImages)
       .filter(acceptsCarriedParameters)
       .sort((left, right) =>
         compareQualifiedRoutes(
@@ -1267,7 +1325,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       );
       const candidateQuote = await quoteRouteCeiling(
         route.priceVersionId,
-        routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
+        routeCeilingPlans(request, route, routeInputTokens(route), candidateMaxOutputTokens)
       );
       if (candidateQuote.status !== 'quoted') {
         logger.error(
@@ -1527,6 +1585,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   for (const group of routeGroups) {
     for (const route of [group.resolution.route, ...group.resolution.alternates]) {
       if (!acceptsPilotDeployment(route, group.priority)) continue;
+      if (!takesImages(route)) continue;
       if (liveness !== undefined && !isDeploymentPublished(liveness, route.deploymentId)) {
         sawUnpublished = true;
         continue;
@@ -1554,7 +1613,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         request.operation,
         requestedOutput ?? route.maxOutputTokens
       );
-      if (estimatedInputTokens + routeOutputTokens > route.maxContextTokens) {
+      if (routeInputTokens(route) + routeOutputTokens > route.maxContextTokens) {
         sawContextLimit = true;
         continue;
       }
@@ -1613,6 +1672,22 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
       return refuse('model_not_found', `No model ${requestedModelReference} is available to you.`, {
         param: 'model',
       });
+    }
+    if (sawUndeclaredImageInput && images > 0) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      await recordEdgeTelemetry(context, {
+        requestedModelReference: refusedReference,
+        statusCode: inferenceErrorStatus('unsupported_modality'),
+        units: {},
+      });
+      return refuse(
+        'unsupported_modality',
+        `No route for ${refusedReference} that this request may use takes image input.`,
+        { param: 'model', reason: 'image-input-undeclared' }
+      );
     }
     if (target.kind === 'model' && concreteFailure?.status === 'policy-excluded') {
       await recordEdgeTelemetry(context, {
@@ -1717,7 +1792,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
   const capacityCompatible = uniqueCandidates.filter(
     (candidate) =>
       candidate.route.maxOutputTokens >= maxOutputTokens &&
-      candidate.route.maxContextTokens >= estimatedInputTokens + maxOutputTokens
+      candidate.route.maxContextTokens >= routeInputTokens(candidate.route) + maxOutputTokens
   );
 
   // A power level's reasoning effort, when the caller named none: the level's
@@ -1825,7 +1900,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     if (routeQuote === undefined || requestedOutput === undefined) {
       routeQuote = await quoteRouteCeiling(
         authorized.priceVersionId,
-        routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
+        routeCeilingPlans(request, authorized, routeInputTokens(authorized), maxOutputTokens)
       );
     }
     if (routeQuote.status !== 'quoted') {
@@ -2017,7 +2092,7 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
         ? { characters: request.operation.characters }
         : request.operation.kind === 'realtime_session'
           ? {}
-          : { input_tokens: estimatedInputTokens },
+          : { input_tokens: Math.max(...authorizedRoutes.map(routeInputTokens)) },
       ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
       ceilingPriceVersionId,
       maxAmount,
@@ -3689,8 +3764,15 @@ export function requirementForRequest(
   apiFormat: ClientRequestMetadata['apiFormat'] | undefined
 ): EdgeModalityRequirement {
   const modality = modalityForOperation(request.operation);
+  // A completion carrying an image needs a model that takes image input; every
+  // such model also takes the text beside it.
+  const input =
+    request.operation.kind === 'completion' && imageInputOf(request.input).images > 0
+      ? ('image' as const)
+      : modality.input;
   return {
     ...modality,
+    input,
     ...(apiFormat === undefined ? {} : { apiFormat }),
     ...(request.audioOutput === undefined ? {} : { requiresDeclaredApiFormat: true }),
   };
@@ -4109,6 +4191,49 @@ function autoRoutingFeaturesOf(
     structuredOutput:
       request.responseFormat !== undefined && request.responseFormat.type !== 'text',
   };
+}
+
+/** The image parts of an input and every issue against the contract's image rules. */
+function imageInputOf(input: InferenceInput): ReturnType<typeof checkImageInput> {
+  return input.format === 'messages'
+    ? checkImageInput(input.messages)
+    : { images: 0, issues: [] };
+}
+
+/** The request field an image issue names, in the edge's `input` spelling. Never the image. */
+function imageIssueParam(issue: ImageInputIssue): string {
+  if (issue.field === 'count') return 'input';
+  const message = `input.messages[${issue.messageIndex}]`;
+  return issue.field === 'role'
+    ? `${message}.role`
+    : `${message}.content[${issue.partIndex ?? 0}].${issue.field}`;
+}
+
+/** The first part this edge serves no input bound for: anything but text and images. */
+function firstUnservedPart(input: InferenceInput): string | undefined {
+  if (input.format !== 'messages') return undefined;
+  for (const message of input.messages) {
+    for (const part of message.content) {
+      if (part.type !== 'text' && part.type !== 'image') return part.type;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Each model line's declared `imageInput.maxInputTokensPerImage` (Kaana ADR
+ * 0006). A line absent from the map serves no image.
+ */
+export function declaredImageBounds(
+  catalogue: Pick<DeclaredCatalogueObservation, 'models'>
+): ReadonlyMap<string, number> {
+  const bounds = new Map<string, number>();
+  for (const [modelLine, model] of catalogue.models) {
+    if (model.imageInput !== undefined) {
+      bounds.set(modelLine, model.imageInput.maxInputTokensPerImage);
+    }
+  }
+  return bounds;
 }
 
 function firstNonTextPart(input: InferenceInput): string | undefined {

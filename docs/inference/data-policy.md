@@ -31,6 +31,20 @@ positive control proving the logger was called at all.
 that is explicit, time-limited, encrypted and audited; none of those four is
 built, so there is no way — for you or for Oxy — to turn payload retention on.
 
+### Images are payload
+
+An image a request carries ([ADR 0051](../adr/0051-image-input.md), Kaana ADR
+0006) is held to exactly the rules above: never written to a table, a log line,
+an error, a usage row or a telemetry event. A refusal names the part
+(`input.messages[0].content[1].source.data`) and never repeats it; the edge's
+tests plant a marker inside an image, served and refused, and search every
+logged field for it. An image is accepted **inline only**: no component fetches
+an image URL, and a URL is not forwarded for a provider to fetch, so nothing
+downloads content on our account outside the route's data policy. What the
+provider then does with the image is the route's data policy below, the same as
+for text; Alia's image routes are OpenRouter routes sent with zero data
+retention.
+
 ### The absence is enforced, and this is where the gate is
 
 [ADR 0016](../adr/0016-no-inference-payload-persistence.md) turns that state from

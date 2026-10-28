@@ -25,6 +25,7 @@ import {
   SETTLEMENT_SIGNATURE_DOMAIN,
   grantSchema,
   signatureInput,
+  type DeclaredModel,
   type Grant,
 } from '@kaana.ai/contracts/internal';
 import { USAGE_UNITS, type UsageUnit } from '@oxy.so/contracts';
@@ -1756,6 +1757,82 @@ describe('the clarity-kaana relationship (service_token, embeddings only)', () =
   });
 });
 
+describe('a completion carrying images (Kaana ADR 0006, Oxy ADR 0051)', () => {
+  /** The fixture line, as Kaana declares it, with `imageInput` added (or not). */
+  async function imageLine(maxInputTokensPerImage: number | undefined) {
+    const customer = await makeAudioFixture({
+      inputModalities: ['image', 'text'],
+      outputModalities: ['text'],
+      prices: TEXT_PRICES,
+      topUp: '100.000000000000',
+    });
+    if (maxInputTokensPerImage !== undefined) {
+      const snapshot = (await kaanaStub.snapshot()) as { models: DeclaredModel[] };
+      const declared = snapshot.models.find((model) => model.modelId === customer.modelReference);
+      if (declared === undefined) throw new Error('fixture line not declared');
+      kaanaStub.override(customer.modelReference, {
+        ...declared,
+        imageInput: { maxInputTokensPerImage },
+      });
+    }
+    return customer;
+  }
+  const withImages = (credential: string, modelLine: string, inputImages: number) =>
+    inferenceRequest({
+      credential,
+      target: { kind: 'model', modelLine },
+      facts: {
+        estimatedInputTokens: 1000,
+        maxOutputTokens: 500,
+        inputImages,
+        declaredTools: 0,
+        stream: false,
+      },
+    });
+
+  it('holds every image at the line’s declared bound, on a line that takes and bounds images', async () => {
+    const customer = await imageLine(1_000);
+    const grant = verifiedGrant(
+      await authorize(withImages(customer.token, customer.modelReference, 2)),
+    );
+    // (1,000 text + 2 × 1,000 image) in × $3/M + 500 out × $15/M.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.016500000000', currency: 'USD' });
+    const hold = await reservationOf(grant.reservation?.reservationId ?? '');
+    expect(hold?.inputTokens).toBe(3_000);
+  });
+
+  it('refuses images on a line that bounds none, and on a line that takes none', async () => {
+    const undeclared = await imageLine(undefined);
+    const textOnly = await textCustomer();
+    for (const customer of [undeclared, textOnly]) {
+      const result = await authorize(withImages(customer.token, customer.modelReference, 1));
+      expect(result.status).toBe(400);
+      expect(result.body).toMatchObject({ code: 'unsupported_modality', param: 'model' });
+      expect(await reservationsForRequest(String(result.body.requestId))).toEqual([]);
+    }
+  });
+
+  it('refuses the images fact on an operation that carries no images', async () => {
+    const customer = await imageLine(1_000);
+    const result = await authorize(
+      inferenceRequest({
+        credential: customer.token,
+        operation: 'embeddings',
+        target: { kind: 'model', modelLine: customer.modelReference },
+        facts: {
+          estimatedInputTokens: 10,
+          embeddingInputs: 1,
+          inputImages: 1,
+          declaredTools: 0,
+          stream: false,
+        },
+      }),
+    );
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ code: 'invalid_request', param: 'facts.inputImages' });
+  });
+});
+
 describe('Mention under its first-party relationships (production terms)', () => {
   /**
    * A fresh first-party application stands in for Mention: the production
@@ -1877,6 +1954,30 @@ describe('Mention under its first-party relationships (production terms)', () =>
     );
     expect(named.status).toBe(403);
     expect(named.body.code).toBe('policy_violation');
+  });
+
+  it('refuses images: Mention’s level text has no image terms', async () => {
+    const { app, token } = await mentionStandIn();
+    await addModelLine(app.accountId, {
+      prices: { requests: '0', input_tokens: '0.1', output_tokens: '0.4' },
+      inputModalities: ['image', 'text'],
+      powerClass: 'instant',
+    });
+    const result = await authorize(
+      inferenceRequest({
+        credential: token,
+        target: { kind: 'level', level: 'instant' },
+        facts: {
+          estimatedInputTokens: 100,
+          maxOutputTokens: 100,
+          inputImages: 1,
+          declaredTools: 0,
+          stream: false,
+        },
+      }),
+    );
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ code: 'unsupported_modality', param: 'input' });
   });
 });
 

@@ -168,6 +168,39 @@ speech. A pilot without a `speech` block refuses speech exactly as before
 is shared with every other Alia request, and the usage row records the
 characters with no money hold or receipt.
 
+### Image input (2026-10-28)
+
+Version `oxy-inference-economics/2026-10-28.1` gives the pilot an explicit
+`imageInput` block (`InternalMeteredImageInputPilot`, [ADR 0051](../adr/0051-image-input.md)),
+**proposed for the owner's approval on review**. Before it, the old edge refused
+every image (`unsupported_modality`), whatever the terms. A completion carrying
+images answers to these terms, never to the text tuples:
+
+| Term | Images | Text (unchanged) |
+| --- | --- | --- |
+| Input measure | the text terms' UTF-8 budget with each image's bytes left out, plus each image at its line's declared `imageInput.maxInputTokensPerImage` | UTF-8 framing budget |
+| Image count | **16**; one more is `invalid_request` (`pilot-image-count`) | none |
+| Output ceiling | 2048, the text terms' | 2048 |
+| Quote ceiling | **USD 0.15** per request | USD 0.05 (1.00 on the ADR 0037 lane) |
+| Signed routes | `dep_openrouter_openai_gpt_5_4_nano_observed_2026_09_01` (instant), `dep_openrouter_anthropic_claude_haiku_4_5_observed_2026_09_01` (medium), `dep_openrouter_anthropic_claude_sonnet_5_observed_2026_09_01` (high, xhigh) | the exact text tuples above |
+
+Each line's bound is Kaana's declaration from the publisher's own rule: GPT-5.4
+nano 7,374 tokens (low detail's 6,144-patch budget × 1.2, plus one for billing
+rounding), Claude Haiku 4.5 1,568 (standard tier), Claude Sonnet 5 4,784
+(Claude 4.7 and later). At OpenRouter's list prices (2026-10-28), the full
+126,976 controlled input plus 16 images and 2048 output quotes USD 0.0516 on
+nano (admitted), USD 0.1623 on Haiku (over: at the full text input it admits 8
+images) and USD 0.4275 on Sonnet 5 (over: admitted while the request quotes at
+most USD 0.15). The quote is the request's own size, so a typical Alia turn
+(about 16 KB with one screenshot) fits all three. A 1024×768 screenshot costs
+922 tokens on nano (USD 0.00018), 1,036 on Haiku (USD 0.0010) and on Sonnet 5
+(USD 0.0021); at most USD 0.0015, 0.0016 and 0.0096 an image.
+
+A pilot without an `imageInput` block refuses images (`unsupported_modality`,
+`param: input`, reason `pilot-image-input`). `astro-kaana-session` and
+`mention-kaana-text` have none. Capacity is shared with every other Alia
+request; the usage row records the input tokens with no money hold or receipt.
+
 ### Deployment order and reversal
 
 1. Deploy and verify Kaana #150's SQL NULL preservation before enabling the signed

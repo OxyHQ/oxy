@@ -77,6 +77,11 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import { attestFixtureDeployments } from '../__fixtures__/kaanaRuntimeFixtures';
+import {
+  type DeclaredCatalogueObservation,
+  overrideDeclaredCatalogueSource,
+} from '../../services/kaanaDeclaredCatalogue.service';
+import type { DeclaredModel } from '@kaana.ai/contracts/internal';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -213,6 +218,8 @@ interface FixtureOptions {
   readonly acceptedParameters?: string[];
   /** Mint an official (`internal`) application instead of a third-party one. */
   readonly officialApplication?: boolean;
+  /** The fixture model's input modalities; `['text']` by default. */
+  readonly inputModalities?: string[];
 }
 
 async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
@@ -273,7 +280,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       publisherSlug,
       slug: modelSlug,
       displayName: `Model ${tag}`,
-      inputModalities: ['text'],
+      inputModalities: options.inputModalities ?? ['text'],
       outputModalities: options.apiFormats?.includes('decisions') ? ['decisions'] : ['text'],
       ...(options.apiFormats === undefined ? {} : { apiFormats: options.apiFormats }),
       supportsTools: true,
@@ -1256,7 +1263,10 @@ describe('admission', () => {
             {
               role: 'user',
               content: [
-                { type: 'image', source: { kind: 'url', url: 'https://example.test/a.png' } },
+                {
+                  type: 'audio',
+                  source: { kind: 'inline', mediaType: 'audio/wav', data: 'UklGRg==' },
+                },
               ],
             },
           ],
@@ -4658,5 +4668,269 @@ describe('the internal default routing policy', () => {
         expect(JSON.stringify(json(response))).toContain('no_route_available');
       },
     );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Image input (Oxy ADR 0051, Kaana ADR 0006)                                 */
+/* -------------------------------------------------------------------------- */
+
+describe('image input', () => {
+  const PNG =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+  /** Kaana's declared catalogue, holding `imageInput` for the lines named. */
+  function declare(bounds: Record<string, number>): () => void {
+    const observation: DeclaredCatalogueObservation = {
+      status: 'observed',
+      models: new Map(
+        Object.entries(bounds).map(([modelLine, maxInputTokensPerImage]) => [
+          modelLine,
+          {
+            modelId: modelLine,
+            imageInput: { maxInputTokensPerImage },
+          } as unknown as DeclaredModel,
+        ]),
+      ),
+      changedPriceVersions: new Set(),
+      observedAt: Date.now(),
+    };
+    return overrideDeclaredCatalogueSource({
+      current: async () => observation,
+      priceVersion: () => undefined,
+    });
+  }
+
+  const withImages = (fixture: Fixture, images: number, data = PNG) => ({
+    model: fixture.modelReference,
+    maxOutputTokens: 10,
+    input: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What does this page say?' },
+          ...Array.from({ length: images }, () => ({
+            type: 'image',
+            source: { kind: 'inline', mediaType: 'image/png', data },
+          })),
+        ],
+      },
+    ],
+  });
+
+  async function reservationOf(fixture: Fixture) {
+    const [row] = await getDb()
+      .select({
+        reservedAmount: usageReservations.reservedAmount,
+        inputTokens: usageReservations.inputTokens,
+      })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    return row;
+  }
+
+  it('serves an inline image on a line that takes and bounds it, holding every image at the bound', async () => {
+    const cheap = await makeFixture({
+      fund: '10.000000000000',
+      inputModalities: ['image', 'text'],
+    });
+    const dear = await makeFixture({ fund: '10.000000000000', inputModalities: ['image', 'text'] });
+    const restore = declare({ [cheap.modelReference]: 1_000, [dear.modelReference]: 2_000 });
+    const seen: InferenceRequest[] = [];
+    try {
+      await withServer(
+        fakeKaana(
+          (envelope) =>
+            completionFor(envelope, {
+              input: 10,
+              output: 10,
+              provider: envelope.authorizedRoutes[0]?.provider ?? 'unused',
+            }),
+          seen,
+        ),
+        async (request) => {
+          for (const fixture of [cheap, dear]) {
+            const response = await request(
+              'POST',
+              '/v1/responses',
+              withImages(fixture, 2),
+              bearer(fixture.token),
+            );
+            expect(response.status).toBe(200);
+          }
+        },
+      );
+    } finally {
+      restore();
+    }
+    expect(seen).toHaveLength(2);
+    const sent = seen[0]?.input;
+    expect(sent?.format === 'messages' && sent.messages[0]?.content[1]).toMatchObject({
+      type: 'image',
+      source: { kind: 'inline', mediaType: 'image/png', data: PNG },
+    });
+    const cheapHold = await reservationOf(cheap);
+    const dearHold = await reservationOf(dear);
+    // Two images, 1,000 more tokens each on the dearer line, at $3 per 1M input.
+    expect(Number(dearHold?.reservedAmount) - Number(cheapHold?.reservedAmount)).toBeCloseTo(
+      0.006,
+      9,
+    );
+    expect((dearHold?.inputTokens ?? 0) - (cheapHold?.inputTokens ?? 0)).toBe(2_000);
+  });
+
+  it('refuses images on a model that takes none, and on one that takes them but bounds none', async () => {
+    const textOnly = await makeFixture({ fund: '10.000000000000' });
+    const undeclared = await makeFixture({
+      fund: '10.000000000000',
+      inputModalities: ['image', 'text'],
+    });
+    const restore = declare({});
+    const seen: InferenceRequest[] = [];
+    try {
+      await withServer(
+        fakeKaana(
+          (envelope) => completionFor(envelope, { input: 1, output: 1, provider: 'x' }),
+          seen,
+        ),
+        async (request) => {
+          for (const fixture of [textOnly, undeclared]) {
+            const response = await request(
+              'POST',
+              '/v1/responses',
+              withImages(fixture, 1),
+              bearer(fixture.token),
+            );
+            expect(response.status).toBe(400);
+            expect(json(response)).toMatchObject({ code: 'unsupported_modality', param: 'model' });
+          }
+        },
+      );
+    } finally {
+      restore();
+    }
+    expect(seen).toHaveLength(0);
+    expect(await reservationOf(undeclared)).toBeUndefined();
+  });
+
+  it('refuses an image URL, a format no route reads and malformed data, naming the part', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      inputModalities: ['image', 'text'],
+    });
+    const restore = declare({ [fixture.modelReference]: 1_000 });
+    const marker = Buffer.from(`IMAGE-MARKER-${suffix()}`).toString('base64');
+    const part = (source: Record<string, unknown>) => ({
+      model: fixture.modelReference,
+      input: [{ role: 'user', content: [{ type: 'image', source }] }],
+    });
+    try {
+      await withServer(undefined, async (request) => {
+        const cases: [Record<string, unknown>, string][] = [
+          [
+            { kind: 'url', url: `http://169.254.169.254/${marker}` },
+            'input.messages[0].content[0].source',
+          ],
+          [
+            { kind: 'inline', mediaType: 'image/tiff', data: marker },
+            'input.messages[0].content[0].source.mediaType',
+          ],
+          [
+            { kind: 'inline', mediaType: 'image/png', data: `${marker}!` },
+            'input.messages[0].content[0].source.data',
+          ],
+        ];
+        for (const [source, param] of cases) {
+          const response = await request(
+            'POST',
+            '/v1/responses',
+            part(source),
+            bearer(fixture.token),
+          );
+          expect(response.status).toBe(400);
+          expect(json(response)).toMatchObject({ code: 'invalid_request', param });
+          expect(response.body).not.toContain(marker);
+        }
+      });
+    } finally {
+      restore();
+    }
+    const calls = [
+      ...mockedLogger.warn.mock.calls,
+      ...mockedLogger.error.mock.calls,
+      ...mockedLogger.info.mock.calls,
+      ...mockedLogger.debug.mock.calls,
+    ];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(JSON.stringify(calls)).not.toContain(marker);
+    expect(await reservationOf(fixture)).toBeUndefined();
+  });
+
+  it('never logs a served image', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      inputModalities: ['image', 'text'],
+    });
+    const restore = declare({ [fixture.modelReference]: 1_000 });
+    const marker = Buffer.from(`SERVED-IMAGE-MARKER-${suffix()}`).toString('base64');
+    try {
+      await withServer(
+        fakeKaana((envelope) =>
+          completionFor(envelope, { input: 10, output: 10, provider: fixture.provider }),
+        ),
+        async (request) => {
+          const response = await request(
+            'POST',
+            '/v1/responses',
+            withImages(fixture, 1, marker),
+            bearer(fixture.token),
+          );
+          expect(response.status).toBe(200);
+          const refused = await request(
+            'POST',
+            '/v1/responses',
+            { ...withImages(fixture, 1, marker), model: 'nobody/nothing' },
+            bearer(fixture.token),
+          );
+          expect(refused.status).toBe(404);
+        },
+      );
+    } finally {
+      restore();
+    }
+    const serialized = JSON.stringify([
+      ...mockedLogger.warn.mock.calls,
+      ...mockedLogger.error.mock.calls,
+      ...mockedLogger.info.mock.calls,
+      ...mockedLogger.debug.mock.calls,
+    ]);
+    expect(serialized).toContain('inference.edge.refused');
+    expect(serialized).not.toContain(marker);
+  });
+
+  it('answers service_unavailable when Kaana’s catalogue cannot be read, holding nothing', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      inputModalities: ['image', 'text'],
+    });
+    const restore = overrideDeclaredCatalogueSource({
+      current: async () => ({ status: 'unavailable' }),
+      priceVersion: () => undefined,
+    });
+    try {
+      await withServer(undefined, async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          withImages(fixture, 1),
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(503);
+        expect(json(response)).toMatchObject({ code: 'service_unavailable' });
+      });
+    } finally {
+      restore();
+    }
+    expect(await reservationOf(fixture)).toBeUndefined();
   });
 });

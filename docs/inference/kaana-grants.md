@@ -43,7 +43,8 @@ Kaana  GET /internal/v1/models  (signed, empty body)
    ▼
 authorize  (kaanaGrant + kaanaGrantRoutes)
    1. model          declared? audience admits the viewer? not `retired`?   else model_not_found
-   2. shape          modalities, apiFormats, realtime kind, context/output   else unsupported_modality / *_limit_exceeded
+   2. shape          modalities, apiFormats, realtime kind, context/output,  else unsupported_modality / *_limit_exceeded
+                     a declared `imageInput` when facts.inputImages > 0
    3. price          `pricing` present? priceVersionId not republished?      else no_route_available (typed), never 0
    4. routes         deployments Kaana PUBLISHES for the line, with how Kaana says each may be sold (`commercial`)
                      ∩ the application's policy (providers, regions, ZDR, licences, price caps). EVERY eligible
@@ -213,7 +214,12 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    **`audioInputMilliseconds`** (Kaana reads it from the upload's container;
    the hold is exactly that duration, and a route that prices the transcript's
    output tokens is not admitted), decisions `estimatedInputTokens` (input
-   only; a line that prices output is not admitted).
+   only; a line that prices output is not admitted). A completion carrying
+   images also sends **`inputImages`** (contract 8.1.0, Kaana ADR 0006): only a
+   line Kaana declares `imageInput` for is admitted, and each image adds the
+   line's `maxInputTokensPerImage` to the input that line must fit and is
+   quoted at; the hold is still the dearest admitted line. On any other
+   operation `inputImages` is `invalid_request` ([ADR 0051](../adr/0051-image-input.md)).
 4. The routing policy, pinned: default target, allowed levels, price cap,
    providers, regions, ZDR, licences, fallback.
 5. **Steps.** A model target is one step plus the policy's authorized
@@ -260,6 +266,7 @@ credential only) in the public shape: amount, never provider.
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
 | `product_session` of Astro, `responses` (`astro-kaana-session`, ADR 0050) | Astro's owner; `internal_metered`, `relationshipId: astro-kaana-session` | **no** | application from the session row; `instant` only (else `policy_violation`, `pilot-level`); 8 000 input, 512 output tokens (the caller's limit is required), USD 0.004 a request; 200 a person, 10 000 an application a UTC day, 16 in flight. Astro's shared device session is attributed by its public client id in the bearer (ADR 0050 option b) |
 | `product_session` without reviewed terms (Inbox, any other app) | — | — | refused `permission_denied` (`product-session-not-enabled`); nothing is held or recorded |
+| a completion carrying images (`facts.inputImages`) | as the lane's row | as the lane's row | commercial: on lines declaring `imageInput`, held per image at the line's bound. An internal relationship: only under its `pilot.imageInput` terms (Alia, proposed), else `unsupported_modality` (`pilot-image-input`); Astro's and Mention's terms carry none |
 | service token of Mention in production, `decisions` (`mention-kaana-decisions`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-decisions` | **no** | decisions only, on the decisions profile; 2 in flight, 2 000 a UTC day on its own rows; first-party class, not `is_internal`; Mention's other operations are `commercial` unless the next row names them ([decisions.md](decisions.md)) |
 | service token of Mention in production, `responses` / `chat_completions` (`mention-kaana-text`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-text` | **no** | the `instant` level only (a model or other level is `policy_violation`, `pilot-level`); 32 000 input and 8 192 output tokens (the caller's limit is required), USD 0.035 a request (the dearest instant line at full size quotes USD 0.0301); 8 in flight, 5 000 a UTC day on its own rows; first-party class |
 | `decisions` without decisions terms | — | — | refused `permission_denied` (`decisions-not-enabled`) |

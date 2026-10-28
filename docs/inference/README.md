@@ -236,7 +236,7 @@ share one status). The full rules are in [streaming.md](./streaming.md#retries).
 
 | Codes | Meaning | What your app does |
 |---|---|---|
-| `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem | fix the request. Never retry it as it is |
+| `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem (an image the rules refuse is `invalid_request` naming the part; images sent to a model that cannot take them, or under terms without images, are `unsupported_modality`) | fix the request. Never retry it as it is |
 | `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, external scopes or account/routing policy, or the model isn't visible to this caller | fix the configuration. `policy_violation` names the policy control that excluded every route |
 | `insufficient_balance`, `spending_limit_exceeded`, `quota_exceeded` | money or quota on **your** account | tell the user or the account owner |
 | `rate_limited`, `deployment_unavailable`, `provider_error`, `provider_timeout`, `provider_overloaded` (`retryable: true`) | the platform retried and every authorized route is still failing | show "try again later". A background job may be rescheduled after `retryAfterMs`. Don't loop |
@@ -312,6 +312,7 @@ You only need this section when debugging. The full rules are in
 | Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Live (`allowedRoutingProfileIds`); each app's policy is configuration to set |
 | Naming a power level in `model` (for OpenAI-compatible clients) | Live |
 | Only servable models listed or chosen (published by Kaana, complete price/score/funding evidence) | Live in Oxy. Kaana withholding exhausted or persistently failing deployments: rolling out in Kaana |
+| Image input: inline images on lines Kaana declares a per-image bound for, each held at that bound ([ADR 0051](../adr/0051-image-input.md)) | Rolling out: needs `@kaana.ai/contracts` 8.1.0 and Kaana's declarations; Alia's terms await approval |
 | cheapest/free, fastest, capability, data/region and family-preference profiles | Proposed |
 
 Whether an environment actually serves a feature is a rollout question. The
