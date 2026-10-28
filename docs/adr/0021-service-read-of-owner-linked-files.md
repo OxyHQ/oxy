@@ -114,3 +114,15 @@ than the control the user already has.
 - `packages/api/src/routes/__tests__/assetsServiceLinkedUrl.test.ts` — every
   weaker predicate refused by its own case, each paired with an authorized id
 - Mercaria ADR 0010 (digital commerce) — the entitlement half of this split
+
+## Private-only consumer visibility checks (2026-10-28)
+
+The linked URL response now includes the file's current `visibility`, read from
+the same authorized file record used to mint the URL. A valid application grant
+does not imply the bytes remain private: an owner can change visibility after
+upload, and duplicate uploads preserve the existing file's visibility. A
+consumer serving protected membership content must require `private` before
+returning a URL to its viewer, and continue checking its own live entitlement.
+The SDK field is optional during rolling API deployment; absence is unknown,
+never a private default. This adds no owner/session impersonation or new grant.
+The existing 300-second bearer lifetime and owner revocation semantics remain.

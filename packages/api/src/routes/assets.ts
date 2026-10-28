@@ -3819,6 +3819,7 @@ router.post(
           mime: file.mime,
           size: file.size,
           sha256: file.sha256,
+          visibility: file.visibility,
         })),
     );
 

@@ -221,6 +221,25 @@ describe('POST /assets/service/linked-url — what it admits', () => {
     expect(body.data[0].expiresIn).toBe(300);
   });
 
+  it.each(['private', 'public', 'unlisted'] as const)(
+    'returns authoritative %s visibility with the authorized URL',
+    async (visibility) => {
+      mockGetFilesByIds.mockResolvedValue([{ ...ownerLinked('f_visibility'), visibility }]);
+      const { status, body } = await postLinkedUrl(['f_visibility']);
+      expect(status).toBe(200);
+      expect(body.data[0].visibility).toBe(visibility);
+    },
+  );
+
+  it('reports a private file changed to public on the next mint without caching its old visibility', async () => {
+    mockGetFilesByIds.mockResolvedValueOnce([ownerLinked('f_changed')]);
+    expect((await postLinkedUrl(['f_changed'])).body.data[0].visibility).toBe('private');
+    mockGetFilesByIds.mockResolvedValueOnce([
+      { ...ownerLinked('f_changed'), visibility: 'public' },
+    ]);
+    expect((await postLinkedUrl(['f_changed'])).body.data[0].visibility).toBe('public');
+  });
+
   it('returns the metadata a downloader needs and NOTHING that is storage detail', async () => {
     mockGetFilesByIds.mockResolvedValue([ownerLinked('f_ok')]);
 
@@ -228,10 +247,10 @@ describe('POST /assets/service/linked-url — what it admits', () => {
 
     // Asserted as an exact key set, not by containment: containment goes green
     // when a field is ADDED, which is the direction that leaks. `storageKey`,
-    // `ownerUserId`, `links` and `visibility` are all on the row the handler
-    // read and none of them is the caller's business.
+    // `ownerUserId` and `links` remain private storage/ownership details.
+    // Visibility is now intentional: consumers must detect a private file made public.
     expect(Object.keys(body.data[0]).sort()).toEqual(
-      ['expiresIn', 'id', 'mime', 'sha256', 'size', 'url'].sort(),
+      ['expiresIn', 'id', 'mime', 'sha256', 'size', 'url', 'visibility'].sort(),
     );
   });
 });
