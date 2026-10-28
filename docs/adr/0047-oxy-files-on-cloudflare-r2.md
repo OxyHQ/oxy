@@ -104,3 +104,16 @@ resumes the authoritative server session. File-size changes are rejected before
 hash/read or PUT; server verification detects changed content of equal size.
 `assets.upload` reports `onStageProgress` for hash/upload/verify and accepts an
 AbortSignal. Its original `onProgress(100)` completion callback remains compatible.
+
+
+Physical Android acceptance (2026-10-28, Pixel 8a): the bounded JS-hash version
+successfully server-verified a 369,770,165-byte private video without OOM, but
+spent about 443 seconds before opening the upload session and about 546 seconds
+from the upload action to composer. With the native worker, a fresh
+369,961,708-byte video reached the upload stage within seconds and composer in
+about 123 seconds; server upload plus verification took 121.081 seconds. These
+are separate live-network runs, not a network-throughput benchmark. The second
+capture remained attached in the composer after Mention's separate abandoned-
+render handoff fix. No public post was created. The physical native-worker APK
+SHA-256 was `fe71c4bc321c43fb224d1521d4ef7a66d88bf4fbc671fa679b1e1eeda52f6ec8`.
+Apple worker runtime acceptance remains unmeasured on a physical Apple device.
