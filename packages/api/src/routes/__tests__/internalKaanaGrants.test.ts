@@ -1385,6 +1385,50 @@ describe('the alia-kaana relationship (service_token, internal_metered)', () => 
     });
   });
 
+  it('grants a transcription session on a line that also transcribes files (Kaana ADR 0006)', async () => {
+    // x-ai/grok-voice-transcribe-2.0 as Kaana declares it once streaming is
+    // served: file transcription in audio milliseconds at $0.10/h, the stream
+    // in session milliseconds at $0.20/h, no audio out.
+    const line = await addModelLine(alia.accountId, {
+      prices: {
+        audio_input_milliseconds: { amount: '0.10', per: 3_600_000 },
+        audio_output_milliseconds: { amount: '0', per: 60_000 },
+        session_milliseconds: { amount: '0.20', per: 3_600_000 },
+      },
+      inputModalities: ['audio'],
+      outputModalities: ['text'],
+      apiFormats: ['audio_transcriptions'],
+    });
+    await getDb()
+      .update(inferenceModels)
+      .set({ realtimeTransports: ['websocket'], realtimeSessionKinds: ['transcription'] })
+      .where(eq(inferenceModels.modelId, line.modelLine));
+
+    const session = verifiedGrant(
+      await authorize(realtimeRequest(line.modelLine, 'transcription')),
+    );
+    expect(session).toMatchObject({
+      operation: 'realtime_session',
+      economics: { treatment: 'internal_metered', relationshipId: 'alia-kaana' },
+    });
+    expect(session.reservation).toBeUndefined();
+
+    const file = verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential: aliaToken,
+          operation: 'audio_transcriptions',
+          target: { kind: 'model', modelLine: line.modelLine },
+          facts: { declaredTools: 0, stream: false, audioInputMilliseconds: 30_000 },
+        }),
+      ),
+    );
+    expect(file.operation).toBe('audio_transcriptions');
+
+    const conversation = await authorize(realtimeRequest(line.modelLine));
+    expect(conversation.status).toBe(400);
+  });
+
   it('admits no realtime line dearer than USD 0.25 a minute, and no kind outside the terms', async () => {
     const dear = await realtimeLine({
       audio_input_milliseconds: { amount: '0.20', per: 60_000 },

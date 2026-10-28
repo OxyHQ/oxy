@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -497,8 +497,15 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // USD 0.25 a minute admits the one reviewed realtime voice line (xAI's
       // Voice Agent, $0.08/min audio in + $0.08 out + $0.08 session, held all
       // three: $0.24) and no token-priced realtime line.
+      //
+      // Approved by Nate on 2026-10-28 (Kaana ADR 0006, Alia ADR 0024):
+      // dictation as a streaming transcription session, word by word, on
+      // xAI's streaming speech-to-text at $0.20 an hour. Its line quotes a
+      // session minute at $0.005 (the file transcription's $0.10/h audio plus
+      // the stream's $0.20/h session time, both held), far under the same
+      // ceiling; one dictation is one grant instead of one per phrase.
       realtime: {
-        sessionKinds: ['conversation'],
+        sessionKinds: ['conversation', 'transcription'],
         maxPricePerMinuteUsd: '0.25',
       },
       // Alia's dictation clip is capped at 5 minutes (ADR 0017 §7). USD 0.05
