@@ -297,3 +297,5 @@ export {
   hasCampaignControlCharacters,
 } from './campaignAttribution';
 export type { CampaignAttribution } from './campaignAttribution';
+
+export { isLanguageTag } from './language';

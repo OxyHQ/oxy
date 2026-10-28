@@ -1,6 +1,7 @@
 import { SUPPORTED_LANGUAGES, normalizeLocale } from '@oxy.so/core';
 import {
   CAMPAIGN_LABEL_MAX_LENGTH,
+  isLanguageTag,
   hasCampaignControlCharacters,
   CAMPAIGN_CLICK_ID_MAX_LENGTH,
   type CampaignAttribution,
@@ -45,7 +46,7 @@ export function readEntryLink(url: string | null): {
   const languages = parsed.searchParams.getAll('lang');
   const requestedLanguage = languages.length === 1 ? languages[0] : undefined;
   const language =
-    requestedLanguage && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(requestedLanguage)
+    requestedLanguage && isLanguageTag(requestedLanguage)
       ? (normalizeLocale(requestedLanguage) ??
         SUPPORTED_LANGUAGES.find(
           (candidate) => candidate.language === requestedLanguage.split('-')[0]?.toLowerCase(),

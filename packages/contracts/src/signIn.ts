@@ -1,3 +1,4 @@
+import { isLanguageTag } from './client/language';
 import { campaignAttributionSchema } from './campaignAttribution';
 import { integerCheck } from './numberChecks';
 import { utf16MaxLength, utf16MinLength } from './stringChecks';
@@ -261,7 +262,7 @@ export const signUpRequestSchema = z
     /** The ticket `POST /auth/email/verify/confirm` (purpose `signup`) returned. */
     emailTicket: emailTicketSchema,
     languages: z
-      .array(z.string().regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/))
+      .array(z.string().refine(isLanguageTag, 'Invalid language tag'))
       .min(1)
       .max(10)
       .optional(),
