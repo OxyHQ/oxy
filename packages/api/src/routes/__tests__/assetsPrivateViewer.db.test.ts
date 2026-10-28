@@ -176,3 +176,38 @@ it('preserves the exact application grant with an unrelated requester, but not a
     .send({ ids: [privateId, ownedId] });
   expect(revoked.body.data.map((entry: { id: string }) => entry.id)).toEqual([ownedId]);
 });
+it('keeps application-owned private bytes out of person URLs and other applications', async () => {
+  const [file] = await getDb()
+    .insert(files)
+    .values({
+      ownerApplicationId: mockApp,
+      sha256: randomUUID().replaceAll('-', '').repeat(2),
+      size: 1,
+      mime: 'image/png',
+      ext: '.png',
+      storageKey: `test/${randomUUID()}`,
+      visibility: 'private',
+    })
+    .returning();
+  if (!file) throw new Error('Missing app-owned file');
+  expect((await request(app).get(`/assets/${file.id}/url`)).status).toBe(403);
+  const authorizedApp = mockApp;
+  const allowed = await request(app)
+    .post('/assets/service/linked-url')
+    .send({ ids: [file.id] });
+  expect(allowed.body.data.map((entry: { id: string }) => entry.id)).toEqual([file.id]);
+  const [other] = await getDb()
+    .insert(applications)
+    .values({ name: 'Unrelated app', ownerAccountId: owner, type: 'first_party' })
+    .returning();
+  if (!other) throw new Error('Missing other app');
+  mockApp = other.id;
+  try {
+    const denied = await request(app)
+      .post('/assets/service/linked-url')
+      .send({ ids: [file.id, ownedId] });
+    expect(denied.body.data.map((entry: { id: string }) => entry.id)).toEqual([ownedId]);
+  } finally {
+    mockApp = authorizedApp;
+  }
+});

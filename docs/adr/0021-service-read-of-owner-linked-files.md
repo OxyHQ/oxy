@@ -127,7 +127,7 @@ The SDK field is optional during rolling API deployment; absence is unknown,
 never a private default. This adds no owner/session impersonation or new grant.
 The existing 300-second bearer lifetime and owner revocation semantics remain.
 
-## Private viewer access (2026-10-30)
+## Private viewer access (2026-10-28)
 
 An ordinary account's private file is readable through a person-bound URL,
 stream, download, batch lookup or own-service requester fallback only by its

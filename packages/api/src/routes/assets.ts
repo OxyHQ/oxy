@@ -4672,7 +4672,7 @@ router.get(
     if (!isOwner && file.visibility === 'private') {
       throw new NotFoundError('File not found');
     }
-    if (!(await assetService.canUserAccessFile(file, user._id)))
+    if (!isOwner && !(await assetService.canUserAccessFile(file, user._id)))
       throw new ForbiddenError('Access denied');
     const operatorId = isOwner ? null : await resolveOperatorId(req);
     const visibleLinks = isOwner
