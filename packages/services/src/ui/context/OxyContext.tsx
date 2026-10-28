@@ -10,7 +10,15 @@ import {
   setIsolatedOAuthSession,
 } from './isolatedOAuthSession';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
@@ -183,7 +191,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     }
   }
   const oxyServices = oxyServicesRef.current;
-  useEffect(() => installNativeAssetFiles(oxyServices), [oxyServices]);
+  // Child passive effects may upload immediately on mount. Configure transport
+  // during commit, before those effects, without mutating the client in render.
+  useLayoutEffect(() => installNativeAssetFiles(oxyServices), [oxyServices]);
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
