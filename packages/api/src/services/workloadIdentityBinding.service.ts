@@ -2,7 +2,7 @@ import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/co
 import { isUniqueViolation } from '@oxy.so/db';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { isTrustedApplication } from '../utils/trustedApplication';
@@ -229,8 +229,8 @@ function requireProvider(value: string): AttestationProvider {
  * answers "no bindings" for an id that does not exist is the reading that gets
  * a second, duplicate binding created under the id somebody meant.
  */
-async function requireApplication(applicationId: string) {
-  const [application] = await getDb()
+async function requireApplication(applicationId: string, db: DatabaseOrTransaction = getDb()) {
+  const [application] = await db
     .select({
       id: applications.id,
       name: applications.name,
@@ -292,8 +292,9 @@ function describeDrift(
 async function findBinding(
   provider: AttestationProvider,
   subject: string,
+  db: DatabaseOrTransaction,
 ): Promise<WorkloadBindingRow | undefined> {
-  const [row] = await getDb()
+  const [row] = await db
     .select(BINDING_COLUMNS)
     .from(applicationWorkloadIdentities)
     .where(
@@ -316,6 +317,7 @@ async function reconcileExisting(
     expiresAt: Date | null;
     actor?: WorkloadBindingActor;
   },
+  db: DatabaseOrTransaction,
 ): Promise<WorkloadBindingResult> {
   if (existing.applicationId !== request.applicationId) {
     throw new WorkloadBindingError(
@@ -337,11 +339,14 @@ async function reconcileExisting(
    * changes nothing here either.
    */
   try {
-    await ensureWorkloadAttributionIdentity({
-      bindingId: existing.id,
-      applicationId: request.applicationId,
-      subject: existing.subject,
-    });
+    await ensureWorkloadAttributionIdentity(
+      {
+        bindingId: existing.id,
+        applicationId: request.applicationId,
+        subject: existing.subject,
+      },
+      db,
+    );
   } catch (error: unknown) {
     if (error instanceof WorkloadAttributionError) {
       throw new WorkloadBindingError('subject_attributed_elsewhere', error.message);
@@ -370,7 +375,7 @@ async function reconcileExisting(
       'Binding an environment requires platform staff.',
     );
   }
-  const [updated] = await getDb()
+  const [updated] = await db
     .update(applicationWorkloadIdentities)
     .set({ environment: request.environment, updatedAt: new Date() })
     .where(
@@ -382,7 +387,7 @@ async function reconcileExisting(
     )
     .returning(BINDING_COLUMNS);
   if (!updated) {
-    const current = await findBinding(requireProvider(existing.provider), existing.subject);
+    const current = await findBinding(requireProvider(existing.provider), existing.subject, db);
     if (
       current?.environment === request.environment &&
       current.applicationId === request.applicationId
@@ -411,6 +416,7 @@ async function reconcileExisting(
 export async function bindWorkloadIdentity(
   request: WorkloadBindingRequest,
   now: Date = new Date(),
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<WorkloadBindingResult> {
   if (request.scopes !== undefined) {
     throw new WorkloadBindingError(
@@ -430,7 +436,7 @@ export async function bindWorkloadIdentity(
   const provider = requireProvider(request.provider ?? 'aws-iam');
   const subject = canonicalWorkloadSubject(provider, request.subject);
   const expiresAt = requireExpiry(request.expiresAt, now);
-  const application = await requireApplication(request.applicationId);
+  const application = await requireApplication(request.applicationId, db);
 
   if (application.status !== 'active') {
     throw new WorkloadBindingError(
@@ -457,8 +463,8 @@ export async function bindWorkloadIdentity(
     actor: request.actor,
   };
 
-  const existing = await findBinding(provider, subject);
-  if (existing) return reconcileExisting(existing, reconcileAgainst);
+  const existing = await findBinding(provider, subject, db);
+  if (existing) return reconcileExisting(existing, reconcileAgainst, db);
 
   if (!request.environment || !OXY_SERVICE_ENVIRONMENTS.includes(request.environment)) {
     throw new WorkloadBindingError(
@@ -482,7 +488,7 @@ export async function bindWorkloadIdentity(
      * that row is a service that authenticates and then fails its first
      * reservation — the exact state ADR 0026 was stuck in.
      */
-    const created = await getDb().transaction(async (tx) => {
+    const created = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(applicationWorkloadIdentities)
         .values({
@@ -523,9 +529,9 @@ export async function bindWorkloadIdentity(
      */
     if (!isUniqueViolation(error, 'application_workload_identities_provider_subject_key'))
       throw error;
-    const raced = await findBinding(provider, subject);
+    const raced = await findBinding(provider, subject, db);
     if (!raced) throw error;
-    return reconcileExisting(raced, reconcileAgainst);
+    return reconcileExisting(raced, reconcileAgainst, db);
   }
 }
 
