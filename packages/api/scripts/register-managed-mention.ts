@@ -2,16 +2,16 @@
 /** Operator-only: input is deployment metadata, never credentials or customer content. */
 import { readFile } from 'node:fs/promises';
 import { closePostgres, connectPostgres } from '../src/config/postgres';
-import { registerManagedApplicationDeployment } from '../src/services/managedApplicationDeployment.service';
+import {
+  parseManagedApplicationDeclaration,
+  registerManagedApplicationDeployment,
+} from '../src/services/managedApplicationDeployment.service';
 
 async function main() {
   const [path, ...extra] = process.argv.slice(2);
   if (!path || extra.length) throw new Error('Usage: register-managed-mention.ts declaration.json');
   const declaration: unknown = JSON.parse(await readFile(path, 'utf8'));
   // The service validates the whole untrusted document before opening a transaction.
-  const { parseManagedApplicationDeclaration } = await import(
-    '../src/services/managedApplicationDeployment.service'
-  );
   const input = parseManagedApplicationDeclaration(declaration);
   await connectPostgres();
   try {

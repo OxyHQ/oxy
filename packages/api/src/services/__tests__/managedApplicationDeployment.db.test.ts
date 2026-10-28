@@ -180,7 +180,7 @@ it('serializes concurrent retries without duplicating public clients or workload
   expect(new Set(results.map((result) => result.applicationId)).size).toBe(1);
   expect(new Set(results.map((result) => result.publicClientId)).size).toBe(1);
 });
-it.each(['owner', 'origin', 'public client', 'expired workload'] as const)(
+it.each(['owner', 'origin', 'public client', 'deleted public client', 'expired workload'] as const)(
   'refuses live registry drift: %s',
   async (change) => {
     const { applicationCredentials } = await import('../../db/schema/applicationCredentials');
@@ -197,6 +197,10 @@ it.each(['owner', 'origin', 'public client', 'expired workload'] as const)(
       await getDb()
         .delete(applicationWebOrigins)
         .where(eq(applicationWebOrigins.applicationId, registered.applicationId));
+    } else if (change === 'deleted public client') {
+      await getDb()
+        .delete(applicationCredentials)
+        .where(eq(applicationCredentials.publicKey, registered.publicClientId));
     } else if (change === 'public client') {
       await getDb()
         .update(applicationCredentials)
