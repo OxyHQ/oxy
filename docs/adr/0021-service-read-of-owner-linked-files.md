@@ -126,3 +126,20 @@ returning a URL to its viewer, and continue checking its own live entitlement.
 The SDK field is optional during rolling API deployment; absence is unknown,
 never a private default. This adds no owner/session impersonation or new grant.
 The existing 300-second bearer lifetime and owner revocation semantics remain.
+
+## Private viewer access (2026-10-28)
+
+An ordinary account's private file is readable through a person-bound URL,
+stream, download, batch lookup or own-service requester fallback only by its
+owner. A public profile, follow edge or supplied entity context does not grant
+access to that account's private library. The service path still honors the
+exact application's owner-created reference or explicit file grant, and its
+revocation; it does not turn a requester proof into that grant.
+
+Supervised accounts retain their separate, live guardian-approved contact
+policy. Their assets are forced private by the database, and approved contacts
+are an explicit audience, revoked immediately when that approval is withdrawn.
+Consequently a paid-content consumer must not treat `private` alone as proof
+that a supervised owner's file has no audience outside its own entitlement
+policy. Application-owned private assets remain readable only by their owning
+application.
