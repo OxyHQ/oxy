@@ -20,6 +20,7 @@
  * discards any part left after ten days.
  */
 
+import { isAssetFileSource, type AssetFileSource } from './assetFileSource';
 import { extractErrorStatus } from '../utils/errorUtils';
 
 /** One part's presigned URL: PUT exactly `size` bytes to it. */
@@ -199,7 +200,7 @@ function putPart(
  */
 export async function runDirectUpload(
   api: DirectUploadApi,
-  blob: Blob,
+  blob: Blob | AssetFileSource,
   opened: DirectUploadSession,
   tuning: DirectUploadTuning = {},
 ): Promise<DirectUploadSession> {
@@ -229,6 +230,11 @@ export async function runDirectUpload(
   };
 
   const sendParts = async (session: DirectUploadSession) => {
+    const batch = new AbortController();
+    const stopBatch = () => batch.abort();
+    tuning.signal?.addEventListener('abort', stopBatch, { once: true });
+    if (tuning.signal?.aborted) batch.abort();
+    const signal = batch.signal;
     remember(session);
     const held = new Set((session.uploadedParts ?? []).map((part) => part.partNumber));
     done = 0;
@@ -255,7 +261,7 @@ export async function runDirectUpload(
         const partNumber = pending[next++] as number;
         const start = (partNumber - 1) * partSize;
         const end = Math.min(total, start + partSize);
-        const body = blob.slice(start, end);
+        const body = isAssetFileSource(blob) ? undefined : blob.slice(start, end);
         let lastStatus = 0;
         let sent = false;
         for (let attempt = 1; attempt <= attempts && !sent; attempt++) {
@@ -263,10 +269,20 @@ export async function runDirectUpload(
           // A 403 is an expired (or refused) URL: ask for a fresh one.
           const url = await urlFor(partNumber, lastStatus === 403);
           inFlight.set(partNumber, 0);
-          const outcome = await putPart(url, body, partTimeoutMs, signal, (loaded) => {
+          const onSent = (loaded: number) => {
             inFlight.set(partNumber, loaded);
             report();
-          });
+          };
+          const outcome = isAssetFileSource(blob)
+            ? await blob.putPart({
+                url,
+                start,
+                end,
+                timeoutMs: partTimeoutMs,
+                signal,
+                onProgress: onSent,
+              })
+            : await putPart(url, body as Blob, partTimeoutMs, signal, onSent);
           inFlight.delete(partNumber);
           if (outcome.ok) {
             sent = true;
@@ -285,7 +301,28 @@ export async function runDirectUpload(
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(concurrency, pending.length || 1) }, worker));
+    let failed = false;
+    let firstFailure: unknown;
+    try {
+      // Do not leave sibling native transfers running after this call rejects.
+      // Await their cancellation and temporary-file cleanup before returning.
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, pending.length || 1) }, async () => {
+          try {
+            await worker();
+          } catch (error) {
+            if (!failed) {
+              failed = true;
+              firstFailure = error;
+            }
+            batch.abort();
+          }
+        }),
+      );
+      if (failed) throw firstFailure;
+    } finally {
+      tuning.signal?.removeEventListener('abort', stopBatch);
+    }
   };
 
   await sendParts(opened);

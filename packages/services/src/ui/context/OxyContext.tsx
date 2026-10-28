@@ -1,3 +1,4 @@
+import { installNativeAssetFiles } from '../utils/nativeAssetFiles';
 import {
   startNativeOAuthSignIn,
   type StartNativeOAuthSignInOptions,
@@ -182,6 +183,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     }
   }
   const oxyServices = oxyServicesRef.current;
+  useEffect(() => installNativeAssetFiles(oxyServices), [oxyServices]);
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.

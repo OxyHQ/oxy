@@ -92,6 +92,11 @@ export type {
   RegisterPushTokenInput,
 } from './api/notifications';
 export { ASSET_MULTIPART_UPLOAD_MAX_BYTES, assetUrlCacheTTL, MAX_UPLOAD_BYTES } from './api/assets';
+export type {
+  AssetFileAdapter,
+  AssetFileSource,
+  AssetFilePartRequest,
+} from './api/assetFileSource';
 export { DirectUploadInterruptedError } from './api/directUpload';
 export type { DirectUploadProgress } from './api/directUpload';
 export type {
