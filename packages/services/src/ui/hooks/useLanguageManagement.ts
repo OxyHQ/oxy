@@ -12,11 +12,15 @@ import {
   normalizeLocale,
 } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
+import { readEntryLink } from '../utils/entryLink';
 import { extractErrorMessage } from '../utils/errorHandlers';
 
 export interface UseLanguageManagementOptions {
   storage: StorageInterface | null;
   languageKey: string;
+  entryUrl?: string | null;
+  entryLinkReady?: boolean;
+  legacyLanguageKeys?: readonly string[];
   /**
    * The active account, when signed in. When present, the account's primary
    * locale (`languages[0]`) is authoritative for the app's UI locale; when
@@ -34,6 +38,7 @@ export interface UseLanguageManagementResult {
    * locally-chosen guest override, otherwise the device locale.
    */
   currentLanguage: string;
+  isLanguageReady: boolean;
   /**
    * The ordered account locales (primary first) when signed in, or the locally
    * persisted selection when signed out. Empty only before the guest override loads
@@ -145,6 +150,9 @@ function resolveDeviceLocale(): string {
 export const useLanguageManagement = ({
   storage,
   languageKey,
+  entryUrl = null,
+  entryLinkReady = true,
+  legacyLanguageKeys,
   user,
   onError,
   logger,
@@ -156,6 +164,8 @@ export const useLanguageManagement = ({
   // Until it loads, the UI uses the device locale.
   const [guestLanguages, setGuestLanguages] = useState<string[]>([]);
   const selectionVersion = useRef(0);
+  const [isLanguageReady, setLanguageReady] = useState(false);
+  const legacyKeysSignature = JSON.stringify(legacyLanguageKeys ?? []);
 
   const loadLanguageFromStorage = useCallback(async (): Promise<void> => {
     if (!storage) {
@@ -164,24 +174,39 @@ export const useLanguageManagement = ({
 
     const version = selectionVersion.current;
     try {
-      const savedLanguageRaw = await storage.getItem(languageKey);
-      // Migrate the former single locale without discarding existing preferences.
-      let stored: unknown = savedLanguageRaw;
-      if (savedLanguageRaw?.startsWith('[')) {
-        stored = JSON.parse(savedLanguageRaw);
+      function parseStored(raw: string | null): string[] {
+        let stored: unknown = raw;
+        if (raw?.startsWith('[') || raw?.startsWith('"')) stored = JSON.parse(raw);
+        const entries = Array.isArray(stored) ? stored : [stored];
+        return [
+          ...new Set(
+            entries.flatMap((entry) => {
+              const locale = typeof entry === 'string' ? normalizeLocale(entry) : undefined;
+              return locale ? [locale] : [];
+            }),
+          ),
+        ];
       }
-      const entries = Array.isArray(stored) ? stored : [stored];
-      const normalized = [
-        ...new Set(
-          entries.flatMap((entry) => {
-            const locale = typeof entry === 'string' ? normalizeLocale(entry) : undefined;
-            return locale ? [locale] : [];
-          }),
-        ),
-      ];
-      if (normalized.length && version === selectionVersion.current) {
-        setGuestLanguages(normalized);
+      let normalized = parseStored(await storage.getItem(languageKey));
+      let migratedKey: string | undefined;
+      const legacyKeys: string[] = JSON.parse(legacyKeysSignature);
+      if (!normalized.length) {
+        for (const key of legacyKeys) {
+          normalized = parseStored(await storage.getItem(key));
+          if (normalized.length) {
+            migratedKey = key;
+            break;
+          }
+        }
       }
+      const linkedLanguage = readEntryLink(entryUrl).language;
+      const selected = linkedLanguage ? [linkedLanguage] : normalized;
+      if (version !== selectionVersion.current) return;
+      if (linkedLanguage || migratedKey) {
+        await storage.setItem(languageKey, JSON.stringify(selected));
+        if (migratedKey) await storage.removeItem(migratedKey);
+      }
+      if (selected.length && version === selectionVersion.current) setGuestLanguages(selected);
     } catch (error) {
       const message = extractErrorMessage(error, 'Failed to load language preference');
       onError?.({
@@ -194,16 +219,19 @@ export const useLanguageManagement = ({
       } else if (__DEV__) {
         console.warn('Failed to load language preference:', error);
       }
+    } finally {
+      setLanguageReady(true);
     }
-  }, [languageKey, logger, onError, storage]);
+  }, [entryUrl, languageKey, legacyKeysSignature, logger, onError, storage]);
 
   useEffect(() => {
+    if (!entryLinkReady) return;
     loadLanguageFromStorage().catch((error) => {
       if (logger) {
         logger('Unexpected error loading language', error);
       }
     });
-  }, [loadLanguageFromStorage, logger]);
+  }, [entryLinkReady, loadLanguageFromStorage, logger]);
 
   const setLanguages = useCallback(
     async (locales: readonly string[]): Promise<void> => {
@@ -268,6 +296,7 @@ export const useLanguageManagement = ({
 
   return {
     currentLanguage,
+    isLanguageReady,
     languages,
     metadata,
     languageName,

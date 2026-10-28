@@ -1541,6 +1541,13 @@
       "when": 1792994033212,
       "tag": "0220_drop_workload_scope_column",
       "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
+      "when": 1793166917593,
+      "tag": "0221_account_acquisition",
+      "breakpoints": true
     }
   ]
 }

@@ -298,7 +298,15 @@ router.post(
             SIGN_IN_ERROR_CODES.emailAccountsFull,
           );
         }
-        return createPersonalAccount(tx, username, { email: body.email });
+        return createPersonalAccount(
+          tx,
+          username,
+          { email: body.email },
+          {
+            languages: body.languages,
+            campaignAttribution: body.campaignAttribution,
+          },
+        );
       });
     } catch (error) {
       // The unique index decides, not a probe: losing the name to an earlier

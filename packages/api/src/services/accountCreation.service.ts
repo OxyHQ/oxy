@@ -22,6 +22,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { normalizeLocale } from '@oxy.so/core';
+import type { CampaignAttribution } from '@oxy.so/contracts';
+import { accountAcquisition } from '../db/schema/accountAcquisition';
 import { usernameSchemaForAccountKind, type CreateOrganization } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
 import { eq, sql } from 'drizzle-orm';
@@ -308,8 +311,30 @@ export async function createPersonalAccount(
   tx: DatabaseOrTransaction,
   username: CanonicalUsername,
   credential: PersonalCredential,
+  acquisition?: { languages?: string[]; campaignAttribution?: CampaignAttribution },
 ): Promise<AccountRow> {
-  const account = await insertAccount(tx, { username, ...credential });
+  const languages = acquisition?.languages?.map((locale) => {
+    const canonical = normalizeLocale(locale);
+    if (!canonical) throw new BadRequestError('Unsupported language', { field: 'languages' });
+    return canonical;
+  });
+  const account = await insertAccount(tx, {
+    username,
+    ...credential,
+    ...(languages ? { languages: [...new Set(languages)] } : {}),
+  });
+  const campaign = acquisition?.campaignAttribution;
+  if (campaign) {
+    await tx.insert(accountAcquisition).values({
+      userId: account.id,
+      utmSource: campaign.utmSource,
+      utmMedium: campaign.utmMedium,
+      utmCampaign: campaign.utmCampaign,
+      utmContent: campaign.utmContent,
+      utmTerm: campaign.utmTerm,
+      fbclid: campaign.fbclid,
+    });
+  }
   if ('publicKey' in credential) {
     await tx.insert(userAuthMethods).values({
       userId: account.id,

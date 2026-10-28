@@ -220,3 +220,5 @@ export * from './organizationProfiles';
 export * from './supervision';
 export * from './accountInvitations';
 export * from './applicationInvitationEmails';
+
+export * from './accountAcquisition';

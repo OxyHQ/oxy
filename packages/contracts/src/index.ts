@@ -1643,3 +1643,6 @@ export {
 } from './stringChecks';
 
 export { integerCheck, safeNumberCheck } from './numberChecks';
+
+export { campaignAttributionSchema } from './campaignAttribution';
+export type { CampaignAttribution } from './client/campaignAttribution';

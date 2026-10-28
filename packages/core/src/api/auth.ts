@@ -29,6 +29,7 @@ import type {
   ReauthAction,
   ReauthProof,
   SignInMethods,
+  SignUpRequest,
   SignInStepResult,
   TotpEnrollResponse,
 } from '@oxy.so/contracts';
@@ -1638,13 +1639,24 @@ export class AuthApi {
   }
 
   async signUp(
-    request: { username: string; email: string; emailTicket: string } & SignInDeviceOptions,
+    request: Pick<
+      SignUpRequest,
+      'username' | 'email' | 'emailTicket' | 'languages' | 'campaignAttribution'
+    > &
+      SignInDeviceOptions,
   ): Promise<LoginResult> {
-    const { username, email, emailTicket, ...options } = request;
+    const { username, email, emailTicket, languages, campaignAttribution, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
       '/auth/signup',
-      { username, email, emailTicket, ...(await signInEnvelope(this.ctx, options)) },
+      {
+        username,
+        email,
+        emailTicket,
+        ...(languages ? { languages } : {}),
+        ...(campaignAttribution ? { campaignAttribution } : {}),
+        ...(await signInEnvelope(this.ctx, options)),
+      },
       { cache: false, skipAuth: true },
     );
     return plantSession(this.ctx, res, 'auth/signup');

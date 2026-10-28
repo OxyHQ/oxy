@@ -1,91 +1,111 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { LanguageBridge } from '../LanguageBridge';
 
-/**
- * `OxyProvider`'s language config prop, realized: the one place Oxy's
- * resolved language reaches a host app's own i18n library. `useOxy` is mocked here —
- * it is the SDK's own well-tested context — so these tests exercise exactly
- * what this component adds: coercion to the caller's catalog, and calling
- * back only when the RESOLVED locale actually changes.
- */
-
 let mockCurrentLanguage = 'en-US';
+let mockLanguageReady = true;
+let mockAuthResolved = true;
 jest.mock('../../context/oxyRuntimeContext', () => ({
-  useOxy: () => ({ currentLanguage: mockCurrentLanguage }),
+  useOxy: () => ({
+    currentLanguage: mockCurrentLanguage,
+    isLanguageReady: mockLanguageReady,
+    isAuthResolved: mockAuthResolved,
+  }),
 }));
-
 const HOST_CATALOG = ['en-US', 'es-ES', 'fr-FR'] as const;
-
 beforeEach(() => {
   mockCurrentLanguage = 'en-US';
+  mockLanguageReady = true;
+  mockAuthResolved = true;
 });
 
-it('resolves and reports the account language on mount', () => {
+it.each([
+  ['es-ES', 'es-ES'],
+  ['es-MX', 'es-ES'],
+  ['ja-JP', 'en-US'],
+])('resolves %s to the host catalog %s', async (locale, expected) => {
+  mockCurrentLanguage = locale;
+  const onChange = jest.fn();
+  render(
+    <LanguageBridge config={{ supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange }}>
+      <span>App</span>
+    </LanguageBridge>,
+  );
+  await waitFor(() => expect(onChange).toHaveBeenCalledWith(expected));
+});
+
+it('does not paint any app text before saved preferences, account restoration and catalog loading finish', async () => {
+  mockLanguageReady = false;
+  mockAuthResolved = false;
+  let finishCatalog: (() => void) | undefined;
+  const onChange = jest.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finishCatalog = resolve;
+      }),
+  );
+  const config = { supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange };
+  const children = <span>Translated app</span>;
+  const screen = render(<LanguageBridge config={config}>{children}</LanguageBridge>);
+  expect(screen.queryByText('Translated app')).toBeNull();
+  expect(onChange).not.toHaveBeenCalled();
+  mockLanguageReady = true;
   mockCurrentLanguage = 'es-ES';
-  const onChange = jest.fn();
-  render(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
-  );
-
-  expect(onChange).toHaveBeenCalledWith('es-ES');
+  screen.rerender(<LanguageBridge config={config}>{children}</LanguageBridge>);
+  expect(onChange).not.toHaveBeenCalled();
+  mockAuthResolved = true;
+  screen.rerender(<LanguageBridge config={config}>{children}</LanguageBridge>);
+  await waitFor(() => expect(onChange).toHaveBeenCalledWith('es-ES'));
+  expect(screen.queryByText('Translated app')).toBeNull();
+  await act(async () => finishCatalog?.());
+  expect(screen.getByText('Translated app')).toBeTruthy();
 });
 
-it('coerces a locale the host never shipped a catalog for, by base language', () => {
-  mockCurrentLanguage = 'es-MX';
+it('keeps route state mounted across a language change and ignores callback identity changes', async () => {
+  let mounts = 0;
+  function Page() {
+    React.useEffect(() => {
+      mounts += 1;
+    }, []);
+    return <span>App</span>;
+  }
   const onChange = jest.fn();
-  render(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  const config = { supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange };
+  const screen = render(
+    <LanguageBridge config={config}>
+      <Page />
+    </LanguageBridge>,
   );
-
-  expect(onChange).toHaveBeenCalledWith('es-ES');
-});
-
-it('falls back to the caller default when nothing matches, even by base', () => {
-  mockCurrentLanguage = 'ja-JP';
-  const onChange = jest.fn();
-  render(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
-  );
-
-  expect(onChange).toHaveBeenCalledWith('en-US');
-});
-
-it('calls back again only when the RESOLVED locale changes', () => {
-  const onChange = jest.fn();
-  const { rerender } = render(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  await waitFor(() => expect(mounts).toBe(1));
+  screen.rerender(
+    <LanguageBridge config={{ ...config, onChange: jest.fn() }}>
+      <Page />
+    </LanguageBridge>,
   );
   expect(onChange).toHaveBeenCalledTimes(1);
-
-  // Same resolved locale, brand-new callback identity (the common case for an
-  // inline arrow function) — must not re-fire.
-  rerender(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={() => {}} />,
-  );
-  expect(onChange).toHaveBeenCalledTimes(1);
-
   mockCurrentLanguage = 'fr-FR';
-  rerender(
-    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  screen.rerender(
+    <LanguageBridge config={config}>
+      <Page />
+    </LanguageBridge>,
   );
-  expect(onChange).toHaveBeenCalledTimes(2);
-  expect(onChange).toHaveBeenLastCalledWith('fr-FR');
+  await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('fr-FR'));
+  expect(mounts).toBe(1);
 });
 
-it('reports a rejected onChange to onError instead of throwing', async () => {
-  const failure = new Error('catalog failed to load');
-  const onChange = jest.fn().mockRejectedValue(failure);
+it('reports a failed catalog and initializes the fallback before showing children', async () => {
+  mockCurrentLanguage = 'es-ES';
+  const failure = new Error('catalog unavailable');
+  const onChange = jest.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(undefined);
   const onError = jest.fn();
-  render(
+  const screen = render(
     <LanguageBridge
-      supportedLocales={HOST_CATALOG}
-      fallbackLocale="en-US"
-      onChange={onChange}
-      onError={onError}
-    />,
+      config={{ supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange, onError }}
+    >
+      <span>App</span>
+    </LanguageBridge>,
   );
-
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(onError).toHaveBeenCalledWith(failure, 'en-US');
+  await waitFor(() => expect(screen.getByText('App')).toBeTruthy());
+  expect(onError).toHaveBeenCalledWith(failure, 'es-ES');
+  expect(onChange.mock.calls.map(([locale]) => locale)).toEqual(['es-ES', 'en-US']);
 });

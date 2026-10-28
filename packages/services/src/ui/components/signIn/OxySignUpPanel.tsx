@@ -67,7 +67,13 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   host = 'page',
 }) => {
   const { t } = useI18n();
-  const { oxyServices, handleWebSession, accountDialogController } = useOxy();
+  const {
+    oxyServices,
+    handleWebSession,
+    accountDialogController,
+    currentLanguage,
+    campaignAttribution,
+  } = useOxy();
   const snapshot = useAccountDialogSnapshot(accountDialogController);
   const flowOwner = host === 'dialog' ? accountDialogController : null;
   const [saved] = useState(() => readSignInFlow<SavedSignUpFlow>(flowOwner, SIGN_UP_FLOW_KEY));
@@ -139,6 +145,8 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         username: username.trim(),
         email,
         emailTicket: ticket,
+        languages: [currentLanguage],
+        ...(campaignAttribution ? { campaignAttribution } : {}),
       });
       await handleWebSession(session);
       writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, undefined);

@@ -1,3 +1,4 @@
+import type { CampaignAttribution } from '@oxy.so/contracts';
 import type {
   StartNativeOAuthSignInOptions,
   NativeOAuthSignInResult,
@@ -85,6 +86,8 @@ export interface OxyContextState {
   error: string | null;
   /** Active UI locale (`language-REGION`): the account's primary locale when signed in, else the guest/device locale. */
   currentLanguage: string;
+  isLanguageReady: boolean;
+  campaignAttribution?: CampaignAttribution;
   /** Ordered account locales (primary first) when signed in, or the single guest override when signed out. */
   currentLanguages: string[];
   currentLanguageMetadata: ReturnType<typeof useLanguageManagement>['metadata'];
@@ -180,6 +183,8 @@ export interface OxyContextState {
 }
 
 export interface OxyRuntimeProviderProps {
+  legacyLanguageKeys?: readonly string[];
+  captureCampaignAttribution?: boolean;
   children: ReactNode;
   oxyServices?: OxyServices;
   baseURL?: string;

@@ -1,3 +1,4 @@
+import { campaignAttributionSchema } from './campaignAttribution';
 import { integerCheck } from './numberChecks';
 import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
@@ -259,6 +260,12 @@ export const signUpRequestSchema = z
     email: emailAddressSchema,
     /** The ticket `POST /auth/email/verify/confirm` (purpose `signup`) returned. */
     emailTicket: emailTicketSchema,
+    languages: z
+      .array(z.string().regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/))
+      .min(1)
+      .max(10)
+      .optional(),
+    campaignAttribution: campaignAttributionSchema.optional(),
     ...sessionEnvelope,
   })
   .strict();
