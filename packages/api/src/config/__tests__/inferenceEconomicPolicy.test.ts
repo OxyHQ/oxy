@@ -106,11 +106,15 @@ describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () 
     (candidate) => candidate.relationshipId === 'alia-kaana',
   );
 
-  it('admits realtime conversation sessions under a per-minute price ceiling, and nothing else', () => {
+  it('admits realtime conversation and transcription sessions under a per-minute price ceiling, and nothing else', () => {
     expect(relationship?.pilot?.realtime).toEqual({
-      sessionKinds: ['conversation'],
+      sessionKinds: ['conversation', 'transcription'],
       maxPricePerMinuteUsd: '0.25',
     });
+  });
+
+  it('stamps the version that introduced transcription sessions', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-28.1');
   });
 
   it('admits transcriptions of at most Alia’s 5-minute clip under a per-request ceiling', () => {
@@ -316,9 +320,5 @@ describe('astro-kaana-session: Astro’s one-shot features on a person’s sessi
       expect(candidate.lane).toBe('product_session');
       expect(candidate.capacity.maxRequestsPerUserPerUtcDay).toBeGreaterThan(0);
     }
-  });
-
-  it('stamps the version that introduced it', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-27.2');
   });
 });

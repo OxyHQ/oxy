@@ -94,8 +94,13 @@ every event after `afterSequence`. Sessions are held in the memory of the edge
 task (and the Kaana task) that opened them, so a resume that reaches another
 task is refused with `invalid_request` exactly as Kaana refuses one.
 
-**What is not served yet**, and why: `transcription` and `translation` sessions
-and input-audio transcription consume audio outside responses, where no signed
+**Transcription sessions** are served on Kaana's grant API (`kaana.ai/v1/realtime`)
+since Kaana ADR 0006: xAI's streaming speech-to-text, duration-priced
+(`session_milliseconds`), for `alia-kaana` under its realtime terms
+([kaana-grants.md](kaana-grants.md)). This edge's own lane still refuses them.
+
+**What is not served yet**, and why: `translation` sessions, and transcription
+sessions on this edge, consume audio outside responses, where no signed
 limit bounds the tokens — so no hold could be sound. They need a declared audio
 token rate per model (or duration pricing, whose milliseconds are exact from the
 signed byte caps — the mechanism below, which today admits `conversation`
