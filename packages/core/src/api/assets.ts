@@ -261,6 +261,11 @@ async function sha256OfBlob(
   onChunk?: (loaded: number) => void,
   signal?: AbortSignal,
 ): Promise<string> {
+  if (isAssetFileSource(blob) && blob.hash) {
+    const digest = await blob.hash(onChunk, signal);
+    if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('Invalid native file digest');
+    return digest;
+  }
   const { createContentHasher } = await import('../crypto/index');
   const hash = createContentHasher();
   for (let offset = 0; offset < blob.size; offset += LARGE_UPLOAD_HASH_CHUNK_BYTES) {

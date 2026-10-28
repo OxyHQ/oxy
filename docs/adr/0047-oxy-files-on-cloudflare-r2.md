@@ -85,8 +85,14 @@ A native URI must never first become a whole-file Blob. React Native's Android
 BlobModule allocates a Java byte array for the entire file; a physical Pixel 8a
 failed a 369,812,592-byte camera video against a 268,435,456-byte Java heap. Expo
 File.slice is not a substitute: it calls bytesSync for the whole source before
-slicing. The adapter instead reads FileHandle chunks of at most 1 MiB, supplies
-hash ranges of at most 8 MiB, copies only the current multipart ranges into
+slicing. The adapter instead hashes with a native streaming worker (Android MessageDigest,
+Apple CryptoKit) using at most 1 MiB per read. Only progress and the digest cross
+the JS bridge. Hash cancellation is registered before the worker is queued.
+The bounded JS hash remains available for older native binaries after an OTA,
+but measured 370 MiB hashing took about 443 seconds on Pixel 8a/Hermes, so new
+binaries must include OxyAssetFiles. The adapter reads FileHandle chunks of at
+most 1 MiB for range copies, yields to the event loop between chunks, and copies
+only the current multipart ranges into
 private cache files, and streams those files through native binary upload tasks.
 No Oxy bearer or cookie is supplied to storage.
 

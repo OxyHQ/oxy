@@ -5,6 +5,8 @@ const originalUri = 'file:///capture.mp4';
 const mockFiles = new Map<string, { size: number; written: number }>();
 const mockReads: number[] = [];
 const mockDeleted: string[] = [];
+let mockNativeHasher: unknown = null;
+jest.mock('expo-modules-core', () => ({ requireOptionalNativeModule: () => mockNativeHasher }));
 let mockUpload: jest.Mock;
 let mockCancel: jest.Mock;
 let mockRequest: { url: string; uri: string; options: unknown } | undefined;
@@ -105,6 +107,7 @@ function adapter(): AssetFileAdapter {
 }
 
 beforeEach(() => {
+  mockNativeHasher = null;
   mockFiles.clear();
   mockFiles.set(originalUri, { size: 370 * 1024 * 1024, written: 0 });
   mockReads.length = 0;
@@ -216,4 +219,52 @@ test('an abort timer interrupts part preparation before copying the complete ran
   expect(mockUpload).not.toHaveBeenCalled();
   expect(mockFiles.size).toBe(1);
   expect(mockFiles.has(originalUri)).toBe(true);
+});
+
+test('uses the native streaming hash without reading bytes into JavaScript', async () => {
+  let progress: (event: { id: string; loaded: number }) => void;
+  const remove = jest.fn();
+  const digest = 'ab'.repeat(32);
+  mockNativeHasher = {
+    createHash: jest.fn(),
+    cancelHash: jest.fn(),
+    addListener: jest.fn((_event, callback) => {
+      progress = callback;
+      return { remove };
+    }),
+    hashAsync: jest.fn(async (id, _uri, size) => {
+      progress({ id: 'another-upload', loaded: 1 });
+      progress({ id, loaded: size });
+      return digest;
+    }),
+  };
+  const source = await adapter()(originalUri);
+  const onProgress = jest.fn();
+  await expect(source.hash?.(onProgress)).resolves.toBe(digest);
+  expect(mockReads).toHaveLength(0);
+  expect(onProgress).toHaveBeenCalledTimes(1);
+  expect(onProgress).toHaveBeenCalledWith(source.size);
+  expect(remove).toHaveBeenCalledTimes(1);
+});
+
+test('native hash cancellation waits for worker cleanup and removes its listener', async () => {
+  const controller = new AbortController();
+  const remove = jest.fn();
+  let finish: (value: string) => void;
+  const cancelHash = jest.fn(() => finish('ab'.repeat(32)));
+  mockNativeHasher = {
+    createHash: jest.fn(),
+    cancelHash,
+    addListener: () => ({ remove }),
+    hashAsync: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+  };
+  const source = await adapter()(originalUri);
+  const pending = source.hash?.(undefined, controller.signal);
+  controller.abort();
+  await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  expect(cancelHash).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledTimes(1);
 });

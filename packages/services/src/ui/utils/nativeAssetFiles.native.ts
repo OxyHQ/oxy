@@ -6,6 +6,16 @@ import type { Directory, File } from 'expo-file-system';
 const COPY_CHUNK_BYTES = 1024 * 1024;
 let partsDirectory: Promise<Directory> | undefined;
 let nextPart = 0;
+let nextHash = 0;
+interface NativeFileHasher {
+  createHash(id: string): void;
+  cancelHash(id: string): void;
+  hashAsync(id: string, uri: string, expectedSize: number): Promise<string>;
+  addListener(
+    event: 'hashProgress',
+    listener: (event: { id: string; loaded: number }) => void,
+  ): { remove(): void };
+}
 
 // FileHandle methods are synchronous: awaiting them alone only yields a
 // microtask. Let rendering, native events and abort timers run between chunks.
@@ -129,12 +139,43 @@ async function putRange(
 }
 
 async function openNativeFile(uri: string): Promise<AssetFileSource> {
-  const { File } = await import('expo-file-system');
+  const [{ File }, { requireOptionalNativeModule }] = await Promise.all([
+    import('expo-file-system'),
+    import('expo-modules-core'),
+  ]);
+  const nativeHasher = requireOptionalNativeModule<NativeFileHasher>('OxyAssetFiles');
   const file = new File(uri);
   if (!file.exists) throw new Error('Native upload file is unavailable');
   const size = file.size;
   return {
     size,
+    // Older native binaries can still use bounded JS reads after an OTA. New
+    // binaries hash entirely on a native worker, without sending bytes to JS.
+    hash: nativeHasher
+      ? async (onProgress, signal) => {
+          checkAbort(signal);
+          if (file.size !== size) throw new Error('File changed while hashing');
+          const id = `upload-hash-${++nextHash}`;
+          const listener = nativeHasher.addListener('hashProgress', (event) => {
+            if (event.id === id && !signal?.aborted) onProgress?.(event.loaded);
+          });
+          const stop = () => nativeHasher.cancelHash(id);
+          try {
+            nativeHasher.createHash(id);
+            signal?.addEventListener('abort', stop, { once: true });
+            if (signal?.aborted) stop();
+            const digest = await nativeHasher.hashAsync(id, uri, size);
+            checkAbort(signal);
+            return digest;
+          } catch (error) {
+            checkAbort(signal);
+            throw error;
+          } finally {
+            signal?.removeEventListener('abort', stop);
+            listener.remove();
+          }
+        }
+      : undefined,
     async readRange(start, end) {
       if (file.size !== size) throw new Error('File changed while uploading');
       if (start < 0 || end > size || end < start) throw new Error('Invalid upload file range');

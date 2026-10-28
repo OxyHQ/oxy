@@ -10,6 +10,8 @@ export interface AssetFilePartRequest {
 
 export interface AssetFileSource {
   readonly size: number;
+  /** Optional native streaming SHA-256; avoids hashing large files on the JS thread. */
+  hash?(onProgress?: (loaded: number) => void, signal?: AbortSignal): Promise<string>;
   /** Read only this bounded range; never materialize the entire file. */
   readRange(start: number, end: number): Promise<Uint8Array>;
   /** Stream a file range to its signed storage URL, without application credentials. */

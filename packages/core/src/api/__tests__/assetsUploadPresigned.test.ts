@@ -415,6 +415,27 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       expect(result).toEqual({ file: uploadedShape });
     });
 
+    it('uses a native digest without transporting hash bytes through JavaScript', async () => {
+      const { oxy, request } = stubApi(() => openSession(OVER));
+      const digest = 'ab'.repeat(32);
+      const readRange = jest.fn();
+      const hash = jest.fn(async (progress?: (loaded: number) => void) => {
+        progress?.(OVER);
+        return digest;
+      });
+      oxy.assets.installFileAdapter(async () => ({
+        size: OVER,
+        hash,
+        readRange,
+        putPart: async () => ({ ok: true as const }),
+      }));
+      const result = await oxy.assets.upload({ uri: 'file:///large.mp4', type: 'video/mp4' });
+      expect(hash).toHaveBeenCalledTimes(1);
+      expect(readRange).not.toHaveBeenCalled();
+      expect(request.mock.calls[0][2]).toMatchObject({ sha256: digest, size: OVER });
+      expect(result).toEqual({ file: uploadedShape });
+    });
+
     it('native metadata proves an unknown-size file small before streaming multipart', async () => {
       const { oxy, order } = stubApi(() => openSession(OVER));
       oxy.assets.installFileAdapter(async () => ({

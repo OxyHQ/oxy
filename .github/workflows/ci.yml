@@ -1572,6 +1572,7 @@ jobs:
           :oxy-identity-host:compileDebugKotlin
           :oxy-identity-host:testDebugUnitTest
           :oxy-so-services:compileDebugKotlin
+          :oxy-so-services:testDebugUnitTest
       - name: The merged manifest declares no shared UID and hosts both providers
         working-directory: ./packages/commons/android
         run: |
