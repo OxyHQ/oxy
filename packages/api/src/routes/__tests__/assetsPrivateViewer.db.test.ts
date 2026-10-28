@@ -1,4 +1,7 @@
 /** Real HTTP routes, PostgreSQL file rows and privacy policy; only transport identity and S3 are fixtures. */
+import { Readable } from 'node:stream';
+import { verifyMediaToken } from '../../utils/mediaToken';
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
@@ -7,9 +10,13 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications, files, users, userFollows, fileAccessGrants } from '../../db/schema';
 import { findFileById, findFilesByIds } from '../../services/fileRepository';
 import { mediaPrivacyService } from '../../services/mediaPrivacyService';
-import type { FileRecord } from '../../types/file.types';
 let mockViewer: string;
 let mockApp: string;
+let mockOperator: string | undefined;
+jest.mock('../../middleware/operator', () => ({
+  ...jest.requireActual('../../middleware/operator'),
+  resolveOperatorId: async () => mockOperator ?? mockViewer,
+}));
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     Object.assign(req, { user: { _id: mockViewer } });
@@ -54,14 +61,24 @@ jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     getFile: (...args: Parameters<typeof findFileById>) => findFileById(...args),
     getFilesByIds: (...args: Parameters<typeof findFilesByIds>) => findFilesByIds(...args),
-    canUserAccessFile: async (file: FileRecord, viewer: string) =>
-      (await mediaPrivacyService.checkMediaAccess(file, viewer)).allowed,
+    canUserAccessFile: async (...args: Parameters<typeof mediaPrivacyService.checkMediaAccess>) =>
+      (await mediaPrivacyService.checkMediaAccess(...args)).allowed,
+    fileContentExists: async () => true,
     getFileUrl: async () => null,
     getPublicCdnUrl: () => null,
   },
 }));
 jest.mock('../../services/s3ServiceSingleton', () => ({
-  s3Service: { getPresignedDownloadUrl: async () => 'https://fixture.invalid/authorized' },
+  s3Service: {
+    getPresignedDownloadUrl: async () => 'https://fixture.invalid/authorized',
+    fileExists: async () => true,
+    getObjectStreamRange: async () => ({
+      body: Readable.from([Buffer.from('x')]),
+      statusCode: 200,
+      contentType: 'image/png',
+      contentLength: 1,
+    }),
+  },
 }));
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -210,4 +227,36 @@ it('keeps application-owned private bytes out of person URLs and other applicati
   } finally {
     mockApp = authorizedApp;
   }
+});
+
+it('uses the verified operator owner consistently for URL, batch, stream and download, never a raw header', async () => {
+  expect(
+    (await request(app).get(`/assets/${privateId}/url`).set('x-oxy-user-id', owner)).status,
+  ).toBe(403);
+  mockOperator = owner;
+  try {
+    const direct = await request(app).get(`/assets/${privateId}/url`);
+    expect(direct.status).toBe(200);
+    const token = new URL(direct.body.data.url).searchParams.get('mt');
+    expect(verifyMediaToken(token, privateId)).toBe(owner);
+    const batch = await request(app)
+      .post('/assets/batch-access')
+      .send({ files: [{ fileId: privateId }] });
+    expect(batch.body.data.results[privateId].allowed).toBe(true);
+    expect(
+      verifyMediaToken(
+        new URL(batch.body.data.results[privateId].url).searchParams.get('mt'),
+        privateId,
+      ),
+    ).toBe(owner);
+    expect((await request(app).get(`/assets/${privateId}/stream`)).status).toBe(200);
+    const download = await request(app).get(`/assets/${privateId}/download`);
+    expect(download.status).toBe(302);
+    expect(
+      verifyMediaToken(new URL(download.headers.location).searchParams.get('mt'), privateId),
+    ).toBe(owner);
+  } finally {
+    mockOperator = undefined;
+  }
+  expect((await request(app).get(`/assets/${privateId}/url`)).status).toBe(403);
 });
