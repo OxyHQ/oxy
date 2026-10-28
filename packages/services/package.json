@@ -107,6 +107,7 @@
     "android/build.gradle",
     "android/src",
     "ios/OxyIdentityModule.swift",
+    "ios/OxyAssetFilesModule.swift",
     "ios/OxyIdentity.podspec",
     "plugins",
     "expo-module.config.json"
