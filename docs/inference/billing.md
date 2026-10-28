@@ -194,6 +194,15 @@ edge-enforced `maxTextItems`, and they settle from the milliseconds and item
 count Kaana measured (`usageSource: oxy_measured`) —
 [realtime.md](./realtime.md#duration-priced-routes-xai-voice-agent).
 
+### Images
+
+An image is billed as input tokens at the line's `input_tokens` price: the
+provider's own input count includes it, and settles like any other input. No
+unit is added. The hold bounds each image at the line's declared
+`imageInput.maxInputTokensPerImage` (the text estimate never counts an image's
+bytes), so a request with two images on a line bounded at 1,568 holds 3,136
+more input tokens than its text alone ([ADR 0051](../adr/0051-image-input.md)).
+
 ## Price versions and snapshots
 
 Every priced route carries a price version, and every settled receipt stores a

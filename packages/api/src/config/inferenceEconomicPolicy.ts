@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-27.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -261,6 +261,26 @@ export interface InternalMeteredTextPilot {
   readonly deployments: readonly InternalMeteredPilotDeployment[];
 }
 
+/**
+ * The pilot's terms for a completion that CARRIES IMAGES (Oxy ADR 0051, Kaana
+ * ADR 0007). Read only with the text terms: the request's text still answers to
+ * their controlled-input and output ceilings, with each image's bytes left out
+ * of the controlled input. Each image is bounded apart, at its line's declared
+ * `imageInput.maxInputTokensPerImage`, which every quote adds per image.
+ *
+ * A request with images signs only these routes (none of the text tuples), and
+ * a pilot without these terms refuses images (`unsupported_modality`,
+ * `pilot-image-input`).
+ */
+export interface InternalMeteredImageInputPilot {
+  /** Image parts one request may carry; one more is `invalid_request` (`pilot-image-count`). */
+  readonly maxImages: number;
+  /** Exact USD tariff quote ceiling for one request with images, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+  /** The only routes a request with images may sign, including failovers. */
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
 /** The same keys, all absent: a pilot with no text terms. */
 type NoTextPilot = { readonly [Key in keyof InternalMeteredTextPilot]?: never };
 
@@ -269,7 +289,13 @@ type NoTextPilot = { readonly [Key in keyof InternalMeteredTextPilot]?: never };
  * admits no half), and the terms of each other operation, each absent unless
  * that operation is admitted.
  */
-export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
+export type InternalMeteredPilot = (
+  | (InternalMeteredTextPilot & {
+      /** Absent: every request carrying an image is outside the pilot and refused. */
+      readonly imageInput?: InternalMeteredImageInputPilot;
+    })
+  | (NoTextPilot & { readonly imageInput?: never })
+) & {
   /** Absent: only the exact {@link deployments} above are ever admitted. */
   readonly promotionalCredit?: InternalMeteredPromotionalCredit;
   /** Absent: every speech request is outside the pilot and refused. */
@@ -399,6 +425,52 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         levels: ['pro', 'ultra'],
         fallbackLevel: 'xhigh',
         maxPricePerRequestUsd: '1.00',
+      },
+      // Approved by Nate on 2026-10-28, as proposed (Oxy ADR 0051): Alia sees
+      // images (a tab screenshot from Astro's agent, scanned PDF pages). One
+      // exact route per level Alia offers: instant, medium, and high (which
+      // `xhigh` shares); `auto` climbs to medium for any non-text input. All three are OpenRouter routes, sold
+      // `platform_internal` in Kaana's `configs/deployment-commercial.json`,
+      // sent with zero data retention. Per-image bounds are the lines'
+      // declared `imageInput` (Kaana ADR 0007): GPT-5.4 nano 7,374 tokens
+      // (low detail's 6,144-patch budget x 1.2, plus one for billing
+      // rounding; developers.openai.com/api/docs/guides/images-vision), Claude
+      // Haiku 4.5 1,568 (standard tier) and Claude Sonnet 5 4,784 (Claude 4.7
+      // and later; platform.claude.com/docs/en/build-with-claude/vision).
+      //
+      // List prices (OpenRouter GET /api/v1/models, 2026-10-28), in / out per
+      // 1M tokens, and the full request: 126,976 controlled input plus 16
+      // images at the bound plus 2,048 output:
+      //   gpt-5.4-nano      $0.20 / $1.25   244,960 in, $0.0516  admitted
+      //   claude-haiku-4.5  $1.00 / $5.00   152,064 in, $0.1623  over: at the
+      //                     full text input it admits 8 images ($0.1498)
+      //   claude-sonnet-5   $2.00 / $10.00  203,520 in, $0.4275  over: admitted
+      //                     while the request quotes at most $0.15 (a 16 KB turn
+      //                     with two screenshots quotes about $0.08)
+      // The quote is the request's own size, so a typical Alia turn (about
+      // 16 KB with one screenshot) fits all three. One 1024x768 screenshot is
+      // 922 tokens on nano ($0.00018), 1,036 on Haiku ($0.0010) and on Sonnet
+      // ($0.0021); at most $0.0015, $0.0016 and $0.0096 an image.
+      imageInput: {
+        maxImages: 16,
+        maxPricePerRequestUsd: '0.15',
+        deployments: [
+          {
+            deploymentId: 'dep_openrouter_openai_gpt_5_4_nano_observed_2026_09_01',
+            modelReference: 'openai/gpt-5.4-nano@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+          {
+            deploymentId: 'dep_openrouter_anthropic_claude_haiku_4_5_observed_2026_09_01',
+            modelReference: 'anthropic/claude-haiku-4.5@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+          {
+            deploymentId: 'dep_openrouter_anthropic_claude_sonnet_5_observed_2026_09_01',
+            modelReference: 'anthropic/claude-sonnet-5@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+        ],
       },
       // Approved by Nate on 2026-10-15: Alia's speech synthesis, refused since
       // the pilot began (2026-10-03, #1557) because the pilot had no speech
