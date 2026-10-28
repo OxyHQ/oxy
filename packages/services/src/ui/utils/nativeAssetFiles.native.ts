@@ -139,11 +139,14 @@ async function putRange(
 }
 
 async function openNativeFile(uri: string): Promise<AssetFileSource> {
-  const [{ File }, { requireOptionalNativeModule }] = await Promise.all([
-    import('expo-file-system'),
-    import('expo-modules-core'),
-  ]);
-  const nativeHasher = requireOptionalNativeModule<NativeFileHasher>('OxyAssetFiles');
+  const { File } = await import('expo-file-system');
+  let nativeHasher: NativeFileHasher | null = null;
+  try {
+    const { requireOptionalNativeModule } = await import('expo-modules-core');
+    nativeHasher = requireOptionalNativeModule<NativeFileHasher>('OxyAssetFiles');
+  } catch {
+    // Hosts without the optional Expo module bridge retain bounded file access.
+  }
   const file = new File(uri);
   if (!file.exists) throw new Error('Native upload file is unavailable');
   const size = file.size;
