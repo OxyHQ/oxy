@@ -436,6 +436,25 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       expect(result).toEqual({ file: uploadedShape });
     });
 
+    it('keeps the new installation when the same adapter function is installed twice', async () => {
+      const { oxy } = stubApi(() => openSession(OVER));
+      const adapter = jest.fn(async () => ({
+        size: OVER,
+        hash: async () => 'ab'.repeat(32),
+        readRange: jest.fn(),
+        putPart: async () => ({ ok: true as const }),
+      }));
+      const disposeFirst = oxy.assets.installFileAdapter(adapter);
+      const disposeSecond = oxy.assets.installFileAdapter(adapter);
+      disposeFirst();
+      const descriptor = { uri: 'file:///large.mp4', type: 'video/mp4' };
+      await expect(oxy.assets.upload(descriptor)).resolves.toEqual({ file: uploadedShape });
+      expect(adapter).toHaveBeenCalledTimes(1);
+      disposeSecond();
+      await expect(oxy.assets.upload(descriptor)).rejects.toThrow(/adapter/i);
+      expect(adapter).toHaveBeenCalledTimes(1);
+    });
+
     it('native metadata proves an unknown-size file small before streaming multipart', async () => {
       const { oxy, order } = stubApi(() => openSession(OVER));
       oxy.assets.installFileAdapter(async () => ({

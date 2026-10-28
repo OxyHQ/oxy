@@ -307,12 +307,17 @@ export class AssetsApi {
   constructor(protected readonly ctx: OxyContext) {}
 
   private fileAdapter?: AssetFileAdapter;
+  private fileAdapterOwner?: object;
 
   /** Installed by OxyProvider on native; disposal cannot clear a newer owner. */
   installFileAdapter(adapter: AssetFileAdapter): () => void {
+    const owner = {};
+    this.fileAdapterOwner = owner;
     this.fileAdapter = adapter;
     return () => {
-      if (this.fileAdapter === adapter) this.fileAdapter = undefined;
+      if (this.fileAdapterOwner !== owner) return;
+      this.fileAdapter = undefined;
+      this.fileAdapterOwner = undefined;
     };
   }
 
