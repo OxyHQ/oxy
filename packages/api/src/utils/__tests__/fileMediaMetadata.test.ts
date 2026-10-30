@@ -77,4 +77,29 @@ describe('fileMediaMetadata', () => {
       orientation: 'portrait',
     });
   });
+
+  describe('seeds', () => {
+    const SEEDS = ['#cc210c', '#bbe8fc', '#aeaf3d'];
+
+    it('stores seeds beside the dimensions and reports them', () => {
+      const file = makeFile({ mime: 'image/jpeg', metadata: {} });
+      applyCanonicalMediaMetadata(file, { width: 4032, height: 3024, seeds: SEEDS });
+      expect(file.metadata?.media).toMatchObject({ width: 4032, height: 3024, seeds: SEEDS });
+      expect(resolveFileMediaMetadata(file).seeds).toEqual(SEEDS);
+    });
+
+    it('keeps the seeds already found when a later write only knows the dimensions', () => {
+      const file = makeFile({ mime: 'image/jpeg', metadata: {} });
+      applyCanonicalMediaMetadata(file, { width: 4032, height: 3024, seeds: SEEDS });
+      applyCanonicalMediaMetadata(file, { width: 4032, height: 3024 });
+      expect(resolveFileMediaMetadata(file).seeds).toEqual(SEEDS);
+    });
+
+    it('reports no seeds rather than malformed ones', () => {
+      for (const seeds of [[], ['red'], ['#CC210C'], [12], '#cc210c']) {
+        const file = makeFile({ metadata: { media: { width: 10, height: 10, seeds } } });
+        expect(resolveFileMediaMetadata(file).seeds).toBeUndefined();
+      }
+    });
+  });
 });

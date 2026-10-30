@@ -8,6 +8,22 @@ export interface ResolvedFileMediaMetadata {
   durationSec?: number;
   orientation?: MediaOrientation;
   aspectRatio?: number;
+  /**
+   * An image's seed colours, best first, as `#rrggbb` (`@oxy.so/color`): what
+   * a screen showing it themes itself with, without reading its pixels.
+   */
+  seeds?: string[];
+}
+
+const SEED_PATTERN = /^#[0-9a-f]{6}$/;
+
+/** A stored `seeds` value as the API reports it, or `undefined` when it is not one. */
+function seedList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const seeds = value.filter(
+    (seed): seed is string => typeof seed === 'string' && SEED_PATTERN.test(seed),
+  );
+  return seeds.length === value.length ? seeds : undefined;
 }
 
 function positiveInt(value: unknown): number | undefined {
@@ -101,6 +117,8 @@ export function resolveFileMediaMetadata(
   if (typeof canonical?.aspectRatio === 'number' && Number.isFinite(canonical.aspectRatio)) {
     out.aspectRatio = canonical.aspectRatio;
   }
+  const seeds = seedList(canonical?.seeds);
+  if (seeds) out.seeds = seeds;
 
   return out;
 }
@@ -113,13 +131,17 @@ export function resolveFileMediaMetadata(
  */
 export function applyCanonicalMediaMetadata(
   file: Pick<FileRecord, 'metadata'>,
-  dims: { width?: number; height?: number; durationSec?: number },
+  dims: { width?: number; height?: number; durationSec?: number; seeds?: string[] },
 ): void {
   const width = positiveInt(dims.width);
   const height = positiveInt(dims.height);
   const durationSec = positiveDuration(dims.durationSec);
+  // Seeds come from a decode of the pixels; a write that only knows the
+  // dimensions (`enrichCanonicalMetadataOnly`) keeps the ones already found.
+  const previous = (file.metadata?.media ?? {}) as { seeds?: unknown };
+  const seeds = seedList(dims.seeds) ?? seedList(previous.seeds);
 
-  const media: Record<string, number | string> = {};
+  const media: Record<string, number | string | string[]> = {};
   if (width) media.width = width;
   if (height) media.height = height;
   if (durationSec !== undefined) media.durationSec = durationSec;
@@ -127,6 +149,7 @@ export function applyCanonicalMediaMetadata(
     media.orientation = computeOrientation(width, height);
     media.aspectRatio = computeAspectRatio(width, height);
   }
+  if (seeds) media.seeds = seeds;
 
   file.metadata = {
     ...(file.metadata ?? {}),

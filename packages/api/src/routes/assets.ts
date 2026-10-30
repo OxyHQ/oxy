@@ -3630,6 +3630,7 @@ router.post(
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
+          ...(media.seeds !== undefined ? { seeds: media.seeds } : {}),
           ...(revealOwner ? { ownerUserId: file.ownerUserId ?? null } : {}),
           ...(revealOwner && file.ownerApplicationId
             ? { ownerApplicationId: file.ownerApplicationId }
@@ -3985,6 +3986,7 @@ router.post(
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
+          ...(media.seeds !== undefined ? { seeds: media.seeds } : {}),
         };
       }),
     );

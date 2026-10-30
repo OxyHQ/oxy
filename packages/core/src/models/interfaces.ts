@@ -823,6 +823,14 @@ export interface ServiceAssetMetadata {
   /** width / height, derived at asset processing time. */
   aspectRatio?: number;
   /**
+   * An image's seed colours, best first, as `#rrggbb` (`@oxy.so/color`), worked
+   * out when its renditions are made: `[0]` themes a screen showing the image
+   * (`BloomProvider seed`), `[1]` and `[2]` can pin its secondary and tertiary
+   * accents. ABSENT until the renditions exist, and for anything that is not an
+   * image — theme from a fallback seed until it appears.
+   */
+  seeds?: string[];
+  /**
    * When the adaptive HLS ladder for this asset finished transcoding.
    *
    * ABSENT when there is none or hlsRejectedReadyAt rejects its geometry.
@@ -1265,6 +1273,14 @@ export interface ServiceAssetMetadataBySha {
   durationSec?: number;
   orientation?: 'portrait' | 'landscape' | 'square';
   aspectRatio?: number;
+  /**
+   * An image's seed colours, best first, as `#rrggbb` (`@oxy.so/color`), worked
+   * out when its renditions are made: `[0]` themes a screen showing the image
+   * (`BloomProvider seed`), `[1]` and `[2]` can pin its secondary and tertiary
+   * accents. ABSENT until the renditions exist, and for anything that is not an
+   * image — theme from a fallback seed until it appears.
+   */
+  seeds?: string[];
 }
 
 /**

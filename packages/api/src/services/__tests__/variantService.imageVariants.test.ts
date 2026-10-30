@@ -27,6 +27,7 @@ import { randomBytes } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { fileVariants, files, users } from '../../db/schema';
+import { findFileById } from '../fileRepository';
 import { ImageNotRenderableError, VariantService } from '../variantService';
 import type { S3Service } from '../s3Service';
 import type { FileRecord } from '../../types/file.types';
@@ -511,5 +512,55 @@ describe('VariantService — icons and images that cannot be rendered', () => {
     await expect(service.ensureImageVariant(file, 'w96')).rejects.toBeInstanceOf(
       ImageNotRenderableError,
     );
+  });
+});
+
+describe('VariantService image seeds', () => {
+  /** Three quarters orange, a quarter deep blue. */
+  async function makeTwoColourJpeg(): Promise<Buffer> {
+    return sharp({ create: { width: 400, height: 300, channels: 3, background: '#e76f51' } })
+      .composite([
+        {
+          input: { create: { width: 100, height: 300, channels: 3, background: '#1d3557' } },
+          left: 300,
+          top: 0,
+        },
+      ])
+      .jpeg()
+      .toBuffer();
+  }
+
+  function expectWarmSeedsFirst(seeds: unknown): void {
+    expect(Array.isArray(seeds)).toBe(true);
+    const list = seeds as string[];
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.length).toBeLessThanOrEqual(3);
+    for (const seed of list) expect(seed).toMatch(/^#[0-9a-f]{6}$/);
+    // The orange covers three quarters of the image: the first seed is warm.
+    const [top = '#000000'] = list;
+    expect(Number.parseInt(top.slice(1, 3), 16)).toBeGreaterThan(
+      Number.parseInt(top.slice(5, 7), 16),
+    );
+  }
+
+  it('stores the seeds of an image when its renditions are made', async () => {
+    const service = new VariantService(makeFakeS3(await makeTwoColourJpeg()) as unknown as S3Service);
+    const file = await makeFile('image/jpeg');
+
+    await service.generateVariants(file.id);
+
+    const stored = await findFileById(file.id);
+    expect(stored?.metadata?.media).toMatchObject({ width: 400, height: 300 });
+    expectWarmSeedsFirst((stored?.metadata?.media as { seeds?: unknown } | undefined)?.seeds);
+  });
+
+  it('stores them too when only the metadata is backfilled', async () => {
+    const service = new VariantService(makeFakeS3(await makeTwoColourJpeg()) as unknown as S3Service);
+    const file = await makeFile('image/jpeg');
+
+    expect(await service.extractSourceMetadataOnly(file.id)).toBe(true);
+
+    const stored = await findFileById(file.id);
+    expectWarmSeedsFirst((stored?.metadata?.media as { seeds?: unknown } | undefined)?.seeds);
   });
 });

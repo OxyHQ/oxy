@@ -17,6 +17,7 @@ import {
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { logger } from '../utils/logger';
+import { hexFromArgb, seedsFromRgbBytes } from '@oxy.so/color';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
@@ -459,6 +460,40 @@ async function renderableImageSource(
   }
 }
 
+/** A thumbnail this size ranks seeds the same as the full image. */
+const SEED_THUMBNAIL_PX = 48;
+/** A theme seed and its secondary and tertiary accents. */
+const SEEDS_KEPT = 3;
+
+/**
+ * An image's seed colours, best first, as `#rrggbb`, from the source already
+ * decoded for its renditions: stored on `metadata.media.seeds` so a screen
+ * showing the image themes itself without reading pixels (and without the
+ * CORS-readable copy a canvas would need). `undefined` when the pixels cannot
+ * be read; the renditions do not depend on it.
+ */
+async function imageSeeds(
+  file: Pick<FileRecord, 'id' | 'mime'>,
+  source: Buffer,
+): Promise<string[] | undefined> {
+  try {
+    const thumbnail = await sharp(source, imageInputOptions(file.mime))
+      .rotate()
+      .resize(SEED_THUMBNAIL_PX, SEED_THUMBNAIL_PX, { fit: 'cover' })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const seeds = seedsFromRgbBytes(thumbnail).slice(0, SEEDS_KEPT).map(hexFromArgb);
+    return seeds.length > 0 ? seeds : undefined;
+  } catch (error) {
+    logger.warn('Could not work out seed colours for an image', {
+      fileId: file.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
 function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {
   return isServedPublicly(file) ? 'public' : 'private';
 }
@@ -873,8 +908,9 @@ export class VariantService {
       if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) return false;
       const originalBuffer = await this.s3Service.downloadBuffer(file.storageKey);
       let meta: sharp.Metadata;
+      let source: Buffer;
       try {
-        ({ meta } = await renderableImageSource(file, originalBuffer));
+        ({ meta, source } = await renderableImageSource(file, originalBuffer));
       } catch (error) {
         if (error instanceof ImageNotRenderableError) return false;
         throw error;
@@ -888,7 +924,7 @@ export class VariantService {
         ...(file.metadata ?? {}),
         image: { width, height },
       };
-      applyCanonicalMediaMetadata(file, { width, height });
+      applyCanonicalMediaMetadata(file, { width, height, seeds: await imageSeeds(file, source) });
       await updateFile(file.id, { metadata: file.metadata });
       return true;
     }
@@ -972,7 +1008,11 @@ export class VariantService {
           ...(file.metadata ?? {}),
           image: { width: meta.width, height: meta.height },
         };
-        applyCanonicalMediaMetadata(file, { width: meta.width, height: meta.height });
+        applyCanonicalMediaMetadata(file, {
+          width: meta.width,
+          height: meta.height,
+          seeds: await imageSeeds(file, originalBuffer),
+        });
       }
 
       await this.commitVariants(file, variants);
