@@ -19,8 +19,6 @@ const dict = {
       renew: '새 코드 표시',
     },
     device: {
-      title: '휴대폰으로 로그인',
-      caption: '휴대폰 카메라로 스캔하세요',
       codeHint: '휴대폰에 이 코드가 표시되는지 확인하세요',
     },
     errors: {

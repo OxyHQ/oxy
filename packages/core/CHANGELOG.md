@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 7.8.1
+
+### Removed
+
+- `signin.device.title` and `signin.device.caption` in all 16 locales: no surface
+  draws them since `OxyDeviceSignIn` (services 13.10.0) leaves the heading to its
+  host. `signin.device.codeHint` stays.
+
 ## 7.8.0
 
 ### Added

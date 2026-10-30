@@ -16,6 +16,11 @@
  * claims the session and `OxyProvider` signs the app in, so the host simply
  * stops rendering this.
  *
+ * It draws no heading: the host's screen says what is being set up ("Scan to
+ * set up this frame") at the size its room needs, and a second, generic title
+ * here only repeated it. The code line scales with `size`, so it stays legible
+ * beside a QR meant to be read from across a room.
+ *
  * Anti-phishing: the plate encodes `signIn.approvalUrl` and the code line shows
  * `signIn.authorizeCode`, both PUBLIC; nothing about the application is read out
  * of either here. The secret `sessionToken` never leaves the controller.
@@ -43,6 +48,13 @@ const QR_FOREGROUND = '#000000';
 const DEFAULT_QR_SIZE = 280;
 /** The quiet zone around the symbol, as a fraction of its size. */
 const PLATE_PADDING_RATIO = 0.06;
+/**
+ * The code and its hint, as fractions of the QR's edge: 14 and 13 points at
+ * the default 280, so a 32-character code spans about the symbol's width.
+ */
+const CODE_SIZE_RATIO = 0.05;
+const CODE_HINT_SIZE_RATIO = 0.046;
+const CODE_HINT_LINE_HEIGHT = 1.4;
 
 export interface OxyDeviceSignInProps {
   /** Edge of the QR symbol in points. Defaults to 280. */
@@ -112,10 +124,6 @@ export const OxyDeviceSignIn: React.FC<OxyDeviceSignInProps> = ({ size = DEFAULT
 
   return (
     <View style={styles.block} testID="oxy-device-sign-in">
-      <Text style={[styles.title, { color: theme.colors.text }]}>{t('signin.device.title')}</Text>
-      <Text style={[styles.caption, { color: theme.colors.textSecondary }]}>
-        {t('signin.device.caption')}
-      </Text>
       <View
         style={[styles.plate, { width: size + padding * 2, height: size + padding * 2, padding }]}
       >
@@ -123,10 +131,22 @@ export const OxyDeviceSignIn: React.FC<OxyDeviceSignInProps> = ({ size = DEFAULT
       </View>
       {showsCode && signIn.authorizeCode ? (
         <View style={styles.codeBlock}>
-          <Text style={[styles.codeHint, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              styles.codeHint,
+              {
+                color: theme.colors.textSecondary,
+                fontSize: Math.round(size * CODE_HINT_SIZE_RATIO),
+                lineHeight: Math.round(size * CODE_HINT_SIZE_RATIO * CODE_HINT_LINE_HEIGHT),
+              },
+            ]}
+          >
             {t('signin.device.codeHint')}
           </Text>
-          <Code testID="device-sign-in-code" style={styles.code}>
+          <Code
+            testID="device-sign-in-code"
+            style={{ fontSize: Math.round(size * CODE_SIZE_RATIO) }}
+          >
             {signIn.authorizeCode}
           </Code>
         </View>
@@ -140,17 +160,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  caption: {
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
   plate: {
     borderRadius: 16,
     backgroundColor: QR_PLATE_BG,
@@ -162,11 +171,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   codeHint: {
-    fontSize: 13,
-    lineHeight: 18,
     textAlign: 'center',
-  },
-  code: {
-    fontSize: 14,
   },
 });

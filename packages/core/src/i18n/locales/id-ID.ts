@@ -19,8 +19,6 @@ const dict = {
       renew: 'Tampilkan kode baru',
     },
     device: {
-      title: 'Masuk dengan ponsel Anda',
-      caption: 'Pindai dengan kamera ponsel Anda',
       codeHint: 'Pastikan ponsel Anda menampilkan kode ini',
     },
     errors: {

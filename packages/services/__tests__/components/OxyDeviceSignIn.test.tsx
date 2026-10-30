@@ -1,7 +1,8 @@
 /**
  * `OxyDeviceSignIn` — sign-in for a device with no keyboard. It owns one
  * QR-only request, and its QR is the request's https approval page (any phone
- * camera opens it), never the Commons deep link.
+ * camera opens it), never the Commons deep link. It draws no heading (the host
+ * screen owns that) and its code grows with the QR.
  */
 
 import { act, render, screen } from '@testing-library/react';
@@ -86,6 +87,29 @@ jest.mock('../../src/ui/hooks/useI18n', () => {
   };
 });
 
+// Every `@oxy.so/bloom/*` subpath maps to the one shared Bloom mock; keep it
+// and let `Code` also show the size it is given.
+jest.mock('@oxy.so/bloom/code', () => {
+  const React = jest.requireActual('react');
+  return {
+    ...jest.requireActual('@oxy.so/bloom/code'),
+    Code: ({
+      children,
+      testID,
+      style,
+    }: {
+      children: unknown;
+      testID?: string;
+      style?: { fontSize?: number };
+    }) =>
+      React.createElement(
+        'code',
+        { 'data-testid': testID, 'data-font-size': style?.fontSize },
+        children,
+      ),
+  };
+});
+
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
   default: ({ value }: { value: string }) =>
@@ -115,10 +139,31 @@ describe('OxyDeviceSignIn', () => {
       'https://auth.oxy.so/device?user_code=a1b2c3',
     );
     expect(screen.getByTestId('device-sign-in-code').textContent).toBe('a1b2c3');
-    expect(screen.getByText('Sign in with your phone')).toBeTruthy();
-    expect(screen.getByText("Scan with your phone's camera")).toBeTruthy();
     // A live request it already has is not replaced.
     expect(controller.startInlineQr).not.toHaveBeenCalled();
+  });
+
+  it('draws no heading of its own: the host screen says what is being set up', () => {
+    snapshot = makeSnapshot(WAITING);
+    render(<OxyDeviceSignIn />);
+    // Only the hint and the code remain beside the QR.
+    expect(screen.getByTestId('oxy-device-sign-in').textContent).toBe(
+      'https://auth.oxy.so/device?user_code=a1b2c3' +
+        'Check that your phone shows this code' +
+        'a1b2c3',
+    );
+  });
+
+  it('scales the code with the QR, so it stays legible across a room', () => {
+    snapshot = makeSnapshot(WAITING);
+    const fontSizeAt = (size: number) => {
+      const view = render(<OxyDeviceSignIn size={size} />);
+      const fontSize = screen.getByTestId('device-sign-in-code').getAttribute('data-font-size');
+      view.unmount();
+      return fontSize;
+    };
+    expect(fontSizeAt(280)).toBe('14');
+    expect(fontSizeAt(480)).toBe('24');
   });
 
   it('hides the QR and the code once the phone is confirming', () => {

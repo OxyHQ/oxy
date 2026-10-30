@@ -19,8 +19,6 @@ const dict = {
       renew: 'Mostra un nuovo codice',
     },
     device: {
-      title: 'Accedi con il telefono',
-      caption: 'Inquadra con la fotocamera del telefono',
       codeHint: 'Controlla che il telefono mostri questo codice',
     },
     errors: {

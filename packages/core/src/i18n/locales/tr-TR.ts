@@ -19,8 +19,6 @@ const dict = {
       renew: 'Yeni kod göster',
     },
     device: {
-      title: 'Telefonunla giriş yap',
-      caption: 'Telefonunun kamerasıyla tara',
       codeHint: 'Telefonunda bu kodun göründüğünü kontrol et',
     },
     errors: {

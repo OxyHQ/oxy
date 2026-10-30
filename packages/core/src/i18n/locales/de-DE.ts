@@ -19,8 +19,6 @@ const dict = {
       renew: 'Neuen Code anzeigen',
     },
     device: {
-      title: 'Mit dem Smartphone anmelden',
-      caption: 'Mit der Kamera deines Smartphones scannen',
       codeHint: 'Prüfe, ob dein Smartphone diesen Code anzeigt',
     },
     errors: {
