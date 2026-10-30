@@ -940,9 +940,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Willo',
     description: 'Official Oxy smart home control app.',
     websiteUrl: 'https://willo.sh',
-    webOrigins: ['https://willo.sh'],
+    // Frame by Willo (`frame.willo.sh`) is a Willo sub-app, not an application
+    // of its own: a frame signs in as Willo, so its frames and settings belong
+    // to the same Willo account data the app edits.
+    webOrigins: ['https://willo.sh', 'https://frame.willo.sh'],
     type: 'first_party',
-    redirectUris: ['https://willo.sh'],
+    redirectUris: ['https://willo.sh', 'https://frame.willo.sh'],
     // Isolated activity-only principal: no feature-write or inference
     // authority.
     scopes: ['user:read'],
