@@ -173,6 +173,11 @@ export interface SignInFlowState {
    * as a QR (cross-device) and open as a deep link (same-device), or `null`.
    */
   qrPayload: string | null;
+  /**
+   * The request's https approval page (`https://auth.oxy.so/device?user_code=…`),
+   * or `null`: the QR a device with no keyboard shows, for any phone camera.
+   */
+  approvalUrl: string | null;
   /** Server-authoritative expiry (epoch ms), or `null`. */
   expiresAt: number | null;
   /**
@@ -442,6 +447,7 @@ const IDLE_SIGN_IN_FACTS: SignInFlowFacts = {
   phase: 'idle',
   authorizeCode: null,
   qrPayload: null,
+  approvalUrl: null,
   expiresAt: null,
   error: null,
   failure: null,
@@ -1166,6 +1172,7 @@ export class AccountDialogController {
       phase: 'waiting',
       authorizeCode: handle.authorizeCode,
       qrPayload: handle.qrPayload,
+      approvalUrl: handle.approvalUrl,
       expiresAt: handle.expiresAt,
       // No route yet: the surface shows "Preparing request" until the primary
       // route is resolved below. It is never guessed in the meantime.
@@ -1723,6 +1730,7 @@ export class AccountDialogController {
       phase,
       authorizeCode,
       qrPayload,
+      approvalUrl,
       expiresAt,
       error,
       failure,
@@ -1735,6 +1743,7 @@ export class AccountDialogController {
       phase,
       authorizeCode,
       qrPayload,
+      approvalUrl,
       expiresAt,
       error,
       failure,

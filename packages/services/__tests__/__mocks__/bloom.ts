@@ -129,6 +129,13 @@ export const useBloomLocale = (locale?: string): string | undefined => {
   return locale ?? inherited;
 };
 
+/** `@oxy.so/bloom/code` `Code`: inline monospace text, a real `<code>` as on web. */
+export const Code = ({
+  children,
+  testID,
+}: { children?: ReactNode; testID?: string } & Record<string, unknown>) =>
+  createElement('code', { 'data-testid': testID }, children);
+
 /** `@oxy.so/bloom/code` `CodeBlock`: the code as text, plus its copy button. */
 export const CodeBlock = ({
   code,

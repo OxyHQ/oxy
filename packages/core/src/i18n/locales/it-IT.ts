@@ -18,6 +18,11 @@ const dict = {
       caption: 'Scansiona con Commons per accedere',
       renew: 'Mostra un nuovo codice',
     },
+    device: {
+      title: 'Accedi con il telefono',
+      caption: 'Inquadra con la fotocamera del telefono',
+      codeHint: 'Controlla che il telefono mostri questo codice',
+    },
     errors: {
       rateLimited: 'Troppi tentativi. Riprova tra {{seconds}} s.',
       invalidCredentials:

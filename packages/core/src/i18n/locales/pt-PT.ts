@@ -18,6 +18,11 @@ const dict = {
       caption: 'Lê com o Commons para entrar',
       renew: 'Mostrar um código novo',
     },
+    device: {
+      title: 'Inicie sessão com o telemóvel',
+      caption: 'Leia com a câmara do telemóvel',
+      codeHint: 'Confirme que o telemóvel mostra este código',
+    },
     errors: {
       rateLimited: 'Demasiadas tentativas. Tenta novamente dentro de {{seconds}} s.',
       invalidCredentials:

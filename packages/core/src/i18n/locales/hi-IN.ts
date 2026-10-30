@@ -18,6 +18,11 @@ const dict = {
       caption: 'साइन इन करने के लिए Commons से स्कैन करें',
       renew: 'नया कोड दिखाएं',
     },
+    device: {
+      title: 'अपने फ़ोन से साइन इन करें',
+      caption: 'अपने फ़ोन के कैमरे से स्कैन करें',
+      codeHint: 'जाँचें कि आपके फ़ोन पर यही कोड दिख रहा है',
+    },
     errors: {
       rateLimited: 'बहुत ज़्यादा कोशिशें हो गईं। {{seconds}} सेकंड बाद फिर कोशिश करें।',
       invalidCredentials:

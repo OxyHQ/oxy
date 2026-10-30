@@ -191,6 +191,11 @@ const dict = {
       caption: 'Escanea con Commons para entrar',
       renew: 'Mostrar un código nuevo',
     },
+    device: {
+      title: 'Inicia sesión con tu móvil',
+      caption: 'Escanea con la cámara de tu móvil',
+      codeHint: 'Comprueba que tu móvil muestra este código',
+    },
     terms: {
       before: 'Al continuar, aceptas nuestros',
       termsLink: 'Términos del servicio',

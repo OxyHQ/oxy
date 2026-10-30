@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 7.8.0
+
+### Added
+
+- A device sign-in request carries its https approval page. `oxy.auth.commons.start()`
+  returns `approvalUrl` (`https://auth.oxy.so/device?user_code=…`, built by the API
+  from its own `AUTH_WEB_ORIGIN`) next to `qrPayload`, and `AccountDialogController`'s
+  `signIn.approvalUrl` carries it. It is the QR a device with no keyboard shows (a
+  TV, a photo frame): any phone camera opens it, with or without Commons. Only the
+  PUBLIC `authorizeCode` travels in it, never the secret `sessionToken`. New
+  `signin.device.*` copy in all 16 locales.
+
 ## 7.5.0
 
 ### Added

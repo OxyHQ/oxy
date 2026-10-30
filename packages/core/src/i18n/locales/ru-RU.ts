@@ -18,6 +18,11 @@ const dict = {
       caption: 'Отсканируйте в Commons, чтобы войти',
       renew: 'Показать новый код',
     },
+    device: {
+      title: 'Войдите с телефона',
+      caption: 'Отсканируйте камерой телефона',
+      codeHint: 'Убедитесь, что на телефоне тот же код',
+    },
     errors: {
       rateLimited: 'Слишком много попыток. Повторите через {{seconds}} с.',
       invalidCredentials:

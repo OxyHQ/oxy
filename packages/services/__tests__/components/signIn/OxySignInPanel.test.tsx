@@ -20,6 +20,7 @@ const IDLE_SIGN_IN: SignInFlowState = {
   phase: 'idle',
   authorizeCode: null,
   qrPayload: null,
+  approvalUrl: null,
   expiresAt: null,
   error: null,
   failure: null,
