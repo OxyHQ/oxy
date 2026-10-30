@@ -27,6 +27,7 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
     phase: 'idle',
     authorizeCode: null,
     qrPayload: null,
+    approvalUrl: null,
     expiresAt: null,
     error: null,
     route: null,

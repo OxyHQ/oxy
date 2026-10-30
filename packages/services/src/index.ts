@@ -282,6 +282,10 @@ export {
 } from '@oxy.so/core';
 export { default as OxySignInButton } from './ui/components/OxySignInButton';
 export type { OxySignInButtonProps, OxyOAuthResult } from './ui/components/OxySignInButton';
+// Sign-in on a device with no keyboard (a TV, a photo frame): a large QR any
+// phone camera opens, the request's https approval page, and the code to compare.
+export { OxyDeviceSignIn } from './ui/components/OxyDeviceSignIn';
+export type { OxyDeviceSignInProps } from './ui/components/OxyDeviceSignIn';
 
 // Web OAuth transport (popup / redirect). RPs that ship their own sign-in
 // button call `useOxy().startWebOAuthSignIn(...)`; only the popup opener is

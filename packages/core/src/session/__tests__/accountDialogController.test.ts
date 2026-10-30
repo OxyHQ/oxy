@@ -1093,6 +1093,7 @@ const DELIVERY_HANDLE = {
   sessionToken: 'secret-tok',
   authorizeCode: 'AUTH-CODE',
   qrPayload: 'oxycommons://approve?v=1&code=AUTH-CODE',
+  approvalUrl: 'https://auth.oxy.so/device?user_code=AUTH-CODE',
   status: 'pending' as const,
 };
 
@@ -1405,6 +1406,20 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
     }
   });
 
+  it('surfaces the https approval page for a device with no keyboard', async () => {
+    const { controller } = makeDeliveryHarness({ platform: 'desktop' });
+
+    await controller.startInlineQr();
+    await flush();
+
+    const { signIn } = controller.getSnapshot();
+    expect(signIn.inline).toBe(true);
+    expect(signIn.route).toBe('qr');
+    expect(signIn.approvalUrl).toBe('https://auth.oxy.so/device?user_code=AUTH-CODE');
+    expect(signIn.approvalUrl).not.toContain('secret-tok');
+    controller.destroy();
+  });
+
   it('never leaks the secret device-flow token into the snapshot', async () => {
     const { controller } = makeDeliveryHarness({ platform: 'desktop' });
 
@@ -1417,6 +1432,7 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
       'phase',
       'authorizeCode',
       'qrPayload',
+      'approvalUrl',
       'expiresAt',
       'error',
       'failure',
@@ -1673,6 +1689,7 @@ describe('AccountDialogController — cancellation converges (#691 phase 5)', ()
         phase: 'idle',
         authorizeCode: null,
         qrPayload: null,
+        approvalUrl: null,
         expiresAt: null,
         error: null,
         failure: null,

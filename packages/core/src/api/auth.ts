@@ -218,6 +218,12 @@ export interface CommonsSignInHandle {
   authorizeCode: string;
   /** Ready-to-render deep-link / universal-link string (`oxycommons://approve?...`). */
   qrPayload: string;
+  /**
+   * The same request as the IdP's https approval page
+   * (`https://auth.oxy.so/device?user_code=…`): what a device with no keyboard
+   * shows as its QR, since any phone camera opens it, with or without Commons.
+   */
+  approvalUrl: string;
   /** Server-authoritative expiry (epoch milliseconds). */
   expiresAt: number;
   /** Session lifecycle status as reported by the server (e.g. `'pending'`). */
@@ -453,6 +459,7 @@ export interface CommonsOAuthFinalizeResult {
 interface CommonsSessionCreateResponse {
   authorizeCode: string;
   qrPayload: string;
+  approvalUrl: string;
   status: string;
   /** Optional server-authoritative expiry; falls back to the client-proposed value. */
   expiresAt?: number;
@@ -999,6 +1006,7 @@ export class AuthCommonsApi {
       sessionToken,
       authorizeCode: res.authorizeCode,
       qrPayload: res.qrPayload,
+      approvalUrl: res.approvalUrl,
       expiresAt: res.expiresAt ?? expiresAt,
       status: res.status,
     };

@@ -190,6 +190,11 @@ const dict = {
       caption: 'Scan with Commons to sign in',
       renew: 'Show a new code',
     },
+    device: {
+      title: 'Sign in with your phone',
+      caption: "Scan with your phone's camera",
+      codeHint: 'Check that your phone shows this code',
+    },
     terms: {
       before: 'By continuing, you agree to our',
       termsLink: 'Terms of Service',

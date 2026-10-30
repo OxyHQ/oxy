@@ -18,6 +18,11 @@ const dict = {
       caption: 'Commons でスキャンしてサインイン',
       renew: '新しいコードを表示',
     },
+    device: {
+      title: 'スマートフォンでサインイン',
+      caption: 'スマートフォンのカメラでスキャン',
+      codeHint: 'スマートフォンに同じコードが表示されていることを確認してください',
+    },
     errors: {
       rateLimited: '試行回数が多すぎます。{{seconds}} 秒後にもう一度お試しください。',
       invalidCredentials:

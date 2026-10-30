@@ -28,6 +28,7 @@ export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
     phase: 'idle',
     authorizeCode: null,
     qrPayload: null,
+    approvalUrl: null,
     expiresAt: null,
     error: null,
     failure: null,

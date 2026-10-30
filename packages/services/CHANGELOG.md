@@ -1,5 +1,20 @@
 # Changelog
 
+## [13.9.0] - 2026-10-30
+
+### Added
+
+- **`OxyDeviceSignIn`: sign-in for a device with no keyboard** (a TV, a photo
+  frame, a kiosk). A large QR of the request's https approval page
+  (`signIn.approvalUrl`, `auth.oxy.so/device?user_code=…`), which any phone camera
+  opens, and the code that page prints, so the person can check they approve this
+  screen. It owns one QR-only request (`startInlineQr`), like the sign-in entry's
+  embedded QR: started on mount, renewed when it expires, withdrawn on unmount.
+  On approval `OxyProvider` signs the app in. `size` sets the QR's edge (280 by
+  default). Exported from `@oxy.so/services` and `@oxy.so/services/ui`, not from
+  the light `ui/client` entry. Requires `@oxy.so/core` ^7.8.0 and an API that
+  returns `approvalUrl`.
+
 ## [13.6.0] - 2026-10-25
 
 ### Fixed

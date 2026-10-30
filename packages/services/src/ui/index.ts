@@ -27,6 +27,8 @@ import '../registerPlatform';
 // Components
 export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
+export { OxyDeviceSignIn } from './components/OxyDeviceSignIn';
+export type { OxyDeviceSignInProps } from './components/OxyDeviceSignIn';
 export { default as OxyAuthPrompt } from './components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';
