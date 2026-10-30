@@ -5,7 +5,7 @@
  * `oxy.store` says what the store lists; an installer says what the machine can do with a
  * listing. A runtime that installs applications registers one (OxyOS's Bloom host registers one
  * backed by the system's install service before the application's code runs, OxyOS ADR 0030
- * decision 9; ADR 0053 here). Where none is registered — the web, iOS, Android — there is
+ * decision 9; ADR 0059 here). Where none is registered — the web, iOS, Android — there is
  * nothing to install, and a store shows what it shows without one. An application never asks
  * which platform it runs on: it asks whether there is an installer.
  *

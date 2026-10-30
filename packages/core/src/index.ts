@@ -222,7 +222,7 @@ export type {
   StorePageOptions,
   StoreReviewsOptions,
 } from './api/store';
-// The store's installer (ADR 0053): what a runtime that installs applications registers beside
+// The store's installer (ADR 0059): what a runtime that installs applications registers beside
 // `oxy.store`, and what a store asks it.
 export {
   getStoreInstaller,
