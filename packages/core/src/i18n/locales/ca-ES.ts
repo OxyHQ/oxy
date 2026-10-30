@@ -19,8 +19,6 @@ const dict = {
       renew: 'Mostra un codi nou',
     },
     device: {
-      title: 'Inicia la sessió amb el mòbil',
-      caption: 'Escaneja amb la càmera del mòbil',
       codeHint: 'Comprova que el mòbil mostra aquest codi',
     },
     errors: {

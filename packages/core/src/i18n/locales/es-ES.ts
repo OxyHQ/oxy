@@ -192,8 +192,6 @@ const dict = {
       renew: 'Mostrar un código nuevo',
     },
     device: {
-      title: 'Inicia sesión con tu móvil',
-      caption: 'Escanea con la cámara de tu móvil',
       codeHint: 'Comprueba que tu móvil muestra este código',
     },
     terms: {

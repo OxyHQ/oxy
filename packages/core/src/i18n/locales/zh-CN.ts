@@ -19,8 +19,6 @@ const dict = {
       renew: '显示新的二维码',
     },
     device: {
-      title: '用手机登录',
-      caption: '用手机相机扫描',
       codeHint: '请确认手机上显示的是这个代码',
     },
     errors: {

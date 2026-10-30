@@ -1,5 +1,19 @@
 # Changelog
 
+## [13.10.0] - 2026-10-30
+
+### Changed
+
+- **`OxyDeviceSignIn` draws no heading.** The host screen says what is being set
+  up ("Scan to set up this frame") at the size its room needs; the component's own
+  "Sign in with your phone" / "Scan with your phone's camera" only repeated it. It
+  is now the QR, the hint and the code. A host that relied on that title renders
+  its own.
+- **Its code grows with the QR.** The code and its hint were 14 and 13 points at
+  any `size`; they are now 5% and 4.6% of `size` (the same 14 and 13 at the
+  default 280), so the code stays legible beside a QR meant to be read from across
+  a room.
+
 ## [13.9.0] - 2026-10-30
 
 ### Added

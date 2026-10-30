@@ -19,8 +19,6 @@ const dict = {
       renew: 'Mostrar um código novo',
     },
     device: {
-      title: 'Inicie sessão com o telemóvel',
-      caption: 'Leia com a câmara do telemóvel',
       codeHint: 'Confirme que o telemóvel mostra este código',
     },
     errors: {
