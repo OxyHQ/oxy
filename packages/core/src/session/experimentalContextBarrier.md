@@ -90,6 +90,12 @@ Production integration must establish all of the following before enabling it:
   property. Generation requires a secure random source and fails closed when
   absent. Current-incarnation selection, durable recovery, cross-process
   coordination, migration and old-entry cleanup are not implemented.
+- A second device-name experiment derives a key from the complete binding,
+  including device-session incarnation and revision. It recovers the exact
+  same binding without a mutable pointer and isolates an actor ABA at different
+  revisions. A new revision of the same actor cannot find the old name, and two
+  concurrent writers for an identical binding can reorder. Its digest only
+  produces a portable key; it is neither encryption nor authorization.
 - Owner storage keys and registry metadata contain identifiers, not a bearer or
   device secret. They are routing labels, never proof of authorization. The
   partition experiment persists only queries with an explicit root/version
