@@ -38,6 +38,7 @@ the rest in.
 ```ts
 import { likeContains }      from '@oxy.so/utils/sql';
 import { resolvePageLimit }  from '@oxy.so/utils/paging';
+import { nextUnvisitedCursor } from '@oxy.so/utils/cursor';
 import { escapeRegExp }      from '@oxy.so/utils/text';
 import { calendarDaysBetween } from '@oxy.so/utils/date';
 import { withImageVariant }    from '@oxy.so/utils/image';
@@ -60,13 +61,19 @@ pattern.
 `resolvePageLimit`, `resolvePageOffset`, `resolvePageNumber`, `offsetForPage`.
 
 `nextUnvisitedCursor(next, pageParams)` returns the next cursor, or `undefined`
-for an absent or already visited cursor. Mention and Syra currently implement
-the same guard locally; callers retain their own has-more and retry policies.
+for an absent or already visited cursor. It is also available from `./cursor`
+for Metro consumers that do not need the page-window helpers. Callers retain
+their own has-more and retry policies.
 
 Seven helpers in five repos plus **46 inline clamps**, none agreeing on
 degenerate input. The guarantee: no input — missing, malformed or hostile —
 yields an unbounded query or a `NaN`. Bounds are arguments, not a registry: a
 lane's page size belongs next to the lane.
+
+### `./cursor` — lightweight cursor progression
+
+Exports `nextUnvisitedCursor` without loading the page-window helpers in Metro.
+The same function remains available from `./paging` and the root.
 
 ### `./text` — small pure helpers
 
