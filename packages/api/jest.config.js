@@ -74,6 +74,7 @@ module.exports = {
     // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
+    '^@oxy.so/core/session$': '<rootDir>/../core/src/session/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
     '^@oxy.so/federation$': '<rootDir>/../federation/src/index.ts',
     '^@oxy.so/federation/node$': '<rootDir>/../federation/src/node/index.ts',

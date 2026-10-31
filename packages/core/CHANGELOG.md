@@ -1,5 +1,12 @@
 # Changelog — `@oxy.so/core`
 
+## 7.10.1
+
+### Fixed
+
+- Prevent delayed device-session responses from replacing a newer device projection or reinstalling a bearer from an older revision.
+- In account mode, reject activation responses whose known context, actor or subject contradicts the requested context before planting their bearer or publishing the directory. Legacy and opaque bearer claims remain unverified.
+
 ## 7.10.0
 
 ### Added

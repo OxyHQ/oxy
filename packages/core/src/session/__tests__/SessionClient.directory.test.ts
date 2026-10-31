@@ -411,7 +411,10 @@ describe('SessionClient — device directory', () => {
       {
         '/session/device/activate': () => ({
           directory,
-          activeToken: { accessToken: jwtFor('org'), expiresAt: 'x' },
+          activeToken: {
+            accessToken: jwtFor(directory.activeContextId === 'ctx-org' ? 'org' : 'nate'),
+            expiresAt: 'x',
+          },
         }),
         '/session/device/state': () => ({
           state: stateAt(directory.revision, 'org'),
