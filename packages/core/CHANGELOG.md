@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## 7.10.0
+
+### Added
+
+- **The store's installer** beside `oxy.store` (ADR 0053; OxyOS ADR 0030, decision 9):
+  `setStoreInstaller` / `getStoreInstaller`, the `StoreInstaller` a runtime that installs
+  applications registers before the application's code runs, and `StoreInstallerError`. A store
+  asks it where a listing stands on the machine (`status`: *Get*, a progress ring, *Open*,
+  *Update*, *Not available for this computer*), installs, updates, removes and opens by a
+  listing's slug, and reads the account's updates (`updates`). The machine resolves the slug to
+  its package and release from the store's signed metadata and asks the person in a sheet of its
+  own; an error says whether the machine already told the person (`told`). Where no runtime
+  registered one (the web, iOS, Android), `getStoreInstaller()` is null and a store shows what it
+  shows without one.
+
 ## 7.9.2
 
 ### Changed

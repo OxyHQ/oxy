@@ -49,7 +49,7 @@ A namespace is created the first time you touch it and kept for the client's lif
 | `oxy.apps` | Applications an account owns (`credentials.*`, `usage`), the public app identity, and `connected.*` — what this user granted. |
 | `oxy.linkedAccounts` | Mastodon / Bluesky accounts linked by OAuth. |
 | `oxy.agency` | Delegated capabilities for agents: `grants.*`, `policies.*`, `authorizations.*`. |
-| `oxy.store` | The app store: storefront, `reviews.*`, and a publisher's `listing.*`. |
+| `oxy.store` | The app store: storefront, `reviews.*`, and a publisher's `listing.*`. Beside it, `getStoreInstaller()`: the machine's installer, which a runtime that installs applications registers (`setStoreInstaller`; OxyOS's does), null everywhere else. A store installs, opens and updates by a listing's slug through it and never asks which platform it is on (ADR 0053). |
 | `oxy.billing` | Subscription, wallet and payments. |
 | `oxy.reputation` | Oxy Trust, read-only: `balance`, `transactions`, `leaderboard`, `rules`, `influence`. Apps award it from the server; nobody edits it by hand. |
 | `oxy.civic` | Oxy ID: public cards, attestations, `validation.*`, vouching, personhood, `credentials.*`. |
