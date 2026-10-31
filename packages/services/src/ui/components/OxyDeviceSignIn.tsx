@@ -22,8 +22,9 @@
  * beside a QR meant to be read from across a room.
  *
  * Anti-phishing: the plate encodes `signIn.approvalUrl` and the code line shows
- * `signIn.authorizeCode`, both PUBLIC; nothing about the application is read out
- * of either here. The secret `sessionToken` never leaves the controller.
+ * `deviceComparisonCode(signIn.authorizeCode)` (`CE7F-B31F`), the same short
+ * code the approval page prints, both PUBLIC; nothing about the application is
+ * read out of either here. The secret `sessionToken` never leaves the controller.
  */
 
 import type React from 'react';
@@ -37,6 +38,7 @@ import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
+import { deviceComparisonCode } from '@oxy.so/core/session';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useAccountDialogSnapshot } from '../hooks/accountDialogSnapshot';
@@ -49,10 +51,11 @@ const DEFAULT_QR_SIZE = 280;
 /** The quiet zone around the symbol, as a fraction of its size. */
 const PLATE_PADDING_RATIO = 0.06;
 /**
- * The code and its hint, as fractions of the QR's edge: 14 and 13 points at
- * the default 280, so a 32-character code spans about the symbol's width.
+ * The code and its hint, as fractions of the QR's edge: 28 and 13 points at
+ * the default 280. The nine characters of `CE7F-B31F` then span about half the
+ * symbol, large enough to read from across a room.
  */
-const CODE_SIZE_RATIO = 0.05;
+const CODE_SIZE_RATIO = 0.1;
 const CODE_HINT_SIZE_RATIO = 0.046;
 const CODE_HINT_LINE_HEIGHT = 1.4;
 
@@ -147,7 +150,7 @@ export const OxyDeviceSignIn: React.FC<OxyDeviceSignInProps> = ({ size = DEFAULT
             testID="device-sign-in-code"
             style={{ fontSize: Math.round(size * CODE_SIZE_RATIO) }}
           >
-            {signIn.authorizeCode}
+            {deviceComparisonCode(signIn.authorizeCode)}
           </Code>
         </View>
       ) : null}

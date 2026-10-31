@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import type { CommonsApprovalInfo } from '@oxy.so/core';
-import type { SwitcherContextRow } from '@oxy.so/core/session';
+import { deviceComparisonCode, type SwitcherContextRow } from '@oxy.so/core/session';
 import { getCommonsApprovalBlockingReason } from '@oxy.so/core';
 import {
   OxyAccountPicker,
@@ -62,9 +62,9 @@ const CODE_PARAM = 'user_code';
  * gesture behind a MANDATORY, un-defaulted acknowledgement, whatever
  * `originVerified` says: that flag is derived from an `Origin` header a
  * non-browser caller can forge, and a CLI sends none, so it only chooses the
- * warning's wording. The page also prints the code itself, so the person can
- * check it against the one their own device shows — the one thing a forged
- * link cannot match.
+ * warning's wording. The page also prints the request's comparison code
+ * (`deviceComparisonCode`, `CE7F-B31F`), so the person can check it against the
+ * one their own device shows — the one thing a forged link cannot match.
  */
 export function DevicePage() {
   const [searchParams] = useSearchParams();
@@ -259,8 +259,8 @@ export function DevicePage() {
     <OxyAuthScreen>
       <div className="flex w-full flex-col gap-space-12 rounded-radius-12 border border-border p-space-12 font-bodySmall text-bodySmall">
         <p className="text-muted-foreground">{t('device.codeHint')}</p>
-        <code data-testid="device-code" className="break-all font-mono text-foreground">
-          {code}
+        <code data-testid="device-code" className="font-mono text-foreground">
+          {deviceComparisonCode(code)}
         </code>
         <label className="flex items-start gap-2">
           <input

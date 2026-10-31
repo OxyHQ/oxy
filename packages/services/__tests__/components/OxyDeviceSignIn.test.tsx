@@ -31,9 +31,9 @@ const WAITING: SignInFlowState = {
   inline: true,
   route: 'qr',
   progress: 'awaiting-approval',
-  authorizeCode: 'a1b2c3',
-  qrPayload: 'oxycommons://approve?v=1&code=a1b2c3',
-  approvalUrl: 'https://auth.oxy.so/device?user_code=a1b2c3',
+  authorizeCode: 'ce7fb31f067a617a668827f424f487eb',
+  qrPayload: 'oxycommons://approve?v=1&code=ce7fb31f067a617a668827f424f487eb',
+  approvalUrl: 'https://auth.oxy.so/device?user_code=ce7fb31f067a617a668827f424f487eb',
 };
 
 const makeSnapshot = (signIn: SignInFlowState): AccountDialogSnapshot => ({
@@ -136,9 +136,10 @@ describe('OxyDeviceSignIn', () => {
     render(<OxyDeviceSignIn />);
 
     expect(screen.getByTestId('qrcode').textContent).toBe(
-      'https://auth.oxy.so/device?user_code=a1b2c3',
+      'https://auth.oxy.so/device?user_code=ce7fb31f067a617a668827f424f487eb',
     );
-    expect(screen.getByTestId('device-sign-in-code').textContent).toBe('a1b2c3');
+    // The short code the approval page prints too, never the whole handle.
+    expect(screen.getByTestId('device-sign-in-code').textContent).toBe('CE7F-B31F');
     // A live request it already has is not replaced.
     expect(controller.startInlineQr).not.toHaveBeenCalled();
   });
@@ -148,9 +149,9 @@ describe('OxyDeviceSignIn', () => {
     render(<OxyDeviceSignIn />);
     // Only the hint and the code remain beside the QR.
     expect(screen.getByTestId('oxy-device-sign-in').textContent).toBe(
-      'https://auth.oxy.so/device?user_code=a1b2c3' +
+      'https://auth.oxy.so/device?user_code=ce7fb31f067a617a668827f424f487eb' +
         'Check that your phone shows this code' +
-        'a1b2c3',
+        'CE7F-B31F',
     );
   });
 
@@ -162,8 +163,8 @@ describe('OxyDeviceSignIn', () => {
       view.unmount();
       return fontSize;
     };
-    expect(fontSizeAt(280)).toBe('14');
-    expect(fontSizeAt(480)).toBe('24');
+    expect(fontSizeAt(280)).toBe('28');
+    expect(fontSizeAt(480)).toBe('48');
   });
 
   it('hides the QR and the code once the phone is confirming', () => {

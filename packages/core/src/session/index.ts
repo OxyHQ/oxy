@@ -75,6 +75,7 @@ export type {
 // auth.oxy.so chooser so the two cannot drift, the same reason the flat
 // projection lived here before it.
 export { buildSwitcherRows, showsPrincipalHeaders } from './deviceSwitcherRows';
+export { deviceComparisonCode } from './deviceComparisonCode';
 export type {
   ResolveAvatarUrl,
   SwitcherContextRow,

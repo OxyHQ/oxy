@@ -1,5 +1,16 @@
 # Changelog
 
+## [13.11.0] - 2026-10-31
+
+### Changed
+
+- **`OxyDeviceSignIn` prints the short comparison code**, `CE7F-B31F`
+  (`deviceComparisonCode` from `@oxy.so/core/session`), the same code the
+  `auth.oxy.so/device` approval page now prints, instead of all thirty-two
+  characters of the authorize code. With nine characters it is set at 10% of the
+  QR's edge (28 points at the default 280), large enough to read from across a
+  room. Requires `@oxy.so/core` ^7.9.0.
+
 ## [13.10.0] - 2026-10-30
 
 ### Changed
