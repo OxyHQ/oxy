@@ -28,6 +28,7 @@ it('checks freshness, regenerates deterministically, and rejects unsafe object k
     expect(run('--check').status).toBe(0);
 
     const source = join(root, 'src/i18n/locales/fr-FR.ts');
+    const sourceOriginal = readFileSync(source, 'utf8');
     writeFileSync(
       source,
       `export default JSON.parse('{"nested":[{"__proto__":{"value":"unsafe"}}]}');\n`,
@@ -52,6 +53,16 @@ it('checks freshness, regenerates deterministically, and rejects unsafe object k
     const rejectedArray = run();
     expect(rejectedArray.status).not.toBe(0);
     expect(rejectedArray.stderr).toContain('Unsupported sparse or extended locale array');
+    expect(readFileSync(generated, 'utf8')).toBe(original);
+
+    writeFileSync(source, sourceOriginal);
+    writeFileSync(
+      join(root, 'src/i18n/locales/en-US.ts'),
+      `export default { nested: { '__proto__': { inherited: 'value' } } };\n`,
+    );
+    const rejectedEnglish = run();
+    expect(rejectedEnglish.status).not.toBe(0);
+    expect(rejectedEnglish.stderr).toContain('Unsupported locale object prototype at en-US.ts');
     expect(readFileSync(generated, 'utf8')).toBe(original);
   } finally {
     rmSync(root, { recursive: true, force: true });

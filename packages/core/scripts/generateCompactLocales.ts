@@ -60,6 +60,7 @@ function assertSafeValue(value: unknown, path: string, seen: WeakSet<object>): v
     assertSafeValue(descriptor.value, `${path}.${key}`, seen);
   }
 }
+assertSafeValue(english, 'en-US.ts', new WeakSet());
 for (let index = 0; index < names.length; index++) {
   assertSafeValue(dictionaries[index], names[index], new WeakSet());
 }
