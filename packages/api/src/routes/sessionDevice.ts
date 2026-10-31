@@ -597,6 +597,14 @@ router.post(
       req,
     );
     if (!outcome.ok) {
+      if (outcome.reason === 'superseded') {
+        if (outcome.changed && outcome.state) {
+          broadcastDeviceState(outcome.state);
+          broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
+        }
+        res.status(409).json({ error: 'context_superseded' });
+        return;
+      }
       if (outcome.reason === 'unauthorized') {
         // The target was stale or revoked and has been healed out of the device.
         // Broadcast the healed state so the device's other apps drop it too, then

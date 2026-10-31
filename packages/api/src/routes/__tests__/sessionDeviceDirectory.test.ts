@@ -259,6 +259,85 @@ describe('GET /session/device/directory', () => {
 });
 
 describe('POST /session/device/activate', () => {
+  it('does not broadcast a replacement device for a superseded activation', async () => {
+    const device = `dev-${randomUUID()}`;
+    const nate = await account();
+    callerIs(device, nate, await signIn(device, nate));
+    const spy = jest.spyOn(deviceSessionService, 'activateContext').mockResolvedValue({
+      ok: false,
+      reason: 'superseded',
+      changed: true,
+      state: null,
+      accountId: nate,
+    });
+    jest.clearAllMocks();
+    try {
+      const res = await requestJson('POST', '/session/device/activate', {
+        contextId: randomUUID(),
+      });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: 'context_superseded' });
+      expect(mockBroadcast).not.toHaveBeenCalled();
+      expect(mockBroadcastAccounts).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns 409 for a superseded activation while broadcasting the winning state', async () => {
+    const device = `dev-${randomUUID()}`;
+    const nate = await account();
+    const org = await organization(nate);
+    callerIs(device, nate, await signIn(device, nate));
+    const tree = await directory();
+    const oldContext = contextFor(tree, nate, org)?.id ?? '';
+    const currentContext = contextFor(tree, nate, nate)?.id ?? '';
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let first = true;
+    const spy = jest.spyOn(deviceSessionService, 'getDirectory').mockImplementation(async (id) => {
+      if (first) {
+        first = false;
+        reached();
+        await blocked;
+      }
+      return original(id);
+    });
+    jest.clearAllMocks();
+    try {
+      const old = requestJson('POST', '/session/device/activate', { contextId: oldContext });
+      await waiting;
+      const current = await requestJson('POST', '/session/device/activate', {
+        contextId: currentContext,
+      });
+      expect(current.status).toBe(200);
+      release();
+      const stale = await old;
+      expect(stale.status).toBe(409);
+      expect(stale.body).toEqual({ error: 'context_superseded' });
+      const winner = (current.body as { data: { directory: { revision: number } } }).data.directory;
+      expect(mockBroadcast).toHaveBeenCalledTimes(2);
+      for (const [snapshot] of mockBroadcast.mock.calls) {
+        expect(snapshot).toMatchObject({
+          deviceId: device,
+          revision: winner.revision,
+          activeAccountId: nate,
+        });
+      }
+      expect(mockBroadcastAccounts).toHaveBeenCalledWith(org, winner.revision, 'switch');
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+  });
+
   it('activates a context, returns the directory plus a bearer, and broadcasts once', async () => {
     const device = `dev-${randomUUID()}`;
     const nate = await account();
