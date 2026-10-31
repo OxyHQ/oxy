@@ -264,6 +264,23 @@ describe('Android broker slot', () => {
     expect((await store?.read())?.state).toBe('unavailable');
   });
 
+  test('a temporary unavailable status does not prevent the next read from recovering', async () => {
+    let available = false;
+    const store = loadStore('android', {
+      broker: {
+        read: async () =>
+          available
+            ? { status: 'present', ...CRED }
+            : { status: 'unavailable', reason: 'SecurityException' },
+        write: async () => true,
+        clear: async () => undefined,
+      },
+    });
+    expect((await store?.read())?.state).toBe('unavailable');
+    available = true;
+    await expect(store?.read()).resolves.toEqual({ state: 'present', credential: CRED });
+  });
+
   test('a THROWN broker call is unavailable, never absent', async () => {
     const store = loadStore('android', {
       broker: {
