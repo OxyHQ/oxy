@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.10.2
+
+### Fixed
+
+- Fence in-flight HTTP work and cached responses when a bearer identifies a different device, even when the session ID stays the same. Legacy bearers without a usable device claim remain compatible; an unobserved device change cannot be inferred from them.
+
 ## 7.10.1
 
 ### Fixed
