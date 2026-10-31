@@ -1,4 +1,4 @@
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { BillingScreen } from '@/components/billing/BillingScreen';
 import { useMemo, useState } from 'react';
 
 import { ChargesTable } from '@/components/billing/ChargesTable';
@@ -29,7 +29,7 @@ export default function BillingChargesPage() {
   const charges = useSettledCharges(accountId, range, 100, canRead);
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
+    <BillingScreen contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
         <NoBillingAccess />
       ) : (
@@ -58,6 +58,6 @@ export default function BillingChargesPage() {
           )}
         </>
       )}
-    </ScreenScrollView>
+    </BillingScreen>
   );
 }

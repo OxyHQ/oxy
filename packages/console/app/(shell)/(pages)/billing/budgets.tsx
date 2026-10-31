@@ -1,6 +1,6 @@
 import { Button } from '@oxy.so/bloom/button';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { BillingScreen } from '@/components/billing/BillingScreen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
@@ -84,7 +84,7 @@ export default function BillingBudgetsPage() {
   );
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
+    <BillingScreen contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
         <NoBillingAccess />
       ) : (
@@ -135,6 +135,6 @@ export default function BillingBudgetsPage() {
           ) : null}
         </>
       )}
-    </ScreenScrollView>
+    </BillingScreen>
   );
 }

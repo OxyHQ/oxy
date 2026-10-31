@@ -1,5 +1,10 @@
+import { ClarityScreen } from '@/components/clarity/ClarityScreen';
 import { ClarityNews } from '@/components/clarity/ClarityNews';
 
 export default function ClarityNewsScreen() {
-  return <ClarityNews />;
+  return (
+    <ClarityScreen>
+      <ClarityNews />
+    </ClarityScreen>
+  );
 }
