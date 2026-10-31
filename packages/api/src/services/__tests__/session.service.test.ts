@@ -971,6 +971,7 @@ describe('access token v2 binding', () => {
     }) as typeof fetch;
     try {
       const old = client.bootstrap();
+      const oldFailure = expect(old).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
       await requestStarted;
       const nextDevice = deviceId();
       const migrated = await sessionService.createSession(user, request(), {
@@ -996,7 +997,7 @@ describe('access token v2 binding', () => {
       const nextState = await deviceSessionService.getState(nextDevice);
       oxy.session.setAccessToken(next.accessToken);
       client.adoptState(nextState);
-      expect(oxy.http.getSessionEpoch()).toBe(epoch);
+      expect(oxy.http.getSessionEpoch()).toBe(epoch + 1);
       release(
         new Response(
           JSON.stringify({
@@ -1014,7 +1015,7 @@ describe('access token v2 binding', () => {
           },
         ),
       );
-      await old;
+      await oldFailure;
       expect(client.getState()?.deviceId).toBe(nextDevice);
       expect(oxy.session.accessToken === next.accessToken).toBe(true);
     } finally {

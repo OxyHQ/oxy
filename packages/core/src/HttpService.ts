@@ -74,6 +74,16 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     );
   }
   if (!(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  // A legacy bearer may omit deviceId; empty or non-string values also carry no
+  // usable device. Two known, different devices are distinct local contexts.
+  if (
+    typeof a.deviceId === 'string' &&
+    a.deviceId.length > 0 &&
+    typeof b.deviceId === 'string' &&
+    b.deviceId.length > 0 &&
+    a.deviceId !== b.deviceId
+  )
+    return false;
   // A refresh may rotate exp/iat/jti while preserving its account and session.
   // Opaque/malformed context fields cannot establish that equivalence.
   return [
@@ -86,6 +96,14 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     'appId',
     'authMethodId',
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
+}
+
+/** Extract a known device for local ownership checks, never authorization. */
+function knownTokenDeviceId(token: string): string | null {
+  const claims = decodeTokenClaims(token);
+  return claims?.type !== 'service' && typeof claims?.deviceId === 'string' && claims.deviceId
+    ? claims.deviceId
+    : null;
 }
 
 /** Discard an unused body even when a platform's stream shim lacks cancel. */
@@ -529,6 +547,8 @@ export class HttpService {
    * bearer — and through the token listeners, the account — back.
    */
   private sessionEpoch = 0;
+  /** Preserve a known device across legacy rotations which omit the claim. */
+  private sessionDeviceId: string | null = null;
   /**
    * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
    * native Commons-identity re-mint arm: after a sign-out a 401 is the expected
@@ -825,9 +845,11 @@ export class HttpService {
     const authHeader = usesSessionAuth
       ? await awaitRequestSignal(this.getAuthHeader(), signal)
       : null;
-    const isOriginalSession = () =>
-      this.sessionEpoch === contextEpoch &&
-      sameTokenSession(contextToken, this.syncAccessTokenFromProvider());
+    const isOriginalSession = () => {
+      if (this.sessionEpoch !== contextEpoch) return false;
+      const currentToken = this.syncAccessTokenFromProvider();
+      return this.sessionEpoch === contextEpoch && sameTokenSession(contextToken, currentToken);
+    };
     const newerRequestToken = () => {
       if (!contextToken || !authHeader?.startsWith('Bearer ')) return null;
       const requestToken = authHeader.slice('Bearer '.length);
@@ -1060,6 +1082,7 @@ export class HttpService {
             if (isOriginalSession()) {
               if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
               this.tokenStore.clearTokens();
+              this.sessionDeviceId = null;
               selfClearedEpoch = this.sessionEpoch;
               this.notifyTokenChange();
             }
@@ -2080,7 +2103,13 @@ export class HttpService {
   // Token management
   setTokens(accessToken: string): void {
     const current = this.tokenStore.getAccessToken();
-    if (current && !sameTokenSession(current, accessToken)) this.sessionEpoch += 1;
+    const deviceId = knownTokenDeviceId(accessToken);
+    const changed =
+      current !== null &&
+      (!sameTokenSession(current, accessToken) ||
+        (this.sessionDeviceId !== null && deviceId !== null && this.sessionDeviceId !== deviceId));
+    if (changed) this.sessionEpoch += 1;
+    this.sessionDeviceId = !current || changed ? deviceId : (deviceId ?? this.sessionDeviceId);
     this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
@@ -2100,8 +2129,8 @@ export class HttpService {
   }
 
   /**
-   * The current context epoch: account/session switches and bearer removal
-   * invalidate pending work; rotation within the same context preserves it.
+   * The current context epoch: account/session switches, known device changes,
+   * and bearer removal invalidate pending work; same-context rotation preserves it.
    * A re-mint lane that
    * plants tokens itself (the device-secret arm) compares it across its awaits.
    */
@@ -2136,6 +2165,7 @@ export class HttpService {
   clearTokens(): void {
     if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
+    this.sessionDeviceId = null;
     // Drop the response cache on logout. The cache is identity-scoped, so a
     // different user could never read these entries, but a logged-out client
     // must not keep the previous session's personalized data resident in
@@ -2309,5 +2339,6 @@ export class HttpService {
   __resetTokensForTests(): void {
     this.sessionEnded = false;
     this.tokenStore.clearTokens();
+    this.sessionDeviceId = null;
   }
 }
