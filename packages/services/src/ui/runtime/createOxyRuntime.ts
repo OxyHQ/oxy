@@ -102,6 +102,10 @@ export interface OxyRuntimeConfig {
  */
 export interface OxyRuntime {
   getSnapshot(): OxyRuntimeSnapshot;
+  /** Synchronously changes whenever the account fact changes, including inside a batch. */
+  getSubjectGeneration(): number;
+  /** Whether this runtime projects the given client instance. */
+  ownsClient(client: RuntimeClient): boolean;
   subscribe(listener: () => void): () => void;
 
   /** Begin projecting `SessionClient` transitions. Returns the disposer. */
@@ -269,6 +273,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
   };
 
   const listeners = new Set<() => void>();
+  let subjectGeneration = 0;
   let snapshot = buildSnapshot();
   /**
    * Depth of the current transition. Nested mutations publish ONCE, at the
@@ -393,6 +398,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
       if (facts.account === null) {
         return;
       }
+      subjectGeneration += 1;
       facts.account = null;
       touch();
       return;
@@ -400,7 +406,9 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     if (facts.account === user) {
       return;
     }
-    facts.account = normalizeUserIdentity(user);
+    const next = normalizeUserIdentity(user);
+    if ((facts.account?.id ?? null) !== (next.id ?? null)) subjectGeneration += 1;
+    facts.account = next;
     touch();
   }
 
@@ -494,6 +502,8 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
 
   return {
     getSnapshot: () => snapshot,
+    getSubjectGeneration: () => subjectGeneration,
+    ownsClient: (client) => oxyServices === client,
 
     subscribe(listener) {
       listeners.add(listener);

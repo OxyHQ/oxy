@@ -1,8 +1,9 @@
 import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
 import type { User } from '@oxy.so/core';
-import { createOxyRuntime, type OxyRuntime } from '../../src/ui/runtime';
+import { createOxyRuntime, type OxyRuntime, type RuntimeClient } from '../../src/ui/runtime';
 
 export interface TestRuntimeOptions {
+  oxyServices?: RuntimeClient;
   getAccessToken?: () => string | null;
   getUsersByIds?: (ids: string[]) => Promise<User[]>;
   getState?: () => DeviceSessionState | null;
@@ -21,7 +22,7 @@ export interface TestRuntimeOptions {
  */
 export function createTestRuntime(options: TestRuntimeOptions = {}): OxyRuntime {
   return createOxyRuntime({
-    oxyServices: {
+    oxyServices: options.oxyServices ?? {
       session: {
         get accessToken() {
           return (options.getAccessToken ?? (() => null))();
