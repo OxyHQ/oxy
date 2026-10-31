@@ -42,7 +42,11 @@ import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.s
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
 import { logger } from '../utils/logger';
-import { ACCESS_TOKEN_VERSION, validateAccessToken } from '../utils/sessionUtils';
+import {
+  ACCESS_TOKEN_VERSION,
+  checkAccessTokenBinding,
+  validateAccessToken,
+} from '../utils/sessionUtils';
 
 /** Number of random bytes in a raw `deviceSecret` (256-bit). */
 const DEVICE_SECRET_BYTES = 32;
@@ -1024,6 +1028,10 @@ class DeviceSessionService {
           accountId: deviceAccountContexts.accountId,
           sessionId: sessions.sessionId,
           personSessionId: personSession.sessionId,
+          operatedByUserId: sessions.operatedByUserId,
+          applicationId: sessions.applicationId,
+          clientId: sessions.clientId,
+          scopes: sessions.scopes,
         })
         .from(deviceSessions)
         .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
@@ -1097,7 +1105,8 @@ class DeviceSessionService {
       payload.sub !== before.accountId ||
       payload.sessionId !== before.sessionId ||
       payload.sid !== before.sessionId ||
-      payload.act?.sub !== before.actorId
+      payload.act?.sub !== before.actorId ||
+      (payload.scope !== undefined && typeof payload.scope !== 'string')
     )
       return null;
 
@@ -1126,6 +1135,17 @@ class DeviceSessionService {
       after.personSessionId !== before.personSessionId
     )
       return null;
+    const checked = checkAccessTokenBinding(payload, {
+      sessionId: after.sessionId,
+      userId: after.accountId,
+      operatedByUserId: after.operatedByUserId,
+      applicationId: after.applicationId,
+      clientId: after.clientId,
+      deviceSessionId: after.deviceSessionId,
+      deviceContextId: after.contextId,
+      scopes: after.scopes,
+    });
+    if (!checked.ok) return null;
     return {
       deviceId,
       deviceSessionId: after.deviceSessionId,

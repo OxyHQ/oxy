@@ -24,6 +24,7 @@ import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
@@ -1324,6 +1325,58 @@ describe('removal — one context and one principal are different operations', (
       spy.mockRestore();
     }
   });
+
+  it('holder context token accepts a correctly bound client and granted scopes', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    await getDb()
+      .update(sessions)
+      .set({ clientId: 'holder-test-client', scopes: ['profile:read'] })
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    sessionCache.clear();
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    expect(minted).toMatchObject({ contextId: shared.viaAlice, actorId: shared.alice });
+    expect(validateAccessToken(minted?.accessToken ?? '').payload).toMatchObject({
+      azp: 'holder-test-client',
+      scope: 'profile:read',
+    });
+  });
+
+  it.each([
+    ['issuer', { iss: 'wrong-issuer' }],
+    ['audience', { aud: ['wrong-audience'] }],
+    ['client', { azp: 'wrong-client' }],
+    ['scope', { scope: 'ungranted:scope' }],
+    ['malformed scope', { scope: 42 }],
+  ])(
+    'holder context token rejects a correctly signed token with invalid %s',
+    async (_name, patch) => {
+      const shared = await sharedOrganization();
+      const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+      if (!holder) throw new Error('Expected a holder credential');
+      const original = await sessionService.getAccessToken(shared.aliceOrgSession);
+      if (!original) throw new Error('Expected a live active session');
+      const claims = validateAccessToken(original.accessToken).payload;
+      if (!claims) throw new Error('Expected signed token claims');
+      const forged = jwt.sign({ ...claims, ...patch }, process.env.ACCESS_TOKEN_SECRET as string);
+      await getDb()
+        .update(sessions)
+        .set({ accessToken: forged })
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce({
+        accessToken: forged,
+        expiresAt: original.expiresAt,
+      });
+      try {
+        expect(
+          await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+        ).toBeNull();
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
   it('holder context token reports missing session binding without re-creating it', async () => {
     const shared = await sharedOrganization();
