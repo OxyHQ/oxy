@@ -16,6 +16,20 @@ import { createCancelledError, ErrorCodes, handleHttpError } from '../errorUtils
  * short-circuit retries for 4xx, and 5xx/network errors MUST still retry.
  */
 describe('retryAsync default shouldRetry predicate', () => {
+  it('never retries a changed session even with a permissive custom predicate', async () => {
+    let attempts = 0;
+    const error = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    await expect(
+      retryAsync(
+        async () => {
+          attempts++;
+          throw error;
+        },
+        { maxRetries: 3, baseDelay: 1, shouldRetry: () => true },
+      ),
+    ).rejects.toBe(error);
+    expect(attempts).toBe(1);
+  });
   it('does not retry on a flat ApiError-shaped 404 (handleHttpError output)', async () => {
     let attempts = 0;
     const started = Date.now();

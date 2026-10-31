@@ -103,6 +103,43 @@ describe('HttpService identity-scoped response cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('isolates the response cache across sessions of the same account but keeps same-session rotations warm', async () => {
+    const http = newService();
+    http.setTokens(makeJwt({ userId: 'alice', sessionId: 'a', jti: '1' }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ session: 'a' }));
+    expect(await http.get('/private')).toEqual({ session: 'a' });
+    http.setTokens(makeJwt({ userId: 'alice', sessionId: 'a', jti: '2' }));
+    expect(await http.get('/private')).toEqual({ session: 'a' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    http.setTokens(makeJwt({ userId: 'alice', sessionId: 'b', jti: '3' }));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ session: 'b' }));
+    expect(await http.get('/private')).toEqual({ session: 'b' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not deduplicate in-flight reads across sessions of the same account', async () => {
+    const http = newService();
+    const releases: Array<(response: Response) => void> = [];
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(resolve);
+        }),
+    );
+    http.setTokens(makeJwt({ userId: 'alice', sessionId: 'a' }));
+    const old = http.get('/private');
+    const oldFailure = expect(old).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    http.setTokens(makeJwt({ userId: 'alice', sessionId: 'b' }));
+    const current = http.get('/private');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    releases[1](jsonResponse({ session: 'b' }));
+    await expect(current).resolves.toEqual({ session: 'b' });
+    releases[0](jsonResponse({ session: 'a' }));
+    await oldFailure;
+  });
+
   it('never shares a cache entry between two different authenticated users', async () => {
     const http = newService();
 
@@ -119,6 +156,145 @@ describe('HttpService identity-scoped response cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(u2.profiles).toEqual(['for-user-2']);
   });
+
+  it('scopes cached responses to the current access-token provider', async () => {
+    const http = newService();
+    const alice = makeJwt({ userId: 'alice' });
+    const bob = makeJwt({ userId: 'bob' });
+    let provided: string | null = alice;
+    http.setAccessTokenProvider(() => provided);
+    fetchMock.mockImplementation(async (_url, init) => {
+      const bearer = new Headers(init?.headers).get('authorization');
+      return jsonResponse({
+        viewer:
+          bearer === `Bearer ${alice}` ? 'alice' : bearer === `Bearer ${bob}` ? 'bob' : 'guest',
+      });
+    });
+    expect(await http.get('/profile', { cache: true })).toEqual({ viewer: 'alice' });
+    expect(await http.get('/profile', { cache: true })).toEqual({ viewer: 'alice' });
+
+    provided = bob;
+    expect(await http.get('/profile', { cache: true })).toEqual({ viewer: 'bob' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    provided = null;
+    expect(await http.get('/profile', { cache: true })).toEqual({ viewer: 'guest' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('synchronizes the access-token provider before peeking at cached data', async () => {
+    const http = newService();
+    let provided: string | null = makeJwt({ userId: 'alice' });
+    http.setAccessTokenProvider(() => provided);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ viewer: 'alice' }));
+    await http.get('/profile', { cache: true });
+    expect(http.peekCachedGet('/profile')).toEqual({ viewer: 'alice' });
+
+    provided = makeJwt({ userId: 'bob' });
+    expect(http.peekCachedGet('/profile')).toBeNull();
+    provided = null;
+    expect(http.peekCachedGet('/profile')).toBeNull();
+  });
+
+  it('does not consult the access-token provider for a disabled cache peek', () => {
+    const provider = jest.fn(() => makeJwt({ userId: 'alice' }));
+    const http = new HttpService({ baseURL: 'http://test.invalid', enableCache: false });
+    http.setAccessTokenProvider(provider);
+    expect(http.peekCachedGet('/profile')).toBeNull();
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'separates skipAuth and session caches (public first: %s)',
+    async (publicFirst) => {
+      const http = newService();
+      http.setTokens(makeJwt({ userId: 'alice' }));
+      fetchMock.mockImplementation(async (_url, init) =>
+        jsonResponse({
+          viewer: new Headers(init?.headers).has('authorization') ? 'alice' : 'guest',
+        }),
+      );
+      if (publicFirst) {
+        expect(await http.get('/profile', { skipAuth: true })).toEqual({ viewer: 'guest' });
+        expect(http.peekCachedGet('/profile')).toBeNull();
+        expect(await http.get('/profile')).toEqual({ viewer: 'alice' });
+      } else {
+        expect(await http.get('/profile')).toEqual({ viewer: 'alice' });
+        expect(await http.get('/profile', { skipAuth: true })).toEqual({ viewer: 'guest' });
+      }
+      expect(http.peekCachedGet('/profile')).toEqual({ viewer: 'alice' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('does not deduplicate concurrent public and authenticated reads', async () => {
+    const http = newService();
+    http.setTokens(makeJwt({ userId: 'alice' }));
+    const pending: Array<() => void> = [];
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((resolve) => {
+          const viewer = new Headers(init?.headers).has('authorization') ? 'alice' : 'guest';
+          pending.push(() => resolve(jsonResponse({ viewer })));
+        }),
+    );
+    const authed = http.get('/profile', { cache: false });
+    const guest = http.get('/profile', { cache: false, skipAuth: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const finish of pending) finish();
+    expect(await authed).toEqual({ viewer: 'alice' });
+    expect(await guest).toEqual({ viewer: 'guest' });
+  });
+
+  it('invalidates both public and authenticated variants by the logical key', async () => {
+    const http = newService();
+    http.setTokens(makeJwt({ userId: 'alice' }));
+    fetchMock.mockImplementation(async (_url, init) =>
+      jsonResponse({ viewer: new Headers(init?.headers).has('authorization') ? 'alice' : 'guest' }),
+    );
+    await http.get('/profile');
+    await http.get('/profile', { skipAuth: true });
+    http.clearCacheEntry('GET:/profile');
+    await http.get('/profile');
+    await http.get('/profile', { skipAuth: true });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(['installed', 'provider'] as const)(
+    'does not cache another account under the key captured before preflight (%s)',
+    async (transition) => {
+      const http = newService();
+      const alice = makeJwt({
+        userId: 'alice',
+        sessionId: 'a',
+        exp: Math.floor(Date.now() / 1000) + 1,
+      });
+      const bob = makeJwt({ userId: 'bob', sessionId: 'b' });
+      let provided = alice;
+      http.setAccessTokenProvider(() => provided);
+      let finish!: (token: string | null) => void;
+      let started!: () => void;
+      const refreshing = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      http.setAuthRefreshHandler(() => {
+        started();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      });
+      fetchMock.mockResolvedValue(jsonResponse({ viewer: 'bob' }));
+      const request = http.get('/profile', { cache: true });
+      const rejected = expect(request).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+      await refreshing;
+      provided = bob;
+      if (transition === 'installed') http.setTokens(bob);
+      finish(transition === 'installed' ? bob : null);
+      await rejected;
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it('does NOT serve an authenticated cached response to an anonymous caller after clearTokens()', async () => {
     const http = newService();

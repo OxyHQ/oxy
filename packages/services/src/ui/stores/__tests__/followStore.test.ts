@@ -190,3 +190,65 @@ describe('resetFollowState', () => {
     expect(useFollowStore.getState().followingUsers).toEqual({});
   });
 });
+
+describe('follow operations across account resets', () => {
+  it.each(['resolve', 'reject'] as const)(
+    'does not reconcile a previous account toggle when it %s',
+    async (outcome) => {
+      const { mock, services } = makeServices();
+      let resolve!: (result: FollowMutationResult) => void;
+      let reject!: (error: Error) => void;
+      mock.follows.follow.mockReturnValueOnce(
+        new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        }),
+      );
+      const pending = useFollowStore.getState().toggleFollowUser('u1', services, false);
+      useFollowStore.getState().resetFollowState();
+      useFollowStore.setState({
+        followingUsers: { u1: true },
+        loadingUsers: { u1: true },
+        errors: { u1: 'read_failed' },
+      });
+      if (outcome === 'resolve')
+        resolve({ message: 'ok', counts: { followers: 10, following: 3 } });
+      else reject(new Error('old request failed'));
+      expect(await pending).toBe(false);
+      const state = useFollowStore.getState();
+      expect(state.followingUsers.u1).toBe(true);
+      expect(state.loadingUsers.u1).toBe(true);
+      expect(state.errors.u1).toBe('read_failed');
+      expect(state.followerCounts.u1).toBeUndefined();
+    },
+  );
+
+  it.each(['followMany', 'unfollowMany'] as const)(
+    'does not reconcile a previous account %s',
+    async (method) => {
+      const { services } = makeServices();
+      let resolve!: (result: unknown) => void;
+      const response = new Promise((res) => {
+        resolve = res;
+      });
+      Object.assign(services.follows, { [method]: jest.fn(() => response) });
+      const store = useFollowStore.getState();
+      const pending =
+        method === 'followMany'
+          ? store.followManyUsers(['u1'], services)
+          : store.unfollowManyUsers(['u1'], services);
+      store.resetFollowState();
+      useFollowStore.setState({
+        followingUsers: { u1: true },
+        loadingUsers: { u1: true },
+        errors: { u1: 'read_failed' },
+      });
+      resolve({ results: [] });
+      await expect(pending).rejects.toMatchObject({ code: 'AUTH_SESSION_CHANGED' });
+      const state = useFollowStore.getState();
+      expect(state.followingUsers.u1).toBe(true);
+      expect(state.loadingUsers.u1).toBe(true);
+      expect(state.errors.u1).toBe('read_failed');
+    },
+  );
+});

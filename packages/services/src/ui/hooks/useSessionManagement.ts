@@ -6,6 +6,7 @@ import { getStorageKeys, type StorageInterface } from '../utils/storageHelpers';
 import { handleAuthError, isInvalidSessionError } from '../utils/errorHandlers';
 import type { OxyServices } from '@oxy.so/core';
 import type { QueryClient } from '@tanstack/react-query';
+import { isSessionChangedError } from '../utils/sessionChangedError';
 import { clearQueryCache } from './queryClient';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
@@ -188,6 +189,7 @@ export const useSessionManagement = ({
           });
           activeRuntime.mergeSessions(deviceSessions, { merge: true });
         } catch (error) {
+          if (isSessionChangedError(error)) throw error;
           if (isDev()) {
             console.warn('Failed to synchronize sessions after switch:', error);
           }
@@ -195,6 +197,7 @@ export const useSessionManagement = ({
 
         return user;
       } catch (error) {
+        if (isSessionChangedError(error)) throw error;
         const invalidSession = isInvalidSessionError(error);
 
         if (invalidSession) {

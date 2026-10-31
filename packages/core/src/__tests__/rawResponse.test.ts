@@ -431,6 +431,53 @@ it.each(['switch', 'logout'] as const)('rejects an unread late 200 after %s', as
   }
 });
 
+it.each([
+  ['without cancel', {}],
+  [
+    'with synchronous failure',
+    {
+      cancel: () => {
+        throw new Error('unsupported');
+      },
+    },
+  ],
+  ['with rejected cancel', { cancel: () => Promise.reject(new Error('unsupported')) }],
+])('keeps the session error for a raw native body %s', async (_name, body) => {
+  const { oxy, linked } = fixture();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  try {
+    const pending = linked.client.requestResponse({
+      method: 'GET',
+      url: '/public',
+      fetch: async (url, init) => {
+        const response = await fetch(url, init);
+        Object.defineProperty(response, 'body', { value: body });
+        entered();
+        await gate;
+        return response;
+      },
+    });
+    const outcome = pending.then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    );
+    await ready;
+    oxy.http.setTokens(token('B', 'user-B'));
+    release();
+    expect(await outcome).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+  } finally {
+    release();
+    linked.dispose();
+  }
+});
+
 it('preserves the configured anonymous service bearer without caller authority', async () => {
   const { linked } = fixture(false);
   try {

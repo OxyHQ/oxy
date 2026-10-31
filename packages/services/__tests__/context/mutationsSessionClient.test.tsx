@@ -466,6 +466,29 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
     expect(captured.isAuthenticated).toBe(true);
   });
 
+  it('does not sign out the current account when an older logout is superseded', async () => {
+    const { fake } = await bootWithDeviceState(singleAccountDeviceState());
+    fake.signOut.mockRejectedValueOnce({ code: 'AUTH_SESSION_CHANGED', status: 401 });
+    let result: Awaited<ReturnType<ReturnType<typeof getOxyApi>['logout']>> | undefined;
+    await act(async () => {
+      result = await getOxyApi().logout();
+    });
+    expect(result?.status).toBe('failed');
+    expect(captured.isAuthenticated).toBe(true);
+    expect(captured.activeSessionId).toBe(SESSION_A1);
+  });
+
+  it('still signs out the active account on a real 401', async () => {
+    const { fake } = await bootWithDeviceState(singleAccountDeviceState());
+    fake.signOut.mockRejectedValueOnce({ code: 'UNAUTHORIZED', status: 401 });
+    let result: Awaited<ReturnType<ReturnType<typeof getOxyApi>['logout']>> | undefined;
+    await act(async () => {
+      result = await getOxyApi().logout();
+    });
+    expect(result?.status).toBe('signed-out');
+    expect(captured.isAuthenticated).toBe(false);
+  });
+
   it('logout() clears local session state (authStore reset) when it signs out the last device account', async () => {
     const { fake } = await bootWithDeviceState(singleAccountDeviceState());
 
@@ -502,6 +525,17 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
     await waitFor(() => expect(captured.isAuthenticated).toBe(false));
     expect(captured.sessionsLength).toBe(0);
     expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it('does not clear the current session when logoutAll is superseded', async () => {
+    const { logoutAllSessions } = await bootWithDeviceState(singleAccountDeviceState());
+    const changed = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    logoutAllSessions.mockRejectedValueOnce(changed);
+    await act(async () => {
+      await expect(getOxyApi().logoutAll()).rejects.toBe(changed);
+    });
+    expect(captured.isAuthenticated).toBe(true);
+    expect(captured.activeSessionId).toBe(SESSION_A1);
   });
 });
 
