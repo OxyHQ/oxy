@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.2.0
+
+### Added
+
+- Versioned holder-proven active-context token response and its Zod-free client check.
+
 ## 6.0.0
 
 ### Breaking
