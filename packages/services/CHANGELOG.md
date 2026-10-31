@@ -4,7 +4,7 @@
 
 ### Added
 
-- `parseOrganizationDraft` normalizes and validates organization form fields using the shared client contract. Callers remain responsible for authorizing creation.
+- `parseOrganizationDraft` normalizes and validates organization form fields using the shared client contract. It is available from `@oxy.so/services/organization-draft`, `ui/client` and `ui`. Callers remain responsible for authorizing creation.
 
 ## [13.12.1] - 2026-10-31
 

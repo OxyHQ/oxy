@@ -218,7 +218,7 @@ rather than raw `fontFamily` strings.
 
 ### Organization forms
 
-`parseOrganizationDraft` from `@oxy.so/services/ui/client` trims form fields,
+`parseOrganizationDraft` from `@oxy.so/services/organization-draft` trims form fields,
 normalizes an optional country code, and returns a validated creation payload or
 `null`. It validates input only: the caller must still check the current session
 and supervision before creating an organization.

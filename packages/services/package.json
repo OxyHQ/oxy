@@ -47,6 +47,18 @@
       },
       "default": "./lib/module/ui/client.js"
     },
+    "./organization-draft": {
+      "react-native": "./src/ui/utils/organizationDraft.ts",
+      "import": {
+        "types": "./lib/typescript/module/ui/utils/organizationDraft.d.ts",
+        "default": "./lib/module/ui/utils/organizationDraft.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/ui/utils/organizationDraft.d.ts",
+        "default": "./lib/commonjs/ui/utils/organizationDraft.js"
+      },
+      "default": "./lib/module/ui/utils/organizationDraft.js"
+    },
     "./ui/server": {
       "react-native": "./src/ui/server.ts",
       "import": {
