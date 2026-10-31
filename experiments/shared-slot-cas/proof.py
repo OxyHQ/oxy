@@ -93,6 +93,13 @@ class SharedAuthorityModel(unittest.TestCase):
             db.execute("UPDATE slot SET value = 'legacy' WHERE id = 1")
         self.assertEqual(self.slot(), (1, 'legacy'))
 
+    def test_legacy_write_does_not_invalidate_an_older_cas_observation(self):
+        observed_version = self.slot()[0]
+        with closing(connect(self.path)) as db:
+            db.execute("UPDATE slot SET value = 'legacy' WHERE id = 1")
+        self.assertTrue(cas(self.path, observed_version, 'older'))
+        self.assertEqual(self.slot(), (1, 'older'))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
