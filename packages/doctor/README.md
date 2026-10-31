@@ -46,3 +46,20 @@ Use Renovate with a shared organisation preset for grouped, reviewable updates.
 Require normal tests and typecheck before merging; never use `latest` ranges or
 mutate dependencies during application startup or CI. Renovate proposes
 changes; Doctor detects drift and duplicate installations.
+
+## Android emulator preflight
+
+`oxy-emulator-preflight --serial emulator-5554` checks that the explicitly
+selected serial occurs exactly once as an online device in `adb devices -l`,
+then asks its emulator console for the AVD name. It prints only the serial on
+success and exits nonzero on invalid input, offline or ambiguous devices, an
+unavailable ADB, or a missing AVD response. It never starts an emulator or runs
+shell, installation, clearing, or uninstallation commands on a device.
+
+The caller must carry the returned serial into every subsequent command, for
+example using `adb -s "$serial" ...`; never rely on ADB's default selection.
+Run the preflight immediately before the operation and fail on errors. This is a
+read-only selection check, not an atomic device lock: devices can disconnect or
+change between commands. It does not prove the AVD is disposable, has no user
+data, or is isolated from production networks. Those are separate prerequisites
+for an isolated mobile test.

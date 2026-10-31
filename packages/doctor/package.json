@@ -9,7 +9,8 @@
   },
   "type": "module",
   "bin": {
-    "oxy-doctor": "./src/cli.mjs"
+    "oxy-doctor": "./src/cli.mjs",
+    "oxy-emulator-preflight": "./src/emulator-preflight.mjs"
   },
   "exports": {
     ".": "./src/checks.mjs"
