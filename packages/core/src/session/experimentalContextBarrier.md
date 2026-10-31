@@ -84,6 +84,12 @@ Production integration must establish all of the following before enabling it:
   during its asynchronous read: the existing method still writes afterwards.
   A check after that write cannot undo it. Owner-partitioned or truly
   conditional local storage is needed before that hook can use this path.
+- An isolated device-name experiment writes to a unique random incarnation
+  key, never the legacy device key. A delayed old write cannot overwrite a name
+  written to a different incarnation; reusing the id demonstrably breaks that
+  property. Generation requires a secure random source and fails closed when
+  absent. Current-incarnation selection, durable recovery, cross-process
+  coordination, migration and old-entry cleanup are not implemented.
 - Owner storage keys and registry metadata contain identifiers, not a bearer or
   device secret. They are routing labels, never proof of authorization. The
   partition experiment persists only queries with an explicit root/version

@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { OxyServices } from '../../../core/src/OxyServices';
 import { DeviceManager } from '../../../core/src/utils/deviceManager';
+import { createExperimentalScopedDeviceName } from '../../../core/src/session/experimentalScopedDeviceName';
 import { ExperimentalContextBarrier } from '../../../core/src/session/experimentalContextBarrier';
 import { ExperimentalOwnedMutationRegistry } from '../../src/ui/hooks/experimentalOwnedMutationRegistry';
 import { ExperimentalQuarantinedMutationCache } from '../../src/ui/hooks/experimentalQuarantinedMutationCache';
@@ -114,11 +115,12 @@ it('uses the bound session for a real Oxy device-rename consumer and fences a la
   });
   persistence = createExperimentalOwnedPersistence({ client: queryClient, storage, registry });
   const localUpdate = jest.spyOn(DeviceManager, 'updateDeviceName').mockResolvedValue();
+  let updateLocalName = async (name: string, current: () => boolean) => {
+    if (!current()) throw new Error('Mutation owner changed');
+    await DeviceManager.updateDeviceName(name);
+  };
   const rename = createExperimentalOwnedDeviceRename(registry, persistence.checkpoint, {
-    updateLocalName: async (name, current) => {
-      if (!current()) throw new Error('Mutation owner changed');
-      await DeviceManager.updateDeviceName(name);
-    },
+    updateLocalName: (name, current) => updateLocalName(name, current),
   });
   try {
     expect(await gate.reconcile()).toBe(true);
@@ -191,6 +193,54 @@ it('uses the bound session for a real Oxy device-rename consumer and fences a la
       read.mockRestore();
       write.mockRestore();
     }
+
+    // A distinct local incarnation keeps the stale write away from the new one.
+    expect(await gate.reconcile()).toBe(true);
+    const scopedValues = new Map<string, string>();
+    let unblockWrite!: () => void;
+    let writeStarted!: () => void;
+    const writing = new Promise<void>((resolve) => {
+      writeStarted = resolve;
+    });
+    const blockedWrite = new Promise<void>((resolve) => {
+      unblockWrite = resolve;
+    });
+    const oldId = 'a'.repeat(32);
+    const newId = 'b'.repeat(32);
+    const scopedStorage = {
+      getItem: async (key: string) => scopedValues.get(key) ?? null,
+      setItem: async (key: string, value: string) => {
+        if (key.endsWith(oldId)) {
+          writeStarted();
+          await blockedWrite;
+        }
+        scopedValues.set(key, value);
+      },
+      removeItem: async (key: string) => {
+        scopedValues.delete(key);
+      },
+    };
+    const boundOwner = { actorId: 'nate', accountId: 'org', sessionId: 's-nate' };
+    const oldLease = gate.lease();
+    const oldScope = createExperimentalScopedDeviceName(scopedStorage, boundOwner, oldId, () =>
+      gate.isCurrent(oldLease),
+    );
+    updateLocalName = async (name) => {
+      if ((await oldScope.write(name)) !== 'written') throw new Error('Mutation owner changed');
+    };
+    const oldWrite = rename.rename('op-scoped-old', 'Old scoped name');
+    await writing;
+    gate.invalidate();
+    expect(await gate.reconcile()).toBe(true);
+    const newLease = gate.lease();
+    const newScope = createExperimentalScopedDeviceName(scopedStorage, boundOwner, newId, () =>
+      gate.isCurrent(newLease),
+    );
+    expect(await newScope.write('New scoped name')).toBe('written');
+    unblockWrite();
+    await expect(oldWrite).rejects.toThrow();
+    expect(await oldScope.read()).toBeNull();
+    expect(await newScope.read()).toBe('New scoped name');
   } finally {
     localUpdate.mockRestore();
     queryClient.clear();
