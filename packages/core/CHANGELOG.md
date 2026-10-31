@@ -1,5 +1,12 @@
 # Changelog — `@oxy.so/core`
 
+## 7.9.1
+
+### Fixed
+
+- Isolate HTTP cache entries and in-flight requests across session changes, including token-provider switches and anonymous requests. A response from a previous session is no longer delivered to a new one.
+- Preserve cancellation and refresh ownership when a 401 races with a token rotation, account switch or another deduplicated caller.
+
 ## 7.9.0
 
 ### Added
