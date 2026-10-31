@@ -18,9 +18,8 @@
 // Must stay the first runtime import: core reads the platform from it.
 import '../registerPlatform';
 
-// No screen is imported here. `OxyProvider` loads the account screens as their
-// own chunk at startup (`loadScreens`), and a surface opened before that chunk
-// arrives waits for it. A static `screenComponents` import here put all of them
+// No screen is imported here. A surface loads the account screens as their own
+// chunk when first opened. A static `screenComponents` import here put all of them
 // in the first-paint bundle of every app that imports anything from `ui`
 // (Allo: +340 KB gzipped).
 

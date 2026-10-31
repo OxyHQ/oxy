@@ -1,5 +1,4 @@
 import { OxySupportContext } from '../context/oxySupportContext';
-import { loadScreens } from '../navigation/routes';
 import { useEffect, useRef, useState, useMemo, type FC } from 'react';
 import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -111,10 +110,6 @@ const OxyProvider: FC<OxyProviderProps> = ({
     () => ({ onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork }),
     [onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork],
   );
-  useEffect(() => {
-    // The root entry registers the screens itself; `ui` and `ui/client` warm their chunk here.
-    void loadScreens().catch(() => undefined);
-  }, []);
   // Storage + persistence wiring.
   //
   // The QueryClient exists synchronously so cache I/O can never delay the app
