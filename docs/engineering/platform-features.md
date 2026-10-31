@@ -345,3 +345,29 @@ indexed edge owner, but must sort the eligible set instead of using the old
 chronological covering index. Regression evidence: `user.service.followGraphSort.test.ts`
 (reversed timestamps, replaced edge ids, re-follow, all sort aliases and three
 list directions) and `user.service.graph.pg.test.ts` (pagination and visibility).
+
+
+### Existing local bot characters
+
+`packages/api/src/scripts/backfill-local-bot-characters.ts` repairs accounts that
+predate character seeding: `kind = bot`, character NULL, no federation actor URI,
+non-federated type, and non-archived status. This includes local automated bots;
+`type` and `kind` are independent. It preserves every stored character and never
+assigns a generated identity to a remote account. Seeds use the existing
+`avatarCharacterFor(username)` creation policy.
+
+Dry-run is a read-only transaction with a five-second statement limit and emits
+the complete candidate inventory and SHA-256. Apply requires that exact hash,
+locks candidates, compares the inventory again, and repeats eligibility plus
+username in every conditional write. A stale review aborts the transaction.
+Locks wait at most five seconds; statements at most fifteen. Configured Redis
+must answer before writes; the normal identity invalidation runs after commit
+and an ordered PING drains queued DEL/PUBLISH before process teardown. Without
+Redis the report explicitly says local-only; it does not claim a broadcast.
+
+Run dry-run in the deployed API environment and review its inventory before
+`--apply --expected-hash=<sha256>`. The test suite uses its own migrated database
+because this operation intentionally inventories all eligible accounts. Tests
+cover existing/remote/archived/human exclusions, canonical seeds, idempotence,
+concurrent character choice, lazy Redis readiness, command draining and failed
+Redis before writes. Applying is an operational step, not a migration side effect.
