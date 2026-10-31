@@ -186,6 +186,23 @@ describe('SessionClient bootstrap token ownership', () => {
     },
   );
 
+  it('does not report a same-device switch as successful after a newer switch wins', async () => {
+    const delayed = deferred<unknown>();
+    const request = jest
+      .fn()
+      .mockReturnValueOnce(delayed.promise)
+      .mockResolvedValueOnce(sync('d1', 3, 'alice'));
+    const { client, token } = clientWith(request);
+    client.adoptState(state('d1', 1));
+    const old = client.switchAccount('org');
+    const failure = expect(old).rejects.toThrow('Device session request was superseded');
+    await client.switchAccount('org');
+    delayed.resolve(sync('d1', 2, 'nate'));
+    await failure;
+    expect(client.getState()?.revision).toBe(3);
+    expect(token()).toBe('alice');
+  });
+
   it.each(['switch', 'signout', 'add'] as const)(
     'accepts a same-device %s restate after the first state arrives',
     async (operation) => {

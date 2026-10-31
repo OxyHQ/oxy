@@ -934,7 +934,14 @@ export class SessionClient {
       { cache: false },
     );
     this.assertCurrentDeviceRequest(request, res);
+    const checked = deviceSessionSyncCheck(res, []);
+    const isStale = () =>
+      checked.ok &&
+      this.state?.deviceId === checked.value.state.deviceId &&
+      this.state.revision > checked.value.state.revision;
+    if (isStale()) throw new Error('Device session request was superseded');
     await this.applySyncForMutation(res);
+    if (isStale()) throw new Error('Device session request was superseded');
     this.postCommitPing();
   }
 
