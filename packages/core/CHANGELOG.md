@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.9.2
+
+### Changed
+
+- Reduce the size of lazily loaded account translation dictionaries while preserving every dictionary key and translation.
+
 ## 7.9.1
 
 ### Fixed
