@@ -1972,6 +1972,33 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
     expect(controller.getSnapshot().activatingContextId).toBeNull();
   });
 
+  it('documents a superseded activation without a socket: failed until an explicit refresh', async () => {
+    const { controller, oxy, sc } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+    const clientHost = (sc as unknown as { host: SessionClientHost }).host;
+    const originalRequest = clientHost.makeRequest;
+    const paths: string[] = [];
+    jest.spyOn(clientHost, 'makeRequest').mockImplementation(async (method, url, data, options) => {
+      paths.push(url);
+      if (url === '/session/device/activate') {
+        throw Object.assign(new Error('context_superseded'), {
+          status: 409,
+          code: 'context_superseded',
+        });
+      }
+      if (url === '/session/device/directory') return sharedDirectory(6, 'ctx-alice-org');
+      return originalRequest(method, url, data, options);
+    });
+    expect(await controller.chooseContext('ctx-alice-org')).toBe('failed');
+    expect(controller.getSnapshot().activeContext?.actor.userId).toBe('nate');
+    expect(paths).toEqual(['/session/device/activate']);
+    expect(await controller.refresh()).toBe(true);
+    expect(controller.getSnapshot().activeContext?.actor.userId).toBe('alice');
+    expect(paths).toEqual(['/session/device/activate', '/session/device/directory']);
+  });
+
   it('keeps the directory it already holds when a later read fails, and says so', async () => {
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     const { controller, failDirectory } = makeHarness();
