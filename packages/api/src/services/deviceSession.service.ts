@@ -1579,8 +1579,27 @@ class DeviceSessionService {
 
     if (outcome.kind === 'not_found') return { ok: false, reason: 'not_found' };
 
-    const directory = await this.getDirectory(deviceId);
-    const state = await this.readState(deviceId);
+    const missingDevice = (): ActivateContextResult =>
+      outcome.kind === 'unauthorized'
+        ? { ok: false, reason: 'not_found' }
+        : {
+            ok: false,
+            reason: 'superseded',
+            accountId: outcome.accountId,
+            changed: outcome.kind === 'activated',
+            state: null,
+          };
+    let directory: DeviceDirectory;
+    try {
+      directory = await this.getDirectory(deviceId);
+    } catch (error) {
+      const current = await this.loadDevice(db, deviceId);
+      if (!current || current.id !== device.id) return missingDevice();
+      throw error;
+    }
+    const projected = await this.load(db, deviceId);
+    if (!projected || projected.id !== device.id) return missingDevice();
+    const state = projectState(projected);
     if (outcome.kind === 'unauthorized') {
       return { ok: false, reason: 'unauthorized', accountId: outcome.accountId, directory, state };
     }

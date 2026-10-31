@@ -1178,6 +1178,45 @@ describe('removal — one context and one principal are different operations', (
     }
   });
 
+  it('returns superseded if the device disappears between directory and state reads', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        const directory = await original(device);
+        const row = await storedDevice(device);
+        await getDb().delete(deviceSessions).where(eq(deviceSessions.id, row.id));
+        return directory;
+      });
+    try {
+      const result = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      expect(result).toMatchObject({ ok: false, reason: 'superseded', state: null });
+      expect(result).not.toHaveProperty('activeToken');
+      expect(await storedDevice(shared.device)).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('preserves an unrelated directory failure while the device still exists', async () => {
+    const shared = await sharedOrganization();
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockRejectedValue(new Error('directory unavailable'));
+    try {
+      await expect(
+        deviceSessionService.activateContext(shared.device, shared.viaNate, request()),
+      ).rejects.toThrow('directory unavailable');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('rejects a superseded activation after the active context returns to its original value', async () => {
     const shared = await sharedOrganization();
     const barrier = pauseMint(shared.nateOrgSession);
