@@ -15,9 +15,9 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * do not share a UID, so no app can see another's files; everything else goes
  * through the hosts' [OxyDeviceSessionProvider]:
  *
- * - `read` sweeps the hosts in [HOST_AUTHORITIES] order, Commons first, and
- *   returns the first credential it finds. A host reads ITSELF from its own
- *   store instead of calling its own provider.
+ * - `read` checks all visible hosts and returns the first credential in
+ *   [HOST_AUTHORITIES] order if no host failed. A host reads ITSELF from its
+ *   own store instead of calling its own provider.
  * - `write` publishes to EVERY installed host (itself locally, the others
  *   through their providers). It reports success only when every installed
  *   host either confirmed the new credential by read-back or, having refused
@@ -83,34 +83,29 @@ class OxyDeviceSessionModule : Module() {
    * store. Every app sweeps the same list in the same order, so they all adopt
    * the same credential.
    *
-   * `unavailable` is sticky across the whole sweep: if ANY source could not be
-   * read and none produced a credential, the answer is `unavailable`, not
-   * `absent`. The pessimistic merge is the point — the optimistic one authorises
-   * a write.
+   * `unavailable` is sticky across the whole sweep, including when another host
+   * is present. Android package visibility can hide a host from resolution
+   * entirely; the manifest queries must include every host authority.
    */
   private fun readShared(): Map<String, String> {
-    var unavailableReason: String? = null
-
-    for (authority in HOST_AUTHORITIES) {
-      val read = if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)
-      when (read) {
-        is DeviceSessionRead.Present -> return present(read)
-        is DeviceSessionRead.Unavailable -> unavailableReason = unavailableReason ?: read.reason
-        // Absent, or no provider there at all (not installed, refused, threw) —
-        // neither is evidence about the other sources, so keep looking.
-        else -> Unit
-      }
+    val result = readSharedDeviceSessions(HOST_AUTHORITIES) { authority ->
+      if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else readVisibleHost(authority)
     }
-
-    val reason = unavailableReason
-    return if (reason != null) {
-      mapOf(
+    return when (result) {
+      is DeviceSessionRead.Present -> present(result)
+      is DeviceSessionRead.Unavailable -> mapOf(
         OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_UNAVAILABLE,
-        OxyDeviceSessionProvider.KEY_REASON to reason,
+        OxyDeviceSessionProvider.KEY_REASON to result.reason,
       )
-    } else {
-      mapOf(OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_ABSENT)
+      DeviceSessionRead.Absent -> mapOf(OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_ABSENT)
     }
+  }
+
+  private fun readVisibleHost(authority: String): DeviceSessionRead {
+    return readVisibleDeviceSession(
+      { context.packageManager.resolveContentProvider(authority, 0) != null },
+      { callProvider(authority) },
+    )
   }
 
   /**
@@ -184,42 +179,44 @@ class OxyDeviceSessionModule : Module() {
   )
 
   /**
-   * Call one host's `read`. `null` means "nothing to learn from this one" —
-   * the app is not installed, package visibility hid it, the permission was
-   * refused, or the call threw. A provider that answered but could not read its
-   * own store returns [DeviceSessionRead.Unavailable], which the sweep keeps.
+   * Call a host that resolved as installed. Null, refusal and exceptions mean
+   * its content is unknown, never empty.
    */
-  private fun callProvider(authority: String): DeviceSessionRead? = runCatching {
-    val uri = Uri.parse("content://$authority")
-    val bundle: Bundle = context.contentResolver.call(
-      uri,
-      OxyDeviceSessionProvider.METHOD_READ,
-      null,
-      null,
-    ) ?: return@runCatching null
+  private fun callProvider(authority: String): DeviceSessionRead {
+    return try {
+      val uri = Uri.parse("content://$authority")
+      val bundle: Bundle = context.contentResolver.call(
+        uri,
+        OxyDeviceSessionProvider.METHOD_READ,
+        null,
+        null,
+      ) ?: return DeviceSessionRead.Unavailable("NullProviderResponse")
 
-    when (bundle.getString(OxyDeviceSessionProvider.KEY_STATUS)) {
-      OxyDeviceSessionProvider.STATUS_PRESENT -> {
-        val deviceId = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_ID)
-        val deviceSecret = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_SECRET)
-        if (deviceId.isNullOrEmpty() || deviceSecret.isNullOrEmpty()) {
-          // A `present` verdict with an incomplete payload is a broken peer, not
-          // an empty device.
-          DeviceSessionRead.Unavailable("IncompleteProviderPayload")
-        } else {
-          DeviceSessionRead.Present(deviceId, deviceSecret)
+      when (bundle.getString(OxyDeviceSessionProvider.KEY_STATUS)) {
+        OxyDeviceSessionProvider.STATUS_PRESENT -> {
+          val deviceId = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_ID)
+          val deviceSecret = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_SECRET)
+          if (deviceId.isNullOrEmpty() || deviceSecret.isNullOrEmpty()) {
+            // A `present` verdict with an incomplete payload is a broken peer, not
+            // an empty device.
+            DeviceSessionRead.Unavailable("IncompleteProviderPayload")
+          } else {
+            DeviceSessionRead.Present(deviceId, deviceSecret)
+          }
         }
+        OxyDeviceSessionProvider.STATUS_ABSENT -> DeviceSessionRead.Absent
+        OxyDeviceSessionProvider.STATUS_UNAVAILABLE ->
+          DeviceSessionRead.Unavailable(
+            bundle.getString(OxyDeviceSessionProvider.KEY_REASON) ?: "PeerUnavailable",
+          )
+        // A status this build does not know. It said something we do not
+        // understand, so we have learned nothing — never read that as "absent".
+        else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
       }
-      OxyDeviceSessionProvider.STATUS_ABSENT -> DeviceSessionRead.Absent
-      OxyDeviceSessionProvider.STATUS_UNAVAILABLE ->
-        DeviceSessionRead.Unavailable(
-          bundle.getString(OxyDeviceSessionProvider.KEY_REASON) ?: "PeerUnavailable",
-        )
-      // A status this build does not know. It said something we do not
-      // understand, so we have learned nothing — never read that as "absent".
-      else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
+    } catch (error: Exception) {
+      DeviceSessionRead.Unavailable(error.javaClass.simpleName)
     }
-  }.getOrNull()
+  }
 
   companion object {
     private const val AUTHORITY_SUFFIX = ".devicesession"
