@@ -88,6 +88,17 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
 }
 
+/** Discard an unused body even when a platform's stream shim lacks cancel. */
+function discardResponseBody(response: Response): Promise<void> {
+  try {
+    const body = response.body;
+    if (typeof body?.cancel !== 'function') return Promise.resolve();
+    return Promise.resolve(body.cancel()).catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
+}
+
 /** A trusted platform transport, for example Expo's streaming fetch. */
 export type ResponseTransport = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -697,7 +708,10 @@ export class HttpService {
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
     // The provider can change independently of the last request. Synchronize
     // before deriving the cache and deduplication identity, including hits.
-    if (!config.skipAuth) this.syncAccessTokenFromProvider();
+    const explicitAuthorization = Object.keys(config.headers ?? {}).some(
+      (key) => key.toLowerCase() === 'authorization',
+    );
+    if (!config.skipAuth && !explicitAuthorization) this.syncAccessTokenFromProvider();
     // Per-call authority is not represented by the instance's session cache
     // key. Never share or retain responses authenticated by explicit headers.
     if (
@@ -801,15 +815,34 @@ export class HttpService {
     // and skip the near-expiry preflight — see RequestOptions.skipAuth. The
     // 401 retry re-enters request() with a fresh config, so it re-resolves
     // this here with the refreshed token.
-    const authHeader = config.skipAuth ? null : await this.getAuthHeader();
-    if (!config.skipAuth) this.syncAccessTokenFromProvider();
-    // A refresh can change accounts after the lease was keyed. Never attach a
-    // different account's response to that cache or deduplication identity.
+    const explicitAuth = Object.keys(config.headers ?? {}).some(
+      (key) => key.toLowerCase() === 'authorization',
+    );
+    const usesSessionAuth = !config.skipAuth && !explicitAuth;
+    const contextToken = usesSessionAuth ? this.syncAccessTokenFromProvider() : null;
+    const contextEpoch = this.sessionEpoch;
+    const authHeader = usesSessionAuth
+      ? await awaitRequestSignal(this.getAuthHeader(), signal)
+      : null;
+    const isOriginalSession = () =>
+      this.sessionEpoch === contextEpoch &&
+      sameTokenSession(contextToken, this.syncAccessTokenFromProvider());
+    const newerRequestToken = () => {
+      if (!contextToken || !authHeader?.startsWith('Bearer ')) return null;
+      const requestToken = authHeader.slice('Bearer '.length);
+      const current = this.syncAccessTokenFromProvider();
+      return current && current !== requestToken && sameTokenSession(requestToken, current)
+        ? current
+        : null;
+    };
+    // The provider can change between cache-key selection and auth preflight.
+    // Refuse to attach a response to a lease belonging to another identity.
     if (
-      lease.key &&
-      !config.skipAuth &&
-      (cacheSessionEpoch !== this.sessionEpoch ||
-        lease.key !== this.generateCacheKey(method, url, data || params))
+      usesSessionAuth &&
+      (!isOriginalSession() ||
+        (lease.key &&
+          (cacheSessionEpoch !== this.sessionEpoch ||
+            lease.key !== this.generateCacheKey(method, url, data || params))))
     ) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
@@ -837,6 +870,9 @@ export class HttpService {
       if (domain.aborted) {
         throw createCancelledError('Request cancelled');
       }
+      if (usesSessionAuth && !isOriginalSession()) {
+        throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+      }
 
       /**
        * Whether OUR timer fired, so a timeout can be told apart from a
@@ -845,6 +881,7 @@ export class HttpService {
        * an abandoned request as a transient failure.
        */
       let timedOut = false;
+      let selfClearedEpoch: number | null = null;
 
       // This attempt's controller carries its own timeout and inherits the
       // call-wide abort domain. Declared OUTSIDE the `try` so the `finally`
@@ -972,14 +1009,26 @@ export class HttpService {
         // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
+        if (usesSessionAuth && !isOriginalSession()) {
+          void discardResponseBody(response);
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
+
         // Handle response
         if (!response.ok) {
           // On 401, delegate to the installed auth refresh handler and retry
           // once before giving up. HttpService deliberately does not know any
           // session routes; the refresh handler owns session rotation.
-          if (response.status === 401 && !config._isAuthRetry && !config.skipAuth) {
-            const refreshed = await this.refreshAccessToken('response-401');
-            if (refreshed) {
+          if (
+            response.status === 401 &&
+            !config._isAuthRetry &&
+            usesSessionAuth &&
+            isOriginalSession()
+          ) {
+            let refreshed = newerRequestToken();
+            if (!refreshed) refreshed = await this.refreshAccessToken('response-401');
+            refreshed ||= newerRequestToken();
+            if (refreshed && isOriginalSession()) {
               // `deduplicate: false` is REQUIRED on the retry. This re-issue runs
               // while the ORIGINAL request is still in-flight under its dedupe
               // key; the refreshed token is
@@ -1001,8 +1050,12 @@ export class HttpService {
               });
             }
             // Refresh failed or no token — clear tokens
-            this.tokenStore.clearTokens();
-            this.notifyTokenChange();
+            if (isOriginalSession()) {
+              if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
+              this.tokenStore.clearTokens();
+              selfClearedEpoch = this.sessionEpoch;
+              this.notifyTokenChange();
+            }
           }
 
           // Read the error body (may be absent, non-JSON, empty or malformed).
@@ -1096,6 +1149,9 @@ export class HttpService {
           responseData = text || null;
         }
 
+        if (usesSessionAuth && !isOriginalSession()) {
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
         const duration = Date.now() - startTime;
         this.updateMetrics(true, duration);
         this.config.onRequestEnd?.(url, method, duration, true);
@@ -1104,6 +1160,24 @@ export class HttpService {
       } catch (error: unknown) {
         const duration = Date.now() - startTime;
         this.updateMetrics(false, duration);
+        // A body reader can reject or finish parsing an error after the viewer
+        // changed. Do not surface that previous viewer's error or callbacks.
+        // An explicit abort/timeout retains its existing classification.
+        const providerToken = selfClearedEpoch !== null ? this.accessTokenProvider?.() : null;
+        const originalClearStillCurrent =
+          selfClearedEpoch !== null &&
+          selfClearedEpoch === this.sessionEpoch &&
+          this.tokenStore.getAccessToken() === null &&
+          (!providerToken || sameTokenSession(contextToken, providerToken));
+        if (
+          usesSessionAuth &&
+          !originalClearStillCurrent &&
+          !isOriginalSession() &&
+          !isAbortLike(error) &&
+          !controller.signal.aborted
+        ) {
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
         this.config.onRequestEnd?.(url, method, duration, false);
         this.config.onRequestError?.(
           url,
@@ -1203,6 +1277,10 @@ export class HttpService {
       } finally {
         disposeCallerLink?.();
       }
+    }
+
+    if (usesSessionAuth && !isOriginalSession()) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
 
     // Cache the result if caching is enabled
@@ -1399,7 +1477,7 @@ export class HttpService {
    * in `clearCacheEntry`.
    */
   private generateCacheKey(method: string, url: string, data?: unknown): string {
-    return `${this.generateBaseCacheKey(method, url, data)}${HttpService.CACHE_IDENTITY_DELIM}${this.computeIdentityTag()}`;
+    return `${this.generateBaseCacheKey(method, url, data)}${HttpService.CACHE_IDENTITY_DELIM}${this.computeIdentityTag()} epoch=${this.sessionEpoch}`;
   }
 
   /**
@@ -1533,6 +1611,7 @@ export class HttpService {
       // on the way out would discard the flag it just set.
       this.lastRefreshWasRateLimited = false;
       const epoch = this.sessionEpoch;
+      const tokenAtStart = this.tokenStore.getAccessToken();
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (epoch !== this.sessionEpoch) {
@@ -1544,6 +1623,12 @@ export class HttpService {
             }
             this.logger.debug('Discarded a token refresh that outlived its session');
             return null;
+          }
+          const installed = this.tokenStore.getAccessToken();
+          if (installed !== tokenAtStart && installed !== newToken) {
+            // Another operation installed a token while this refresh was in
+            // flight. Never overwrite it with this older completion.
+            return installed && sameTokenSession(tokenAtStart, installed) ? installed : null;
           }
           if (!newToken) {
             this.lastRefreshFailureAt = Date.now();
@@ -1882,7 +1967,7 @@ export class HttpService {
       try {
         assertCurrent();
       } catch (error) {
-        await response.body?.cancel();
+        await discardResponseBody(response);
         throw error;
       }
       const replayable =
@@ -1901,17 +1986,17 @@ export class HttpService {
             config.signal,
           );
         } catch (error) {
-          void response.body?.cancel().catch(() => undefined);
+          void discardResponseBody(response);
           throw error;
         }
         try {
           assertCurrent();
         } catch (error) {
-          await response.body?.cancel();
+          await discardResponseBody(response);
           throw error;
         }
         if (refreshed) {
-          await response.body?.cancel();
+          await discardResponseBody(response);
           if (config.signal?.aborted) throw createCancelledError();
           return this.requestResponseAttempt(
             config,
