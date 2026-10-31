@@ -167,7 +167,7 @@ export const attachQueryPersistence = (
       !hydrateSnapshot(queryClient, raw, QUERY_CACHE_MAX_AGE, {
         shouldRestoreQuery: (query) => !account.ownsQuery(query),
         restoreMutations: accountQueries?.clearUnregisteredMutations !== true,
-        shouldRestoreMutation: (mutation) => !account.persistsMutationKey(mutation.mutationKey),
+        shouldRestoreMutation: (mutation) => !account.ownsMutationKey(mutation.mutationKey),
       }) &&
       raw
     ) {

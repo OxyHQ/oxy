@@ -94,6 +94,15 @@ export interface AccountQueriesConfig {
    */
   mutationKeys?: readonly QueryKey[];
   /**
+   * Exact mutation keys whose records belong to the account but must remain
+   * in memory. They are dropped on account transitions and excluded from both
+   * caches. If also listed in `mutationKeys`, memory-only takes precedence.
+   * A previously persisted queue for a newly memory-only key is not restored;
+   * a later snapshot can overwrite it. This does not cancel requests or
+   * callbacks, or immediately erase old blobs.
+   */
+  memoryOnlyMutationKeys?: readonly QueryKey[];
+  /**
    * Remove unregistered mutation records as well on every account transition.
    * Only registered paused mutations are saved and restored; unregistered
    * mutations are excluded from the shared persisted cache too. Removing a record
@@ -111,6 +120,8 @@ export interface AccountQueryOwnership {
   /** Written to the account's blob. */
   persistsQuery: (query: QueryIdentity) => boolean;
   ownsMutation: (mutation: Mutation) => boolean;
+  /** Whether a stored mutation key is owned by the account. */
+  ownsMutationKey: (key: QueryKey | undefined) => boolean;
   /** Eligible for the account's persisted paused mutations. */
   persistsMutation: (mutation: Mutation) => boolean;
   /** Whether a stored mutation key belongs to this account's offline queue. */
@@ -133,9 +144,16 @@ export function accountQueryOwnership(
   ]);
   const sdkRoots = new Set(PERSISTED_QUERY_PREFIXES);
   const declared = config.roots === 'all' ? null : new Set(config.roots);
+  const memoryMutationHashes = new Set(
+    (config.memoryOnlyMutationKeys ?? []).map((key) => hashKey(key)),
+  );
   const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
+  const isMemoryOnlyMutationKey = (key: QueryKey | undefined): boolean =>
+    key !== undefined && memoryMutationHashes.has(hashKey(key));
   const persistsMutationKey = (key: QueryKey | undefined): boolean =>
-    key !== undefined && mutationHashes.has(hashKey(key));
+    key !== undefined && !isMemoryOnlyMutationKey(key) && mutationHashes.has(hashKey(key));
+  const ownsMutationKey = (key: QueryKey | undefined): boolean =>
+    isMemoryOnlyMutationKey(key) || persistsMutationKey(key);
   const isRegisteredMutation = (mutation: Mutation): boolean =>
     persistsMutationKey(mutation.options.mutationKey);
 
@@ -166,7 +184,8 @@ export function accountQueryOwnership(
       );
     },
     ownsMutation: (mutation) =>
-      config.clearUnregisteredMutations === true || isRegisteredMutation(mutation),
+      config.clearUnregisteredMutations === true || ownsMutationKey(mutation.options.mutationKey),
+    ownsMutationKey,
     persistsMutation: isRegisteredMutation,
     persistsMutationKey,
   };
