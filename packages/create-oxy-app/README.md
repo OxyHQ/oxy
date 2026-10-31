@@ -2,7 +2,7 @@
 
 Scaffold a new Oxy ecosystem app — an Expo / React Native + Express monorepo
 wired to the Oxy SDK (`@oxy.so/services`, `@oxy.so/app-preset`) with the canonical
-provider stack, device-first auth, Bloom theming, and an AWS deploy workflow.
+provider stack, device-first auth, Bloom composition, and an AWS deploy workflow.
 
 ## Usage
 
@@ -46,9 +46,10 @@ All Expo config comes from **`@oxy.so/app-preset`** — the config plugin,
 bases — so apps track the ecosystem with a version bump instead of copy-pasting.
 
 The frontend ships the canonical provider stack
-(`GestureHandlerRootView → SafeAreaProvider → BloomThemeProvider → OxyProvider →
-ImageResolver → LocaleProvider`; OxyProvider mounts the one `KeyboardProvider`) with the root
-`Stack` as the sole `(auth)`↔`(app)` authority, keyed on the device-first
+(`BloomProvider → OxyProvider → ImageResolver → LocaleProvider`) with an explicit
+Expo Router scroll adapter. OxyProvider owns the gesture, safe-area and keyboard
+roots; the template does not duplicate them. The root
+`Stack` is the sole `(auth)`↔`(app)` authority, keyed on the device-first
 session.
 
 ## The backend's datastore
