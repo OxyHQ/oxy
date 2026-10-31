@@ -340,6 +340,13 @@ export type ActivateContextResult =
   | { ok: false; reason: 'not_found' }
   | {
       ok: false;
+      reason: 'superseded';
+      accountId: string;
+      changed: boolean;
+      state: DeviceSessionState | null;
+    }
+  | {
+      ok: false;
       reason: 'unauthorized';
       accountId: string;
       directory: DeviceDirectory;
@@ -1531,21 +1538,32 @@ class DeviceSessionService {
       if (locked.activeContextId === contextId && target.sessionId === sessionId) {
         // Idempotent activation: nothing written, `revision` unmoved, and the
         // route must not broadcast.
-        return { kind: 'unchanged' as const, accountId: target.accountId, sessionId };
+        return {
+          kind: 'unchanged' as const,
+          accountId: target.accountId,
+          sessionId,
+          revision: locked.revision,
+        };
       }
 
       await tx
         .update(deviceAccountContexts)
         .set({ sessionId, lastUsedAt: new Date() })
         .where(eq(deviceAccountContexts.id, contextId));
-      await tx
+      const [updated] = await tx
         .update(deviceSessions)
         .set({
           ...this.activeFieldsFor(target),
           revision: sql`${deviceSessions.revision} + 1`,
         })
-        .where(eq(deviceSessions.id, locked.id));
-      return { kind: 'activated' as const, accountId: target.accountId, sessionId };
+        .where(eq(deviceSessions.id, locked.id))
+        .returning({ revision: deviceSessions.revision });
+      return {
+        kind: 'activated' as const,
+        accountId: target.accountId,
+        sessionId,
+        revision: updated.revision,
+      };
     });
 
     if (strandedSessionId) {
@@ -1566,6 +1584,26 @@ class DeviceSessionService {
     if (outcome.kind === 'unauthorized') {
       return { ok: false, reason: 'unauthorized', accountId: outcome.accountId, directory, state };
     }
+    const superseded = async (): Promise<ActivateContextResult> => {
+      const current = await this.load(db, deviceId);
+      return {
+        ok: false,
+        reason: 'superseded',
+        accountId: outcome.accountId,
+        changed: outcome.kind === 'activated',
+        // A row re-created under the same public deviceId is a different
+        // device and must never be broadcast as this activation's result.
+        state: current?.id === device.id ? projectState(current) : null,
+      };
+    };
+    if (
+      directory.deviceId !== deviceId ||
+      directory.revision !== outcome.revision ||
+      directory.activeContextId !== contextId ||
+      state.deviceId !== deviceId ||
+      state.revision !== outcome.revision
+    )
+      return superseded();
     // Post-COMMIT, so the FK write cannot contend with the lock the transaction
     // held. Only on a real activation: an idempotent one changed no binding, and
     // writing the same values back would invalidate the session cache for
@@ -1574,13 +1612,22 @@ class DeviceSessionService {
     if (outcome.kind === 'activated') {
       await this.bindSessionToContext(deviceId, outcome.sessionId);
     }
+    const activeToken = await this.resolveTokenForSession(outcome.sessionId);
+    const latest = await this.loadDevice(db, deviceId);
+    if (
+      !latest ||
+      latest.id !== device.id ||
+      latest.revision !== outcome.revision ||
+      latest.activeContextId !== contextId
+    )
+      return superseded();
     return {
       ok: true,
       changed: outcome.kind === 'activated',
       accountId: outcome.accountId,
       directory,
       state,
-      activeToken: await this.resolveTokenForSession(outcome.sessionId),
+      activeToken,
     };
   }
 

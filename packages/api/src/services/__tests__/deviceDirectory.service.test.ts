@@ -716,7 +716,8 @@ describe('POST /session/device/activate — concurrency', () => {
       ),
     );
 
-    expect(results.every((result) => result.ok)).toBe(true);
+    expect(results.every((result) => result.ok || result.reason === 'superseded')).toBe(true);
+    expect(results.some((result) => result.ok)).toBe(true);
     // Three distinct transitions: no lost update, and no revision reused.
     expect((await storedDevice(device)).revision).toBe(before + 3);
     const stored = await storedDevice(device);
@@ -1061,6 +1062,147 @@ describe('removal — one context and one principal are different operations', (
     });
     return { reached, release, restore: () => spy.mockRestore() };
   }
+
+  it('rejects an activation superseded before its directory is read', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let first = true;
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        if (first) {
+          first = false;
+          reached();
+          await blocked;
+        }
+        return original(device);
+      });
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await waiting;
+      const current = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaAlice,
+        request(),
+      );
+      expect(current.ok).toBe(true);
+      release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+  });
+
+  it('rejects an activation superseded while its token is being resolved', async () => {
+    const shared = await sharedOrganization();
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await barrier.reached;
+      const current = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaAlice,
+        request(),
+      );
+      expect(current.ok).toBe(true);
+      barrier.release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('never returns a re-created device as the state of an older activation', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let first = true;
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        if (first) {
+          first = false;
+          reached();
+          await blocked;
+        }
+        return original(device);
+      });
+    try {
+      const previousDevice = await storedDevice(shared.device);
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await waiting;
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, previousDevice.id));
+      const replacement = await account();
+      await signIn(shared.device, replacement);
+      expect((await storedDevice(shared.device)).id).not.toBe(previousDevice.id);
+      release();
+      const result = await pending;
+      expect(result).toMatchObject({ ok: false, reason: 'superseded', state: null });
+      expect(result).not.toHaveProperty('activeToken');
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+  });
+
+  it('rejects a superseded activation after the active context returns to its original value', async () => {
+    const shared = await sharedOrganization();
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await barrier.reached;
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaAlice, request())).ok,
+      ).toBe(true);
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok,
+      ).toBe(true);
+      barrier.release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
 
   it('#1544 refuses an active mint when another context becomes active during its await', async () => {
     const shared = await sharedOrganization();
