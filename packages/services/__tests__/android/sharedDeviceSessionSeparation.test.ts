@@ -254,6 +254,8 @@ describe('shared DeviceSession credential — Android wiring', () => {
       'if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else readVisibleHost(authority)',
     );
     expect(module).toContain('{ callProvider(authority) }');
+    expect(module).toContain('return readProviderSafely {');
+    expect(module).toContain('?: return@readProviderSafely null');
   });
 
   test('the provider maps each read outcome to its OWN status', () => {

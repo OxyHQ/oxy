@@ -21,6 +21,18 @@ class SharedDeviceSessionSweepTest {
     )
   }
 
+  @Test fun nullProviderResponseIsUnavailable() {
+    assertEquals(DeviceSessionRead.Unavailable("NullProviderResponse"), readProviderSafely { null })
+  }
+
+  @Test fun providerExceptionIsUnavailableWithoutItsMessageAndLaterReadCanRecover() {
+    assertEquals(
+      DeviceSessionRead.Unavailable("SecurityException"),
+      readProviderSafely { throw SecurityException("sensitive") },
+    )
+    assertEquals(a, readProviderSafely { a })
+  }
+
   @Test fun emptyHostsAreAbsent() {
     assertEquals(DeviceSessionRead.Absent, sweep(DeviceSessionRead.Absent, DeviceSessionRead.Absent))
   }

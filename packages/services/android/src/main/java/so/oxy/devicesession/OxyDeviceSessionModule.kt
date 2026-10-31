@@ -183,14 +183,14 @@ class OxyDeviceSessionModule : Module() {
    * its content is unknown, never empty.
    */
   private fun callProvider(authority: String): DeviceSessionRead {
-    return try {
+    return readProviderSafely {
       val uri = Uri.parse("content://$authority")
       val bundle: Bundle = context.contentResolver.call(
         uri,
         OxyDeviceSessionProvider.METHOD_READ,
         null,
         null,
-      ) ?: return DeviceSessionRead.Unavailable("NullProviderResponse")
+      ) ?: return@readProviderSafely null
 
       when (bundle.getString(OxyDeviceSessionProvider.KEY_STATUS)) {
         OxyDeviceSessionProvider.STATUS_PRESENT -> {
@@ -213,8 +213,6 @@ class OxyDeviceSessionModule : Module() {
         // understand, so we have learned nothing — never read that as "absent".
         else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
       }
-    } catch (error: Exception) {
-      DeviceSessionRead.Unavailable(error.javaClass.simpleName)
     }
   }
 

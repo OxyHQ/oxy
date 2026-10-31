@@ -1,5 +1,13 @@
 package so.oxy.devicesession
 
+/** Provider nulls and exceptions mean the host's contents are unknown. */
+internal fun readProviderSafely(read: () -> DeviceSessionRead?): DeviceSessionRead =
+  try {
+    read() ?: DeviceSessionRead.Unavailable("NullProviderResponse")
+  } catch (error: Exception) {
+    DeviceSessionRead.Unavailable(error.javaClass.simpleName)
+  }
+
 /** Resolve a host before calling it; a resolution error is not absence. */
 internal fun readVisibleDeviceSession(
   resolve: () -> Boolean,
