@@ -163,7 +163,14 @@ export const attachQueryPersistence = (
   const restored = (async () => {
     const raw = await storage.getItem(QUERY_CACHE_KEY);
     if (stopped) return;
-    if (!hydrateSnapshot(queryClient, raw, QUERY_CACHE_MAX_AGE) && raw) {
+    if (
+      !hydrateSnapshot(queryClient, raw, QUERY_CACHE_MAX_AGE, {
+        shouldRestoreQuery: (query) => !account.ownsQuery(query),
+        restoreMutations: accountQueries?.clearUnregisteredMutations !== true,
+        shouldRestoreMutation: (mutation) => !account.persistsMutationKey(mutation.mutationKey),
+      }) &&
+      raw
+    ) {
       await storage.removeItem(QUERY_CACHE_KEY);
     }
   })()

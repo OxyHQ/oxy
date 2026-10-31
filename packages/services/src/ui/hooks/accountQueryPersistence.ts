@@ -54,7 +54,9 @@ export interface AccountQueryMeta {
   persist: 'account';
 }
 
-function isAccountQuery(query: Query): boolean {
+type QueryIdentity = { queryKey: QueryKey; meta?: Query['meta'] };
+
+function isAccountQuery(query: Pick<QueryIdentity, 'meta'>): boolean {
   return (query.meta as Partial<AccountQueryMeta> | undefined)?.persist === 'account';
 }
 
@@ -75,22 +77,44 @@ export interface AccountQueriesConfig {
   /**
    * Roots that belong to the account too, but must not be written to disk
    * (signed URLs, AI output, search results): dropped on a switch, never persisted.
+   * `'all'` keeps every account-owned query in memory only, including marked
+   * queries unless `persistMarkedQueries` is enabled. Device-level SDK roots
+   * remain excluded unless an individual query declares account persistence.
    */
-  memoryOnlyRoots?: readonly string[];
+  memoryOnlyRoots?: readonly string[] | 'all';
+  /**
+   * When `memoryOnlyRoots` is `'all'`, persist queries explicitly marked with
+   * `meta.persist = 'account'`. SDK memory-only roots remain excluded.
+   * Defaults to false.
+   */
+  persistMarkedQueries?: boolean;
   /**
    * Mutation keys whose PAUSED (offline) instances replay after a restart for
    * the same account. Register their `mutationFn` with `setMutationDefaults`.
    */
   mutationKeys?: readonly QueryKey[];
+  /**
+   * Remove unregistered mutation records as well on every account transition.
+   * Only registered paused mutations are saved and restored; unregistered
+   * mutations are excluded from the shared persisted cache too. Removing a record
+   * does not cancel an in-flight request or its callbacks; apps must scope
+   * their mutation effects to the account that started them.
+   * Defaults to false.
+   */
+  clearUnregisteredMutations?: boolean;
 }
 
 /** Which queries and mutations an `AccountQueriesConfig` makes the account's. */
 export interface AccountQueryOwnership {
   /** Dropped from memory on a subject change. */
-  ownsQuery: (query: Query) => boolean;
+  ownsQuery: (query: QueryIdentity) => boolean;
   /** Written to the account's blob. */
-  persistsQuery: (query: Query) => boolean;
+  persistsQuery: (query: QueryIdentity) => boolean;
   ownsMutation: (mutation: Mutation) => boolean;
+  /** Eligible for the account's persisted paused mutations. */
+  persistsMutation: (mutation: Mutation) => boolean;
+  /** Whether a stored mutation key belongs to this account's offline queue. */
+  persistsMutationKey: (key: QueryKey | undefined) => boolean;
 }
 
 /** SDK roots that hold device-level data, the same whoever is signed in. */
@@ -102,14 +126,23 @@ const NO_ROOTS: AccountQueriesConfig = { roots: [] };
 export function accountQueryOwnership(
   config: AccountQueriesConfig = NO_ROOTS,
 ): AccountQueryOwnership {
-  const memoryOnly = new Set([...(config.memoryOnlyRoots ?? []), ...SDK_MEMORY_ONLY_ROOTS]);
+  const memoryOnlyAll = config.memoryOnlyRoots === 'all';
+  const memoryOnly = new Set([
+    ...(memoryOnlyAll ? [] : (config.memoryOnlyRoots ?? [])),
+    ...SDK_MEMORY_ONLY_ROOTS,
+  ]);
   const sdkRoots = new Set(PERSISTED_QUERY_PREFIXES);
   const declared = config.roots === 'all' ? null : new Set(config.roots);
   const mutationHashes = new Set((config.mutationKeys ?? []).map((key) => hashKey(key)));
+  const persistsMutationKey = (key: QueryKey | undefined): boolean =>
+    key !== undefined && mutationHashes.has(hashKey(key));
+  const isRegisteredMutation = (mutation: Mutation): boolean =>
+    persistsMutationKey(mutation.options.mutationKey);
 
-  const ownsQuery = (query: Query): boolean => {
+  const ownsQuery = (query: QueryIdentity): boolean => {
     if (isAccountQuery(query)) return true;
     const root = rootOf(query);
+    if (memoryOnlyAll && (root === null || !DEVICE_ROOTS.has(root))) return true;
     if (root !== null && memoryOnly.has(root)) return true;
     if (declared === null) return root === null || !DEVICE_ROOTS.has(root);
     return root !== null && declared.has(root);
@@ -119,16 +152,23 @@ export function accountQueryOwnership(
     persistsQuery: (query) => {
       if (!ownsQuery(query)) return false;
       const root = rootOf(query);
+      if (memoryOnlyAll) {
+        return (
+          config.persistMarkedQueries === true &&
+          isAccountQuery(query) &&
+          (root === null || !memoryOnly.has(root))
+        );
+      }
       if (root === null) return true;
       // The SDK's own roots stay with the SDK persister.
       return (
         !memoryOnly.has(root) && (isAccountQuery(query) || declared !== null || !sdkRoots.has(root))
       );
     },
-    ownsMutation: (mutation) => {
-      const key = mutation.options.mutationKey;
-      return key !== undefined && mutationHashes.has(hashKey(key));
-    },
+    ownsMutation: (mutation) =>
+      config.clearUnregisteredMutations === true || isRegisteredMutation(mutation),
+    persistsMutation: isRegisteredMutation,
+    persistsMutationKey,
   };
 }
 
@@ -160,10 +200,11 @@ export function createAccountQueryPersistence(
   queryClient: QueryClient,
   config?: AccountQueriesConfig,
 ): AccountQueryPersistence {
-  const { ownsQuery, persistsQuery, ownsMutation } = accountQueryOwnership(config);
+  const { ownsQuery, persistsQuery, ownsMutation, persistsMutation, persistsMutationKey } =
+    accountQueryOwnership(config);
   const filters: PersistFilters = {
     persistsQuery,
-    shouldDehydrateMutation: (mutation) => mutation.state.isPaused && ownsMutation(mutation),
+    shouldDehydrateMutation: (mutation) => mutation.state.isPaused && persistsMutation(mutation),
   };
   const listeners = new Set<() => void>();
 
@@ -221,7 +262,13 @@ export function createAccountQueryPersistence(
       const raw = await storage.getItem(key).catch(() => null);
       // Same tick as the hydrate: a switch in between cannot be missed.
       if (current !== generation) return;
-      if (!hydrateSnapshot(queryClient, raw, ACCOUNT_QUERY_CACHE_MAX_AGE) && raw) {
+      if (
+        !hydrateSnapshot(queryClient, raw, ACCOUNT_QUERY_CACHE_MAX_AGE, {
+          shouldRestoreQuery: persistsQuery,
+          shouldRestoreMutation: (mutation) => persistsMutationKey(mutation.mutationKey),
+        }) &&
+        raw
+      ) {
         await storage.removeItem(key).catch(() => undefined);
         if (current !== generation) return;
       }
