@@ -1,3 +1,4 @@
+import { hasKnownSubjectMismatch, useKnownBearerSubject } from './useKnownBearerSubject';
 /**
  * Unified Auth Hook
  *
@@ -49,15 +50,16 @@ export interface AuthState {
   hasAccessToken: boolean;
 
   /**
-   * True only when auth cold-boot is resolved, the user is authenticated, and a
-   * bearer token is available for private backend requests.
+   * True when auth is resolved, a user and bearer are available, and any known
+   * bearer subject matches the user. A bearer without a `userId` or `id` claim preserves legacy behavior.
+   * This render snapshot does not guard callbacks retained across a transition.
    */
   canUsePrivateApi: boolean;
 
   /**
    * True while the SDK is still resolving auth or an authenticated session is
-   * waiting for its bearer token. Use this to hold private API screens in a
-   * loading state instead of firing unauthenticated requests.
+   * waiting for its bearer token or account projection. Use this to hold private
+   * API screens in a loading state instead of firing unauthenticated requests.
    */
   isPrivateApiPending: boolean;
 
@@ -183,6 +185,9 @@ export function useAuth(): UseAuthReturn {
     ensureDeviceSessionLane,
   } = useOxyAuthActions();
 
+  const bearerSubject = useKnownBearerSubject(oxyServices);
+  const subjectMismatch = hasKnownSubjectMismatch(user?.id, bearerSubject);
+
   const signIn = useCallback(
     async (publicKey?: string): Promise<SignInOutcome> => {
       const classification = ensureDeviceSessionLane();
@@ -233,8 +238,8 @@ export function useAuth(): UseAuthReturn {
     isLoading: isLoading || !isAuthResolved,
     isReady,
     hasAccessToken,
-    canUsePrivateApi,
-    isPrivateApiPending,
+    canUsePrivateApi: canUsePrivateApi && !subjectMismatch,
+    isPrivateApiPending: isPrivateApiPending || subjectMismatch,
     isAuthResolved,
     error,
 

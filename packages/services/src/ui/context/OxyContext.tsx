@@ -1,3 +1,4 @@
+import { hasKnownSubjectMismatch, useKnownBearerSubject } from '../hooks/useKnownBearerSubject';
 import { installNativeAssetFiles } from '../utils/nativeAssetFiles';
 import {
   startNativeOAuthSignIn,
@@ -339,6 +340,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     authResolved,
   } = snapshot;
   const isAuthenticated = user !== null;
+  const bearerSubject = useKnownBearerSubject(oxyServices);
+  const subjectMismatch = hasKnownSubjectMismatch(user?.id, bearerSubject);
   const error = snapshot.error?.message ?? null;
 
   const [initialized, setInitialized] = useState(false);
@@ -1744,9 +1747,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   );
   subjectChangeRef.current = handleSubjectChange;
 
-  const canUsePrivateApi = authResolved && isAuthenticated && tokenReady && hasAccessToken;
+  // An undecodable bearer keeps the existing compatibility behavior. A known
+  // different subject is never ready while the account projection catches up.
+  const canUsePrivateApi =
+    authResolved && isAuthenticated && tokenReady && hasAccessToken && !subjectMismatch;
   const isPrivateApiPending =
-    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken));
+    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken || subjectMismatch));
 
   // Keep the native background credential in step with this session, so native
   // background code (a widget worker) can authenticate with no JS runtime. Inert

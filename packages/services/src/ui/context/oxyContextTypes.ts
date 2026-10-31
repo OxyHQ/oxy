@@ -50,7 +50,13 @@ export interface OxyContextState {
   isLoading: boolean;
   isTokenReady: boolean;
   hasAccessToken: boolean;
+  /**
+   * False while a known bearer subject differs from the projected user. Bearers without `userId` or `id` claims, including opaque or sub-only
+   * tokens, retain their existing behavior. This is a render snapshot, not a
+   * synchronous guard for callbacks retained across a session transition.
+   */
   canUsePrivateApi: boolean;
+  /** True while auth, the bearer or a known account mismatch is resolving. */
   isPrivateApiPending: boolean;
   /**
    * Whether the initial auth determination has concluded.
