@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.13.0] - 2026-10-31
+
+### Added
+
+- `parseOrganizationDraft` normalizes and validates organization form fields using the shared client contract. Callers remain responsible for authorizing creation.
+
 ## [13.12.1] - 2026-10-31
 
 ### Fixed
