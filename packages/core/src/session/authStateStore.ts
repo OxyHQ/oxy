@@ -87,6 +87,8 @@ export interface AuthStateStore {
   /** Compare inside the storage queue before committing a proven shared holder. */
   saveIfCurrent?(state: PersistedAuthState, guard: AuthStateWriteGuard): Promise<boolean>;
   clear(): Promise<void>;
+  /** Optional serialized per-instance native CAS; unsupported stores must not emulate it. */
+  clearIfCurrent?(guard: AuthStateClearGuard): Promise<AuthStateClearResult>;
   /** Durable local intent only: never authority or a mutation of an identity key. */
   isAutomaticIdentitySignInSuppressed?(): Promise<boolean>;
   setAutomaticIdentitySignInSuppressed?(
@@ -103,6 +105,17 @@ export interface AuthStateWriteGuard {
   expectedState: PersistedAuthState | null;
   isCurrent: () => boolean;
 }
+
+export interface AuthStateClearGuard {
+  expectedState: PersistedAuthState;
+  /** A synchronous lifecycle check; it is checked again after storage completes. */
+  isCurrent: () => boolean;
+}
+
+export type AuthStateClearResult =
+  | { status: 'cleared'; stillCurrent: boolean }
+  | { status: 'superseded' }
+  | { status: 'storage_error' };
 
 export function matchesAuthState(
   actual: PersistedAuthState | null,
@@ -466,7 +479,10 @@ export function createWebAuthStateStore(): AuthStateStore {
  * while the warm-token write and all reads degrade gracefully exactly like the
  * web store.
  */
-export function createNativeAuthStateStore(storage: NativeKeyValueStorage): AuthStateStore {
+export function createNativeAuthStateStore(
+  storage: NativeKeyValueStorage,
+  options: { experimentalPerInstanceClear?: boolean } = {},
+): AuthStateStore {
   // Same in-memory mirror as the web store — a locked/failed SecureStore write
   // must not silently lose the session for the app's lifetime.
   let sessionMirror: PersistedAuthState | null | undefined;
@@ -609,6 +625,49 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
         }
         return persistState(state);
       }),
+    ...(options.experimentalPerInstanceClear
+      ? {
+          clearIfCurrent: (guard: AuthStateClearGuard) =>
+            serialize<AuthStateClearResult>(async () => {
+              const expected = guard.expectedState;
+              if (!expected.deviceId || !expected.deviceSecret) return { status: 'superseded' };
+              let current: PersistedAuthState | null;
+              try {
+                current = await readCurrent();
+              } catch {
+                return { status: 'storage_error' };
+              }
+              try {
+                if (!guard.isCurrent() || !matchesAuthState(current, expected))
+                  return { status: 'superseded' };
+              } catch {
+                return { status: 'superseded' };
+              }
+              // Once removal begins the operation cannot be rolled back. A new save
+              // through this instance is queued after it; other instances are outside
+              // this queue and are not protected by this operation.
+              sessionMirror = null;
+              try {
+                await storage.removeItem(AUTH_STATE_STORAGE_KEY);
+                await storage.removeItem(AUTH_STATE_TOKEN_STORAGE_KEY);
+                const [durable, warm] = await Promise.all([
+                  storage.getItem(AUTH_STATE_STORAGE_KEY),
+                  storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+                ]);
+                if (durable !== null || warm !== null) return { status: 'storage_error' };
+              } catch {
+                return { status: 'storage_error' };
+              }
+              let stillCurrent = false;
+              try {
+                stillCurrent = guard.isCurrent();
+              } catch {
+                /* treat a failed check as stale */
+              }
+              return { status: 'cleared', stillCurrent };
+            }),
+        }
+      : {}),
     clear: () =>
       serialize(async () => {
         sessionMirror = null;

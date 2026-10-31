@@ -78,6 +78,19 @@ Production integration must establish all of the following before enabling it:
   current `AuthStateStore.clear()` and signout callback lack that guard. Context
   removal's directory and state are separate reads after its transaction, not a
   shared snapshot. A 409 or 401 from v1 alone does not prove empty signout.
+- A native per-instance clear experiment compares holder and lifecycle inside
+  one store queue. A test demonstrates that a second store instance can still
+  replace the backing credential during deletion and lose the replacement, so
+  this capability is disabled by default and must not be used as a general CAS.
+  The provider creates a new store per provider; the SecureStore adapter exposes
+  only get/set/delete and supplies no cross-instance or cross-process CAS.
+- A separate tombstone experiment writes only a marker for a distinct local
+  login incarnation and never deletes the shared current credential. Its
+  concurrent test preserves a newer credential, but no login or restoration
+  path uses the marker. It requires unique random incarnation ids, verified
+  durable single-key writes, fail-closed reads, a design for stale current-pointer
+  writes, marker retention/cleanup and native/browser validation. The server can
+  still revoke a new holder if that holder was added before signout committed.
 - Commit token and projections behind the barrier, then publish only after all
   components agree. Define callbacks and failures during commit, guarantee
   generation fencing through the last send, and test synchronous reentry.
