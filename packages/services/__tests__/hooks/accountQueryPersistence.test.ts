@@ -244,6 +244,93 @@ describe('account query persistence', () => {
     current.unsubscribe();
   });
 
+  it('keeps selected mutation records in memory without changing other offline queues', async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const config: AccountQueriesConfig = {
+      roots: [],
+      mutationKeys: [
+        ['app', 'offline'],
+        ['app', 'private'],
+      ],
+      memoryOnlyMutationKeys: [['app', 'private']],
+    };
+    const shared = attachQueryPersistence(client, storage, config);
+    await shared.restored;
+    const account = mount(client, storage, config);
+    account.activate('alice');
+    await until(account);
+    const privateMutation = pausedMutation(client, ['app', 'private']);
+    const completed = client.getMutationCache().build(client, {
+      mutationKey: ['app', 'private'],
+      mutationFn: async (body: string) => `saved ${body}`,
+    });
+    await completed.execute('synthetic-private-draft');
+    pausedMutation(client, ['app', 'offline']);
+    const unrelated = pausedMutation(client, ['app', 'shared']);
+    await flushWrites();
+
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('private');
+    expect(await storage.getItem(blobKey('alice'))).toContain('offline');
+    expect(await storage.getItem('oxy_query_cache_v3')).not.toContain('private');
+    expect(await storage.getItem('oxy_query_cache_v3')).not.toContain('synthetic-private-draft');
+    expect(await storage.getItem('oxy_query_cache_v3')).toContain('shared');
+    account.activate('bob');
+    expect(client.getMutationCache().getAll()).not.toContain(privateMutation);
+    expect(client.getMutationCache().getAll()).toContain(unrelated);
+    await until(account);
+    account.activate('alice');
+    await until(account);
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([
+      ['app', 'shared'],
+      ['app', 'offline'],
+    ]);
+    account.detach();
+    shared.unsubscribe();
+  });
+
+  it('does not restore newly memory-only mutation keys from either legacy blob', async () => {
+    const storage = createMemoryStorage();
+    const previous = new QueryClient();
+    const shared = attachQueryPersistence(previous, storage);
+    await shared.restored;
+    pausedMutation(previous, ['app', 'private']);
+    pausedMutation(previous, ['app', 'shared']);
+    await flushWrites();
+    shared.unsubscribe();
+    const oldAccount = mount(previous, storage, { roots: [], mutationKeys: [['app', 'private']] });
+    oldAccount.activate('alice');
+    await until(oldAccount);
+    pausedMutation(previous, ['app', 'private']);
+    await flushWrites();
+    expect(await storage.getItem(blobKey('alice'))).toContain('private');
+    oldAccount.detach();
+
+    const client = new QueryClient();
+    const config: AccountQueriesConfig = {
+      roots: [],
+      memoryOnlyMutationKeys: [['app', 'private']],
+    };
+    const currentShared = attachQueryPersistence(client, storage, config);
+    await currentShared.restored;
+    const currentAccount = mount(client, storage, config);
+    currentAccount.activate('alice');
+    await until(currentAccount);
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'shared']]);
+    currentAccount.detach();
+    currentShared.unsubscribe();
+  });
+
   it('does not cancel an in-flight mutation callback when removing its cache record', async () => {
     const storage = createMemoryStorage();
     const client = new QueryClient();
