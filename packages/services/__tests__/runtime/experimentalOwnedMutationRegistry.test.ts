@@ -4,6 +4,11 @@ import { ExperimentalOwnedMutationRegistry } from '../../src/ui/hooks/experiment
 
 const alice = { actorId: 'alice', accountId: 'org', sessionId: 's-alice' };
 const nate = { actorId: 'nate', accountId: 'org', sessionId: 's-nate' };
+const fixtureCodec = {
+  version: 1,
+  encode: (value: unknown) => value,
+  decode: (value: unknown) => value,
+};
 const jwt = (actor: string) =>
   `h.${Buffer.from(JSON.stringify({ userId: 'org', sessionId: `s-${actor}`, exp: 4102444800 })).toString('base64url')}.s`;
 
@@ -33,6 +38,8 @@ function fixture() {
     const owner = { ...current };
     return {
       owner,
+      fixtureHolderSecret: 'fixture-holder-secret',
+      fixtureBearer: jwt(owner.actorId),
       isCurrent: () =>
         gate.isCurrent(value) &&
         current.actorId === owner.actorId &&
@@ -69,6 +76,7 @@ it('quarantines restored work for its original owner and preserves legacy blobs'
   const register = (registry: ExperimentalOwnedMutationRegistry) =>
     registry.register('send', {
       accepts: (payload) => !!payload && typeof payload === 'object',
+      codec: fixtureCodec,
       run: (payload, context) =>
         context.request({
           method: 'POST',
@@ -80,6 +88,8 @@ it('quarantines restored work for its original owner and preserves legacy blobs'
     const first = new ExperimentalOwnedMutationRegistry(f.capture);
     register(first);
     first.enqueue('operation-1', 'send', { text: 'hello' });
+    expect(first.serialize(alice)).not.toContain('fixture-holder-secret');
+    expect(first.serialize(alice)).not.toContain(jwt('alice'));
     const oldBlob = 'legacy-with-unknown-actor';
     const storage = new Map([
       ['legacy:org', oldBlob],
@@ -117,6 +127,7 @@ it('fences delayed sends and keeps ambiguous work without retrying under a new a
   const registry = new ExperimentalOwnedMutationRegistry(f.capture);
   registry.register('send', {
     accepts: () => true,
+    codec: fixtureCodec,
     run: async (_payload, ctx) => {
       await wait;
       return ctx.request({ method: 'POST', url: '/send' });
@@ -141,15 +152,30 @@ it('fences delayed sends and keeps ambiguous work without retrying under a new a
 it('keeps an explicit registry adapter through observer option updates', async () => {
   const f = fixture();
   const registry = new ExperimentalOwnedMutationRegistry(f.capture);
-  const run = jest.fn(async () => 'ok');
-  registry.register('send', { accepts: () => true, run });
+  let release!: () => void;
+  let observed!: () => void;
+  const started = new Promise<void>((resolve) => {
+    observed = resolve;
+  });
+  const wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const run = jest.fn(async () => {
+    observed();
+    await wait;
+    return 'ok';
+  });
+  registry.register('send', { accepts: () => true, codec: fixtureCodec, run });
   registry.enqueue('operation-3', 'send', {});
   const client = new QueryClient();
   const adapter = () => registry.execute('operation-3');
   const observer = new MutationObserver(client, { mutationFn: adapter });
   try {
+    const pending = observer.mutate(undefined);
+    await started;
     observer.setOptions({ mutationFn: adapter, onSuccess: () => undefined });
-    await observer.mutate(undefined);
+    release();
+    await pending;
     expect(run).toHaveBeenCalledTimes(1);
     expect(() => registry.register('send', { accepts: () => true, run })).toThrow();
   } finally {
@@ -173,6 +199,7 @@ it('retains an ambiguous operation and suppresses commit when a response arrives
   const registry = new ExperimentalOwnedMutationRegistry(f.capture);
   registry.register('send', {
     accepts: () => true,
+    codec: fixtureCodec,
     run: (_payload, ctx) => ctx.request({ method: 'POST', url: '/send' }),
     commit,
   });
@@ -194,5 +221,34 @@ it('retains an ambiguous operation and suppresses commit when a response arrives
   } finally {
     f.oxy.dispose();
     globalThis.fetch = originalFetch;
+  }
+});
+
+it('requires a mutation codec and rejects fixture credential fields before serialization', () => {
+  const f = fixture();
+  try {
+    const noCodec = new ExperimentalOwnedMutationRegistry(f.capture);
+    noCodec.register('send', { accepts: () => true, run: async () => ({}) });
+    noCodec.enqueue('missing-codec', 'send', { text: 'hello' });
+    expect(() => noCodec.serialize(alice)).toThrow('codec is required');
+    const strict = new ExperimentalOwnedMutationRegistry(f.capture);
+    const decode = (value: unknown) => {
+      if (!value || typeof value !== 'object' || Object.keys(value).some((key) => key !== 'text'))
+        throw new Error('Unsafe mutation fields');
+      return value;
+    };
+    strict.register('send', {
+      accepts: () => true,
+      run: async () => ({}),
+      codec: { version: 1, encode: decode, decode },
+    });
+    strict.enqueue('unsafe', 'send', {
+      text: 'hello',
+      bearer: 'fixture-bearer',
+      deviceSecret: 'fixture-holder-secret',
+    });
+    expect(() => strict.serialize(alice)).toThrow('Mutation codec failed');
+  } finally {
+    f.oxy.dispose();
   }
 });

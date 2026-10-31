@@ -69,6 +69,14 @@ Production integration must establish all of the following before enabling it:
   operations using that transport are covered. Storage, idempotency on the
   receiving endpoint, immutable adapters, arbitrary callbacks, cancellation and
   app integration still require design and end-to-end verification.
+- Owner storage keys and registry metadata contain identifiers, not a bearer or
+  device secret. They are routing labels, never proof of authorization. The
+  partition experiment persists only queries with an explicit root/version
+  codec and requires an explicit operation payload codec; incompatible blobs
+  are retained. A fixture rejects excluded credential fields, but a separate
+  test shows that a secret in an allowed string is still serialized. Each codec
+  owns its permitted fields, strings and keys; no generic secret guarantee is
+  implied. This prototype must not be connected to production storage as-is.
 - A successful authenticated `{all:true}` signout returns the transaction's
   empty state after revoking every holder. That response can establish what the
   mutation did at that moment without reusing the revoked secret. It cannot

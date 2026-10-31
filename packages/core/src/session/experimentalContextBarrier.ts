@@ -21,7 +21,11 @@ interface ExperimentalContextBarrierIO {
   readState(accessToken: string): Promise<unknown>;
   readDirectory(accessToken: string): Promise<unknown>;
   /** Run cache/owner preparation while all token and snapshot reads are closed. */
-  prepareCommit?(previous: ContextOwner | null, next: ContextOwner): Promise<void> | void;
+  prepareCommit?(
+    previous: ContextOwner | null,
+    next: ContextOwner,
+    isCurrent: () => boolean,
+  ): Promise<void> | void;
 }
 
 interface ContextOwner {
@@ -199,7 +203,7 @@ export class ExperimentalContextBarrier {
         accountId: binding.accountId,
         sessionId: binding.sessionId,
       };
-      await this.io.prepareCommit?.(this.previousOwner, owner);
+      await this.io.prepareCommit?.(this.previousOwner, owner, current);
       if (!current() || expires <= Date.now()) return false;
       // setAccessToken may synchronously reenter or invalidate this barrier.
       this.io.setAccessToken(binding.accessToken);

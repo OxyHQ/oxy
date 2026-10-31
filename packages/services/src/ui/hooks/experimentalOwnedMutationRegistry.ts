@@ -8,6 +8,8 @@ type Lease = {
 };
 type Definition = {
   accepts(payload: unknown): boolean;
+  /** Explicitly owns the fields and strings permitted in durable storage. */
+  codec?: { version: number; encode(payload: unknown): unknown; decode(payload: unknown): unknown };
   run(
     payload: unknown,
     context: { idempotencyKey: string; request: Lease['request'] },
@@ -21,9 +23,18 @@ type RecordEntry = {
   payload: unknown;
   status: 'queued' | 'inflight' | 'ambiguous';
 };
+type Checkpoint = (owner: ExperimentalMutationOwner) => Promise<boolean>;
 
 function matches(a: ExperimentalMutationOwner, b: ExperimentalMutationOwner): boolean {
   return a.actorId === b.actorId && a.accountId === b.accountId && a.sessionId === b.sessionId;
+}
+
+function accepts(definition: Definition, payload: unknown): boolean {
+  try {
+    return definition.accepts(payload);
+  } catch {
+    return false;
+  }
 }
 
 /** Explicit registry prototype. Only registered operations using its lease-bound transport are covered. */
@@ -35,21 +46,56 @@ export class ExperimentalOwnedMutationRegistry {
 
   register(kind: string, definition: Definition): void {
     if (!kind || this.definitions.has(kind)) throw new Error('Mutation kind already registered');
-    this.definitions.set(kind, Object.freeze({ ...definition }));
+    if (
+      definition.codec &&
+      (!Number.isSafeInteger(definition.codec.version) || definition.codec.version < 1)
+    )
+      throw new Error('Invalid mutation codec');
+    this.definitions.set(
+      kind,
+      Object.freeze({
+        ...definition,
+        ...(definition.codec ? { codec: Object.freeze({ ...definition.codec }) } : {}),
+      }),
+    );
   }
 
   enqueue(id: string, kind: string, payload: unknown): void {
     const definition = this.definitions.get(kind);
     const lease = this.capture();
-    if (!id || this.entries.has(id) || !definition || !lease || !definition.accepts(payload))
+    if (!id || this.entries.has(id) || !definition || !lease || !accepts(definition, payload))
       throw new Error('Cannot enqueue mutation');
-    const copy = JSON.parse(JSON.stringify(payload)) as unknown;
-    if (!lease.isCurrent() || !definition.accepts(copy) || !lease.isCurrent())
+    let copy: unknown;
+    try {
+      copy = JSON.parse(JSON.stringify(payload)) as unknown;
+    } catch {
+      throw new Error('Invalid mutation payload');
+    }
+    if (!lease.isCurrent() || !accepts(definition, copy) || !lease.isCurrent())
       throw new Error('Mutation owner changed');
     this.entries.set(id, { id, kind, owner: { ...lease.owner }, payload: copy, status: 'queued' });
   }
 
+  async enqueueDurably(
+    id: string,
+    kind: string,
+    payload: unknown,
+    checkpoint: Checkpoint,
+  ): Promise<void> {
+    this.enqueue(id, kind, payload);
+    const entry = this.entries.get(id);
+    if (!entry || !(await checkpoint(entry.owner))) throw new Error('Mutation was not persisted');
+  }
+
   async execute(id: string): Promise<void> {
+    return this.executeInternal(id);
+  }
+
+  async executeDurably(id: string, checkpoint: Checkpoint): Promise<void> {
+    return this.executeInternal(id, checkpoint);
+  }
+
+  private async executeInternal(id: string, checkpoint?: Checkpoint): Promise<void> {
     const entry = this.entries.get(id);
     const definition = entry && this.definitions.get(entry.kind);
     const lease = this.capture();
@@ -64,6 +110,9 @@ export class ExperimentalOwnedMutationRegistry {
       throw new Error('Mutation owner unavailable');
     entry.status = 'inflight';
     try {
+      if (checkpoint && !(await checkpoint(entry.owner)))
+        throw new Error('Mutation was not persisted');
+      if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       const result = await definition.run(entry.payload, {
         idempotencyKey: entry.id,
         request: lease.request,
@@ -72,23 +121,53 @@ export class ExperimentalOwnedMutationRegistry {
       definition.commit?.(result);
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       this.entries.delete(id);
+      if (checkpoint && !(await checkpoint(entry.owner)))
+        throw new Error('Mutation completion was not persisted');
     } catch (error) {
       entry.status = 'ambiguous';
+      this.entries.set(id, entry);
+      if (checkpoint) {
+        try {
+          await checkpoint(entry.owner);
+        } catch {
+          /* The durable inflight record remains ambiguous on restart. */
+        }
+      }
       throw error;
     }
   }
 
   serialize(owner: ExperimentalMutationOwner): string {
+    const entries = [...this.entries.values()]
+      .filter((entry) => matches(entry.owner, owner))
+      .map((entry) => {
+        const definition = this.definitions.get(entry.kind);
+        const codec = definition?.codec;
+        if (!definition || !codec) throw new Error('Mutation codec is required for persistence');
+        let payload: unknown;
+        try {
+          payload = JSON.parse(JSON.stringify(codec.encode(entry.payload))) as unknown;
+          if (!accepts(definition, codec.decode(payload))) throw new Error('invalid');
+        } catch {
+          throw new Error('Mutation codec failed');
+        }
+        return { ...entry, payload, codecVersion: codec.version };
+      });
     return JSON.stringify({
-      version: 1,
+      version: 2,
       owner,
-      entries: [...this.entries.values()].filter((entry) => matches(entry.owner, owner)),
+      entries,
     });
   }
 
   /** Owner-specific blobs only; an old account-only blob is left untouched by the caller. */
   restore(raw: string, expectedOwner: ExperimentalMutationOwner): void {
-    const blob: unknown = JSON.parse(raw);
+    let blob: unknown;
+    try {
+      blob = JSON.parse(raw);
+    } catch {
+      throw new Error('Invalid mutation blob');
+    }
     if (!blob || typeof blob !== 'object') throw new Error('Invalid mutation blob');
     const value = blob as {
       version?: unknown;
@@ -96,7 +175,7 @@ export class ExperimentalOwnedMutationRegistry {
       entries?: unknown;
     };
     if (
-      value.version !== 1 ||
+      value.version !== 2 ||
       !value.owner ||
       !matches(value.owner, expectedOwner) ||
       !Array.isArray(value.entries)
@@ -106,8 +185,9 @@ export class ExperimentalOwnedMutationRegistry {
     const ids = new Set<string>();
     for (const candidate of value.entries) {
       if (!candidate || typeof candidate !== 'object') throw new Error('Invalid mutation blob');
-      const entry = candidate as RecordEntry;
+      const entry = candidate as RecordEntry & { codecVersion?: unknown };
       const definition = this.definitions.get(entry.kind);
+      const codec = definition?.codec;
       if (
         typeof entry.id !== 'string' ||
         !entry.id ||
@@ -116,14 +196,24 @@ export class ExperimentalOwnedMutationRegistry {
         !entry.owner ||
         !matches(entry.owner, expectedOwner) ||
         !definition ||
-        !definition.accepts(entry.payload) ||
+        !codec ||
+        entry.codecVersion !== codec.version ||
         !['queued', 'inflight', 'ambiguous'].includes(entry.status)
       )
         throw new Error('Invalid mutation blob');
+      let payload: unknown;
+      try {
+        payload = codec.decode(entry.payload);
+      } catch {
+        throw new Error('Mutation codec failed');
+      }
+      if (!accepts(definition, payload)) throw new Error('Invalid mutation blob');
       ids.add(entry.id);
       incoming.push({
-        ...entry,
+        id: entry.id,
+        kind: entry.kind,
         owner: { ...expectedOwner },
+        payload,
         status: entry.status === 'queued' ? 'queued' : 'ambiguous',
       });
     }
