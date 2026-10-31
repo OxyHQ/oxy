@@ -796,6 +796,16 @@ export class HttpService {
     const explicitAuthorization = Object.keys(config.headers ?? {}).some(
       (key) => key.toLowerCase() === 'authorization',
     );
+    if (
+      contextLease &&
+      Object.keys(config.headers ?? {}).some(
+        (key) =>
+          ['authorization', 'x-oxy-user-id'].includes(key.toLowerCase()) ||
+          REQUESTER_PROOF_HEADERS.has(key.toLowerCase()),
+      )
+    ) {
+      throw new Error('Explicit authority is unavailable in strict context mode');
+    }
     if (!config.skipAuth && !explicitAuthorization) this.syncAccessTokenFromProvider();
     // Per-call authority is not represented by the instance's session cache
     // key. Never share or retain responses authenticated by explicit headers.
@@ -915,6 +925,8 @@ export class HttpService {
     const authHeader = usesSessionAuth
       ? await awaitRequestSignal(this.getAuthHeader(), signal)
       : null;
+    if (contextLease && usesSessionAuth && !authHeader?.startsWith('Bearer '))
+      throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
     const isOriginalSession = () => {
       try {
         this.assertExperimentalLease(contextLease);
@@ -2012,7 +2024,7 @@ export class HttpService {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
     if (config.signal?.aborted) throw createCancelledError();
-    if (requireAuth && !authHeader) {
+    if ((requireAuth || contextLease) && !authHeader) {
       throw new OxyAuthenticationError(
         'An active Oxy session is required for this request',
         'AUTH_REQUIRED',

@@ -12,9 +12,16 @@ type Definition = {
   codec?: { version: number; encode(payload: unknown): unknown; decode(payload: unknown): unknown };
   run(
     payload: unknown,
-    context: { idempotencyKey: string; request: Lease['request'] },
+    context: {
+      idempotencyKey: string;
+      owner: Readonly<ExperimentalMutationOwner>;
+      request: Lease['request'];
+    },
   ): Promise<unknown>;
-  commit?(result: unknown): void;
+  commit?(
+    result: unknown,
+    context: { owner: Readonly<ExperimentalMutationOwner>; isCurrent: () => boolean },
+  ): Promise<void> | void;
 };
 type RecordEntry = {
   id: string;
@@ -124,10 +131,14 @@ export class ExperimentalOwnedMutationRegistry {
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       const result = await definition.run(entry.payload, {
         idempotencyKey: entry.id,
+        owner: Object.freeze({ ...entry.owner }),
         request: lease.request,
       });
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
-      definition.commit?.(result);
+      await definition.commit?.(result, {
+        owner: Object.freeze({ ...entry.owner }),
+        isCurrent: lease.isCurrent,
+      });
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       entry.status = 'completed';
       if (checkpoint && !(await checkpoint(entry.owner, lease.isCurrent)))

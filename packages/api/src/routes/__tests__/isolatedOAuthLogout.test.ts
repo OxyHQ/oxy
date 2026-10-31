@@ -64,16 +64,16 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
-import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
-import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import deviceSessionService from '../../services/deviceSession.service';
 import sessionService from '../../services/session.service';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import sessionRouter from '../session';
 import { sessions } from '../../db/schema/sessions';
+import { OxyServices } from '../../../../core/src/OxyServices';
+import { ExperimentalOwnedMutationRegistry } from '../../../../services/src/ui/hooks/experimentalOwnedMutationRegistry';
+import { createExperimentalOwnedDeviceRename } from '../../../../services/src/ui/hooks/experimentalOwnedDeviceRename';
 
 let server: http.Server;
 async function account(): Promise<string> {
@@ -290,4 +290,44 @@ it('unbound session preserves device metadata read and rename', async () => {
     .where(eq(sessions.sessionId, shared.sessionId));
   expect(row.name).toBe('own-device');
   expect(await active(shared.sessionId)).toBe(true);
+});
+
+it('legacy rename can target another same-user session while the experimental consumer binds its own', async () => {
+  const userId = await account();
+  const own = await signIn(userId);
+  const other = await signIn(userId);
+  const address = server.address() as AddressInfo;
+  const oxy = new OxyServices({ baseURL: `http://127.0.0.1:${address.port}`, enableRetry: false });
+  oxy.http.setTokens(own.bearer);
+  try {
+    await oxy.devices.rename(other.sessionId, 'legacy-other-session');
+    const gate = { invalidate() {}, lease: () => 1, isCurrent: (value: number) => value === 1 };
+    oxy.experimentalSetContextGate(gate);
+    const owner = { actorId: userId, accountId: userId, sessionId: own.sessionId };
+    const registry = new ExperimentalOwnedMutationRegistry(() => ({
+      owner,
+      isCurrent: () => gate.isCurrent(1),
+      request: (request) => oxy.http.experimentalRequestForLease(request, gate, 1),
+    }));
+    const snapshots: string[] = [];
+    const operation = createExperimentalOwnedDeviceRename(registry, async (id) => {
+      snapshots.push(registry.serialize(id));
+      return true;
+    });
+    await operation.rename(`operation-${randomUUID()}`, 'bound-own-session');
+    const [ownRow] = await getDb()
+      .select({ name: sessions.deviceName })
+      .from(sessions)
+      .where(eq(sessions.sessionId, own.sessionId));
+    const [otherRow] = await getDb()
+      .select({ name: sessions.deviceName })
+      .from(sessions)
+      .where(eq(sessions.sessionId, other.sessionId));
+    expect(ownRow.name).toBe('bound-own-session');
+    expect(otherRow.name).toBe('legacy-other-session');
+    expect(snapshots.length).toBeGreaterThan(0);
+    expect(snapshots.every((snapshot) => !snapshot.includes(own.bearer))).toBe(true);
+  } finally {
+    oxy.dispose();
+  }
 });

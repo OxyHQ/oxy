@@ -76,6 +76,14 @@ Production integration must establish all of the following before enabling it:
   operations using that transport are covered. Storage, idempotency on the
   receiving endpoint, immutable adapters, arbitrary callbacks, cancellation and
   app integration still require design and end-to-end verification.
+- An experimental registered device rename targets only the exact bound
+  session; the existing public `oxy.devices.rename(sessionId, ...)` remains able
+  to target another permitted same-user session. The service hook additionally
+  updates `DeviceManager` local state. A test changes owner when the HTTP body is
+  read and verifies the local method is not started, but another changes owner
+  during its asynchronous read: the existing method still writes afterwards.
+  A check after that write cannot undo it. Owner-partitioned or truly
+  conditional local storage is needed before that hook can use this path.
 - Owner storage keys and registry metadata contain identifiers, not a bearer or
   device secret. They are routing labels, never proof of authorization. The
   partition experiment persists only queries with an explicit root/version

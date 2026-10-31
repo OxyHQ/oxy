@@ -1,6 +1,8 @@
 import { OxyServices } from '../../OxyServices';
 import { ExperimentalContextBarrier } from '../experimentalContextBarrier';
 
+const bearer = `h.${Buffer.from(JSON.stringify({ userId: 'person', sessionId: 'session', exp: 4102444800 })).toString('base64url')}.s`;
+
 function gate() {
   let generation = 0;
   let ready = true;
@@ -37,7 +39,7 @@ it('gates the real main and pre-existing linked HTTP clients, including cached r
   );
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid' });
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   const linked = oxy.createLinkedClient({ baseURL: 'https://app.invalid' });
   const barrier = gate();
   try {
@@ -77,7 +79,7 @@ it('closes before an outside token mutation and does not publish it to listeners
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid' });
   const barrier = gate();
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   oxy.experimentalSetContextGate(barrier);
   let entered = false;
   oxy.http.addTokenChangeListener(() => {
@@ -101,7 +103,7 @@ it('rechecks the lease after a synchronous request-body callback', async () => {
   const fetcher = jest.fn(async () => new Response('{}', { status: 200 }));
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid', enableRetry: false });
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   const barrier = gate();
   oxy.experimentalSetContextGate(barrier);
   try {
@@ -120,12 +122,44 @@ it('rechecks the lease after a synchronous request-body callback', async () => {
   }
 });
 
+it('rejects explicit authority and does not silently send an expired bearer as anonymous', async () => {
+  const originalFetch = globalThis.fetch;
+  const fetcher = jest.fn(
+    async () =>
+      new Response(JSON.stringify({ data: { ok: true } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+  );
+  globalThis.fetch = fetcher as typeof fetch;
+  const expired = `h.${Buffer.from(JSON.stringify({ userId: 'person', sessionId: 'session', exp: 1 })).toString('base64url')}.s`;
+  const oxy = new OxyServices({ baseURL: 'https://oxy.invalid', enableRetry: false });
+  oxy.http.setTokens(expired);
+  oxy.experimentalSetContextGate(gate());
+  try {
+    await expect(
+      oxy.http.get('/private', { headers: { Authorization: 'Bearer other' } }),
+    ).rejects.toThrow('Explicit authority');
+    await expect(
+      oxy.http.get('/private', { headers: { 'x-oxy-user-id': 'other' } }),
+    ).rejects.toThrow('Explicit authority');
+    await expect(oxy.http.get('/private')).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+    expect(fetcher).not.toHaveBeenCalled();
+    await oxy.http.get('/public', { skipAuth: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
+  } finally {
+    oxy.dispose();
+    globalThis.fetch = originalFetch;
+  }
+});
+
 it('refuses a queued owner lease after a switch and when a provider reenters before send', async () => {
   const originalFetch = globalThis.fetch;
   const fetcher = jest.fn(async () => new Response('{}', { status: 200 }));
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid', enableRetry: false });
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   const barrier = gate();
   oxy.experimentalSetContextGate(barrier);
   try {
@@ -142,7 +176,7 @@ it('refuses a queued owner lease after a switch and when a provider reenters bef
     const nextLease = barrier.lease();
     oxy.http.setAccessTokenProvider(() => {
       barrier.close();
-      return 'opaque-token';
+      return bearer;
     });
     await expect(
       oxy.http.experimentalRequestForLease(
@@ -169,7 +203,7 @@ it('rejects an in-flight response after the gate closes and reopens', async () =
   );
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid', enableRetry: false });
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   const barrier = gate();
   oxy.experimentalSetContextGate(barrier);
   try {
@@ -202,7 +236,7 @@ it('rejects a mutation response sent before strict mode was installed', async ()
   );
   globalThis.fetch = fetcher as typeof fetch;
   const oxy = new OxyServices({ baseURL: 'https://oxy.invalid', enableRetry: false });
-  oxy.http.setTokens('opaque-token');
+  oxy.http.setTokens(bearer);
   const barrier = gate();
   try {
     const pending = oxy.http.post('/write', { value: 1 });
