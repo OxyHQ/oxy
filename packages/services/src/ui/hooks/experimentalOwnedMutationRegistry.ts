@@ -21,9 +21,9 @@ type RecordEntry = {
   kind: string;
   owner: ExperimentalMutationOwner;
   payload: unknown;
-  status: 'queued' | 'inflight' | 'ambiguous';
+  status: 'queued' | 'inflight' | 'ambiguous' | 'completed';
 };
-type Checkpoint = (owner: ExperimentalMutationOwner) => Promise<boolean>;
+type Checkpoint = (owner: ExperimentalMutationOwner, isCurrent: () => boolean) => Promise<boolean>;
 
 function matches(a: ExperimentalMutationOwner, b: ExperimentalMutationOwner): boolean {
   return a.actorId === b.actorId && a.accountId === b.accountId && a.sessionId === b.sessionId;
@@ -82,9 +82,18 @@ export class ExperimentalOwnedMutationRegistry {
     payload: unknown,
     checkpoint: Checkpoint,
   ): Promise<void> {
+    const lease = this.capture();
+    if (!lease || !lease.isCurrent()) throw new Error('Mutation owner unavailable');
     this.enqueue(id, kind, payload);
     const entry = this.entries.get(id);
-    if (!entry || !(await checkpoint(entry.owner))) throw new Error('Mutation was not persisted');
+    if (
+      !entry ||
+      !matches(entry.owner, lease.owner) ||
+      !lease.isCurrent() ||
+      !(await checkpoint(entry.owner, lease.isCurrent)) ||
+      !lease.isCurrent()
+    )
+      throw new Error('Mutation was not persisted');
   }
 
   async execute(id: string): Promise<void> {
@@ -110,7 +119,7 @@ export class ExperimentalOwnedMutationRegistry {
       throw new Error('Mutation owner unavailable');
     entry.status = 'inflight';
     try {
-      if (checkpoint && !(await checkpoint(entry.owner)))
+      if (checkpoint && !(await checkpoint(entry.owner, lease.isCurrent)))
         throw new Error('Mutation was not persisted');
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       const result = await definition.run(entry.payload, {
@@ -120,15 +129,16 @@ export class ExperimentalOwnedMutationRegistry {
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
       definition.commit?.(result);
       if (!lease.isCurrent()) throw new Error('Mutation owner changed');
-      this.entries.delete(id);
-      if (checkpoint && !(await checkpoint(entry.owner)))
+      entry.status = 'completed';
+      if (checkpoint && !(await checkpoint(entry.owner, lease.isCurrent)))
         throw new Error('Mutation completion was not persisted');
+      if (!lease.isCurrent()) throw new Error('Mutation owner changed');
     } catch (error) {
       entry.status = 'ambiguous';
       this.entries.set(id, entry);
       if (checkpoint) {
         try {
-          await checkpoint(entry.owner);
+          await checkpoint(entry.owner, lease.isCurrent);
         } catch {
           /* The durable inflight record remains ambiguous on restart. */
         }
@@ -198,7 +208,7 @@ export class ExperimentalOwnedMutationRegistry {
         !definition ||
         !codec ||
         entry.codecVersion !== codec.version ||
-        !['queued', 'inflight', 'ambiguous'].includes(entry.status)
+        !['queued', 'inflight', 'ambiguous', 'completed'].includes(entry.status)
       )
         throw new Error('Invalid mutation blob');
       let payload: unknown;
@@ -214,7 +224,8 @@ export class ExperimentalOwnedMutationRegistry {
         kind: entry.kind,
         owner: { ...expectedOwner },
         payload,
-        status: entry.status === 'queued' ? 'queued' : 'ambiguous',
+        status:
+          entry.status === 'queued' || entry.status === 'completed' ? entry.status : 'ambiguous',
       });
     }
     for (const entry of incoming) this.entries.set(entry.id, entry);

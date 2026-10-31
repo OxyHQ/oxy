@@ -508,6 +508,42 @@ it('does not overwrite an owner blob changed outside the local queue', async () 
   }
 });
 
+it('baseline: two independent persistence queues can both verify while one overwrites the other', async () => {
+  const values = new Map<string, string>();
+  const first = fixture(values);
+  const second = fixture(values);
+  let release!: () => void;
+  let observed!: () => void;
+  const started = new Promise<void>((resolve) => {
+    observed = resolve;
+  });
+  const wait = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await first.persistence.prepareCommit(null, alice, () => true);
+    await second.persistence.prepareCommit(null, alice, () => true);
+    first.client.setQueryData(['private', 'inbox'], { actor: 'first' });
+    second.client.setQueryData(['private', 'inbox'], { actor: 'second' });
+    second.storage.setItem.mockImplementationOnce(async (key, value) => {
+      observed();
+      await wait;
+      values.set(key, value);
+    });
+    const delayed = second.persistence.checkpoint(alice, () => true);
+    await started;
+    expect(await first.persistence.checkpoint(alice, () => true)).toBe(true);
+    release();
+    expect(await delayed).toBe(true);
+    const raw = values.get(experimentalOwnerStorageKey(alice)) ?? '';
+    expect(raw).toContain('second');
+    expect(raw).not.toContain('first');
+  } finally {
+    first.client.clear();
+    second.client.clear();
+  }
+});
+
 it('rejects an owner-mismatched blob without deleting it or the unattributed legacy blob', async () => {
   const key = experimentalOwnerStorageKey(alice);
   const raw = JSON.stringify({
@@ -578,7 +614,7 @@ it('journals before sending, restores inflight work as ambiguous, and checkpoint
     release();
     await pending;
     const completed = JSON.parse(f.values.get(experimentalOwnerStorageKey(alice)) ?? '{}');
-    expect(JSON.parse(completed.registry).entries).toEqual([]);
+    expect(JSON.parse(completed.registry).entries[0].status).toBe('completed');
   } finally {
     f.client.clear();
   }

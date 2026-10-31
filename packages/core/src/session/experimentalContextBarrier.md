@@ -62,6 +62,13 @@ Production integration must establish all of the following before enabling it:
   waiter `isPaused: false` and `setOptions` can replace the wrapper. A strict
   persister must explicitly include waiting work and restore it as quarantined;
   the existing paused-only persister does not do this.
+- A cooperative scoped query view fences reads, subscriptions and deferred
+  navigation by the captured gate generation. A staged publisher checks the
+  owner before returning a view. It does not expose the raw QueryClient through
+  the view, but a caller that already holds that client or previously returned
+  data can still read it. The staging integrator must actually isolate and
+  privately own each client; a test shows that mislabelling an old client leaks
+  its contents. The real provider still exposes raw QueryClient paths.
 - A separate experimental explicit mutation registry ties each operation to an
   actor, account and session, and gives its registered executor a lease-bound
   HTTP request. It refuses cross-owner execution and preserves uncertain
@@ -77,6 +84,11 @@ Production integration must establish all of the following before enabling it:
   test shows that a secret in an allowed string is still serialized. Each codec
   owns its permitted fields, strings and keys; no generic secret guarantee is
   implied. This prototype must not be connected to production storage as-is.
+- Local owner snapshots compare the last observed storage value and verify
+  read-back. A two-instance test demonstrates that both writers can still pass
+  those checks while one overwrites the other. This is not cross-process CAS.
+  `inflight` operations restore as ambiguous and completed records are retained;
+  safe multi-writer journaling and cleanup remain unresolved.
 - A successful authenticated `{all:true}` signout returns the transaction's
   empty state after revoking every holder. That response can establish what the
   mutation did at that moment without reusing the revoked secret. It cannot

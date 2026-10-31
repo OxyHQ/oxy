@@ -54,8 +54,11 @@ export function createExperimentalOwnedPersistence(options: {
   let activeOwner: ExperimentalMutationOwner | null = null;
   let tail: Promise<void> = Promise.resolve();
 
-  async function writeOwner(owner: ExperimentalMutationOwner): Promise<boolean> {
-    if (!activeOwner || !sameOwner(activeOwner, owner)) return false;
+  async function writeOwner(
+    owner: ExperimentalMutationOwner,
+    isCurrent: () => boolean,
+  ): Promise<boolean> {
+    if (!isCurrent() || !activeOwner || !sameOwner(activeOwner, owner)) return false;
     const queries: Array<{ root: string; version: number; payload: unknown }> = [];
     for (const query of client.getQueryCache().getAll()) {
       if (query.state.status !== 'success' || !ownership.persistsQuery(query)) continue;
@@ -70,6 +73,7 @@ export function createExperimentalOwnedPersistence(options: {
       } catch {
         throw new Error('Query codec failed');
       }
+      if (!isCurrent()) return false;
       queries.push({ root: codec.root, version: codec.version, payload });
     }
     const body = JSON.stringify({
@@ -80,6 +84,7 @@ export function createExperimentalOwnedPersistence(options: {
     });
     const key = experimentalOwnerStorageKey(owner);
     const existing = await storage.getItem(key);
+    if (!isCurrent()) return false;
     if (!observedBlobs.has(key) || observedBlobs.get(key) !== existing)
       throw new Error('Owner snapshot changed externally');
     if (existing !== null) {
@@ -100,7 +105,7 @@ export function createExperimentalOwnedPersistence(options: {
     await storage.setItem(key, body);
     if ((await storage.getItem(key)) !== body) return false;
     observedBlobs.set(key, body);
-    return true;
+    return isCurrent();
   }
 
   async function prepare(
@@ -113,7 +118,8 @@ export function createExperimentalOwnedPersistence(options: {
     if (activeOwner && sameOwner(activeOwner, owner)) return;
 
     if (activeOwner) {
-      if (!(await writeOwner(activeOwner))) throw new Error('Owner snapshot was not persisted');
+      if (!(await writeOwner(activeOwner, isCurrent)))
+        throw new Error('Owner snapshot was not persisted');
       if (!isCurrent()) throw new Error('Context binding unavailable');
     }
 
@@ -183,8 +189,8 @@ export function createExperimentalOwnedPersistence(options: {
 
   return {
     /** A successful read-back proves the snapshot landed for this local queue. */
-    checkpoint(owner: ExperimentalMutationOwner): Promise<boolean> {
-      const result = tail.then(() => writeOwner(owner)).catch(() => false);
+    checkpoint(owner: ExperimentalMutationOwner, isCurrent: () => boolean): Promise<boolean> {
+      const result = tail.then(() => writeOwner(owner, isCurrent)).catch(() => false);
       tail = result.then(() => undefined);
       return result;
     },
