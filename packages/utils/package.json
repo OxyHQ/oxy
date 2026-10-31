@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/utils",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Dependency-free helpers shared across every Oxy service — SQL LIKE-pattern escaping, page-window clamping, money formatting and minor units, and the small pure functions that were being copied between repos.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -24,6 +24,9 @@
       ],
       "currency": [
         "dist/types/currency.d.ts"
+      ],
+      "cursor": [
+        "dist/types/cursor.d.ts"
       ]
     }
   },
@@ -102,7 +105,17 @@
         "default": "./dist/cjs/currency.js"
       }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cursor": {
+      "import": {
+        "types": "./dist/types/cursor.d.ts",
+        "default": "./dist/esm/cursor.js"
+      },
+      "require": {
+        "types": "./dist/types/cursor.d.ts",
+        "default": "./dist/cjs/cursor.js"
+      }
+    }
   },
   "files": [
     "dist",

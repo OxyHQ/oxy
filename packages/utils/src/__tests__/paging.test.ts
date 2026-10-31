@@ -14,9 +14,15 @@ import {
   resolvePageOffset,
 } from '../paging';
 
+import { nextUnvisitedCursor as cursorEntry } from '../cursor';
+
 const BOUNDS = { fallback: 20, max: 50 };
 
 describe('nextUnvisitedCursor', () => {
+  it('exports the same helper from both entry points', () => {
+    expect(cursorEntry).toBe(nextUnvisitedCursor);
+  });
+
   it('continues with an unseen cursor and stops for absent or repeated cursors', () => {
     expect(nextUnvisitedCursor('b', [undefined, 'a'])).toBe('b');
     expect(nextUnvisitedCursor('a', [undefined, 'a'])).toBeUndefined();
