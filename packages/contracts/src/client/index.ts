@@ -98,6 +98,8 @@ export {
   SESSION_ACCOUNTS_CHANGED_EVENT,
   activeTokenCheck,
   deviceBackgroundCredentialResponseCheck,
+  deviceContextTokenV1RequestCheck,
+  deviceContextTokenV1ResponseCheck,
   deviceJoinCodeResponseCheck,
   deviceJoinResponseCheck,
   deviceRegisterResponseCheck,

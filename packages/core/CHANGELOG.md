@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.10.3
+
+### Changed
+
+- Align the workspace dependency with `@oxy.so/contracts` 6.2.0.
+
 ## 7.10.2
 
 ### Fixed

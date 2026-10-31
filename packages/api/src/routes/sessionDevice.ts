@@ -4,6 +4,8 @@ import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
+  deviceContextTokenV1RequestSchema,
+  deviceContextTokenV1ResponseSchema,
   deviceJoinCodeRequestSchema,
   deviceJoinCodeResponseSchema,
   deviceJoinRequestSchema,
@@ -27,6 +29,11 @@ import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { isAuthWebOrigin, isBrowserClient, normaliseOrigin } from '../utils/origin';
 import { hashedIpKey } from '../utils/ipKey';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  deviceContextTokenV1EnvelopeSchema,
+  deviceContextTokenV1ErrorSchema,
+} from '../schemas/deviceContextToken.schemas';
 
 const router = Router();
 
@@ -190,6 +197,48 @@ router.post(
         state,
       },
     });
+  }),
+);
+
+/**
+ * Opt-in account-mode mint with the active context bound to the bearer.
+ * Identity-pinned clients keep using `/token` with their explicit accountId.
+ * Directory/permission data is not frozen by this response.
+ *
+ * @requestBody deviceContextTokenV1RequestSchema
+ * @response 200 deviceContextTokenV1EnvelopeSchema Holder-proven active context and bearer.
+ * @response 400 deviceContextTokenV1ErrorSchema Invalid request body.
+ * @response 401 deviceContextTokenV1ErrorSchema Invalid device secret.
+ * @response 409 deviceContextTokenV1ErrorSchema Active context binding unavailable.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ */
+router.post(
+  '/context-token-v1',
+  deviceTokenLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const parsed = deviceContextTokenV1RequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'deviceId and deviceSecret are required' });
+      return;
+    }
+    const { deviceId, deviceSecret } = parsed.data;
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    if (lockout.locked) {
+      refuseLockedOut(res, lockout);
+      return;
+    }
+    if (!(await deviceSessionService.getStateBySecret(deviceId, deviceSecret))) {
+      res.status(401).json({ error: 'invalid_device_secret' });
+      return;
+    }
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    const result = await deviceSessionService.resolveHolderContextToken(deviceId, deviceSecret);
+    if (!result) {
+      res.status(409).json({ error: 'binding_unavailable' });
+      return;
+    }
+    res.json({ data: deviceContextTokenV1ResponseSchema.parse({ version: 1, ...result }) });
   }),
 );
 

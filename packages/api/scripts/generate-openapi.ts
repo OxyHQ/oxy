@@ -410,7 +410,13 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
         properties[key] = zodToOpenApi(value);
         if (!['optional', 'default', 'prefault'].includes(value._zod.def.type)) required.push(key);
       }
-      return { type: 'object', properties, ...(required.length ? { required } : {}) };
+      const catchall = def.catchall as ZodTypeAny | undefined;
+      return {
+        type: 'object',
+        properties,
+        ...(required.length ? { required } : {}),
+        ...(catchall?._zod.def.type === 'never' ? { additionalProperties: false } : {}),
+      };
     }
     case 'record':
       return { type: 'object', additionalProperties: zodToOpenApi(def.valueType as ZodTypeAny) };
