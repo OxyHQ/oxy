@@ -1,9 +1,23 @@
 import * as crypto from 'node:crypto';
 import type { Request } from 'express';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type {
   AccountKind,
   DeviceAccountContext,
+  DeviceContextTokenV1Response,
   DeviceContextRelationship,
   DeviceDirectory,
   DeviceDirectoryProfile,
@@ -28,6 +42,7 @@ import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.s
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
 import { logger } from '../utils/logger';
+import { ACCESS_TOKEN_VERSION, validateAccessToken } from '../utils/sessionUtils';
 
 /** Number of random bytes in a raw `deviceSecret` (256-bit). */
 const DEVICE_SECRET_BYTES = 32;
@@ -367,6 +382,9 @@ export type BackgroundMintResult =
 // session) — the cold-boot reload handoff. The route uses it to skip the
 // device-state broadcast when nothing actually changed.
 export type AddAccountResult = { state: DeviceSessionState; changed: boolean };
+
+/** The holder-proven active context, not an authorization grant or graph snapshot. */
+export type HolderContextToken = Omit<DeviceContextTokenV1Response, 'version'>;
 
 class DeviceSessionService {
   /** The `device_sessions` row alone, without its principals or contexts. */
@@ -981,6 +999,144 @@ class DeviceSessionService {
     )
       return null;
     return token;
+  }
+
+  /**
+   * Resolve a holder-proven active context and its exact bearer at one final
+   * database read. This does not freeze the account graph or authorize a
+   * later request; the usual session and delegation checks still apply.
+   */
+  async resolveHolderContextToken(
+    deviceId: string,
+    rawSecret: string,
+  ): Promise<HolderContextToken | null> {
+    if (!deviceId || !rawSecret) return null;
+    const db = getDb();
+    const personSession = alias(sessions, 'holder_context_person_session');
+    const readBinding = async (accessToken?: string) => {
+      const [row] = await db
+        .select({
+          credentialId: deviceCredentials.id,
+          deviceSessionId: deviceSessions.id,
+          revision: deviceSessions.revision,
+          contextId: deviceAccountContexts.id,
+          actorId: devicePrincipals.userId,
+          accountId: deviceAccountContexts.accountId,
+          sessionId: sessions.sessionId,
+          personSessionId: personSession.sessionId,
+        })
+        .from(deviceSessions)
+        .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+        .innerJoin(
+          deviceAccountContexts,
+          and(
+            eq(deviceAccountContexts.id, deviceSessions.activeContextId),
+            eq(deviceAccountContexts.deviceSessionId, deviceSessions.id),
+          ),
+        )
+        .innerJoin(
+          devicePrincipals,
+          and(
+            eq(devicePrincipals.id, deviceAccountContexts.principalId),
+            eq(devicePrincipals.deviceSessionId, deviceSessions.id),
+          ),
+        )
+        .innerJoin(sessions, eq(sessions.sessionId, deviceAccountContexts.sessionId))
+        .innerJoin(personSession, eq(personSession.sessionId, devicePrincipals.personalSessionId))
+        .where(
+          and(
+            eq(deviceSessions.deviceId, deviceId),
+            eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+            eq(deviceSessions.activeAccountId, deviceAccountContexts.accountId),
+            isNull(deviceAccountContexts.revokedAt),
+            isNull(devicePrincipals.revokedAt),
+            eq(sessions.userId, deviceAccountContexts.accountId),
+            eq(sessions.deviceId, deviceId),
+            eq(sessions.deviceSessionId, deviceSessions.id),
+            eq(sessions.deviceContextId, deviceAccountContexts.id),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, sql`now()`),
+            eq(personSession.userId, devicePrincipals.userId),
+            eq(personSession.deviceId, deviceId),
+            eq(personSession.isActive, true),
+            gt(personSession.expiresAt, sql`now()`),
+            or(
+              and(
+                eq(devicePrincipals.userId, deviceAccountContexts.accountId),
+                isNull(sessions.operatedByUserId),
+              ),
+              eq(sessions.operatedByUserId, devicePrincipals.userId),
+            ),
+            accessToken === undefined ? undefined : eq(sessions.accessToken, accessToken),
+          ),
+        )
+        .limit(1);
+      return row ?? null;
+    };
+
+    const before = await readBinding();
+    if (!before) return null;
+    if (
+      !(await sessionService.validateSessionById(before.personSessionId, false, {
+        useCache: false,
+      }))
+    )
+      return null;
+    const token = await this.resolveTokenForSession(before.sessionId);
+    if (!token) return null;
+    const claims = validateAccessToken(token.accessToken);
+    const payload = claims.valid ? claims.payload : undefined;
+    if (!payload) return null;
+    if (
+      payload.ver !== ACCESS_TOKEN_VERSION ||
+      payload.type !== 'access' ||
+      payload.deviceId !== deviceId ||
+      payload.device_session_id !== before.deviceSessionId ||
+      payload.device_context_id !== before.contextId ||
+      payload.userId !== before.accountId ||
+      payload.sub !== before.accountId ||
+      payload.sessionId !== before.sessionId ||
+      payload.sid !== before.sessionId ||
+      payload.act?.sub !== before.actorId
+    )
+      return null;
+
+    if (
+      !(await sessionService.validateSessionById(before.personSessionId, false, {
+        useCache: false,
+      }))
+    )
+      return null;
+    if (
+      before.actorId !== before.accountId &&
+      !(await this.verifyDelegation(before.actorId, before.accountId))
+    )
+      return null;
+
+    const after = await readBinding(token.accessToken);
+    if (
+      !after ||
+      after.credentialId !== before.credentialId ||
+      after.deviceSessionId !== before.deviceSessionId ||
+      after.revision !== before.revision ||
+      after.contextId !== before.contextId ||
+      after.actorId !== before.actorId ||
+      after.accountId !== before.accountId ||
+      after.sessionId !== before.sessionId ||
+      after.personSessionId !== before.personSessionId
+    )
+      return null;
+    return {
+      deviceId,
+      deviceSessionId: after.deviceSessionId,
+      revision: after.revision,
+      contextId: after.contextId,
+      actorId: after.actorId,
+      accountId: after.accountId,
+      sessionId: after.sessionId,
+      accessToken: token.accessToken,
+      expiresAt: token.expiresAt,
+    };
   }
 
   async signout(

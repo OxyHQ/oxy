@@ -4,6 +4,7 @@ import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
+  deviceContextTokenV1ResponseSchema,
   deviceJoinCodeRequestSchema,
   deviceJoinCodeResponseSchema,
   deviceJoinRequestSchema,
@@ -190,6 +191,41 @@ router.post(
         state,
       },
     });
+  }),
+);
+
+/**
+ * Opt-in account-mode mint with the active context bound to the bearer.
+ * Identity-pinned clients keep using `/token` with their explicit accountId.
+ * Directory/permission data is not frozen by this response.
+ */
+router.post(
+  '/context-token-v1',
+  deviceTokenLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const parsed = deviceTokenMintRequestSchema.safeParse(req.body);
+    if (!parsed.success || parsed.data.accountId !== undefined) {
+      res.status(400).json({ error: 'deviceId and deviceSecret are required' });
+      return;
+    }
+    const { deviceId, deviceSecret } = parsed.data;
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    if (lockout.locked) {
+      refuseLockedOut(res, lockout);
+      return;
+    }
+    if (!(await deviceSessionService.getStateBySecret(deviceId, deviceSecret))) {
+      res.status(401).json({ error: 'invalid_device_secret' });
+      return;
+    }
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    const result = await deviceSessionService.resolveHolderContextToken(deviceId, deviceSecret);
+    if (!result) {
+      res.status(409).json({ error: 'binding_unavailable' });
+      return;
+    }
+    res.json({ data: deviceContextTokenV1ResponseSchema.parse({ version: 1, ...result }) });
   }),
 );
 

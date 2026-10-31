@@ -80,6 +80,22 @@ export const deviceTokenMintResponseSchema = z.object({
 export type DeviceTokenMintRequest = z.infer<typeof deviceTokenMintRequestSchema>;
 export type DeviceTokenMintResponse = z.infer<typeof deviceTokenMintResponseSchema>;
 
+/** Holder-proven active-context token; it does not freeze the account graph. */
+export const deviceContextTokenV1ResponseSchema = z.object({
+  version: z.literal(1),
+  deviceId: z.string().check(utf16MinLength(1)),
+  deviceSessionId: z.string().check(utf16MinLength(1)),
+  revision: z.number().check(integerCheck()).nonnegative(),
+  contextId: z.string().check(utf16MinLength(1)),
+  actorId: z.string().check(utf16MinLength(1)),
+  accountId: z.string().check(utf16MinLength(1)),
+  sessionId: z.string().check(utf16MinLength(1)),
+  accessToken: z.string().check(utf16MinLength(1)),
+  expiresAt: z.string().check(utf16MinLength(1)),
+});
+
+export type DeviceContextTokenV1Response = z.infer<typeof deviceContextTokenV1ResponseSchema>;
+
 /**
  * Why the signed-in set changed:
  *  - `login`   — a brand-new session was minted for the user (QR / cross-app authorize)

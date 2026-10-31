@@ -7,6 +7,7 @@
 import type {
   ActiveToken,
   DeviceBackgroundCredentialResponse,
+  DeviceContextTokenV1Response,
   DeviceJoinCodeResponse,
   DeviceJoinResponse,
   DeviceRegisterResponse,
@@ -19,6 +20,7 @@ import {
   array,
   exact,
   int,
+  literal,
   minLength,
   nonnegative,
   nullable,
@@ -84,6 +86,21 @@ export const deviceTokenMintResponseCheck = exact<DeviceTokenMintResponse>()(
     expiresAt: string(),
     nextDeviceSecret: string(),
     state: deviceSessionStateCheck,
+  }),
+);
+
+export const deviceContextTokenV1ResponseCheck = exact<DeviceContextTokenV1Response>()(
+  object({
+    version: literal(1),
+    deviceId: string(minLength(1)),
+    deviceSessionId: string(minLength(1)),
+    revision: number(int, nonnegative),
+    contextId: string(minLength(1)),
+    actorId: string(minLength(1)),
+    accountId: string(minLength(1)),
+    sessionId: string(minLength(1)),
+    accessToken: string(minLength(1)),
+    expiresAt: string(minLength(1)),
   }),
 );
 

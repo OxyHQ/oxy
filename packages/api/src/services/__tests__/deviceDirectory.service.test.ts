@@ -38,6 +38,7 @@ import { deviceDirectorySchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -1062,6 +1063,303 @@ describe('removal — one context and one principal are different operations', (
     });
     return { reached, release, restore: () => spy.mockRestore() };
   }
+
+  it('holder context token binds the active actor, subject, session and credential', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    const device = await storedDevice(shared.device);
+    expect(minted).toMatchObject({
+      deviceId: shared.device,
+      deviceSessionId: device.id,
+      revision: device.revision,
+      contextId: shared.viaAlice,
+      actorId: shared.alice,
+      accountId: shared.org,
+      sessionId: shared.aliceOrgSession,
+    });
+    const claims = validateAccessToken(minted?.accessToken ?? '');
+    expect(claims.valid).toBe(true);
+    expect(claims.payload).toMatchObject({
+      device_session_id: device.id,
+      device_context_id: shared.viaAlice,
+      act: { sub: shared.alice },
+      sub: shared.org,
+      sid: shared.aliceOrgSession,
+    });
+    expect(await deviceSessionService.resolveHolderContextToken(shared.device, 'wrong')).toBeNull();
+  });
+
+  it('holder context token remains unavailable at first login until the personal session is bound', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected a holder credential');
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toBeNull();
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    expect(minted).toMatchObject({
+      deviceId: device,
+      actorId: person,
+      accountId: person,
+      sessionId,
+    });
+    const claims = validateAccessToken(minted?.accessToken ?? '');
+    expect(claims.valid).toBe(true);
+    expect(claims.payload).toMatchObject({ sub: person, sid: sessionId, act: { sub: person } });
+  });
+
+  it('holder context token rejects a different actor and A to B to A during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok,
+      ).toBe(true);
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaAlice, request())).ok,
+      ).toBe(true);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a revoked holder during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const device = await storedDevice(shared.device);
+      await getDb()
+        .delete(deviceCredentials)
+        .where(eq(deviceCredentials.deviceSessionId, device.id));
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects an evicted holder even if a new holder is issued', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const device = await storedDevice(shared.device);
+      await getDb()
+        .delete(deviceCredentials)
+        .where(eq(deviceCredentials.deviceSessionId, device.id));
+      const replacement = await deviceSessionService.issueDeviceSecret(shared.device);
+      if (!replacement) throw new Error('Expected replacement holder');
+      barrier.release();
+      expect(await pending).toBeNull();
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, replacement),
+      ).toMatchObject({
+        actorId: shared.alice,
+        contextId: shared.viaAlice,
+      });
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a session deactivated during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      await sessionService.deactivateSession(shared.aliceOrgSession);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects delegation revoked while the token is being resolved', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      await getDb()
+        .update(accountMembers)
+        .set({ status: 'removed' })
+        .where(
+          and(
+            eq(accountMembers.accountId, shared.org),
+            eq(accountMembers.memberUserId, shared.alice),
+          ),
+        );
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects token rotation during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const [row] = await getDb()
+        .select({ refreshToken: sessions.refreshToken })
+        .from(sessions)
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      expect(await sessionService.refreshTokens(row.refreshToken)).not.toBeNull();
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects principal sign-out during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const [principal] = await getDb()
+        .select({ sessionId: devicePrincipals.personalSessionId })
+        .from(devicePrincipals)
+        .where(eq(devicePrincipals.userId, shared.alice));
+      if (!principal.sessionId) throw new Error('Expected personal session');
+      await sessionService.deactivateSession(principal.sessionId);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a principal session migrated to another device', async () => {
+    const person = await account();
+    const org = await organization(person);
+    const stableDeviceKey = `holder-context-${randomUUID()}`;
+    const original = await sessionService.createSession(person, request(), { stableDeviceKey });
+    const device = original.deviceId;
+    await deviceSessionService.addAccount(device, {
+      accountId: person,
+      sessionId: original.sessionId,
+    });
+    const context = contextFor(await deviceSessionService.getDirectory(device), person, org)?.id;
+    if (!context) throw new Error('Expected delegated context');
+    expect((await deviceSessionService.activateContext(device, context, request())).ok).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected a holder credential');
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toMatchObject({
+      actorId: person,
+    });
+    const migrated = await sessionService.createSession(person, request(), {
+      stableDeviceKey,
+      deviceId: newDeviceId(),
+    });
+    expect(migrated.sessionId).toBe(original.sessionId);
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toBeNull();
+  });
+
+  it('holder context token rejects a signed token for the other actor', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const wrong = await sessionService.getAccessToken(shared.nateOrgSession);
+    if (!wrong) throw new Error('Expected the other actor session');
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce(wrong);
+    try {
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('holder context token rejects an invalid token returned by the mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce({
+      accessToken: 'invalid-fixture',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    try {
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('holder context token reports missing session binding without re-creating it', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    await getDb()
+      .update(sessions)
+      .set({ deviceContextId: null })
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    expect(await deviceSessionService.resolveHolderContextToken(shared.device, holder)).toBeNull();
+    const [row] = await getDb()
+      .select({ deviceContextId: sessions.deviceContextId })
+      .from(sessions)
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    expect(row.deviceContextId).toBeNull();
+  });
+
+  it('holder context token rejects replacement of its device row during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const previous = await storedDevice(shared.device);
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, previous.id));
+      await signIn(shared.device, shared.nate);
+      expect((await storedDevice(shared.device)).id).not.toBe(previous.id);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
 
   it('rejects an activation superseded before its directory is read', async () => {
     const shared = await sharedOrganization();
