@@ -44,7 +44,12 @@
  */
 
 import { logger } from '../logger';
-import type { AuthStateStore, AuthStateWriteGuard, PersistedAuthState } from './authStateStore';
+import {
+  matchesAuthState,
+  type AuthStateStore,
+  type AuthStateWriteGuard,
+  type PersistedAuthState,
+} from './authStateStore';
 
 /**
  * The zero-cookie device credential, as shared between apps. Exactly the pair
@@ -323,60 +328,88 @@ export function createSharedMirroringAuthStateStore(deps: {
   // the keychain every mint; a slot wiped out from under us is re-seeded on the
   // next launch rather than mid-process.
   let mirrored: SharedDeviceCredential | null = null;
+  let clearGeneration = 0;
+  let mutationGeneration = 0;
+  let mirrorTail: Promise<void> = Promise.resolve();
+
+  // This queue belongs to this wrapper only. Other wrappers and processes can
+  // still race, and an already-started native publish cannot be cancelled.
+  const mirror = (state: PersistedAuthState, generation: number, guard?: AuthStateWriteGuard) => {
+    const credential = readLocalDeviceCredential(state);
+    if (!credential) return Promise.resolve();
+    const currentVersion = async () => {
+      const version = mutationGeneration;
+      if (generation !== clearGeneration || (guard && !guard.isCurrent())) return null;
+      const current = await local.load();
+      return generation === clearGeneration &&
+        (!guard || guard.isCurrent()) &&
+        version === mutationGeneration &&
+        matchesAuthState(current, state)
+        ? version
+        : null;
+    };
+    const stillCurrent = (version: number | null) =>
+      version !== null &&
+      generation === clearGeneration &&
+      (!guard || guard.isCurrent()) &&
+      version === mutationGeneration;
+    const task = mirrorTail.then(async () => {
+      if (!stillCurrent(await currentVersion())) return;
+      if (
+        mirrored?.deviceId === credential.deviceId &&
+        mirrored.deviceSecret === credential.deviceSecret
+      )
+        return;
+      const read = await shared.read();
+      const decision = decideSharedDevicePublish(credential, read);
+      if (!stillCurrent(await currentVersion())) return;
+      if (decision.action === 'skip') {
+        if (decision.reason === 'already-current') mirrored = credential;
+        return;
+      }
+      const published = await shared.publish(credential);
+      if (published && stillCurrent(await currentVersion())) mirrored = credential;
+    });
+    mirrorTail = task.catch(() => undefined);
+    return task.catch((error) => {
+      logger.debug(
+        'mirroring the device credential into the shared slot threw — the local credential is unaffected',
+        { component: 'sharedDeviceCredential', method: 'save' },
+        error,
+      );
+    });
+  };
 
   return {
     ...local,
     load: () => local.load(),
-    clear: () => local.clear(),
+    clear: () => {
+      clearGeneration++;
+      mutationGeneration++;
+      mirrored = null;
+      return local.clear();
+    },
     ...(local.saveIfCurrent
       ? {
           saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
+            mutationGeneration++;
+            const generation = clearGeneration;
+            const snapshot = { ...state };
             const committed = await local.saveIfCurrent?.(state, guard);
             if (!committed) return false;
-            const credential = readLocalDeviceCredential(state);
-            if (credential && guard.isCurrent()) {
-              try {
-                await publishProvenDeviceCredential({ shared, credential });
-              } catch {
-                /* Local durability already verified. */
-              }
-            }
+            await mirror(snapshot, generation, guard);
             return true;
           },
         }
       : {}),
     save: async (state) => {
+      mutationGeneration++;
+      const generation = clearGeneration;
+      const snapshot = { ...state };
       // The durable local write is the contract this store owes its caller —
       // run it first and report ITS result, unchanged. The mirror is additive.
       const durablePersisted = await local.save(state);
-      const credential = readLocalDeviceCredential(state);
-      if (!credential) {
-        return durablePersisted;
-      }
-      if (
-        mirrored !== null &&
-        mirrored.deviceId === credential.deviceId &&
-        mirrored.deviceSecret === credential.deviceSecret
-      ) {
-        return durablePersisted;
-      }
-      try {
-        const outcome = await publishProvenDeviceCredential({ shared, credential });
-        if (
-          outcome.status === 'published' ||
-          (outcome.status === 'skipped' && outcome.reason === 'already-current')
-        ) {
-          mirrored = credential;
-        }
-      } catch (error) {
-        // A store implementation is contractually non-throwing, but a mirror
-        // failure must never take down the durable write that already succeeded.
-        logger.debug(
-          'mirroring the device credential into the shared slot threw — the local credential is unaffected',
-          { component: 'sharedDeviceCredential', method: 'save' },
-          error,
-        );
-      }
+      await mirror(snapshot, generation);
       return durablePersisted;
     },
   };

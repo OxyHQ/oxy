@@ -292,9 +292,13 @@ describe('createSharedMirroringAuthStateStore', () => {
     // The caller's contract is about the durable local write — a lane persisting
     // a rotated secret treats `false` as fatal. A best-effort mirror must never
     // be able to flip that answer in either direction.
+    let liveState: PersistedAuthState | null = null;
     const failingLocal: AuthStateStore = {
-      load: async () => null,
-      save: async () => false,
+      load: async () => liveState,
+      save: async (state) => {
+        liveState = state;
+        return false;
+      },
       clear: async () => undefined,
     };
     const shared = makeSharedStore(ABSENT);
