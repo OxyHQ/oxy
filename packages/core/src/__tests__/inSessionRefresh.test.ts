@@ -143,6 +143,95 @@ describe('HttpService in-session refresh handler', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('does not consult the provider or start refresh when already aborted', async () => {
+    const http = new HttpService({ baseURL: 'https://example.test', enableRetry: false });
+    const controller = new AbortController();
+    controller.abort();
+    const provider = jest.fn(() => createJwt({ userId: 'alice' }));
+    const refresh = jest.fn(async () => null);
+    globalThis.fetch = jest.fn(async () => jsonResponse({ ok: true }));
+    http.setAccessTokenProvider(provider);
+    http.setAuthRefreshHandler(refresh);
+    await expect(http.get('/private', { signal: controller.signal })).rejects.toMatchObject({
+      code: 'CANCELLED',
+    });
+    expect(provider).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('cancels one 401 refresh waiter without cancelling the shared refresh', async () => {
+    let release!: (token: string | null) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const old = createJwt({ userId: 'alice', sessionId: 'a', jti: 'old', exp: farFutureExp() });
+    const fresh = createJwt({ userId: 'alice', sessionId: 'a', jti: 'fresh', exp: farFutureExp() });
+    const http = new HttpService({ baseURL: 'https://example.test', enableRetry: false });
+    http.setTokens(old);
+    const refresh = jest.fn(() => {
+      markStarted();
+      return new Promise<string | null>((resolve) => {
+        release = resolve;
+      });
+    });
+    http.setAuthRefreshHandler(refresh);
+    globalThis.fetch = jest.fn(async (_url, init) =>
+      new Headers(init?.headers).get('authorization') === `Bearer ${fresh}`
+        ? jsonResponse({ ok: true })
+        : unauthorized(),
+    );
+    const controller = new AbortController();
+    const cancelled = http.get('/first', { signal: controller.signal });
+    const failure = expect(cancelled).rejects.toMatchObject({ code: 'CANCELLED' });
+    await started;
+    const live = http.get('/second');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await failure;
+    release(fresh);
+    await expect(live).resolves.toEqual({ ok: true });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps a deduplicated 401 request alive when only one caller cancels', async () => {
+    let release!: (token: string | null) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const old = createJwt({ userId: 'alice', sessionId: 'a', jti: 'old', exp: farFutureExp() });
+    const fresh = createJwt({ userId: 'alice', sessionId: 'a', jti: 'fresh', exp: farFutureExp() });
+    const http = new HttpService({ baseURL: 'https://example.test', enableRetry: false });
+    http.setTokens(old);
+    const refresh = jest.fn(() => {
+      markStarted();
+      return new Promise<string | null>((resolve) => {
+        release = resolve;
+      });
+    });
+    http.setAuthRefreshHandler(refresh);
+    globalThis.fetch = jest.fn(async (_url, init) =>
+      new Headers(init?.headers).get('authorization') === `Bearer ${fresh}`
+        ? jsonResponse({ ok: true })
+        : unauthorized(),
+    );
+    const controller = new AbortController();
+    const cancelled = http.get('/shared', { signal: controller.signal });
+    const failure = expect(cancelled).rejects.toMatchObject({ code: 'CANCELLED' });
+    await started;
+    const live = http.get('/shared');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await failure;
+    release(fresh);
+    await expect(live).resolves.toEqual({ ok: true });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('does not refresh, retry or clear B when an A request returns a late 401', async () => {
     let respond!: (response: Response) => void;
     let markStarted!: () => void;

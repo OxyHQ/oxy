@@ -706,6 +706,7 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    if (config.signal?.aborted) throw createCancelledError('Request cancelled before it was sent');
     // The provider can change independently of the last request. Synchronize
     // before deriving the cache and deduplication identity, including hits.
     const explicitAuthorization = Object.keys(config.headers ?? {}).some(
@@ -1026,7 +1027,10 @@ export class HttpService {
             isOriginalSession()
           ) {
             let refreshed = newerRequestToken();
-            if (!refreshed) refreshed = await this.refreshAccessToken('response-401');
+            if (!refreshed) {
+              if (domain.aborted) throw createCancelledError();
+              refreshed = await awaitRequestSignal(this.refreshAccessToken('response-401'), domain);
+            }
             refreshed ||= newerRequestToken();
             if (refreshed && isOriginalSession()) {
               // `deduplicate: false` is REQUIRED on the retry. This re-issue runs
@@ -1047,6 +1051,9 @@ export class HttpService {
                 retry: false,
                 deduplicate: false,
                 bypassQueue: true,
+                // The original caller's signal may be aborted while another
+                // deduplicated caller still owns this shared request.
+                signal: domain,
               });
             }
             // Refresh failed or no token — clear tokens
