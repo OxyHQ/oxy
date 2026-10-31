@@ -5,7 +5,7 @@ import type { BloomThemeStorage } from '@oxy.so/bloom/theme';
 export const THEME_PERSIST_KEY = '{{APP_SLUG}}.theme';
 
 /**
- * Cross-platform storage adapter for `BloomThemeProvider`. AsyncStorage is
+ * Cross-platform storage adapter for `BloomProvider`. AsyncStorage is
  * backed by localStorage on web and native storage on device, and satisfies the
  * `BloomThemeStorage` contract directly.
  */
