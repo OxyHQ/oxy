@@ -1,5 +1,15 @@
 # Changelog: `create-oxy-app`
 
+## 0.9.1
+
+### Fixed
+
+- Generated frontends mount `BloomProvider` with the explicit Expo Router scroll
+  adapter, so Bloom screen composition and restoration share the application root.
+  Gesture, safe-area and keyboard roots remain owned by `OxyProvider` without
+  duplicate wrappers. Theme persistence, image resolution, locale and the session
+  router remain unchanged; the existing published dependency ranges are retained.
+
 ## 0.9.0
 
 ### Changed

@@ -7,7 +7,7 @@
 @source "./lib/**/*.{js,jsx,ts,tsx}";
 
 /* App base color tokens — registers the color KEYS so utilities like
-   `bg-background` / `text-foreground` emit at build time. BloomThemeProvider
+   `bg-background` / `text-foreground` emit at build time. BloomProvider
    writes the real var values to the document at runtime. */
 @theme {
   --color-border: var(--border);
@@ -24,7 +24,7 @@
 }
 
 /* :root fallbacks so the build's color vars are non-empty before the theme
-   provider hydrates. BloomThemeProvider overrides these at runtime. */
+   provider hydrates. BloomProvider overrides these at runtime. */
 @layer base {
   :root {
     --background: #ffffff;

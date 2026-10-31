@@ -126,6 +126,39 @@ describe('base template bunfig.toml', () => {
   });
 });
 
+describe('base template composition root', () => {
+  test('renders one Bloom root with routing and delegates native roots to Oxy', async () => {
+    const templateFile = path.join(
+      __dirname,
+      '..',
+      '..',
+      'templates',
+      'base',
+      'packages',
+      'frontend',
+      'app',
+      '_layout.tsx',
+    );
+    const layout = renderString(await fs.readFile(templateFile, 'utf8'), ctx, templateFile);
+
+    expect(layout.match(/<BloomProvider\b/g)).toHaveLength(1);
+    expect(layout).toContain("from '@oxy.so/bloom/provider'");
+    expect(layout).toContain("from '@oxy.so/bloom/scroll/expo-router'");
+    expect(layout).toContain('scrollAdapter={expoRouterScrollAdapter}');
+    expect(layout).toContain('persistKey={THEME_PERSIST_KEY}');
+    expect(layout).toContain('storage={themeStorage}');
+    expect(layout.match(/<OxyProvider\b/g)).toHaveLength(1);
+    expect(layout).not.toMatch(
+      /BloomThemeProvider|GestureHandlerRootView|SafeAreaProvider|KeyboardProvider/,
+    );
+    // The published Bloom floor does not yet own a status bar.
+    expect(layout.match(/<StatusBar\b/g)).toHaveLength(1);
+    expect(layout).toContain('<AppImageResolver>');
+    expect(layout).toContain('<LocaleProvider>');
+    expect(layout).toContain('useHideNativeSplashWhenReady(isAuthResolved)');
+  });
+});
+
 describe('base template document theme', () => {
   test('ships light and dark startup fallbacks for Bloom to adopt', async () => {
     const templateFile = path.join(
