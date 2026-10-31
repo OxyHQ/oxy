@@ -22,6 +22,23 @@ internal sealed interface DeviceSessionRead {
   data class Unavailable(val reason: String) : DeviceSessionRead
 }
 
+/** Only two missing keys prove that the slot is empty. */
+internal fun classifyStoredDeviceSession(deviceId: String?, deviceSecret: String?): DeviceSessionRead =
+  when {
+    deviceId == null && deviceSecret == null -> DeviceSessionRead.Absent
+    !deviceId.isNullOrEmpty() && !deviceSecret.isNullOrEmpty() -> DeviceSessionRead.Present(deviceId, deviceSecret)
+    else -> DeviceSessionRead.Unavailable("IncompleteStoredCredential")
+  }
+
+/** Decode each fresh read; errors and incomplete records never authorize a write. */
+internal fun readStoredDeviceSession(read: (String) -> String?): DeviceSessionRead =
+  runCatching {
+    classifyStoredDeviceSession(
+      read(OxyDeviceSessionStore.KEY_DEVICE_ID),
+      read(OxyDeviceSessionStore.KEY_DEVICE_SECRET),
+    )
+  }.getOrElse { DeviceSessionRead.Unavailable(it.javaClass.simpleName) }
+
 /**
  * The cross-app DeviceSession credential — `deviceId` + `deviceSecret`, and
  * nothing else — in a HOST app's own data directory.
@@ -70,13 +87,7 @@ internal object OxyDeviceSessionStore {
   fun read(context: Context): DeviceSessionRead =
     runCatching {
       val p = prefs(context)
-      val deviceId = p.getString(KEY_DEVICE_ID, null)
-      val deviceSecret = p.getString(KEY_DEVICE_SECRET, null)
-      if (deviceId.isNullOrEmpty() || deviceSecret.isNullOrEmpty()) {
-        DeviceSessionRead.Absent
-      } else {
-        DeviceSessionRead.Present(deviceId, deviceSecret)
-      }
+      readStoredDeviceSession { key -> p.getString(key, null) }
     }.getOrElse { DeviceSessionRead.Unavailable(it.javaClass.simpleName) }
 
   /**
