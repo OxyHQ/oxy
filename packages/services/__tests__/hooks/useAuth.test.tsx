@@ -48,7 +48,7 @@ const defaultMockState = (): MockOxyState => ({
   logout: jest.fn(async () => ({ status: 'signed-out' })),
   logoutAll: jest.fn(async () => undefined),
   refreshSessions: jest.fn(async () => undefined),
-  oxyServices: {},
+  oxyServices: { session: { userId: null, onChange: () => () => undefined } },
   hasIdentity: jest.fn(async () => false),
   getPublicKey: jest.fn(async () => null),
   showBottomSheet: jest.fn(),
