@@ -16,10 +16,11 @@ the synchronous token-set callback it remains closed, including if that callback
 reenters or invalidates again. Its published snapshot is frozen. Failures do not
 fall back to the legacy endpoint; they leave the barrier unavailable.
 
-The tests establish those local properties with injected I/O. They do not prove
-that the transport actually sends the holder credential to the v1 endpoint,
-that its authenticated state and directory reads are permitted, or that a
-running application uses this snapshot. The test adapter uses the real
+The prototype transport sends the holder credential without a bearer and reads
+state and directory with the candidate bearer, with redirects and cookies
+disabled. Its fetch implementation is mocked in the test; real server and
+browser integration remain unverified. A running application does not use this
+snapshot. The test adapter uses the real
 `SessionClient`, socket callback and `HttpService` token store, while stubbing
 the remote responses. Real issuer/holder behavior is tested in the server PR.
 
@@ -37,6 +38,11 @@ Production integration must establish all of the following before enabling it:
   auth preflight immediately before network sends. Cover raw responses, optional
   authentication, explicit headers and socket token acquisition. An anonymous
   holder mint lane must not attach an old bearer.
+- `HttpService` notifies token listeners synchronously with the raw token and
+  linked clients have independent stores. A test confirms that an existing
+  linked client can obtain its bearer while the prototype is closed. Commit and
+  release therefore need an explicit shared protocol, including listeners and
+  token getters, not just a guard around `HttpService.request`.
 - Commit token and projections behind the barrier, then publish only after all
   components agree. Define callbacks and failures during commit, guarantee
   generation fencing through the last send, and test synchronous reentry.

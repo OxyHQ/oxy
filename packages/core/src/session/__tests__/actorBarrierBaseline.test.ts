@@ -1,4 +1,5 @@
 import { HttpService } from '../../HttpService';
+import { OxyServices } from '../../OxyServices';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 import { ExperimentalContextBarrier } from '../experimentalContextBarrier';
 
@@ -197,4 +198,28 @@ describe('prototype ingress adapter with real session and token store', () => {
       f.http.dispose();
     },
   );
+});
+
+it('baseline: an independent linked client still yields a bearer while the prototype is closed', async () => {
+  const oxy = new OxyServices({ baseURL: 'https://oxy.invalid' });
+  oxy.http.setTokens(token('alice'));
+  const linked = oxy.createLinkedClient({ baseURL: 'https://app.invalid' });
+  const gate = new ExperimentalContextBarrier({
+    getCredential: () => ({ deviceId: 'd1', deviceSecret: 'secret' }),
+    getAccessToken: () => oxy.http.getAccessToken(),
+    setAccessToken: (value) => oxy.http.setTokens(value),
+    mint: async () => {
+      throw new Error('unused');
+    },
+    readState: async () => {
+      throw new Error('unused');
+    },
+    readDirectory: async () => {
+      throw new Error('unused');
+    },
+  });
+  expect(gate.status()).toBe('unavailable');
+  expect(await linked.getAccessToken('https://app.invalid/socket')).toBe(token('alice'));
+  linked.dispose();
+  oxy.dispose();
 });
