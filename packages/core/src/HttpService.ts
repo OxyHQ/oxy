@@ -695,6 +695,9 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    // The provider can change independently of the last request. Synchronize
+    // before deriving the cache and deduplication identity, including hits.
+    if (!config.skipAuth) this.syncAccessTokenFromProvider();
     // Per-call authority is not represented by the instance's session cache
     // key. Never share or retain responses authenticated by explicit headers.
     if (
@@ -725,7 +728,9 @@ export class HttpService {
         valid: true,
       });
     }
-    const key = this.generateCacheKey(config.method, config.url, config.data || config.params);
+    const key =
+      this.generateCacheKey(config.method, config.url, config.data || config.params) +
+      (config.skipAuth ? ' auth=none' : '');
     let lease = this.readLeases.get(key);
     if (!lease) {
       lease = { key, id: ++this.nextReadLeaseId, valid: true, readers: 0 };
@@ -768,6 +773,7 @@ export class HttpService {
     // overrides any per-request `cache:true`: nothing is read from nor written
     // to the response cache. Request deduplication below is unaffected.
     const cache = cacheRequested && !this.cacheDisabled;
+    const cacheSessionEpoch = this.sessionEpoch;
 
     // Generate cache key (optimized for large objects)
     const cacheKey = cache ? lease.key : null;
@@ -796,6 +802,17 @@ export class HttpService {
     // 401 retry re-enters request() with a fresh config, so it re-resolves
     // this here with the refreshed token.
     const authHeader = config.skipAuth ? null : await this.getAuthHeader();
+    if (!config.skipAuth) this.syncAccessTokenFromProvider();
+    // A refresh can change accounts after the lease was keyed. Never attach a
+    // different account's response to that cache or deduplication identity.
+    if (
+      lease.key &&
+      !config.skipAuth &&
+      (cacheSessionEpoch !== this.sessionEpoch ||
+        lease.key !== this.generateCacheKey(method, url, data || params))
+    ) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    }
     // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
     // to a second in front of requests.
     const edgeRegionHeader = peekBrowserEdgeRegionHeader();
@@ -2099,6 +2116,7 @@ export class HttpService {
    */
   peekCachedGet<T>(url: string, params?: Record<string, unknown>): T | null {
     if (this.cacheDisabled) return null;
+    this.syncAccessTokenFromProvider();
     return this.cache.get(this.generateCacheKey('GET', url, params)) as T | null;
   }
 
