@@ -4,6 +4,7 @@
  */
 
 import type { OxyServices } from '../OxyServices';
+import { isSessionChangedError } from '../shared/utils/errorUtils';
 
 /**
  * Error thrown when session sync is required
@@ -80,6 +81,7 @@ export interface HandleApiErrorOptions {
  * Checks if an error is an authentication error (401 or auth-related message)
  */
 export function isAuthenticationError(error: unknown): boolean {
+  if (isSessionChangedError(error)) return false;
   if (!error || typeof error !== 'object') {
     return false;
   }

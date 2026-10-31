@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { logoutIsolatedOAuthSession, readIsolatedOAuthSession } from '../isolatedOAuthSession';
+import { isSessionChangedError } from '../../utils/sessionChangedError';
 import type { ApiError, User } from '@oxy.so/core';
 import type { AuthStateStore, IdentityBinding, SessionClient } from '@oxy.so/core/session';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
@@ -174,6 +175,7 @@ export const useAuthOperations = ({
           });
           await refreshPinnedAccountId?.();
         } catch (pinError) {
+          if (isSessionChangedError(pinError)) throw pinError;
           logger?.('Failed to persist identity pin after sign-in', pinError);
         }
       }
@@ -192,6 +194,7 @@ export const useAuthOperations = ({
         await syncFromClient();
         deviceRegistrationCommitted = true;
       } catch (registrationError) {
+        if (isSessionChangedError(registrationError)) throw registrationError;
         logger?.('Failed to register sign-in into device session set', registrationError);
       }
 
@@ -214,6 +217,7 @@ export const useAuthOperations = ({
           },
         );
       } catch (error) {
+        if (isSessionChangedError(error)) throw error;
         if (__DEV__ && logger) {
           logger('Failed to fetch device sessions after login', error);
         }
@@ -231,6 +235,7 @@ export const useAuthOperations = ({
         try {
           await oxyServices.session.logout(sessionResponse.sessionId, sessionResponse.sessionId);
         } catch (logoutError) {
+          if (isSessionChangedError(logoutError)) throw logoutError;
           // Non-critical - continue to switch session even if logout fails
           if (__DEV__ && logger) {
             logger('Failed to logout duplicate session, continuing with switch', logoutError);
@@ -289,6 +294,7 @@ export const useAuthOperations = ({
    */
   const signIn = useCallback(
     async (publicKey: string, deviceName?: string): Promise<User> => {
+      let superseded = false;
       runtime.batch(() => {
         runtime.setLoading(true);
         runtime.setError(null);
@@ -297,6 +303,10 @@ export const useAuthOperations = ({
       try {
         return await performSignIn(publicKey);
       } catch (error) {
+        if (isSessionChangedError(error)) {
+          superseded = true;
+          throw error;
+        }
         const message = handleAuthError(error, {
           defaultMessage: 'Sign in failed',
           code: LOGIN_ERROR_CODE,
@@ -307,7 +317,7 @@ export const useAuthOperations = ({
         runtime.setError(message);
         throw error;
       } finally {
-        runtime.setLoading(false);
+        if (!superseded) runtime.setLoading(false);
       }
     },
     [runtime, performSignIn, onError, logger],
@@ -329,7 +339,7 @@ export const useAuthOperations = ({
           revokeSelf: (sessionId) => oxyServices.session.logout(sessionId),
           clearSessionState,
         });
-        if (result.status === 'failed') {
+        if (result.status === 'failed' && !isSessionChangedError(result.error)) {
           handleAuthError(result.error, {
             defaultMessage: 'Logout failed',
             code: LOGOUT_ERROR_CODE,
@@ -378,6 +388,7 @@ export const useAuthOperations = ({
         }
         return { status: 'signed-out' };
       } catch (error) {
+        if (isSessionChangedError(error)) return { status: 'failed', error };
         const isInvalid = isInvalidSessionError(error);
 
         // Compare the RESOLVED target, not the raw optional parameter: every
@@ -459,6 +470,7 @@ export const useAuthOperations = ({
       await clearPersistedAuthSafe(store, logger);
       await clearSessionState();
     } catch (error) {
+      if (isSessionChangedError(error)) throw error;
       if (isInvalidSessionError(error)) {
         // An already-invalid bearer means the sessions this call would have
         // revoked are ALREADY gone — the sign-out happened, it just happened

@@ -155,3 +155,81 @@ describe('useFollowTarget reports whether the server accepted', () => {
     expect(result.current.status.relationshipId).toBe('rel-from-server');
   });
 });
+
+describe('follow target operations across account resets', () => {
+  it.each(['resolve', 'reject'] as const)(
+    'ignores a previous account read when it %s',
+    async (outcome) => {
+      let resolve!: (value: typeof NOT_FOLLOWING) => void;
+      let reject!: (error: Error) => void;
+      oxyServices.follows.targetStatus.mockReturnValueOnce(
+        new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        }),
+      );
+      renderHook(() => useFollowTarget('target-1'));
+      const next = {
+        ...NOT_FOLLOWING,
+        globalState: 'active' as const,
+        effectiveState: 'following' as const,
+        relationshipId: 'b',
+      };
+      act(() => {
+        useFollowTargetStore.getState().reset();
+        useFollowTargetStore.getState().setStatus('target-1', next);
+        useFollowTargetStore.getState().setError('target-1', 'update_failed');
+      });
+      await act(async () => {
+        if (outcome === 'resolve') resolve(NOT_FOLLOWING);
+        else reject(new Error('old request failed'));
+        await Promise.resolve();
+      });
+      expect(useFollowTargetStore.getState().statuses['target-1']).toEqual(next);
+      expect(useFollowTargetStore.getState().errors['target-1']).toBe('update_failed');
+    },
+  );
+
+  it.each(['resolve', 'reject'] as const)(
+    'ignores a previous account mutation when it %s',
+    async (outcome) => {
+      let resolve!: (value: unknown) => void;
+      let reject!: (error: Error) => void;
+      oxyServices.follows.followTarget.mockReturnValueOnce(
+        new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        }),
+      );
+      const { result } = renderHook(() => useFollowTarget('target-1'));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      let pending!: Promise<boolean>;
+      act(() => {
+        pending = result.current.follow();
+      });
+      const next = {
+        ...NOT_FOLLOWING,
+        globalState: 'active' as const,
+        effectiveState: 'following' as const,
+        relationshipId: 'b',
+      };
+      act(() => {
+        useFollowTargetStore.getState().reset();
+        useFollowTargetStore.getState().setStatus('target-1', next);
+        useFollowTargetStore.getState().setPending('target-1', true);
+        useFollowTargetStore.getState().setError('target-1', 'read_failed');
+      });
+      await act(async () => {
+        if (outcome === 'resolve') resolve({ status: NOT_FOLLOWING });
+        else reject(new Error('old request failed'));
+        expect(await pending).toBe(false);
+      });
+      const state = useFollowTargetStore.getState();
+      expect(state.statuses['target-1']).toEqual(next);
+      expect(state.pending['target-1']).toBe(true);
+      expect(state.errors['target-1']).toBe('read_failed');
+    },
+  );
+});

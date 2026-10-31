@@ -1,4 +1,5 @@
 import type { ClientSession } from '@oxy.so/core';
+import { isSessionChangedError } from './sessionChangedError';
 
 interface DeviceSession {
   sessionId: string;
@@ -73,6 +74,7 @@ export const fetchSessionsWithFallback = async (
     const deviceSessions = await oxyServices.devices.sessions(sessionId);
     return mapSessionsToClient(deviceSessions, fallbackDeviceId, fallbackUserId);
   } catch (error) {
+    if (isSessionChangedError(error)) throw error;
     if (__DEV__ && logger) {
       logger('Failed to get device sessions, falling back to user sessions', error);
     }

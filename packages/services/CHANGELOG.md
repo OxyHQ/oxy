@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.12.1] - 2026-10-31
+
+### Fixed
+
+- Keep superseded session operations from restoring a previous account or overwriting the current account's follow and authentication state. Genuine unauthorized responses retain their existing handling.
+
 ## [13.11.0] - 2026-10-31
 
 ### Changed

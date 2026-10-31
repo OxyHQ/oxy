@@ -228,6 +228,15 @@ const settle = async (): Promise<void> => {
 };
 
 describe('createOxyRuntime — the snapshot', () => {
+  it('clears an old loading state at sign-out while allowing a new operation to load', () => {
+    const harness = buildHarness();
+    harness.runtime.setLoading(true);
+    harness.runtime.clearSession();
+    expect(harness.runtime.getSnapshot().isLoading).toBe(false);
+    harness.runtime.setLoading(true);
+    expect(harness.runtime.getSnapshot().isLoading).toBe(true);
+    harness.dispose();
+  });
   it('starts booting, signed out, with no bearer', () => {
     const harness = buildHarness();
     const snapshot = harness.runtime.getSnapshot();

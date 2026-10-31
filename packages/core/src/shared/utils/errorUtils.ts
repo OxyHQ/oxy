@@ -50,6 +50,10 @@ export const getErrorStatus = (error: unknown): number | undefined => {
   return undefined;
 };
 
+/** A locally superseded request is not an unauthorized response from the server. */
+export const isSessionChangedError = (error: unknown): boolean =>
+  !!error && typeof error === 'object' && 'code' in error && error.code === 'AUTH_SESSION_CHANGED';
+
 /**
  * Extracts the error message from an error object.
  *
@@ -103,7 +107,7 @@ export const isAlreadyRegisteredError = (error: unknown): boolean => {
  * @returns true if the error is a 401 Unauthorized
  */
 export const isUnauthorizedError = (error: unknown): boolean => {
-  return getErrorStatus(error) === HttpStatus.UNAUTHORIZED;
+  return !isSessionChangedError(error) && getErrorStatus(error) === HttpStatus.UNAUTHORIZED;
 };
 
 /**

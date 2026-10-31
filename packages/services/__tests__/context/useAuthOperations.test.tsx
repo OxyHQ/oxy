@@ -67,6 +67,7 @@ jest.mock('../../src/ui/utils/sessionHelpers', () => ({
 }));
 
 import { useAuthOperations } from '../../src/ui/context/hooks/useAuthOperations';
+import { setIsolatedOAuthSession } from '../../src/ui/context/isolatedOAuthSession';
 import * as sessionHelpers from '../../src/ui/utils/sessionHelpers';
 
 interface FakeServices {
@@ -243,6 +244,7 @@ const setup = (opts: SetupOpts = {}) => {
 
   return {
     result,
+    runtime,
     oxyServices,
     store,
     sessionClient,
@@ -821,4 +823,70 @@ it('reports failed durable logoutAll after revocation and still clears local sta
   expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
   expect(helpers.store.clear).toHaveBeenCalledTimes(1);
   expect(sessionClient.getState().accounts).toEqual([]);
+});
+
+describe('superseded authentication operations', () => {
+  it('does not commit or alter the new session when registration is superseded', async () => {
+    let reject!: (error: unknown) => void;
+    const client = buildFakeSessionClient([]);
+    client.registerAndActivate.mockReturnValueOnce(
+      new Promise((_resolve, rej) => {
+        reject = rej;
+      }),
+    );
+    const helpers = setup({ sessionClient: client });
+    let operation!: Promise<unknown>;
+    await act(async () => {
+      operation = helpers.result.current.signIn('pubkey-1');
+      for (let i = 0; i < 10 && !reject; i++) await Promise.resolve();
+    });
+    expect(reject).toBeDefined();
+    helpers.setActiveSessionId('session-b');
+    helpers.setLoading.mockClear();
+    helpers.setError.mockClear();
+    const changed = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    await act(async () => {
+      reject(changed);
+      await expect(operation).rejects.toBe(changed);
+    });
+    expect(helpers.oxyServices.users.me).not.toHaveBeenCalled();
+    expect(helpers.setAccount).not.toHaveBeenCalled();
+    expect(helpers.setLoading).not.toHaveBeenCalled();
+    expect(helpers.setError).not.toHaveBeenCalled();
+    expect(helpers.onError).not.toHaveBeenCalled();
+  });
+
+  it('does not report an old isolated logout failure into the new session', async () => {
+    let reject!: (error: unknown) => void;
+    const helpers = setup({
+      activeSessionId: 'session-a',
+      oxyServices: {
+        session: {
+          logout: jest.fn(
+            () =>
+              new Promise((_resolve, rej) => {
+                reject = rej;
+              }),
+          ),
+        },
+      },
+    });
+    setIsolatedOAuthSession(helpers.runtime as never, {
+      sessionId: 'session-a',
+      clientId: 'client-a',
+    });
+    let operation!: ReturnType<typeof helpers.result.current.logout>;
+    act(() => {
+      operation = helpers.result.current.logout();
+    });
+    helpers.setActiveSessionId('session-b');
+    const changed = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    await act(async () => {
+      reject(changed);
+      expect(await operation).toEqual({ status: 'failed', error: changed });
+    });
+    expect(helpers.clearSessionState).not.toHaveBeenCalled();
+    expect(helpers.setError).not.toHaveBeenCalled();
+    expect(helpers.onError).not.toHaveBeenCalled();
+  });
 });

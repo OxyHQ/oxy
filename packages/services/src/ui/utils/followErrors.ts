@@ -1,3 +1,5 @@
+import { isSessionChangedError } from './sessionChangedError';
+
 /**
  * What a failed follow read or write leaves behind: a stable CODE, never text.
  *
@@ -43,6 +45,7 @@ const OFFLINE_CODES = new Set(['NETWORK_ERROR', 'CONNECTION_FAILED', 'TIMEOUT'])
  * Anything the cause does not explain falls back to the caller's `action`.
  */
 export function toFollowErrorCode(error: unknown, action: FollowActionErrorCode): FollowErrorCode {
+  if (isSessionChangedError(error)) return action;
   const { status, code } = (error && typeof error === 'object' ? error : {}) as {
     status?: unknown;
     code?: unknown;

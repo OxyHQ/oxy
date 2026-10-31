@@ -1,6 +1,7 @@
 import type { User } from '@oxy.so/core';
 import { logger as loggerUtil } from '@oxy.so/core';
 import { isUnauthorizedStatus } from './oxyContextHelpers';
+import { isSessionChangedError } from '../utils/sessionChangedError';
 
 const LOG_CONTEXT = { component: 'OxyContext', method: 'commitSession' } as const;
 
@@ -79,6 +80,7 @@ export async function commitDeviceSetAndResolve(
   };
 
   const logReconcileError = (registrationError: unknown): void => {
+    if (isSessionChangedError(registrationError)) return;
     // A 401 here is the EXPECTED signed-out edge: the bearer was stale/cleared, so
     // the device-set registration (`POST /session/device/add`) cannot carry auth.
     // This is not a failure — the cold boot re-registers on the next load once a
@@ -107,6 +109,7 @@ export async function commitDeviceSetAndResolve(
     try {
       fullUser = await getCurrentUser();
     } catch (profileError) {
+      if (isSessionChangedError(profileError)) throw profileError;
       if (__DEV__) {
         loggerUtil.debug(
           'Failed to fetch full user on commit; using minimal fallback',
@@ -137,6 +140,7 @@ export async function commitDeviceSetAndResolve(
     try {
       await reconcileDeviceSet();
     } catch (registrationError) {
+      if (isSessionChangedError(registrationError)) throw registrationError;
       logReconcileError(registrationError);
     }
     await hydrateAndResolve();

@@ -3,6 +3,7 @@
  */
 
 import { ErrorCodes, isCancelledError } from './errorUtils';
+import { isSessionChangedError } from '../shared/utils/errorUtils';
 
 /** Options for {@link retryAsync}. */
 export interface RetryOptions {
@@ -148,12 +149,7 @@ export async function retryAsync<T>(
 
       // A changed authentication context is a cancellation of this work, even
       // if the caller's custom predicate would retry ordinary 401 responses.
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === 'AUTH_SESSION_CHANGED'
-      ) {
+      if (isSessionChangedError(error)) {
         break;
       }
 

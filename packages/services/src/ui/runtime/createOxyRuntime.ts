@@ -652,6 +652,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
         facts.directory = null;
         facts.profiles = new Map();
         facts.pinnedAccountId = null;
+        facts.isLoading = false;
         touch();
       });
     },
