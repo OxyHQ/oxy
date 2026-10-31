@@ -98,6 +98,11 @@ export interface StoreUpdates {
 export interface StoreUpdatesSource {
   /** The state last told, or null before the machine has said. */
   current(): StoreUpdates | null;
+  /**
+   * The state as it is now, asked of the machine without reading the store. Rejects with a
+   * `StoreInstallerError` when the machine cannot say (its install service is not running).
+   */
+  read(): Promise<StoreUpdates>;
   /** Reads the store now. A check asked while one runs joins it. */
   check(): Promise<StoreUpdates>;
   /** Applies these updates; one that needs consent is asked in the machine's sheet first. */

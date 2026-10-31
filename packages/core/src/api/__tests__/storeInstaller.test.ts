@@ -23,6 +23,7 @@ function fakeInstaller(): StoreInstaller {
     subscribe: () => () => undefined,
     updates: {
       current: () => updates,
+      read: async () => updates,
       check: async () => updates,
       apply: async () => undefined,
       applyAll: async () => undefined,
