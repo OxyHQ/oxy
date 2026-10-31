@@ -25,6 +25,7 @@ import { getNormalizedUserHandle } from '../../../core/src/utils/userHandle';
 import { getLocalesVersion, subscribeLocales, translate } from '../../../core/src/i18n';
 import { selectCommonsDelivery } from '../../../core/src/utils/commonsDelivery';
 import { createWebAuthStateStore } from '../../../core/src/session/authStateStore';
+import { deviceComparisonCode } from '../../../core/src/session/deviceComparisonCode';
 
 mock.module('@oxy.so/core', () => ({
   getNormalizedUserHandle,
@@ -42,4 +43,6 @@ mock.module('@oxy.so/core/session', () => ({
   // The bridge page's credential store — the SAME one this origin's provider
   // uses (`src/bridge.ts`, ADR 0029 D2).
   createWebAuthStateStore,
+  // The short code the device page prints for the person to compare.
+  deviceComparisonCode,
 }));

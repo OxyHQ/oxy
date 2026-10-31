@@ -1,5 +1,18 @@
 # Changelog — `@oxy.so/core`
 
+## 7.9.0
+
+### Added
+
+- **`deviceComparisonCode(authorizeCode)`** in `@oxy.so/core/session`: the short
+  code a person compares between a device with no keyboard and the phone that
+  approves it, `CE7F-B31F` (the first eight characters of the authorize code,
+  upper case, in two groups). The full code still travels in the QR and is the
+  only thing that approves; the server draws it at random, so a look-alike
+  request would take about four billion rate-limited attempts, while thirty-two
+  characters were too many for anyone to compare. `OxyDeviceSignIn`, the
+  `auth.oxy.so/device` page and `codea login` all print it from here.
+
 ## 7.8.1
 
 ### Removed
