@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  deviceContextTokenV1RequestSchema,
   inferenceContentPartSchema,
   inferenceInputSchema,
   oxyAccountIdSchema,
@@ -8,6 +9,30 @@ import {
 } from '@oxy.so/contracts';
 import { chatCompletionsRequestSchema } from '../schemas/inferenceEdge.schemas';
 import { zodToOpenApi } from '../../scripts/generate-openapi';
+
+describe('zodToOpenApi: strict object properties', () => {
+  it('describes the actual holder request as rejecting unrecognized fields', () => {
+    const converted = zodToOpenApi(deviceContextTokenV1RequestSchema);
+    expect(converted.additionalProperties).toBe(false);
+    expect(converted.required).toEqual(['deviceId', 'deviceSecret']);
+  });
+
+  it('only closes strict objects, including nested objects, not strip, passthrough or catchall', () => {
+    const converted = zodToOpenApi(
+      z.object({
+        strict: z.strictObject({ value: z.string() }),
+        strip: z.object({ value: z.string() }),
+        passthrough: z.looseObject({ value: z.string() }),
+        catchall: z.object({ value: z.string() }).catchall(z.number()),
+      }),
+    );
+    const fields = converted.properties as Record<string, Record<string, unknown>>;
+    expect(fields.strict.additionalProperties).toBe(false);
+    expect(fields.strip).not.toHaveProperty('additionalProperties');
+    expect(fields.passthrough).not.toHaveProperty('additionalProperties');
+    expect(fields.catchall).not.toHaveProperty('additionalProperties');
+  });
+});
 
 /**
  * `zodToOpenApi` decides what the PUBLISHED contract says every request body and
@@ -122,6 +147,7 @@ describe('zodToOpenApi: discriminated unions', () => {
       type: 'object',
       properties: { a: { type: 'string' }, b: { type: 'number' } },
       required: ['a'],
+      additionalProperties: false,
     });
   });
 });

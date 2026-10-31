@@ -29,6 +29,11 @@ import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { isAuthWebOrigin, isBrowserClient, normaliseOrigin } from '../utils/origin';
 import { hashedIpKey } from '../utils/ipKey';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  deviceContextTokenV1EnvelopeSchema,
+  deviceContextTokenV1ErrorSchema,
+} from '../schemas/deviceContextToken.schemas';
 
 const router = Router();
 
@@ -199,6 +204,13 @@ router.post(
  * Opt-in account-mode mint with the active context bound to the bearer.
  * Identity-pinned clients keep using `/token` with their explicit accountId.
  * Directory/permission data is not frozen by this response.
+ *
+ * @requestBody deviceContextTokenV1RequestSchema
+ * @response 200 deviceContextTokenV1EnvelopeSchema Holder-proven active context and bearer.
+ * @response 400 deviceContextTokenV1ErrorSchema Invalid request body.
+ * @response 401 deviceContextTokenV1ErrorSchema Invalid device secret.
+ * @response 409 deviceContextTokenV1ErrorSchema Active context binding unavailable.
+ * @response 429 Error Rate limited; Retry-After may be present.
  */
 router.post(
   '/context-token-v1',
