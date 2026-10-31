@@ -6,9 +6,26 @@
  * the specification and the list of bugs it settles.
  */
 
-import { offsetForPage, resolvePageLimit, resolvePageNumber, resolvePageOffset } from '../paging';
+import {
+  nextUnvisitedCursor,
+  offsetForPage,
+  resolvePageLimit,
+  resolvePageNumber,
+  resolvePageOffset,
+} from '../paging';
 
 const BOUNDS = { fallback: 20, max: 50 };
+
+describe('nextUnvisitedCursor', () => {
+  it('continues with an unseen cursor and stops for absent or repeated cursors', () => {
+    expect(nextUnvisitedCursor('b', [undefined, 'a'])).toBe('b');
+    expect(nextUnvisitedCursor('a', [undefined, 'a'])).toBeUndefined();
+    expect(nextUnvisitedCursor('a', [null, 'a', 'b'])).toBeUndefined();
+    expect(nextUnvisitedCursor(null, [null])).toBeUndefined();
+    expect(nextUnvisitedCursor(undefined, [])).toBeUndefined();
+    expect(nextUnvisitedCursor('', [])).toBeUndefined();
+  });
+});
 
 describe('resolvePageLimit', () => {
   it('honours a value inside the bounds', () => {
