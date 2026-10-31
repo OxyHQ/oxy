@@ -880,6 +880,14 @@ export class SessionClient {
     const known = this.knownRevisionFor(activation.directory.deviceId);
     if (known !== null && activation.directory.revision < known)
       throw new Error('Device session request was superseded');
+    const held = this.directory;
+    if (
+      this.pinnedAccountId() === null &&
+      held?.deviceId === activation.directory.deviceId &&
+      held.revision === activation.directory.revision &&
+      held.activeContextId !== activation.directory.activeContextId
+    )
+      throw new Error('Device session request was superseded');
     const moved = known === null || activation.directory.revision > known;
     this.plantActiveContextToken(activation.directory, activation.activeToken?.accessToken);
     // Applied BEFORE the reconcile, and only then: the reconcile's own
@@ -902,6 +910,13 @@ export class SessionClient {
       )
         throw new Error('Device session request was superseded');
     }
+    if (
+      this.pinnedAccountId() === null &&
+      (this.knownRevisionFor(activation.directory.deviceId) !== activation.directory.revision ||
+        this.directory?.deviceId !== activation.directory.deviceId ||
+        this.directory.activeContextId !== contextId)
+    )
+      throw new Error('Device session request was superseded');
     if (applied) {
       this.notify();
     }

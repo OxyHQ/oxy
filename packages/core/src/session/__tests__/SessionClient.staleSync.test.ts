@@ -351,6 +351,43 @@ describe('SessionClient bootstrap token ownership', () => {
     expect(client.getState()?.deviceId).toBe('d2');
   });
 
+  it('rejects an activation overtaken on the same device while reconciliation waits', async () => {
+    const oldState = deferred<unknown>();
+    const oldReadStarted = deferred<void>();
+    let stateReads = 0;
+    const request = jest.fn(async (_method: string, url: string, body?: { contextId?: string }) => {
+      if (url === '/session/device/activate') {
+        const actor = body?.contextId === 'ctx-nate' ? 'nate' : 'alice';
+        return {
+          directory: contextDirectory(actor, actor === 'nate' ? 2 : 3),
+          activeToken: {
+            accessToken: actorToken(actor, `ctx-${actor}`),
+            expiresAt: '2030-01-01T00:00:00Z',
+          },
+        };
+      }
+      if (url === '/session/device/state') {
+        if (stateReads++ === 0) {
+          oldReadStarted.resolve();
+          return oldState.promise;
+        }
+        return sync('d1', 3, actorToken('alice', 'ctx-alice'));
+      }
+      throw new Error(`Unexpected path ${url}`);
+    });
+    const { client, token } = clientWith(request);
+    client.adoptState(state('d1', 1));
+    const old = client.activateContext('ctx-nate');
+    const failure = expect(old).rejects.toThrow('Device session request was superseded');
+    await oldReadStarted.promise;
+    await client.activateContext('ctx-alice');
+    oldState.resolve(sync('d1', 2, actorToken('nate', 'ctx-nate')));
+    await failure;
+    expect(client.getState()?.revision).toBe(3);
+    expect(client.getActiveContext()?.contextId).toBe('ctx-alice');
+    expect(token()).toBe(actorToken('alice', 'ctx-alice'));
+  });
+
   it('rejects a stale activation for the same account after a newer revision', async () => {
     const delayed = deferred<unknown>();
     const { client, token } = clientWith(jest.fn().mockReturnValue(delayed.promise));
@@ -410,6 +447,32 @@ describe('SessionClient bootstrap token ownership', () => {
     );
     expect(token()).toBe('nate');
     expect(client.getDirectory()).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('rejects equal-revision directories that name different active contexts', async () => {
+    const request = jest.fn(async (_method: string, url: string) => {
+      if (url === '/session/device/directory') return contextDirectory('alice');
+      if (url === '/session/device/activate')
+        return {
+          directory: contextDirectory('nate'),
+          activeToken: {
+            accessToken: actorToken('nate', 'ctx-nate'),
+            expiresAt: '2030-01-01T00:00:00Z',
+          },
+        };
+      throw new Error(`Unexpected path ${url}`);
+    });
+    const { client, token } = clientWith(request);
+    client.adoptState(state('d1', 2));
+    await client.refreshDirectory();
+    const listener = jest.fn();
+    client.subscribe(listener);
+    await expect(client.activateContext('ctx-nate')).rejects.toThrow(
+      'Device session request was superseded',
+    );
+    expect(client.getActiveContext()?.contextId).toBe('ctx-alice');
+    expect(token()).toBe('nate');
     expect(listener).not.toHaveBeenCalled();
   });
 
