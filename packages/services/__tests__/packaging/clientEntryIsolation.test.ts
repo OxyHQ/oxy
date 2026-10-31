@@ -69,6 +69,28 @@ function reach(entry: string): { files: Set<string>; packages: Set<string> } {
 
 const reached = reach(ENTRY);
 
+describe('runtime entry isolation', () => {
+  const runtimeEntry = join(SRC, 'runtime.ts');
+  const runtime = reach(runtimeEntry);
+
+  it('reaches the provider runtime context without screens or optional packages', () => {
+    expect(runtime.files.has(join(SRC, 'ui/runtime/runtimeContext.tsx'))).toBe(true);
+    expect([...runtime.files].map((file) => relative(SRC, file)).sort()).toEqual([
+      'runtime.ts',
+      'ui/runtime/runtimeContext.tsx',
+      'ui/runtime/useRuntimeSnapshot.ts',
+    ]);
+    expect([...runtime.packages]).toEqual(['react']);
+  });
+
+  it('shares the exact runtime hook and missing-provider error with the existing entry', () => {
+    const light = require('../../src/runtime');
+    const providerRuntime = require('../../src/ui/runtime/runtimeContext');
+    expect(light.useOxyRuntime).toBe(providerRuntime.useOxyRuntime);
+    expect(light.OxyRuntimeMissingError).toBe(providerRuntime.OxyRuntimeMissingError);
+  });
+});
+
 describe('ui/client entry isolation', () => {
   it('walked a plausible graph', () => {
     // A broken walk must not read as "nothing forbidden".

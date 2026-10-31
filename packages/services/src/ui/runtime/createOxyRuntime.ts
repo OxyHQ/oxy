@@ -104,6 +104,26 @@ export interface OxyRuntime {
   getSnapshot(): OxyRuntimeSnapshot;
   subscribe(listener: () => void): () => void;
 
+  /**
+   * Per-instance revision of the projected account id and active session id.
+   * It advances on each change, including within a batch and without listeners.
+   * It does not track actor changes for the same account and session, validate
+   * the bearer session, or authorize requests.
+   */
+  getAccountSessionRevision(): number;
+
+  /**
+   * The live account id, active session id and revision in one synchronous read. During a batch
+   * this can differ from the last published snapshot. It is not a bearer or
+   * authorization check. The returned object is new on each call; select a
+   * primitive rather than using it directly as a useSyncExternalStore snapshot.
+   */
+  getAccountSessionIdentity(): {
+    accountId: string | null;
+    sessionId: string | null;
+    revision: number;
+  };
+
   /** Begin projecting `SessionClient` transitions. Returns the disposer. */
   start(): () => void;
 
@@ -287,6 +307,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
    * state, at the same revision, that the projection was started for.
    */
   let sessionGeneration = 0;
+  let accountSessionRevision = 0;
 
   function buildSnapshot(): OxyRuntimeSnapshot {
     const activeContext = resolveActiveContext(facts.directory);
@@ -379,6 +400,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     if (facts.activeSessionId === sessionId) {
       return;
     }
+    accountSessionRevision += 1;
     facts.activeSessionId = sessionId;
     touch();
   }
@@ -393,6 +415,7 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
       if (facts.account === null) {
         return;
       }
+      accountSessionRevision += 1;
       facts.account = null;
       touch();
       return;
@@ -400,7 +423,9 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     if (facts.account === user) {
       return;
     }
-    facts.account = normalizeUserIdentity(user);
+    const next = normalizeUserIdentity(user);
+    if (facts.account?.id !== next.id) accountSessionRevision += 1;
+    facts.account = next;
     touch();
   }
 
@@ -494,6 +519,12 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
 
   return {
     getSnapshot: () => snapshot,
+    getAccountSessionRevision: () => accountSessionRevision,
+    getAccountSessionIdentity: () => ({
+      accountId: facts.account?.id ?? null,
+      sessionId: facts.activeSessionId,
+      revision: accountSessionRevision,
+    }),
 
     subscribe(listener) {
       listeners.add(listener);

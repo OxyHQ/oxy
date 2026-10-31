@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.15.0] - 2026-10-31
+
+### Added
+
+- `@oxy.so/services/runtime` exposes the provider's instance-bound runtime hook without loading account screens. Its revision changes synchronously for each projected account-id or active-session-id change, including within a batch. `getAccountSessionIdentity()` reads the live ids and revision together, which can differ from the published snapshot during a batch. Neither tracks actor changes for the same account and session, validates the bearer session, guards an uncommitted switch intent, or authorizes requests.
+
 ## [13.14.1] - 2026-10-31
 
 ### Fixed

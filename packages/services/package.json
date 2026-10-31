@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "13.14.1",
+  "version": "13.15.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -46,6 +46,18 @@
         "default": "./lib/commonjs/ui/client.js"
       },
       "default": "./lib/module/ui/client.js"
+    },
+    "./runtime": {
+      "react-native": "./src/runtime.ts",
+      "import": {
+        "types": "./lib/typescript/module/runtime.d.ts",
+        "default": "./lib/module/runtime.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/runtime.d.ts",
+        "default": "./lib/commonjs/runtime.js"
+      },
+      "default": "./lib/module/runtime.js"
     },
     "./organization-draft": {
       "react-native": "./src/ui/utils/organizationDraft.ts",
