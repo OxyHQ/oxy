@@ -1,19 +1,17 @@
+import type { ReactNode } from 'react';
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { Badge } from '@oxy.so/bloom/badge';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
-import { Slot, usePathname, useRouter } from 'expo-router';
+import { useIsFocused, usePathname, useRouter } from 'expo-router';
 
 import { CLARITY_SECTIONS } from '@/components/clarity/sections';
 import { useTranslation } from '@/lib/i18n';
 
-/**
- * Clarity is a routed tab cluster, like Mention's Explore: each tool is its own URL under
- * `/clarity`, the active tab is derived from the pathname, and this layout owns the
- * header, the tab bar and the scroll.
- */
-export default function ClarityLayout() {
+/** Shared route chrome; each leaf owns its viewport and restoration identity. */
+export function ClarityScreen({ children }: { children: ReactNode }) {
+  const focused = useIsFocused();
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
@@ -27,6 +25,7 @@ export default function ClarityLayout() {
   return (
     <Screen
       scroll="auto"
+      active={focused}
       header={
         <PageHeader
           title={t('clarityPage.title')}
@@ -57,9 +56,7 @@ export default function ClarityLayout() {
         />
       }
     >
-      <ScreenScrollView contentContainerClassName="p-4 md:p-6">
-        <Slot />
-      </ScreenScrollView>
+      <ScreenScrollView contentContainerClassName="p-4 md:p-6">{children}</ScreenScrollView>
     </Screen>
   );
 }

@@ -7,14 +7,13 @@ import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { ImageResolverProvider, type ImageResolver } from '@oxy.so/bloom/image-resolver';
 import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { BloomProvider } from '@oxy.so/bloom/provider';
+import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { OxyProvider, RequireOxyAuth } from '@oxy.so/services/ui';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { QueryClient } from '@tanstack/react-query';
 import { Slot } from 'expo-router';
 import Head from 'expo-router/head';
 import { type ReactNode, useCallback } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { AccountProvider } from '@/hooks/use-account';
 import config from '@/lib/config';
@@ -37,34 +36,30 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <BloomProvider mode="system" colorPreset="oxy">
-          <BloomScope size="md">
-            <KeyboardProvider>
-              <PortalProvider>
-                <ConnectionStatusToasts />
-                {/* OxyProvider owns the one QueryClientProvider: handing it the app's client
+      <BloomProvider mode="system" colorPreset="oxy" scrollAdapter={expoRouterScrollAdapter}>
+        <BloomScope size="md">
+          <PortalProvider>
+            <ConnectionStatusToasts />
+            {/* OxyProvider owns gesture, safe-area, keyboard and QueryClient providers: handing it the app's client
                     makes the SDK's account hooks and Console's hooks share one cache. */}
-                <OxyProvider
-                  baseURL={config.oxyUrl}
-                  clientId={config.clientId}
-                  authRedirectUri={config.authRedirectUri}
-                  queryClient={queryClient}
-                >
-                  <ConsoleMedia>
-                    <LocaleProvider>
-                      <AccountProvider>
-                        <GatedApp />
-                      </AccountProvider>
-                    </LocaleProvider>
-                  </ConsoleMedia>
-                </OxyProvider>
-                <PortalOutlet />
-              </PortalProvider>
-            </KeyboardProvider>
-          </BloomScope>
-        </BloomProvider>
-      </GestureHandlerRootView>
+            <OxyProvider
+              baseURL={config.oxyUrl}
+              clientId={config.clientId}
+              authRedirectUri={config.authRedirectUri}
+              queryClient={queryClient}
+            >
+              <ConsoleMedia>
+                <LocaleProvider>
+                  <AccountProvider>
+                    <GatedApp />
+                  </AccountProvider>
+                </LocaleProvider>
+              </ConsoleMedia>
+            </OxyProvider>
+            <PortalOutlet />
+          </PortalProvider>
+        </BloomScope>
+      </BloomProvider>
     </ErrorBoundary>
   );
 }
