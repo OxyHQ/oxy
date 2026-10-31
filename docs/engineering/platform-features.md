@@ -371,3 +371,12 @@ because this operation intentionally inventories all eligible accounts. Tests
 cover existing/remote/archived/human exclusions, canonical seeds, idempotence,
 concurrent character choice, lazy Redis readiness, command draining and failed
 Redis before writes. Applying is an operational step, not a migration side effect.
+
+For a reviewed one-shot before deployment, run
+`node packages/api/scripts/prepare-local-bot-character-backfill.mjs --out=.local/avatar-backfill`.
+It transpiles only that script, emits a SHA-checked gzip payload and an ECS command
+array that imports the deployed image's existing `dist` dependencies. It performs
+no service call, writes no container file and duplicates no repair logic. The
+command budget is 6 KB, reserving 2 KB of ECS's 8 KB overrides limit. The same
+generator accepts `--apply --expected-hash=<reviewed-inventory-hash>`; task launch
+and inventory review remain separate operational actions.
