@@ -149,6 +149,8 @@ export class SessionClient {
   private tokenUnsub: (() => void) | null = null;
   private started = false;
   private lifecycleGeneration = 0;
+  /** Changes whenever the locally projected device changes, including ABA. */
+  private deviceGeneration = 0;
   private fullSignOutPersistence: { state: DeviceSessionState; pending: Promise<void> } | null =
     null;
   /** Same-origin cross-tab state-propagation channel; null on platforms without BroadcastChannel. */
@@ -186,6 +188,36 @@ export class SessionClient {
     if (generation !== this.lifecycleGeneration)
       throw new Error('Device session request was superseded');
     return response;
+  }
+
+  /** Capture the local device before a request, including device ABA. */
+  private captureDeviceRequest(): { generation: number; initialDevice: string | null } {
+    return { generation: this.deviceGeneration, initialDevice: this.state?.deviceId ?? null };
+  }
+
+  private isCurrentDeviceRequest(
+    request: { generation: number; initialDevice: string | null },
+    response: unknown,
+  ): boolean {
+    if (request.generation === this.deviceGeneration) return true;
+    if (request.initialDevice !== null || this.deviceGeneration !== request.generation + 1)
+      return false;
+    if (response === null || typeof response !== 'object') return false;
+    const record = response as {
+      deviceId?: unknown;
+      state?: { deviceId?: unknown };
+      directory?: { deviceId?: unknown };
+    };
+    const deviceId = record.state?.deviceId ?? record.directory?.deviceId ?? record.deviceId;
+    return typeof deviceId === 'string' && deviceId === this.state?.deviceId;
+  }
+
+  private assertCurrentDeviceRequest(
+    request: { generation: number; initialDevice: string | null },
+    response: unknown,
+  ): void {
+    if (!this.isCurrentDeviceRequest(request, response))
+      throw new Error('Device session request was superseded');
   }
 
   /** Stop and discard only this client's local device projection; no server revocation. */
@@ -351,6 +383,7 @@ export class SessionClient {
       return false;
     }
     const previousState = this.state;
+    if (previousState?.deviceId !== next.deviceId) this.deviceGeneration += 1;
     this.state = next;
     if (next.accounts.length === 0) {
       // A device with nobody signed in has no principals either. The directory
@@ -465,7 +498,7 @@ export class SessionClient {
         .ensureActiveToken(next)
         .then(finishApply)
         .catch((error) => {
-          if (generation !== this.lifecycleGeneration) return;
+          if (generation !== this.lifecycleGeneration || this.state !== next) return;
           logger.warn(
             '[SessionClient] ensureActiveToken failed — reverting session state',
             { component: 'SessionClient' },
@@ -473,6 +506,7 @@ export class SessionClient {
           );
           // Do NOT notify under a mismatched bearer. Revert to the last applied
           // state so subscribers keep observing the account whose token is planted.
+          if (this.state?.deviceId !== previousState?.deviceId) this.deviceGeneration += 1;
           this.state = previousState ?? null;
         });
     } else {
@@ -527,6 +561,25 @@ export class SessionClient {
       await this.fullSignOutPersistence.pending;
   }
 
+  /** Keep mutation callers from reporting success after a device change during persistence. */
+  private async applySyncForMutation(raw: unknown): Promise<void> {
+    const before = this.captureDeviceRequest();
+    const lifecycle = this.lifecycleGeneration;
+    const checked = deviceSessionSyncCheck(raw, []);
+    const responseDevice = checked.ok ? checked.value.state.deviceId : before.initialDevice;
+    const expectedGeneration =
+      before.generation + (responseDevice === before.initialDevice ? 0 : 1);
+    const pending = this.applySync(raw);
+    const generation = this.deviceGeneration;
+    await pending;
+    if (
+      generation !== expectedGeneration ||
+      generation !== this.deviceGeneration ||
+      lifecycle !== this.lifecycleGeneration
+    )
+      throw new Error('Device session request was superseded');
+  }
+
   /**
    * The apply + token-plant half of {@link applySync}, on an ALREADY-VALIDATED
    * sync. Split out so the context-aware removal lane — whose response is a
@@ -546,15 +599,16 @@ export class SessionClient {
     const applied = this.applyState(sync.state, 'request', sync.activeToken?.accessToken);
     // Equal-revision restate (this revision was already applied by a preceding
     // socket push): `applyState` no-ops without planting, but the token still
-    // needs planting. Guard on the sync's active account STILL being the current
-    // active account so a stale response cannot adopt a token for an account a
-    // newer state already switched away from — and, when pinned, on that account
-    // being the PINNED one (same rule as the applied path in `applyState`).
+    // needs planting. Only the exact same device revision is an equal-revision
+    // restate: an older response may identify a different operator of the same
+    // account. Also require the current account and the identity pin to match.
     const pinnedAccountId = this.pinnedAccountId();
     if (
       !applied &&
       sync.activeToken &&
       this.state &&
+      sync.state.deviceId === this.state.deviceId &&
+      sync.state.revision === this.state.revision &&
       sync.state.activeAccountId !== null &&
       sync.state.activeAccountId === this.state.activeAccountId &&
       (pinnedAccountId === null || sync.state.activeAccountId === pinnedAccountId) &&
@@ -609,9 +663,11 @@ export class SessionClient {
 
   /** `GET /session/device/directory` → {@link applyDirectory}. No notify. */
   private async fetchDirectory(): Promise<boolean> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('GET', '/session/device/directory', undefined, {
       cache: false,
     });
+    if (!this.isCurrentDeviceRequest(request, res)) return false;
     return this.applyDirectory(res);
   }
 
@@ -684,14 +740,12 @@ export class SessionClient {
     if (!accessToken) {
       return;
     }
+    const pinnedAccountId = this.pinnedAccountId();
     const subjectAccountId = resolveActiveContext(directory)?.subject.accountId ?? null;
     if (subjectAccountId === null) {
       return;
     }
-    const pinnedAccountId = this.pinnedAccountId();
-    if (pinnedAccountId !== null && subjectAccountId !== pinnedAccountId) {
-      return;
-    }
+    if (pinnedAccountId !== null && subjectAccountId !== pinnedAccountId) return;
     if (accessToken === this.host.getAccessToken()) {
       return;
     }
@@ -738,9 +792,11 @@ export class SessionClient {
   }
 
   async bootstrap(): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, {
       cache: false,
     });
+    if (!this.isCurrentDeviceRequest(request, res)) return;
     await this.applySync(res);
   }
 
@@ -787,18 +843,51 @@ export class SessionClient {
    * compatibility path for callers still keyed on account ids.
    */
   async activateContext(contextId: string): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>(
       'POST',
       '/session/device/activate',
       { contextId },
       { cache: false },
     );
+    this.assertCurrentDeviceRequest(request, res);
     const activation = checkContract(deviceActivateResponseCheck, res);
     if (!activation) {
       logger.warn('[SessionClient] discarded invalid activation response');
       return;
     }
+    if (this.pinnedAccountId() === null) {
+      const active = resolveActiveContext(activation.directory);
+      if (!active || activation.directory.activeContextId !== contextId)
+        throw new Error('Device session request was superseded');
+      const claims = activation.activeToken?.accessToken
+        ? decodeTokenClaims(activation.activeToken.accessToken)
+        : null;
+      const contextClaim = claims?.device_context_id;
+      const actor = claims?.act;
+      const actorClaim =
+        actor !== null && typeof actor === 'object' ? (actor as { sub?: unknown }).sub : undefined;
+      const subjectClaim = claims?.userId ?? claims?.id ?? claims?.sub;
+      // Decoded claims are only a consistency check, never authorization.
+      // Legacy and opaque bearers may omit these claims entirely.
+      if (
+        (typeof contextClaim === 'string' && contextClaim !== active.contextId) ||
+        (typeof actorClaim === 'string' && actorClaim !== active.actor.userId) ||
+        (typeof subjectClaim === 'string' && subjectClaim !== active.subject.accountId)
+      )
+        throw new Error('Device session request was superseded');
+    }
     const known = this.knownRevisionFor(activation.directory.deviceId);
+    if (known !== null && activation.directory.revision < known)
+      throw new Error('Device session request was superseded');
+    const held = this.directory;
+    if (
+      this.pinnedAccountId() === null &&
+      held?.deviceId === activation.directory.deviceId &&
+      held.revision === activation.directory.revision &&
+      held.activeContextId !== activation.directory.activeContextId
+    )
+      throw new Error('Device session request was superseded');
     const moved = known === null || activation.directory.revision > known;
     this.plantActiveContextToken(activation.directory, activation.activeToken?.accessToken);
     // Applied BEFORE the reconcile, and only then: the reconcile's own
@@ -808,8 +897,26 @@ export class SessionClient {
     // already holding in hand.
     const applied = this.applyDirectory(activation.directory);
     if (moved) {
+      const beforeReconcile = this.captureDeviceRequest();
+      const lifecycle = this.lifecycleGeneration;
       await this.reconcileFlatState(activation.directory);
+      const landedOnTarget =
+        beforeReconcile.initialDevice !== activation.directory.deviceId &&
+        this.deviceGeneration === beforeReconcile.generation + 1 &&
+        this.state?.deviceId === activation.directory.deviceId;
+      if (
+        lifecycle !== this.lifecycleGeneration ||
+        (this.deviceGeneration !== beforeReconcile.generation && !landedOnTarget)
+      )
+        throw new Error('Device session request was superseded');
     }
+    if (
+      this.pinnedAccountId() === null &&
+      (this.knownRevisionFor(activation.directory.deviceId) !== activation.directory.revision ||
+        this.directory?.deviceId !== activation.directory.deviceId ||
+        this.directory.activeContextId !== contextId)
+    )
+      throw new Error('Device session request was superseded');
     if (applied) {
       this.notify();
     }
@@ -819,13 +926,22 @@ export class SessionClient {
   }
 
   async switchAccount(accountId: string): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>(
       'POST',
       '/session/device/switch',
       { accountId },
       { cache: false },
     );
-    await this.applySync(res);
+    this.assertCurrentDeviceRequest(request, res);
+    const checked = deviceSessionSyncCheck(res, []);
+    const isStale = () =>
+      checked.ok &&
+      this.state?.deviceId === checked.value.state.deviceId &&
+      this.state.revision > checked.value.state.revision;
+    if (isStale()) throw new Error('Device session request was superseded');
+    await this.applySyncForMutation(res);
+    if (isStale()) throw new Error('Device session request was superseded');
     this.postCommitPing();
   }
 
@@ -841,10 +957,12 @@ export class SessionClient {
    * {@link signOutPrincipal} for the two that can tell those apart.
    */
   async signOut(target: { accountId: string } | { all: true }): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
       cache: false,
     });
-    await this.applySync(res);
+    this.assertCurrentDeviceRequest(request, res);
+    await this.applySyncForMutation(res);
     this.postCommitPing();
     if (this.state?.accounts.length === 0) await this.persistFullSignOut();
   }
@@ -890,21 +1008,37 @@ export class SessionClient {
   private async removeFromDevice(
     target: { contextId: string } | { principalId: string },
   ): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
       cache: false,
     });
+    this.assertCurrentDeviceRequest(request, res);
     const removal = checkContract(deviceDirectorySyncCheck, res);
     if (!removal) {
       logger.warn('[SessionClient] discarded invalid device removal response');
       return;
     }
     const directoryApplied = this.applyDirectory(removal.directory);
+    const beforeCommit = this.captureDeviceRequest();
+    const commitLifecycle = this.lifecycleGeneration;
+    const expectedGeneration =
+      beforeCommit.generation + (beforeCommit.initialDevice === removal.state.deviceId ? 0 : 1);
     const stateApplied = this.commitSync({
       state: removal.state,
       activeToken: removal.activeToken,
     });
-    if (this.fullSignOutPersistence?.state === this.state)
+    if (
+      expectedGeneration !== this.deviceGeneration ||
+      commitLifecycle !== this.lifecycleGeneration
+    )
+      throw new Error('Device session request was superseded');
+    if (this.fullSignOutPersistence?.state === this.state) {
+      const generation = this.deviceGeneration;
+      const lifecycle = this.lifecycleGeneration;
       await this.fullSignOutPersistence.pending;
+      if (generation !== this.deviceGeneration || lifecycle !== this.lifecycleGeneration)
+        throw new Error('Device session request was superseded');
+    }
     // `commitSync` publishes whenever the flat state moved. When only the
     // directory did — a socket push already applied this revision — the
     // directory half would otherwise never reach a subscriber.
@@ -916,10 +1050,12 @@ export class SessionClient {
   }
 
   async addCurrentAccount(): Promise<void> {
+    const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/add', undefined, {
       cache: false,
     });
-    await this.applySync(res);
+    this.assertCurrentDeviceRequest(request, res);
+    await this.applySyncForMutation(res);
     this.postCommitPing();
   }
 

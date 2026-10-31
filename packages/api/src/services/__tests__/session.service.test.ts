@@ -58,6 +58,8 @@ import { validateAccessToken } from '../../utils/sessionUtils';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import deviceSessionService from '../deviceSession.service';
 import sessionService, { MINT_ROTATES_WITHIN_SECONDS } from '../session.service';
+import { OxyServices } from '@oxy.so/core';
+import { SessionClient, createSessionClientHost } from '@oxy.so/core/session';
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000;
 
@@ -933,6 +935,92 @@ describe('access token v2 binding', () => {
     const claims = validateAccessToken(minted?.accessToken ?? '').payload;
     expect(typeof claims?.device_context_id).toBe('string');
     expect(typeof claims?.device_session_id).toBe('string');
+  });
+  it('keeps the newly adopted device when a previous bootstrap completes after session migration', async () => {
+    const user = await account();
+    const key = `audit-${randomUUID()}`;
+    const initial = await sessionService.createSession(user, request(), { stableDeviceKey: key });
+    await deviceSessionService.addAccount(initial.deviceId, {
+      accountId: user,
+      sessionId: initial.sessionId,
+    });
+    expect(
+      await deviceSessionService.bindSessionToContext(initial.deviceId, initial.sessionId),
+    ).toBe(true);
+    const first = await sessionService.getAccessToken(initial.sessionId);
+    if (!first) throw new Error('Expected an initial session token');
+    const firstClaims = validateAccessToken(first.accessToken).payload;
+    expect(typeof firstClaims?.device_context_id).toBe('string');
+    const firstState = await deviceSessionService.getState(initial.deviceId);
+    const oxy = new OxyServices({ baseURL: 'https://oxy.example' });
+    oxy.session.setAccessToken(first.accessToken);
+    const client = new SessionClient(createSessionClientHost(oxy));
+    client.adoptState(firstState);
+    const epoch = oxy.http.getSessionEpoch();
+    const originalFetch = globalThis.fetch;
+    let release!: (response: Response) => void;
+    let started!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    globalThis.fetch = jest.fn(async () => {
+      started();
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    }) as typeof fetch;
+    try {
+      const old = client.bootstrap();
+      await requestStarted;
+      const nextDevice = deviceId();
+      const migrated = await sessionService.createSession(user, request(), {
+        stableDeviceKey: key,
+        deviceId: nextDevice,
+      });
+      expect(migrated.sessionId).toBe(initial.sessionId);
+      await deviceSessionService.addAccount(nextDevice, {
+        accountId: user,
+        sessionId: initial.sessionId,
+      });
+      expect(await deviceSessionService.bindSessionToContext(nextDevice, initial.sessionId)).toBe(
+        true,
+      );
+      const next = await sessionService.getAccessToken(initial.sessionId);
+      if (!next) throw new Error('Expected a migrated session token');
+      const nextClaims = validateAccessToken(next.accessToken).payload;
+      expect(nextClaims?.sessionId).toBe(firstClaims?.sessionId);
+      expect(nextClaims?.userId).toBe(firstClaims?.userId);
+      expect(nextClaims?.act).toEqual(firstClaims?.act);
+      expect(typeof nextClaims?.device_context_id).toBe('string');
+      expect(nextClaims?.device_context_id).not.toBe(firstClaims?.device_context_id);
+      const nextState = await deviceSessionService.getState(nextDevice);
+      oxy.session.setAccessToken(next.accessToken);
+      client.adoptState(nextState);
+      expect(oxy.http.getSessionEpoch()).toBe(epoch);
+      release(
+        new Response(
+          JSON.stringify({
+            data: {
+              state: firstState,
+              activeToken: {
+                accessToken: first.accessToken,
+                expiresAt: first.expiresAt.toISOString(),
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+      await old;
+      expect(client.getState()?.deviceId).toBe(nextDevice);
+      expect(oxy.session.accessToken === next.accessToken).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      oxy.dispose();
+    }
   });
 });
 

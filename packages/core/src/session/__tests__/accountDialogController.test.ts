@@ -1972,6 +1972,20 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
     expect(controller.getSnapshot().activatingContextId).toBeNull();
   });
 
+  it('does not report a superseded activation as a successful switch', async () => {
+    const { controller, oxy, sc } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+    jest
+      .spyOn(sc, 'activateContext')
+      .mockRejectedValue(Object.assign(new Error('context_superseded'), { status: 409 }));
+
+    expect(await controller.chooseContext('ctx-alice-org')).toBe('failed');
+    expect(controller.getSnapshot().error).toBe('context_superseded');
+    expect(controller.getSnapshot().activatingContextId).toBeNull();
+  });
+
   it('keeps the directory it already holds when a later read fails, and says so', async () => {
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     const { controller, failDirectory } = makeHarness();
