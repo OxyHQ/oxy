@@ -21,10 +21,9 @@ import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
-import jwt from 'jsonwebtoken';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
@@ -38,6 +37,7 @@ jest.mock('../../utils/logger', () => ({
 import { deviceDirectorySchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { applications } from '../../db/schema/applications';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
 import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
@@ -1089,6 +1089,7 @@ describe('removal — one context and one principal are different operations', (
       sub: shared.org,
       sid: shared.aliceOrgSession,
     });
+    expect(minted?.expiresAt).toBe(new Date((claims.payload?.exp ?? 0) * 1000).toISOString());
     expect(await deviceSessionService.resolveHolderContextToken(shared.device, 'wrong')).toBeNull();
   });
 
@@ -1245,6 +1246,31 @@ describe('removal — one context and one principal are different operations', (
     }
   });
 
+  it('holder context token bounds its expiry by the current session expiry', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const shortExpiry = new Date(Date.now() + 60_000);
+      await getDb()
+        .update(sessions)
+        .set({ expiresAt: shortExpiry })
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      barrier.release();
+      const minted = await pending;
+      expect(minted?.expiresAt).toBe(shortExpiry.toISOString());
+      expect(
+        (validateAccessToken(minted?.accessToken ?? '').payload?.exp ?? 0) * 1000,
+      ).toBeGreaterThan(shortExpiry.getTime());
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
   it('holder context token rejects principal sign-out during mint', async () => {
     const shared = await sharedOrganization();
     const holder = await deviceSessionService.issueDeviceSecret(shared.device);
@@ -1330,9 +1356,17 @@ describe('removal — one context and one principal are different operations', (
     const shared = await sharedOrganization();
     const holder = await deviceSessionService.issueDeviceSecret(shared.device);
     if (!holder) throw new Error('Expected a holder credential');
+    const [application] = await getDb()
+      .insert(applications)
+      .values({ name: 'Holder context test', ownerAccountId: shared.alice, type: 'first_party' })
+      .returning({ id: applications.id });
     await getDb()
       .update(sessions)
-      .set({ clientId: 'holder-test-client', scopes: ['profile:read'] })
+      .set({
+        applicationId: application.id,
+        clientId: 'holder-test-client',
+        scopes: ['profile:read'],
+      })
       .where(eq(sessions.sessionId, shared.aliceOrgSession));
     sessionCache.clear();
     const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
@@ -1347,8 +1381,11 @@ describe('removal — one context and one principal are different operations', (
     ['issuer', { iss: 'wrong-issuer' }],
     ['audience', { aud: ['wrong-audience'] }],
     ['client', { azp: 'wrong-client' }],
+    ['malformed client', { azp: 42 }],
     ['scope', { scope: 'ungranted:scope' }],
     ['malformed scope', { scope: 42 }],
+    ['missing expiry', { exp: undefined }],
+    ['malformed expiry', { exp: 'later' }],
   ])(
     'holder context token rejects a correctly signed token with invalid %s',
     async (_name, patch) => {
@@ -1359,7 +1396,12 @@ describe('removal — one context and one principal are different operations', (
       if (!original) throw new Error('Expected a live active session');
       const claims = validateAccessToken(original.accessToken).payload;
       if (!claims) throw new Error('Expected signed token claims');
-      const forged = jwt.sign({ ...claims, ...patch }, process.env.ACCESS_TOKEN_SECRET as string);
+      const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+      const input = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ ...claims, ...patch })}`;
+      const signature = createHmac('sha256', process.env.ACCESS_TOKEN_SECRET as string)
+        .update(input)
+        .digest('base64url');
+      const forged = `${input}.${signature}`;
       await getDb()
         .update(sessions)
         .set({ accessToken: forged })

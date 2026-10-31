@@ -1032,6 +1032,7 @@ class DeviceSessionService {
           applicationId: sessions.applicationId,
           clientId: sessions.clientId,
           scopes: sessions.scopes,
+          sessionExpiresAt: sessions.expiresAt,
         })
         .from(deviceSessions)
         .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
@@ -1106,6 +1107,10 @@ class DeviceSessionService {
       payload.sessionId !== before.sessionId ||
       payload.sid !== before.sessionId ||
       payload.act?.sub !== before.actorId ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      (payload.azp !== undefined &&
+        (typeof payload.azp !== 'string' || payload.azp.length === 0)) ||
       (payload.scope !== undefined && typeof payload.scope !== 'string')
     )
       return null;
@@ -1146,6 +1151,8 @@ class DeviceSessionService {
       scopes: after.scopes,
     });
     if (!checked.ok) return null;
+    const expiresAt = new Date(Math.min(payload.exp * 1000, after.sessionExpiresAt.getTime()));
+    if (!Number.isFinite(expiresAt.getTime())) return null;
     return {
       deviceId,
       deviceSessionId: after.deviceSessionId,
@@ -1155,7 +1162,7 @@ class DeviceSessionService {
       accountId: after.accountId,
       sessionId: after.sessionId,
       accessToken: token.accessToken,
-      expiresAt: token.expiresAt,
+      expiresAt: expiresAt.toISOString(),
     };
   }
 

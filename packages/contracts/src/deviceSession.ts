@@ -97,6 +97,7 @@ export const deviceContextTokenV1ResponseSchema = z.object({
   accountId: z.string().check(utf16MinLength(1)),
   sessionId: z.string().check(utf16MinLength(1)),
   accessToken: z.string().check(utf16MinLength(1)),
+  /** Earlier of bearer expiry and session expiry observed during issuance. */
   expiresAt: z.string().check(utf16MinLength(1)),
 });
 
