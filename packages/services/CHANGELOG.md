@@ -1,5 +1,17 @@
 # Changelog
 
+## [13.14.1] - 2026-10-31
+
+### Fixed
+
+- Hold the private API readiness gate while a known bearer subject differs from the projected account. Tokens without `userId` or `id` retain their existing behavior. Callbacks captured before a transition still need their own synchronous session guard.
+
+## [13.14.0] - 2026-10-31
+
+### Added
+
+- `memoryOnlyMutationKeys` marks account-owned mutations that are removed on account changes and excluded from both persisted caches without enabling global unregistered-mutation cleanup.
+
 ## [13.13.0] - 2026-10-31
 
 ### Added
