@@ -1,16 +1,18 @@
+import type { ReactNode } from 'react';
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Screen } from '@oxy.so/bloom/screen';
+import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { type Href, Slot, usePathname, useRouter } from 'expo-router';
+import { type Href, useIsFocused, usePathname, useRouter } from 'expo-router';
 
 import { accountLabel } from '@/hooks/use-account';
 import { useBillingAccess } from '@/hooks/use-billing-access';
 import { useTranslation } from '@/lib/i18n';
 
 /**
+ * Shared route chrome rendered inside each leaf, keeping its own scroll identity.
  * One tab per page, each its own URL under `/billing` (deep-linkable, reload-safe),
  * the way Mention's explore header does it. The active tab is derived from the
  * pathname. Money and units never share a page: Spend and Holds and charges read
@@ -32,7 +34,14 @@ function tabFromPath(pathname: string): TabId {
   return TABS.find((tab) => tab.id === segment)?.id ?? 'overview';
 }
 
-export default function BillingLayout() {
+export function BillingScreen({
+  children,
+  contentContainerClassName,
+}: {
+  children: ReactNode;
+  contentContainerClassName?: string;
+}) {
+  const focused = useIsFocused();
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
@@ -55,6 +64,7 @@ export default function BillingLayout() {
   return (
     <Screen
       scroll="auto"
+      active={focused}
       header={
         <PageHeader
           title={t('billingPage.title')}
@@ -88,7 +98,9 @@ export default function BillingLayout() {
         />
       }
     >
-      <Slot />
+      <ScreenScrollView contentContainerClassName={contentContainerClassName}>
+        {children}
+      </ScreenScrollView>
     </Screen>
   );
 }

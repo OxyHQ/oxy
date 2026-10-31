@@ -1,7 +1,7 @@
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiMoneyDollarCircleLine } from '@oxy.so/bloom/icons/RiMoneyDollarCircleLine';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { BillingScreen } from '@/components/billing/BillingScreen';
 import { useCallback, useMemo, useState } from 'react';
 
 import { SpendCharts } from '@/components/billing/SpendCharts';
@@ -106,7 +106,7 @@ export default function BillingSpendPage() {
   const error = totals.error ?? daily.error;
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
+    <BillingScreen contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
         <NoBillingAccess />
       ) : (
@@ -176,6 +176,6 @@ export default function BillingSpendPage() {
           )}
         </>
       )}
-    </ScreenScrollView>
+    </BillingScreen>
   );
 }
