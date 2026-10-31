@@ -70,6 +70,235 @@ describe('account query persistence', () => {
     process.env.OXY_BUILD_ID = originalBuildId;
   });
 
+  it('can keep all account queries in memory while isolating account switches', async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const config: AccountQueriesConfig = {
+      roots: [],
+      memoryOnlyRoots: 'all',
+      mutationKeys: [['app', 'star']],
+    };
+    const shared = attachQueryPersistence(client, storage, config);
+    await shared.restored;
+    const persistence = mount(client, storage, config);
+    persistence.activate('alice');
+    await until(persistence);
+    client.setQueryData(['users', 'private'], 'alice private');
+    client.setQueryData(['feed'], 'alice feed');
+    client.setQueryData(['accounts'], 'device directory');
+    client.setQueryDefaults(['accounts', 'private'], { meta: { persist: 'account' } });
+    client.setQueryData(['accounts', 'private'], 'alice marked');
+    pausedMutation(client, ['app', 'star']);
+    await flushWrites();
+
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('alice private');
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('alice feed');
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('alice marked');
+    expect(await storage.getItem('oxy_query_cache_v3')).not.toContain('alice private');
+    expect(await storage.getItem('oxy_query_cache_v3')).not.toContain('alice marked');
+    expect(await storage.getItem('oxy_query_cache_v3')).toContain('device directory');
+    persistence.activate('bob');
+    expect(client.getQueryData(['users', 'private'])).toBeUndefined();
+    expect(client.getQueryData(['feed'])).toBeUndefined();
+    expect(client.getQueryData(['accounts', 'private'])).toBeUndefined();
+    expect(client.getQueryData(['accounts'])).toBe('device directory');
+    await until(persistence);
+    persistence.activate('alice');
+    await until(persistence);
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'star']]);
+    persistence.detach();
+    shared.unsubscribe();
+  });
+
+  it('clears unregistered mutations on guest and account transitions while restoring registered ones', async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const config: AccountQueriesConfig = {
+      roots: [],
+      memoryOnlyRoots: 'all',
+      mutationKeys: [['app', 'star']],
+      clearUnregisteredMutations: true,
+    };
+    const shared = attachQueryPersistence(client, storage, config);
+    await shared.restored;
+    const persistence = mount(client, storage, config);
+    const guestMutation = pausedMutation(client, ['guest']);
+    persistence.activate('alice');
+    expect(client.getMutationCache().getAll()).not.toContain(guestMutation);
+    await until(persistence);
+
+    pausedMutation(client, ['app', 'star']);
+    const unknown = pausedMutation(client, ['app', 'unregistered']);
+    const unkeyed = client.getMutationCache().build(client, { mutationFn: async () => undefined });
+    await flushWrites();
+    expect(await storage.getItem('oxy_query_cache_v3')).not.toContain('unregistered');
+    expect(await storage.getItem(blobKey('alice'))).not.toContain('unregistered');
+    expect(await storage.getItem(blobKey('alice'))).toContain('star');
+    persistence.activate('bob');
+    expect(client.getMutationCache().getAll()).not.toContain(unknown);
+    expect(client.getMutationCache().getAll()).not.toContain(unkeyed);
+    expect(client.getMutationCache().getAll()).toHaveLength(0);
+    await until(persistence);
+
+    persistence.activate('alice');
+    await until(persistence);
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'star']]);
+    persistence.detach();
+    shared.unsubscribe();
+  });
+
+  it('does not hydrate legacy shared data newly claimed by the account', async () => {
+    const storage = createMemoryStorage();
+    const oldClient = new QueryClient();
+    const oldShared = attachQueryPersistence(oldClient, storage);
+    await oldShared.restored;
+    oldClient.setQueryData(['users', 'private'], 'old private');
+    oldClient.setQueryData(['accounts'], 'device directory');
+    pausedMutation(oldClient, ['old', 'mutation']);
+    await flushWrites();
+    oldShared.unsubscribe();
+
+    const client = new QueryClient();
+    const shared = attachQueryPersistence(client, storage, {
+      roots: [],
+      memoryOnlyRoots: 'all',
+      clearUnregisteredMutations: true,
+    });
+    await shared.restored;
+    expect(client.getQueryData(['users', 'private'])).toBeUndefined();
+    expect(client.getQueryData(['accounts'])).toBe('device directory');
+    expect(client.getMutationCache().getAll()).toHaveLength(0);
+    shared.unsubscribe();
+  });
+
+  it('filters legacy account blobs against the current query and mutation policy', async () => {
+    const storage = createMemoryStorage();
+    const oldClient = new QueryClient();
+    const old = mount(oldClient, storage, {
+      roots: ['saved', 'search'],
+      mutationKeys: [
+        ['app', 'keep'],
+        ['app', 'retired'],
+      ],
+    });
+    old.activate('alice');
+    await until(old);
+    oldClient.setQueryData(['saved'], 'keep me');
+    oldClient.setQueryData(['search'], 'private search');
+    pausedMutation(oldClient, ['app', 'keep']);
+    pausedMutation(oldClient, ['app', 'retired']);
+    await flushWrites();
+    old.detach();
+
+    const client = new QueryClient();
+    const current = mount(client, storage, {
+      roots: ['saved'],
+      memoryOnlyRoots: ['search'],
+      mutationKeys: [['app', 'keep']],
+    });
+    current.activate('alice');
+    await until(current);
+    expect(client.getQueryData(['saved'])).toBe('keep me');
+    expect(client.getQueryData(['search'])).toBeUndefined();
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'keep']]);
+    current.detach();
+  });
+
+  it('does not restore newly account-registered mutations from the old shared blob', async () => {
+    const storage = createMemoryStorage();
+    const oldClient = new QueryClient();
+    const old = attachQueryPersistence(oldClient, storage);
+    await old.restored;
+    pausedMutation(oldClient, ['app', 'account']);
+    pausedMutation(oldClient, ['app', 'shared']);
+    await flushWrites();
+    old.unsubscribe();
+
+    const client = new QueryClient();
+    const current = attachQueryPersistence(client, storage, {
+      roots: [],
+      mutationKeys: [['app', 'account']],
+    });
+    await current.restored;
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'shared']]);
+    current.unsubscribe();
+  });
+
+  it('does not cancel an in-flight mutation callback when removing its cache record', async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const persistence = mount(client, storage, { roots: [], clearUnregisteredMutations: true });
+    persistence.activate('alice');
+    await until(persistence);
+    let resolve!: () => void;
+    const response = new Promise<void>((done) => {
+      resolve = done;
+    });
+    const onSuccess = jest.fn();
+    const mutation = client.getMutationCache().build(client, {
+      mutationFn: () => response,
+      onSuccess,
+    });
+    const execution = mutation.execute(undefined);
+    persistence.activate('bob');
+    expect(client.getMutationCache().getAll()).not.toContain(mutation);
+    resolve();
+    await execution;
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    persistence.detach();
+  });
+
+  it('can preserve explicitly marked account queries without persisting other data', async () => {
+    const storage = createMemoryStorage();
+    const client = new QueryClient();
+    const persistence = mount(client, storage, {
+      roots: [],
+      memoryOnlyRoots: 'all',
+      persistMarkedQueries: true,
+    });
+    persistence.activate('alice');
+    await until(persistence);
+    client.setQueryDefaults(['feedPreferences'], { meta: { persist: 'account' } });
+    client.setQueryDefaults(['assetDownloadUrls'], { meta: { persist: 'account' } });
+    client.setQueryData(['feedPreferences', 'alice'], 'alice pinned');
+    client.setQueryData(['feed'], 'alice feed');
+    client.setQueryData(['assetDownloadUrls'], 'signed URL');
+    await flushWrites();
+
+    const blob = (await storage.getItem(blobKey('alice'))) ?? '';
+    expect(blob).toContain('alice pinned');
+    expect(blob).not.toContain('alice feed');
+    expect(blob).not.toContain('signed URL');
+    persistence.activate('bob');
+    expect(client.getQueryData(['feedPreferences', 'alice'])).toBeUndefined();
+    await until(persistence);
+    persistence.activate('alice');
+    await until(persistence);
+    expect(client.getQueryData(['feedPreferences', 'alice'])).toBe('alice pinned');
+    expect(client.getQueryData(['feed'])).toBeUndefined();
+    persistence.detach();
+  });
+
   it('restores the signed-in account, and is not ready until it has', async () => {
     const storage = createMemoryStorage();
     await writeFor(storage, 'alice', (c) => c.setQueryData(THREAD, { messages: ['hi alice'] }));
