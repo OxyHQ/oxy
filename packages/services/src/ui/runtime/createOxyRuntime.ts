@@ -51,6 +51,21 @@ export interface RuntimeSessionClient {
   activateContext(contextId: string): Promise<void>;
   signOutContext(contextId: string): Promise<void>;
   signOutPrincipal(principalId: string): Promise<void>;
+  /** @internal Optional until the experimental strict context lane is complete. */
+  experimentalContextBinding?():
+    | { mode: 'legacy' }
+    | { mode: 'unavailable' }
+    | {
+        mode: 'ready';
+        generation: number;
+        deviceId: string;
+        revision: number;
+        contextId: string;
+        actorId: string;
+        accountId: string;
+        sessionId: string;
+      };
+  experimentalSubscribeContext?(listener: () => void): () => void;
 }
 
 export interface RuntimeSessionHost {
@@ -308,6 +323,51 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
    */
   let sessionGeneration = 0;
   let accountSessionRevision = 0;
+  let maskedSource: OxyRuntimeSnapshot | null = null;
+  let maskedSnapshot: OxyRuntimeSnapshot | null = null;
+
+  function contextBinding() {
+    return sessionClient.experimentalContextBinding?.() ?? { mode: 'legacy' as const };
+  }
+
+  function projectedContextIsCurrent(): boolean {
+    const binding = contextBinding();
+    if (binding.mode === 'legacy') return true;
+    if (binding.mode !== 'ready') return false;
+    const context = snapshot.activeContext;
+    return (
+      snapshot.deviceState?.deviceId === binding.deviceId &&
+      snapshot.deviceState.revision === binding.revision &&
+      snapshot.device?.deviceId === binding.deviceId &&
+      snapshot.device.revision === binding.revision &&
+      context?.contextId === binding.contextId &&
+      context.actor.userId === binding.actorId &&
+      context.subject.accountId === binding.accountId &&
+      snapshot.account?.id === binding.accountId &&
+      snapshot.activeSessionId === binding.sessionId
+    );
+  }
+
+  function visibleSnapshot(): OxyRuntimeSnapshot {
+    if (projectedContextIsCurrent()) return snapshot;
+    if (maskedSource !== snapshot || !maskedSnapshot) {
+      maskedSource = snapshot;
+      maskedSnapshot = Object.freeze({
+        ...snapshot,
+        status: 'booting',
+        tokenStatus: 'refreshing',
+        device: null,
+        deviceState: null,
+        activeContext: null,
+        principal: null,
+        account: null,
+        sessions: EMPTY_SESSIONS,
+        activeSessionId: null,
+        hasAccessToken: false,
+      });
+    }
+    return maskedSnapshot;
+  }
 
   function buildSnapshot(): OxyRuntimeSnapshot {
     const activeContext = resolveActiveContext(facts.directory);
@@ -432,6 +492,8 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
   // ── Projection ───────────────────────────────────────────────────────────
 
   async function reconcileFromClient(): Promise<void> {
+    const binding = contextBinding();
+    if (binding.mode === 'unavailable') return;
     const state = sessionClient.getState();
     if (state === null) {
       return;
@@ -466,6 +528,12 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
       return;
     }
     const latest = sessionClient.getState();
+    const latestBinding = contextBinding();
+    if (
+      binding.mode === 'ready' &&
+      (latestBinding.mode !== 'ready' || latestBinding.generation !== binding.generation)
+    )
+      return;
     if (!latest || latest.revision !== capturedRevision) {
       return;
     }
@@ -502,10 +570,16 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
         deviceStateToClientSessions(latest, facts.profiles, pinnedAccountId),
         facts.activeSessionId,
         false,
+      ).map((session) =>
+        binding.mode === 'ready'
+          ? { ...session, isCurrent: session.sessionId === binding.sessionId }
+          : session,
       );
       setSessions(projected);
       onSessionsProjected?.(projected.map((session) => session.sessionId));
-      setActiveSessionIdFact(activeSessionIdOf(latest, pinnedAccountId));
+      setActiveSessionIdFact(
+        binding.mode === 'ready' ? binding.sessionId : activeSessionIdOf(latest, pinnedAccountId),
+      );
       const activeUser = activeUserOf(latest, facts.profiles, pinnedAccountId);
       if (activeUser) {
         setAccountFact(activeUser);
@@ -518,13 +592,22 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
   }
 
   return {
-    getSnapshot: () => snapshot,
+    getSnapshot: () => visibleSnapshot(),
     getAccountSessionRevision: () => accountSessionRevision,
-    getAccountSessionIdentity: () => ({
-      accountId: facts.account?.id ?? null,
-      sessionId: facts.activeSessionId,
-      revision: accountSessionRevision,
-    }),
+    getAccountSessionIdentity: () => {
+      if (contextBinding().mode === 'legacy')
+        return {
+          accountId: facts.account?.id ?? null,
+          sessionId: facts.activeSessionId,
+          revision: accountSessionRevision,
+        };
+      const current = visibleSnapshot();
+      return {
+        accountId: current.account?.id ?? null,
+        sessionId: current.activeSessionId,
+        revision: accountSessionRevision,
+      };
+    },
 
     subscribe(listener) {
       listeners.add(listener);
@@ -534,11 +617,19 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     },
 
     start() {
-      return sessionClient.subscribe(() => {
+      const unsubscribeSession = sessionClient.subscribe(() => {
         void reconcileFromClient().catch((error) => {
           logger('Failed to project a device-state transition', error);
         });
       });
+      const unsubscribeContext = sessionClient.experimentalSubscribeContext?.(() => {
+        accountSessionRevision += 1;
+        notify();
+      });
+      return () => {
+        unsubscribeSession();
+        unsubscribeContext?.();
+      };
     },
 
     reconcileFromClient,

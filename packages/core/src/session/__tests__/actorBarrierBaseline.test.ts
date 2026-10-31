@@ -2,6 +2,7 @@ import { HttpService } from '../../HttpService';
 import { OxyServices } from '../../OxyServices';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 import { ExperimentalContextBarrier } from '../experimentalContextBarrier';
+import { activeSessionIdOf } from '../projectSessionState';
 
 const token = (actor: string) =>
   `h.${Buffer.from(JSON.stringify({ userId: 'org', sessionId: `s-${actor}`, act: { sub: actor }, exp: 4102444800 })).toString('base64url')}.s`;
@@ -80,6 +81,7 @@ function fixture() {
   const client = new SessionClient(host, { socketFactory: () => socket as never });
   return {
     client,
+    host,
     http,
     handlers,
     revision: () => revision,
@@ -93,6 +95,10 @@ function fixture() {
 }
 
 describe('baseline: real session and token store ordering', () => {
+  it('the legacy flat projection cannot identify the active actor when subjects repeat', () => {
+    expect(activeSessionIdOf(state(2))).toBe('s-alice');
+    expect(directory(2).activeContextId).toBe('ctx-nate');
+  });
   it('a direct directory refresh exposes a different actor under the old bearer', async () => {
     const f = fixture();
     await f.client.start();
@@ -140,6 +146,162 @@ describe('baseline: real session and token store ordering', () => {
     expect(seen).toContainEqual({ revision: 2, actor: 'alice', bearer: token('nate') });
     f.client.stop();
     f.http.dispose();
+  });
+});
+
+describe('experimental SessionClient ingress wiring', () => {
+  it.each(['socket', 'direct read'])('closes before exposing a %s transition', async (source) => {
+    const f = fixture();
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const socket = {
+      connected: true,
+      on: (event: string, callback: (...args: unknown[]) => void) => {
+        handlers.set(event, callback);
+      },
+      off: () => {},
+      connect: () => {},
+      disconnect: () => {},
+    };
+    let finish!: (value: unknown) => void;
+    let pause = false;
+    const makeBinding = () => {
+      const revision = f.revision();
+      const actor = revision === 1 ? 'alice' : 'nate';
+      return {
+        version: 1,
+        deviceId: 'd1',
+        deviceSessionId: 'instance',
+        revision,
+        contextId: `ctx-${actor}`,
+        actorId: actor,
+        accountId: 'org',
+        sessionId: `s-${actor}`,
+        accessToken: token(actor),
+        expiresAt: '2099-01-01T00:00:00Z',
+      };
+    };
+    const gate = new ExperimentalContextBarrier({
+      getCredential: () => ({ deviceId: 'd1', deviceSecret: 'secret' }),
+      getAccessToken: () => f.http.experimentalPeekAccessToken(),
+      setAccessToken: (value) => f.http.experimentalInstallContextToken(value),
+      mint: () =>
+        pause
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : Promise.resolve(makeBinding()),
+      readState: async () => state(f.revision()),
+      readDirectory: async () => directory(f.revision()),
+    });
+    f.http.experimentalSetContextGateProvider(() => gate);
+    const c = new SessionClient(
+      { ...f.host, getDeviceCredential: () => ({ deviceId: 'd1', deviceSecret: 'secret' }) },
+      {
+        experimentalContextBarrier: gate,
+        experimentalContextReady: () => f.http.experimentalContextReady(),
+        socketFactory: () => socket as never,
+      },
+    );
+    try {
+      await c.start();
+      expect(c.getActiveContext()?.actor.userId).toBe('alice');
+      f.next();
+      pause = true;
+      let pending: Promise<void> | undefined;
+      if (source === 'socket') handlers.get('session_state')?.(state(2));
+      else pending = c.refreshDirectory();
+      expect(c.getState()).toBeNull();
+      expect(c.getDirectory()).toBeNull();
+      expect(f.http.getAccessToken()).toBeNull();
+      await expect(f.http.get('/protected')).rejects.toThrow();
+      finish(makeBinding());
+      if (pending) await pending;
+      else for (let i = 0; i < 20; i++) await Promise.resolve();
+      expect(c.getActiveContext()?.actor.userId).toBe('nate');
+      expect(f.http.getAccessToken()).toBe(token('nate'));
+    } finally {
+      c.stop();
+      f.http.dispose();
+    }
+  });
+
+  it('recovers from initial failure, stages activation, and refuses unsupported signout', async () => {
+    const f = fixture();
+    let fail = true;
+    let deferActivation = false;
+    let finishActivation!: (value: unknown) => void;
+    const gate = new ExperimentalContextBarrier({
+      getCredential: () => ({ deviceId: 'd1', deviceSecret: 'secret' }),
+      getAccessToken: () => f.http.experimentalPeekAccessToken(),
+      setAccessToken: (value) => f.http.experimentalInstallContextToken(value),
+      mint: async () => {
+        if (fail) throw new Error('unavailable');
+        const revision = f.revision();
+        const actor = revision === 1 ? 'alice' : 'nate';
+        return {
+          version: 1,
+          deviceId: 'd1',
+          deviceSessionId: 'instance',
+          revision,
+          contextId: `ctx-${actor}`,
+          actorId: actor,
+          accountId: 'org',
+          sessionId: `s-${actor}`,
+          accessToken: token(actor),
+          expiresAt: '2099-01-01T00:00:00Z',
+        };
+      },
+      readState: async () => state(f.revision()),
+      readDirectory: async () => directory(f.revision()),
+    });
+    f.http.experimentalSetContextGateProvider(() => gate);
+    const socket = {
+      connected: true,
+      on: () => {},
+      off: () => {},
+      connect: () => {},
+      disconnect: () => {},
+    };
+    const c = new SessionClient(
+      {
+        ...f.host,
+        getDeviceCredential: () => ({ deviceId: 'd1', deviceSecret: 'secret' }),
+        makeRequest: async <T>(_method: 'GET' | 'POST', path: string) => {
+          if (path !== '/session/device/activate') throw new Error('unexpected');
+          if (deferActivation)
+            return new Promise<T>((resolve) => {
+              finishActivation = resolve as (value: unknown) => void;
+            });
+          f.next();
+          return {} as T;
+        },
+      },
+      {
+        experimentalContextBarrier: gate,
+        experimentalContextReady: () => f.http.experimentalContextReady(),
+        socketFactory: () => socket as never,
+      },
+    );
+    try {
+      await c.start();
+      expect(c.getState()).toBeNull();
+      expect(f.http.getAccessToken()).toBeNull();
+      fail = false;
+      await c.bootstrap();
+      expect(c.getActiveContext()?.actor.userId).toBe('alice');
+      await c.activateContext('ctx-nate');
+      await expect(c.signOut({ all: true })).rejects.toThrow('not implemented');
+      expect(c.getActiveContext()?.actor.userId).toBe('nate');
+      deferActivation = true;
+      const pending = c.activateContext('ctx-alice');
+      gate.invalidate();
+      finishActivation({});
+      await expect(pending).rejects.toThrow('superseded');
+      expect(c.getState()).toBeNull();
+    } finally {
+      c.stop();
+      f.http.dispose();
+    }
   });
 });
 

@@ -15,6 +15,7 @@ import { decodeTokenClaims } from '../utils/tokenClaims';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
 import { getSocketIO } from './socketLoader';
 import type { MinimalSocket, SocketIOFactory } from './socketLoader';
+import type { ExperimentalContextBarrier } from './experimentalContextBarrier';
 
 export interface TokenTransport {
   /** Ensure this app holds a per-domain access token for state.activeAccountId (mint via the persisted device secret / Commons identity). Best-effort. */
@@ -59,6 +60,10 @@ export interface SessionClientHost {
 }
 
 export interface SessionClientOptions {
+  /** @internal Experimental account-mode staging; no production provider enables it. */
+  experimentalContextBarrier?: ExperimentalContextBarrier;
+  /** @internal Release suppressed token notifications after staging commits. */
+  experimentalContextReady?: () => void;
   /** Await durable local logout intent after an explicit removal or an applied nonempty→empty device transition. */
   onFullExplicitSignOut?: () => Promise<void>;
   transport?: TokenTransport;
@@ -222,6 +227,7 @@ export class SessionClient {
 
   /** Stop and discard only this client's local device projection; no server revocation. */
   resetLocalState(): void {
+    this.options.experimentalContextBarrier?.invalidate();
     this.lifecycleGeneration += 1;
     this.stop();
     this.state = null;
@@ -230,6 +236,8 @@ export class SessionClient {
   }
 
   getState(): DeviceSessionState | null {
+    if (this.options.experimentalContextBarrier)
+      return this.options.experimentalContextBarrier.snapshot()?.state ?? null;
     return this.state;
   }
 
@@ -239,6 +247,8 @@ export class SessionClient {
    * fresh from there on.
    */
   getDirectory(): DeviceDirectory | null {
+    if (this.options.experimentalContextBarrier)
+      return this.options.experimentalContextBarrier.snapshot()?.directory ?? null;
     return this.directory;
   }
 
@@ -251,7 +261,49 @@ export class SessionClient {
    * subject and says nothing about whose authentication is behind it.
    */
   getActiveContext(): DeviceContext | null {
-    return resolveActiveContext(this.directory);
+    return resolveActiveContext(this.getDirectory());
+  }
+
+  /** @internal An unavailable binding is distinct from the legacy lane. */
+  experimentalContextBinding():
+    | { mode: 'legacy' }
+    | { mode: 'unavailable' }
+    | {
+        mode: 'ready';
+        generation: number;
+        deviceId: string;
+        revision: number;
+        contextId: string;
+        actorId: string;
+        accountId: string;
+        sessionId: string;
+      } {
+    const gate = this.options.experimentalContextBarrier;
+    if (!gate) return { mode: 'legacy' };
+    const snapshot = gate.snapshot();
+    if (!snapshot) return { mode: 'unavailable' };
+    let generation: number;
+    try {
+      generation = gate.lease();
+    } catch {
+      return { mode: 'unavailable' };
+    }
+    if (gate.snapshot() !== snapshot) return { mode: 'unavailable' };
+    return {
+      mode: 'ready',
+      generation,
+      deviceId: snapshot.state.deviceId,
+      revision: snapshot.state.revision,
+      contextId: snapshot.contextId,
+      actorId: snapshot.actorId,
+      accountId: snapshot.accountId,
+      sessionId: snapshot.sessionId,
+    };
+  }
+
+  /** @internal Synchronous closure notifications for runtime snapshot fencing. */
+  experimentalSubscribeContext(listener: () => void): () => void {
+    return this.options.experimentalContextBarrier?.subscribe(listener) ?? (() => undefined);
   }
 
   /**
@@ -324,7 +376,17 @@ export class SessionClient {
   }
 
   protected notify(): void {
+    const gate = this.options.experimentalContextBarrier;
+    let lease: number | null = null;
+    if (gate) {
+      try {
+        lease = gate.lease();
+      } catch {
+        return;
+      }
+    }
     for (const listener of this.listeners) {
+      if (gate && (lease === null || !gate.isCurrent(lease))) return;
       try {
         listener(this.state);
       } catch (error) {
@@ -332,6 +394,7 @@ export class SessionClient {
       }
     }
     for (const listener of this.directoryListeners) {
+      if (gate && (lease === null || !gate.isCurrent(lease))) return;
       try {
         listener(this.directory);
       } catch (error) {
@@ -363,6 +426,12 @@ export class SessionClient {
     origin: SessionStateOrigin = 'push',
     activeToken?: string,
   ): boolean {
+    if (this.options.experimentalContextBarrier) {
+      if (!checkContract(deviceSessionStateCheck, raw)) return false;
+      this.options.experimentalContextBarrier.invalidate();
+      void this.experimentalReconcile().catch(() => undefined);
+      return true;
+    }
     const generation = this.lifecycleGeneration;
     const next = checkContract(deviceSessionStateCheck, raw);
     if (!next) {
@@ -671,6 +740,23 @@ export class SessionClient {
     return this.applyDirectory(res);
   }
 
+  private async experimentalReconcile(): Promise<void> {
+    const gate = this.options.experimentalContextBarrier;
+    if (!gate) return;
+    if (this.pinnedAccountId() !== null) {
+      gate.invalidate();
+      throw new Error('Strict context staging is unavailable for identity-pinned sessions');
+    }
+    if (!(await gate.reconcile())) throw new Error('Context binding unavailable');
+    const snapshot = gate.snapshot();
+    if (!snapshot) throw new Error('Context binding unavailable');
+    this.state = snapshot.state;
+    this.directory = snapshot.directory;
+    this.options.experimentalContextReady?.();
+    if (!gate.snapshot()) throw new Error('Context binding unavailable');
+    this.notify();
+  }
+
   /**
    * Re-read the directory when the flat state has moved past it, returning the
    * in-flight work so the caller can hold its notify until both halves describe
@@ -792,6 +878,10 @@ export class SessionClient {
   }
 
   async bootstrap(): Promise<void> {
+    if (this.options.experimentalContextBarrier) {
+      this.options.experimentalContextBarrier.invalidate();
+      return this.experimentalReconcile();
+    }
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, {
       cache: false,
@@ -818,6 +908,10 @@ export class SessionClient {
    * halves stay at one revision without the caller polling.
    */
   async refreshDirectory(): Promise<void> {
+    if (this.options.experimentalContextBarrier) {
+      this.options.experimentalContextBarrier.invalidate();
+      return this.experimentalReconcile();
+    }
     if (await this.fetchDirectory()) {
       this.notify();
     }
@@ -843,6 +937,23 @@ export class SessionClient {
    * compatibility path for callers still keyed on account ids.
    */
   async activateContext(contextId: string): Promise<void> {
+    if (this.options.experimentalContextBarrier) {
+      const gate = this.options.experimentalContextBarrier;
+      const lease = gate.lease();
+      await this.requestDevice<unknown>(
+        'POST',
+        '/session/device/activate',
+        { contextId },
+        { cache: false },
+      );
+      if (!gate.isCurrent(lease)) throw new Error('Device session request was superseded');
+      gate.invalidate();
+      await this.experimentalReconcile();
+      if (gate.snapshot()?.contextId !== contextId)
+        throw new Error('Device session request was superseded');
+      this.postCommitPing();
+      return;
+    }
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>(
       'POST',
@@ -926,6 +1037,8 @@ export class SessionClient {
   }
 
   async switchAccount(accountId: string): Promise<void> {
+    if (this.options.experimentalContextBarrier)
+      throw new Error('Strict context mutations are not implemented');
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>(
       'POST',
@@ -957,6 +1070,8 @@ export class SessionClient {
    * {@link signOutPrincipal} for the two that can tell those apart.
    */
   async signOut(target: { accountId: string } | { all: true }): Promise<void> {
+    if (this.options.experimentalContextBarrier)
+      throw new Error('Strict context mutations are not implemented');
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
       cache: false,
@@ -1008,6 +1123,8 @@ export class SessionClient {
   private async removeFromDevice(
     target: { contextId: string } | { principalId: string },
   ): Promise<void> {
+    if (this.options.experimentalContextBarrier)
+      throw new Error('Strict context mutations are not implemented');
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
       cache: false,
@@ -1050,6 +1167,8 @@ export class SessionClient {
   }
 
   async addCurrentAccount(): Promise<void> {
+    if (this.options.experimentalContextBarrier)
+      throw new Error('Strict context mutations are not implemented');
     const request = this.captureDeviceRequest();
     const res = await this.requestDevice<unknown>('POST', '/session/device/add', undefined, {
       cache: false,
@@ -1109,7 +1228,7 @@ export class SessionClient {
     this.openBroadcastChannel();
     // Device-scoped socket: bearer when authenticated, else deviceId+deviceSecret so
     // signed-out tabs still receive `session_state` and can mint on change.
-    if (this.host.getAccessToken()) {
+    if (this.options.experimentalContextBarrier || this.host.getAccessToken()) {
       try {
         await this.bootstrap();
       } catch (error) {
@@ -1124,6 +1243,7 @@ export class SessionClient {
   }
 
   stop(): void {
+    this.options.experimentalContextBarrier?.invalidate();
     this.started = false;
     if (this.tokenUnsub) {
       this.tokenUnsub();
@@ -1194,6 +1314,7 @@ export class SessionClient {
       if (generation !== this.lifecycleGeneration) return;
       const applied = this.applyState(payload, 'push');
       if (!applied) return;
+      if (this.options.experimentalContextBarrier) return;
       // An identity-bound client tracks the pushed state but NEVER chases the
       // device's active account: re-fetching here would only pull an
       // `activeToken` for somebody else's switch, which the plant guards would
@@ -1249,6 +1370,11 @@ export class SessionClient {
       });
       return;
     }
+    if (this.options.experimentalContextBarrier) {
+      this.options.experimentalContextBarrier.invalidate();
+      void this.experimentalReconcile().catch(() => undefined);
+      return;
+    }
     // The socket is in `user:<activeUserId>` for the planted bearer, so this should
     // always be the current user; ignore a foreign id defensively (out-of-band relay).
     if (event.userId !== this.host.getCurrentAccountId()) return;
@@ -1289,6 +1415,11 @@ export class SessionClient {
     channel.onmessage = (event) => {
       if (!event || typeof event.data !== 'object' || event.data === null) return;
       if ((event.data as { type?: unknown }).type !== 'commit') return;
+      if (this.options.experimentalContextBarrier) {
+        this.options.experimentalContextBarrier.invalidate();
+        void this.experimentalReconcile().catch(() => undefined);
+        return;
+      }
       // BroadcastChannel never echoes to the posting context, so this is a
       // sibling's commit. An authenticated tab re-syncs its device state; the
       // re-sync does not re-post, so there is no cross-tab ping loop.

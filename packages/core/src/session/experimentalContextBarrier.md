@@ -1,11 +1,12 @@
 # Context barrier experiment
 
-This internal, unexported state machine is a prototype, not a production session
-or request guard. Nothing in `SessionClient`, `HttpService`, linked clients, or
-the Services runtime currently creates it. Identity-pinned and legacy clients
-continue on their existing paths. The test adapter deliberately invokes
-`invalidate()` itself before a simulated socket ingress or direct directory
-read; it does not prove that the production ingress does this.
+This internal state machine and its opt-in wiring are a prototype, not a
+production session or request guard. No app or Services runtime creates it.
+Identity-pinned and legacy clients continue on their existing paths. Explicit
+test-only wiring connects `SessionClient`, one `HttpService` and its linked
+clients, including real socket callbacks and direct directory reads. Context
+activation is experimental; signout, switching by account and adding accounts
+still fail explicitly and remain unimplemented.
 
 The prototype starts closed and stages the holder-proven v1 response plus state
 and directory read with that candidate bearer. It compares device and revision,
@@ -33,16 +34,50 @@ Production integration must establish all of the following before enabling it:
 - Keep staging private; do not expose the raw `SessionClient` projections or
   cached Services snapshots while closed. Stage context-token, state and
   directory via transport that never plants a candidate bearer early.
-- Propagate the same barrier to `HttpService`, all linked clients and runtime
+- Complete propagation of the barrier to `HttpService`, all linked clients and runtime
   adapters. Fence before cache/deduplication, on retry and after asynchronous
   auth preflight immediately before network sends. Cover raw responses, optional
   authentication, explicit headers and socket token acquisition. An anonymous
   holder mint lane must not attach an old bearer.
 - `HttpService` notifies token listeners synchronously with the raw token and
-  linked clients have independent stores. A test confirms that an existing
-  linked client can obtain its bearer while the prototype is closed. Commit and
-  release therefore need an explicit shared protocol, including listeners and
-  token getters, not just a guard around `HttpService.request`.
+  linked clients have independent stores. Before explicit opt-in a test confirms
+  that a linked client can obtain its bearer while the standalone prototype is
+  closed. The experimental wiring shares the gate, hides public token getters
+  while closed, suppresses token listeners through commit, and separately
+  releases them. Its privileged experimental peek/install methods are not a
+  security boundary and require a narrower API before publication.
+- The experimental runtime projects the v1 binding's exact `sessionId` and masks
+  its snapshot while closed or out of step. Legacy `activeSessionIdOf` still
+  chooses the first matching account row, which need not be the active actor.
+  The surrounding provider only clears query caches on a subject-id change;
+  changing actor for the same subject needs a cache reset before release, which
+  this experiment does not yet coordinate.
+- An experimental `prepareCommit` hook can remove owner queries while the gate
+  is closed, without deleting paused mutations. Account-only persisted blobs
+  cannot be assigned to an actor by inference and must remain quarantined.
+  A real QueryClient test shows paused mutations can otherwise resume under a
+  different actor. Another test shows TanStack can pass `canRun`, notify a
+  subscriber that changes owner, then invoke the mutation under that new owner.
+  An executor waiter closes that race in the test, but TanStack marks the
+  waiter `isPaused: false` and `setOptions` can replace the wrapper. A strict
+  persister must explicitly include waiting work and restore it as quarantined;
+  the existing paused-only persister does not do this.
+- A separate experimental explicit mutation registry ties each operation to an
+  actor, account and session, and gives its registered executor a lease-bound
+  HTTP request. It refuses cross-owner execution and preserves uncertain
+  outcomes rather than automatically retrying. Only cooperative registered
+  operations using that transport are covered. Storage, idempotency on the
+  receiving endpoint, immutable adapters, arbitrary callbacks, cancellation and
+  app integration still require design and end-to-end verification.
+- A successful authenticated `{all:true}` signout returns the transaction's
+  empty state after revoking every holder. That response can establish what the
+  mutation did at that moment without reusing the revoked secret. It cannot
+  establish an ongoing empty device: the broadcast can precede the response and
+  a new sign-in may already have happened. Clearing local durable credentials
+  safely needs a storage-queue CAS against the old holder and lifecycle. The
+  current `AuthStateStore.clear()` and signout callback lack that guard. Context
+  removal's directory and state are separate reads after its transaction, not a
+  shared snapshot. A 409 or 401 from v1 alone does not prove empty signout.
 - Commit token and projections behind the barrier, then publish only after all
   components agree. Define callbacks and failures during commit, guarantee
   generation fencing through the last send, and test synchronous reentry.

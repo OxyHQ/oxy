@@ -113,6 +113,27 @@ describe('experimental staged context barrier', () => {
     expect(f.gate.snapshot()).toBeNull();
   });
 
+  it('does not install the staged token if cache preparation is superseded', async () => {
+    const f = fixture();
+    let release!: () => void;
+    const gate = new ExperimentalContextBarrier({
+      ...f.io,
+      prepareCommit: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    });
+    const pending = gate.reconcile();
+    for (let i = 0; i < 20 && !release; i++) await Promise.resolve();
+    expect(release).toBeDefined();
+    expect(gate.snapshot()).toBeNull();
+    gate.invalidate();
+    release();
+    expect(await pending).toBe(false);
+    expect(gate.snapshot()).toBeNull();
+    expect(f.token()).toBe('alice-bearer');
+  });
+
   it('does not commit a delayed prior request after an ABA signal', async () => {
     const f = fixture();
     let finish!: (value: unknown) => void;

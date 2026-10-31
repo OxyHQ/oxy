@@ -50,6 +50,13 @@ const REQUESTER_PROOF_HEADERS = new Set([
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
+/** @internal Experimental; do not expose before the shared session integration is complete. */
+export interface ExperimentalContextGate {
+  invalidate(): void;
+  lease(): number;
+  isCurrent(lease: number): boolean;
+}
+type ExperimentalLease = { gate: ExperimentalContextGate; value: number } | null;
 /**
  * Supplies a bearer for a request made while this client holds NO user session
  * — `null` to send it anonymous. See {@link HttpService.setAnonymousAuthProvider}.
@@ -538,6 +545,8 @@ export class HttpService {
   private noFresherTokenThan: string | null = null;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
+  private experimentalMirroredProvider = false;
+  private experimentalGateProvider: (() => ExperimentalContextGate | null) | null = null;
   private anonymousAuthProvider: AnonymousAuthProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
   /**
@@ -627,16 +636,51 @@ export class HttpService {
 
     if (providedToken) {
       if (providedToken !== currentToken) {
-        this.setTokens(providedToken);
+        if (this.experimentalMirroredProvider) this.experimentalInstallContextToken(providedToken);
+        else this.setTokens(providedToken);
       }
       return providedToken;
     }
 
     if (currentToken) {
-      this.clearTokens();
+      if (this.experimentalMirroredProvider) this.experimentalClearMirrorToken();
+      else this.clearTokens();
     }
 
     return null;
+  }
+
+  /** @internal Experimental shared gate; staging must use a separate transport. */
+  experimentalSetContextGateProvider(
+    provider: (() => ExperimentalContextGate | null) | null,
+  ): void {
+    this.experimentalGateProvider = provider;
+    this.clearCache();
+  }
+
+  /** @internal Only the isolated context coordinator may inspect a closed store. */
+  experimentalPeekAccessToken(): string | null {
+    return this.tokenStore.getAccessToken();
+  }
+
+  /** @internal Wake token mirrors after the coordinator opens the gate. */
+  experimentalContextReady(): void {
+    this.notifyTokenChange();
+  }
+
+  private experimentalLease(): ExperimentalLease {
+    const gate = this.experimentalGateProvider?.() ?? null;
+    return gate ? { gate, value: gate.lease() } : null;
+  }
+
+  private assertExperimentalLease(lease: ExperimentalLease): void {
+    if (!lease) {
+      if (this.experimentalGateProvider?.()) throw new Error('Context binding unavailable');
+      return;
+    }
+    if (this.experimentalGateProvider?.() !== lease.gate || !lease.gate.isCurrent(lease.value)) {
+      throw new Error('Context binding unavailable');
+    }
   }
 
   /**
@@ -726,6 +770,26 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    return this.requestWithExperimentalLease(config, undefined);
+  }
+
+  /** @internal Requests started by queued work may retain their original owner lease. */
+  async experimentalRequestForLease<T = unknown>(
+    config: RequestConfig,
+    gate: ExperimentalContextGate,
+    value: number,
+  ): Promise<ResponsePayload<T>> {
+    return this.requestWithExperimentalLease(config, { gate, value });
+  }
+
+  private async requestWithExperimentalLease<T = unknown>(
+    config: RequestConfig,
+    expected: ExperimentalLease | undefined,
+  ): Promise<ResponsePayload<T>> {
+    if (expected !== undefined) this.assertExperimentalLease(expected);
+    const contextLease = this.experimentalLease();
+    if (expected !== undefined) this.assertExperimentalLease(expected);
+    if (contextLease) config = { ...config, cache: false, deduplicate: false };
     if (config.signal?.aborted) throw createCancelledError('Request cancelled before it was sent');
     // The provider can change independently of the last request. Synchronize
     // before deriving the cache and deduplication identity, including hits.
@@ -757,11 +821,15 @@ export class HttpService {
     const cache = (config.cache ?? config.method === 'GET') && !this.cacheDisabled;
     const deduplicate = config.deduplicate ?? SAFE_METHODS.has(config.method);
     if (!cache && !deduplicate) {
-      return this.requestWithCacheLease<ResponsePayload<T>>(config, {
-        key: '',
-        id: 0,
-        valid: true,
-      });
+      return this.requestWithCacheLease<ResponsePayload<T>>(
+        config,
+        {
+          key: '',
+          id: 0,
+          valid: true,
+        },
+        contextLease,
+      );
     }
     const key =
       this.generateCacheKey(config.method, config.url, config.data || config.params) +
@@ -773,7 +841,7 @@ export class HttpService {
     }
     lease.readers++;
     try {
-      return await this.requestWithCacheLease<ResponsePayload<T>>(config, lease);
+      return await this.requestWithCacheLease<ResponsePayload<T>>(config, lease, contextLease);
     } finally {
       lease.readers--;
       if (lease.readers === 0 && this.readLeases.get(key) === lease) this.readLeases.delete(key);
@@ -783,7 +851,9 @@ export class HttpService {
   private async requestWithCacheLease<T>(
     config: RequestConfig,
     lease: { key: string; id: number; valid: boolean },
+    contextLease: ExperimentalLease,
   ): Promise<T> {
+    this.assertExperimentalLease(contextLease);
     const {
       method,
       url,
@@ -846,6 +916,11 @@ export class HttpService {
       ? await awaitRequestSignal(this.getAuthHeader(), signal)
       : null;
     const isOriginalSession = () => {
+      try {
+        this.assertExperimentalLease(contextLease);
+      } catch {
+        return false;
+      }
       if (this.sessionEpoch !== contextEpoch) return false;
       const currentToken = this.syncAccessTokenFromProvider();
       return this.sessionEpoch === contextEpoch && sameTokenSession(contextToken, currentToken);
@@ -886,6 +961,7 @@ export class HttpService {
     // own signal, or — when deduplicated — the shared work's, which aborts only
     // once every caller waiting on it has cancelled.
     const attempt = async (domain: AbortSignal): Promise<T> => {
+      this.assertExperimentalLease(contextLease);
       const startTime = Date.now();
       // Re-checked per attempt so no retry can issue a network call after the
       // caller gave up — belt to `retryAsync`'s braces, and the one that holds
@@ -1009,6 +1085,7 @@ export class HttpService {
           throw new Error('Requester proofs require a transport that rejects redirects');
         }
 
+        this.assertExperimentalLease(contextLease);
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -1080,6 +1157,7 @@ export class HttpService {
             }
             // Refresh failed or no token — clear tokens
             if (isOriginalSession()) {
+              if (this.tokenStore.getAccessToken()) this.experimentalGateProvider?.()?.invalidate();
               if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
               this.tokenStore.clearTokens();
               this.sessionDeviceId = null;
@@ -1309,6 +1387,7 @@ export class HttpService {
       }
     }
 
+    this.assertExperimentalLease(contextLease);
     if (usesSessionAuth && !isOriginalSession()) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
@@ -1613,6 +1692,8 @@ export class HttpService {
   }
 
   async refreshAccessToken(reason: AuthRefreshReason): Promise<string | null> {
+    if (this.experimentalGateProvider?.()) throw new Error('Strict context refresh is unavailable');
+    const contextLease = this.experimentalLease();
     if (!this.authRefreshHandler) {
       return null;
     }
@@ -1644,6 +1725,7 @@ export class HttpService {
       const tokenAtStart = this.tokenStore.getAccessToken();
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
+          if (this.experimentalGateProvider?.()) return null;
           if (epoch !== this.sessionEpoch) {
             // A guarded refresh handler can itself adopt a new active context.
             // Acknowledge only an already-installed, exact result; never plant
@@ -1687,7 +1769,9 @@ export class HttpService {
         });
     }
 
-    return this.tokenRefreshPromise;
+    const refreshed = await this.tokenRefreshPromise;
+    this.assertExperimentalLease(contextLease);
+    return refreshed;
   }
 
   /**
@@ -1756,12 +1840,18 @@ export class HttpService {
   runSingleFlightDeviceSecretMint(
     mint: () => Promise<DeviceSecretMintOutcome>,
   ): Promise<DeviceSecretMintOutcome> {
+    if (this.experimentalGateProvider?.())
+      return Promise.reject(new Error('Strict context refresh is unavailable'));
+    const contextLease = this.experimentalLease();
     if (!this.deviceSecretMintInFlight) {
       this.deviceSecretMintInFlight = mint().finally(() => {
         this.deviceSecretMintInFlight = null;
       });
     }
-    return this.deviceSecretMintInFlight;
+    return this.deviceSecretMintInFlight.then((outcome) => {
+      this.assertExperimentalLease(contextLease);
+      return outcome;
+    });
   }
 
   /**
@@ -1855,6 +1945,7 @@ export class HttpService {
     url: string | URL,
     options: { signal?: AbortSignal } = {},
   ): Promise<string> {
+    const contextLease = this.experimentalLease();
     const base = new URL(this.baseURL);
     const target = new URL(String(url), base);
     if (target.protocol === 'wss:') target.protocol = 'https:';
@@ -1872,12 +1963,14 @@ export class HttpService {
       throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
     const beforeAuthEpoch = this.sessionEpoch;
     const authHeader = await awaitRequestSignal(this.getAuthHeader(), options.signal);
+    this.assertExperimentalLease(contextLease);
     const currentToken = this.syncAccessTokenFromProvider();
     if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, currentToken))
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     if (options.signal?.aborted) throw createCancelledError();
     if (!authHeader?.startsWith('Bearer '))
       throw new OxyAuthenticationError('An active Oxy session is required', 'AUTH_REQUIRED');
+    this.assertExperimentalLease(contextLease);
     return authHeader.slice('Bearer '.length);
   }
 
@@ -1885,6 +1978,7 @@ export class HttpService {
     config: ResponseRequest,
     requireAuth: boolean,
   ): Promise<Response> {
+    const contextLease = this.experimentalLease();
     // Validate before obtaining a bearer: an unrelated origin must not trigger
     // an auth mint, even when the trusted transport accepts absolute URLs.
     const target = new URL(this.buildURL(config.url));
@@ -1910,6 +2004,7 @@ export class HttpService {
     const contextToken = this.syncAccessTokenFromProvider();
     const beforeAuthEpoch = this.sessionEpoch;
     const authHeader = await awaitRequestSignal(this.getAuthHeader(), config.signal);
+    this.assertExperimentalLease(contextLease);
     if (
       beforeAuthEpoch !== this.sessionEpoch ||
       !sameTokenSession(contextToken, this.tokenStore.getAccessToken())
@@ -1930,6 +2025,7 @@ export class HttpService {
       false,
       this.sessionEpoch,
       contextToken,
+      contextLease,
     );
   }
 
@@ -1940,8 +2036,10 @@ export class HttpService {
     isAuthRetry: boolean,
     epoch: number,
     contextToken: string | null,
+    contextLease: ExperimentalLease,
   ): Promise<Response> {
     const assertCurrent = (): void => {
+      this.assertExperimentalLease(contextLease);
       this.syncAccessTokenFromProvider();
       if (
         epoch !== this.sessionEpoch ||
@@ -1993,6 +2091,7 @@ export class HttpService {
       // Node fetch requires this flag for streaming uploads; ordinary and
       // multipart bodies keep the platform's existing body serialization.
       if (body && typeof body === 'object' && 'getReader' in body) init.duplex = 'half';
+      assertCurrent();
       const response = await (config.fetch ?? globalThis.fetch)(fullUrl, init);
       try {
         assertCurrent();
@@ -2035,6 +2134,7 @@ export class HttpService {
             true,
             epoch,
             contextToken,
+            contextLease,
           );
         }
         this.clearTokens();
@@ -2102,6 +2202,14 @@ export class HttpService {
 
   // Token management
   setTokens(accessToken: string): void {
+    if (this.tokenStore.getAccessToken() !== accessToken) {
+      this.experimentalGateProvider?.()?.invalidate();
+    }
+    this.experimentalInstallContextToken(accessToken);
+  }
+
+  /** @internal The coordinator installs a staged token while the gate is closed. */
+  experimentalInstallContextToken(accessToken: string): void {
     const current = this.tokenStore.getAccessToken();
     const deviceId = knownTokenDeviceId(accessToken);
     const changed =
@@ -2149,6 +2257,13 @@ export class HttpService {
 
   setAccessTokenProvider(provider: AccessTokenProvider | null): void {
     this.accessTokenProvider = provider;
+    this.experimentalMirroredProvider = false;
+  }
+
+  /** @internal Provider mirrors another HttpService protected by the same gate. */
+  experimentalSetMirroredAccessTokenProvider(provider: AccessTokenProvider | null): void {
+    this.accessTokenProvider = provider;
+    this.experimentalMirroredProvider = provider !== null;
   }
 
   /**
@@ -2163,6 +2278,12 @@ export class HttpService {
   }
 
   clearTokens(): void {
+    if (this.tokenStore.getAccessToken()) this.experimentalGateProvider?.()?.invalidate();
+    this.experimentalClearMirrorToken();
+  }
+
+  /** @internal Clear a linked mirror without invalidating its owner. */
+  experimentalClearMirrorToken(): void {
     if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
     this.sessionDeviceId = null;
@@ -2206,8 +2327,19 @@ export class HttpService {
    */
   private notifyTokenChange(): void {
     if (this._tokenChangeListeners.size === 0) return;
+    let contextLease: ExperimentalLease;
+    try {
+      contextLease = this.experimentalLease();
+    } catch {
+      return;
+    }
     const accessToken = this.tokenStore.getAccessToken();
     for (const listener of this._tokenChangeListeners) {
+      try {
+        this.assertExperimentalLease(contextLease);
+      } catch {
+        return;
+      }
       try {
         listener(accessToken);
       } catch (error) {
@@ -2217,11 +2349,16 @@ export class HttpService {
   }
 
   getAccessToken(): string | null {
+    try {
+      this.experimentalLease();
+    } catch {
+      return null;
+    }
     return this.tokenStore.getAccessToken();
   }
 
   hasAccessToken(): boolean {
-    return this.tokenStore.hasAccessToken();
+    return this.getAccessToken() !== null;
   }
 
   getBaseURL(): string {
@@ -2237,6 +2374,7 @@ export class HttpService {
    * this caller's own read cached and no invalidation has dropped since.
    */
   peekCachedGet<T>(url: string, params?: Record<string, unknown>): T | null {
+    if (this.experimentalGateProvider?.()) return null;
     if (this.cacheDisabled) return null;
     this.syncAccessTokenFromProvider();
     return this.cache.get(this.generateCacheKey('GET', url, params)) as T | null;

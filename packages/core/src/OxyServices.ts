@@ -25,6 +25,7 @@ import { ContentClaimsApi } from './api/contentClaims';
  */
 import {
   HttpService,
+  type ExperimentalContextGate,
   type AuthRefreshReason,
   type RequestOptions,
   type ResponsePayload,
@@ -82,6 +83,7 @@ export const OXY_API_URL = 'https://api.oxy.so';
 export class OxyServices {
   /** The transport. Every namespace call goes through it. */
   readonly http: HttpService;
+  private experimentalContextGate: ExperimentalContextGate | null = null;
   readonly config: Readonly<OxyConfig>;
   /** Oxy Cloud (file CDN) origin. */
   readonly cloudURL: string;
@@ -96,12 +98,21 @@ export class OxyServices {
     this.config = config;
     this.cloudURL = config.cloudURL || OXY_CLOUD_URL;
     this.http = new HttpService(config);
+    this.http.experimentalSetContextGateProvider(() => this.experimentalContextGate);
     this.context = {
       oxy: this,
       http: this.http,
       request: (method, url, data, options) => this.request(method, url, data, options),
       service: null,
     };
+  }
+
+  /** @internal Experimental wiring; not a supported public configuration. */
+  experimentalSetContextGate(gate: ExperimentalContextGate): void {
+    if (this.experimentalContextGate && this.experimentalContextGate !== gate)
+      throw new Error('Context gate already installed');
+    this.experimentalContextGate = gate;
+    this.http.experimentalSetContextGateProvider(() => this.experimentalContextGate);
   }
 
   /** The Oxy API origin this client talks to. */
@@ -160,19 +171,20 @@ export class OxyServices {
    */
   createLinkedClient(config: OxyConfig): LinkedHttpClient {
     const client = new HttpService({ ...config, enableCache: config.enableCache ?? false });
+    client.experimentalSetContextGateProvider(() => this.experimentalContextGate);
 
     const syncToken = (accessToken: string | null): void => {
-      const current = client.getAccessToken();
+      const current = client.experimentalPeekAccessToken();
       if (accessToken) {
-        if (current !== accessToken) client.setTokens(accessToken);
+        if (current !== accessToken) client.experimentalInstallContextToken(accessToken);
         return;
       }
-      if (current) client.clearTokens();
+      if (current) client.experimentalClearMirrorToken();
     };
 
     syncToken(this.http.getAccessToken());
     const unsubscribe = this.http.addTokenChangeListener(syncToken);
-    client.setAccessTokenProvider(() => this.http.getAccessToken());
+    client.experimentalSetMirroredAccessTokenProvider(() => this.http.getAccessToken());
     client.setAuthRefreshHandler(async (reason: AuthRefreshReason) => {
       const refreshed = await this.http.refreshAccessToken(reason);
       if (!refreshed) return null;
@@ -200,8 +212,8 @@ export class OxyServices {
         disposed = true;
         unsubscribe();
         client.setAuthRefreshHandler(null);
-        client.setAccessTokenProvider(null);
-        client.clearTokens();
+        client.experimentalSetMirroredAccessTokenProvider(null);
+        client.experimentalClearMirrorToken();
       },
     };
   }

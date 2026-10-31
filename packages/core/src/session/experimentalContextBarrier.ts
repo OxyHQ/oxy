@@ -20,6 +20,17 @@ interface ExperimentalContextBarrierIO {
   mint(credential: DeviceCredential): Promise<unknown>;
   readState(accessToken: string): Promise<unknown>;
   readDirectory(accessToken: string): Promise<unknown>;
+  /** Run cache/owner preparation while all token and snapshot reads are closed. */
+  prepareCommit?(previous: ContextOwner | null, next: ContextOwner): Promise<void> | void;
+}
+
+interface ContextOwner {
+  deviceId: string;
+  deviceSessionId: string;
+  contextId: string;
+  actorId: string;
+  accountId: string;
+  sessionId: string;
 }
 
 interface ContextSnapshot {
@@ -41,7 +52,9 @@ function freezeSnapshot(value: unknown): void {
 
 export class ExperimentalContextBarrier {
   private generation = 0;
+  private readonly listeners = new Set<() => void>();
   private highWater: { deviceId: string; deviceSessionId: string; revision: number } | null = null;
+  private previousOwner: ContextOwner | null = null;
   private current: {
     snapshot: ContextSnapshot;
     token: string;
@@ -56,6 +69,22 @@ export class ExperimentalContextBarrier {
     this.generation += 1;
     this.current = null;
     this.phase = 'unavailable';
+    this.notify();
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {
+        /* A subscriber cannot break the barrier. */
+      }
+    }
   }
 
   status(): 'unavailable' | 'reconciling' | 'ready' {
@@ -162,6 +191,16 @@ export class ExperimentalContextBarrier {
         expiresAt: binding.expiresAt,
       };
       freezeSnapshot(snapshot);
+      const owner = {
+        deviceId: binding.deviceId,
+        deviceSessionId: binding.deviceSessionId,
+        contextId: binding.contextId,
+        actorId: binding.actorId,
+        accountId: binding.accountId,
+        sessionId: binding.sessionId,
+      };
+      await this.io.prepareCommit?.(this.previousOwner, owner);
+      if (!current() || expires <= Date.now()) return false;
       // setAccessToken may synchronously reenter or invalidate this barrier.
       this.io.setAccessToken(binding.accessToken);
       if (!current() || this.io.getAccessToken() !== binding.accessToken || expires <= Date.now())
@@ -172,8 +211,10 @@ export class ExperimentalContextBarrier {
         deviceSessionId: binding.deviceSessionId,
         revision: binding.revision,
       };
+      this.previousOwner = owner;
       this.phase = 'ready';
-      return true;
+      this.notify();
+      return this.isCurrent(generation);
     } catch {
       return false;
     } finally {
