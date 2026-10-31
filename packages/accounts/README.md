@@ -21,7 +21,7 @@ bun run typecheck    # tsc --noEmit
 
 - **Router**: `expo-router` with `typedRoutes: true` — all `router.push()` calls must use typed path strings, no `as any`.
 - **Auth SDK**: `@oxy.so/services` (`OxyProvider` with a registered `clientId`) + `@oxy.so/core` (types). The SDK's device-first cold boot owns session restore end to end — this app implements **no local session restore, callbacks, or token plumbing**.
-- **UI**: `@oxy.so/bloom` component library; BloomThemeProvider sets Inter globally — do NOT set `fontFamily: 'Inter-*'` manually.
+- **UI**: `@oxy.so/bloom` component library; BloomProvider owns theme/composition with the Expo Router scroll adapter and sets Inter globally — do NOT set `fontFamily: 'Inter-*'` manually.
 - **i18n**: `LocaleProvider` + `useTranslation` in `lib/i18n/`; 11 locales; device locale via `Intl.DateTimeFormat()` (no `expo-localization` needed).
 
 ## Sign-in

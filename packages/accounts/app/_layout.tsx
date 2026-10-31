@@ -10,7 +10,6 @@ import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { ReactNode } from 'react';
 import { OxyProvider, useOxy } from '@oxy.so/services';
@@ -18,7 +17,9 @@ import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import type { AliaAsk } from '@alia.onl/sdk/ask';
 import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
 import { productAnalytics } from '@/lib/product-analytics';
-import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
+import { useNavigationTheme } from '@oxy.so/bloom/theme';
+import { BloomProvider } from '@oxy.so/bloom/provider';
+import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
@@ -147,61 +148,53 @@ function RootLayoutInner() {
   }, [initializeApp]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* No KeyboardProvider here: OxyProvider mounts the one. A second one above it
-          took the native keyboard events, so every keyboard hook under OxyProvider read
-          a closed keyboard. */}
-      {/* OxyProvider does NOT wrap a BloomThemeProvider — by design, to
-          avoid duplicate contexts when an app already ships its own (see
-          packages/services/src/ui/components/OxyProvider.tsx). The consumer
-          (this app) owns the BloomThemeProvider and feeds it the resolved
-          theme mode from ThemeModeProvider. */}
-      <BloomThemeProvider mode={themeMode}>
-        <ConnectionStatusToasts />
-        <OxyProvider
-          onAskAlia={openAlia}
-          aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
-          oxyOneArtwork={<OxyOneVideo />}
-          baseURL={API_URL}
-          clientId={OXY_CLIENT_ID}
-          authRedirectUri={OXY_AUTH_REDIRECT_URI}
-          productAnalytics={productAnalytics}
-        >
-          <AppImageResolver>
-            <LocaleProvider>
-              {/* Native Bloom surfaces (Alia's sheet) render only through this
+    // OxyProvider owns gesture, safe-area and keyboard roots. Bloom owns theme
+    // and composition while ThemeModeProvider retains the app's preference.
+    <BloomProvider mode={themeMode} scrollAdapter={expoRouterScrollAdapter}>
+      <ConnectionStatusToasts />
+      <OxyProvider
+        onAskAlia={openAlia}
+        aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+        oxyOneArtwork={<OxyOneVideo />}
+        baseURL={API_URL}
+        clientId={OXY_CLIENT_ID}
+        authRedirectUri={OXY_AUTH_REDIRECT_URI}
+        productAnalytics={productAnalytics}
+      >
+        <AppImageResolver>
+          <LocaleProvider>
+            {/* Native Bloom surfaces (Alia's sheet) render only through this
                   provider/outlet pair; the outlet sits AFTER the content it paints
                   over and the boundary wraps everything else. Alia's one sheet sits
                   beside the inert boundary, not in it, and portals into the outlet. */}
-              <PortalProvider>
-                <AccountsAskProvider askRef={aliaRef}>
-                  <OverlayInertBoundary>
-                    <AppHead />
-                    {!appIsReady ? (
-                      // WEB: the custom splash covers init and fades out; its
-                      // `onFadeComplete` gates `appIsReady`. NATIVE renders null
-                      // here — the held OS splash is on top, so nothing underneath
-                      // needs to paint.
-                      Platform.OS === 'web' ? (
-                        <AppSplashScreen
-                          startFade={startFade}
-                          onFadeComplete={handleSplashFadeComplete}
-                        />
-                      ) : null
-                    ) : (
-                      <AppLockGate>
-                        <AppStackContent />
-                      </AppLockGate>
-                    )}
-                  </OverlayInertBoundary>
-                </AccountsAskProvider>
-                <PortalOutlet />
-              </PortalProvider>
-            </LocaleProvider>
-          </AppImageResolver>
-        </OxyProvider>
-      </BloomThemeProvider>
-    </GestureHandlerRootView>
+            <PortalProvider>
+              <AccountsAskProvider askRef={aliaRef}>
+                <OverlayInertBoundary>
+                  <AppHead />
+                  {!appIsReady ? (
+                    // WEB: the custom splash covers init and fades out; its
+                    // `onFadeComplete` gates `appIsReady`. NATIVE renders null
+                    // here — the held OS splash is on top, so nothing underneath
+                    // needs to paint.
+                    Platform.OS === 'web' ? (
+                      <AppSplashScreen
+                        startFade={startFade}
+                        onFadeComplete={handleSplashFadeComplete}
+                      />
+                    ) : null
+                  ) : (
+                    <AppLockGate>
+                      <AppStackContent />
+                    </AppLockGate>
+                  )}
+                </OverlayInertBoundary>
+              </AccountsAskProvider>
+              <PortalOutlet />
+            </PortalProvider>
+          </LocaleProvider>
+        </AppImageResolver>
+      </OxyProvider>
+    </BloomProvider>
   );
 }
 
@@ -236,7 +229,7 @@ function AppHead() {
 
 /** Renders the navigation stack once the app is ready. */
 function AppStackContent() {
-  // Must be called inside OxyProvider (which wraps BloomThemeProvider)
+  // This component renders inside the shared BloomProvider and OxyProvider.
   const navTheme = useNavigationTheme();
   const { isAuthenticated, isAuthResolved } = useOxy();
 
