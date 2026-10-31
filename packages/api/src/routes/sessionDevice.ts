@@ -4,6 +4,7 @@ import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
+  deviceContextTokenV1RequestSchema,
   deviceContextTokenV1ResponseSchema,
   deviceJoinCodeRequestSchema,
   deviceJoinCodeResponseSchema,
@@ -204,8 +205,8 @@ router.post(
   deviceTokenLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store');
-    const parsed = deviceTokenMintRequestSchema.safeParse(req.body);
-    if (!parsed.success || parsed.data.accountId !== undefined) {
+    const parsed = deviceContextTokenV1RequestSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({ error: 'deviceId and deviceSecret are required' });
       return;
     }

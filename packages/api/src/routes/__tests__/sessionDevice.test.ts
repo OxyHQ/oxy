@@ -339,6 +339,14 @@ describe('POST /session/device/context-token-v1', () => {
         accountId,
       });
       expect(pinned.status).toBe(400);
+      for (const invalid of ['', null, 3]) {
+        const invalidPin = await requestJson('POST', '/session/device/context-token-v1', {
+          deviceId,
+          deviceSecret: secret,
+          accountId: invalid,
+        });
+        expect(invalidPin.status).toBe(400);
+      }
       expect(spy).toHaveBeenCalledTimes(1);
     } finally {
       spy.mockRestore();

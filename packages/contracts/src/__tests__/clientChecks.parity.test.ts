@@ -208,6 +208,12 @@ const PAIRS: Pair[] = [
     samples: [{ accessToken: 't', expiresAt: ISO, nextDeviceSecret: 's', state: sessionState }],
   },
   {
+    name: 'deviceContextTokenV1Request',
+    check: client.deviceContextTokenV1RequestCheck,
+    schema: contracts.deviceContextTokenV1RequestSchema,
+    samples: [{ deviceId: 'device-1', deviceSecret: 'secret' }],
+  },
+  {
     name: 'deviceContextTokenV1Response',
     check: client.deviceContextTokenV1ResponseCheck,
     schema: contracts.deviceContextTokenV1ResponseSchema,

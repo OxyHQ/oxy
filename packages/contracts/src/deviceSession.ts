@@ -80,6 +80,12 @@ export const deviceTokenMintResponseSchema = z.object({
 export type DeviceTokenMintRequest = z.infer<typeof deviceTokenMintRequestSchema>;
 export type DeviceTokenMintResponse = z.infer<typeof deviceTokenMintResponseSchema>;
 
+/** Account-mode holder proof; identity-pinned mints use the separate `/token` contract. */
+export const deviceContextTokenV1RequestSchema = z.strictObject({
+  deviceId: z.string().check(utf16MinLength(1)),
+  deviceSecret: z.string().check(utf16MinLength(1)),
+});
+
 /** Holder-proven active-context token; it does not freeze the account graph. */
 export const deviceContextTokenV1ResponseSchema = z.object({
   version: z.literal(1),
@@ -94,6 +100,7 @@ export const deviceContextTokenV1ResponseSchema = z.object({
   expiresAt: z.string().check(utf16MinLength(1)),
 });
 
+export type DeviceContextTokenV1Request = z.infer<typeof deviceContextTokenV1RequestSchema>;
 export type DeviceContextTokenV1Response = z.infer<typeof deviceContextTokenV1ResponseSchema>;
 
 /**

@@ -7,6 +7,7 @@
 import type {
   ActiveToken,
   DeviceBackgroundCredentialResponse,
+  DeviceContextTokenV1Request,
   DeviceContextTokenV1Response,
   DeviceJoinCodeResponse,
   DeviceJoinResponse,
@@ -30,6 +31,7 @@ import {
   optional,
   positive,
   string,
+  strictObject,
 } from './check';
 
 /* -------------------------------------------------------------------------- */
@@ -101,6 +103,13 @@ export const deviceContextTokenV1ResponseCheck = exact<DeviceContextTokenV1Respo
     sessionId: string(minLength(1)),
     accessToken: string(minLength(1)),
     expiresAt: string(minLength(1)),
+  }),
+);
+
+export const deviceContextTokenV1RequestCheck = exact<DeviceContextTokenV1Request>()(
+  strictObject({
+    deviceId: string(minLength(1)),
+    deviceSecret: string(minLength(1)),
   }),
 );
 

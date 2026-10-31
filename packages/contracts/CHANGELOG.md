@@ -4,7 +4,7 @@
 
 ### Added
 
-- Versioned holder-proven active-context token response and its Zod-free client check.
+- Versioned holder-proven active-context token request and response, with Zod-free client checks.
 
 ## 6.0.0
 
