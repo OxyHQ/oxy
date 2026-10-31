@@ -206,6 +206,21 @@ export type {
   StorePageOptions,
   StoreReviewsOptions,
 } from './api/store';
+// The store's installer (ADR 0053): what a runtime that installs applications registers beside
+// `oxy.store`, and what a store asks it.
+export {
+  getStoreInstaller,
+  setStoreInstaller,
+  StoreInstallerError,
+} from './api/storeInstaller';
+export type {
+  StoreInstallState,
+  StoreInstaller,
+  StoreInstallerFailure,
+  StoreUpdate,
+  StoreUpdates,
+  StoreUpdatesSource,
+} from './api/storeInstaller';
 export type {
   BillingApi,
   SubscriptionPlan,
