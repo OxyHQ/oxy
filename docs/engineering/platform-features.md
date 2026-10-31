@@ -16,6 +16,8 @@
 
 **Bot accounts carry a 3D avatar `character`** (`users.character`, `avatarCharacterSchema` in `@oxy.so/contracts`): generated at `POST /accounts` (`avatarCharacterFor(username)`) unless the caller names one, replaced with `PATCH /accounts/:id`, emitted on the user DTOs for `kind: 'bot'` ONLY (`userIdentityFields`). `isAgent` is `kind === 'bot'`; `type: 'agent'` is the federation-resolve actor flavour, a different thing.
 
+The public projection must carry `character` through both `publicUserColumns` and `toPublicUserView`, including self reads that reuse it. On 2026-10-31, two real bot profiles had stored characters but returned no character publicly because only the SELECT contained it. `profilesCharacter.test.ts` exercises database → projection → serializer → username/resolve/search HTTP plus public/self/batch reads; malformed payloads, old NULLs and non-bots remain without a character. Never synthesize a look on the read path to hide missing data.
+
 **Production "Oxy" team workspace:** `_id 6a2f9d8989b795cfdfac350f`, slug `oxy`, owned by user `oxy` (`_id 69b2d3df5d12f58c9800d651`, username `oxy`, email `hello@oxy.so` — DISTINCT from human `nateus`/`nate@oxy.so`). All 12 official Applications assigned to it. Migration `scripts/migrate-workspaces.ts` ran (idempotent).
 
 ## Oxy Trust — Reputation System (#217 + #219, 2026-06-16)
