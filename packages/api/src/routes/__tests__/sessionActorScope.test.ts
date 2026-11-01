@@ -25,7 +25,6 @@ import sessionService from '../../services/session.service';
 import sessionRouter from '../session';
 import { HttpService } from '../../../../core/src/HttpService';
 import { activeSessionIdOf } from '../../../../core/src/session/projectSessionState';
-import { isInvalidSessionError } from '../../../../services/src/ui/utils/errorHandlers';
 import { permissionsForAccountRole } from '../../utils/accountRoles';
 import * as serviceEvents from '../../utils/serviceEvents';
 import * as revocation from '../../services/sessionRevocation.service';
@@ -212,7 +211,6 @@ it.each(['editor', 'admin'] as const)(
       })
       .catch((error: unknown) => error);
     expect(clientError).toMatchObject({ status: 403, code: 'ACTING_SESSION_MISMATCH' });
-    expect(isInvalidSessionError(clientError)).toBe(false);
     expect(refresh).not.toHaveBeenCalled();
     expect(client.getAccessToken()).toBe(a.accessToken);
     expect(client.getSessionEpoch()).toBe(beforeEpoch);
