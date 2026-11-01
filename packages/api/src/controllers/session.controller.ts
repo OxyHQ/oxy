@@ -83,9 +83,8 @@ interface ActingSession {
  * Resolve the `:sessionId` a session-management route acts through, and prove
  * it with the bearer (#1372). A session id is an identifier that travels in
  * client state, logs and URLs, never an authenticator: the route runs behind
- * `authMiddleware`, and the acting session must be live AND belong to the
- * bearer's user. Anything else answers the same `401`, so the response says
- * nothing about whether the id exists or whose it is.
+ * `authMiddleware`, and the acting session must be the verified bearer session.
+ * A separate explicit target is subject to the route's existing target rules.
  */
 async function resolveActingSession(
   req: AuthRequest,
@@ -97,9 +96,18 @@ async function resolveActingSession(
     return null;
   }
   const authenticatedUserId = getAuthenticatedUserId(req);
-  const result = authenticatedUserId
-    ? await sessionService.validateSessionById(sessionId, false)
-    : null;
+  if (!authenticatedUserId || !req.sessionId) {
+    res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
+    return null;
+  }
+  if (sessionId !== req.sessionId) {
+    res.status(403).json({
+      message: 'Acting session does not match the authenticated session',
+      code: 'ACTING_SESSION_MISMATCH',
+    });
+    return null;
+  }
+  const result = await sessionService.validateSessionById(sessionId, false);
   const session = result?.session;
   if (!session || session.userId?.toString() !== authenticatedUserId) {
     res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
