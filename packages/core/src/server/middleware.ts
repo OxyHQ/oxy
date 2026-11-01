@@ -1158,8 +1158,13 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (onError) return onError(refusal);
             return res.status(403).json(refusal);
           }
+          // A temporary authority failure is not a revoked session or an anonymous visitor.
+          const authorityUnavailable = extractErrorStatus(validationError) === 503;
           const validationStatus =
-            strictPresentedBearer && extractErrorStatus(validationError) !== 401 ? 503 : 401;
+            authorityUnavailable ||
+            (strictPresentedBearer && extractErrorStatus(validationError) !== 401)
+              ? 503
+              : 401;
           recordRefusal(req, {
             code: 'SESSION_VALIDATION_ERROR',
             stage: 'session',
@@ -1180,7 +1185,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             );
           }
 
-          if (optional && !strictPresentedBearer) {
+          if (optional && !strictPresentedBearer && !authorityUnavailable) {
             req.userId = null;
             req.user = null;
             return next();
