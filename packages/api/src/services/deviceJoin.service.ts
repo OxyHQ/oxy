@@ -26,7 +26,7 @@
  */
 
 import * as crypto from 'crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull } from 'drizzle-orm';
 import type { DeviceProof } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
@@ -133,6 +133,7 @@ export class DeviceJoinService {
       await tx.insert(deviceJoinCodes).values({
         codeHash: sha256Hex(code),
         deviceSessionId: device.id,
+        issuerCredentialId: credential.id,
         applicationId: app.id,
         redirectUri: canonicalizeOAuthRedirectUri(input.redirectUri),
         codeChallenge: input.codeChallenge,
@@ -159,7 +160,8 @@ export class DeviceJoinService {
   }): Promise<RedeemJoinCodeOutcome> {
     const db = getDb();
     // This first read takes no row lock and rejects known spent/expired codes
-    // without locking the device. The claim repeats every condition after the
+    // without locking the device. Legacy or old-server codes without an issuer
+    // cannot prove a live holder. The claim repeats every condition after the
     // device lock: this preliminary result can change while the lock is awaited.
     const [candidate] = await db
       .select({ id: deviceJoinCodes.id, deviceSessionId: deviceJoinCodes.deviceSessionId })
@@ -167,6 +169,7 @@ export class DeviceJoinService {
       .where(
         and(
           eq(deviceJoinCodes.codeHash, sha256Hex(input.code)),
+          isNotNull(deviceJoinCodes.issuerCredentialId),
           isNull(deviceJoinCodes.usedAt),
           gt(deviceJoinCodes.expiresAt, new Date()),
         ),
@@ -190,6 +193,7 @@ export class DeviceJoinService {
             eq(deviceJoinCodes.id, candidate.id),
             eq(deviceJoinCodes.deviceSessionId, candidate.deviceSessionId),
             eq(deviceJoinCodes.codeHash, sha256Hex(input.code)),
+            isNotNull(deviceJoinCodes.issuerCredentialId),
             isNull(deviceJoinCodes.usedAt),
             gt(deviceJoinCodes.expiresAt, now),
           ),

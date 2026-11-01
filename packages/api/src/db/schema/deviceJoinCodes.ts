@@ -17,6 +17,8 @@
  * - bound to one OFFICIAL application and to one of its exact registered redirect
  *   URIs, which is also the only origin the bridge posts it to;
  * - bound to the app's PKCE S256 challenge, so a code read in transit is useless.
+ * - bound to its issuing holder; deleting that credential deletes its codes.
+ *   Legacy codes without an attributable holder cannot be redeemed by new servers.
  *
  * `code_hash` is `sha256(code)`: the code is a bearer credential and is never
  * stored.
@@ -25,6 +27,7 @@
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { applications } from './applications';
+import { deviceCredentials } from './deviceCredentials';
 import { deviceSessions } from './deviceSessions';
 
 export const deviceJoinCodes = pgTable(
@@ -36,6 +39,8 @@ export const deviceJoinCodes = pgTable(
     deviceSessionId: text()
       .notNull()
       .references(() => deviceSessions.id, { onDelete: 'cascade' }),
+    /** Null only for codes issued by older servers, whose holder is unknowable. */
+    issuerCredentialId: text().references(() => deviceCredentials.id, { onDelete: 'cascade' }),
     /** The official application the code is issued TO. */
     applicationId: text()
       .notNull()
@@ -52,6 +57,7 @@ export const deviceJoinCodes = pgTable(
   (t) => [
     unique('device_join_codes_code_hash_key').on(t.codeHash),
     index('device_join_codes_device_session_id_idx').on(t.deviceSessionId),
+    index('device_join_codes_issuer_credential_id_idx').on(t.issuerCredentialId),
     index('device_join_codes_application_id_idx').on(t.applicationId),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('device_join_codes_expires_at_idx').on(t.expiresAt),

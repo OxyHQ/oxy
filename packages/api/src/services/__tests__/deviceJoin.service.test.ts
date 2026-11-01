@@ -137,7 +137,217 @@ describe('registerDevice', () => {
 });
 
 describe('issueJoinCode / redeemJoinCode', () => {
-  it('accepts a pre-existing code, and signout invalidates another pre-existing code', async () => {
+  it('rejects a code after the issuing holder is evicted by the real cap', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const [account] = await getDb().insert(users).values({}).returning({ id: users.id });
+    await deviceSessionService.addAccount(device.deviceId, {
+      accountId: account.id,
+      sessionId: 's1',
+    });
+    const { verifier, challenge } = pkce();
+    const issued = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!issued.ok) throw new Error(issued.reason);
+    const otherSecret = await deviceSessionService.issueDeviceSecret(device.deviceId);
+    if (!otherSecret) throw new Error('holder was not created');
+    const other = pkce();
+    const otherIssued = await deviceJoinService.issueJoinCode({
+      deviceId: device.deviceId,
+      deviceSecret: otherSecret,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: other.challenge,
+    });
+    if (!otherIssued.ok) throw new Error(otherIssued.reason);
+    await getDb()
+      .update(deviceCredentials)
+      .set({ lastUsedAt: new Date(Date.now() - 86_400_000) })
+      .where(
+        eq(
+          deviceCredentials.secretHash,
+          createHash('sha256').update(device.deviceSecret).digest('hex'),
+        ),
+      );
+    for (let i = 0; i < 31; i += 1) {
+      await deviceSessionService.issueDeviceSecret(device.deviceId);
+    }
+    expect(
+      await deviceSessionService.getStateBySecret(device.deviceId, device.deviceSecret),
+    ).toBeNull();
+    const redeemed = await deviceJoinService.redeemJoinCode({
+      code: issued.code,
+      codeVerifier: verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    });
+    expect(redeemed).toEqual({ ok: false, reason: 'invalid_grant' });
+    const otherRedemption = await deviceJoinService.redeemJoinCode({
+      code: otherIssued.code,
+      codeVerifier: other.verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    });
+    if (!otherRedemption.ok) throw new Error(otherRedemption.reason);
+    expect(
+      (await deviceSessionService.getStateBySecret(device.deviceId, otherRedemption.deviceSecret))
+        ?.activeAccountId,
+    ).toBe(account.id);
+  });
+
+  it('preserves a code and its issuer if individual deletion rolls back', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const { verifier, challenge } = pkce();
+    const issued = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!issued.ok) throw new Error(issued.reason);
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx
+          .select({ id: deviceSessions.id })
+          .from(deviceSessions)
+          .where(eq(deviceSessions.deviceId, device.deviceId))
+          .for('update');
+        await tx
+          .delete(deviceCredentials)
+          .where(
+            eq(
+              deviceCredentials.secretHash,
+              createHash('sha256').update(device.deviceSecret).digest('hex'),
+            ),
+          );
+        throw new Error('force rollback');
+      }),
+    ).rejects.toThrow('force rollback');
+    expect(
+      (
+        await deviceJoinService.redeemJoinCode({
+          code: issued.code,
+          codeVerifier: verifier,
+          clientId: app.clientId,
+          redirectUri: app.redirectUri,
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
+  it('rejects redemption when individual holder deletion wins the device lock', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const { verifier, challenge } = pkce();
+    const issued = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!issued.ok) throw new Error(issued.reason);
+    const ready = deferred<number>();
+    const release = deferred<void>();
+    const deletion = getDb().transaction(async (tx) => {
+      await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.deviceId, device.deviceId))
+        .for('update');
+      await tx
+        .delete(deviceCredentials)
+        .where(
+          eq(
+            deviceCredentials.secretHash,
+            createHash('sha256').update(device.deviceSecret).digest('hex'),
+          ),
+        );
+      ready.resolve(await transactionPid(tx));
+      await release.promise;
+    });
+    const blockerPid = await ready.promise;
+    const redemption = deviceJoinService.redeemJoinCode({
+      code: issued.code,
+      codeVerifier: verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    });
+    try {
+      await waitForBlockedBy(blockerPid);
+    } finally {
+      release.resolve();
+    }
+    await deletion;
+    expect(await redemption).toEqual({ ok: false, reason: 'invalid_grant' });
+  });
+
+  it('allows redemption that holds the lock before individual holder deletion', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const { verifier, challenge } = pkce();
+    const issued = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!issued.ok) throw new Error(issued.reason);
+    const ready = deferred<number>();
+    const release = deferred<void>();
+    const original = deviceSessionService.issueDeviceSecretInTransaction.bind(deviceSessionService);
+    const spy = jest
+      .spyOn(deviceSessionService, 'issueDeviceSecretInTransaction')
+      .mockImplementation(async (tx, id) => {
+        ready.resolve(await transactionPid(tx));
+        await release.promise;
+        return original(tx, id);
+      });
+    const redemption = deviceJoinService.redeemJoinCode({
+      code: issued.code,
+      codeVerifier: verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    });
+    let deletion: Promise<void> | undefined;
+    try {
+      const blockerPid = await ready.promise;
+      deletion = getDb().transaction(async (tx) => {
+        await tx
+          .select({ id: deviceSessions.id })
+          .from(deviceSessions)
+          .where(eq(deviceSessions.deviceId, device.deviceId))
+          .for('update');
+        await tx
+          .delete(deviceCredentials)
+          .where(
+            eq(
+              deviceCredentials.secretHash,
+              createHash('sha256').update(device.deviceSecret).digest('hex'),
+            ),
+          );
+      });
+      await waitForBlockedBy(blockerPid);
+    } finally {
+      release.resolve();
+      spy.mockRestore();
+    }
+    const result = await redemption;
+    await deletion;
+    if (!result.ok) throw new Error(result.reason);
+    expect(
+      await deviceSessionService.getStateBySecret(result.deviceId, result.deviceSecret),
+    ).not.toBeNull();
+    expect(
+      await deviceSessionService.getStateBySecret(device.deviceId, device.deviceSecret),
+    ).toBeNull();
+  });
+
+  it('rejects legacy or old-server codes without an attributable issuer', async () => {
     const device = await deviceJoinService.registerDevice();
     const app = await officialApp();
     const [row] = await getDb()
@@ -160,15 +370,13 @@ describe('issueJoinCode / redeemJoinCode', () => {
         });
     }
     expect(
-      (
-        await deviceJoinService.redeemJoinCode({
-          code: legacyCode,
-          codeVerifier: verifier,
-          clientId: app.clientId,
-          redirectUri: app.redirectUri,
-        })
-      ).ok,
-    ).toBe(true);
+      await deviceJoinService.redeemJoinCode({
+        code: legacyCode,
+        codeVerifier: verifier,
+        clientId: app.clientId,
+        redirectUri: app.redirectUri,
+      }),
+    ).toEqual({ ok: false, reason: 'invalid_grant' });
     await deviceSessionService.signout(device.deviceId, { all: true });
     expect(
       await deviceJoinService.redeemJoinCode({
