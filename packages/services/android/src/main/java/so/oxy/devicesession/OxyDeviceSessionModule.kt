@@ -19,10 +19,9 @@ import expo.modules.kotlin.modules.ModuleDefinition
  *   [HOST_AUTHORITIES] order if no host failed. A host reads ITSELF from its
  *   own store instead of calling its own provider.
  * - `write` publishes to EVERY installed host (itself locally, the others
- *   through their providers). It reports success only when every installed
- *   host either confirmed the new credential by read-back or, having refused
- *   it, was cleared: a host left holding an OLDER credential would win the
- *   sweep and hand every app a stale secret.
+ *   through their providers). It reports success when at least one visible host
+ *   confirmed the credential and every other resolved host confirmed either the
+ *   write or a clear. These observations do not freeze concurrent writes.
  * - `clear` drops the credential from every reachable host.
  *
  * An app that is not a host keeps no copy of its own: with no host installed
@@ -114,40 +113,33 @@ class OxyDeviceSessionModule : Module() {
    * The sweep adopts the FIRST host holding a credential, so a host that kept
    * an older one would shadow this write for every app: they would adopt the
    * stale secret, get a 401, sign in again, publish again, and loop. So a host
-   * that did not confirm the write is cleared, and the write counts only when
-   * at least one host confirmed it and no installed host is left holding
-   * anything else. Hosts that are not installed do not count.
+   * that did not confirm the write is cleared. The write counts only when at
+   * least one host confirmed it and every other resolved host confirmed a write
+   * or clear. Resolve every host first; a resolution exception returns
+   * false without writes. Hosts that are not visible do not count. Resolution
+   * does not freeze the host set or make the subsequent writes atomic.
    */
   private fun publish(deviceId: String, deviceSecret: String): Boolean {
-    var confirmed = 0
-    var stale = false
-    for (authority in HOST_AUTHORITIES) {
-      if (!isInstalled(authority)) continue
-      val ok = if (authority == selfAuthority) {
+    return publishSharedDeviceSessions(HOST_AUTHORITIES, ::isInstalled, { authority ->
+      if (authority == selfAuthority) {
         OxyDeviceSessionStore.write(context, deviceId, deviceSecret)
       } else {
         callWrite(authority, deviceId, deviceSecret)
       }
-      if (ok) {
-        confirmed += 1
-      } else if (!clearHost(authority)) {
-        stale = true
-      }
-    }
-    return confirmed > 0 && !stale
+    }, ::clearHost)
   }
 
   /** Drop the credential from every installed host. Best-effort. */
   private fun clearShared() {
     for (authority in HOST_AUTHORITIES) {
-      if (isInstalled(authority)) clearHost(authority)
+      if (runCatching { isInstalled(authority) }.getOrDefault(false)) clearHost(authority)
     }
   }
 
   /** Whether some app on this device hosts [authority] (and we may see it). */
   private fun isInstalled(authority: String): Boolean =
     authority == selfAuthority ||
-      runCatching { context.packageManager.resolveContentProvider(authority, 0) != null }.getOrDefault(false)
+      (context.packageManager.resolveContentProvider(authority, 0) != null)
 
   /** One host's `write`; false when it refused, threw, or did not confirm. */
   private fun callWrite(authority: String, deviceId: String, deviceSecret: String): Boolean = runCatching {
