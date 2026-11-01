@@ -3,6 +3,7 @@ import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { deviceContextTokenV1ResponseSchema } from '@oxy.so/contracts';
 import { deviceContextTokenV1ResponseCheck } from '@oxy.so/contracts/client';
+import { OxyServices } from '@oxy.so/core';
 import express, { type Request } from 'express';
 import { eq } from 'drizzle-orm';
 
@@ -31,7 +32,7 @@ import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { sessions } from '../../db/schema/sessions';
-import { validateAccessToken } from '../../utils/sessionUtils';
+import { generateSessionTokens, validateAccessToken } from '../../utils/sessionUtils';
 import deviceSessionService from '../../services/deviceSession.service';
 import sessionService from '../../services/session.service';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -108,6 +109,7 @@ it('mints a signed active-context token only to the holder and denies missing bi
       accountId: string;
       sessionId: string;
       contextId: string;
+      deviceSessionId: string;
       accessToken: string;
     };
   };
@@ -120,6 +122,27 @@ it('mints a signed active-context token only to the holder and denies missing bi
     sid: data.sessionId,
     device_context_id: contextId,
   });
+  // The first token is produced by the actual holder endpoint and checked by
+  // the API. A second signed token with matching claims exercises local token
+  // rotation only; it is not asserted to be persisted or accepted by the API.
+  const second = generateSessionTokens({
+    subjectAccountId: org.id,
+    principalUserId: actor.id,
+    sessionId: data.sessionId,
+    deviceId,
+    deviceSessionId: data.deviceSessionId,
+    deviceContextId: contextId,
+  }).accessToken;
+  expect(validateAccessToken(second).valid).toBe(true);
+  const client = new OxyServices({ baseURL: 'https://test.invalid' });
+  try {
+    client.session.setAccessToken(data.accessToken);
+    const epoch = client.http.getSessionEpoch();
+    client.session.setAccessToken(second);
+    expect(client.http.getSessionEpoch()).toBe(epoch);
+  } finally {
+    client.dispose();
+  }
   await getDb()
     .update(sessions)
     .set({ deviceContextId: null })
