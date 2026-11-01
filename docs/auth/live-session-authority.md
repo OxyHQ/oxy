@@ -56,7 +56,12 @@ The upper bounds are safeguards, not capacity recommendations. Choose actual
 limits only after measuring the target deployment, and configure every task
 consistently. The route uses separate fixed-window Redis budgets in this order:
 verified subject (or hashed IP when there is no verified subject), hashed IP,
-then a shared global key. The legacy endpoint's budget is separate and
+then a shared global key. After the address budget, a request without a
+signature-, expiry-, subject- and session-id-verifiable bearer is refused
+without reaching the global budget. This is budget attribution, not a live
+session authorization: a verified bearer still requires the controller's
+authority checks. A verification failure has no invalid-session marker; a
+missing signing secret returns 503. The legacy endpoint's budget is separate and
 unchanged. A rejected subject or IP does not consume the global counter, but a
 later denial or Redis failure can consume earlier reservations. Shared NAT
 traffic shares the IP budget. A caller can compete for global capacity, so

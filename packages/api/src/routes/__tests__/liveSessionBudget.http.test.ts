@@ -2,6 +2,7 @@ import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/socket', () => ({
@@ -77,12 +78,16 @@ it('bounds the real live route by signed subject, address and shared budget', as
     res.json({ ok: true }),
   );
   const client = new OxyServices({ baseURL: origin });
-  const request = (ip: string, userId?: string, live = true) =>
+  const request = (ip: string, userId?: string, live = true, authorization?: string) =>
     fetch(`${base}/${userId ? sessions.get(userId)?.sessionId : 's'}`, {
       headers: {
         'x-forwarded-for': ip,
         ...(live ? { 'x-oxy-session-authority': 'live-v1' } : {}),
-        ...(userId ? { authorization: `Bearer ${sessions.get(userId)?.accessToken}` } : {}),
+        ...(authorization
+          ? { authorization }
+          : userId
+            ? { authorization: `Bearer ${sessions.get(userId)?.accessToken}` }
+            : {}),
       },
     });
   try {
@@ -102,9 +107,23 @@ it('bounds the real live route by signed subject, address and shared budget', as
     expect((await request('10.1.0.1', 'c')).status).toBe(429);
     expect(await redis.get(globalKey)).toBe('3');
     expect((await request('10.1.0.2')).status).toBe(401);
-    expect((await request('10.1.0.2')).status).toBe(401);
+    const invalid = await request('10.1.0.2', undefined, true, 'Bearer malformed');
+    expect(invalid.status).toBe(401);
+    expect(await invalid.json()).not.toHaveProperty('error.code', 'OXY_LIVE_SESSION_INVALID_V1');
     expect((await request('10.1.0.2')).status).toBe(429);
-    expect(await redis.get(globalKey)).toBe('5');
+    expect(await redis.get(globalKey)).toBe('3');
+    expect(handler).toHaveBeenCalledTimes(3);
+    const noExpiry = jwt.sign(
+      { userId: 'subject', sessionId: 's' },
+      process.env.ACCESS_TOKEN_SECRET as string,
+    );
+    expect((await request('10.1.0.9', undefined, true, `Bearer ${noExpiry}`)).status).toBe(401);
+    expect(await redis.get(globalKey)).toBe('3');
+    const secret = process.env.ACCESS_TOKEN_SECRET;
+    delete process.env.ACCESS_TOKEN_SECRET;
+    expect((await request('10.1.0.8', 'h')).status).toBe(503);
+    process.env.ACCESS_TOKEN_SECRET = secret;
+    expect(await redis.get(globalKey)).toBe('3');
     const initialTtl = await redis.pttl(globalKey);
     const originalCall = redis.call.bind(redis);
     let budgetCommands = 0;
@@ -117,13 +136,13 @@ it('bounds the real live route by signed subject, address and shared budget', as
       });
     expect((await request('10.1.0.7', 'h')).status).toBe(503);
     failingGlobal.mockRestore();
-    expect(await redis.get(globalKey)).toBe('5');
+    expect(await redis.get(globalKey)).toBe('3');
     const simultaneous = await Promise.all(
       Array.from({ length: 10 }, (_, i) => request(`10.2.0.${i + 1}`, `parallel-${i}`)),
     );
-    expect(simultaneous.filter((response) => response.status === 200)).toHaveLength(5);
-    expect(simultaneous.filter((response) => response.status === 429)).toHaveLength(5);
-    expect(await redis.get(globalKey)).toBe('15');
+    expect(simultaneous.filter((response) => response.status === 200)).toHaveLength(7);
+    expect(simultaneous.filter((response) => response.status === 429)).toHaveLength(3);
+    expect(await redis.get(globalKey)).toBe('13');
     expect(await redis.pttl(globalKey)).toBeLessThanOrEqual(initialTtl);
     expect((await request('10.1.0.6', 'h')).status).toBe(429);
     expect((await request('10.1.0.1', 'a', false)).status).toBe(200);

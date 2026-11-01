@@ -204,7 +204,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
 
 interface RequestWithUserPrincipal extends Request {
-  [USER_PRINCIPAL]?: { userId?: string; clientId?: string };
+  [USER_PRINCIPAL]?: { userId?: string; clientId?: string; expiresAt?: number };
 }
 
 /**
@@ -232,11 +232,11 @@ function userPrincipal(req: Request): string | undefined {
   return verifiedSession(req).userId;
 }
 
-function verifiedSession(req: Request): { userId?: string; clientId?: string } {
+function verifiedSession(req: Request): { userId?: string; clientId?: string; expiresAt?: number } {
   const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
   if (cached) return cached;
 
-  const resolve = (): { userId?: string; clientId?: string } => {
+  const resolve = (): { userId?: string; clientId?: string; expiresAt?: number } => {
     const secret = process.env.ACCESS_TOKEN_SECRET;
     const authHeader = req.headers.authorization;
     if (!secret || !authHeader?.startsWith('Bearer ')) return {};
@@ -249,13 +249,16 @@ function verifiedSession(req: Request): { userId?: string; clientId?: string } {
         id?: unknown;
         _id?: unknown;
         azp?: unknown;
+        exp?: unknown;
       };
       if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return {};
       const clientId =
         typeof claims.azp === 'string' && claims.azp.length > 0 ? claims.azp : undefined;
+      const expiresAt =
+        typeof claims.exp === 'number' && Number.isFinite(claims.exp) ? claims.exp : undefined;
       for (const candidate of [claims.userId, claims.id, claims._id]) {
         if (typeof candidate === 'string' && candidate.length > 0) {
-          return { userId: candidate, clientId };
+          return { userId: candidate, clientId, expiresAt };
         }
       }
       return {};
@@ -491,6 +494,17 @@ function sessionHeaderValidationBudget(req: Request, res: Response, next: NextFu
     liveAddressLimiter(req, res, (addressError?: unknown) => {
       if (addressError || redis.status !== 'ready') {
         res.status(503).json({ message: 'Session authority unavailable' });
+        return;
+      }
+      if (!process.env.ACCESS_TOKEN_SECRET) {
+        res.status(503).json({ message: 'Session authority unavailable' });
+        return;
+      }
+      const verified = verifiedSession(req);
+      if (!verified.userId || verified.expiresAt === undefined) {
+        // No invalid-session marker: this is only a cheap budget attribution,
+        // not an authoritative decision that should clear client credentials.
+        res.status(401).json({ message: 'Bearer cannot be verified' });
         return;
       }
       liveGlobalLimiter(req, res, (globalError?: unknown) => {
