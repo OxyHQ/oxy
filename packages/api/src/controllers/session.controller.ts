@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import type { Request, Response } from 'express';
-import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { authChallenges } from '../db/schema/authChallenges';
@@ -13,7 +13,7 @@ import type { SessionAuthResponse, ClientSession } from '../types/session';
 import { getDeviceActiveSessions, logoutAllDeviceSessions } from '../utils/deviceUtils';
 import { emitSessionUpdate } from '../server';
 import SignatureService from '../services/signature.service';
-import sessionService from '../services/session.service';
+import sessionService, { ActingSessionChangedError } from '../services/session.service';
 import sessionCache from '../utils/sessionCache';
 import { logger } from '../utils/logger';
 import { formatUserResponse, type UserLike } from '../utils/userTransform';
@@ -77,6 +77,7 @@ interface ActingSession {
   sessionId: string;
   userId: string;
   deviceId: string;
+  principalId: string;
 }
 
 /**
@@ -96,7 +97,7 @@ async function resolveActingSession(
     return null;
   }
   const authenticatedUserId = getAuthenticatedUserId(req);
-  if (!authenticatedUserId || !req.sessionId) {
+  if (!authenticatedUserId || !req.sessionId || !req.oxyToken) {
     res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
     return null;
   }
@@ -107,13 +108,22 @@ async function resolveActingSession(
     });
     return null;
   }
-  const result = await sessionService.validateSessionById(sessionId, false);
+  const result = await sessionService.validateSessionById(sessionId, false, { useCache: false });
   const session = result?.session;
-  if (!session || session.userId?.toString() !== authenticatedUserId) {
+  const principalId = session?.operatedByUserId?.toString() ?? session?.userId?.toString();
+  if (
+    !session ||
+    !session.deviceId ||
+    !principalId ||
+    session.userId?.toString() !== authenticatedUserId ||
+    req.oxyToken.subjectAccountId !== authenticatedUserId ||
+    req.oxyToken.sessionId !== sessionId ||
+    req.oxyToken.principalUserId !== principalId
+  ) {
     res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
     return null;
   }
-  return { sessionId, userId: session.userId.toString(), deviceId: session.deviceId };
+  return { sessionId, userId: session.userId.toString(), deviceId: session.deviceId, principalId };
 }
 
 // Challenge expiration time (5 minutes)
@@ -532,36 +542,16 @@ export class SessionController {
     }
   }
 
-  // Get all sessions for a user. Requires bearer auth and verifies the
-  // authenticated user owns the referenced session — otherwise an attacker
-  // with a stolen sessionId could enumerate every active session for the
-  // owner (C1 / H3).
+  // List sessions for the authenticated principal and effective account.
   static async getUserSessions(req: AuthRequest, res: Response) {
     try {
-      const { sessionId } = req.params;
-      const authenticatedUserId = getAuthenticatedUserId(req);
-
-      if (!sessionId) {
-        return res.status(400).json({ message: 'Session ID is required' });
-      }
-      if (!authenticatedUserId) {
-        return res.status(401).json({ message: 'Authentication required' });
-      }
-
-      // Find current session to get user ID
-      const currentSessionResult = await sessionService.validateSessionById(sessionId, false);
-
-      if (!currentSessionResult?.session) {
-        return res.status(404).json({ message: 'Session not found' });
-      }
-
-      const sessionOwnerId = currentSessionResult.session.userId?.toString();
-      if (sessionOwnerId !== authenticatedUserId) {
-        return res.status(404).json({ message: 'Session not found' });
-      }
-
-      // Get all active sessions for this user using service
-      const sessions = await sessionService.getUserActiveSessions(sessionOwnerId);
+      const acting = await resolveActingSession(req, res);
+      if (!acting) return;
+      const sessions = await sessionService.getUserActiveSessions(
+        acting.userId,
+        acting.principalId,
+        acting.deviceId,
+      );
 
       // Transform sessions for client
       const clientSessions: ClientSession[] = sessions.map((session) => ({
@@ -598,27 +588,33 @@ export class SessionController {
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
 
-      // The acting session signs itself out, or — with `:targetSessionId` — one
-      // of its owner's sessions, or a session on its own device (the device's
-      // holder can already sign out every account there via
-      // `/session/device/logout-all`). Any other target is "not found", so the
-      // route cannot probe sessions it has no claim to.
+      // A target must be on this device or in the same principal/account scope.
+      // The write repeats that scope after locking the authenticated session.
       const targetSessionId = req.params.targetSessionId || acting.sessionId;
       let target: { userId: string; deviceId: string } = acting;
       if (targetSessionId !== acting.sessionId) {
         const targetSession = (await sessionService.validateSessionById(targetSessionId, false))
           ?.session;
+        const targetUserId = targetSession?.userId?.toString();
+        const targetPrincipalId = targetSession?.operatedByUserId?.toString() ?? targetUserId;
         const reachable =
           targetSession &&
-          (targetSession.userId?.toString() === acting.userId ||
-            targetSession.deviceId === acting.deviceId);
+          (targetSession.deviceId === acting.deviceId ||
+            (targetUserId === acting.userId && targetPrincipalId === acting.principalId));
         if (!targetSession || !reachable) {
           return res.status(404).json({ message: 'Session not found' });
         }
         target = { userId: targetSession.userId.toString(), deviceId: targetSession.deviceId };
       }
 
-      const success = await sessionService.deactivateSession(targetSessionId);
+      const success = await sessionService.deactivateSession(targetSessionId, {
+        reachableFrom: {
+          sessionId: acting.sessionId,
+          subjectId: acting.userId,
+          principalId: acting.principalId,
+          deviceId: acting.deviceId,
+        },
+      });
       if (!success) {
         return res.status(404).json({ message: 'Session not found' });
       }
@@ -641,6 +637,10 @@ export class SessionController {
       logger.info(`Logged out session: ${targetSessionId.substring(0, 8)}...`);
       res.json({ success: true, message: 'Session logged out successfully' });
     } catch (error) {
+      if (error instanceof ActingSessionChangedError)
+        return res
+          .status(403)
+          .json({ message: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
       logger.error('Logout session error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -657,28 +657,15 @@ export class SessionController {
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
-      const { sessionId, userId } = acting;
-
-      // Get list of sessionIds that will be deactivated before deactivating.
-      // `is_active` + `expires_at > now()` stay in the predicate: the broadcast
-      // must name exactly the sessions the deactivation below touches.
-      const now = new Date();
-      const sessionsToDeactivate = await getDb()
-        .select({ sessionId: sessions.sessionId })
-        .from(sessions)
-        .where(
-          and(
-            eq(sessions.userId, userId),
-            eq(sessions.isActive, true),
-            ne(sessions.sessionId, sessionId),
-            gt(sessions.expiresAt, now),
-          ),
-        );
-
-      const sessionIds = sessionsToDeactivate.map((s) => s.sessionId);
-
-      // Deactivate all sessions for this user except the current one
-      const count = await sessionService.deactivateAllUserSessions(userId, sessionId);
+      const { sessionId, userId, principalId } = acting;
+      const revoked = await sessionService.deactivateActorSessions({
+        sessionId,
+        subjectId: userId,
+        principalId,
+        deviceId: acting.deviceId,
+      });
+      const sessionIds = revoked.map((s) => s.sessionId);
+      const count = revoked.length;
 
       // Emit socket notification with list of removed sessionIds
       if (sessionIds.length > 0) {
@@ -696,6 +683,10 @@ export class SessionController {
         sessionsLoggedOut: count,
       });
     } catch (error) {
+      if (error instanceof ActingSessionChangedError)
+        return res
+          .status(403)
+          .json({ message: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
       logger.error('Logout all sessions error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }

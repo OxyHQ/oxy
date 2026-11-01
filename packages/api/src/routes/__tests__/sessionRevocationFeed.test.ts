@@ -474,9 +474,13 @@ describe('a backend stops trusting a revoked session at once', () => {
       200,
     );
     await eventually(
-      () => heard.revoked.some((event) => event.userId === owner && !event.sessionId),
-      'the account-wide announcement',
+      () =>
+        heard.revoked.some(
+          (event) => event.userId === owner && event.sessionId === other.sessionId,
+        ),
+      'the revoked-session announcement',
     );
+    expect(heard.revoked.some((event) => event.userId === owner && !event.sessionId)).toBe(false);
     const before = validations();
     await expect(
       oxy.session.validate(other.sessionId, { accessToken: other.bearer }),

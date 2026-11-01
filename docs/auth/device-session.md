@@ -170,6 +170,19 @@ The older logout, logout-all and device-management routes require the acting
 client's session projection and bearer temporarily disagree, these operations
 are unavailable until they agree; this response does not mean the bearer expired.
 
+Session listing and sign-out on those routes are scoped to the authenticated
+principal and effective account. The list also includes sessions of that account
+on the acting device, and an explicit logout target may be any session on that
+device. There is no separate administrator-wide session operation
+in this contract. Bulk sign-out emits one existing session-revocation event per
+session actually ended, rather than an account-wide event; consumers must handle
+the session-specific event form.
+
+Mutations lock the acting session through the database write. Concurrent requests
+can deadlock; PostgreSQL aborts one transaction and the operation returns 500,
+with no database change from that aborted transaction. For other 500 responses,
+clients should refresh state before retrying because completion may be uncertain.
+
 ---
 
 ## Socket sync — room `device:<deviceId>`, event `session_state`

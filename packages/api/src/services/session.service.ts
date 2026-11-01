@@ -2,8 +2,8 @@ import { supervisionProfiles } from '../db/schema/supervision';
 import { inArray } from 'drizzle-orm';
 import { hasOrganizationOperatingAuthority } from './organizationAuthority.service';
 import { supervisionValidAfter } from './supervisionPolicy.service';
-import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { and, desc, asc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import { organizationProfiles } from '../db/schema/organizationProfiles';
@@ -46,6 +46,7 @@ import {
   announceUserSessionsRevoked,
   deactivateSessionRows,
 } from './sessionRevocation.service';
+import { sessionActorScope } from './sessionActorScope';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
@@ -54,6 +55,47 @@ import type {
   SessionCreateOptions,
   SessionRefreshResult,
 } from '../types/session.types';
+
+type SessionReachability = {
+  sessionId: string;
+  subjectId: string;
+  principalId: string;
+  deviceId: string;
+};
+type SessionDeactivationOptions =
+  | { expectedXmin: string; reachableFrom?: SessionReachability }
+  | { expectedXmin?: never; reachableFrom: SessionReachability };
+
+export class ActingSessionChangedError extends Error {
+  constructor() {
+    super('The acting session changed');
+  }
+}
+
+async function withLockedActingSession<T>(
+  acting: SessionReachability,
+  write: (tx: DatabaseOrTransaction) => Promise<T>,
+): Promise<T> {
+  // Lock the acting row through the write; cross-requests can deadlock, so a
+  // database abort must propagate and no notifications are sent before commit.
+  return getDb().transaction(async (tx) => {
+    const [current] = await tx
+      .select({ sessionId: sessions.sessionId })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.sessionId, acting.sessionId),
+          eq(sessions.deviceId, acting.deviceId),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, new Date()),
+          sessionActorScope(acting.subjectId, acting.principalId),
+        ),
+      )
+      .for('update');
+    if (!current) throw new ActingSessionChangedError();
+    return write(tx);
+  });
+}
 
 /**
  * The half of `SessionTokenBindingRow` a MINT decides. `sessionId` and `userId`
@@ -1274,23 +1316,39 @@ class SessionService {
    * @param sessionId - The session ID to deactivate
    * @returns true if session was deactivated, false otherwise
    */
-  async deactivateSession(sessionId: string, options?: { expectedXmin: string }): Promise<boolean> {
-    if (options && !/^[0-9]+$/.test(options.expectedXmin)) {
+  async deactivateSession(
+    sessionId: string,
+    options?: SessionDeactivationOptions,
+  ): Promise<boolean> {
+    if (options?.expectedXmin !== undefined && !/^[0-9]+$/.test(options.expectedXmin)) {
       throw new Error('SESSION_DEACTIVATION_CAS_INVALID');
     }
     try {
       // `deactivate` never DELETES — only the expiry sweep removes a row, which
       // is what keeps every `session_id` reference from another table
       // lifecycle-independent.
-      const deactivated = await deactivateSessionRows(
-        getDb(),
-        and(
-          eq(sessions.sessionId, sessionId),
-          ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : []),
-        ),
+      const predicate = and(
+        eq(sessions.sessionId, sessionId),
+        ...(options?.expectedXmin !== undefined ? [sql`xmin::text = ${options.expectedXmin}`] : []),
+        ...(options?.reachableFrom
+          ? [
+              or(
+                eq(sessions.deviceId, options.reachableFrom.deviceId),
+                sessionActorScope(
+                  options.reachableFrom.subjectId,
+                  options.reachableFrom.principalId,
+                ),
+              ),
+            ]
+          : []),
       );
+      const deactivated = options?.reachableFrom
+        ? await withLockedActingSession(options.reachableFrom, (tx) =>
+            deactivateSessionRows(tx, predicate),
+          )
+        : await deactivateSessionRows(getDb(), predicate);
 
-      if (options && deactivated.length !== 1) {
+      if (options?.expectedXmin !== undefined && deactivated.length !== 1) {
         throw new Error('SESSION_DEACTIVATION_CAS_MISMATCH');
       }
 
@@ -1314,7 +1372,7 @@ class SessionService {
       );
       // Administrative CAS must never confuse an unsuccessful write with retirement.
       // Ordinary callers retain their existing non-throwing contract.
-      if (options) throw error;
+      if (options?.expectedXmin !== undefined || options?.reachableFrom) throw error;
       // Return false on error for graceful degradation - consistent with other non-critical operations
       return false;
     }
@@ -1363,6 +1421,23 @@ class SessionService {
     }
   }
 
+  /** Revoke the live sessions of one principal acting as one subject. */
+  async deactivateActorSessions(acting: SessionReachability) {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(
+        tx,
+        and(
+          sessionActorScope(acting.subjectId, acting.principalId),
+          ne(sessions.sessionId, acting.sessionId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      ),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked;
+  }
+
   /**
    * Get all active sessions for a user
    *
@@ -1372,8 +1447,21 @@ class SessionService {
    * @param userId - The user ID to get sessions for
    * @returns Array of active sessions (empty array on error)
    */
-  async getUserActiveSessions(userId: string): Promise<CachedSession[]> {
+  async getUserActiveSessions(
+    userId: string,
+    principalId?: string,
+    deviceId?: string,
+  ): Promise<CachedSession[]> {
     try {
+      if (deviceId !== undefined && (!principalId || !deviceId)) {
+        throw new Error('Session listing scope is required');
+      }
+      const principalScope =
+        principalId !== undefined ? sessionActorScope(userId, principalId) : undefined;
+      const allowed =
+        deviceId !== undefined
+          ? or(principalScope, eq(sessions.deviceId, deviceId))
+          : principalScope;
       // Serves the (user_id, is_active, expires_at) index.
       return await getDb()
         .select(SESSION_COLUMNS)
@@ -1381,6 +1469,7 @@ class SessionService {
         .where(
           and(
             eq(sessions.userId, userId),
+            ...(allowed ? [allowed] : []),
             eq(sessions.isActive, true),
             gt(sessions.expiresAt, new Date()),
           ),

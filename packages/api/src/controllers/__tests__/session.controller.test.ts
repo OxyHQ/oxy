@@ -26,6 +26,7 @@ const mockGetAccessToken = jest.fn();
 const mockValidateSessionById = jest.fn();
 const mockGetUserActiveSessions = jest.fn();
 const mockDeactivateAllUserSessions = jest.fn();
+const mockDeactivateActorSessions = jest.fn();
 const mockDeactivateSession = jest.fn();
 const mockEmitSessionUpdate = jest.fn();
 const mockFinalizeDeviceLogin = jest.fn();
@@ -36,6 +37,7 @@ const mockGenerateChallenge = jest.fn();
 
 jest.mock('../../services/session.service', () => ({
   __esModule: true,
+  ActingSessionChangedError: class extends Error {},
   default: {
     createSession: (...a: unknown[]) => mockCreateSession(...a),
     getAccessToken: (...a: unknown[]) => mockGetAccessToken(...a),
@@ -43,6 +45,7 @@ jest.mock('../../services/session.service', () => ({
     getUserActiveSessions: (...a: unknown[]) => mockGetUserActiveSessions(...a),
     deactivateSession: (...a: unknown[]) => mockDeactivateSession(...a),
     deactivateAllUserSessions: (...a: unknown[]) => mockDeactivateAllUserSessions(...a),
+    deactivateActorSessions: (...a: unknown[]) => mockDeactivateActorSessions(...a),
   },
 }));
 
@@ -146,6 +149,12 @@ function authRequest(userId: string, over: Record<string, unknown>): AuthRequest
     user: { _id: userId, id: userId },
     // The real auth middleware installs the verified bearer session id.
     sessionId: params?.sessionId,
+    oxyToken: {
+      sessionId: params?.sessionId,
+      subjectAccountId: userId,
+      principalUserId: userId,
+      applicationId: null,
+    },
     ...over,
   } as unknown as AuthRequest;
 }
@@ -797,8 +806,15 @@ describe('logoutAllSessions', () => {
     const strangerId = await account();
     const stranger = await session(strangerId);
 
-    mockValidateSessionById.mockResolvedValueOnce({ session: { userId, sessionId: current } });
-    mockDeactivateAllUserSessions.mockResolvedValueOnce(1);
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { userId, sessionId: current, deviceId: (await storedSession(current)).deviceId },
+    });
+    const real = jest.requireActual<typeof import('../../services/session.service')>(
+      '../../services/session.service',
+    ).default;
+    mockDeactivateActorSessions.mockImplementationOnce((scope) =>
+      real.deactivateActorSessions(scope),
+    );
     const res = captureRes();
 
     await SessionController.logoutAllSessions(
@@ -822,14 +838,37 @@ describe('logoutAllSessions', () => {
   it('emits nothing when the owner has no other live session', async () => {
     const userId = await account();
     const current = await session(userId);
-    mockValidateSessionById.mockResolvedValueOnce({ session: { userId, sessionId: current } });
-    mockDeactivateAllUserSessions.mockResolvedValueOnce(0);
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { userId, sessionId: current, deviceId: (await storedSession(current)).deviceId },
+    });
+    const real = jest.requireActual<typeof import('../../services/session.service')>(
+      '../../services/session.service',
+    ).default;
+    mockDeactivateActorSessions.mockImplementationOnce((scope) =>
+      real.deactivateActorSessions(scope),
+    );
 
     await SessionController.logoutAllSessions(
       authRequest(userId, { params: { sessionId: current } }),
       asResponse(captureRes()),
     );
 
+    expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed revocation transaction without broadcasting success', async () => {
+    const userId = await account();
+    const current = await session(userId);
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { userId, sessionId: current, deviceId: 'dev' },
+    });
+    mockDeactivateActorSessions.mockRejectedValueOnce(new Error('transaction failed'));
+    const res = captureRes();
+    await SessionController.logoutAllSessions(
+      authRequest(userId, { params: { sessionId: current } }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(500);
     expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
   });
 });
@@ -945,7 +984,14 @@ describe('session-management routes prove the acting session (#1372)', () => {
         asResponse(res),
       );
       expect(res.statusCode).toBe(200);
-      expect(mockDeactivateSession).toHaveBeenLastCalledWith(target);
+      expect(mockDeactivateSession).toHaveBeenLastCalledWith(target, {
+        reachableFrom: {
+          sessionId: current,
+          subjectId: owner,
+          principalId: owner,
+          deviceId: 'dev-shared',
+        },
+      });
     }
   });
 
@@ -968,8 +1014,29 @@ describe('session-management routes prove the acting session (#1372)', () => {
       asResponse(captureRes()),
     );
 
-    expect(mockDeactivateSession).toHaveBeenCalledWith(current);
+    expect(mockDeactivateSession).toHaveBeenCalledWith(current, {
+      reachableFrom: {
+        sessionId: current,
+        subjectId: owner,
+        principalId: owner,
+        deviceId: 'dev-o',
+      },
+    });
     expect(mockDeactivateSession).not.toHaveBeenCalledWith(victimSession);
+  });
+
+  it('reports a failed single-session transaction without broadcasting success', async () => {
+    const owner = await account();
+    const current = await session(owner);
+    liveSessions({ [current]: { userId: owner, deviceId: 'dev' } });
+    mockDeactivateSession.mockRejectedValueOnce(new Error('transaction failed'));
+    const res = captureRes();
+    await SessionController.logoutSession(
+      authRequest(owner, { params: { sessionId: current } }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(500);
+    expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
   });
 
   it("refuses logout-all through another user's session", async () => {
@@ -1237,13 +1304,13 @@ describe('session access control (C1 / H3)', () => {
       asResponse(res),
     );
 
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(401);
     expect(mockGetUserActiveSessions).not.toHaveBeenCalled();
   });
 
   it('getUserSessions lists the owner sessions from the FLAT device columns', async () => {
     mockValidateSessionById.mockResolvedValueOnce({
-      session: { userId: OWNER, sessionId: SESSION_ID },
+      session: { userId: OWNER, sessionId: SESSION_ID, deviceId: 'dev-1' },
     });
     mockGetUserActiveSessions.mockResolvedValueOnce([
       {
@@ -1261,6 +1328,8 @@ describe('session access control (C1 / H3)', () => {
       authRequest(OWNER, { params: { sessionId: SESSION_ID } }),
       asResponse(res),
     );
+
+    expect(mockGetUserActiveSessions).toHaveBeenCalledWith(OWNER, OWNER, 'dev-1');
 
     expect(res.body).toEqual([
       {
@@ -1351,8 +1420,15 @@ describe('the sessions a handler reads are the live ones', () => {
     const otherOwner = await account();
     await session(otherOwner);
 
-    mockValidateSessionById.mockResolvedValueOnce({ session: { userId, sessionId: current } });
-    mockDeactivateAllUserSessions.mockResolvedValueOnce(1);
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { userId, sessionId: current, deviceId: (await storedSession(current)).deviceId },
+    });
+    const real = jest.requireActual<typeof import('../../services/session.service')>(
+      '../../services/session.service',
+    ).default;
+    mockDeactivateActorSessions.mockImplementationOnce((scope) =>
+      real.deactivateActorSessions(scope),
+    );
 
     await SessionController.logoutAllSessions(
       authRequest(userId, { params: { sessionId: current } }),
