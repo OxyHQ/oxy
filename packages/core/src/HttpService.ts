@@ -74,6 +74,16 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     );
   }
   if (!(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  const leftBinding = knownTokenContext(left);
+  const rightBinding = knownTokenContext(right);
+  if (
+    (leftBinding.actor && rightBinding.actor && leftBinding.actor !== rightBinding.actor) ||
+    (leftBinding.context && rightBinding.context && leftBinding.context !== rightBinding.context) ||
+    (leftBinding.deviceSession &&
+      rightBinding.deviceSession &&
+      leftBinding.deviceSession !== rightBinding.deviceSession)
+  )
+    return false;
   // A legacy bearer may omit deviceId; empty or non-string values also carry no
   // usable device. Two known, different devices are distinct local contexts.
   if (
@@ -96,6 +106,25 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     'appId',
     'authMethodId',
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
+}
+
+/** Decoded claims only fence local cache/transport; they do not authorize a token. */
+function knownTokenContext(token: string): {
+  actor: string | null;
+  context: string | null;
+  deviceSession: string | null;
+} {
+  const claims = decodeTokenClaims(token);
+  if (!claims || claims.type === 'service')
+    return { actor: null, context: null, deviceSession: null };
+  const actor = claims.act;
+  const actorId = actor && typeof actor === 'object' ? (actor as { sub?: unknown }).sub : undefined;
+  const known = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null);
+  return {
+    actor: known(actorId),
+    context: known(claims.device_context_id),
+    deviceSession: known(claims.device_session_id),
+  };
 }
 
 /** Extract a known device for local ownership checks, never authorization. */
@@ -549,6 +578,10 @@ export class HttpService {
   private sessionEpoch = 0;
   /** Preserve a known device across legacy rotations which omit the claim. */
   private sessionDeviceId: string | null = null;
+  /** Preserve known actor and context hints across rotations without those claims. */
+  private sessionActorId: string | null = null;
+  private sessionContextId: string | null = null;
+  private sessionDeviceSessionId: string | null = null;
   /**
    * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
    * native Commons-identity re-mint arm: after a sign-out a 401 is the expected
@@ -1083,6 +1116,9 @@ export class HttpService {
               if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
               this.tokenStore.clearTokens();
               this.sessionDeviceId = null;
+              this.sessionActorId = null;
+              this.sessionContextId = null;
+              this.sessionDeviceSessionId = null;
               selfClearedEpoch = this.sessionEpoch;
               this.notifyTokenChange();
             }
@@ -2104,12 +2140,30 @@ export class HttpService {
   setTokens(accessToken: string): void {
     const current = this.tokenStore.getAccessToken();
     const deviceId = knownTokenDeviceId(accessToken);
+    const binding = knownTokenContext(accessToken);
     const changed =
       current !== null &&
       (!sameTokenSession(current, accessToken) ||
-        (this.sessionDeviceId !== null && deviceId !== null && this.sessionDeviceId !== deviceId));
+        (this.sessionDeviceId !== null && deviceId !== null && this.sessionDeviceId !== deviceId) ||
+        (this.sessionActorId !== null &&
+          binding.actor !== null &&
+          this.sessionActorId !== binding.actor) ||
+        (this.sessionContextId !== null &&
+          binding.context !== null &&
+          this.sessionContextId !== binding.context) ||
+        (this.sessionDeviceSessionId !== null &&
+          binding.deviceSession !== null &&
+          this.sessionDeviceSessionId !== binding.deviceSession));
     if (changed) this.sessionEpoch += 1;
     this.sessionDeviceId = !current || changed ? deviceId : (deviceId ?? this.sessionDeviceId);
+    this.sessionActorId =
+      !current || changed ? binding.actor : (binding.actor ?? this.sessionActorId);
+    this.sessionContextId =
+      !current || changed ? binding.context : (binding.context ?? this.sessionContextId);
+    this.sessionDeviceSessionId =
+      !current || changed
+        ? binding.deviceSession
+        : (binding.deviceSession ?? this.sessionDeviceSessionId);
     this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
@@ -2166,6 +2220,9 @@ export class HttpService {
     if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
     this.sessionDeviceId = null;
+    this.sessionActorId = null;
+    this.sessionContextId = null;
+    this.sessionDeviceSessionId = null;
     // Drop the response cache on logout. The cache is identity-scoped, so a
     // different user could never read these entries, but a logged-out client
     // must not keep the previous session's personalized data resident in
@@ -2340,5 +2397,8 @@ export class HttpService {
     this.sessionEnded = false;
     this.tokenStore.clearTokens();
     this.sessionDeviceId = null;
+    this.sessionActorId = null;
+    this.sessionContextId = null;
+    this.sessionDeviceSessionId = null;
   }
 }
