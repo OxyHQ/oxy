@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/doctor",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Read-only health checks for Oxy ecosystem repositories",
   "repository": {
     "type": "git",
@@ -10,6 +10,7 @@
   "type": "module",
   "bin": {
     "oxy-doctor": "./src/cli.mjs",
+    "oxy-doctor-expo-android": "./src/expo-android.mjs",
     "oxy-emulator-preflight": "./src/emulator-preflight.mjs"
   },
   "exports": {
