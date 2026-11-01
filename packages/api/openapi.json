@@ -72110,7 +72110,7 @@
           "Devices"
         ],
         "summary": "Sign out every session on this device",
-        "description": "Revoke every session that shares the device fingerprint of the supplied session. Useful for a one-click \"sign out this device\" button.\n",
+        "description": "Revoke every session that shares the device fingerprint of the supplied session. Useful for a one-click \"sign out this device\" button. `sessionId` must identify the bearer session.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72126,7 +72126,10 @@
             "description": "Device sessions revoked."
           },
           "401": {
-            "description": "No bearer, or the session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           }
         },
         "operationId": "postSessionDeviceLogoutAllSessionId"
@@ -72138,7 +72141,7 @@
           "Devices"
         ],
         "summary": "Rename the device for the given session",
-        "description": "Update the human-readable device label shown in the user's devices list. The change applies to every session sharing the device fingerprint.\n",
+        "description": "Update the human-readable device label shown in the user's devices list. The change applies to every session sharing the device fingerprint. `sessionId` must identify the bearer session.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72176,7 +72179,10 @@
             "description": "Validation failed."
           },
           "401": {
-            "description": "No bearer, or the session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           }
         },
         "operationId": "putSessionDeviceNameSessionId"
@@ -72227,7 +72233,7 @@
           "Devices"
         ],
         "summary": "List sessions on the same device as the given session",
-        "description": "Return every active session that shares the device fingerprint of the supplied session. Used to power \"this device has these accounts\" UI in the auth picker.\n",
+        "description": "Return every active session that shares the device fingerprint of the supplied session. Used to power \"this device has these accounts\" UI in the auth picker. `sessionId` must identify the bearer session.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72253,7 +72259,10 @@
             }
           },
           "401": {
-            "description": "No bearer, or the session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           }
         },
         "operationId": "getSessionDeviceSessionsSessionId"
@@ -72427,7 +72436,7 @@
           "Sessions"
         ],
         "summary": "Sign out every session for this user",
-        "description": "Revoke every other session belonging to the user behind `sessionId`, a live session owned by the bearer's user. Recommended after a password reset or suspected compromise.\n",
+        "description": "Revoke every other session belonging to the user behind `sessionId`, the authenticated bearer session. Recommended after a password reset or suspected compromise.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72443,7 +72452,10 @@
             "description": "All sessions revoked."
           },
           "401": {
-            "description": "No bearer, or the session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           }
         },
         "operationId": "postSessionLogoutAllSessionId"
@@ -72455,7 +72467,7 @@
           "Sessions"
         ],
         "summary": "Sign out the given session",
-        "description": "Revoke the session identified by `sessionId`. Requires a bearer whose user owns that session. After this call any bearer token tied to it is rejected.\n",
+        "description": "Revoke the authenticated session identified by `sessionId`. After this call any bearer token tied to it is rejected.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72471,7 +72483,10 @@
             "description": "Session revoked."
           },
           "401": {
-            "description": "No bearer, or the session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           }
         },
         "operationId": "postSessionLogoutSessionId"
@@ -72483,7 +72498,7 @@
           "Sessions"
         ],
         "summary": "Sign another session out via an authenticated session",
-        "description": "Use `sessionId` (a live session owned by the bearer's user) to revoke `targetSessionId`, which must belong to the same user or sit on the same device. This is how the \"sign out other devices\" flow works.\n",
+        "description": "Use `sessionId` (the authenticated bearer session) to revoke `targetSessionId`, which must belong to the same user or sit on the same device. This is how the \"sign out other devices\" flow works.\n",
         "parameters": [
           {
             "name": "sessionId",
@@ -72507,7 +72522,10 @@
             "description": "Target session revoked."
           },
           "401": {
-            "description": "No bearer, or the acting session is not live or not the bearer's."
+            "description": "No valid bearer, or the authenticated session is not live."
+          },
+          "403": {
+            "description": "The acting session id does not match the bearer."
           },
           "404": {
             "description": "Target session not found, or not reachable from the acting one."
