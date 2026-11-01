@@ -19,6 +19,7 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
  */
 import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
+import { SessionAuthorityUnavailableError } from '../utils/error';
 import sessionCache, { type CachedSession } from '../utils/sessionCache';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
@@ -327,7 +328,11 @@ class SessionService {
    * @param useCache - Whether to use cache (default: true)
    * @returns Session object or null if not found or expired
    */
-  async getSession(sessionId: string, useCache = true): Promise<CachedSession | null> {
+  async getSession(
+    sessionId: string,
+    useCache = true,
+    options: { throwOnError?: boolean } = {},
+  ): Promise<CachedSession | null> {
     try {
       // Try cache first
       if (useCache) {
@@ -371,6 +376,7 @@ class SessionService {
           method: 'getSession',
         },
       );
+      if (options.throwOnError) throw error;
       // Return null on error to allow graceful degradation
       // Caller should handle null case appropriately
       return null;
@@ -391,7 +397,7 @@ class SessionService {
    */
   async getSessionWithUser(
     sessionId: string,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
       const { useCache = true } = options;
@@ -473,9 +479,33 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw error;
       // Return null on error for graceful degradation - consistent error handling pattern
       // Caller should handle null case appropriately
       return null;
+    }
+  }
+
+  /**
+   * Read the authority row live while retaining the existing account cache.
+   * A task that missed a revocation must not authenticate from its old session
+   * cache entry; the account document is independent of that revocation.
+   */
+  private async getLiveSessionWithUser(
+    sessionId: string,
+  ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
+    try {
+      const session = await this.getSession(sessionId, false, { throwOnError: true });
+      if (!session) return null;
+
+      let user = userCache.get(session.userId);
+      if (!user) {
+        user = (await userService.readAccountDocument(session.userId)) ?? null;
+        if (user) userCache.set(session.userId, user);
+      }
+      return user ? { session, user } : null;
+    } catch {
+      throw new SessionAuthorityUnavailableError();
     }
   }
 
@@ -499,7 +529,7 @@ class SessionService {
       }
 
       const sessionId = validationResult.payload.sessionId;
-      const result = await this.getSessionWithUser(sessionId, { useCache: true });
+      const result = await this.getLiveSessionWithUser(sessionId);
       if (!result) {
         return null;
       }
@@ -518,7 +548,10 @@ class SessionService {
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
-        const live = await this.getSessionWithUser(sessionId, { useCache: false });
+        const live = await this.getSessionWithUser(sessionId, {
+          useCache: false,
+          throwOnError: options.throwOnError,
+        });
         if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
           return null;
         session = live.session;
@@ -570,7 +603,7 @@ class SessionService {
           method: 'validateSession',
         },
       );
-      if (options.throwOnError) throw error;
+      if (error instanceof SessionAuthorityUnavailableError || options.throwOnError) throw error;
       return null;
     }
   }
@@ -1417,14 +1450,17 @@ class SessionService {
   async validateSessionById(
     sessionId: string,
     populateUser = true,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
     // `useCache: false` is for authority decisions that must observe a sign-out
     // or revocation made on another task inside the cache TTL (ADR 0025).
     const useCache = options.useCache ?? true;
     try {
       if (populateUser) {
-        const result = await this.getSessionWithUser(sessionId, { useCache });
+        const result = await this.getSessionWithUser(sessionId, {
+          useCache,
+          throwOnError: options.throwOnError,
+        });
         if (
           result &&
           !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))
@@ -1434,7 +1470,9 @@ class SessionService {
         return result;
       }
 
-      const session = await this.getSession(sessionId, useCache);
+      const session = await this.getSession(sessionId, useCache, {
+        throwOnError: options.throwOnError,
+      });
       if (!session) {
         return null;
       }
@@ -1455,6 +1493,7 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw new SessionAuthorityUnavailableError();
       // Return null on error for graceful degradation - consistent error handling pattern
       return null;
     }

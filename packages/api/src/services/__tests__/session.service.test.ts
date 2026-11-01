@@ -58,6 +58,8 @@ import { validateAccessToken } from '../../utils/sessionUtils';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import deviceSessionService from '../deviceSession.service';
 import sessionService, { MINT_ROTATES_WITHIN_SECONDS } from '../session.service';
+import { SessionAuthorityUnavailableError } from '../../utils/error';
+import { deactivateSessionRows } from '../sessionRevocation.service';
 import { OxyServices } from '@oxy.so/core';
 import { SessionClient, createSessionClientHost } from '@oxy.so/core/session';
 
@@ -726,6 +728,67 @@ describe("managed-account sessions stay bound to the operator's act_as", () => {
 });
 
 describe('validateSession / getSessionWithUser', () => {
+  it('rejects a revoked row even if the local session cache missed the announcement', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    expect(sessionCache.get(created.sessionId)).not.toBeNull();
+
+    // Revoke on the database without announcing to this task, as if its
+    // subscriber had missed the event. Other caches are not cleared.
+    await deactivateSessionRows(getDb(), eq(sessions.sessionId, created.sessionId));
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+    expect(sessionCache.get(created.sessionId)).not.toBeNull();
+  });
+
+  it('rejects a request started after revocation while an earlier read is in flight', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const original = sessionService.getSession.bind(sessionService);
+    let release!: () => void;
+    let markRead!: () => void;
+    const read = new Promise<void>((resolve) => {
+      markRead = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const lookup = jest
+      .spyOn(sessionService, 'getSession')
+      .mockImplementationOnce(async (...args) => {
+        const result = await original(...args);
+        markRead();
+        await gate;
+        return result;
+      });
+    const pending = sessionService.validateSession(created.accessToken);
+    try {
+      await read;
+      await deactivateSessionRows(getDb(), eq(sessions.sessionId, created.sessionId));
+      expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+    } finally {
+      release();
+      lookup.mockRestore();
+    }
+    // The first request already read an active row before the revocation. This
+    // change cannot cancel an authority decision already in flight.
+    expect(await pending).not.toBeNull();
+  });
+
+  it('fails closed if the live session lookup fails', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const select = jest.spyOn(getDb(), 'select').mockImplementationOnce(() => {
+      throw new Error('synthetic database failure');
+    });
+    try {
+      await expect(sessionService.validateSession(created.accessToken)).rejects.toBeInstanceOf(
+        SessionAuthorityUnavailableError,
+      );
+    } finally {
+      select.mockRestore();
+    }
+  });
+
   it('resolves the session and its user from a live access token', async () => {
     const user = await account({ username: `nate-${randomUUID().slice(0, 8)}` });
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });

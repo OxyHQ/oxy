@@ -3,7 +3,7 @@ import {
   resolveExternalMcpMediaRequest,
   type ExternalMcpMediaOperation,
 } from '../services/externalMcpMediaRequester.service';
-import { ForbiddenError } from '../utils/error';
+import { ForbiddenError, SessionAuthorityUnavailableError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
 import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
@@ -196,7 +196,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         // Use session service for optimized validation with caching
         const validationResult = await sessionService.validateSession(token, {
           allowSupervisedPolicyEvaluation: res.locals.supervisedSelfOperation === true,
-          throwOnError: res.locals.supervisedSelfOperation === true,
+          throwOnError: true,
         });
 
         if (!validationResult) {
@@ -247,10 +247,17 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
             method: 'authMiddleware',
           },
         );
-        return sendAuthFailure(res, res.locals.supervisedSelfOperation === true ? 503 : 500, {
-          error: 'Database error',
-          message: 'Error validating session',
-        });
+        return sendAuthFailure(
+          res,
+          dbError instanceof SessionAuthorityUnavailableError ||
+            res.locals.supervisedSelfOperation === true
+            ? 503
+            : 500,
+          {
+            error: 'Database error',
+            message: 'Error validating session',
+          },
+        );
       }
     } catch (error) {
       logger.error(
@@ -458,6 +465,13 @@ export const simpleAuthMiddleware = async (
           method: 'simpleAuthMiddleware',
         },
       );
+
+      if (error instanceof SessionAuthorityUnavailableError) {
+        return res.status(503).json({
+          error: 'Session authority unavailable',
+          message: 'Please retry later',
+        });
+      }
 
       if (error instanceof jwt.TokenExpiredError) {
         return res.status(401).json({

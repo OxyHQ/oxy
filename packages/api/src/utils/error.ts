@@ -157,6 +157,14 @@ export class ServiceUnavailableError extends ApiError {
   }
 }
 
+/** A session authority lookup failed; this is not evidence of an invalid token. */
+export class SessionAuthorityUnavailableError extends ServiceUnavailableError {
+  constructor() {
+    super('Session authority is temporarily unavailable');
+    this.name = 'SessionAuthorityUnavailableError';
+  }
+}
+
 /**
  * The caller is over a budget: 429, and — when there is one to wait out — when
  * to retry, in whole seconds (never 0: "retry now" is not what a refusal

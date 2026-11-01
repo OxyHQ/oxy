@@ -28,7 +28,7 @@ import {
   type CanonicalUsername,
 } from '../services/accountCreation.service';
 import { isUniqueViolation } from '@oxy.so/db';
-import { BadRequestError } from '../utils/error';
+import { BadRequestError, SessionAuthorityUnavailableError } from '../utils/error';
 import type { AuthRequest } from '../middleware/auth';
 import { accountActorChainFromSession } from '@oxy.so/contracts';
 import {
@@ -715,7 +715,10 @@ export class SessionController {
       }
 
       // Remote validation is an authority decision: read the live row and membership.
-      const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
+      const result = await sessionService.validateSessionById(sessionId, true, {
+        useCache: false,
+        throwOnError: true,
+      });
       if (
         result &&
         ((await isSupervised(result.session.userId)) ||
@@ -749,7 +752,12 @@ export class SessionController {
       });
     } catch (error) {
       logger.error('Validate session error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(error instanceof SessionAuthorityUnavailableError ? 503 : 500).json({
+        message:
+          error instanceof SessionAuthorityUnavailableError
+            ? 'Session authority is temporarily unavailable'
+            : 'Internal server error',
+      });
     }
   }
 
@@ -775,8 +783,14 @@ export class SessionController {
       }
       const token = authorization?.slice(7) ?? null;
       const result = token
-        ? await sessionService.validateSession(token, { allowSupervisedPolicyEvaluation: true })
-        : await sessionService.validateSessionById(sessionId, true, { useCache: false });
+        ? await sessionService.validateSession(token, {
+            allowSupervisedPolicyEvaluation: true,
+            throwOnError: true,
+          })
+        : await sessionService.validateSessionById(sessionId, true, {
+            useCache: false,
+            throwOnError: true,
+          });
       if (
         result &&
         ((await isSupervised(result.session.userId)) ||
@@ -822,7 +836,12 @@ export class SessionController {
       });
     } catch (error) {
       logger.error('Validate session from header error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(error instanceof SessionAuthorityUnavailableError ? 503 : 500).json({
+        message:
+          error instanceof SessionAuthorityUnavailableError
+            ? 'Session authority is temporarily unavailable'
+            : 'Internal server error',
+      });
     }
   }
 
