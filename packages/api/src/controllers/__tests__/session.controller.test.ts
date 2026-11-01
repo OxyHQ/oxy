@@ -138,11 +138,14 @@ function request(over: Record<string, unknown>): Request {
 }
 
 function authRequest(userId: string, over: Record<string, unknown>): AuthRequest {
+  const params = over.params as { sessionId?: string } | undefined;
   return {
     params: {},
     body: {},
     headers: {},
     user: { _id: userId, id: userId },
+    // The real auth middleware installs the verified bearer session id.
+    sessionId: params?.sessionId,
     ...over,
   } as unknown as AuthRequest;
 }
@@ -894,6 +897,32 @@ describe('session-management routes prove the acting session (#1372)', () => {
     );
 
     expect(res.statusCode).toBe(401);
+    expect(mockDeactivateSession).not.toHaveBeenCalled();
+  });
+
+  it('refuses an absent verified bearer session before looking up the path id', async () => {
+    const owner = await account();
+    const live = await session(owner);
+    const res = captureRes();
+    await SessionController.logoutSession(
+      authRequest(owner, { params: { sessionId: live }, sessionId: undefined }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(401);
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
+    expect(mockDeactivateSession).not.toHaveBeenCalled();
+  });
+
+  it('refuses a different acting id before looking it up', async () => {
+    const owner = await account();
+    const res = captureRes();
+    await SessionController.logoutSession(
+      authRequest(owner, { params: { sessionId: 'another' }, sessionId: 'verified' }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ code: 'ACTING_SESSION_MISMATCH' });
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
     expect(mockDeactivateSession).not.toHaveBeenCalled();
   });
 
