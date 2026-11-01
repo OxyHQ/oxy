@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
@@ -408,4 +408,37 @@ it('removes organization edit forms when the same viewer loses account access', 
     expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull(),
   );
   expect(screen.queryByLabelText('accounts.settings.displayName.label')).toBeNull();
+});
+
+it('ignores an older availability response after the username becomes invalid', async () => {
+  let release: ((result: { available: boolean }) => void) | undefined;
+  checkUsername.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  mount(<CreateAccountScreen onClose={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('accounts.create.displayName.label'), {
+    target: { value: 'Acme' },
+  });
+  const username = screen.getByLabelText('accounts.create.username.label');
+  fireEvent.change(username, { target: { value: 'acme_new' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_new'));
+  fireEvent.change(username, { target: { value: 'a' } });
+  const button = screen.getByRole('button', { name: 'accounts.create.title' });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  await act(async () => {
+    release?.({ available: true });
+  });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(button);
+  expect(createAccount).not.toHaveBeenCalled();
+  fireEvent.change(username, { target: { value: 'acme_newer' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_newer'));
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(button);
+  await waitFor(() =>
+    expect(createAccount).toHaveBeenCalledWith(expect.objectContaining({ username: 'acme_newer' })),
+  );
 });
