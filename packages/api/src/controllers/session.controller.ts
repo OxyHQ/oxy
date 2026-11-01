@@ -787,11 +787,11 @@ export class SessionController {
         });
       }
       if (result && result.session.sessionId !== sessionId)
-        return res.status(401).json(
+        return res.status(liveSession ? 403 : 401).json(
           liveSession
             ? {
                 error: {
-                  code: 'OXY_LIVE_SESSION_INVALID_V1',
+                  code: 'OXY_LIVE_SESSION_POLICY_V1',
                   message: 'Token does not match session',
                 },
               }

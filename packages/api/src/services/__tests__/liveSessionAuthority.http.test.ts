@@ -67,6 +67,29 @@ it('revalidates the live session row independently of ordinary cached validation
     expect(active.headers.get('cache-control')).toBe('no-store');
     expect(active.headers.get('vary')).toContain('x-oxy-session-authority');
     expect(await active.json()).toMatchObject({ liveSessionAuthority: 'session-row-v1' });
+    const mismatch = await fetch(`${baseURL}/session/validate-header/another-session`, {
+      headers: {
+        authorization: `Bearer ${session.accessToken}`,
+        'x-oxy-session-authority': 'live-v1',
+      },
+    });
+    expect(mismatch.status).toBe(403);
+    expect(await mismatch.json()).toMatchObject({ error: { code: 'OXY_LIVE_SESSION_POLICY_V1' } });
+    const client = new OxyServices({ baseURL, requestTimeout: 15000 });
+    client.session.setAccessToken(session.accessToken);
+    const epoch = client.http.getSessionEpoch();
+    try {
+      await expect(
+        client.session.validate('another-session', {
+          accessToken: session.accessToken,
+          liveSession: true,
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(client.session.accessToken).toBe(session.accessToken);
+      expect(client.http.getSessionEpoch()).toBe(epoch);
+    } finally {
+      client.dispose();
+    }
     expect((await request()).status).toBe(200);
     await getDb()
       .update(sessions)
