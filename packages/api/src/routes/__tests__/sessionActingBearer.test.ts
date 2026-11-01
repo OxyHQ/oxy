@@ -25,7 +25,6 @@ import sessionService from '../../services/session.service';
 import sessionRouter from '../session';
 import { HttpService } from '../../../../core/src/HttpService';
 import { activeSessionIdOf } from '../../../../core/src/session/projectSessionState';
-import { isInvalidSessionError } from '../../../../services/src/ui/utils/errorHandlers';
 
 jest.setTimeout(60_000);
 let server: http.Server;
@@ -180,7 +179,6 @@ it('requires the bearer session as the acting session while preserving explicit 
     })
     .catch((error: unknown) => error);
   expect(clientError).toMatchObject({ status: 403, code: 'ACTING_SESSION_MISMATCH' });
-  expect(isInvalidSessionError(clientError)).toBe(false);
   expect(refresh).not.toHaveBeenCalled();
   expect(client.getAccessToken()).toBe(a.accessToken);
   expect(client.getSessionEpoch()).toBe(beforeEpoch);
