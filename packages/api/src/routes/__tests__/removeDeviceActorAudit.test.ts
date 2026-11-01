@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { eq, inArray } from 'drizzle-orm';
 import type { Server as SocketServer } from 'socket.io';
 
@@ -9,6 +10,13 @@ jest.unmock('socket.io');
 jest.unmock('socket.io-client');
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 let mockIo: SocketServer;
+const mockExchangeAuthCode = jest.fn();
+jest.mock('../../services/oauthCode.service', () => {
+  const actual = jest.requireActual<typeof import('../../services/oauthCode.service')>(
+    '../../services/oauthCode.service',
+  );
+  return { ...actual, exchangeAuthCode: (...args: unknown[]) => mockExchangeAuthCode(...args) };
+});
 const mockEmitSessionUpdate = jest.fn((userId: string, payload: unknown) =>
   mockIo.to(`user:${userId}`).emit('session_update', payload),
 );
@@ -36,6 +44,7 @@ import { resolveSocketIdentity } from '../../utils/socketAuth';
 import { socketRoomsFor } from '../../utils/socket';
 import * as serviceEvents from '../../utils/serviceEvents';
 import devicesRouter from '../devices';
+import authRouter from '../auth';
 import { errorHandler } from '../../middleware/errorHandler';
 
 let server: http.Server;
@@ -47,6 +56,8 @@ beforeAll(async () => {
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
   const app = express();
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use('/auth', authRouter);
   app.use('/devices', devicesRouter);
   app.use(errorHandler);
   server = http.createServer(app);
@@ -266,3 +277,90 @@ it('preserves personal remote-device removal and rejects a revoked acting sessio
     spy.mockRestore();
   }
 });
+
+it.each([
+  ['first_party', 'first_party', 200],
+  ['third_party', 'external', 403],
+  ['first_party', 'external', 403],
+] as const)(
+  'applies %s OAuth issuer provenance to device management',
+  async (type, authority, expectedStatus) => {
+    const person = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+    const redirectUri = 'https://fixture.invalid/oauth/callback';
+    const [app] = await getDb()
+      .insert(applications)
+      .values({
+        name: `fixture-${randomUUID()}`,
+        type,
+        ownerAccountId: person.id,
+        redirectUris: [redirectUri],
+      })
+      .returning({ id: applications.id });
+    const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
+    await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: app.id,
+        name: 'fixture',
+        type: 'public',
+        environment: 'production',
+        publicKey: clientId,
+      });
+    const request = { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never;
+    const remote = await sessionService.createSession(person.id, request, {
+      deviceId: `fixture-${randomUUID()}`,
+    });
+    const sharedDeviceId = `fixture-${randomUUID()}`;
+    mockExchangeAuthCode.mockResolvedValueOnce({
+      ok: true,
+      code: {
+        userId: person.id,
+        deviceId: sharedDeviceId,
+        operatedByUserId: null,
+        scopes: [],
+        authority,
+      },
+    });
+    const exchange = await fetch(`${base}/auth/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: `fixture-${randomUUID()}`,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: 'a'.repeat(64),
+      }),
+    });
+    expect(exchange.status).toBe(200);
+    const body = (await exchange.json()) as { access_token: string };
+    const decoded = jwt.verify(body.access_token, process.env.ACCESS_TOKEN_SECRET as string) as {
+      sessionId: string;
+    };
+    const [issued] = await getDb()
+      .select({ applicationId: sessions.applicationId, deviceId: sessions.deviceId })
+      .from(sessions)
+      .where(eq(sessions.sessionId, decoded.sessionId));
+    expect(issued.applicationId).toBe(authority === 'first_party' ? null : app.id);
+    if (authority === 'first_party') expect(issued.deviceId).toBe(sharedDeviceId);
+    else expect(issued.deviceId).not.toBe(sharedDeviceId);
+    const headers = { Authorization: `Bearer ${body.access_token}` };
+    const listing = await fetch(`${base}/devices`, { headers });
+    expect(listing.status).toBe(200);
+    const devices = (await listing.json()) as { deviceId: string; isCurrent: boolean }[];
+    const expectedDevices =
+      authority === 'first_party' ? [issued.deviceId, remote.deviceId] : [issued.deviceId];
+    expect(devices.map((device) => device.deviceId).sort()).toEqual(expectedDevices.sort());
+    expect(devices.find((device) => device.deviceId === issued.deviceId)?.isCurrent).toBe(true);
+    const response = await fetch(`${base}/devices/${remote.deviceId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${body.access_token}` },
+    });
+    expect(response.status).toBe(expectedStatus);
+    const [row] = await getDb()
+      .select({ active: sessions.isActive })
+      .from(sessions)
+      .where(eq(sessions.sessionId, remote.sessionId));
+    expect(row.active).toBe(expectedStatus !== 200);
+  },
+);

@@ -82,6 +82,8 @@ export class DevicesController {
               sessionActorScope(acting.subjectId, acting.principalId),
               eq(sessions.isActive, true),
               gt(sessions.expiresAt, new Date()),
+              // App-bound sessions have no proven shared-device provenance.
+              ...(req.oxyToken?.applicationId ? [eq(sessions.sessionId, acting.sessionId)] : []),
             ),
           )
           .orderBy(desc(sessions.lastActiveAt)),
