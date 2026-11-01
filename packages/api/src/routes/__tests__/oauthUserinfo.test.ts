@@ -103,6 +103,7 @@ jest.mock('../../utils/logger', () => ({
 
 import authRouter from '../auth';
 import { errorHandler } from '../../middleware/errorHandler';
+import { SessionAuthorityUnavailableError } from '../../utils/error';
 
 interface UserinfoResponse {
   status: number;
@@ -309,6 +310,14 @@ describe('GET /auth/oauth/userinfo — claims', () => {
 });
 
 describe('GET /auth/oauth/userinfo — RFC 6750 failures', () => {
+  it('reports unavailable authority as 503 without an invalid-token challenge', async () => {
+    mockValidateSessionToken.mockRejectedValue(new SessionAuthorityUnavailableError());
+    const res = await request(server, 'GET', '/auth/oauth/userinfo', BEARER);
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('server_error');
+    expect(res.headers['www-authenticate']).toBeUndefined();
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
   it('rejects an invalid token with a Bearer challenge', async () => {
     mockValidateSessionToken.mockResolvedValueOnce(null);
 

@@ -237,9 +237,14 @@ class SessionService {
       CachedSession,
       'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'
     >,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; throwOnError?: boolean } = {},
   ): Promise<boolean> {
-    if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
+    try {
+      if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
+    } catch (error) {
+      if (opts.throwOnError) throw new SessionAuthorityUnavailableError();
+      throw error;
+    }
     if (session.authMethodId) {
       try {
         if (
@@ -251,6 +256,7 @@ class SessionService {
         )
           return false;
       } catch {
+        if (opts.throwOnError) throw new SessionAuthorityUnavailableError();
         return false; // no stale positive cache for autonomous credentials
       }
     }
@@ -314,6 +320,7 @@ class SessionService {
           sessionId: sessionId.substring(0, 8),
         },
       );
+      if (opts.throwOnError) throw new SessionAuthorityUnavailableError();
       return false;
     }
   }
@@ -538,20 +545,30 @@ class SessionService {
       // The profile rows decide, never the cached session or user: read through
       // the supervision authority cache (≤ 5 s, invalidated on every task when
       // enrolment changes), and a failed read throws into the catch below.
-      const supervised = (
-        await Promise.all(
-          [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])].map(
-            supervisionValidAfter,
-          ),
-        )
-      ).flat();
+      let supervised: Date[];
+      try {
+        supervised = (
+          await Promise.all(
+            [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])].map(
+              supervisionValidAfter,
+            ),
+          )
+        ).flat();
+      } catch {
+        throw new SessionAuthorityUnavailableError();
+      }
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
-        const live = await this.getSessionWithUser(sessionId, {
-          useCache: false,
-          throwOnError: options.throwOnError,
-        });
+        let live: Awaited<ReturnType<SessionService['getSessionWithUser']>>;
+        try {
+          live = await this.getSessionWithUser(sessionId, {
+            useCache: false,
+            throwOnError: true,
+          });
+        } catch {
+          throw new SessionAuthorityUnavailableError();
+        }
         if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
           return null;
         session = live.session;
@@ -561,7 +578,7 @@ class SessionService {
 
       // A managed-account session is only valid while its operator still holds
       // act_as over the account. Revoked membership → deactivate + reject.
-      if (!(await this.ensureManagedSessionAuthorized(session))) {
+      if (!(await this.ensureManagedSessionAuthorized(session, { throwOnError: true }))) {
         return null;
       }
 
@@ -1463,7 +1480,10 @@ class SessionService {
         });
         if (
           result &&
-          !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))
+          !(await this.ensureManagedSessionAuthorized(result.session, {
+            force: !useCache,
+            throwOnError: options.throwOnError,
+          }))
         ) {
           return null;
         }
@@ -1478,7 +1498,12 @@ class SessionService {
       }
 
       // Bind managed-account sessions to the operator's act_as membership here too.
-      if (!(await this.ensureManagedSessionAuthorized(session, { force: !useCache }))) {
+      if (
+        !(await this.ensureManagedSessionAuthorized(session, {
+          force: !useCache,
+          throwOnError: options.throwOnError,
+        }))
+      ) {
         return null;
       }
 

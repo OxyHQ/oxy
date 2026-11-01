@@ -9,6 +9,7 @@ import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import sessionService from '../services/session.service';
+import { SessionAuthorityUnavailableError } from '../utils/error';
 import { isSupervised } from '../services/supervisionPolicy.service';
 
 import { OptionalAuthenticationPolicyError } from './optionalAuthError';
@@ -142,6 +143,7 @@ export async function validateSessionToken(token: string): Promise<NormalizedUse
 
     return normalizeUser(validationResult.user);
   } catch (error) {
+    if (error instanceof SessionAuthorityUnavailableError) throw error;
     logger.debug('Session validation error', { error });
     return null;
   }

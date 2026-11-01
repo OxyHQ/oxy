@@ -29,6 +29,7 @@
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { logger } from './logger';
+import { SessionAuthorityUnavailableError } from './error';
 
 /**
  * The error codes this API emits.
@@ -129,6 +130,10 @@ export class OAuthError extends Error {
     return new OAuthError('server_error', errorDescription, 500);
   }
 
+  static temporarilyUnavailable(errorDescription: string): OAuthError {
+    return new OAuthError('server_error', errorDescription, 503);
+  }
+
   /** RFC 6750 §3.1 — the access token is missing, malformed, or expired. */
   static invalidToken(errorDescription: string): OAuthError {
     return new OAuthError(
@@ -204,6 +209,14 @@ export function oauthHandler(handler: OAuthRouteHandler): RequestHandler {
     Promise.resolve(handler(req, res, next)).catch((caught: unknown) => {
       if (caught instanceof OAuthError) {
         sendOAuthError(res, caught);
+        return;
+      }
+
+      if (caught instanceof SessionAuthorityUnavailableError) {
+        sendOAuthError(
+          res,
+          OAuthError.temporarilyUnavailable('The request could not be completed.'),
+        );
         return;
       }
 

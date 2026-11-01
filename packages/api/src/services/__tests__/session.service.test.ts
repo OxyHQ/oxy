@@ -1249,6 +1249,22 @@ describe('createSession reuse preserves the binding the row already carries', ()
     expect(await sessionService.validateSession(reused.accessToken)).toBeNull();
   });
 
+  it('reports an unavailable membership lookup without revoking the managed session', async () => {
+    const operator = await account();
+    const managed = await account();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    mockVerifyActingAs.mockRejectedValueOnce(new Error('synthetic membership outage'));
+    await expect(sessionService.validateSession(created.accessToken)).rejects.toBeInstanceOf(
+      SessionAuthorityUnavailableError,
+    );
+    expect((await storedSession(created.sessionId)).isActive).toBe(true);
+    mockVerifyActingAs.mockResolvedValue('admin');
+    expect(await sessionService.validateSession(created.accessToken)).not.toBeNull();
+  });
+
   it('still lets the caller REPOINT a binding it does supply', async () => {
     // The other half: "absent means keep" must not become "supplied is
     // ignored". A later exchange can widen or narrow what the client was

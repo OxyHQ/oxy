@@ -154,6 +154,20 @@ function sessionActorChain(session: { userId: string; operatedByUserId?: string 
   });
 }
 
+async function isSessionSupervised(session: {
+  userId: string;
+  operatedByUserId?: string | null;
+}): Promise<boolean> {
+  try {
+    return (
+      (await isSupervised(session.userId)) ||
+      (!!session.operatedByUserId && (await isSupervised(session.operatedByUserId)))
+    );
+  } catch {
+    throw new SessionAuthorityUnavailableError();
+  }
+}
+
 export class SessionController {
   /**
    * Register a new user with public key authentication
@@ -719,12 +733,7 @@ export class SessionController {
         useCache: false,
         throwOnError: true,
       });
-      if (
-        result &&
-        ((await isSupervised(result.session.userId)) ||
-          (result.session.operatedByUserId &&
-            (await isSupervised(result.session.operatedByUserId))))
-      ) {
+      if (result && (await isSessionSupervised(result.session))) {
         return res
           .status(403)
           .json({ message: 'Supervised accounts require verified consumer authorization' });
@@ -791,12 +800,7 @@ export class SessionController {
             useCache: false,
             throwOnError: true,
           });
-      if (
-        result &&
-        ((await isSupervised(result.session.userId)) ||
-          (result.session.operatedByUserId &&
-            (await isSupervised(result.session.operatedByUserId))))
-      ) {
+      if (result && (await isSessionSupervised(result.session))) {
         return res.status(403).json({
           error: { code: 'forbidden', message: 'Reviewed consumer authorization is required' },
         });

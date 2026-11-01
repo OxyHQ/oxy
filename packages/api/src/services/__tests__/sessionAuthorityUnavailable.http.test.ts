@@ -16,14 +16,18 @@ jest.mock('../securityActivityService', () => ({
 }));
 
 import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 import { SessionController } from '../../controllers/session.controller';
 import { authMiddleware, simpleAuthMiddleware } from '../../middleware/auth';
+import { validateSessionToken } from '../../middleware/authUtils';
+import { SessionAuthorityUnavailableError } from '../../utils/error';
 import sessionService from '../session.service';
 
 let server: http.Server;
 let baseURL: string;
+let oxyServer: OxyServer;
 
 beforeAll(async () => {
   await connectPostgres();
@@ -38,6 +42,11 @@ beforeAll(async () => {
   server = http.createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  oxyServer = new OxyServer({ baseURL });
+  app.get('/core-required', oxyServer.middleware.auth(), (_req, res) => res.json({ ok: true }));
+  app.get('/core-optional', oxyServer.middleware.auth({ optional: true }), (_req, res) =>
+    res.json({ ok: true }),
+  );
 });
 
 afterAll(async () => {
@@ -45,7 +54,37 @@ afterAll(async () => {
     server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
+  oxyServer.dispose();
 });
+
+it.each(['/core-required', '/core-optional'])(
+  '%s preserves bearer when real Core middleware receives a 503',
+  async (path) => {
+    const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+    const created = await sessionService.createSession(
+      user.id,
+      { headers: { 'user-agent': 'session-authority-test' } } as Request,
+      { deviceId: `dev-${randomUUID()}` },
+    );
+    const oxy = new OxyServices({ baseURL });
+    oxy.session.setAccessToken(created.accessToken);
+    const epoch = oxy.http.getSessionEpoch();
+    const select = jest.spyOn(getDb(), 'select').mockImplementation(() => {
+      throw new Error('synthetic database failure');
+    });
+    try {
+      await expect(
+        oxy.http.get(path, { retry: false, cache: false, timeout: 15_000 }),
+      ).rejects.toMatchObject({ status: 503 });
+      expect(oxy.session.accessToken).toBe(created.accessToken);
+      expect(oxy.http.getSessionEpoch()).toBe(epoch);
+    } finally {
+      select.mockRestore();
+      oxy.dispose();
+    }
+  },
+  20_000,
+);
 
 it('returns a transient error without clearing the real Core bearer', async () => {
   const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
@@ -68,6 +107,25 @@ it('returns a transient error without clearing the real Core bearer', async () =
   } finally {
     select.mockRestore();
     oxy.dispose();
+  }
+});
+
+it('propagates unavailable authority through the shared token helper', async () => {
+  const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const created = await sessionService.createSession(
+    user.id,
+    { headers: { 'user-agent': 'session-authority-test' } } as Request,
+    { deviceId: `dev-${randomUUID()}` },
+  );
+  const select = jest.spyOn(getDb(), 'select').mockImplementationOnce(() => {
+    throw new Error('synthetic database failure');
+  });
+  try {
+    await expect(validateSessionToken(created.accessToken)).rejects.toBeInstanceOf(
+      SessionAuthorityUnavailableError,
+    );
+  } finally {
+    select.mockRestore();
   }
 });
 
