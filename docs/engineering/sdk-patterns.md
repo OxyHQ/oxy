@@ -107,6 +107,7 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 
 ## BottomSheet Gesture Patterns (services)
 
+- The lean `ui` and `ui/client` entries load account screens when the first surface opens, not when `OxyProvider` mounts. The surface remains dismissible during loading and offers retry if the chunk fails; the root entry still registers screens synchronously.
 - `closeGenerationRef` bumped on each `open()`; every close callback captures the generation at commit time — stale callbacks from cancelled close cycles no-op.
 - Body pan uses `manualActivation()` with `simultaneousWithExternalGesture(scrollViewRef)` — only activates when scroll is at top AND downward movement >8dp. Handle pan is unconditional.
 - Modal contents **must** wrap children in `<GestureHandlerRootView>` — RN's `Modal` renders into its own window; the app-root GHRV does not extend into it.

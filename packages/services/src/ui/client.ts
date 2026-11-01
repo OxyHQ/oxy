@@ -5,8 +5,8 @@
  * re-exports the sign-in panels (`OxySignInPanel`, `OxyLinkCommonsPanel` and
  * its QR code, `OxyConsentScreen`, …) for apps that embed them, and Metro does
  * not tree-shake, so importing ANY symbol from `@oxy.so/services` ships all of
- * them — even though the account dialog that normally shows them is warmed at provider startup. Nothing exported here reaches those panels; the packaging test
- * `clientEntryIsolation` pins it.
+ * them — even though the account dialog normally loads them only when opened.
+ * Nothing exported here reaches those panels; the packaging test `clientEntryIsolation` pins it.
  *
  * @example
  * import { OxyProvider, useOxy, LogoIcon } from '@oxy.so/services/ui/client';
