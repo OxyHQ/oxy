@@ -572,9 +572,10 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
+        "oxy-doctor-expo-android": "./src/expo-android.mjs",
         "oxy-emulator-preflight": "./src/emulator-preflight.mjs",
       },
     },

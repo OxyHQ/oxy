@@ -47,6 +47,34 @@ Require normal tests and typecheck before merging; never use `latest` ranges or
 mutate dependencies during application startup or CI. Renovate proposes
 changes; Doctor detects drift and duplicate installations.
 
+## Expo Android device-session autolinking
+
+After a complete frozen install, run the separate check against the Expo app
+root (the current directory by default):
+
+```bash
+oxy-doctor-expo-android --project-root=packages/frontend \
+  --require-source=SharedDeviceSessionPublish.kt \
+  --require-source=SharedDeviceSessionSweep.kt \
+  --require-source=OxyDeviceSessionStore.kt
+```
+
+The command invokes the app's installed `expo-modules-autolinking` resolver and
+requires exactly one Oxy Services entry matching the version resolved by Node
+from the app root, and one device-session module from that package's Android
+directory. It requires
+`OxyDeviceSessionModule.kt` and any repeated `--require-source` filenames.
+Choose additional sources according to the Services version and guarantees the
+app expects; older releases need not contain newer files. Missing or ambiguous
+results and resolver failures exit nonzero. This does not change the existing
+Doctor or emulator preflight commands.
+
+The check verifies discovery and source presence in the installed dependency
+graph, not source contents, Android compilation, native binary distribution,
+or device runtime behavior. It cannot exclude additional installed copies or
+prove which copy Metro resolves from nested importers. Run it in a complete
+install; a partial install cannot establish that the full app graph is correct.
+
 ## Android emulator preflight
 
 `oxy-emulator-preflight --serial emulator-5554` checks that the explicitly
