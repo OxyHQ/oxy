@@ -26,6 +26,14 @@ export function OrganizationDirectorySearch({
 }) {
   const runtime = useOxyRuntime();
   const { oxyServices } = useOxy();
+  // Revisions are local to each instance, so equal counters do not identify a
+  // replacement provider. React retries this render before committing it.
+  const [instance, setInstance] = useState(() => ({ runtime, oxyServices, generation: 0 }));
+  let instanceGeneration = instance.generation;
+  if (instance.runtime !== runtime || instance.oxyServices !== oxyServices) {
+    instanceGeneration += 1;
+    setInstance({ runtime, oxyServices, generation: instanceGeneration });
+  }
   const revision = useSyncExternalStore(
     runtime.subscribe,
     runtime.getAccountSessionRevision,
@@ -39,7 +47,7 @@ export function OrganizationDirectorySearch({
   const bearerEpoch = useSyncExternalStore(subscribeBearer, getBearerEpoch, getBearerEpoch);
   return (
     <OrganizationDirectorySearchContent
-      key={`${revision}:${bearerEpoch}`}
+      key={`${instanceGeneration}:${revision}:${bearerEpoch}`}
       revision={revision}
       bearerEpoch={bearerEpoch}
       onCreateAccount={onCreateAccount}
