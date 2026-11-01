@@ -65,6 +65,7 @@ const mockPublisher = new FakeRedis(broker);
 jest.mock('../../config/redis', () => ({ getRedisClient: () => mockPublisher }));
 
 import sessionCache from '../sessionCache';
+import { authSessionCache } from '../authSessionCache';
 import { publishSessionRevocation, startServiceEvents } from '../serviceEvents';
 
 function namespace() {
@@ -88,6 +89,39 @@ beforeEach(() => {
 afterEach(() => jest.useRealTimers());
 
 describe('the Valkey relay between oxy-api tasks', () => {
+  it('uses live auth reads until a probe and discards cached rows on subscriber loss', async () => {
+    broker.delivering = false;
+    const task = startServiceEvents(namespace() as never, mockPublisher as never);
+    await flush();
+    const session = {
+      sessionId: 's-auth',
+      userId: 'u-auth',
+      expiresAt: new Date(Date.now() + 60_000),
+    } as never;
+    const beforeProbe = authSessionCache.snapshot('s-auth');
+    authSessionCache.set(beforeProbe, session);
+    expect(authSessionCache.get('s-auth')).toBeNull();
+
+    broker.delivering = true;
+    jest.advanceTimersByTime(OXY_SERVICE_EVENTS_HEARTBEAT_MS);
+    await flush();
+    const healthy = authSessionCache.snapshot('s-auth');
+    authSessionCache.set(healthy, session);
+    expect(authSessionCache.get('s-auth')).toBe(session);
+
+    [...broker.subscribers][0].emit('close');
+    expect(authSessionCache.get('s-auth')).toBeNull();
+    expect(authSessionCache.current(healthy, 'u-auth')).toBe(false);
+    const disconnected = authSessionCache.snapshot('s-auth');
+    authSessionCache.set(disconnected, session);
+    expect(authSessionCache.get('s-auth')).toBeNull();
+
+    jest.advanceTimersByTime(OXY_SERVICE_EVENTS_HEARTBEAT_MS);
+    await flush();
+    expect(authSessionCache.get('s-auth')).toBeNull();
+    await task.stop();
+  });
+
   it('delivers a revocation to every task, each relaying to its own sockets and dropping its own tier', async () => {
     const a = namespace();
     const b = namespace();

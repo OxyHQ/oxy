@@ -1,5 +1,6 @@
 import { getRedisClient } from '../config/redis';
 import type { sessions } from '../db/schema/sessions';
+import { authSessionCache } from './authSessionCache';
 
 /**
  * A cached session — one `sessions` row.
@@ -102,6 +103,7 @@ class SessionCache {
   }
 
   invalidate(sessionId: string): void {
+    authSessionCache.invalidateSession(sessionId);
     this.local.delete(sessionId);
     this.pendingLastActiveUpdates.delete(sessionId);
 
@@ -112,6 +114,7 @@ class SessionCache {
   }
 
   invalidateUserSessions(userId: string): void {
+    authSessionCache.invalidateUser(userId);
     for (const [key, cached] of this.local.entries()) {
       if (cached.userId === userId) {
         this.local.delete(key);
@@ -148,12 +151,14 @@ class SessionCache {
    * removed the shared Redis entry itself.
    */
   invalidateLocal(sessionId: string): void {
+    authSessionCache.invalidateSession(sessionId);
     this.local.delete(sessionId);
     this.pendingLastActiveUpdates.delete(sessionId);
   }
 
   /** Forget every session of one user on THIS task only. See {@link invalidateLocal}. */
   invalidateUserSessionsLocal(userId: string): void {
+    authSessionCache.invalidateUser(userId);
     for (const [key, cached] of this.local.entries()) {
       if (cached.userId === userId) {
         this.local.delete(key);
@@ -236,6 +241,7 @@ class SessionCache {
   }
 
   clear(): void {
+    authSessionCache.unavailable();
     this.local.clear();
     this.pendingLastActiveUpdates.clear();
   }

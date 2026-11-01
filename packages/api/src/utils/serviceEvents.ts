@@ -46,13 +46,14 @@ import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import { logger } from './logger';
 import sessionCache from './sessionCache';
+import { AUTH_CACHE_PROBE_FRESH_MS, authSessionCache } from './authSessionCache';
 
 /** Valkey channel between oxy-api tasks; internal to oxy-api. */
 export const SESSION_REVOCATION_CHANNEL = 'oxy-api:session:revoked';
 /** Each task's loopback probe, proving its own subscription still delivers. */
 export const SERVICE_EVENTS_PROBE_CHANNEL = 'oxy-api:service-events:probe';
 /** A probe older than this and the task stops vouching for its sockets. */
-const PROBE_FRESH_MS = 2 * OXY_SERVICE_EVENTS_HEARTBEAT_MS + 1_000;
+const PROBE_FRESH_MS = AUTH_CACHE_PROBE_FRESH_MS;
 
 const LOG_COMPONENT = 'ServiceEvents';
 
@@ -177,6 +178,8 @@ export function startServiceEvents(
   namespace: Namespace,
   redis: Redis | null,
 ): { stop: () => Promise<void> } {
+  // Until this task has heard its own probe, authentication reads live rows.
+  authSessionCache.unavailable();
   serviceNamespace = namespace;
   let lastProbe = 0;
   const healthy = () => redis === null || Date.now() - lastProbe <= PROBE_FRESH_MS;
@@ -215,6 +218,7 @@ export function startServiceEvents(
         if (raw !== nonce) return;
         const wasHealthy = healthy();
         lastProbe = Date.now();
+        authSessionCache.probe(lastProbe);
         if (!wasHealthy)
           void emitToLiveServices(
             namespace,
@@ -250,6 +254,7 @@ export function startServiceEvents(
     // consumers relying on this task must stop trusting their caches now.
     subscriber.on('close', () => {
       lastProbe = 0;
+      authSessionCache.unavailable();
       namespace.local.disconnectSockets(true);
     });
     subscriber
@@ -272,6 +277,7 @@ export function startServiceEvents(
 
   return {
     async stop() {
+      authSessionCache.unavailable();
       clearInterval(ticker);
       namespace.local.disconnectSockets(true);
       if (serviceNamespace === namespace) serviceNamespace = null;

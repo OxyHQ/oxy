@@ -20,6 +20,7 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
 import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
 import sessionCache, { type CachedSession } from '../utils/sessionCache';
+import { authSessionCache, type AuthCacheSnapshot } from '../utils/authSessionCache';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
 import {
@@ -480,6 +481,34 @@ class SessionService {
   }
 
   /**
+   * Authentication never rehydrates the shared Redis session cache. Its local
+   * cache is usable only while the revocation subscriber is confirmed healthy.
+   */
+  private async getAuthSessionWithUser(
+    sessionId: string,
+    snapshot: AuthCacheSnapshot,
+  ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
+    const cached = authSessionCache.get(sessionId);
+    if (cached) {
+      let user = userCache.get(cached.userId);
+      if (!user) {
+        user = (await userService.readAccountDocument(cached.userId)) ?? null;
+        if (user) userCache.set(cached.userId, user);
+      }
+      if (user) return { session: cached, user };
+      authSessionCache.invalidateSession(sessionId);
+      return null;
+    }
+
+    const result = await this.getSessionWithUser(sessionId, { useCache: false });
+    if (result && authSessionCache.current(snapshot, result.session.userId)) {
+      authSessionCache.set(snapshot, result.session);
+      userCache.set(result.session.userId, result.user);
+    }
+    return result;
+  }
+
+  /**
    * Validate session by access token
    *
    * High-performance session validation with caching and token verification.
@@ -499,7 +528,8 @@ class SessionService {
       }
 
       const sessionId = validationResult.payload.sessionId;
-      const result = await this.getSessionWithUser(sessionId, { useCache: true });
+      const snapshot = authSessionCache.snapshot(sessionId);
+      const result = await this.getAuthSessionWithUser(sessionId, snapshot);
       if (!result) {
         return null;
       }
@@ -548,6 +578,10 @@ class SessionService {
         });
         return null;
       }
+
+      // An invalidation or subscriber-health transition observed during an
+      // awaited read makes its answer unusable, even when it was not cached.
+      if (!authSessionCache.current(snapshot, session.userId)) return null;
 
       if (sessionCache.shouldUpdateLastActive(sessionId)) {
         this.updateLastActivity(sessionId).catch(() => {
@@ -750,6 +784,7 @@ class SessionService {
       const committed = await getDb().transaction((executor) =>
         this.createSession(userId, req, { ...options, executor }),
       );
+      authSessionCache.invalidateSession(committed.sessionId);
       sessionCache.set(committed.sessionId, committed);
       return committed;
     }
@@ -988,7 +1023,10 @@ class SessionService {
           .returning(SESSION_COLUMNS);
 
         if (updated) {
-          if (!options.executor) sessionCache.set(sessionId, updated);
+          if (!options.executor) {
+            authSessionCache.invalidateSession(sessionId);
+            sessionCache.set(sessionId, updated);
+          }
           if (migrateToDeviceId && !options.executor) {
             logger.info('[SessionService] Migrated reused session onto caller device', {
               component: 'SessionService',

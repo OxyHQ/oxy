@@ -53,11 +53,13 @@ import { applications } from '../../db/schema/applications';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import sessionCache from '../../utils/sessionCache';
+import { authSessionCache } from '../../utils/authSessionCache';
 import userCache from '../../utils/userCache';
 import { validateAccessToken } from '../../utils/sessionUtils';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import deviceSessionService from '../deviceSession.service';
 import sessionService, { MINT_ROTATES_WITHIN_SECONDS } from '../session.service';
+import { deactivateSessionRows } from '../sessionRevocation.service';
 import { OxyServices } from '@oxy.so/core';
 import { SessionClient, createSessionClientHost } from '@oxy.so/core/session';
 
@@ -726,6 +728,52 @@ describe("managed-account sessions stay bound to the operator's act_as", () => {
 });
 
 describe('validateSession / getSessionWithUser', () => {
+  it('reads the live row when its revocation subscriber is unavailable', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    // Mimic a revocation on another task without delivering its announcement.
+    // The old shared cache deliberately remains populated for the assertion.
+    expect(sessionCache.get(created.sessionId)).not.toBeNull();
+    await deactivateSessionRows(getDb(), eq(sessions.sessionId, created.sessionId));
+    authSessionCache.unavailable();
+
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+    expect(sessionCache.get(created.sessionId)).not.toBeNull();
+  });
+
+  it('does not accept or cache a row read before its revocation arrived', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    authSessionCache.probe(Date.now());
+    const original = sessionService.getSessionWithUser.bind(sessionService);
+    let release!: () => void;
+    let read!: () => void;
+    const started = new Promise<void>((resolve) => {
+      read = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const lookup = jest
+      .spyOn(sessionService, 'getSessionWithUser')
+      .mockImplementationOnce(async (...args) => {
+        const result = await original(...args);
+        read();
+        await gate;
+        return result;
+      });
+    const pending = sessionService.validateSession(created.accessToken);
+    try {
+      await started;
+      expect(await sessionService.deactivateSession(created.sessionId)).toBe(true);
+    } finally {
+      release();
+    }
+    expect(await pending).toBeNull();
+    lookup.mockRestore();
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+
   it('resolves the session and its user from a live access token', async () => {
     const user = await account({ username: `nate-${randomUUID().slice(0, 8)}` });
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
