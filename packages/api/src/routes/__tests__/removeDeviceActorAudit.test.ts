@@ -297,15 +297,13 @@ it.each([
       })
       .returning({ id: applications.id });
     const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
-    await getDb()
-      .insert(applicationCredentials)
-      .values({
-        applicationId: app.id,
-        name: 'fixture',
-        type: 'public',
-        environment: 'production',
-        publicKey: clientId,
-      });
+    await getDb().insert(applicationCredentials).values({
+      applicationId: app.id,
+      name: 'fixture',
+      type: 'public',
+      environment: 'production',
+      publicKey: clientId,
+    });
     const request = { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never;
     const remote = await sessionService.createSession(person.id, request, {
       deviceId: `fixture-${randomUUID()}`,
@@ -362,5 +360,76 @@ it.each([
       .from(sessions)
       .where(eq(sessions.sessionId, remote.sessionId));
     expect(row.active).toBe(expectedStatus !== 200);
+  },
+);
+
+it.each(['GET', 'DELETE'] as const)(
+  'refuses %s when the acting application binding changes before the lock',
+  async (method) => {
+    const person = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+    const [app] = await getDb()
+      .insert(applications)
+      .values({
+        name: `fixture-${randomUUID()}`,
+        type: 'third_party',
+        ownerAccountId: person.id,
+        redirectUris: ['https://fixture.invalid/'],
+      })
+      .returning({ id: applications.id });
+    const request = { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never;
+    const acting = await sessionService.createSession(person.id, request, {
+      deviceId: `fixture-${randomUUID()}`,
+    });
+    const remote = await sessionService.createSession(person.id, request, {
+      deviceId: `fixture-${randomUUID()}`,
+    });
+    const token = await sessionService.getAccessToken(acting.sessionId);
+    if (!token) throw new Error('missing access token');
+    let reached!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const originalRead = sessionService.withActingSession.bind(sessionService);
+    const originalRemove = sessionService.deactivateActorSessionsOnDevice.bind(sessionService);
+    const spy =
+      method === 'GET'
+        ? jest.spyOn(sessionService, 'withActingSession').mockImplementation(async (...args) => {
+            reached();
+            await gate;
+            return originalRead(...args);
+          })
+        : jest
+            .spyOn(sessionService, 'deactivateActorSessionsOnDevice')
+            .mockImplementation(async (...args) => {
+              reached();
+              await gate;
+              return originalRemove(...args);
+            });
+    try {
+      const path = method === 'GET' ? '/devices' : `/devices/${remote.deviceId}`;
+      const pending = fetch(`${base}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${token.accessToken}` },
+      });
+      await entered;
+      await getDb()
+        .update(sessions)
+        .set({ applicationId: app.id })
+        .where(eq(sessions.sessionId, acting.sessionId));
+      release();
+      expect((await pending).status).toBe(403);
+      const [row] = await getDb()
+        .select({ active: sessions.isActive })
+        .from(sessions)
+        .where(eq(sessions.sessionId, remote.sessionId));
+      expect(row.active).toBe(true);
+    } finally {
+      release();
+      spy.mockRestore();
+    }
   },
 );

@@ -46,10 +46,17 @@ async function actingSessionOf(req: AuthRequest) {
     session.userId?.toString() !== subjectId ||
     token.subjectAccountId !== subjectId ||
     token.sessionId !== sessionId ||
-    token.principalUserId !== principalId
+    token.principalUserId !== principalId ||
+    (token.applicationId ?? null) !== (session.applicationId ?? null)
   )
     return null;
-  return { sessionId, subjectId, principalId, deviceId: session.deviceId };
+  return {
+    sessionId,
+    subjectId,
+    principalId,
+    deviceId: session.deviceId,
+    applicationId: token.applicationId ?? null,
+  };
 }
 
 export class DevicesController {

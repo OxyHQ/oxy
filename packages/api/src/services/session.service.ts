@@ -61,6 +61,8 @@ type SessionReachability = {
   subjectId: string;
   principalId: string;
   deviceId: string;
+  /** When supplied, require this application binding to survive until the lock. */
+  applicationId?: string | null;
 };
 type SessionDeactivationOptions =
   | { expectedXmin: string; reachableFrom?: SessionReachability }
@@ -89,6 +91,13 @@ async function withLockedActingSession<T>(
           eq(sessions.isActive, true),
           gt(sessions.expiresAt, new Date()),
           sessionActorScope(acting.subjectId, acting.principalId),
+          ...(acting.applicationId === undefined
+            ? []
+            : [
+                acting.applicationId === null
+                  ? isNull(sessions.applicationId)
+                  : eq(sessions.applicationId, acting.applicationId),
+              ]),
         ),
       )
       .for('update');
