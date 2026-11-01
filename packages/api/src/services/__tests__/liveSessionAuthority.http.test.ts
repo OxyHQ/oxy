@@ -24,6 +24,8 @@ import { SessionController } from '../../controllers/session.controller';
 import sessionService from '../session.service';
 import userService from '../user.service';
 import * as supervisionPolicy from '../supervisionPolicy.service';
+import * as organizationAuthority from '../organizationAuthority.service';
+import { accountService } from '../account.service';
 import sessionCache, { type CachedSession } from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 
@@ -183,6 +185,11 @@ it('keeps credentials when user or supervision authority is unavailable', async 
       { status: 503 },
     );
     readUser.mockRestore();
+    const missingUser = jest.spyOn(userService, 'readAccountDocument').mockResolvedValue(null);
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    missingUser.mockRestore();
     cachedUser.mockRestore();
     const readSupervision = jest
       .spyOn(supervisionPolicy, 'supervisionValidAfter')
@@ -191,6 +198,70 @@ it('keeps credentials when user or supervision authority is unavailable', async 
       { status: 503 },
     );
     readSupervision.mockRestore();
+    expect(client.session.accessToken).toBe(session.accessToken);
+    expect(client.http.getSessionEpoch()).toBe(epoch);
+  } finally {
+    jest.restoreAllMocks();
+    client.dispose();
+    oxy.dispose();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+    await closePostgres();
+  }
+}, 20000);
+
+it('does not revoke a session on an unconfirmed account authority negative', async () => {
+  await connectPostgres();
+  process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
+  process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
+  process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+  const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const operator = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const session = await sessionService.createSession(
+    user.id,
+    { headers: { 'user-agent': 'fresh-local-test' } } as Request,
+    { deviceId: `dev-${randomUUID()}` },
+  );
+  const app = express();
+  app.get('/session/validate-header/:sessionId', SessionController.validateSessionFromHeader);
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const oxy = new OxyServer({ baseURL, maxRetries: 1, retryDelay: 1 });
+  app.get('/private', oxy.middleware.auth({ liveSession: true }), (_req, res) =>
+    res.json({ ok: true }),
+  );
+  const client = new OxyServices({ baseURL, requestTimeout: 15000 });
+  client.session.setAccessToken(session.accessToken);
+  const epoch = client.http.getSessionEpoch();
+  try {
+    const org = jest
+      .spyOn(organizationAuthority, 'hasOrganizationOperatingAuthority')
+      .mockResolvedValue(false);
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    org.mockResolvedValue(true);
+    const reader = sessionService as unknown as {
+      readLiveSessionRow(id: string): Promise<CachedSession | null>;
+    };
+    const original = reader.readLiveSessionRow.bind(sessionService);
+    jest.spyOn(reader, 'readLiveSessionRow').mockImplementation(async (id) => {
+      const row = await original(id);
+      return row ? { ...row, operatedByUserId: operator.id } : null;
+    });
+    jest.spyOn(accountService, 'verifyActingAs').mockResolvedValue(null);
+    const deactivate = jest.spyOn(sessionService, 'deactivateSession');
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    expect(deactivate).not.toHaveBeenCalled();
+    const [stored] = await getDb()
+      .select({ active: sessions.isActive })
+      .from(sessions)
+      .where(eq(sessions.sessionId, session.sessionId));
+    expect(stored.active).toBe(true);
     expect(client.session.accessToken).toBe(session.accessToken);
     expect(client.http.getSessionEpoch()).toBe(epoch);
   } finally {
@@ -259,6 +330,17 @@ it('does not bypass or silently downgrade supervised-session policy', async () =
     await expect(
       client.http.get('/reviewed', { retry: false, cache: false }),
     ).rejects.toMatchObject({ status: 503 });
+    await getDb()
+      .update(supervisionProfiles)
+      .set({ sessionsValidAfter: new Date(Date.now() + 60_000) })
+      .where(eq(supervisionProfiles.childAccountId, user.id));
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    await getDb()
+      .update(supervisionProfiles)
+      .set({ sessionsValidAfter: new Date(Date.now() - 3_600_000) })
+      .where(eq(supervisionProfiles.childAccountId, user.id));
     const reader = sessionService as unknown as {
       readLiveSessionRow(id: string): Promise<CachedSession | null>;
     };

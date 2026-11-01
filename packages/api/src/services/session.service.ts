@@ -288,7 +288,7 @@ class SessionService {
       CachedSession,
       'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'
     >,
-    opts: { force?: boolean; throwOnError?: boolean } = {},
+    opts: { force?: boolean; throwOnError?: boolean; preserveOnUnconfirmedNegative?: boolean } = {},
   ): Promise<boolean> {
     if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
     if (session.authMethodId) {
@@ -330,6 +330,7 @@ class SessionService {
       const { accountService } = await import('./account.service.js');
       const role = await accountService.verifyActingAs(operatorId, accountId);
       if (!role) {
+        if (opts.preserveOnUnconfirmedNegative) return false;
         await this.deactivateSession(sessionId);
         managedSessionRecheckAt.delete(sessionId);
         logger.info('[SessionService] Managed-account session revoked — operator lost act_as', {
@@ -585,22 +586,35 @@ class SessionService {
       ).flat();
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
-        if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
+        if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
+          return null;
+        }
         const live = options.liveSession
           ? await this.getLiveSessionWithUser(sessionId, { freshUser: true })
           : await this.getSessionWithUser(sessionId, { useCache: false });
-        if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
+        if (!live) return null;
+        if (supervised.some((validAfter) => live.session.createdAt <= validAfter)) {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
           return null;
+        }
         session = live.session;
         user = live.user;
-        if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') return null;
+        if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
+          return null;
+        }
       }
 
       // A managed-account session is only valid while its operator still holds
       // act_as over the account. Revoked membership → deactivate + reject.
       if (
-        !(await this.ensureManagedSessionAuthorized(session, { throwOnError: options.liveSession }))
+        !(await this.ensureManagedSessionAuthorized(session, {
+          throwOnError: options.liveSession,
+          preserveOnUnconfirmedNegative: options.liveSession,
+        }))
       ) {
+        if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
         return null;
       }
 
@@ -659,7 +673,8 @@ class SessionService {
       user = (await userService.readAccountDocument(session.userId)) ?? null;
       if (user && !options.freshUser) userCache.set(session.userId, user);
     }
-    return user ? { session, user } : null;
+    if (!user) throw new ServiceUnavailableError('Session user unavailable');
+    return { session, user };
   }
 
   private async readLiveSessionRow(sessionId: string): Promise<CachedSession | null> {
