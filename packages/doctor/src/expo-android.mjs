@@ -65,7 +65,7 @@ try {
   if (!Array.isArray(result?.modules)) throw new Error('invalid Expo autolinking result');
   const matches = result.modules.filter((entry) => entry?.packageName === '@oxy.so/services');
   if (matches.length !== 1 || matches[0].packageVersion !== services.version) {
-    throw new Error('Android autolinking must resolve exactly the installed Oxy Services version');
+    throw new Error('Android autolinking must select one Oxy Services entry matching the app root');
   }
   if (!Array.isArray(matches[0].projects)) throw new Error('invalid Oxy Services project list');
   const projects = matches[0].projects.filter(

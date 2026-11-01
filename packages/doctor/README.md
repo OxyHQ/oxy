@@ -60,8 +60,9 @@ oxy-doctor-expo-android --project-root=packages/frontend \
 ```
 
 The command invokes the app's installed `expo-modules-autolinking` resolver and
-requires exactly one installed Oxy Services version and one device-session
-module project, from that package's actual Android directory. It requires
+requires exactly one Oxy Services entry matching the version resolved by Node
+from the app root, and one device-session module from that package's Android
+directory. It requires
 `OxyDeviceSessionModule.kt` and any repeated `--require-source` filenames.
 Choose additional sources according to the Services version and guarantees the
 app expects; older releases need not contain newer files. Missing or ambiguous
@@ -70,8 +71,9 @@ Doctor or emulator preflight commands.
 
 The check verifies discovery and source presence in the installed dependency
 graph, not source contents, Android compilation, native binary distribution,
-or device runtime behavior. Run it in a complete install; a partial install
-cannot establish that the full app graph is correct.
+or device runtime behavior. It cannot exclude additional installed copies or
+prove which copy Metro resolves from nested importers. Run it in a complete
+install; a partial install cannot establish that the full app graph is correct.
 
 ## Android emulator preflight
 
