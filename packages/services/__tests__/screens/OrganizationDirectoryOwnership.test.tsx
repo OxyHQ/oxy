@@ -554,11 +554,53 @@ it('does not send a claim when the account changes during auth preflight', async
   }
 });
 
-it('continues a paused claim after leaving the screen if the same owner remains', async () => {
+it('does not replay a paused claim after leaving the screen, even if the owner remains', async () => {
   const view = await startPausedClaim();
   view.unmount();
   await resume();
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('does not cancel a claim already in HTTP preflight when the screen unmounts', async () => {
+  let began: (() => void) | undefined;
+  let finish: ((value: string) => void) | undefined;
+  const waiting = new Promise<void>((resolve) => {
+    began = resolve;
+  });
+  const refresh = new Promise<string>((resolve) => {
+    finish = resolve;
+  });
+  const nearExpiry = `e30.${Buffer.from(JSON.stringify({ userId: 'alice', sessionId, exp: Math.floor(Date.now() / 1000) + 10 })).toString('base64url')}.fixture`;
+  oxy.session.setAccessToken(nearExpiry);
+  oxy.http.setAuthRefreshHandler(async () => {
+    began?.();
+    return refresh;
+  });
+  const invalidate = jest.spyOn(client, 'invalidateQueries');
+  try {
+    const view = render(tree());
+    fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+      target: { value: 'Acme' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+      target: { value: 'private-case:alice' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+    await waiting;
+    expect(fetchMock).not.toHaveBeenCalled();
+    const mutation = client.getMutationCache().getAll()[0];
+    view.unmount();
+    await act(async () => {
+      finish?.(token('alice'));
+      await waitFor(() => expect(mutation.state.status).toBe('success'));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(invalidate).not.toHaveBeenCalled();
+  } finally {
+    oxy.http.setAuthRefreshHandler(null);
+  }
 });
 
 it('keeps an offline claim through a same-context bearer refresh', async () => {
@@ -841,4 +883,46 @@ it('does not let an in-flight claim under A block a fresh claim under B', async 
     });
     await waitFor(() => expect(oldMutation.state.status).not.toBe('pending'));
   });
+});
+
+it('suppresses local completion effects after unmount without claiming remote cancellation', async () => {
+  let release: ((response: unknown) => void) | undefined;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  const invalidate = jest.spyOn(client, 'invalidateQueries');
+  const view = render(tree());
+  fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+    target: { value: 'Acme' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+  fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+    target: { value: 'private-case:alice' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  const mutation = client.getMutationCache().getAll()[0];
+  view.unmount();
+  await act(async () => {
+    release?.({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        data: {
+          id: 'claim1',
+          accountId: 'existing-org',
+          claimantUserId: 'alice',
+          status: 'pending',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      }),
+    });
+    await waitFor(() => expect(mutation.state.status).toBe('success'));
+  });
+  expect(invalidate).not.toHaveBeenCalled();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });

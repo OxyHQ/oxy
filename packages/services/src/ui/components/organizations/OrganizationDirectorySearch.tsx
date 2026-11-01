@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Organization, OrganizationType } from '@oxy.so/contracts';
@@ -95,7 +102,7 @@ function OrganizationDirectorySearchContent({
     >(),
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     lifecycle.current.active = true;
     return () => {
       lifecycle.current.active = false;
@@ -108,6 +115,7 @@ function OrganizationDirectorySearchContent({
     const current = runtime.getAccountSessionIdentity();
     const subject = oxyServices.session.userId;
     return (
+      lifecycle.current.active &&
       oxyServices.http.getSessionEpoch() === operation.bearerEpoch &&
       current.revision === operation.identity.revision &&
       current.accountId === operation.identity.accountId &&

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OxyServices } from '@oxy.so/core';
 jest.mock('@oxy.so/core/session', () => jest.requireActual('../../../core/src/session/index'), {
   virtual: true,
@@ -204,6 +204,224 @@ it('discards A form on provider replacement and permits a fresh B claim', async 
     );
     expect(options.body).toContain('private-case:bob');
   } finally {
+    cleanup();
+    client.clear();
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+    a.oxy.dispose();
+    b.oxy.dispose();
+  }
+});
+
+it('rejects reentry from the replacement tree layout phase', async () => {
+  const { useLayoutEffect } = await import('react');
+  const a = instance('alice');
+  const b = instance('bob');
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => ({
+      data: {
+        id: 'claim1',
+        accountId: 'existing-org',
+        claimantUserId: 'alice',
+        status: 'pending',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+  }));
+  global.fetch = fetchMock as never;
+  const Invoke = ({ handler }: { handler: () => void }) => {
+    useLayoutEffect(() => {
+      handler();
+    }, [handler]);
+    return null;
+  };
+  const tree = (entry: typeof a, handler?: () => void) => (
+    <QueryClientProvider client={client}>
+      <OxyRuntimeHandleProvider value={entry.runtime}>
+        <OxyRuntimeContext.Provider
+          value={
+            {
+              oxyServices: entry.oxy,
+              user: entry.user,
+              activeSessionId: `session-${entry.user.id}`,
+              canUsePrivateApi: true,
+            } as never
+          }
+        >
+          <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
+          {handler ? <Invoke handler={handler} /> : null}
+        </OxyRuntimeContext.Provider>
+      </OxyRuntimeHandleProvider>
+    </QueryClientProvider>
+  );
+  try {
+    const view = render(tree(a));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+      target: { value: 'Acme' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+      target: { value: 'private-case:alice' },
+    });
+    const retained = retainedHandler(
+      screen.getByRole('button', { name: 'organizationDirectory.claim' }),
+    );
+    view.rerender(tree(b, retained));
+    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    expect(fetchMock).not.toHaveBeenCalled();
+  } finally {
+    cleanup();
+    client.clear();
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+    a.oxy.dispose();
+    b.oxy.dispose();
+  }
+});
+
+it('does not replay a queued A claim after the provider is replaced with B', async () => {
+  const a = instance('alice');
+  const b = instance('bob');
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => ({
+      data: {
+        id: 'claim1',
+        accountId: 'existing-org',
+        claimantUserId: 'alice',
+        status: 'pending',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+  }));
+  global.fetch = fetchMock as never;
+  const tree = (entry: typeof a) => (
+    <QueryClientProvider client={client}>
+      <OxyRuntimeHandleProvider value={entry.runtime}>
+        <OxyRuntimeContext.Provider
+          value={
+            {
+              oxyServices: entry.oxy,
+              user: entry.user,
+              activeSessionId: `session-${entry.user.id}`,
+              canUsePrivateApi: true,
+            } as never
+          }
+        >
+          <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
+        </OxyRuntimeContext.Provider>
+      </OxyRuntimeHandleProvider>
+    </QueryClientProvider>
+  );
+  try {
+    const view = render(tree(a));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+      target: { value: 'Acme' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+      target: { value: 'private-case:alice' },
+    });
+    act(() => onlineManager.setOnline(false));
+    fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
+    view.rerender(tree(b));
+    await act(async () => {
+      onlineManager.setOnline(true);
+      await client.resumePausedMutations();
+    });
+    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    expect(fetchMock).not.toHaveBeenCalled();
+  } finally {
+    onlineManager.setOnline(true);
+    cleanup();
+    client.clear();
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+    a.oxy.dispose();
+    b.oxy.dispose();
+  }
+});
+
+it('does not replay A when replacement B resumes mutations from a layout effect', async () => {
+  const { useLayoutEffect } = await import('react');
+  const a = instance('alice');
+  const b = instance('bob');
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => ({
+      data: {
+        id: 'claim1',
+        accountId: 'existing-org',
+        claimantUserId: 'alice',
+        status: 'pending',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+  }));
+  global.fetch = fetchMock as never;
+  const Resume = () => {
+    useLayoutEffect(() => {
+      onlineManager.setOnline(true);
+      void client.resumePausedMutations();
+    }, []);
+    return null;
+  };
+  const tree = (entry: typeof a, resume = false) => (
+    <QueryClientProvider client={client}>
+      <OxyRuntimeHandleProvider value={entry.runtime}>
+        <OxyRuntimeContext.Provider
+          value={
+            {
+              oxyServices: entry.oxy,
+              user: entry.user,
+              activeSessionId: `session-${entry.user.id}`,
+              canUsePrivateApi: true,
+            } as never
+          }
+        >
+          <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
+          {resume ? <Resume /> : null}
+        </OxyRuntimeContext.Provider>
+      </OxyRuntimeHandleProvider>
+    </QueryClientProvider>
+  );
+  try {
+    const view = render(tree(a));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+      target: { value: 'Acme' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+    fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+      target: { value: 'private-case:alice' },
+    });
+    act(() => onlineManager.setOnline(false));
+    fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
+    view.rerender(tree(b, true));
+    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    expect(fetchMock).not.toHaveBeenCalled();
+  } finally {
+    onlineManager.setOnline(true);
     cleanup();
     client.clear();
     global.fetch = originalFetch;
