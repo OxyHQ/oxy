@@ -59,7 +59,7 @@ export function screensReady(): boolean {
   return components !== undefined;
 }
 
-/** The lean client warms all screen code at provider startup, before navigation. */
+/** Load the lean client's screen registry on the first surface, sharing concurrent requests. */
 export function loadScreens(): Promise<void> {
   if (components) return Promise.resolve();
   loading ??= import('./screenComponents')

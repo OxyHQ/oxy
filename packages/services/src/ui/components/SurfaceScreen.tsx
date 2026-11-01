@@ -1,19 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useStore } from 'zustand';
 import { useOverlayLayerContext, isTopmostOverlayLayer } from '@oxy.so/bloom/overlay';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useDialogFrame, useDialogHeader, type DialogHeaderConfig } from '@oxy.so/bloom/dialog';
 import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import type { RouteName } from '../navigation/routes';
-import { getScreenComponent } from '../navigation/routes';
+import { getScreenComponent, loadScreens, screensReady } from '../navigation/routes';
 import { pushSurfaceBackHandler } from '../navigation/surfaceBackBridge';
 import type { SurfaceNavStack } from '../navigation/surfaceNavStack';
 import { getSurfaceConfig } from '../navigation/surfaceRegistry';
 import { SurfaceHeaderContext, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { SurfaceFrameWidthContext } from '../hooks/useSurfaceFrameWidth';
 import type { BaseScreenProps } from '../types/navigation';
+import { useI18n } from '../hooks/useI18n';
 
 /** Error boundary catching screen render failures, so one bad screen cannot blank the surface. */
 interface ScreenErrorBoundaryState {
@@ -66,6 +69,32 @@ const errorStyles = StyleSheet.create({
   message: { fontSize: 13, textAlign: 'center' },
 });
 
+function ScreenLoadState({ failed, retry }: { failed: boolean; retry: () => void }) {
+  const { t } = useI18n();
+  return (
+    <View style={loadingStyles.container}>
+      {failed ? (
+        <>
+          <Text>{t('signin.errors.generic')}</Text>
+          <Button onPress={retry}>{t('common.actions.tryAgain')}</Button>
+        </>
+      ) : (
+        <Loading variant="spinner" accessibilityLabel={t('common.status.loading')} />
+      )}
+    </View>
+  );
+}
+
+const loadingStyles = StyleSheet.create({
+  container: {
+    minHeight: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 24,
+  },
+});
+
 export interface SurfaceNavigationActions {
   closeAllRouteSurfaces: typeof import('../navigation/surfaces').closeAllRouteSurfaces;
   navigateWithinOrPresent: typeof import('../navigation/surfaces').navigateWithinOrPresent;
@@ -109,7 +138,27 @@ function SurfaceScreen({
     if (state.closing) surface.dismiss(state.closeResult);
   }, [state.closing, state.closeResult, surface]);
 
-  const ScreenComponent = useMemo(() => getScreenComponent(top.route) ?? null, [top.route]);
+  const [loadState, setLoadState] = useState<'loading' | 'failed' | 'ready'>(() =>
+    screensReady() ? 'ready' : 'loading',
+  );
+  useEffect(() => {
+    if (loadState !== 'loading' || state.closing) return;
+    let active = true;
+    void loadScreens().then(
+      () => {
+        if (active) setLoadState('ready');
+      },
+      () => {
+        if (active) setLoadState(screensReady() ? 'ready' : 'failed');
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [loadState, state.closing]);
+  const retryLoad = useCallback(() => setLoadState('loading'), []);
+
+  const ScreenComponent = loadState === 'ready' ? (getScreenComponent(top.route) ?? null) : null;
 
   const navigate = useCallback(
     (route: RouteName, props?: Record<string, unknown>) =>
@@ -283,6 +332,8 @@ function SurfaceScreen({
     top.props,
   ]);
 
+  if (loadState !== 'ready')
+    return <ScreenLoadState failed={loadState === 'failed'} retry={retryLoad} />;
   if (!ScreenComponent) return null;
 
   return (
