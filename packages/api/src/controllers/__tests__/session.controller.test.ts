@@ -802,7 +802,7 @@ describe('verifyChallenge', () => {
 });
 
 describe('logoutAllSessions', () => {
-  it('broadcasts exactly the OTHER live sessions of the owner', async () => {
+  it('revokes only other live sessions without a subject-wide socket broadcast', async () => {
     const userId = await account();
     const current = await session(userId);
     const other = await session(userId);
@@ -827,17 +827,12 @@ describe('logoutAllSessions', () => {
       asResponse(res),
     );
 
-    expect(mockEmitSessionUpdate).toHaveBeenCalledWith(userId, {
-      type: 'sessions_removed',
-      sessionIds: [other],
-    });
-    // The current session, an expired one, a deactivated one and another user's
-    // are all excluded — the broadcast must name exactly what was revoked.
-    const broadcast = mockEmitSessionUpdate.mock.calls[0][1].sessionIds as string[];
-    expect(broadcast).not.toContain(current);
-    expect(broadcast).not.toContain(expired);
-    expect(broadcast).not.toContain(inactive);
-    expect(broadcast).not.toContain(stranger);
+    expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
+    expect((await storedSession(other)).isActive).toBe(false);
+    expect((await storedSession(current)).isActive).toBe(true);
+    expect((await storedSession(expired)).isActive).toBe(true);
+    expect((await storedSession(inactive)).isActive).toBe(false);
+    expect((await storedSession(stranger)).isActive).toBe(true);
   });
 
   it('emits nothing when the owner has no other live session', async () => {
@@ -997,6 +992,7 @@ describe('session-management routes prove the acting session (#1372)', () => {
           deviceId: 'dev-shared',
         },
       });
+      expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
     }
   });
 
@@ -1474,10 +1470,8 @@ describe('the sessions a handler reads are the live ones', () => {
       asResponse(captureRes()),
     );
 
-    expect(mockEmitSessionUpdate).toHaveBeenCalledWith(userId, {
-      type: 'sessions_removed',
-      sessionIds: [mine],
-    });
+    expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
+    expect((await storedSession(mine)).isActive).toBe(false);
 
     const live = await getDb()
       .select({ sessionId: sessions.sessionId })

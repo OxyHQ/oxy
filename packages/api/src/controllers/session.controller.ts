@@ -633,13 +633,6 @@ export class SessionController {
         return res.status(404).json({ message: 'Session not found' });
       }
 
-      // Emit socket notification to notify remote devices
-      emitSessionUpdate(target.userId, {
-        type: 'session_removed',
-        sessionId: targetSessionId,
-        deviceId: target.deviceId,
-      });
-
       // Log security event for sign-out
       try {
         await securityActivityService.logSignOut(target.userId, req, target.deviceId);
@@ -670,16 +663,7 @@ export class SessionController {
       if (!acting) return;
       const { userId } = acting;
       const revoked = await sessionService.deactivateActorSessions(actingScope(acting));
-      const sessionIds = revoked.map((s) => s.sessionId);
       const count = revoked.length;
-
-      // Emit socket notification with list of removed sessionIds
-      if (sessionIds.length > 0) {
-        emitSessionUpdate(userId, {
-          type: 'sessions_removed',
-          sessionIds: sessionIds,
-        });
-      }
 
       logger.info(`Logged out ${count} sessions for user ${userId}`);
 

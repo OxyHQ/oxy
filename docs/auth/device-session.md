@@ -176,7 +176,11 @@ on the acting device, and an explicit logout target may be any session on that
 device. There is no separate administrator-wide session operation
 in this contract. Bulk sign-out emits one existing session-revocation event per
 session actually ended, rather than an account-wide event; consumers must handle
-the session-specific event form.
+the session-specific event form. These session sign-out routes do not send the
+legacy `session_removed` or `sessions_removed` events to the subject-wide socket
+room, which is shared by operators. Older SDKs relying on those events may not
+observe remote sign-out immediately; server-side session validation and the
+service revocation feed continue to reject and invalidate revoked sessions.
 
 The lists are read while the acting session is locked and describe the state
 observed by that read; the device can change again after the read or response.
