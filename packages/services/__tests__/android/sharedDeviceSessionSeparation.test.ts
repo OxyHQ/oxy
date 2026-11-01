@@ -17,11 +17,8 @@
  *
  * ## Why this test reads source text
  *
- * The same reason as `encryptedPrefsRecoveryPolicy.test.ts` next door: there is
- * no gradle/android job in CI, so this Kotlin is not even COMPILED here, and
- * exercising a real ContentProvider needs an instrumented device. A source
- * invariant that runs on every `bun run test` is worth more than a perfect test
- * that never runs.
+ * These source invariants complement Android unit tests; exercising the real
+ * ContentProvider and Binder boundaries needs an instrumented device.
  *
  * It is built to fail loudly rather than pass vacuously: every scan has a floor,
  * and the authority comparison names the file that disagrees.
@@ -35,6 +32,7 @@ const DEVICE_SESSION_SOURCES = [
   'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionStore.kt',
   'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt',
   'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionModule.kt',
+  'android/src/main/java/so/oxy/devicesession/SharedDeviceSessionPublish.kt',
 ];
 
 const IDENTITY_SOURCES = ['android/src/main/java/so/oxy/identity/OxyIdentityModule.kt'];
@@ -42,6 +40,7 @@ const IDENTITY_SOURCES = ['android/src/main/java/so/oxy/identity/OxyIdentityModu
 const PROVIDER_PLUGIN = 'plugins/withSharedDeviceSessionProvider.js';
 const PERMISSIONS_PLUGIN = 'plugins/withOxySharedPermissions.js';
 const MODULE_KT = 'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionModule.kt';
+const PUBLISH_KT = 'android/src/main/java/so/oxy/devicesession/SharedDeviceSessionPublish.kt';
 const PROVIDER_KT = 'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt';
 const CALLER_POLICY_KT = 'android/src/main/java/so/oxy/security/OxyCallerPolicy.kt';
 /** Commons' identity host keeps its own copy of the caller list. */
@@ -217,20 +216,26 @@ describe('shared DeviceSession credential — Android wiring', () => {
     expect(provider).toContain('OxyDeviceSessionStore.write(ctx, deviceId, deviceSecret)');
   });
 
-  test('a publish never leaves a host holding an older credential', () => {
+  test('a publish delegates failed-write handling to the shared fan-out', () => {
     // The sweep adopts the FIRST host with a credential. If the first host
     // refused a write while a later one took it, every app would adopt the
     // first host's stale secret, fail, re-sign-in and publish again, forever.
-    // So a host that did not confirm is cleared, and the write only counts when
-    // no installed host is left stale.
+    // A host that did not confirm is currently cleared. This source test
+    // pins the delegation; it does not prove cross-process atomicity.
     const module = readCode(MODULE_KT);
     const publish = blockAfter(
       module,
       'private fun publish(deviceId: String, deviceSecret: String): Boolean',
     );
-    expect(publish).toContain('if (!isInstalled(authority)) continue');
-    expect(publish).toContain('} else if (!clearHost(authority)) {');
-    expect(publish).toContain('return confirmed > 0 && !stale');
+    expect(publish).toContain('publishSharedDeviceSessions(HOST_AUTHORITIES, ::isInstalled');
+    expect(module).toContain('context.packageManager.resolveContentProvider(authority, 0) != null');
+    expect(module).not.toContain(
+      'runCatching { context.packageManager.resolveContentProvider(authority, 0) != null }',
+    );
+    const fanout = readCode(PUBLISH_KT);
+    expect(fanout).toContain('authorities.filter(isInstalled)');
+    expect(fanout).toContain('} else if (!clearHost(authority)) {');
+    expect(fanout).toContain('return confirmed > 0 && !stale');
     // A clear is only as good as its read-back.
     expect(readCode(DEVICE_SESSION_SOURCES[0])).toMatch(/fun clear\(context: Context\): Boolean/);
     expect(readCode(PROVIDER_KT)).toContain('putBoolean(KEY_OK, OxyDeviceSessionStore.clear(ctx))');
