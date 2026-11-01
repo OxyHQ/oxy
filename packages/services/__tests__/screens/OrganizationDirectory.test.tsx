@@ -19,6 +19,16 @@ const checkUsername = jest.fn();
 let user = { id: 'person', kind: 'personal' };
 let ready = true;
 const oxyServices = {
+  http: { getSessionEpoch: () => 1 },
+  session: {
+    get accessToken() {
+      return 'fixture';
+    },
+    get userId() {
+      return user.id;
+    },
+    onChange: () => () => {},
+  },
   accounts: { get: accountGet },
   organizations: {
     search,
@@ -35,7 +45,21 @@ const oxyServices = {
   auth: { checkUsername },
 };
 jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
-  useOxy: () => ({ oxyServices, user, canUsePrivateApi: ready, createAccount, switchToAccount }),
+  useOxy: () => ({
+    oxyServices,
+    user,
+    activeSessionId: 'session',
+    canUsePrivateApi: ready,
+    createAccount,
+    switchToAccount,
+  }),
+}));
+jest.mock('../../src/ui/runtime/runtimeContext', () => ({
+  useOxyRuntime: () => ({
+    subscribe: () => () => {},
+    getAccountSessionRevision: () => 1,
+    getAccountSessionIdentity: () => ({ accountId: user.id, sessionId: 'session', revision: 1 }),
+  }),
 }));
 jest.mock('../../src/ui/hooks/useI18n', () => ({
   useI18n: () => ({ t: (key: string) => key, locale: 'en-US' }),
