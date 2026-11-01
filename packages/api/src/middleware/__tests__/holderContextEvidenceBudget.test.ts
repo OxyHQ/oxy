@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
+
 const mockRedis = { status: 'ready' };
 const mockCalls: string[] = [];
 let mockFailPrefix: string | null = null;
