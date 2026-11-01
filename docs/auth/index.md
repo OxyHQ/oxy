@@ -37,6 +37,7 @@ the five distinct meanings of "sign out":
 | Device session, device-first transport | [device-session.md](./device-session.md) | shipped |
 | Principals, contexts, the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
+| Opt-in live session-row validation and rollout | [live-session-authority.md](./live-session-authority.md) | opt-in |
 | Published client compatibility during rollout | [published-client-compatibility.md](./published-client-compatibility.md) | published tarballs checked; UI adoption gate |
 | Own service requester context and durable tasks | [first-party-tasks.md](./first-party-tasks.md) | deployed; [fleet cutover verified](./workload-v1-retirement.md) |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |

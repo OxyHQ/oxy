@@ -255,6 +255,65 @@ describe('server.session.validate cache', () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
 
+  it('live-session validation neither reuses nor replaces a cached ordinary answer', async () => {
+    const harness = setup();
+    const { server, request, validate } = harness;
+    await live(harness);
+    await validate();
+    expect(request).toHaveBeenCalledTimes(1);
+    request.mockResolvedValueOnce({
+      valid: true,
+      user: { id: 'user-1' },
+      sessionId: 'session-1',
+      expiresAt: '2030-01-01T00:00:00Z',
+      lastActivity: '2029-01-01T00:00:00Z',
+      actor: {
+        schemaVersion: 1,
+        effectiveAccountId: 'user-1',
+        actorAccountId: 'user-1',
+        delegated: false,
+      },
+      liveSessionAuthority: 'session-row-v1',
+    } as never);
+    await server.session.validate('session-1', {
+      accessToken: token({ sessionId: 'session-1', userId: 'user-1' }),
+      liveSession: true,
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+    await validate();
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('live-session validation does not join an ordinary request in flight', async () => {
+    const harness = setup();
+    const { server, request, validate } = harness;
+    await live(harness);
+    let release: (value: unknown) => void = () => {};
+    request.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)) as never);
+    const ordinary = validate();
+    request.mockResolvedValueOnce({
+      valid: true,
+      user: { id: 'user-1' },
+      sessionId: 'session-1',
+      expiresAt: '2030-01-01T00:00:00Z',
+      lastActivity: '2029-01-01T00:00:00Z',
+      actor: {
+        schemaVersion: 1,
+        effectiveAccountId: 'user-1',
+        actorAccountId: 'user-1',
+        delegated: false,
+      },
+      liveSessionAuthority: 'session-row-v1',
+    } as never);
+    await server.session.validate('session-1', {
+      accessToken: token({ sessionId: 'session-1', userId: 'user-1' }),
+      liveSession: true,
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+    release({ valid: true, user: { id: 'user-1' } });
+    await ordinary;
+  });
+
   it('never caches a refusal, and a refusal evicts the session', async () => {
     const harness = setup();
     const { request, validate } = harness;

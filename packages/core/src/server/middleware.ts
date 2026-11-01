@@ -278,11 +278,13 @@ export interface AuthMiddlewareOptions {
   /** Keep anonymous access, but reject every supplied invalid credential or authority outage. */
   strictOptionalBearer?: boolean;
   /**
-   * Ask Oxy about the session on every request instead of reusing a recent
-   * successful validation (`OxyServerConfig.sessionValidationCacheTtlMs`, 30 s).
-   * For routes where a just-revoked session must not act — deletion, payments.
+   * Ask Oxy instead of reusing this server's recent successful validation
+   * (`OxyServerConfig.sessionValidationCacheTtlMs`, 30 s). Oxy may itself
+   * serve a cached answer; use `liveSession` for a live session-row read.
    */
   freshSession?: boolean;
+  /** Require a live session-row read. Unsupported servers fail with 503. */
+  liveSession?: boolean;
   /**
    * Called whenever a PRESENTED credential is refused, on the optional path as
    * well as the blocking one. Runs before the response (if any) and after
@@ -329,6 +331,7 @@ export interface OxyMiddlewareHost {
       accessToken?: string;
       supervisedAction?: SupervisedAction;
       fresh?: boolean;
+      liveSession?: boolean;
     },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(
@@ -443,7 +446,9 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
       expectedIssuer = OXY_JWT_ISSUER,
       expectedAudience = OXY_JWT_AUDIENCE,
     } = options;
-    const strictPresentedBearer = Boolean(options.supervisedAction || options.strictOptionalBearer);
+    const strictPresentedBearer = Boolean(
+      options.supervisedAction || options.strictOptionalBearer || options.liveSession,
+    );
 
     /**
      * Make a refusal observable to the HOST, without telling the client
@@ -567,6 +572,16 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         // Handle service tokens (internal service-to-service auth)
         // Service tokens are stateless JWTs with type: 'service' — requires signature verification
         if (decoded.type === 'service') {
+          if (options.liveSession) {
+            const error = {
+              error: 'SESSION_REQUIRED',
+              message: 'A live user session is required',
+              code: 'SESSION_REQUIRED',
+              status: 403,
+            };
+            if (onError) return onError(error);
+            return res.status(403).json(error);
+          }
           // Verify JWT signature, then audience / issuer / type / appId claims.
           //
           // Signature verification uses Node crypto rather than
@@ -1002,6 +1017,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             accessToken: token,
             supervisedAction: options.supervisedAction,
             fresh: options.freshSession,
+            ...(options.liveSession ? { liveSession: true } : {}),
           });
 
           if (!validationResult || !validationResult.valid || !validationResult.user) {

@@ -184,11 +184,15 @@ export interface TokenValidationResult {
  * @param token - The access token to validate
  * @returns Validation result with payload if valid, or error information if invalid
  */
-export const validateAccessToken = (token: string): TokenValidationResult => {
+export const validateAccessToken = (
+  token: string,
+  options: { throwOnUnavailable?: boolean } = {},
+): TokenValidationResult => {
   try {
     const secret = process.env.ACCESS_TOKEN_SECRET;
     if (!secret) {
       logger.error('[SessionUtils] ACCESS_TOKEN_SECRET is not configured');
+      if (options.throwOnUnavailable) throw new Error('Access token verification unavailable');
       return { valid: false, error: 'invalid' };
     }
     const decoded = jwt.verify(token, secret);
@@ -205,6 +209,7 @@ export const validateAccessToken = (token: string): TokenValidationResult => {
       logger.debug('[SessionUtils] Access token invalid', { error: error.message });
       return { valid: false, error: 'invalid' };
     }
+    if (options.throwOnUnavailable) throw error;
     logger.debug('[SessionUtils] Access token validation failed', {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -123,9 +123,10 @@ successful answer is reused on that process per session and SHA-256 of the
 bearer, for `sessionValidationCacheTtlMs` (default 30 s) and never past the
 token's `exp`; refusals are never reused.
 
-The rule that makes that safe: **the cache never keeps a revoked session
-alive.** Oxy announces every session it ends, and the cache is used only while
-the backend hears those announcements.
+Oxy announces ended sessions, and the backend uses the cache only while the
+feed appears live. Feed health cannot prove that every announcement reached
+every API task. A route that requires a fresh session-row read can opt in to
+the separately provisioned [live session authority](./live-session-authority.md).
 
 - **One choke point.** Every write that ends a session (`sessions.is_active` →
   false) is `deactivateSessionRows` in
@@ -157,6 +158,8 @@ the backend hears those announcements.
   lazily, so there is no moment at which to announce its loss.
 
 `auth({ freshSession: true })` asks Oxy every time on one route;
+Oxy may still serve its own cached session. `liveSession` is a separate opt-in
+with the narrower, writer-read contract described above.
 `sessionValidationCacheTtlMs: 0` turns the cache off; the `oxy:user:invalidate`
 broadcast (`createOxyUserInvalidationHandler({ oxy })`) and a logout made through
 that `OxyServer` still drop entries too. The supervised-action lane is never

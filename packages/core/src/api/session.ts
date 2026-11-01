@@ -11,6 +11,7 @@ import type { OxyContext } from '../client/context';
 import type { ClientSession } from '../models/session';
 import type { User } from '../models/interfaces';
 import { normalizeUserIdentity } from '../utils/userIdentity';
+import { OxyApiError } from '../OxyServices.errors';
 
 /**
  * Reads the device credential this client holds, if any — `{ deviceId,
@@ -189,17 +190,39 @@ export class SessionApi {
     sessionId: string,
     options: SessionValidateOptions = {},
   ): Promise<SessionValidation> {
+    if ('liveSession' in options)
+      throw new OxyApiError('Live session validation requires OxyServer', {
+        status: 503,
+        code: 'SESSION_AUTHORITY_UNAVAILABLE',
+      });
+    return this.validateRequest(sessionId, options);
+  }
+
+  /** Server implementations use this transport after enforcing their own contract. */
+  protected async validateRequest(
+    sessionId: string,
+    options: SessionValidateOptions & { liveSession?: boolean },
+  ): Promise<SessionValidation> {
     try {
-      const validation = options.accessToken
-        ? await this.ctx.request<SessionValidation>(
+      if (options.liveSession && !options.accessToken)
+        throw new OxyApiError('Live session authority requires a bearer', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+        });
+      const validation: SessionValidation & { liveSessionAuthority?: unknown } = options.accessToken
+        ? await this.ctx.request<SessionValidation & { liveSessionAuthority?: unknown }>(
             'GET',
             `/session/validate-header/${encodeURIComponent(sessionId)}`,
             undefined,
             {
               cache: false,
               skipAuth: true,
+              ...(options.liveSession ? { deduplicate: false, retry: false } : {}),
               headers: {
                 Authorization: `Bearer ${options.accessToken}`,
+                ...(options.liveSession
+                  ? { 'x-oxy-session-authority': 'live-v1', 'cache-control': 'no-store' }
+                  : {}),
                 ...(options.deviceFingerprint
                   ? { 'x-device-fingerprint': options.deviceFingerprint }
                   : {}),
@@ -217,8 +240,36 @@ export class SessionApi {
             },
             { cache: false },
           );
+      if (
+        options.liveSession &&
+        (validation.liveSessionAuthority !== 'session-row-v1' ||
+          validation.valid !== true ||
+          validation.sessionId !== sessionId ||
+          typeof validation.expiresAt !== 'string' ||
+          !Number.isFinite(Date.parse(validation.expiresAt)) ||
+          Date.parse(validation.expiresAt) <= Date.now() ||
+          typeof validation.lastActivity !== 'string' ||
+          !Number.isFinite(Date.parse(validation.lastActivity)))
+      )
+        throw new OxyApiError('Live session authority is unavailable', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+        });
       return { ...validation, user: normalizeUserIdentity(validation.user) };
     } catch (error) {
+      if (options.liveSession) {
+        const candidate = error as { status?: unknown; code?: unknown } | null;
+        const invalid =
+          candidate?.status === 401 && candidate.code === 'OXY_LIVE_SESSION_INVALID_V1';
+        const denied = candidate?.status === 403 && candidate.code === 'OXY_LIVE_SESSION_POLICY_V1';
+        if (invalid) this.ctx.oxy.cache.delete(`GET:/session/user/${sessionId}`);
+        if (invalid || denied) throw error;
+        throw new OxyApiError('Live session authority is unavailable', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+          cause: error,
+        });
+      }
       // The session is gone: drop any user cached for it (#196).
       this.ctx.oxy.cache.delete(`GET:/session/user/${sessionId}`);
       throw error;
