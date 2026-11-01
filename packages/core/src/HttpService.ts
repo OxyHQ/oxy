@@ -56,6 +56,10 @@ export type AccessTokenProvider = () => string | null;
  */
 export type AnonymousAuthProvider = () => Promise<string | null>;
 
+declare const credentialRevisionBrand: unique symbol;
+/** An opaque local bearer revision, never evidence of an account or authority. */
+export type CredentialRevision = { readonly [credentialRevisionBrand]: true };
+
 /** Comparison only fences local async work; it never validates token authority. */
 function sameTokenSession(left: string | null, right: string | null): boolean {
   if (left === right) return true;
@@ -190,6 +194,8 @@ interface FormDataLike {
 }
 
 export interface RequestOptions {
+  /** Experimental: bind a write to the source's exact bearer revision. */
+  expectedCredentialRevision?: CredentialRevision;
   cache?: boolean;
   cacheTTL?: number;
   deduplicate?: boolean;
@@ -576,6 +582,8 @@ export class HttpService {
    * bearer — and through the token listeners, the account — back.
    */
   private sessionEpoch = 0;
+  private credentialRevision: CredentialRevision = {} as CredentialRevision;
+  private readonly credentialSource: HttpService | null;
   /** Preserve a known device across legacy rotations which omit the claim. */
   private sessionDeviceId: string | null = null;
   /** Preserve known actor and context hints across rotations without those claims. */
@@ -618,8 +626,9 @@ export class HttpService {
     averageResponseTime: 0,
   };
 
-  constructor(config: OxyConfig) {
+  constructor(config: OxyConfig, credentialSource: HttpService | null = null) {
     this.config = config;
+    this.credentialSource = credentialSource;
     this.baseURL = config.baseURL;
     this.tokenStore = new TokenStore();
 
@@ -760,6 +769,19 @@ export class HttpService {
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
     if (config.signal?.aborted) throw createCancelledError('Request cancelled before it was sent');
+    if (config.expectedCredentialRevision) {
+      // The prototype is deliberately limited to writes; it does not
+      // yet define leases for cached/deduplicated reads or raw response paths.
+      if (
+        !['POST', 'PUT', 'PATCH', 'DELETE'].includes(config.method) ||
+        config.skipAuth ||
+        Object.keys(config.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
+      ) {
+        throw new Error('Credential revision requires an implicitly authenticated write');
+      }
+      (this.credentialSource ?? this).assertCredentialRevision(config.expectedCredentialRevision);
+      config = { ...config, cache: false, deduplicate: false, retry: false };
+    }
     // The provider can change independently of the last request. Synchronize
     // before deriving the cache and deduplication identity, including hits.
     const explicitAuthorization = Object.keys(config.headers ?? {}).some(
@@ -878,6 +900,15 @@ export class HttpService {
     const authHeader = usesSessionAuth
       ? await awaitRequestSignal(this.getAuthHeader(), signal)
       : null;
+    const assertExpectedCredential = () => {
+      if (config.expectedCredentialRevision) {
+        (this.credentialSource ?? this).assertCredentialRevision(
+          config.expectedCredentialRevision,
+          authHeader,
+        );
+      }
+    };
+    assertExpectedCredential();
     const isOriginalSession = () => {
       if (this.sessionEpoch !== contextEpoch) return false;
       const currentToken = this.syncAccessTokenFromProvider();
@@ -929,6 +960,7 @@ export class HttpService {
       if (usesSessionAuth && !isOriginalSession()) {
         throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
       }
+      assertExpectedCredential();
 
       /**
        * Whether OUR timer fired, so a timeout can be told apart from a
@@ -1042,6 +1074,9 @@ export class HttpService {
           throw new Error('Requester proofs require a transport that rejects redirects');
         }
 
+        // Header and source revision are checked together in this synchronous
+        // dispatch segment, after the preflight and any queue wait.
+        assertExpectedCredential();
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -1065,6 +1100,13 @@ export class HttpService {
         // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
+        try {
+          assertExpectedCredential();
+        } catch (error) {
+          void discardResponseBody(response);
+          throw error;
+        }
+
         if (usesSessionAuth && !isOriginalSession()) {
           void discardResponseBody(response);
           throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
@@ -1077,6 +1119,7 @@ export class HttpService {
           // session routes; the refresh handler owns session rotation.
           if (
             response.status === 401 &&
+            !config.expectedCredentialRevision &&
             !config._isAuthRetry &&
             usesSessionAuth &&
             isOriginalSession()
@@ -1114,6 +1157,7 @@ export class HttpService {
             // Refresh failed or no token — clear tokens
             if (isOriginalSession()) {
               if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
+              this.credentialRevision = {} as CredentialRevision;
               this.tokenStore.clearTokens();
               this.sessionDeviceId = null;
               this.sessionActorId = null;
@@ -1218,12 +1262,14 @@ export class HttpService {
         if (usesSessionAuth && !isOriginalSession()) {
           throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
         }
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(true, duration);
         this.config.onRequestEnd?.(url, method, duration, true);
 
         return responseData as T;
       } catch (error: unknown) {
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(false, duration);
         // A body reader can reject or finish parsing an error after the viewer
@@ -1348,6 +1394,7 @@ export class HttpService {
     if (usesSessionAuth && !isOriginalSession()) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
+    assertExpectedCredential();
 
     // Cache the result if caching is enabled
     if (cache && cacheKey && lease.valid && result) {
@@ -2138,6 +2185,7 @@ export class HttpService {
 
   // Token management
   setTokens(accessToken: string): void {
+    this.credentialRevision = {} as CredentialRevision;
     const current = this.tokenStore.getAccessToken();
     const deviceId = knownTokenDeviceId(accessToken);
     const binding = knownTokenContext(accessToken);
@@ -2192,6 +2240,36 @@ export class HttpService {
     return this.sessionEpoch;
   }
 
+  /** Capture only a local revision; the caller must separately bind authority. */
+  captureCredentialRevision(): CredentialRevision | null {
+    // A pull-only provider can change A→B→A between reads without notifying us.
+    if (this.accessTokenProvider) return null;
+    return this.tokenStore.getAccessToken() ? this.credentialRevision : null;
+  }
+
+  isCredentialRevisionCurrent(revision: CredentialRevision): boolean {
+    return (
+      !this.accessTokenProvider &&
+      this.tokenStore.getAccessToken() !== null &&
+      revision === this.credentialRevision
+    );
+  }
+
+  private assertCredentialRevision(
+    revision: CredentialRevision,
+    selectedHeader?: string | null,
+  ): void {
+    const token = this.tokenStore.getAccessToken();
+    if (
+      this.accessTokenProvider ||
+      !token ||
+      revision !== this.credentialRevision ||
+      (selectedHeader !== undefined && selectedHeader !== `Bearer ${token}`)
+    ) {
+      throw new OxyAuthenticationError('The request credential changed', 'AUTH_SESSION_CHANGED');
+    }
+  }
+
   /** Whether {@link endSession} ran and no token has been planted since. */
   hasSessionEnded(): boolean {
     return this.sessionEnded;
@@ -2202,6 +2280,7 @@ export class HttpService {
   }
 
   setAccessTokenProvider(provider: AccessTokenProvider | null): void {
+    this.credentialRevision = {} as CredentialRevision;
     this.accessTokenProvider = provider;
   }
 
@@ -2217,6 +2296,7 @@ export class HttpService {
   }
 
   clearTokens(): void {
+    this.credentialRevision = {} as CredentialRevision;
     if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
     this.sessionDeviceId = null;
@@ -2394,6 +2474,7 @@ export class HttpService {
 
   // Test-only utility — clears tokens on this instance
   __resetTokensForTests(): void {
+    this.credentialRevision = {} as CredentialRevision;
     this.sessionEnded = false;
     this.tokenStore.clearTokens();
     this.sessionDeviceId = null;

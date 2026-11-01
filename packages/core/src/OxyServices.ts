@@ -159,7 +159,10 @@ export class OxyServices {
    * Query). Pass `enableCache: true` to opt in.
    */
   createLinkedClient(config: OxyConfig): LinkedHttpClient {
-    const client = new HttpService({ ...config, enableCache: config.enableCache ?? false });
+    const client = new HttpService(
+      { ...config, enableCache: config.enableCache ?? false },
+      this.http,
+    );
 
     const syncToken = (accessToken: string | null): void => {
       const current = client.getAccessToken();
