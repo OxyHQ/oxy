@@ -22,6 +22,7 @@ import { sessions } from '../../db/schema/sessions';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { ServiceUnavailableError } from '../../utils/error';
 import sessionCache from '../../utils/sessionCache';
 import { accountService } from '../account.service';
@@ -310,6 +311,59 @@ it('does not remove a context when reading its session row fails', async () => {
   expect(device.activeContextId).toBe(contexts[0].id);
   expect(contexts).toHaveLength(1);
   expect(row.isActive).toBe(true);
+});
+
+it('removes only the revoked operator context when another operator reaches the same account', async () => {
+  const first = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const second = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const account = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const deviceId = `dev-${randomUUID()}`;
+  const req = { headers: { 'user-agent': 'authority-outage-test' } } as Request;
+  const revoked = await sessionService.createSession(account.id, req, {
+    deviceId,
+    operatedByUserId: first.id,
+  });
+  const neighbor = await sessionService.createSession(account.id, req, {
+    deviceId,
+    operatedByUserId: second.id,
+  });
+  await deviceSessionService.addAccount(deviceId, {
+    accountId: account.id,
+    sessionId: revoked.sessionId,
+    operatedByUserId: first.id,
+  });
+  const [device] = await getDb()
+    .select()
+    .from(deviceSessions)
+    .where(eq(deviceSessions.deviceId, deviceId));
+  const [principal] = await getDb()
+    .insert(devicePrincipals)
+    .values({ deviceSessionId: device.id, userId: second.id, authuser: 1 })
+    .returning({ id: devicePrincipals.id });
+  const [surviving] = await getDb()
+    .insert(deviceAccountContexts)
+    .values({
+      deviceSessionId: device.id,
+      principalId: principal.id,
+      accountId: account.id,
+      sessionId: neighbor.sessionId,
+    })
+    .returning({ id: deviceAccountContexts.id });
+
+  // Neither operator has a grant: the active one's negative is authoritative.
+  await deviceSessionService.getState(deviceId);
+  const contexts = await getDb()
+    .select()
+    .from(deviceAccountContexts)
+    .where(eq(deviceAccountContexts.deviceSessionId, device.id));
+  const [otherSession] = await getDb()
+    .select()
+    .from(sessions)
+    .where(eq(sessions.sessionId, neighbor.sessionId));
+  expect(
+    contexts.filter((context) => context.accountId === account.id).map((context) => context.id),
+  ).toEqual([surviving.id]);
+  expect(otherSession.isActive).toBe(true);
 });
 
 it('returns 503 from the real device state route while preserving the delegated context', async () => {
