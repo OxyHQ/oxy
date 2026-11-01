@@ -40,7 +40,7 @@ jest.mock('../../utils/socket', () => ({
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../middleware/security', () => ({
   idpServiceLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
-  sessionHeaderValidationLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  sessionHeaderValidationBudget: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,

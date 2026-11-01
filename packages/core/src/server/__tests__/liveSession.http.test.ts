@@ -30,6 +30,7 @@ it.each([
   ['old unauthorized server', 401, { message: 'Invalid session' }, 503, false],
   ['old forbidden server', 403, { message: 'Forbidden' }, 503, false],
   ['old missing endpoint', 404, {}, 503, false],
+  ['rate limited authority', 429, {}, 503, false],
   ['unavailable authority', 503, {}, 503, false],
   [
     'marked success with expired session',
@@ -80,7 +81,9 @@ it.each([
     const authority = express();
     let header: string | undefined;
     let cacheControl: string | undefined;
+    let requests = 0;
     authority.get('/session/validate-header/:sessionId', (req, res) => {
+      requests++;
       header = req.header('x-oxy-session-authority');
       cacheControl = req.header('cache-control');
       res.status(status).json(body);
@@ -107,6 +110,7 @@ it.each([
       }
       expect(header).toBe('live-v1');
       expect(cacheControl).toBe('no-store');
+      expect(requests).toBe(1);
       expect(client.session.accessToken).toBe(clearsBearer ? null : bearer);
       if (clearsBearer) expect(client.http.getSessionEpoch()).toBeGreaterThan(epoch);
       else expect(client.http.getSessionEpoch()).toBe(epoch);

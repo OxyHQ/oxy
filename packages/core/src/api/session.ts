@@ -217,7 +217,7 @@ export class SessionApi {
             {
               cache: false,
               skipAuth: true,
-              ...(options.liveSession ? { deduplicate: false } : {}),
+              ...(options.liveSession ? { deduplicate: false, retry: false } : {}),
               headers: {
                 Authorization: `Bearer ${options.accessToken}`,
                 ...(options.liveSession

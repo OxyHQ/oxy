@@ -1,12 +1,13 @@
 import jwt from 'jsonwebtoken';
 import slowDown from 'express-slow-down';
-import type { Request } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import type { AuthRequest } from './auth';
 import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
 import { rateLimit } from './rateLimiter';
+import { getRedisClient } from '../config/redis';
 
 const isProd = process.env.NODE_ENV !== 'development';
 
@@ -40,8 +41,8 @@ export function isIdpServiceToServicePath(path: string): boolean {
  * under `rl:general` (1000/15min) and `slowDown` (100/15min) — both keyed by
  * the same subject — a reader browsing an app would spend their own budget on
  * the app's validations and then pay 500ms on every request, here and to the
- * app. It is excluded from both and capped by its own per-subject limiter,
- * {@link sessionHeaderValidationLimiter}, mounted on the route.
+ * app. It is excluded from both; the route applies separate legacy and opt-in
+ * live budgets via {@link sessionHeaderValidationBudget}.
  */
 export function isSessionHeaderValidationPath(path: string): boolean {
   return path.startsWith('/session/validate-header/');
@@ -414,7 +415,7 @@ const idpServiceLimiter = rateLimit({
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
 
-// The SOLE budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
+// The legacy budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
 // sized like idpServiceLimiter: one subject's validations are one per request
 // an app serves them, and a request without a verified bearer falls back to the
 // per-IP key, as `/session/validate/` is capped today.
@@ -425,6 +426,84 @@ const sessionHeaderValidationLimiter = rateLimit({
   message: 'Too many requests, please try again later.',
   keyGenerator: subjectOrIpKey,
 });
+
+/*
+ * The live lane is intentionally off until its owner provisions and sizes all
+ * three shared budgets. A fixed window can admit bursts at its boundaries;
+ * this limits aggregate volume, not instantaneous concurrency or DoS.
+ */
+function liveBudget(name: string, hardMaximum: number): number | null {
+  const raw = process.env[name];
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value > 0 && value <= hardMaximum ? value : null;
+}
+
+const liveSessionEnabled = process.env.OXY_LIVE_SESSION_ENABLED === 'true';
+const liveRedisConfigured = Boolean(process.env.REDIS_URL);
+const liveSubjectMax = liveBudget('OXY_LIVE_SESSION_SUBJECT_PER_MINUTE', 60);
+const liveAddressMax = liveBudget('OXY_LIVE_SESSION_IP_PER_MINUTE', 300);
+const liveGlobalMax = liveBudget('OXY_LIVE_SESSION_GLOBAL_PER_MINUTE', 600);
+const liveSubjectLimiter = rateLimit({
+  prefix: 'rl:session:live:subject:',
+  windowMs: 60_000,
+  max: liveSubjectMax ?? 1,
+  keyGenerator: subjectOrIpKey,
+});
+const liveAddressLimiter = rateLimit({
+  prefix: 'rl:session:live:ip:',
+  windowMs: 60_000,
+  max: liveAddressMax ?? 1,
+  keyGenerator: hashedIpKey,
+});
+const liveGlobalLimiter = rateLimit({
+  prefix: 'rl:session:live:global:',
+  windowMs: 60_000,
+  max: liveGlobalMax ?? 1,
+  keyGenerator: () => 'all',
+});
+
+/** Separate live budget; legacy validations retain their existing limiter. */
+function sessionHeaderValidationBudget(req: Request, res: Response, next: NextFunction): void {
+  if (req.header('x-oxy-session-authority') !== 'live-v1') {
+    sessionHeaderValidationLimiter(req, res, next);
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.vary('x-oxy-session-authority');
+  const redis = getRedisClient();
+  if (
+    !liveSessionEnabled ||
+    !liveRedisConfigured ||
+    !liveSubjectMax ||
+    !liveAddressMax ||
+    !liveGlobalMax ||
+    redis?.status !== 'ready'
+  ) {
+    res.status(503).json({ message: 'Session authority unavailable' });
+    return;
+  }
+  const failClosed: NextFunction = (error?: unknown) => {
+    if (error || redis.status !== 'ready') {
+      res.status(503).json({ message: 'Session authority unavailable' });
+      return;
+    }
+    liveAddressLimiter(req, res, (addressError?: unknown) => {
+      if (addressError || redis.status !== 'ready') {
+        res.status(503).json({ message: 'Session authority unavailable' });
+        return;
+      }
+      liveGlobalLimiter(req, res, (globalError?: unknown) => {
+        if (globalError || redis.status !== 'ready') {
+          res.status(503).json({ message: 'Session authority unavailable' });
+          return;
+        }
+        next();
+      });
+    });
+  };
+  liveSubjectLimiter(req, res, failClosed);
+}
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
 // auth surface; individual sensitive endpoints (/auth/challenge, /auth/verify,
@@ -560,6 +639,7 @@ export {
   serviceCredentialLimiter,
   idpServiceLimiter,
   sessionHeaderValidationLimiter,
+  sessionHeaderValidationBudget,
   federationServiceLimiter,
   authRateLimiter,
   userRateLimiter,

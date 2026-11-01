@@ -1,7 +1,7 @@
 import express from 'express';
 import { SessionController } from '../controllers/session.controller';
 import { authMiddleware } from '../middleware/auth';
-import { idpServiceLimiter, sessionHeaderValidationLimiter } from '../middleware/security';
+import { idpServiceLimiter, sessionHeaderValidationBudget } from '../middleware/security';
 import { validate } from '../middleware/validate';
 import {
   sessionIdParams,
@@ -299,10 +299,10 @@ router.get(
  *         description: Session not found.
  */
 // Excluded from rl:general and slowDown (isSessionHeaderValidationPath);
-// sessionHeaderValidationLimiter is this route's sole cap.
+// The legacy and live lanes have separate budgets.
 router.get(
   '/validate-header/:sessionId',
-  sessionHeaderValidationLimiter,
+  sessionHeaderValidationBudget,
   validate({ params: sessionIdParams }),
   SessionController.validateSessionFromHeader,
 );
