@@ -1555,6 +1555,13 @@
       "when": 1793173576251,
       "tag": "0222_managed_application_deployments",
       "breakpoints": true
+    },
+    {
+      "idx": 223,
+      "version": "7",
+      "when": 1793496502548,
+      "tag": "0223_bind_join_code_issuer",
+      "breakpoints": true
     }
   ]
 }
