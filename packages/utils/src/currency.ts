@@ -420,9 +420,10 @@ export function toMinorUnits(
  * `fromMinorUnits(100_000_000, 'FAIR')` is `1`. Accepts a `bigint` from a
  * ledger; the result is a `number` for display and major-unit arithmetic.
  *
- * Returns `null` for a code with no known storage precision and for a `number`
- * that is not a safe integer — a fractional "minor unit" is a value already
- * read at the wrong scale.
+ * Returns `null` for a code with no known storage precision, for a `number`
+ * that is not a safe integer, or when a `bigint` exceeds the finite number
+ * range after scaling. Large finite bigint results may lose precision; use the
+ * original bigint for exact ledger arithmetic.
  */
 export function fromMinorUnits(minor: number | bigint, currency: string): number | null {
   const digits = currencyStorageDigits(currency);
@@ -434,7 +435,8 @@ export function fromMinorUnits(minor: number | bigint, currency: string): number
     const digitsText = (sign ? -minor : minor).toString().padStart(digits + 1, '0');
     const whole = digitsText.slice(0, digitsText.length - digits);
     const fraction = digitsText.slice(digitsText.length - digits);
-    return Number(`${sign}${whole}${fraction ? `.${fraction}` : ''}`);
+    const amount = Number(`${sign}${whole}${fraction ? `.${fraction}` : ''}`);
+    return Number.isFinite(amount) ? amount : null;
   }
   if (!Number.isSafeInteger(minor)) return null;
   return shiftDecimal(minor, -digits);

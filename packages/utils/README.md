@@ -120,8 +120,11 @@ what satisfies clause 3:
 - **A code `Intl` cannot format** (FAIR, anything not three letters) renders
   amount, no-break space, code: `1.234,56 FAIR`. No symbol is invented.
 - **Never throws** — a malformed locale, code or amount degrades to readable
-  text. Minor-unit helpers return `null` rather than guess a precision or
-  exceed `Number.MAX_SAFE_INTEGER` (≈ 90 million FAIR).
+  text. Minor-unit helpers return `null` rather than guess a precision;
+  `toMinorUnits` also rejects unsafe integer results. `fromMinorUnits` accepts
+  bigint amounts above that range, rounding to a number for display, and
+  returns `null` if the scaled result is not finite. Keep the bigint for exact
+  ledger arithmetic.
 
 ```ts
 formatMoney(1234.56, 'EUR', 'en-US');                  // '€1,234.56'
