@@ -25,6 +25,30 @@ const valid = {
   expiresAt: '2030-01-01T00:00:00Z',
   lastActivity: '2029-01-01T00:00:00Z',
 };
+
+it('refuses an injected live option on the public client without sending a request', async () => {
+  const authority = express();
+  let requests = 0;
+  authority.use((_req, res) => {
+    requests++;
+    res.json(valid);
+  });
+  const upstream = await listen(authority);
+  const client = new OxyServices({ baseURL: upstream.baseURL });
+  client.session.setAccessToken(bearer);
+  const epoch = client.http.getSessionEpoch();
+  try {
+    const injected = { accessToken: bearer, liveSession: true } as { accessToken: string };
+    await expect(client.session.validate('s', injected)).rejects.toMatchObject({ status: 503 });
+    expect(requests).toBe(0);
+    expect(client.session.accessToken).toBe(bearer);
+    expect(client.http.getSessionEpoch()).toBe(epoch);
+  } finally {
+    client.dispose();
+    await close(upstream.server);
+  }
+});
+
 it.each([
   ['old successful server', 200, valid, 503, false],
   ['old unauthorized server', 401, { message: 'Invalid session' }, 503, false],

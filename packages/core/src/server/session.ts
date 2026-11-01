@@ -20,7 +20,7 @@
  * `@oxy.so/contracts` `sessionRevocation.ts`), and the cache is used ONLY while
  * that feed is live. Feed health alone cannot prove that every event was
  * delivered. Routes requiring a fresh session-row read can opt in to
- * `liveSession`; see `SessionValidateOptions` for its scope.
+ * `liveSession`; see `ServerSessionValidateOptions` for its scope.
  *
  * - no feed (this process has no service token: no credential and no attested
  *   workload, as in a test or a local checkout), a feed not yet connected, a
@@ -64,6 +64,17 @@ export const SESSION_VALIDATION_CACHE_TTL_MS = 30_000;
 const SESSION_VALIDATION_CACHE_MAX = 5_000;
 
 export interface ServerSessionValidateOptions extends SessionValidateOptions {
+  /**
+   * Require a session-row read on a PostgreSQL writer. Old servers and
+   * unavailable authority fail closed with 503. The read only reflects commits
+   * visible to its database snapshot; requests already authorized can finish.
+   * This does not make account, grant or supervision data fresh. An unconfirmed
+   * user, grant or policy negative returns 503 rather than invalidating a
+   * session. Expiry is checked against the consumer's clock; skew can cause
+   * unavailability. Each validation reaches Oxy and its activity bookkeeping;
+   * assess database and Redis load before enabling it on a route.
+   */
+  liveSession?: boolean;
   /**
    * A reviewed route category. Oxy then validates the bearer through this
    * service's live `safety:<action>:v1` authority, the only lane a supervised
@@ -124,15 +135,15 @@ export class ServerSessionApi extends SessionApi {
     sessionId: string,
     options: ServerSessionValidateOptions = {},
   ): Promise<SessionValidation> {
-    const { supervisedAction, fresh, ...rest } = options;
-    if (rest.liveSession) {
+    const { supervisedAction, fresh, liveSession, ...rest } = options;
+    if (liveSession) {
       if (supervisedAction)
         throw new OxyApiError('Live supervised session authority is unavailable', {
           status: 503,
           code: 'SESSION_AUTHORITY_UNAVAILABLE',
         });
       try {
-        const result = await super.validate(sessionId, rest);
+        const result = await this.validateRequest(sessionId, { ...rest, liveSession: true });
         const actor = accountActorChainSchema.safeParse(result.actor);
         if (!actor.success || actor.data.effectiveAccountId !== result.user.id)
           throw new OxyApiError('Invalid live session authority response', {

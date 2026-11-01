@@ -25,19 +25,6 @@ export interface SessionValidateOptions {
   useHeaderValidation?: boolean;
   /** The bearer the request being authorized carried; cross-checked against the session. */
   accessToken?: string;
-  /**
-   * Require a session-row read on a PostgreSQL writer. Old servers and
-   * unavailable authority fail closed with 503. The read only reflects commits
-   * visible to its database snapshot; requests already authorized can finish.
-   * This does not make account, grant or supervision data fresh.
-   * An unconfirmed user, grant or policy negative fails with 503 rather than
-   * being reported as a confirmed invalid session.
-   * An expired response is rejected according to the consumer's clock; clock
-   * skew can therefore make this mode unavailable.
-   * Each validation reaches Oxy, including its session activity bookkeeping;
-   * assess database and Redis load before enabling it on a route.
-   */
-  liveSession?: boolean;
 }
 
 export interface SessionValidation {
@@ -202,6 +189,19 @@ export class SessionApi {
   async validate(
     sessionId: string,
     options: SessionValidateOptions = {},
+  ): Promise<SessionValidation> {
+    if ('liveSession' in options)
+      throw new OxyApiError('Live session validation requires OxyServer', {
+        status: 503,
+        code: 'SESSION_AUTHORITY_UNAVAILABLE',
+      });
+    return this.validateRequest(sessionId, options);
+  }
+
+  /** Server implementations use this transport after enforcing their own contract. */
+  protected async validateRequest(
+    sessionId: string,
+    options: SessionValidateOptions & { liveSession?: boolean },
   ): Promise<SessionValidation> {
     try {
       if (options.liveSession && !options.accessToken)
