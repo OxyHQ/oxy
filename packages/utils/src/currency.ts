@@ -458,7 +458,10 @@ function ratePerBase(code: string, rates: ExchangeRates): number | null {
  * The result is UNROUNDED: round once, where it is stored or shown
  * ({@link toMinorUnits}, {@link formatMoney}), so a cross conversion never
  * rounds twice. Returns `null` — never a fabricated rate of 1 — when either
- * side has no positive finite rate or `amount` is not finite.
+ * side has no positive finite rate, `amount` is not finite, or the calculation
+ * overflows. The last case can occur in an intermediate step even when the
+ * mathematical result would fit in a number; it returns `null` rather than an
+ * infinite amount that a formatter might display as zero.
  */
 export function convertAmount(
   amount: number,
@@ -473,5 +476,6 @@ export function convertAmount(
   const sourcePerBase = ratePerBase(source, rates);
   const targetPerBase = ratePerBase(target, rates);
   if (sourcePerBase === null || targetPerBase === null) return null;
-  return (amount / sourcePerBase) * targetPerBase;
+  const result = (amount / sourcePerBase) * targetPerBase;
+  return Number.isFinite(result) ? result : null;
 }

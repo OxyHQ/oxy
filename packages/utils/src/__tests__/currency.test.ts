@@ -348,6 +348,16 @@ describe('convertAmount — rates are injected, never fetched or fabricated', ()
     expect(convertAmount(12.345, 'EUR', 'EUR', { base: 'USD', rates: {} })).toBe(12.345);
   });
 
+  it('refuses overflow instead of returning an infinite amount', () => {
+    const tinyRate = { base: 'USD', rates: { EUR: Number.MIN_VALUE } };
+    expect(convertAmount(1, 'EUR', 'USD', tinyRate)).toBeNull();
+
+    // The first division can overflow even if the mathematical final result
+    // is representable. Do not present a fabricated value in that case either.
+    const equalRates = { base: 'USD', rates: { EUR: 0.5, GBP: 0.5 } };
+    expect(convertAmount(Number.MAX_VALUE, 'EUR', 'GBP', equalRates)).toBeNull();
+  });
+
   it('returns null instead of assuming a rate of 1', () => {
     expect(convertAmount(10, 'EUR', 'GBP', fairBased)).toBeNull();
     expect(convertAmount(10, 'GBP', 'EUR', fairBased)).toBeNull();
