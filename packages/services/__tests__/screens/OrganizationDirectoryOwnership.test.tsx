@@ -707,3 +707,138 @@ it('refuses a new claim while the bearer subject differs from the projected pers
   await screen.findByText('organizationDirectory.claimFailed');
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+it('sends one claim for synchronous presses and unlocks after failure', async () => {
+  let rejectFirst: ((reason: Error) => void) | undefined;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectFirst = reject;
+      }),
+  );
+  fetchMock.mockRejectedValue(new Error('offline'));
+  render(tree());
+  fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+    target: { value: 'Acme' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+  fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+    target: { value: 'private-case:alice' },
+  });
+  const button = screen.getByRole('button', { name: 'organizationDirectory.claim' });
+  act(() => {
+    fireEvent.click(button);
+    fireEvent.click(button);
+  });
+  expect(client.getMutationCache().getAll()).toHaveLength(1);
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    rejectFirst?.(new Error('offline'));
+  });
+  await screen.findByText('organizationDirectory.claimFailed');
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+});
+
+it('sends one creation for synchronous presses and unlocks after failure', async () => {
+  let rejectFirst: ((reason: Error) => void) | undefined;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectFirst = reject;
+      }),
+  );
+  fetchMock.mockRejectedValue(new Error('offline'));
+  render(tree());
+  fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+    target: { value: 'Acme' },
+  });
+  await screen.findByRole('button', { name: 'Acme' });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
+  const button = screen.getByRole('button', { name: 'organizationDirectory.addDirectory' });
+  act(() => {
+    fireEvent.click(button);
+    fireEvent.click(button);
+  });
+  expect(client.getMutationCache().getAll()).toHaveLength(1);
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    rejectFirst?.(new Error('offline'));
+  });
+  await screen.findByText('organizationDirectory.saveFailed');
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+});
+
+it('does not let an in-flight claim under A block a fresh claim under B', async () => {
+  let releaseA: ((value: unknown) => void) | undefined;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        releaseA = resolve;
+      }),
+  );
+  fetchMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => ({
+      data: {
+        id: 'claim2',
+        accountId: 'existing-org',
+        claimantUserId: 'bob',
+        status: 'pending',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+  });
+  const view = render(tree());
+  fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+    target: { value: 'Acme' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+  fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+    target: { value: 'private-case:alice' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  const oldMutation = client.getMutationCache().getAll()[0];
+  act(() => {
+    user = { id: 'bob', kind: 'personal' };
+    sessionId = 'session-bob';
+    oxy.session.setAccessToken(token('bob'));
+    runtime.batch(() => {
+      runtime.setAccount(user as never);
+      runtime.setActiveSessionId(sessionId);
+    });
+    view.rerender(tree());
+  });
+  fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
+    target: { value: 'Acme' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+  fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
+    target: { value: 'private-case:bob' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  const [, options] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+  expect((options.headers as Record<string, string>).Authorization).toBe(`Bearer ${token('bob')}`);
+  await act(async () => {
+    releaseA?.({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        data: {
+          id: 'claim1',
+          accountId: 'existing-org',
+          claimantUserId: 'alice',
+          status: 'pending',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      }),
+    });
+    await waitFor(() => expect(oldMutation.state.status).not.toBe('pending'));
+  });
+});

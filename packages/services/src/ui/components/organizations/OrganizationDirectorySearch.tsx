@@ -69,6 +69,10 @@ function OrganizationDirectorySearchContent({
   const [validationError, setValidationError] = useState(false);
   const personalReady = canUsePrivateApi && user?.kind === 'personal';
   const lifecycle = useRef({ active: false });
+  const pending = useRef<{ claim: object | null; create: object | null }>({
+    claim: null,
+    create: null,
+  });
   const operations = useRef(
     new WeakMap<
       object,
@@ -165,6 +169,7 @@ function OrganizationDirectorySearchContent({
     },
     onSettled: (_result, _error, key) => {
       operations.current.delete(key);
+      if (pending.current.claim === key) pending.current.claim = null;
     },
   });
   const create = useMutation({
@@ -191,6 +196,7 @@ function OrganizationDirectorySearchContent({
     },
     onSettled: (_result, _error, key) => {
       operations.current.delete(key);
+      if (pending.current.create === key) pending.current.create = null;
     },
   });
   const reset = () => {
@@ -225,13 +231,21 @@ function OrganizationDirectorySearchContent({
                 <Text accessibilityRole="alert">{t('organizationDirectory.claimSent')}</Text>
               ) : (
                 <Button
-                  onPress={() =>
-                    claim.mutate(
+                  onPress={() => {
+                    if (pending.current.claim) return;
+                    const key =
                       selected.status === 'active'
                         ? capture({ accountId: selected.accountId, evidence })
-                        : {},
-                    )
-                  }
+                        : {};
+                    pending.current.claim = key;
+                    try {
+                      claim.mutate(key);
+                    } catch (error) {
+                      pending.current.claim = null;
+                      operations.current.delete(key);
+                      throw error;
+                    }
+                  }}
                   disabled={
                     !personalReady ||
                     selected.status !== 'active' ||
@@ -352,7 +366,16 @@ function OrganizationDirectorySearchContent({
                 setValidationError(true);
                 return;
               }
-              create.mutate(capture({ name: search.trim(), type }));
+              if (pending.current.create) return;
+              const key = capture({ name: search.trim(), type });
+              pending.current.create = key;
+              try {
+                create.mutate(key);
+              } catch (error) {
+                pending.current.create = null;
+                operations.current.delete(key);
+                throw error;
+              }
             }}
           >
             {t('organizationDirectory.addDirectory')}
