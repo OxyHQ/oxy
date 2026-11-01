@@ -32,6 +32,13 @@ it.each([
   ['old missing endpoint', 404, {}, 503, false],
   ['unavailable authority', 503, {}, 503, false],
   [
+    'marked success with expired session',
+    200,
+    { ...valid, expiresAt: '2020-01-01T00:00:00Z', liveSessionAuthority: 'session-row-v1' },
+    503,
+    false,
+  ],
+  [
     'unmarked invalid payload',
     200,
     { ...valid, valid: false, liveSessionAuthority: 'session-row-v1' },

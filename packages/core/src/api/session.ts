@@ -32,6 +32,8 @@ export interface SessionValidateOptions {
    * This does not make account, grant or supervision data fresh.
    * An unconfirmed user, grant or policy negative fails with 503 rather than
    * being reported as a confirmed invalid session.
+   * An expired response is rejected according to the consumer's clock; clock
+   * skew can therefore make this mode unavailable.
    * Each validation reaches Oxy, including its session activity bookkeeping;
    * assess database and Redis load before enabling it on a route.
    */
@@ -245,6 +247,7 @@ export class SessionApi {
           validation.sessionId !== sessionId ||
           typeof validation.expiresAt !== 'string' ||
           !Number.isFinite(Date.parse(validation.expiresAt)) ||
+          Date.parse(validation.expiresAt) <= Date.now() ||
           typeof validation.lastActivity !== 'string' ||
           !Number.isFinite(Date.parse(validation.lastActivity)))
       )
