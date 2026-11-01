@@ -50,6 +50,7 @@ import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import deviceSessionService, { electReplacementContext } from '../deviceSession.service';
 import sessionService from '../session.service';
+import * as supervisionPolicy from '../supervisionPolicy.service';
 
 /** A minimal Express request carrying only what `extractDeviceInfo` reads. */
 function request(): Request {
@@ -1111,6 +1112,103 @@ describe('removal — one context and one principal are different operations', (
     const claims = validateAccessToken(minted?.accessToken ?? '');
     expect(claims.valid).toBe(true);
     expect(claims.payload).toMatchObject({ sub: person, sid: sessionId, act: { sub: person } });
+  });
+
+  it('observes only the installed personal bearer on the active holder context', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    if (!minted) throw new Error('Expected personal bound bearer');
+    const evidence = await deviceSessionService.resolveHolderContextEvidence(
+      device,
+      holder,
+      minted.accessToken,
+    );
+    expect(evidence).toMatchObject({
+      status: 'ok',
+      evidence: {
+        actorId: person,
+        accountId: person,
+        sessionId,
+        contextId: minted.contextId,
+        deviceSessionId: minted.deviceSessionId,
+        revision: minted.revision,
+      },
+    });
+    expect(JSON.stringify(evidence)).not.toContain(minted.accessToken);
+    expect(JSON.stringify(evidence)).not.toContain(holder);
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        device,
+        `${holder}-wrong`,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'binding_unavailable' });
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(device, holder, 'not-a-bearer'),
+    ).toEqual({ status: 'invalid_bearer' });
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        `${device}-other`,
+        holder,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'binding_unavailable' });
+
+    const other = await account();
+    const otherSession = await signIn(device, other);
+    expect(await deviceSessionService.bindSessionToContext(device, otherSession)).toBe(true);
+    const directory = await deviceSessionService.getDirectory(device);
+    const otherContext = directory.principals
+      .find((principal) => principal.userId === other)
+      ?.contexts.find((context) => context.accountId === other);
+    if (!otherContext) throw new Error('Expected other personal context');
+    expect(
+      (await deviceSessionService.activateContext(device, otherContext.id, request())).ok,
+    ).toBe(true);
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(device, holder, minted.accessToken),
+    ).toEqual({ status: 'binding_unavailable' });
+  });
+
+  it('does not attest a delegated context even with the real holder and session bearer', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    if (!minted) throw new Error('Expected delegated bearer');
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        shared.device,
+        holder,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'unsupported_bearer' });
+  });
+
+  it('fails closed when supervision policy cannot be evaluated for evidence', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    if (!minted) throw new Error('Expected personal bearer');
+    const policy = jest
+      .spyOn(supervisionPolicy, 'supervisionValidAfter')
+      .mockResolvedValue([new Date()]);
+    try {
+      await expect(
+        deviceSessionService.resolveHolderContextEvidence(device, holder, minted.accessToken),
+      ).rejects.toThrow('Session authority unavailable');
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it('holder context token rejects a different actor and A to B to A during mint', async () => {
