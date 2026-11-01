@@ -21,8 +21,9 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 jest.mock('../../src/ui/hooks/useI18n', () => ({
   useI18n: () => ({ locale: 'en', t: (key: string) => key }),
 }));
+const registerHooks = jest.fn(() => () => {});
 jest.mock('../../src/ui/navigation/accountDialogManager', () => ({
-  registerAccountDialogConsumerHooks: () => () => {},
+  registerAccountDialogConsumerHooks: (...args: unknown[]) => registerHooks(...args),
 }));
 jest.mock('react-native-css/components', () =>
   jest.requireActual('../../__tests__/__mocks__/react-native'),
@@ -70,4 +71,13 @@ it('delegates signed-out presses to the existing sign-in flow', () => {
   fireEvent.click(screen.getByRole('button', { name: 'common.actions.signIn' }));
   expect(signIn).toHaveBeenCalled();
   expect(openAccountDialog).not.toHaveBeenCalled();
+});
+
+it('registers the drawer pre-action without overriding the shared add flow', () => {
+  const closeDrawer = jest.fn();
+  render(<ProfileButton onBeforeAddAccount={closeDrawer} />);
+  expect(registerHooks).toHaveBeenCalledWith(
+    expect.objectContaining({ onBeforeAddAccount: closeDrawer }),
+  );
+  expect(registerHooks.mock.calls[0][0].onAddAccount).toBeUndefined();
 });

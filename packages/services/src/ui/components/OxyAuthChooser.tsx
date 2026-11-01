@@ -301,7 +301,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       consumerHooks.onAddAccount();
       return;
     }
-    // No consumer override: enter the "add account" view.
+    // No consumer override: let the host close its drawer before the shared view.
+    consumerHooks?.onBeforeAddAccount?.();
     controller?.add();
   }, [consumerHooks, controller, onComplete]);
 
