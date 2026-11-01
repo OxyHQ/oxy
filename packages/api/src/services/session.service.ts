@@ -1438,6 +1438,23 @@ class SessionService {
     return revoked;
   }
 
+  /** Revoke this principal's sessions for the subject on a remote device. */
+  async deactivateActorSessionsOnDevice(acting: SessionReachability, deviceId: string) {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(
+        tx,
+        and(
+          sessionActorScope(acting.subjectId, acting.principalId),
+          eq(sessions.deviceId, deviceId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      ),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked;
+  }
+
   async deactivateDeviceSessions(acting: SessionReachability): Promise<number> {
     const revoked = await withLockedActingSession(acting, (tx) =>
       deactivateSessionRows(tx, eq(sessions.deviceId, acting.deviceId)),
