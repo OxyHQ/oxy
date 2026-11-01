@@ -19,6 +19,7 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
  */
 import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
+import { ServiceUnavailableError } from '../utils/error';
 import sessionCache, { type CachedSession } from '../utils/sessionCache';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
@@ -278,7 +279,7 @@ class SessionService {
       CachedSession,
       'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'
     >,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; throwOnError?: boolean } = {},
   ): Promise<boolean> {
     if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
     if (session.authMethodId) {
@@ -292,6 +293,7 @@ class SessionService {
         )
           return false;
       } catch {
+        if (opts.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
         return false; // no stale positive cache for autonomous credentials
       }
     }
@@ -355,6 +357,7 @@ class SessionService {
           sessionId: sessionId.substring(0, 8),
         },
       );
+      if (opts.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       return false;
     }
   }
@@ -369,7 +372,11 @@ class SessionService {
    * @param useCache - Whether to use cache (default: true)
    * @returns Session object or null if not found or expired
    */
-  async getSession(sessionId: string, useCache = true): Promise<CachedSession | null> {
+  async getSession(
+    sessionId: string,
+    useCache = true,
+    options: { throwOnError?: boolean } = {},
+  ): Promise<CachedSession | null> {
     try {
       // Try cache first
       if (useCache) {
@@ -413,6 +420,7 @@ class SessionService {
           method: 'getSession',
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error to allow graceful degradation
       // Caller should handle null case appropriately
       return null;
@@ -433,7 +441,7 @@ class SessionService {
    */
   async getSessionWithUser(
     sessionId: string,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
       const { useCache = true } = options;
@@ -515,6 +523,7 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error for graceful degradation - consistent error handling pattern
       // Caller should handle null case appropriately
       return null;
@@ -1524,30 +1533,43 @@ class SessionService {
   async validateSessionById(
     sessionId: string,
     populateUser = true,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
     // `useCache: false` is for authority decisions that must observe a sign-out
     // or revocation made on another task inside the cache TTL (ADR 0025).
     const useCache = options.useCache ?? true;
     try {
       if (populateUser) {
-        const result = await this.getSessionWithUser(sessionId, { useCache });
+        const result = await this.getSessionWithUser(sessionId, {
+          useCache,
+          throwOnError: options.throwOnError,
+        });
         if (
           result &&
-          !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))
+          !(await this.ensureManagedSessionAuthorized(result.session, {
+            force: !useCache,
+            throwOnError: options.throwOnError,
+          }))
         ) {
           return null;
         }
         return result;
       }
 
-      const session = await this.getSession(sessionId, useCache);
+      const session = await this.getSession(sessionId, useCache, {
+        throwOnError: options.throwOnError,
+      });
       if (!session) {
         return null;
       }
 
       // Bind managed-account sessions to the operator's act_as membership here too.
-      if (!(await this.ensureManagedSessionAuthorized(session, { force: !useCache }))) {
+      if (
+        !(await this.ensureManagedSessionAuthorized(session, {
+          force: !useCache,
+          throwOnError: options.throwOnError,
+        }))
+      ) {
         return null;
       }
 
@@ -1562,6 +1584,7 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error for graceful degradation - consistent error handling pattern
       return null;
     }
