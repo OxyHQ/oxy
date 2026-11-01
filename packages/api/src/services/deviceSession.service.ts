@@ -28,9 +28,10 @@ import type {
 import { deviceDirectorySchema, isOperatorSwitchTargetKind } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
 import { v7 as uuidv7 } from 'uuid';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type Transaction } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { deviceCredentials } from '../db/schema/deviceCredentials';
+import { deviceJoinCodes } from '../db/schema/deviceJoinCodes';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
 import { sessions } from '../db/schema/sessions';
@@ -2153,40 +2154,41 @@ class DeviceSessionService {
    * is only ever bound to a real device row, never to a phantom device.
    */
   async issueDeviceSecret(deviceId: string): Promise<string | null> {
+    return getDb().transaction((tx) => this.issueDeviceSecretInTransaction(tx, deviceId));
+  }
+
+  /** Issue under the same device-row lock as signout and a join-code claim. */
+  async issueDeviceSecretInTransaction(tx: Transaction, deviceId: string): Promise<string | null> {
     const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
     const secretHash = sha256Hex(rawSecret);
+    const [device] = await tx
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .for('update');
+    if (!device) return null;
 
-    const issued = await getDb().transaction(async (tx) => {
-      const [device] = await tx
-        .select({ id: deviceSessions.id })
-        .from(deviceSessions)
-        .where(eq(deviceSessions.deviceId, deviceId))
-        .for('update');
-      if (!device) return false;
+    await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
 
-      await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
-
-      const kept = tx
-        .select({ id: deviceCredentials.id })
-        .from(deviceCredentials)
-        .where(eq(deviceCredentials.deviceSessionId, device.id))
-        .orderBy(
-          desc(deviceCredentials.lastUsedAt),
-          desc(deviceCredentials.createdAt),
-          desc(deviceCredentials.id),
-        )
-        .limit(MAX_DEVICE_CREDENTIALS);
-      await tx
-        .delete(deviceCredentials)
-        .where(
-          and(
-            eq(deviceCredentials.deviceSessionId, device.id),
-            notInArray(deviceCredentials.id, kept),
-          ),
-        );
-      return true;
-    });
-    return issued ? rawSecret : null;
+    const kept = tx
+      .select({ id: deviceCredentials.id })
+      .from(deviceCredentials)
+      .where(eq(deviceCredentials.deviceSessionId, device.id))
+      .orderBy(
+        desc(deviceCredentials.lastUsedAt),
+        desc(deviceCredentials.createdAt),
+        desc(deviceCredentials.id),
+      )
+      .limit(MAX_DEVICE_CREDENTIALS);
+    await tx
+      .delete(deviceCredentials)
+      .where(
+        and(
+          eq(deviceCredentials.deviceSessionId, device.id),
+          notInArray(deviceCredentials.id, kept),
+        ),
+      );
+    return rawSecret;
   }
 
   /**
@@ -2258,6 +2260,8 @@ class DeviceSessionService {
 
   /** Delete every holder credential of a device (sign-out-all). */
   private async revokeHolderCredentials(tx: Queryable, deviceSessionId: string): Promise<void> {
+    // The device row is locked by the caller, as it is for join-code issue and claim.
+    await tx.delete(deviceJoinCodes).where(eq(deviceJoinCodes.deviceSessionId, deviceSessionId));
     await tx
       .delete(deviceCredentials)
       .where(eq(deviceCredentials.deviceSessionId, deviceSessionId));

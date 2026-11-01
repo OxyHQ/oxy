@@ -28,10 +28,11 @@
 import * as crypto from 'crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { DeviceProof } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
 import { deviceJoinCodes } from '../db/schema/deviceJoinCodes';
+import { deviceCredentials } from '../db/schema/deviceCredentials';
 import { deviceSessions } from '../db/schema/deviceSessions';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { logger } from '../utils/logger';
@@ -60,8 +61,9 @@ export type RedeemJoinCodeOutcome =
 /** The official application a `clientId` names, or null. */
 async function resolveOfficialApplication(
   clientId: string,
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<{ id: string; redirectUris: string[] } | null> {
-  const [row] = await getDb()
+  const [row] = await db
     .select({
       id: applications.id,
       type: applications.type,
@@ -108,23 +110,37 @@ export class DeviceJoinService {
     if (!isAllowedRedirectUri(app, input.redirectUri))
       return { ok: false, reason: 'invalid_redirect_uri' };
 
-    const db = getDb();
-    const [device] = await db
-      .select({ id: deviceSessions.id })
-      .from(deviceSessions)
-      .where(eq(deviceSessions.deviceId, input.deviceId))
-      .limit(1);
-    if (!device) return { ok: false, reason: 'invalid_device_secret' };
-
     const code = base64UrlEncode(crypto.randomBytes(DEVICE_JOIN_CODE_BYTES));
-    await db.insert(deviceJoinCodes).values({
-      codeHash: sha256Hex(code),
-      deviceSessionId: device.id,
-      applicationId: app.id,
-      redirectUri: canonicalizeOAuthRedirectUri(input.redirectUri),
-      codeChallenge: input.codeChallenge,
-      expiresAt: new Date(Date.now() + DEVICE_JOIN_CODE_TTL_MS),
+    const issued = await getDb().transaction(async (tx) => {
+      // Signout holds the same device lock before revoking holders and codes.
+      const [device] = await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.deviceId, input.deviceId))
+        .for('update');
+      if (!device) return false;
+      const [credential] = await tx
+        .select({ id: deviceCredentials.id })
+        .from(deviceCredentials)
+        .where(
+          and(
+            eq(deviceCredentials.deviceSessionId, device.id),
+            eq(deviceCredentials.secretHash, sha256Hex(input.deviceSecret)),
+          ),
+        )
+        .limit(1);
+      if (!credential) return false;
+      await tx.insert(deviceJoinCodes).values({
+        codeHash: sha256Hex(code),
+        deviceSessionId: device.id,
+        applicationId: app.id,
+        redirectUri: canonicalizeOAuthRedirectUri(input.redirectUri),
+        codeChallenge: input.codeChallenge,
+        expiresAt: new Date(Date.now() + DEVICE_JOIN_CODE_TTL_MS),
+      });
+      return true;
     });
+    if (!issued) return { ok: false, reason: 'invalid_device_secret' };
     return { ok: true, code, expiresIn: Math.round(DEVICE_JOIN_CODE_TTL_MS / 1000) };
   }
 
@@ -142,47 +158,67 @@ export class DeviceJoinService {
     redirectUri: string;
   }): Promise<RedeemJoinCodeOutcome> {
     const db = getDb();
-    const now = new Date();
-    const [claimed] = await db
-      .update(deviceJoinCodes)
-      .set({ usedAt: now })
+    // This first read takes no row lock and rejects known spent/expired codes
+    // without locking the device. The claim repeats every condition after the
+    // device lock: this preliminary result can change while the lock is awaited.
+    const [candidate] = await db
+      .select({ id: deviceJoinCodes.id, deviceSessionId: deviceJoinCodes.deviceSessionId })
+      .from(deviceJoinCodes)
       .where(
         and(
           eq(deviceJoinCodes.codeHash, sha256Hex(input.code)),
           isNull(deviceJoinCodes.usedAt),
-          gt(deviceJoinCodes.expiresAt, now),
+          gt(deviceJoinCodes.expiresAt, new Date()),
         ),
       )
-      .returning({
-        deviceSessionId: deviceJoinCodes.deviceSessionId,
-        applicationId: deviceJoinCodes.applicationId,
-        redirectUri: deviceJoinCodes.redirectUri,
-        codeChallenge: deviceJoinCodes.codeChallenge,
-      });
-    if (!claimed) return { ok: false, reason: 'invalid_grant' };
-
-    const app = await resolveOfficialApplication(input.clientId);
-    if (!app || app.id !== claimed.applicationId) return { ok: false, reason: 'invalid_client' };
-    if (
-      !timingSafeStringEqual(
-        claimed.redirectUri,
-        canonicalizeOAuthRedirectUri(input.redirectUri),
-      ) ||
-      !timingSafeStringEqual(claimed.codeChallenge, pkceS256(input.codeVerifier))
-    ) {
-      return { ok: false, reason: 'invalid_grant' };
-    }
-
-    const [device] = await db
-      .select({ deviceId: deviceSessions.deviceId })
-      .from(deviceSessions)
-      .where(eq(deviceSessions.id, claimed.deviceSessionId))
       .limit(1);
-    if (!device) return { ok: false, reason: 'invalid_grant' };
+    if (!candidate) return { ok: false, reason: 'invalid_grant' };
+    return db.transaction(async (tx): Promise<RedeemJoinCodeOutcome> => {
+      // Signout takes the same device -> code lock order.
+      const [device] = await tx
+        .select({ deviceId: deviceSessions.deviceId })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.id, candidate.deviceSessionId))
+        .for('update');
+      if (!device) return { ok: false, reason: 'invalid_grant' };
+      const now = new Date();
+      const [claimed] = await tx
+        .update(deviceJoinCodes)
+        .set({ usedAt: now })
+        .where(
+          and(
+            eq(deviceJoinCodes.id, candidate.id),
+            eq(deviceJoinCodes.deviceSessionId, candidate.deviceSessionId),
+            eq(deviceJoinCodes.codeHash, sha256Hex(input.code)),
+            isNull(deviceJoinCodes.usedAt),
+            gt(deviceJoinCodes.expiresAt, now),
+          ),
+        )
+        .returning({
+          applicationId: deviceJoinCodes.applicationId,
+          redirectUri: deviceJoinCodes.redirectUri,
+          codeChallenge: deviceJoinCodes.codeChallenge,
+        });
+      if (!claimed) return { ok: false, reason: 'invalid_grant' };
 
-    const deviceSecret = await deviceSessionService.issueDeviceSecret(device.deviceId);
-    if (!deviceSecret) return { ok: false, reason: 'invalid_grant' };
-    return { ok: true, deviceId: device.deviceId, deviceSecret };
+      const app = await resolveOfficialApplication(input.clientId, tx);
+      if (!app || app.id !== claimed.applicationId) return { ok: false, reason: 'invalid_client' };
+      if (
+        !timingSafeStringEqual(
+          claimed.redirectUri,
+          canonicalizeOAuthRedirectUri(input.redirectUri),
+        ) ||
+        !timingSafeStringEqual(claimed.codeChallenge, pkceS256(input.codeVerifier))
+      )
+        return { ok: false, reason: 'invalid_grant' };
+
+      const deviceSecret = await deviceSessionService.issueDeviceSecretInTransaction(
+        tx,
+        device.deviceId,
+      );
+      if (!deviceSecret) return { ok: false, reason: 'invalid_grant' };
+      return { ok: true, deviceId: device.deviceId, deviceSecret };
+    });
   }
 }
 

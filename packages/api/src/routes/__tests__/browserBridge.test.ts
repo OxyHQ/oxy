@@ -310,6 +310,28 @@ describe('POST /session/device/register', () => {
 });
 
 describe('POST /session/device/join-code and /join', () => {
+  it('does not redeem a pending code after signout-all', async () => {
+    const originApp = await registeredApp(true);
+    const target = await registeredApp(true);
+    const alice = await user();
+    const auth = await registerOnAuth();
+    const holder = await bridge(auth, originApp);
+    const session = await qrSignIn(originApp, alice, holder);
+    const { verifier, challenge } = pkce();
+    const issued = await joinCode(auth, target, challenge);
+    expect(issued.status).toBe(200);
+    authenticatedUser = { _id: alice.id, username: alice.username, sessionId: session.sessionId };
+    const signedOut = await request(app)
+      .post('/session/device/signout')
+      .set('authorization', `Bearer ${session.accessToken}`)
+      .send({ all: true });
+    expect(signedOut.status).toBe(200);
+    const result = await redeem(target, issued.body.data.code, verifier);
+    expect(result.status).toBe(400);
+    expect(result.body.error).toBe('invalid_grant');
+    expect(result.body.data).toBeUndefined();
+  });
+
   it('issues codes only to auth.oxy.so, for a proven device, an official app and its exact redirect URI', async () => {
     const auth = await registerOnAuth();
     const official = await registeredApp(true);
