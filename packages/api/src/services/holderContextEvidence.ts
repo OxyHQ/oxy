@@ -4,7 +4,9 @@ import { ServiceUnavailableError } from '../utils/error';
 
 export type HolderContextEvidenceResult =
   | { status: 'ok'; evidence: HolderContextEvidenceV1Response }
-  | { status: 'invalid_bearer' | 'unsupported_bearer' | 'binding_unavailable' };
+  | { status: 'invalid_bearer' }
+  | { status: 'unsupported_bearer' }
+  | { status: 'binding_unavailable' };
 
 /** The token was verified by the live session service, not decoded by a caller. */
 export interface VerifiedHolderBearer {
