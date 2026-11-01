@@ -61,6 +61,8 @@ type SessionReachability = {
   subjectId: string;
   principalId: string;
   deviceId: string;
+  /** When supplied, require this application binding to survive until the lock. */
+  applicationId?: string | null;
 };
 type SessionDeactivationOptions =
   | { expectedXmin: string; reachableFrom?: SessionReachability }
@@ -89,6 +91,13 @@ async function withLockedActingSession<T>(
           eq(sessions.isActive, true),
           gt(sessions.expiresAt, new Date()),
           sessionActorScope(acting.subjectId, acting.principalId),
+          ...(acting.applicationId === undefined
+            ? []
+            : [
+                acting.applicationId === null
+                  ? isNull(sessions.applicationId)
+                  : eq(sessions.applicationId, acting.applicationId),
+              ]),
         ),
       )
       .for('update');
@@ -1429,6 +1438,23 @@ class SessionService {
         and(
           sessionActorScope(acting.subjectId, acting.principalId),
           ne(sessions.sessionId, acting.sessionId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      ),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked;
+  }
+
+  /** Revoke this principal's sessions for the subject on a remote device. */
+  async deactivateActorSessionsOnDevice(acting: SessionReachability, deviceId: string) {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(
+        tx,
+        and(
+          sessionActorScope(acting.subjectId, acting.principalId),
+          eq(sessions.deviceId, deviceId),
           gt(sessions.expiresAt, new Date()),
         ),
       ),
