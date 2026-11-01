@@ -302,6 +302,17 @@ describe('toMinorUnits / fromMinorUnits', () => {
     expect(fromMinorUnits(BigInt(42), 'JPY')).toBe(42);
   });
 
+  it('returns null when a bigint amount overflows after scaling', () => {
+    const large = BigInt(10) ** BigInt(310);
+    expect(fromMinorUnits(large, 'JPY')).toBeNull();
+    expect(fromMinorUnits(-large, 'JPY')).toBeNull();
+    // The currency precision is applied before checking the resulting number.
+    expect(fromMinorUnits(large, 'EUR')).toBe(1e308);
+    expect(fromMinorUnits(large * BigInt(10), 'EUR')).toBeNull();
+    // Bigints above the safe integer range remain supported as rounded numbers.
+    expect(fromMinorUnits(BigInt('9007199254740993'), 'JPY')).toBe(9007199254740992);
+  });
+
   it('refuses a fractional minor unit or an unknown precision', () => {
     expect(fromMinorUnits(12.5, 'EUR')).toBeNull();
     expect(fromMinorUnits(Number.NaN, 'EUR')).toBeNull();
