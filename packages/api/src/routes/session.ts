@@ -111,8 +111,8 @@ router.get(
  *       - Sessions
  *     summary: Sign out the given session
  *     description: >
- *       Revoke the session identified by `sessionId`. Requires a bearer
- *       whose user owns that session. After this call any bearer token tied
+ *       Revoke the authenticated session identified by `sessionId`. After
+ *       this call any bearer token tied
  *       to it is rejected.
  *     parameters:
  *       - name: sessionId
@@ -124,7 +124,9 @@ router.get(
  *       200:
  *         description: Session revoked.
  *       401:
- *         description: No bearer, or the session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  */
 router.post(
   '/logout/:sessionId',
@@ -141,7 +143,7 @@ router.post(
  *       - Sessions
  *     summary: Sign another session out via an authenticated session
  *     description: >
- *       Use `sessionId` (a live session owned by the bearer's user) to revoke
+ *       Use `sessionId` (the authenticated bearer session) to revoke
  *       `targetSessionId`, which must belong to the same user or sit on the
  *       same device. This is how the "sign out other devices" flow works.
  *     parameters:
@@ -159,7 +161,9 @@ router.post(
  *       200:
  *         description: Target session revoked.
  *       401:
- *         description: No bearer, or the acting session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  *       404:
  *         description: Target session not found, or not reachable from the acting one.
  */
@@ -179,7 +183,7 @@ router.post(
  *     summary: Sign out every session for this user
  *     description: >
  *       Revoke every other session belonging to the user behind `sessionId`,
- *       a live session owned by the bearer's user. Recommended after a
+ *       the authenticated bearer session. Recommended after a
  *       password reset or suspected compromise.
  *     parameters:
  *       - name: sessionId
@@ -191,7 +195,9 @@ router.post(
  *       200:
  *         description: All sessions revoked.
  *       401:
- *         description: No bearer, or the session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  */
 router.post(
   '/logout-all/:sessionId',
@@ -310,7 +316,7 @@ router.get(
  *     description: >
  *       Return every active session that shares the device fingerprint of
  *       the supplied session. Used to power "this device has these
- *       accounts" UI in the auth picker.
+ *       accounts" UI in the auth picker. `sessionId` must identify the bearer session.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -327,7 +333,9 @@ router.get(
  *               items:
  *                 $ref: '#/components/schemas/Session'
  *       401:
- *         description: No bearer, or the session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  */
 router.get(
   '/device/sessions/:sessionId',
@@ -346,7 +354,7 @@ router.get(
  *     description: >
  *       Revoke every session that shares the device fingerprint of the
  *       supplied session. Useful for a one-click "sign out this device"
- *       button.
+ *       button. `sessionId` must identify the bearer session.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -357,7 +365,9 @@ router.get(
  *       200:
  *         description: Device sessions revoked.
  *       401:
- *         description: No bearer, or the session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  */
 router.post(
   '/device/logout-all/:sessionId',
@@ -376,7 +386,7 @@ router.post(
  *     description: >
  *       Update the human-readable device label shown in the user's devices
  *       list. The change applies to every session sharing the device
- *       fingerprint.
+ *       fingerprint. `sessionId` must identify the bearer session.
  *     parameters:
  *       - name: sessionId
  *         in: path
@@ -401,7 +411,9 @@ router.post(
  *       400:
  *         description: Validation failed.
  *       401:
- *         description: No bearer, or the session is not live or not the bearer's.
+ *         description: No valid bearer, or the authenticated session is not live.
+ *       403:
+ *         description: The acting session id does not match the bearer.
  */
 router.put(
   '/device/name/:sessionId',

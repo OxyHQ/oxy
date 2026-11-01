@@ -163,6 +163,13 @@ Registration also happens server-side outside this router:
 
 > **Do not confuse** these routes with the older fingerprint-based listing at `GET /session/device/sessions/:sessionId` / `POST /session/device/logout-all/:sessionId` (routes in `packages/api/src/routes/session.ts`, DTO `DeviceLinkedSession*` in contracts). Those enumerate `sessions` rows that share a device fingerprint for the security screen; they are **not** the device set and do not carry `revision`/`activeAccountId`.
 
+The older logout, logout-all and device-management routes require the acting
+`sessionId` to match the authenticated bearer session. A mismatch returns
+`403 ACTING_SESSION_MISMATCH` before the supplied id is looked up. The explicit
+`targetSessionId` on the logout route retains its existing target rules. If a
+client's session projection and bearer temporarily disagree, these operations
+are unavailable until they agree; this response does not mean the bearer expired.
+
 ---
 
 ## Socket sync — room `device:<deviceId>`, event `session_state`
