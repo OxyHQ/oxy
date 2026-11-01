@@ -691,7 +691,9 @@ class DeviceSessionService {
     // Only the selected delegated pair is re-checked. Other people may reach
     // the same account through independent sessions and memberships.
     if (!active?.sessionId || isPersonalContext(active)) return projectState(doc);
-    const validated = await sessionService.validateSessionById(active.sessionId, false);
+    const validated = await sessionService.validateSessionById(active.sessionId, false, {
+      throwOnError: true,
+    });
     if (validated) return projectState(doc);
     logger.info('deviceSession.getState: dropping revoked managed active account', {
       deviceId: doc.deviceId,
@@ -869,7 +871,9 @@ class DeviceSessionService {
     // durably pointing the device at an account the caller no longer has
     // authority over (see resolveActiveToken, which does the same check on
     // read but can't undo an already-committed activeAccountId).
-    const validated = await sessionService.validateSessionById(sessionId, false);
+    const validated = await sessionService.validateSessionById(sessionId, false, {
+      throwOnError: true,
+    });
     if (!validated) {
       // A new context or re-authentication may have arrived during validation.
       // Remove only the exact rejected session, never this account globally.
