@@ -23,9 +23,11 @@ describeWithTestRedis('holder context evidence HTTP', () => {
   let bearer: string;
   let deviceId: string;
   let deviceSecret: string;
+  let originalRedisUrl: string | undefined;
 
   beforeAll(async () => {
     if (!process.env.TEST_QUEUE_REDIS_URL) throw new Error('Isolated test Redis is required');
+    originalRedisUrl = process.env.REDIS_URL;
     process.env.REDIS_URL = process.env.TEST_QUEUE_REDIS_URL;
     process.env.OXY_HOLDER_EVIDENCE_ENABLED = 'true';
     process.env.OXY_HOLDER_EVIDENCE_SUBJECT_PER_MINUTE = '60';
@@ -81,8 +83,15 @@ describeWithTestRedis('holder context evidence HTTP', () => {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
-    if (closePostgres) await closePostgres();
-    if (closeRedis) await closeRedis();
+    // An asynchronous activity update can otherwise reopen the shared client
+    // during teardown, leaving a live Redis socket after this suite finishes.
+    delete process.env.REDIS_URL;
+    try {
+      if (closeRedis) await closeRedis();
+      if (closePostgres) await closePostgres();
+    } finally {
+      if (originalRedisUrl !== undefined) process.env.REDIS_URL = originalRedisUrl;
+    }
   });
 
   it('requires a signed bearer and the holder and returns no credentials', async () => {
