@@ -17,6 +17,7 @@ jest.mock('../../services/securityActivityService', () => ({
 it('bounds the real live route by signed subject, address and shared budget', async () => {
   const redisUrl = process.env.TEST_QUEUE_REDIS_URL;
   if (!redisUrl) throw new Error('TEST_QUEUE_REDIS_URL is required');
+  const originalRedisUrl = process.env.REDIS_URL;
   process.env.REDIS_URL = redisUrl;
   process.env.OXY_LIVE_SESSION_ENABLED = 'true';
   process.env.OXY_LIVE_SESSION_SUBJECT_PER_MINUTE = '2';
@@ -55,8 +56,13 @@ it('bounds the real live route by signed subject, address and shared budget', as
       );
     }
   } catch (error) {
-    await closeRedis();
-    await closePostgres();
+    delete process.env.REDIS_URL;
+    try {
+      await closeRedis();
+      await closePostgres();
+    } finally {
+      if (originalRedisUrl !== undefined) process.env.REDIS_URL = originalRedisUrl;
+    }
     throw error;
   }
   const app = express();
@@ -198,8 +204,14 @@ it('bounds the real live route by signed subject, address and shared budget', as
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
-    await closeRedis();
-    await closePostgres();
+    // Stop late session activity from creating a new Redis client after close.
+    delete process.env.REDIS_URL;
+    try {
+      await closeRedis();
+      await closePostgres();
+    } finally {
+      if (originalRedisUrl !== undefined) process.env.REDIS_URL = originalRedisUrl;
+    }
     handler.mockRestore();
   }
 }, 20000);

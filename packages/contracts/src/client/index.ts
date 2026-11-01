@@ -100,6 +100,8 @@ export {
   deviceBackgroundCredentialResponseCheck,
   deviceContextTokenV1RequestCheck,
   deviceContextTokenV1ResponseCheck,
+  holderContextEvidenceV1RequestCheck,
+  holderContextEvidenceV1ResponseCheck,
   deviceJoinCodeResponseCheck,
   deviceJoinResponseCheck,
   deviceRegisterResponseCheck,

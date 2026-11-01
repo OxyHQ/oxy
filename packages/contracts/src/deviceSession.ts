@@ -105,6 +105,35 @@ export type DeviceContextTokenV1Request = z.infer<typeof deviceContextTokenV1Req
 export type DeviceContextTokenV1Response = z.infer<typeof deviceContextTokenV1ResponseSchema>;
 
 /**
+ * Opt-in proof for the currently installed bearer and the active shared-device
+ * context. The device credential is a holder proof, not a new app credential.
+ */
+export const holderContextEvidenceV1RequestSchema = z.strictObject({
+  deviceId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  deviceSecret: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+});
+
+/**
+ * A writer-observed binding for the bearer presented with this request. It is
+ * not a lease, permission grant, or guarantee that the context stays active.
+ */
+export const holderContextEvidenceV1ResponseSchema = z.strictObject({
+  version: z.literal(1),
+  deviceId: z.string().check(utf16MinLength(1)),
+  deviceSessionId: z.string().check(utf16MinLength(1)),
+  revision: z.number().check(integerCheck()).nonnegative(),
+  contextId: z.string().check(utf16MinLength(1)),
+  actorId: z.string().check(utf16MinLength(1)),
+  accountId: z.string().check(utf16MinLength(1)),
+  sessionId: z.string().check(utf16MinLength(1)),
+  /** The earlier expiry of the validated bearer and the observed session. */
+  expiresAt: z.string().check(utf16MinLength(1)),
+});
+
+export type HolderContextEvidenceV1Request = z.infer<typeof holderContextEvidenceV1RequestSchema>;
+export type HolderContextEvidenceV1Response = z.infer<typeof holderContextEvidenceV1ResponseSchema>;
+
+/**
  * Why the signed-in set changed:
  *  - `login`   — a brand-new session was minted for the user (QR / cross-app authorize)
  *  - `add`     — an account was registered onto a device set
