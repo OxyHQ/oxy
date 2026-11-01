@@ -158,15 +158,23 @@ export class DeviceJoinService {
     redirectUri: string;
   }): Promise<RedeemJoinCodeOutcome> {
     const db = getDb();
-    // This first read takes no row lock. Lock the device BEFORE claiming the
-    // code, matching signout's device -> code order and avoiding deadlocks.
+    // This first read takes no row lock and rejects known spent/expired codes
+    // without locking the device. The claim repeats every condition after the
+    // device lock: this preliminary result can change while the lock is awaited.
     const [candidate] = await db
       .select({ id: deviceJoinCodes.id, deviceSessionId: deviceJoinCodes.deviceSessionId })
       .from(deviceJoinCodes)
-      .where(eq(deviceJoinCodes.codeHash, sha256Hex(input.code)))
+      .where(
+        and(
+          eq(deviceJoinCodes.codeHash, sha256Hex(input.code)),
+          isNull(deviceJoinCodes.usedAt),
+          gt(deviceJoinCodes.expiresAt, new Date()),
+        ),
+      )
       .limit(1);
     if (!candidate) return { ok: false, reason: 'invalid_grant' };
     return db.transaction(async (tx): Promise<RedeemJoinCodeOutcome> => {
+      // Signout takes the same device -> code lock order.
       const [device] = await tx
         .select({ deviceId: deviceSessions.deviceId })
         .from(deviceSessions)

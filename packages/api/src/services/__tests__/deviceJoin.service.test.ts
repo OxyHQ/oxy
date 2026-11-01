@@ -406,6 +406,67 @@ describe('issueJoinCode / redeemJoinCode', () => {
     });
   });
 
+  it('rejects already used or expired codes without waiting for the device lock', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const { verifier, challenge } = pkce();
+    const used = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    const expired = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!used.ok || !expired.ok) throw new Error('code issuance failed');
+    const input = { codeVerifier: verifier, clientId: app.clientId, redirectUri: app.redirectUri };
+    expect((await deviceJoinService.redeemJoinCode({ ...input, code: used.code })).ok).toBe(true);
+    await getDb()
+      .update(deviceJoinCodes)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(deviceJoinCodes.codeHash, createHash('sha256').update(expired.code).digest('hex')));
+    const ready = deferred<void>();
+    const release = deferred<void>();
+    const blocker = getDb().transaction(async (tx) => {
+      await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.deviceId, device.deviceId))
+        .for('update');
+      ready.resolve();
+      await release.promise;
+    });
+    await ready.promise;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('spent or expired code waited on device lock')),
+          2_000,
+        );
+      });
+      const results = await Promise.race([
+        Promise.all([
+          deviceJoinService.redeemJoinCode({ ...input, code: used.code }),
+          deviceJoinService.redeemJoinCode({ ...input, code: expired.code }),
+        ]),
+        timeout,
+      ]);
+      expect(results).toEqual([
+        { ok: false, reason: 'invalid_grant' },
+        { ok: false, reason: 'invalid_grant' },
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      release.resolve();
+      await blocker;
+    }
+  });
+
   it('checks code expiration after waiting for the device lock', async () => {
     const device = await deviceJoinService.registerDevice();
     const app = await officialApp();
