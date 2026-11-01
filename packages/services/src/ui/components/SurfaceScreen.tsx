@@ -89,7 +89,7 @@ function ScreenLoadState({
       ) : (
         <Loading variant="spinner" accessibilityLabel={t('common.status.loading')} />
       )}
-      <Button onPress={cancel}>{t('common.cancel')}</Button>
+      <Button onPress={() => cancel()}>{t('common.cancel')}</Button>
     </View>
   );
 }
@@ -342,7 +342,7 @@ function SurfaceScreen({
   ]);
 
   if (loadState !== 'ready')
-    return <ScreenLoadState failed={loadState === 'failed'} retry={retryLoad} cancel={goBack} />;
+    return <ScreenLoadState failed={loadState === 'failed'} retry={retryLoad} cancel={dismiss} />;
   if (!ScreenComponent) return null;
 
   return (

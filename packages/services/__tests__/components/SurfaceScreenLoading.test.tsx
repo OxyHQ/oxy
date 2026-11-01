@@ -142,6 +142,39 @@ it('allows the user to cancel while a non-dismissible surface is loading', async
   expect(screen.queryByText('AccountDialog')).toBeNull();
 });
 
+it('cancels the entire loading surface even when it starts on a later step', () => {
+  mockLoadScreens.mockImplementation(() => new Promise<void>(() => {}));
+  const stack = createSurfaceNavStack('AccountDialog', { initialStep: 2 });
+  const dismiss = jest.fn();
+  render(
+    <SurfaceScreen
+      navStack={stack}
+      navigation={navigation}
+      surface={{ dismiss } as unknown as SurfaceControls}
+    />,
+  );
+  fireEvent.click(screen.getByText('common.cancel'));
+  expect(dismiss).toHaveBeenCalledTimes(1);
+});
+
+it('cancels an active sub-flow without dismissing its host', async () => {
+  mockLoadScreens.mockImplementation(() => new Promise<void>(() => {}));
+  const stack = createSurfaceNavStack('AccountDialog');
+  const result = stack.beginFlow('ManageAccount');
+  const dismiss = jest.fn();
+  render(
+    <SurfaceScreen
+      navStack={stack}
+      navigation={navigation}
+      surface={{ dismiss } as unknown as SurfaceControls}
+    />,
+  );
+  fireEvent.click(screen.getByText('common.cancel'));
+  await expect(result).resolves.toBeUndefined();
+  expect(stack.getTop().route).toBe('AccountDialog');
+  expect(dismiss).not.toHaveBeenCalled();
+});
+
 it('does not start loading when dismissed before the host mounts', () => {
   const stack = createSurfaceNavStack('AccountDialog');
   const dismiss = jest.fn();
