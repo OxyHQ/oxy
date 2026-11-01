@@ -586,10 +586,9 @@ class SessionService {
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
-        const live = await this.getSessionWithUser(sessionId, {
-          useCache: false,
-          throwOnError: options.liveSession,
-        });
+        const live = options.liveSession
+          ? await this.getLiveSessionWithUser(sessionId, { freshUser: true })
+          : await this.getSessionWithUser(sessionId, { useCache: false });
         if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
           return null;
         session = live.session;
@@ -651,13 +650,14 @@ class SessionService {
 
   private async getLiveSessionWithUser(
     sessionId: string,
+    options: { freshUser?: boolean } = {},
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     const session = await this.readLiveSessionRow(sessionId);
     if (!session) return null;
-    let user = userCache.get(session.userId);
+    let user = options.freshUser ? undefined : userCache.get(session.userId);
     if (!user) {
       user = (await userService.readAccountDocument(session.userId)) ?? null;
-      if (user) userCache.set(session.userId, user);
+      if (user && !options.freshUser) userCache.set(session.userId, user);
     }
     return user ? { session, user } : null;
   }

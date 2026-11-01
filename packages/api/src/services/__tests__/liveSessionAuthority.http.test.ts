@@ -22,7 +22,10 @@ import { supervisionProfiles } from '../../db/schema/supervision';
 import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 import { SessionController } from '../../controllers/session.controller';
 import sessionService from '../session.service';
+import userService from '../user.service';
+import * as supervisionPolicy from '../supervisionPolicy.service';
 import sessionCache, { type CachedSession } from '../../utils/sessionCache';
+import userCache from '../../utils/userCache';
 
 it('revalidates the live session row independently of ordinary cached validation', async () => {
   await connectPostgres();
@@ -147,6 +150,60 @@ it('propagates a real live-row failure as 503 without clearing Core credentials'
   }
 }, 20000);
 
+it('keeps credentials when user or supervision authority is unavailable', async () => {
+  await connectPostgres();
+  process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
+  process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
+  process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+  const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
+  const session = await sessionService.createSession(
+    user.id,
+    { headers: { 'user-agent': 'fresh-local-test' } } as Request,
+    { deviceId: `dev-${randomUUID()}` },
+  );
+  const app = express();
+  app.get('/session/validate-header/:sessionId', SessionController.validateSessionFromHeader);
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const oxy = new OxyServer({ baseURL, maxRetries: 1, retryDelay: 1 });
+  app.get('/private', oxy.middleware.auth({ liveSession: true }), (_req, res) =>
+    res.json({ ok: true }),
+  );
+  const client = new OxyServices({ baseURL, requestTimeout: 15000 });
+  client.session.setAccessToken(session.accessToken);
+  const epoch = client.http.getSessionEpoch();
+  try {
+    userCache.invalidateLocal(user.id);
+    const cachedUser = jest.spyOn(userCache, 'get').mockReturnValue(undefined);
+    const readUser = jest
+      .spyOn(userService, 'readAccountDocument')
+      .mockRejectedValue(new Error('user unavailable'));
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    readUser.mockRestore();
+    cachedUser.mockRestore();
+    const readSupervision = jest
+      .spyOn(supervisionPolicy, 'supervisionValidAfter')
+      .mockRejectedValue(new Error('supervision unavailable'));
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      { status: 503 },
+    );
+    readSupervision.mockRestore();
+    expect(client.session.accessToken).toBe(session.accessToken);
+    expect(client.http.getSessionEpoch()).toBe(epoch);
+  } finally {
+    jest.restoreAllMocks();
+    client.dispose();
+    oxy.dispose();
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+    await closePostgres();
+  }
+}, 20000);
+
 it('does not bypass or silently downgrade supervised-session policy', async () => {
   await connectPostgres();
   process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
@@ -202,6 +259,22 @@ it('does not bypass or silently downgrade supervised-session policy', async () =
     await expect(
       client.http.get('/reviewed', { retry: false, cache: false }),
     ).rejects.toMatchObject({ status: 503 });
+    const reader = sessionService as unknown as {
+      readLiveSessionRow(id: string): Promise<CachedSession | null>;
+    };
+    const original = reader.readLiveSessionRow.bind(sessionService);
+    let reads = 0;
+    const secondRead = jest.spyOn(reader, 'readLiveSessionRow').mockImplementation(async (id) => {
+      if (++reads >= 2) throw new Error('second authority read unavailable');
+      return original(id);
+    });
+    await expect(client.http.get('/private', { retry: false, cache: false })).rejects.toMatchObject(
+      {
+        status: 503,
+      },
+    );
+    expect(reads).toBeGreaterThanOrEqual(2);
+    secondRead.mockRestore();
     expect(client.session.accessToken).toBe(session.accessToken);
     expect(client.http.getSessionEpoch()).toBe(epoch);
   } finally {

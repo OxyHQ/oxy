@@ -30,6 +30,8 @@ export interface SessionValidateOptions {
    * unavailable authority fail closed with 503. The read only reflects commits
    * visible to its database snapshot; requests already authorized can finish.
    * This does not make account, grant or supervision data fresh.
+   * Each validation reaches Oxy, including its session activity bookkeeping;
+   * assess database and Redis load before enabling it on a route.
    */
   liveSession?: boolean;
 }
