@@ -733,6 +733,11 @@ export class SessionController {
 
   // Preserve the ordinary legacy endpoint; supervised identities require the service policy lane.
   static async validateSessionFromHeader(req: Request, res: Response) {
+    const liveSession = req.header('x-oxy-session-authority') === 'live-v1';
+    if (liveSession) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.vary('x-oxy-session-authority');
+    }
     try {
       const sessionId = req.params.sessionId;
 
@@ -746,14 +751,27 @@ export class SessionController {
       // Remote validation is an authority decision: read the live row and membership.
       const authorization = req.headers?.authorization;
       if (
-        authorization !== undefined &&
-        (!authorization.startsWith('Bearer ') || !authorization.slice(7).trim())
+        (liveSession && authorization === undefined) ||
+        (authorization !== undefined &&
+          (!authorization.startsWith('Bearer ') || !authorization.slice(7).trim()))
       ) {
-        return res.status(401).json({ message: 'Invalid bearer authorization' });
+        return res.status(401).json(
+          liveSession
+            ? {
+                error: {
+                  code: 'OXY_LIVE_SESSION_INVALID_V1',
+                  message: 'Invalid bearer authorization',
+                },
+              }
+            : { message: 'Invalid bearer authorization' },
+        );
       }
       const token = authorization?.slice(7) ?? null;
       const result = token
-        ? await sessionService.validateSession(token, { allowSupervisedPolicyEvaluation: true })
+        ? await sessionService.validateSession(token, {
+            allowSupervisedPolicyEvaluation: true,
+            liveSession,
+          })
         : await sessionService.validateSessionById(sessionId, true, { useCache: false });
       if (
         result &&
@@ -762,17 +780,38 @@ export class SessionController {
             (await isSupervised(result.session.operatedByUserId))))
       ) {
         return res.status(403).json({
-          error: { code: 'forbidden', message: 'Reviewed consumer authorization is required' },
+          error: {
+            code: liveSession ? 'OXY_LIVE_SESSION_POLICY_V1' : 'forbidden',
+            message: 'Reviewed consumer authorization is required',
+          },
         });
       }
       if (result && result.session.sessionId !== sessionId)
-        return res.status(401).json({ message: 'Token does not match session' });
+        return res.status(401).json(
+          liveSession
+            ? {
+                error: {
+                  code: 'OXY_LIVE_SESSION_INVALID_V1',
+                  message: 'Token does not match session',
+                },
+              }
+            : { message: 'Token does not match session' },
+        );
 
       if (!result || !result.session || !result.user) {
-        return res.status(401).json({
-          message: 'Invalid or expired session',
-          sessionId: sessionId.substring(0, 8) + '...',
-        });
+        return res.status(401).json(
+          liveSession
+            ? {
+                error: {
+                  code: 'OXY_LIVE_SESSION_INVALID_V1',
+                  message: 'Invalid or expired session',
+                },
+              }
+            : {
+                message: 'Invalid or expired session',
+                sessionId: sessionId.substring(0, 8) + '...',
+              },
+        );
       }
 
       // Optional device fingerprint validation. Advisory only — it logs and
@@ -797,10 +836,13 @@ export class SessionController {
         user: userData,
         sessionId: result.session.sessionId,
         actor: sessionActorChain(result.session),
+        ...(liveSession ? { liveSessionAuthority: 'session-row-v1' } : {}),
       });
     } catch (error) {
       logger.error('Validate session from header error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(liveSession ? 503 : 500).json({
+        message: liveSession ? 'Session authority unavailable' : 'Internal server error',
+      });
     }
   }
 

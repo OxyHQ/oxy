@@ -550,16 +550,24 @@ class SessionService {
    */
   async validateSession(
     accessToken: string,
-    options: { allowSupervisedPolicyEvaluation?: boolean; throwOnError?: boolean } = {},
+    options: {
+      allowSupervisedPolicyEvaluation?: boolean;
+      throwOnError?: boolean;
+      liveSession?: boolean;
+    } = {},
   ): Promise<SessionValidationResult | null> {
     try {
-      const validationResult = validateAccessToken(accessToken);
+      const validationResult = validateAccessToken(accessToken, {
+        throwOnUnavailable: options.liveSession,
+      });
       if (!validationResult.valid || !validationResult.payload?.sessionId) {
         return null;
       }
 
       const sessionId = validationResult.payload.sessionId;
-      const result = await this.getSessionWithUser(sessionId, { useCache: true });
+      const result = options.liveSession
+        ? await this.getLiveSessionWithUser(sessionId)
+        : await this.getSessionWithUser(sessionId, { useCache: true });
       if (!result) {
         return null;
       }
@@ -578,7 +586,10 @@ class SessionService {
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
-        const live = await this.getSessionWithUser(sessionId, { useCache: false });
+        const live = await this.getSessionWithUser(sessionId, {
+          useCache: false,
+          throwOnError: options.liveSession,
+        });
         if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
           return null;
         session = live.session;
@@ -588,7 +599,9 @@ class SessionService {
 
       // A managed-account session is only valid while its operator still holds
       // act_as over the account. Revoked membership → deactivate + reject.
-      if (!(await this.ensureManagedSessionAuthorized(session))) {
+      if (
+        !(await this.ensureManagedSessionAuthorized(session, { throwOnError: options.liveSession }))
+      ) {
         return null;
       }
 
@@ -630,9 +643,46 @@ class SessionService {
           method: 'validateSession',
         },
       );
+      if (options.liveSession) throw new ServiceUnavailableError('Session authority unavailable');
       if (options.throwOnError) throw error;
       return null;
     }
+  }
+
+  private async getLiveSessionWithUser(
+    sessionId: string,
+  ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
+    const session = await this.readLiveSessionRow(sessionId);
+    if (!session) return null;
+    let user = userCache.get(session.userId);
+    if (!user) {
+      user = (await userService.readAccountDocument(session.userId)) ?? null;
+      if (user) userCache.set(session.userId, user);
+    }
+    return user ? { session, user } : null;
+  }
+
+  private async readLiveSessionRow(sessionId: string): Promise<CachedSession | null> {
+    // The recovery check and row share one SQL statement, connection and snapshot.
+    // A physical read replica cannot authoritatively report a missing session.
+    const [result] = await getDb()
+      .select({
+        inRecovery: sql<boolean>`pg_catalog.pg_is_in_recovery()`,
+        session: SESSION_COLUMNS,
+      })
+      .from(sql`(select 1) as live_session_authority`)
+      .leftJoin(
+        sessions,
+        and(
+          eq(sessions.sessionId, sessionId),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+    if (!result || result.inRecovery !== false)
+      throw new ServiceUnavailableError('Session authority is not a writable primary');
+    return result.session?.sessionId ? result.session : null;
   }
 
   /**
