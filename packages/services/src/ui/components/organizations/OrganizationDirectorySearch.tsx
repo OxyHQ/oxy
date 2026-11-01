@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Organization, OrganizationType } from '@oxy.so/contracts';
@@ -15,6 +15,7 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
+import { useOxyRuntime } from '../../runtime/runtimeContext';
 import { OrganizationTypePicker } from './OrganizationTypePicker';
 
 /** Finding an existing identity never grants ownership or silently creates an account. */
@@ -23,7 +24,40 @@ export function OrganizationDirectorySearch({
 }: {
   onCreateAccount: (name: string, type: OrganizationType) => void;
 }) {
-  const { oxyServices, user, canUsePrivateApi } = useOxy();
+  const runtime = useOxyRuntime();
+  const { oxyServices } = useOxy();
+  const revision = useSyncExternalStore(
+    runtime.subscribe,
+    runtime.getAccountSessionRevision,
+    runtime.getAccountSessionRevision,
+  );
+  const subscribeBearer = useCallback(
+    (notify: () => void) => oxyServices.session.onChange(notify),
+    [oxyServices],
+  );
+  const getBearerEpoch = useCallback(() => oxyServices.http.getSessionEpoch(), [oxyServices]);
+  const bearerEpoch = useSyncExternalStore(subscribeBearer, getBearerEpoch, getBearerEpoch);
+  return (
+    <OrganizationDirectorySearchContent
+      key={`${revision}:${bearerEpoch}`}
+      revision={revision}
+      bearerEpoch={bearerEpoch}
+      onCreateAccount={onCreateAccount}
+    />
+  );
+}
+
+function OrganizationDirectorySearchContent({
+  onCreateAccount,
+  revision,
+  bearerEpoch,
+}: {
+  onCreateAccount: (name: string, type: OrganizationType) => void;
+  revision: number;
+  bearerEpoch: number;
+}) {
+  const runtime = useOxyRuntime();
+  const { oxyServices, user, activeSessionId, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -34,6 +68,67 @@ export function OrganizationDirectorySearch({
   const [evidence, setEvidence] = useState('');
   const [validationError, setValidationError] = useState(false);
   const personalReady = canUsePrivateApi && user?.kind === 'personal';
+  const lifecycle = useRef({ active: false });
+  const operations = useRef(
+    new WeakMap<
+      object,
+      {
+        identity: ReturnType<typeof runtime.getAccountSessionIdentity>;
+        bearerEpoch: number;
+        accountId?: string;
+        evidence?: string;
+        name?: string;
+        type?: OrganizationType;
+      }
+    >(),
+  );
+
+  useEffect(() => {
+    lifecycle.current.active = true;
+    return () => {
+      lifecycle.current.active = false;
+    };
+  }, []);
+
+  function currentOwner(
+    operation: NonNullable<ReturnType<typeof operations.current.get>>,
+  ): boolean {
+    const current = runtime.getAccountSessionIdentity();
+    const subject = oxyServices.session.userId;
+    return (
+      oxyServices.http.getSessionEpoch() === operation.bearerEpoch &&
+      current.revision === operation.identity.revision &&
+      current.accountId === operation.identity.accountId &&
+      current.sessionId === operation.identity.sessionId &&
+      !!oxyServices.session.accessToken &&
+      (subject === null || subject === current.accountId)
+    );
+  }
+
+  function capture(input: {
+    accountId?: string;
+    evidence?: string;
+    name?: string;
+    type?: OrganizationType;
+  }): object {
+    const key = {};
+    const identity = runtime.getAccountSessionIdentity();
+    if (
+      lifecycle.current.active &&
+      personalReady &&
+      identity.revision === revision &&
+      oxyServices.http.getSessionEpoch() === bearerEpoch &&
+      identity.accountId === user?.id &&
+      identity.sessionId === activeSessionId
+    ) {
+      operations.current.set(key, {
+        identity,
+        bearerEpoch,
+        ...input,
+      });
+    }
+    return key;
+  }
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 300);
     return () => clearTimeout(timer);
@@ -52,27 +147,50 @@ export function OrganizationDirectorySearch({
     retry: false,
   });
   const claim = useMutation({
-    mutationFn: () => {
-      if (!personalReady || !selected || selected.status !== 'active')
+    // A lost response does not prove this non-idempotent claim was not sent.
+    retry: false,
+    mutationFn: (key: object) => {
+      const operation = operations.current.get(key);
+      if (!operation || !currentOwner(operation) || !operation.accountId || !operation.evidence)
         throw new Error('An active organization and personal session are required');
       return oxyServices.organizations.claim(
-        selected.accountId,
-        parseContract(organizationClaimInputCheck, { evidenceReference: evidence }),
+        operation.accountId,
+        parseContract(organizationClaimInputCheck, { evidenceReference: operation.evidence }),
       );
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] }),
+    onSuccess: (_result, key) => {
+      const operation = operations.current.get(key);
+      if (operation && currentOwner(operation))
+        return queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
+    },
+    onSettled: (_result, _error, key) => {
+      operations.current.delete(key);
+    },
   });
   const create = useMutation({
-    mutationFn: () => {
-      if (!personalReady) throw new Error('A personal session is required');
+    // The directory creation endpoint does not carry an idempotency key.
+    retry: false,
+    mutationFn: (key: object) => {
+      const operation = operations.current.get(key);
+      if (!operation || !currentOwner(operation)) throw new Error('A personal session is required');
       return oxyServices.organizations.create(
-        parseContract(createOrganizationCheck, { name: search.trim(), organizationType: type }),
+        parseContract(createOrganizationCheck, {
+          name: operation.name,
+          organizationType: operation.type,
+        }),
       );
     },
-    onSuccess: (organization) => {
-      setSelected(organization);
-      setAdding(false);
+    onSuccess: (organization, key) => {
+      const operation = operations.current.get(key);
+      if (!operation || !currentOwner(operation)) return;
+      if (lifecycle.current.active) {
+        setSelected(organization);
+        setAdding(false);
+      }
       void queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
+    },
+    onSettled: (_result, _error, key) => {
+      operations.current.delete(key);
     },
   });
   const reset = () => {
@@ -107,7 +225,13 @@ export function OrganizationDirectorySearch({
                 <Text accessibilityRole="alert">{t('organizationDirectory.claimSent')}</Text>
               ) : (
                 <Button
-                  onPress={() => claim.mutate()}
+                  onPress={() =>
+                    claim.mutate(
+                      selected.status === 'active'
+                        ? capture({ accountId: selected.accountId, evidence })
+                        : {},
+                    )
+                  }
                   disabled={
                     !personalReady ||
                     selected.status !== 'active' ||
@@ -184,7 +308,16 @@ export function OrganizationDirectorySearch({
       {results.isSuccess && query === search.trim() ? (
         <>
           <Text>{t('organizationDirectory.newAccountHint')}</Text>
-          <Button onPress={() => onCreateAccount(search.trim(), type)}>
+          <Button
+            onPress={() => {
+              if (
+                lifecycle.current.active &&
+                runtime.getAccountSessionRevision() === revision &&
+                oxyServices.http.getSessionEpoch() === bearerEpoch
+              )
+                onCreateAccount(search.trim(), type);
+            }}
+          >
             {t('organizationDirectory.newAccount')}
           </Button>
           {personalReady && !adding ? (
@@ -219,7 +352,7 @@ export function OrganizationDirectorySearch({
                 setValidationError(true);
                 return;
               }
-              create.mutate();
+              create.mutate(capture({ name: search.trim(), type }));
             }}
           >
             {t('organizationDirectory.addDirectory')}
