@@ -1,5 +1,11 @@
 # Changelog
 
+## [13.16.0] - 2026-11-01
+
+### Added
+
+- `ProfileButton.onBeforeAddAccount` lets an app close its drawer immediately before the shared add-account flow. Existing `onAddAccount` overrides keep their behavior and take precedence.
+
 ## [13.15.0] - 2026-10-31
 
 ### Added
