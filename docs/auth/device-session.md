@@ -178,6 +178,8 @@ in this contract. Bulk sign-out emits one existing session-revocation event per
 session actually ended, rather than an account-wide event; consumers must handle
 the session-specific event form.
 
+The lists are read while the acting session is locked and describe the state
+observed by that read; the device can change again after the read or response.
 Mutations lock the acting session through the database write. Concurrent requests
 can deadlock; PostgreSQL aborts one transaction and the operation returns 500,
 with no database change from that aborted transaction. For other 500 responses,

@@ -27,6 +27,8 @@ const mockValidateSessionById = jest.fn();
 const mockGetUserActiveSessions = jest.fn();
 const mockDeactivateAllUserSessions = jest.fn();
 const mockDeactivateActorSessions = jest.fn();
+const mockDeactivateDeviceSessions = jest.fn();
+const mockWithActingSession = jest.fn();
 const mockDeactivateSession = jest.fn();
 const mockEmitSessionUpdate = jest.fn();
 const mockFinalizeDeviceLogin = jest.fn();
@@ -46,6 +48,8 @@ jest.mock('../../services/session.service', () => ({
     deactivateSession: (...a: unknown[]) => mockDeactivateSession(...a),
     deactivateAllUserSessions: (...a: unknown[]) => mockDeactivateAllUserSessions(...a),
     deactivateActorSessions: (...a: unknown[]) => mockDeactivateActorSessions(...a),
+    deactivateDeviceSessions: (...a: unknown[]) => mockDeactivateDeviceSessions(...a),
+    withActingSession: (...a: unknown[]) => mockWithActingSession(...a),
   },
 }));
 
@@ -286,6 +290,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockWithActingSession.mockImplementation((_scope, callback) => callback(getDb()));
   mockIsValidPublicKey.mockReturnValue(true);
   mockVerifyRegistrationSignature.mockReturnValue(true);
   mockVerifyChallengeResponse.mockReturnValue(true);
@@ -1112,6 +1117,24 @@ describe('getUsersBySessions', () => {
   });
 });
 
+describe('logoutAllDeviceSessions', () => {
+  it('reports a transaction failure without claiming success', async () => {
+    const userId = await account();
+    const sessionId = await session(userId);
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { sessionId, userId, deviceId: 'dev' },
+    });
+    mockDeactivateDeviceSessions.mockRejectedValueOnce(new Error('transaction failed'));
+    const res = captureRes();
+    await SessionController.logoutAllDeviceSessions(
+      authRequest(userId, { params: { sessionId } }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(500);
+    expect((await storedSession(sessionId)).isActive).toBe(true);
+  });
+});
+
 describe('updateDeviceName', () => {
   it('writes the column and advances updated_at', async () => {
     const userId = await account();
@@ -1146,6 +1169,22 @@ describe('updateDeviceName', () => {
     );
 
     expect(res.statusCode).toBe(401);
+    expect((await storedSession(sessionId)).deviceName).toBe('Old');
+  });
+
+  it('does not write a name when the transaction fails', async () => {
+    const userId = await account();
+    const sessionId = await session(userId, { deviceName: 'Old' });
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { sessionId, userId, deviceId: 'dev' },
+    });
+    mockWithActingSession.mockRejectedValueOnce(new Error('transaction failed'));
+    const res = captureRes();
+    await SessionController.updateDeviceName(
+      authRequest(userId, { params: { sessionId }, body: { deviceName: 'New' } }),
+      asResponse(res),
+    );
+    expect(res.statusCode).toBe(500);
     expect((await storedSession(sessionId)).deviceName).toBe('Old');
   });
 });
@@ -1329,7 +1368,7 @@ describe('session access control (C1 / H3)', () => {
       asResponse(res),
     );
 
-    expect(mockGetUserActiveSessions).toHaveBeenCalledWith(OWNER, OWNER, 'dev-1');
+    expect(mockGetUserActiveSessions).toHaveBeenCalledWith(OWNER, OWNER, 'dev-1', getDb());
 
     expect(res.body).toEqual([
       {

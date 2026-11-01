@@ -92,7 +92,7 @@ router.get(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
  */
 router.get(
   '/sessions/:sessionId',
@@ -128,7 +128,7 @@ router.get(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
  */
 router.post(
   '/logout/:sessionId',
@@ -165,7 +165,7 @@ router.post(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
  *       404:
  *         description: Target session not found, or not reachable from the acting one.
  *       500:
@@ -200,7 +200,7 @@ router.post(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
  *       500:
  *         description: The operation failed; refresh state before retrying.
  */
@@ -340,7 +340,7 @@ router.get(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
  */
 router.get(
   '/device/sessions/:sessionId',
@@ -372,7 +372,9 @@ router.get(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
+ *       500:
+ *         description: The operation failed; refresh state before retrying.
  */
 router.post(
   '/device/logout-all/:sessionId',
@@ -418,7 +420,9 @@ router.post(
  *       401:
  *         description: No valid bearer, or the authenticated session is not live.
  *       403:
- *         description: The acting session id does not match the bearer.
+ *         description: The acting session does not match the bearer or changed during the operation.
+ *       500:
+ *         description: The operation failed; refresh state before retrying.
  */
 router.put(
   '/device/name/:sessionId',

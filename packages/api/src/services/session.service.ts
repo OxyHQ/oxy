@@ -1438,6 +1438,22 @@ class SessionService {
     return revoked;
   }
 
+  async deactivateDeviceSessions(acting: SessionReachability): Promise<number> {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(tx, eq(sessions.deviceId, acting.deviceId)),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked.length;
+  }
+
+  async withActingSession<T>(
+    acting: SessionReachability,
+    read: (tx: DatabaseOrTransaction) => Promise<T>,
+  ): Promise<T> {
+    return withLockedActingSession(acting, read);
+  }
+
   /**
    * Get all active sessions for a user
    *
@@ -1451,6 +1467,7 @@ class SessionService {
     userId: string,
     principalId?: string,
     deviceId?: string,
+    executor?: DatabaseOrTransaction,
   ): Promise<CachedSession[]> {
     try {
       if (deviceId !== undefined && (!principalId || !deviceId)) {
@@ -1463,7 +1480,7 @@ class SessionService {
           ? or(principalScope, eq(sessions.deviceId, deviceId))
           : principalScope;
       // Serves the (user_id, is_active, expires_at) index.
-      return await getDb()
+      return await (executor ?? getDb())
         .select(SESSION_COLUMNS)
         .from(sessions)
         .where(
@@ -1488,6 +1505,7 @@ class SessionService {
           userId,
         },
       );
+      if (executor) throw error;
       // Return empty array on error for graceful degradation - consistent error handling pattern
       return [];
     }

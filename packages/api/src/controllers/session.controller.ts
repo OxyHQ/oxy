@@ -10,7 +10,7 @@ import { sessions } from '../db/schema/sessions';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';
 import type { SessionAuthResponse, ClientSession } from '../types/session';
-import { getDeviceActiveSessions, logoutAllDeviceSessions } from '../utils/deviceUtils';
+import { getDeviceActiveSessions } from '../utils/deviceUtils';
 import { emitSessionUpdate } from '../server';
 import SignatureService from '../services/signature.service';
 import sessionService, { ActingSessionChangedError } from '../services/session.service';
@@ -78,6 +78,21 @@ interface ActingSession {
   userId: string;
   deviceId: string;
   principalId: string;
+}
+
+function actingScope(acting: ActingSession) {
+  return {
+    sessionId: acting.sessionId,
+    subjectId: acting.userId,
+    principalId: acting.principalId,
+    deviceId: acting.deviceId,
+  };
+}
+
+function changedActingSession(res: Response) {
+  return res
+    .status(403)
+    .json({ message: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
 }
 
 /**
@@ -547,10 +562,13 @@ export class SessionController {
     try {
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
-      const sessions = await sessionService.getUserActiveSessions(
-        acting.userId,
-        acting.principalId,
-        acting.deviceId,
+      const sessions = await sessionService.withActingSession(actingScope(acting), (tx) =>
+        sessionService.getUserActiveSessions(
+          acting.userId,
+          acting.principalId,
+          acting.deviceId,
+          tx,
+        ),
       );
 
       // Transform sessions for client
@@ -564,6 +582,7 @@ export class SessionController {
 
       res.json(clientSessions);
     } catch (error) {
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Get user sessions error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -608,12 +627,7 @@ export class SessionController {
       }
 
       const success = await sessionService.deactivateSession(targetSessionId, {
-        reachableFrom: {
-          sessionId: acting.sessionId,
-          subjectId: acting.userId,
-          principalId: acting.principalId,
-          deviceId: acting.deviceId,
-        },
+        reachableFrom: actingScope(acting),
       });
       if (!success) {
         return res.status(404).json({ message: 'Session not found' });
@@ -637,10 +651,7 @@ export class SessionController {
       logger.info(`Logged out session: ${targetSessionId.substring(0, 8)}...`);
       res.json({ success: true, message: 'Session logged out successfully' });
     } catch (error) {
-      if (error instanceof ActingSessionChangedError)
-        return res
-          .status(403)
-          .json({ message: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Logout session error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -657,13 +668,8 @@ export class SessionController {
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
-      const { sessionId, userId, principalId } = acting;
-      const revoked = await sessionService.deactivateActorSessions({
-        sessionId,
-        subjectId: userId,
-        principalId,
-        deviceId: acting.deviceId,
-      });
+      const { userId } = acting;
+      const revoked = await sessionService.deactivateActorSessions(actingScope(acting));
       const sessionIds = revoked.map((s) => s.sessionId);
       const count = revoked.length;
 
@@ -683,10 +689,7 @@ export class SessionController {
         sessionsLoggedOut: count,
       });
     } catch (error) {
-      if (error instanceof ActingSessionChangedError)
-        return res
-          .status(403)
-          .json({ message: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Logout all sessions error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -829,9 +832,12 @@ export class SessionController {
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
 
-      const deviceSessions = await getDeviceActiveSessions(acting.deviceId, acting.sessionId);
+      const deviceSessions = await sessionService.withActingSession(actingScope(acting), (tx) =>
+        getDeviceActiveSessions(acting.deviceId, acting.sessionId, tx),
+      );
       res.json(deviceSessions);
     } catch (error) {
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Get device sessions error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -918,10 +924,11 @@ export class SessionController {
       if (!acting) return;
 
       // Logout all sessions for this device
-      const result = await logoutAllDeviceSessions(acting.deviceId);
+      const result = await sessionService.deactivateDeviceSessions(actingScope(acting));
 
       res.json(result);
     } catch (error) {
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Logout all device sessions error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
@@ -947,7 +954,9 @@ export class SessionController {
 
       // Update device name in database. `updated_at` is maintained by the
       // schema's `$onUpdate`, so it is no longer set by hand.
-      await getDb().update(sessions).set({ deviceName }).where(eq(sessions.sessionId, sessionId));
+      await sessionService.withActingSession(actingScope(acting), async (tx) => {
+        await tx.update(sessions).set({ deviceName }).where(eq(sessions.sessionId, sessionId));
+      });
 
       // Invalidate cache so next lookup gets fresh data
       sessionCache.invalidate(sessionId);
@@ -958,6 +967,7 @@ export class SessionController {
         deviceName: deviceName,
       });
     } catch (error) {
+      if (error instanceof ActingSessionChangedError) return changedActingSession(res);
       logger.error('Update device name error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }

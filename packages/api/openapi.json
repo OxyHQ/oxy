@@ -72129,7 +72129,10 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
+          },
+          "500": {
+            "description": "The operation failed; refresh state before retrying."
           }
         },
         "operationId": "postSessionDeviceLogoutAllSessionId"
@@ -72182,7 +72185,10 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
+          },
+          "500": {
+            "description": "The operation failed; refresh state before retrying."
           }
         },
         "operationId": "putSessionDeviceNameSessionId"
@@ -72262,7 +72268,7 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
           }
         },
         "operationId": "getSessionDeviceSessionsSessionId"
@@ -72455,7 +72461,7 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
           },
           "500": {
             "description": "The operation failed; refresh state before retrying."
@@ -72489,7 +72495,7 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
           }
         },
         "operationId": "postSessionLogoutSessionId"
@@ -72528,7 +72534,7 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
           },
           "404": {
             "description": "Target session not found, or not reachable from the acting one."
@@ -72575,7 +72581,7 @@
             "description": "No valid bearer, or the authenticated session is not live."
           },
           "403": {
-            "description": "The acting session id does not match the bearer."
+            "description": "The acting session does not match the bearer or changed during the operation."
           }
         },
         "operationId": "getSessionSessionsSessionId"
