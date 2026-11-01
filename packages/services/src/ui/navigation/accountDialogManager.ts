@@ -52,6 +52,8 @@ export interface AccountDialogControls {
  */
 export interface AccountDialogConsumerHooks {
   onAddAccount?: () => void;
+  /** Called synchronously before the shared add-account view; ignored when onAddAccount overrides it. */
+  onBeforeAddAccount?: () => void;
   onNavigateProfile?: () => void;
   menuItems?: readonly AccountDialogMenuItem[];
   menuSections?: readonly AccountDialogMenuSection[];

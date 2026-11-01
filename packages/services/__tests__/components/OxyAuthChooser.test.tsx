@@ -1248,3 +1248,83 @@ describe('OxyAuthChooser', () => {
     });
   });
 });
+
+describe('shared add-account view with a host drawer', () => {
+  afterEach(() => registerAccountDialogConsumerHooks(null));
+
+  it('keeps the dialog open and enters the shared view even if closing the drawer unregisters its hooks', () => {
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    mockController = controller;
+    mockUser = makeUser('a', 'Alice');
+    controller.add.mockClear();
+    const onComplete = jest.fn();
+    const closeDrawer = jest.fn(() => unregister());
+    const unregister = registerAccountDialogConsumerHooks({ onBeforeAddAccount: closeDrawer });
+
+    render(<OxyAuthChooser onComplete={onComplete} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    fireEvent.click(screen.getByText('Add another account'));
+
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(controller.add).toHaveBeenCalledTimes(1);
+    expect(closeDrawer.mock.invocationCallOrder[0]).toBeLessThan(
+      controller.add.mock.invocationCallOrder[0],
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('preserves the existing override and does not run the shared pre-action', () => {
+    snapshot = makeSnapshot({ directory: soloDirectory() });
+    mockController = controller;
+    mockUser = makeUser('a', 'Alice');
+    controller.add.mockClear();
+    const onAddAccount = jest.fn();
+    const onBeforeAddAccount = jest.fn();
+    const onComplete = jest.fn();
+    registerAccountDialogConsumerHooks({ onAddAccount, onBeforeAddAccount });
+
+    render(<OxyAuthChooser onComplete={onComplete} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    fireEvent.click(screen.getByText('Add another account'));
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onAddAccount).toHaveBeenCalledTimes(1);
+    expect(onBeforeAddAccount).not.toHaveBeenCalled();
+    expect(controller.add).not.toHaveBeenCalled();
+  });
+});
+
+describe('shared add-account and signup with the real controller', () => {
+  afterEach(() => registerAccountDialogConsumerHooks(null));
+
+  it('reaches signup and can return after the drawer hook unregisters', () => {
+    const {
+      AccountDialogController,
+    } = require('../../../core/src/session/accountDialogController');
+    const real = new AccountDialogController({
+      oxyServices: { session: { accessToken: 'test-bearer' } },
+      sessionClient: { getDirectory: () => soloDirectory() },
+    });
+    mockController = real;
+    mockUser = makeUser('a', 'Alice');
+    const onComplete = jest.fn();
+    const closeDrawer = jest.fn(() => unregister());
+    const unregister = registerAccountDialogConsumerHooks({ onBeforeAddAccount: closeDrawer });
+
+    render(<OxyAuthChooser onComplete={onComplete} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    fireEvent.click(screen.getByText('Add another account'));
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(real.getSnapshot().view).toBe('add');
+
+    fireEvent.click(screen.getByTestId('create-account-link'));
+    expect(real.getSnapshot().view).toBe('signup');
+    expect(screen.getByTestId('signup-username')).toBeTruthy();
+    act(() => {
+      expect(real.back()).toBe(true);
+    });
+    expect(real.getSnapshot().view).toBe('add');
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+  });
+});
