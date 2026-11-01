@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, gt, ne } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import { logger } from './logger';
@@ -398,7 +398,11 @@ interface DeviceSessionEntry {
  * Deduplicates by userId - returns only one session per user (most recent)
  * Marks current session with isCurrent flag
  */
-export const getDeviceActiveSessions = async (deviceId: string, currentSessionId?: string) => {
+export const getDeviceActiveSessions = async (
+  deviceId: string,
+  currentSessionId?: string,
+  executor?: DatabaseOrTransaction,
+) => {
   try {
     const now = new Date();
     // The user is a real join. Columns are named
@@ -406,7 +410,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
     // live bearer tokens and `users` carries the contact-discovery hashes, none
     // of which this DTO may see (`db/schema/protectedColumns.ts`).
     // Serves the `(device_id, is_active, expires_at)` index.
-    const rows = await getDb()
+    const rows = await (executor ?? getDb())
       .select({
         sessionId: sessions.sessionId,
         deviceId: sessions.deviceId,
@@ -479,6 +483,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
     return Array.from(userSessionMap.values());
   } catch (error) {
     logger.error('[DeviceUtils] Error getting device sessions:', error);
+    if (executor) throw error;
     return [];
   }
 };

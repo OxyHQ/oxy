@@ -6,13 +6,15 @@ jest.mock('../workloadIdentity', () => ({
   requestWorkloadServiceToken: jest.fn(),
 }));
 const mint = requestWorkloadServiceToken as jest.Mock;
+let mintedToken: string;
 function token(nonce: string) {
   const now = Math.floor(Date.now() / 1000);
   return `e30.${Buffer.from(JSON.stringify({ type: 'service', authority: 'first_party', appId: 'app', credentialId: 'wl_app', ownerAccountId: 'owner', environment: 'production', aud: 'oxy-service:alia', iss: 'oxy-auth', iat: now, exp: now + 300, nonce })).toString('base64url')}.sig`;
 }
 beforeEach(() => {
   mint.mockReset();
-  mint.mockResolvedValue({ token: token('one'), expiresIn: 300, appName: 'App' });
+  mintedToken = token('one');
+  mint.mockResolvedValue({ token: mintedToken, expiresIn: 300, appName: 'App' });
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -41,7 +43,7 @@ it('uses only workload authentication, caches by recipient, and binds requester 
     audience: 'oxy-service:alia',
   });
   const headers = new Headers(fetch.mock.calls[0][1]?.headers);
-  expect(headers.get('authorization')).toBe(`Bearer ${token('one')}`);
+  expect(headers.get('authorization')).toBe(`Bearer ${mintedToken}`);
   expect(headers.get('x-oxy-user-id')).toBe('person');
   expect(headers.get('x-oxy-requester-token')).toBe('proof');
   client.dispose();
