@@ -119,6 +119,30 @@ it('bounds the real live route by signed subject, address and shared budget', as
     );
     expect((await request('10.1.0.9', undefined, true, `Bearer ${noExpiry}`)).status).toBe(401);
     expect(await redis.get(globalKey)).toBe('3');
+    const invalidSignature = jwt.sign({ userId: 'subject', sessionId: 's' }, 'wrong-secret', {
+      expiresIn: '1h',
+    });
+    const expired = jwt.sign(
+      { userId: 'subject', sessionId: 's' },
+      process.env.ACCESS_TOKEN_SECRET as string,
+      { expiresIn: -1 },
+    );
+    for (const token of [invalidSignature, expired]) {
+      oxy.session.setAccessToken(token);
+      const priorEpoch = oxy.http.getSessionEpoch();
+      await expect(
+        oxy.session.validate('s', { accessToken: token, liveSession: true }),
+      ).rejects.toMatchObject({ status: 503 });
+      expect(oxy.session.accessToken).toBe(token);
+      expect(oxy.http.getSessionEpoch()).toBe(priorEpoch);
+    }
+    const beforeExpiredMiddleware = liveRequests;
+    const expiredResponse = await fetch(`${origin}/private`, {
+      headers: { authorization: `Bearer ${expired}` },
+    });
+    expect(expiredResponse.status).toBe(401);
+    expect(liveRequests).toBe(beforeExpiredMiddleware);
+    expect(await redis.get(globalKey)).toBe('3');
     const secret = process.env.ACCESS_TOKEN_SECRET;
     delete process.env.ACCESS_TOKEN_SECRET;
     expect((await request('10.1.0.8', 'h')).status).toBe(503);

@@ -32,9 +32,12 @@ other sessions fresh.
 The server SDK requires a versioned response marker. Old servers, an
 unavailable dependency, a missing marker or malformed response fail closed
 with 503. Unconfirmed user, grant or supervision negatives also yield 503,
-without deactivating a managed session. A confirmed invalid bearer or session
-is 401; a valid bearer that does not match the requested session is 403. A
-marked policy denial is 403. The SDK maps an upstream 429 to 503 and does not
+without deactivating a managed session. A session row confirmed invalid by the
+authority is 401; a valid bearer that does not match the requested session is
+403. A bearer refused by the preliminary budget check has no invalid marker,
+so a direct `OxyServer.session.validate` call maps it to 503. The HTTP
+middleware can independently reject an expired bearer locally with 401 before
+calling the authority. A marked policy denial is 403. The SDK maps an upstream 429 to 503 and does not
 retry the live authority call. A response already expired according to the
 consumer clock is 503; clock skew can therefore reduce availability. Explicit
 503 responses preserve the client bearer and session epoch.
