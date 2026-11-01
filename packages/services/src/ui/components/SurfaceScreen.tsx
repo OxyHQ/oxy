@@ -69,7 +69,15 @@ const errorStyles = StyleSheet.create({
   message: { fontSize: 13, textAlign: 'center' },
 });
 
-function ScreenLoadState({ failed, retry }: { failed: boolean; retry: () => void }) {
+function ScreenLoadState({
+  failed,
+  retry,
+  cancel,
+}: {
+  failed: boolean;
+  retry: () => void;
+  cancel: () => void;
+}) {
   const { t } = useI18n();
   return (
     <View style={loadingStyles.container}>
@@ -81,6 +89,7 @@ function ScreenLoadState({ failed, retry }: { failed: boolean; retry: () => void
       ) : (
         <Loading variant="spinner" accessibilityLabel={t('common.status.loading')} />
       )}
+      <Button onPress={cancel}>{t('common.cancel')}</Button>
     </View>
   );
 }
@@ -333,7 +342,7 @@ function SurfaceScreen({
   ]);
 
   if (loadState !== 'ready')
-    return <ScreenLoadState failed={loadState === 'failed'} retry={retryLoad} />;
+    return <ScreenLoadState failed={loadState === 'failed'} retry={retryLoad} cancel={goBack} />;
   if (!ScreenComponent) return null;
 
   return (

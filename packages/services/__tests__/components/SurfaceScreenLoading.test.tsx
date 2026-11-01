@@ -119,6 +119,29 @@ it('dismisses while loading and ignores a late completion after unmount, includi
   expect(screen.queryByText('AccountDialog')).toBeNull();
 });
 
+it('allows the user to cancel while a non-dismissible surface is loading', async () => {
+  const completions: Array<() => void> = [];
+  mockLoadScreens.mockImplementation(
+    () => new Promise<void>((resolve) => completions.push(resolve)),
+  );
+  const stack = createSurfaceNavStack('AccountDialog');
+  const dismiss = jest.fn();
+  const view = render(
+    <SurfaceScreen
+      navStack={stack}
+      navigation={navigation}
+      dismissOnBackdrop={false}
+      surface={{ dismiss } as unknown as SurfaceControls}
+    />,
+  );
+  fireEvent.click(screen.getByText('common.cancel'));
+  expect(dismiss).toHaveBeenCalledTimes(1);
+  view.unmount();
+  await act(async () => completions[0]?.());
+  expect(dismiss).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('AccountDialog')).toBeNull();
+});
+
 it('does not start loading when dismissed before the host mounts', () => {
   const stack = createSurfaceNavStack('AccountDialog');
   const dismiss = jest.fn();
