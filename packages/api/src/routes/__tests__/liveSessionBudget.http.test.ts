@@ -24,13 +24,13 @@ it('bounds the real live route by signed subject, address and shared budget', as
   process.env.ACCESS_TOKEN_SECRET = 'test-live-budget-secret';
   process.env.REFRESH_TOKEN_SECRET = 'test-live-budget-refresh';
   process.env.DEVICE_ID_SALT = 'test-live-budget-salt';
-  const { SessionController } = require('../../controllers/session.controller');
+  const { SessionController } = await import('../../controllers/session.controller');
   const handler = jest.spyOn(SessionController, 'validateSessionFromHeader');
-  const router = require('../session').default;
-  const { getRedisClient, closeRedis } = require('../../config/redis');
-  const { connectPostgres, closePostgres } = require('../../config/postgres');
-  const { insertAccountFixture } = require('../../db/__fixtures__/accountIdentity');
-  const sessionService = require('../../services/session.service').default;
+  const router = (await import('../session')).default;
+  const { getRedisClient, closeRedis } = await import('../../config/redis');
+  const { connectPostgres, closePostgres } = await import('../../config/postgres');
+  const { insertAccountFixture } = await import('../../db/__fixtures__/accountIdentity');
+  const sessionService = (await import('../../services/session.service')).default;
   const redis = getRedisClient();
   await redis.ping();
   await connectPostgres();
@@ -70,8 +70,8 @@ it('bounds the real live route by signed subject, address and shared budget', as
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/session/validate-header`;
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const { OxyServer } = require('@oxy.so/core/server');
-  const { OxyServices } = require('@oxy.so/core');
+  const { OxyServer } = await import('@oxy.so/core/server');
+  const { OxyServices } = await import('@oxy.so/core');
   const oxy = new OxyServer({ baseURL: origin, maxRetries: 1, retryDelay: 1 });
   app.get('/private', oxy.middleware.auth({ liveSession: true }), (_req, res) =>
     res.json({ ok: true }),

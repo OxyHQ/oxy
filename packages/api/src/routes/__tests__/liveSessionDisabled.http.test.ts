@@ -10,11 +10,11 @@ jest.mock('../../utils/socket', () => ({
 it('keeps the live lane disabled until explicitly provisioned and preserves legacy validation', async () => {
   delete process.env.OXY_LIVE_SESSION_ENABLED;
   delete process.env.REDIS_URL;
-  const { SessionController } = require('../../controllers/session.controller');
+  const { SessionController } = await import('../../controllers/session.controller');
   const handler = jest
     .spyOn(SessionController, 'validateSessionFromHeader')
     .mockImplementation((_req: unknown, res: express.Response) => res.json({ ok: true }));
-  const router = require('../session').default;
+  const router = (await import('../session')).default;
   const app = express();
   app.use('/session', router);
   const server = http.createServer(app);
@@ -42,10 +42,10 @@ it('does not enable live validation with Redis but without all budgets', async (
   process.env.OXY_LIVE_SESSION_SUBJECT_PER_MINUTE = '2';
   process.env.OXY_LIVE_SESSION_IP_PER_MINUTE = '3';
   delete process.env.OXY_LIVE_SESSION_GLOBAL_PER_MINUTE;
-  const { SessionController } = require('../../controllers/session.controller');
+  const { SessionController } = await import('../../controllers/session.controller');
   const handler = jest.spyOn(SessionController, 'validateSessionFromHeader');
-  const router = require('../session').default;
-  const { getRedisClient, closeRedis } = require('../../config/redis');
+  const router = (await import('../session')).default;
+  const { getRedisClient, closeRedis } = await import('../../config/redis');
   await getRedisClient().ping();
   const app = express();
   app.use('/session', router);
