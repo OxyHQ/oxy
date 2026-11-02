@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "status": "inactive_preparation",
+  "canonicalProductId": "mention",
+  "canonicalPlanId": "mention_plus",
+  "capabilities": {
+    "plus": "Mention Plus entitlement checked by Mention checkout/access binding",
+    "mono_theme": "Explicit personalization subset; not a substitute for plus"
+  },
+  "centralBillingApplicationId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+  "ownerAccountId": "69b2d3df5d12f58c9800d651",
+  "providerIdentityEvidence": {
+    "existingPeableLiveStripePlatformAccountId": "acct_1TnXkUQWiCE02OnU",
+    "connectedOxyPlatformsStripeAccountId": "acct_1USWGhAofUef123L",
+    "sameAccount": false,
+    "decision": "Do not create connector-account prices for the existing rail, replace Mercaria credentials, or infer transfer of financial authority"
+  },
+  "merchantRegistration": {
+    "method": "POST",
+    "path": "/v1/merchants",
+    "body": {
+      "displayName": "Oxy",
+      "description": "Oxy product subscriptions"
+    },
+    "authority": "Dedicated central billing workload after canonical application seed and role binding",
+    "merchantId": null
+  },
+  "providerProductDraft": {
+    "name": "Mention Plus",
+    "metadata": {
+      "oxy_product_id": "mention",
+      "oxy_plan_id": "mention_plus"
+    }
+  },
+  "providerPriceDrafts": [
+    {
+      "canonicalOfferId": "mention_plus_monthly",
+      "offerVersion": 1,
+      "requestWithoutProductBinding": {
+        "currency": "usd",
+        "unit_amount": 599,
+        "tax_behavior": "inclusive",
+        "recurring": {
+          "interval": "month",
+          "interval_count": 1
+        }
+      },
+      "product": null,
+      "returnedProviderPriceId": null
+    },
+    {
+      "canonicalOfferId": "mention_plus_annual",
+      "offerVersion": 1,
+      "requestWithoutProductBinding": {
+        "currency": "usd",
+        "unit_amount": 5750,
+        "tax_behavior": "inclusive",
+        "recurring": {
+          "interval": "year",
+          "interval_count": 1
+        }
+      },
+      "product": null,
+      "returnedProviderPriceId": null
+    }
+  ],
+  "priceBindingPath": {
+    "implementation": "Peable services/billing/verifiedBindings.ts#createVerifiedBillingBindings.importPrice",
+    "surface": "Trusted operator/service composition; no public price-creation route",
+    "requirements": [
+      "Matching verified provider account and live/test mode",
+      "Actual owner merchant with matching application/environment",
+      "Real recurring active price readback",
+      "Explicit cohort and binding evidence",
+      "Expected amount, currency, interval, inclusive-tax and product readback before import"
+    ]
+  },
+  "frozenOfferRegistration": {
+    "implementation": "Oxy services/productAccessPersistence.service.ts#registerProductAccessConfiguration",
+    "surface": "Trusted scoped operator composition, not raw SQL",
+    "offerIds": [
+      "mention_plus_monthly",
+      "mention_plus_annual"
+    ],
+    "version": 1,
+    "benefits": [
+      {
+        "kind": "capability",
+        "productId": "mention",
+        "key": "plus"
+      },
+      {
+        "kind": "capability",
+        "productId": "mention",
+        "key": "mono_theme"
+      }
+    ],
+    "createsEntitlementWithoutPaidEvidence": false
+  },
+  "canCompleteWithSalesDisabled": [
+    "Register central application and workload binding",
+    "Register seller merchant under its own application authority",
+    "Register versioned product/offers through supported ownership-checked service",
+    "Publish approved display catalogue with no provider price bindings",
+    "Create/import actual provider product/prices only after matching account authority and environment are established"
+  ],
+  "stillRequiredForPurchases": [
+    "Verified actual tax registration status and owner-approved merchant tax configuration",
+    "Correct processor account integration without changing existing Mercaria authority",
+    "Pinned invoice/tax authority and verified renewal webhook",
+    "Trusted customer-location collection",
+    "Exact provider/canonical price bindings and runtime readiness"
+  ],
+  "localProviderBackedCheckout": {
+    "available": false,
+    "localOrSSMTestKeyLocated": false,
+    "connectedTestModeAvailable": true,
+    "blockingDependency": "A matching authorized sandbox runtime credential and isolated test merchant/cohort; connector test-mode access is not an injectable server credential",
+    "noLiveKeyUsedForSandbox": true,
+    "noSyntheticPaidFlowPresentedAsProviderPayment": true
+  }
+}
