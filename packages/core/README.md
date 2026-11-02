@@ -225,3 +225,10 @@ optional/platform-specific modules.
 ## `verifyChallenge` Token Planting
 
 `OxyServices.verifyChallenge()` plants the freshly-minted access token internally before returning. Callers do not need to plant tokens manually after `verifyChallenge` — the SDK handles it.
+
+The optional `@oxy.so/core/server/aws` entry requires both
+`@aws-sdk/credential-provider-node` and `@aws-sdk/credential-provider-ini` peers.
+`createAwsWorkloadCredentialProvider({ profile })` resolves only that explicit profile
+and fails if it cannot be resolved; it never falls back to an ambient identity. Omitting
+`profile` retains the default AWS credential chain. Both paths require unexpired
+temporary credentials with a session token.

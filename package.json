@@ -123,7 +123,8 @@
       "expo-video": "~58.0.12",
       "parse5": "7.3.0",
       "@expo/router-server": "58.0.14",
-      "@aws-sdk/credential-provider-node": "3.972.83"
+      "@aws-sdk/credential-provider-node": "3.972.83",
+      "@aws-sdk/credential-provider-ini": "3.973.16"
     }
   },
   "scripts": {

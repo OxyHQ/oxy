@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "7.11.0",
+  "version": "7.11.1",
   "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -199,7 +199,8 @@
     "expo-crypto": "<59.0.0",
     "expo-secure-store": "<59.0.0",
     "express": "^4.0.0",
-    "@aws-sdk/credential-provider-node": ">=3.972.83 <4"
+    "@aws-sdk/credential-provider-node": ">=3.972.83 <4",
+    "@aws-sdk/credential-provider-ini": ">=3.973.16 <4"
   },
   "peerDependenciesMeta": {
     "@react-native-async-storage/async-storage": {
@@ -215,6 +216,9 @@
       "optional": true
     },
     "@aws-sdk/credential-provider-node": {
+      "optional": true
+    },
+    "@aws-sdk/credential-provider-ini": {
       "optional": true
     }
   },
@@ -232,6 +236,7 @@
     "typescript": "^5.9.2",
     "helmet": "catalog:",
     "socket.io": "^4.8.1",
-    "@aws-sdk/credential-provider-node": "catalog:"
+    "@aws-sdk/credential-provider-node": "catalog:",
+    "@aws-sdk/credential-provider-ini": "catalog:"
   }
 }
