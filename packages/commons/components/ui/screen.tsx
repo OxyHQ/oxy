@@ -145,6 +145,7 @@ export function Screen({
 
   return (
     <BloomScreen
+      scroll="content"
       contentClearance={bottomPad}
       // Always a header: it owns the status bar area, so scrolled content
       // passes under its scrim instead of drawing over the clock.

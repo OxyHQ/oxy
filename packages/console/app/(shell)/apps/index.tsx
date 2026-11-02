@@ -13,7 +13,7 @@ export default function AppsIndexScreen() {
   // asking to "select" one here would contradict it.
   const none = applications.every((app) => app.status === 'deleted');
   return (
-    <Screen>
+    <Screen scroll="content">
       <EmptyState
         icon={RiBox3Line}
         title={none ? t('applications.detailEmptyTitle') : t('applications.selectTitle')}
