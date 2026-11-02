@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.3.0
+
+### Added
+
+- Registered-account aggregate contracts for a first-party deployment: the batched registration request/response and the total snapshot (`total`, `exact`, `computedAt`, `maxAgeSeconds`, `stale`), with their limits.
+
 ## 6.2.0
 
 ### Added
