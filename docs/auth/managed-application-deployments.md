@@ -54,3 +54,5 @@ This registration is one control-plane step. It does not demonstrate live STS
 attestation, IAM execution policy, backup/restore, tenant ingress/TLS, rollback,
 export delivery, or customer activation. Those lifecycle steps remain separate
 acceptance gates and must not be inferred from a successful registration result.
+
+Each managed deployment's registered-account total is separate: see [registered-account totals](./application-account-totals.md).

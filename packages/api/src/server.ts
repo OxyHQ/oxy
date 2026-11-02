@@ -115,6 +115,7 @@ import contactsRouter from './routes/contacts';
 import consoleOnboardingRouter from './routes/consoleOnboarding';
 import userDataRouter from './routes/userData';
 import appSignalsRouter from './routes/appSignals';
+import applicationAccountsRouter from './routes/applicationAccounts';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
@@ -1024,6 +1025,7 @@ app.use('/contacts', userRateLimiter, contactsRouter);
 app.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
 // Service-token-only cross-app signal ingest (endorsements + interests).
 app.use('/app-signals', appSignalsRouter);
+app.use('/application-accounts', applicationAccountsRouter);
 // Encrypted off-device identity backup (b3 Feature 1). Mixed private (bearer
 // upsert/status/delete) + public (restore-by-locator) routes; each gates its own
 // auth. Mounted

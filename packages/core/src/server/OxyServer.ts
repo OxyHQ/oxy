@@ -1,6 +1,10 @@
 import { OxyRequesterClient } from './requesterClient';
 import type { RequesterProof } from './requesterContext';
 import {
+  applicationAccountRegistrationRequestSchema,
+  applicationAccountRegistrationResponseSchema,
+  applicationAccountTotalSchema,
+  type ApplicationAccountTotal,
   type OxySessionRevocationEvent,
   serviceIntrospectionSchema,
   resourceIntrospectionSchema,
@@ -784,6 +788,41 @@ export class OxyServer extends OxyServices {
     )
       throw new Error('Product grant response attribution differs');
     return snapshot;
+  }
+
+  /**
+   * Register accounts this deployment provisioned as its own users, so they count
+   * toward {@link applicationAccountTotal}. Workload identity only (the
+   * application is the workload's); idempotent; at most
+   * `APPLICATION_ACCOUNT_REGISTRATION_BATCH_MAX` ids per call. Ids that are
+   * unknown, federated, not personal or archived are skipped and not reported.
+   * Returns how many became newly registered.
+   */
+  async registerApplicationAccounts(accountIds: readonly string[]): Promise<number> {
+    const body = applicationAccountRegistrationRequestSchema.parse({ accountIds });
+    const answer = await this.serviceRequest<unknown>(
+      'POST',
+      '/application-accounts/self/registrations',
+      body,
+      { cache: false },
+    );
+    return applicationAccountRegistrationResponseSchema.parse(answer).registered;
+  }
+
+  /**
+   * This deployment's eligible registered-account total (local, personal, active,
+   * not being closed), from a bounded server snapshot: read `computedAt`,
+   * `stale` and `exact` before presenting it. Rejects when no total is available
+   * (503 before the first snapshot) — never resolve an unknown total to `0`.
+   */
+  async applicationAccountTotal(): Promise<ApplicationAccountTotal> {
+    const answer = await this.serviceRequest<unknown>(
+      'GET',
+      '/application-accounts/self/total',
+      undefined,
+      { cache: false },
+    );
+    return applicationAccountTotalSchema.parse(answer);
   }
 
   async serviceRequest<T>(

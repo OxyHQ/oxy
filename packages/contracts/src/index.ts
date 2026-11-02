@@ -1650,3 +1650,16 @@ export { integerCheck, safeNumberCheck } from './numberChecks';
 
 export { campaignAttributionSchema } from './campaignAttribution';
 export type { CampaignAttribution } from './client/campaignAttribution';
+
+export {
+  APPLICATION_ACCOUNT_REGISTRATION_BATCH_MAX,
+  APPLICATION_ACCOUNT_TOTAL_MAX_AGE_SECONDS,
+  applicationAccountRegistrationRequestSchema,
+  applicationAccountRegistrationResponseSchema,
+  applicationAccountTotalSchema,
+} from './applicationAccounts';
+export type {
+  ApplicationAccountRegistrationRequest,
+  ApplicationAccountRegistrationResponse,
+  ApplicationAccountTotal,
+} from './applicationAccounts';

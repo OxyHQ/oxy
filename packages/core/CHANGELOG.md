@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.11.0
+
+### Added
+
+- `OxyServer.applicationAccountTotal()` and `OxyServer.registerApplicationAccounts(ids)`: a first-party deployment's workload registers the accounts it provisioned and reads the eligible registered-account total (snapshot with `exact`, `stale`, `computedAt`). Aligns with `@oxy.so/contracts` 6.3.0.
+
 ## 7.10.3
 
 ### Changed
