@@ -55,7 +55,7 @@
       "dompurify": "3.4.17",
       "drizzle-kit": "0.31.10",
       "drizzle-orm": "0.45.2",
-      "eslint": "^9.39.5",
+      "eslint": "^10.13.0",
       "eslint-plugin-expo": "^1.1.0",
       "expo": "~58.0.19",
       "expo-blur": "~58.0.5",
