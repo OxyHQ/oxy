@@ -115,8 +115,6 @@ it.each(['review_required', 'not_recorded', 'unknown_status'])(
     const values = {
       OXY_ONE_PEABLE_RUNTIME_ENABLED: 'true',
       OXY_ONE_PEABLE_RUNTIME_FILE: path,
-      OXY_ONE_PEABLE_PUBLIC_KEY: 'synthetic',
-      OXY_ONE_PEABLE_SECRET: 'synthetic',
     };
     const previous: Record<string, string | undefined> = {};
     for (const [name, value] of Object.entries(values)) {
@@ -709,4 +707,33 @@ it('recovers the immutable initial invoice after a newer renewal becomes latest'
     test.paid.providerSubscriptionId,
     test.paid.invoiceId,
   );
+});
+
+it('does not construct billing authority while disabled, even with stale configuration', async () => {
+  const previous = { ...process.env };
+  try {
+    process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED = 'false';
+    process.env.OXY_ONE_PEABLE_PUBLIC_KEY = 'retired';
+    delete process.env.OXY_PEABLE_BILLING_AWS_PROFILE;
+    await expect(initializePeablePersonalRuntime()).resolves.toBeUndefined();
+    expect(getPeablePersonalRuntime()).toBeUndefined();
+  } finally {
+    process.env = previous;
+  }
+});
+it('requires a dedicated profile before reading configuration or resolving ambient credentials', async () => {
+  const previous = { ...process.env };
+  try {
+    process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED = 'true';
+    process.env.OXY_ONE_PEABLE_RUNTIME_FILE = '/nonexistent/billing-config.json';
+    delete process.env.OXY_PEABLE_BILLING_AWS_PROFILE;
+    delete process.env.OXY_ONE_PEABLE_PUBLIC_KEY;
+    delete process.env.OXY_ONE_PEABLE_SECRET;
+    await expect(initializePeablePersonalRuntime()).rejects.toThrow(
+      'OXY_PEABLE_BILLING_AWS_PROFILE',
+    );
+    expect(getPeablePersonalRuntime()).toBeUndefined();
+  } finally {
+    process.env = previous;
+  }
 });

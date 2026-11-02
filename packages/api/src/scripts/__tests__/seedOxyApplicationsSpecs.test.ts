@@ -41,6 +41,8 @@ import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenc
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
+  OXY_CENTRAL_BILLING_APPLICATION_ID,
+  OXY_CENTRAL_BILLING_SPEC,
   OXY_PROFILE_REGISTRAR_APPLICATION_ID,
   OXY_PROFILE_REGISTRAR_SPEC,
   requiresPublicSeedCredential,
@@ -113,8 +115,12 @@ describe('the canonical official-application registry', () => {
       publicClient: false,
     });
     expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
-    // The two machine-only applications: this registrar and Clarity's backend.
-    const machineOnly = [OXY_PROFILE_REGISTRAR_SPEC, specNamed('Clarity Backend')];
+    // Machine identities never acquire public sign-in credentials.
+    const machineOnly = [
+      OXY_CENTRAL_BILLING_SPEC,
+      OXY_PROFILE_REGISTRAR_SPEC,
+      specNamed('Clarity Backend'),
+    ];
     expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual(machineOnly);
     expect(
       SEED_APPS.filter((spec) => !machineOnly.includes(spec)).every(requiresPublicSeedCredential),
@@ -123,6 +129,22 @@ describe('the canonical official-application registry', () => {
       kind: 'id',
       id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
     });
+  });
+
+  it('keeps central billing separate from Inbox without sign-in or external grants', () => {
+    expect(OXY_CENTRAL_BILLING_SPEC).toMatchObject({
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: [],
+      publicClient: false,
+    });
+    expect(OXY_CENTRAL_BILLING_APPLICATION_ID).not.toBe(specNamed('Oxy Inbox').id);
+    expect(seedApplicationLookupIdentity(OXY_CENTRAL_BILLING_SPEC, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+    });
+    expect(requiresPublicSeedCredential(OXY_CENTRAL_BILLING_SPEC)).toBe(false);
   });
 
   it("pins Clarity's client by id under the clarity project, beside its backend", () => {

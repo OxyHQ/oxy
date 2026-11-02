@@ -276,8 +276,6 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         const environment = {
           OXY_ONE_PEABLE_RUNTIME_ENABLED: 'true',
           OXY_ONE_PEABLE_RUNTIME_FILE: runtimePath,
-          OXY_ONE_PEABLE_PUBLIC_KEY: 'synthetic',
-          OXY_ONE_PEABLE_SECRET: 'synthetic',
           OXY_ONE_PEABLE_OBSERVATION_SECRET: initialized.observationSecret,
         };
         const previousEnvironment: Record<string, string | undefined> = {};
