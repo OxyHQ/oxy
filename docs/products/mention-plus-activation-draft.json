@@ -159,5 +159,26 @@
     "canonicalOxyProductDefinitionSchema": "passed",
     "annualRounding": "Math.round(599 * 12 * 0.8) = 5750",
     "runtimeSchema": "Intentionally incomplete preparation envelope; must not be loaded as runtime configuration"
+  },
+  "providerTaxReadback": {
+    "observedAtApproximate": "2026-11-02T23:40:00Z",
+    "provider": "Stripe",
+    "mode": "live",
+    "operation": "read_only",
+    "registrations": {
+      "returnedCount": 0,
+      "hasMore": false
+    },
+    "settings": {
+      "status": "pending",
+      "missingFields": [
+        "head_office"
+      ]
+    },
+    "monitoring": {
+      "computedAt": null,
+      "locations": []
+    },
+    "interpretation": "No registrations are configured in this provider account. This does not establish whether the organization has legal registrations or obligations elsewhere. Tax registration status remains unknown_requires_verification; no tax settings or registrations were changed."
   }
 }

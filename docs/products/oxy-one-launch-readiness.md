@@ -221,3 +221,15 @@ release before deployment adoption; an unpublished local core build is not a rol
 The runtime's configured customer-location evidence map is a separate activation
 limitation. This identity migration does not collect location evidence or make tax
 configuration ready.
+
+### Fiscal review evidence (read-only)
+
+Around 2026-11-02 23:40 UTC, the live payment-provider account returned an empty
+registration list (`has_more=false`), tax settings `pending` with `head_office`
+missing, and monitoring with `computed_at=null` and no locations. These are
+configuration observations, not a determination of the organization's legal
+registrations or obligations. Registration status remains
+`unknown_requires_verification`; the approved subscription prices include tax.
+No provider settings or registrations were changed. Accounting can review the
+concrete observations alongside the inactive
+[`Mention Plus activation draft`](mention-plus-activation-draft.json).
