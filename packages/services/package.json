@@ -215,7 +215,7 @@
     "expo-web-browser": "catalog:",
     "husky": "^4.3.8",
     "jest": "^30.5.1",
-    "lint-staged": "^15.2.4",
+    "lint-staged": "^17.6.0",
     "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
