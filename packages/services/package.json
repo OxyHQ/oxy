@@ -178,10 +178,10 @@
   "dependencies": {
     "@oxy.so/contracts": "workspace:^",
     "color": "^5.0.3",
-    "@peable.to/sdk": "0.4.1"
+    "@peable.to/sdk": "0.5.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.1",
+    "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.0",
     "@expo/app-integrity": "catalog:",
     "@expo/vector-icons": "^15.0.3",
@@ -214,13 +214,13 @@
     "expo-secure-store": "catalog:",
     "expo-web-browser": "catalog:",
     "husky": "^4.3.8",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "lint-staged": "^15.2.4",
     "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
-    "react-native-builder-bob": "^0.43.0",
+    "react-native-builder-bob": "^0.44.1",
     "react-native-css": "catalog:",
     "react-native-gesture-handler": "catalog:",
     "react-native-keyboard-controller": "catalog:",
@@ -229,7 +229,7 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "socket.io-client": "catalog:",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.15",
     "typescript": "^5.9.2",
     "zustand": "catalog:",
     "expo-video": "catalog:"

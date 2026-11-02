@@ -93,10 +93,10 @@
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-expo": "catalog:",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "jest-environment-jsdom": "catalog:",
     "tailwindcss": "4.3.3",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.15",
     "typescript": "~6.0.3"
   },
   "private": true,

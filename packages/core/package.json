@@ -191,7 +191,7 @@
     "invariant": "^2.2.4",
     "jwt-decode": "^4.0.0",
     "socket.io-client": "catalog:",
-    "tldts": "^7.4.10",
+    "tldts": "^7.4.19",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -227,11 +227,11 @@
     "expo-secure-store": "~57.0.4",
     "express": "catalog:",
     "express-rate-limit": "catalog:",
-    "jest": "^30.5.1",
-    "regexpu-core": "^6.4.0",
+    "jest": "^30.5.2",
+    "regexpu-core": "^6.5.3",
     "typescript": "^5.9.2",
     "helmet": "catalog:",
-    "socket.io": "^4.8.1",
+    "socket.io": "^4.8.4",
     "@aws-sdk/credential-provider-node": "catalog:"
   }
 }

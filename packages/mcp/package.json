@@ -45,14 +45,14 @@
     "lint": "biome lint --error-on-warnings ./src"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@oxy.so/contracts": "workspace:^",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "typescript": "^5.9.2",
     "@oxy.so/core": "workspace:^"
   }
