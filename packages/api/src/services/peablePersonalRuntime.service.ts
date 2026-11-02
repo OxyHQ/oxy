@@ -11,7 +11,12 @@ import { createPeablePersonalCheckoutProvider } from './peablePersonalCheckout.s
 import { createPublicKey } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
-import { Peable } from '@peable.to/sdk';
+import type { Peable, PeableOxyHost } from '@peable.to/sdk';
+import {
+  assertPeableBillingWorkloadConfiguration,
+  assertPeableBillingMerchant,
+  createPeableBillingClient,
+} from './peableBillingWorkload.service';
 import { z } from 'zod';
 import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
@@ -21,7 +26,10 @@ import {
   personalPlanCheckoutIntents,
 } from '../db/schema';
 import { logger } from '../utils/logger';
-import { peablePersonalManagementConfigurationSchema } from './peablePersonalManagement.service';
+import {
+  peablePersonalManagementConfigurationSchema,
+  stopPeablePersonalManagement,
+} from './peablePersonalManagement.service';
 import {
   createPeableObservationVerifier,
   createPeablePersonalEvidenceAuthority,
@@ -479,6 +487,7 @@ export function createPeablePersonalRuntime(
 
 type PeablePersonalRuntime = ReturnType<typeof createPeablePersonalRuntime>;
 let runtime: PeablePersonalRuntime | undefined;
+let disposeRuntimeClient: (() => void) | undefined;
 let recoveryTimer: ReturnType<typeof setInterval> | undefined;
 interface PeablePersonalRecoverySummary {
   scanned: number;
@@ -493,38 +502,42 @@ export function getPeablePersonalRuntime() {
   return runtime;
 }
 
-export async function initializePeablePersonalRuntime(dependencies: { client?: Peable } = {}) {
+export async function initializePeablePersonalRuntime(
+  dependencies: { client?: Peable; oxy?: PeableOxyHost } = {},
+) {
   if (process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED !== 'true') return;
   if (runtime) return;
+  assertPeableBillingWorkloadConfiguration(!!dependencies.client || !!dependencies.oxy);
   const path = process.env.OXY_ONE_PEABLE_RUNTIME_FILE;
-  const publicKey = process.env.OXY_ONE_PEABLE_PUBLIC_KEY,
-    secret = process.env.OXY_ONE_PEABLE_SECRET;
-  if (!path || !publicKey || !secret) throw new Error('Peable personal runtime unconfigured');
+  if (!path) throw new Error('Peable personal runtime unconfigured');
   const configuration = peablePersonalRuntimeConfigurationSchema.parse(
     JSON.parse(await readFile(path, 'utf8')),
   );
   await assertBillingDatabaseNamespace(getDb(), configuration.namespace);
-  const client =
-    dependencies.client ??
-    new Peable({
-      publicKey,
-      secret,
-      invoiceAuthorityKeys: configuration.invoiceAuthorityKeys,
-      taxQuoteAuthorityKeys: configuration.taxQuoteAuthorityKeys,
-    });
-  const created = createPeablePersonalRuntime(
-    client,
-    configuration,
-    process.env.OXY_ONE_PEABLE_OBSERVATION_SECRET,
-  );
-  const merchant = await client.merchants.retrieve();
-  if (
-    merchant.id !== configuration.merchantId ||
-    merchant.oxyAppId !== configuration.applicationId ||
-    merchant.environment !== configuration.namespace.environment
-  )
-    throw new Error('Peable personal credential owner differs');
-  runtime = created;
+  const owned = dependencies.client
+    ? undefined
+    : createPeableBillingClient(
+        {
+          invoiceAuthorityKeys: configuration.invoiceAuthorityKeys,
+          taxQuoteAuthorityKeys: configuration.taxQuoteAuthorityKeys,
+        },
+        dependencies.oxy,
+      );
+  const client = dependencies.client ?? owned?.client;
+  if (!client) throw new Error('Peable billing workload unavailable');
+  try {
+    const created = createPeablePersonalRuntime(
+      client,
+      configuration,
+      process.env.OXY_ONE_PEABLE_OBSERVATION_SECRET,
+    );
+    await assertPeableBillingMerchant(client, configuration);
+    runtime = created;
+    disposeRuntimeClient = owned?.dispose;
+  } catch (error) {
+    owned?.dispose();
+    throw error;
+  }
   if (configuration.recoveryEnabled) {
     recoveryTimer = setInterval(() => {
       if (recoveryInFlight) return;
@@ -612,6 +625,9 @@ export async function stopPeablePersonalRuntime() {
   recoveryTimer = undefined;
   await recoveryInFlight;
   runtime = undefined;
+  disposeRuntimeClient?.();
+  disposeRuntimeClient = undefined;
+  await stopPeablePersonalManagement();
   recoveryCursor = undefined;
   checkoutRecoveryCursor = undefined;
 }
