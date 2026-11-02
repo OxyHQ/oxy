@@ -6,7 +6,7 @@
     "monthlyMinorUnits": 599,
     "annualMinorUnits": 5750,
     "annualDiscountPercent": 20,
-    "taxBehavior": null
+    "taxBehavior": "inclusive"
   },
   "verifiedOwnership": {
     "ownerAccountId": "69b2d3df5d12f58c9800d651",
@@ -30,8 +30,7 @@
     "description": "Oxy product subscriptions"
   },
   "requiredOwnerFacts": [
-    "Actual applicable tax registrations, or confirmation of none",
-    "Whether USD5.99/57.50 includes tax or tax is added"
+    "Verified actual applicable tax registrations; user currently does not know"
   ],
   "engineeringWork": [
     "Establish deliberate central product billing workload authority without repointing existing Inbox role, then register seller merchant under it",
@@ -63,7 +62,9 @@
     "prices": "User approved USD 5.99 monthly and a 20% annual discount rounded to USD 57.50",
     "headOffice": "User supplied 2810 N Church St STE 91894 Wilmington DE 19802 US; recorded without inferring tax registrations",
     "legalName": "Read-only production organization_profiles for verified owner account; profile identity is not tax approval",
-    "ownership": "Read-only production applications, application_workload_identities, access_products and Peable merchants; no changes"
+    "ownership": "Read-only production applications, application_workload_identities, access_products and Peable merchants; no changes",
+    "taxTreatment": "User explicitly confirmed the approved USD5.99/57.50 prices include tax",
+    "taxRegistrations": "User answered Ni idea de como va eso; no absence or coverage inferred"
   },
   "draftRequests": {
     "registerMerchant": {
@@ -87,17 +88,16 @@
           "state": "DE",
           "postalCode": "19802",
           "country": "US"
-        }
+        },
+        "defaultTaxBehavior": "inclusive"
       },
-      "omittedPendingDecision": [
-        "defaultTaxBehavior"
-      ],
+      "omittedPendingDecision": [],
       "approval": "Owner dashboard billing:manage approval remains required; do not invoke approve as part of drafting"
     },
     "createTaxRegistrations": {
-      "status": "pending_user_facts",
+      "status": "unknown_requires_verification",
       "requests": null,
-      "reason": "Neither empty registrations nor Delaware tax coverage is inferred from the address"
+      "reason": "User does not know the registration status. Unknown is not confirmation of none; verify actual fiscal records before approval or sales."
     }
   },
   "runtimePreparation": {
@@ -136,7 +136,7 @@
         "providerPriceId": null
       }
     ],
-    "taxTreatment": null,
+    "taxTreatment": "inclusive",
     "customerLocationEvidence": null,
     "deployment": {
       "catalogueFileVariable": "BILLING_PRODUCT_CATALOGUE_FILE",
