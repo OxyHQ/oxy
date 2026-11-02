@@ -415,6 +415,19 @@ export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
  * URI, so web apps register their apex origin as the redirect surface; native
  * apps register their deep-link schemes.
  */
+/** Dedicated central subscription seller identity; never reuse Inbox's base task binding. */
+export const OXY_CENTRAL_BILLING_APPLICATION_ID = 'e3d486b7-e529-4ba5-bf2f-63a20c6b948a';
+export const OXY_CENTRAL_BILLING_SPEC: SeedAppSpec = {
+  id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+  name: 'Oxy Central Billing',
+  description:
+    'Internal Oxy product subscription billing through Peable under its dedicated workload identity.',
+  type: 'internal',
+  redirectUris: [],
+  scopes: [],
+  publicClient: false,
+};
+
 export const OXY_PROFILE_REGISTRAR_APPLICATION_ID = 'dce95bde-49ef-4f05-83b3-c4d390b322ea';
 export const OXY_PROFILE_REGISTRAR_SPEC: SeedAppSpec = {
   id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
@@ -433,6 +446,7 @@ export function requiresPublicSeedCredential(spec: SeedAppSpec): boolean {
 }
 
 export const SEED_APPS: SeedAppSpec[] = [
+  OXY_CENTRAL_BILLING_SPEC,
   OXY_PROFILE_REGISTRAR_SPEC,
   {
     id: KAANA_APPLICATION_ID,
