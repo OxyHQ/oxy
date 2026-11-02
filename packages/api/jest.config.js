@@ -73,6 +73,7 @@ module.exports = {
     // Same rationale for @oxy.so/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.
+    '^@oxy.so/core/server/aws$': '<rootDir>/../core/src/aws/index.ts',
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxy.so/core/session$': '<rootDir>/../core/src/session/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
