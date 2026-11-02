@@ -1,5 +1,4 @@
 /** Optional AWS SDK integration. Never re-export this module from another entrypoint. */
-import { fromIni } from '@aws-sdk/credential-provider-ini';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import type { WorkloadCredentialProvider } from '../server/workloadIdentity';
 
@@ -17,8 +16,16 @@ export function createAwsWorkloadCredentialProvider(
   // its declared source chain, or rejects; there is no ambient fallback.
   if (options.profile !== undefined && !options.profile.trim())
     throw new Error('An explicit AWS workload profile must not be empty');
-  const provider = options.profile !== undefined ? fromIni(options) : defaultProvider(options);
+  const ambient = options.profile === undefined ? defaultProvider(options) : undefined;
+  const resolveProfile = async () =>
+    (await import('@aws-sdk/credential-provider-ini')).fromIni(options);
+  let selectedProfile: ReturnType<typeof resolveProfile> | undefined;
   return async () => {
+    let provider = ambient;
+    if (!provider) {
+      selectedProfile ??= resolveProfile();
+      provider = await selectedProfile;
+    }
     const credentials = await provider();
     if (
       !credentials.sessionToken ||
