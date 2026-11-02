@@ -10,8 +10,22 @@ import type { WorkloadCredentialProvider } from '../server/workloadIdentity';
 export function createAwsWorkloadCredentialProvider(
   options: { profile?: string } = {},
 ): WorkloadCredentialProvider {
-  const provider = defaultProvider(options);
+  // An explicitly selected profile is an authority boundary. defaultProvider
+  // falls through a missing profile to ambient ECS/IMDS credentials, which may
+  // name another application. fromIni resolves only the selected profile and
+  // its declared source chain, or rejects; there is no ambient fallback.
+  if (options.profile !== undefined && !options.profile.trim())
+    throw new Error('An explicit AWS workload profile must not be empty');
+  const ambient = options.profile === undefined ? defaultProvider(options) : undefined;
+  const resolveProfile = async () =>
+    (await import('@aws-sdk/credential-provider-ini')).fromIni(options);
+  let selectedProfile: ReturnType<typeof resolveProfile> | undefined;
   return async () => {
+    let provider = ambient;
+    if (!provider) {
+      selectedProfile ??= resolveProfile();
+      provider = await selectedProfile;
+    }
     const credentials = await provider();
     if (
       !credentials.sessionToken ||
