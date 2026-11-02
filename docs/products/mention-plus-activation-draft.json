@@ -1,0 +1,163 @@
+{
+  "purpose": "Reviewed preparation envelope only; not accepted as a runtime catalogue or an activation request",
+  "activationAllowed": false,
+  "commercial": {
+    "currency": "USD",
+    "monthlyMinorUnits": 599,
+    "annualMinorUnits": 5750,
+    "annualDiscountPercent": 20,
+    "taxBehavior": null
+  },
+  "verifiedOwnership": {
+    "ownerAccountId": "69b2d3df5d12f58c9800d651",
+    "ownerProfileLegalName": "Oxy Platforms, Inc.",
+    "ownerProfileCountry": null,
+    "mentionApplicationId": "6a2f851751b784a86fd0e916",
+    "billingWorkloadApplicationId": "6a37b3e61ddfd195b656819b",
+    "billingWorkloadApplicationDisplayName": "Oxy Inbox",
+    "billingMerchantId": null,
+    "billingWorkloadAuthorityApproved": false,
+    "existingApiWorkloadPurpose": "Inbox; not established central product billing authority"
+  },
+  "proposedProduct": {
+    "schemaVersion": 1,
+    "id": "mention",
+    "ownerAccountId": "69b2d3df5d12f58c9800d651",
+    "applicationId": "6a2f851751b784a86fd0e916"
+  },
+  "registrationBody": {
+    "displayName": "Oxy",
+    "description": "Oxy product subscriptions"
+  },
+  "requiredOwnerFacts": [
+    "Actual applicable tax registrations, or confirmation of none",
+    "Whether USD5.99/57.50 includes tax or tax is added"
+  ],
+  "engineeringWork": [
+    "Establish deliberate central product billing workload authority without repointing existing Inbox role, then register seller merchant under it",
+    "Replace central personal runtime legacy credential config with shared workload authentication",
+    "Create two canonical Peable provider prices with exact599/month and5750/year USD",
+    "Register explicit Mention Plus entitlement offers after feature semantics review; do not equate mono_theme with all Plus features",
+    "Configure merchant tax settings and obtain owner dashboard approval; no automatic invented registrations",
+    "Configure signed Peable Tax/renewal webhook and invoice authority bindings",
+    "Implement trusted payer location evidence collection instead of static per-account runtime map",
+    "Mount catalogue and runtime JSON using infra secret_files pattern; enable only after validated binding/approval"
+  ],
+  "liveEvidence": {
+    "centralCatalogue": "unconfigured",
+    "mentionProducts": 0,
+    "billingActorMerchants": 0,
+    "allPeableTaxSettings": 0,
+    "configuredSubscriptionRails": [
+      "stripe"
+    ],
+    "configuredSubscriptionCohort": "Mercaria only"
+  },
+  "authorityEvidence": [
+    "docs/inference/inbox-point-inference.md Identity explicitly scopes existing role to Inbox",
+    "docs/inference/inbox-principal-readback.md Operator scope forbids borrowing Inbox principal for other Oxy work"
+  ],
+  "schemaVersion": 1,
+  "recordedOn": "2026-11-03",
+  "provenance": {
+    "prices": "User approved USD 5.99 monthly and a 20% annual discount rounded to USD 57.50",
+    "headOffice": "User supplied 2810 N Church St STE 91894 Wilmington DE 19802 US; recorded without inferring tax registrations",
+    "legalName": "Read-only production organization_profiles for verified owner account; profile identity is not tax approval",
+    "ownership": "Read-only production applications, application_workload_identities, access_products and Peable merchants; no changes"
+  },
+  "draftRequests": {
+    "registerMerchant": {
+      "method": "POST",
+      "path": "/v1/merchants",
+      "body": {
+        "displayName": "Oxy",
+        "description": "Oxy product subscriptions"
+      },
+      "authority": "Pending dedicated central billing workload identity; do not use Inbox or Mention identity"
+    },
+    "updateTaxSettings": {
+      "method": "PATCH",
+      "pathTemplate": "/v1/dashboard/applications/{billingApplicationId}/tax/settings",
+      "body": {
+        "legalName": "Oxy Platforms, Inc.",
+        "headOffice": {
+          "line1": "2810 N Church St",
+          "line2": "STE 91894",
+          "city": "Wilmington",
+          "state": "DE",
+          "postalCode": "19802",
+          "country": "US"
+        }
+      },
+      "omittedPendingDecision": [
+        "defaultTaxBehavior"
+      ],
+      "approval": "Owner dashboard billing:manage approval remains required; do not invoke approve as part of drafting"
+    },
+    "createTaxRegistrations": {
+      "status": "pending_user_facts",
+      "requests": null,
+      "reason": "Neither empty registrations nor Delaware tax coverage is inferred from the address"
+    }
+  },
+  "runtimePreparation": {
+    "catalogueSchema": "packages/api/src/services/productBillingCatalogue.service.ts#productBillingCatalogueSchema",
+    "runtimeSchema": "packages/api/src/services/peablePersonalRuntime.service.ts#peablePersonalRuntimeConfigurationSchema",
+    "providerOfferSchema": "Peable packages/backend/src/services/billing/tax-checkout.ts#billingTaxOfferSchema",
+    "merchantId": null,
+    "applicationId": null,
+    "namespace": {
+      "mode": "live",
+      "environment": "production"
+    },
+    "invoiceIssuer": {
+      "legalName": "Oxy Platforms, Inc.",
+      "id": null
+    },
+    "sellerId": null,
+    "taxRemitterId": null,
+    "authorityKeyReferences": null,
+    "observationsEnabled": false,
+    "recoveryEnabled": false,
+    "purchasesEnabled": false,
+    "prices": [
+      {
+        "kind": "existing_product",
+        "currency": "USD",
+        "amountMinorUnits": 599,
+        "interval": "month",
+        "providerPriceId": null
+      },
+      {
+        "kind": "existing_product",
+        "currency": "USD",
+        "amountMinorUnits": 5750,
+        "interval": "year",
+        "providerPriceId": null
+      }
+    ],
+    "taxTreatment": null,
+    "customerLocationEvidence": null,
+    "deployment": {
+      "catalogueFileVariable": "BILLING_PRODUCT_CATALOGUE_FILE",
+      "runtimeFileVariable": "OXY_ONE_PEABLE_RUNTIME_FILE",
+      "runtimeEnabledVariable": "OXY_ONE_PEABLE_RUNTIME_ENABLED",
+      "runtimeEnabledValue": "false",
+      "fileMounts": "Use reviewed oxy-infra secret_files wiring after all bindings are known"
+    },
+    "blockingEngineering": [
+      "Dedicated central billing workload identity and exact merchant binding",
+      "Canonical provider price IDs and frozen offers with reviewed Plus capabilities",
+      "Pinned public invoice/tax authority keys and verified renewal webhook endpoint",
+      "Trusted payer location collection; no locale/currency/IP-derived inference",
+      "Owner-approved merchant tax setup; verified runtime and catalogue schema parse before activation"
+    ]
+  },
+  "validation": {
+    "canonicalPeableTaxAddressSchema": "passed",
+    "canonicalPeableCreateMerchantBodySchema": "passed",
+    "canonicalOxyProductDefinitionSchema": "passed",
+    "annualRounding": "Math.round(599 * 12 * 0.8) = 5750",
+    "runtimeSchema": "Intentionally incomplete preparation envelope; must not be loaded as runtime configuration"
+  }
+}
