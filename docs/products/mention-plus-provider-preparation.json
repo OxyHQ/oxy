@@ -13,7 +13,17 @@
     "existingPeableLiveStripePlatformAccountId": "acct_1TnXkUQWiCE02OnU",
     "connectedOxyPlatformsStripeAccountId": "acct_1USWGhAofUef123L",
     "sameAccount": false,
-    "decision": "Do not create connector-account prices for the existing rail, replace Mercaria credentials, or infer transfer of financial authority"
+    "decision": "Do not create connector-account prices for the existing rail, replace Mercaria credentials, or infer transfer of financial authority",
+    "connectedAccountTaxReadback": {
+      "accountId": "acct_1USWGhAofUef123L",
+      "livemode": true,
+      "source": "Root agent read-only connected-account inspection",
+      "providerTaxRegistrationsObserved": 0,
+      "providerTaxSettings": "pending; head_office missing",
+      "monitoringComputedAt": null,
+      "legalRegistrationStatus": "unknown",
+      "appliesToDeployedPeableProviderAccount": false
+    }
   },
   "merchantRegistration": {
     "method": "POST",
