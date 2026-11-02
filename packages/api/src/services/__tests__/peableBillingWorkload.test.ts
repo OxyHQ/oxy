@@ -110,3 +110,22 @@ it('accepts only the complete reviewed merchant/application/environment binding'
   const owned = createPeableBillingClient({}, { createServiceClient: jest.fn() });
   await expect(assertPeableBillingMerchant(owned.client, cfg)).resolves.toBeUndefined();
 });
+it('disposes its host if SDK construction fails', () => {
+  process.env.OXY_PEABLE_BILLING_AWS_PROFILE = 'reviewed-billing';
+  mockPeable.mockImplementationOnce(() => {
+    throw new Error('SDK construction failed');
+  });
+  expect(() => createPeableBillingClient()).toThrow('SDK construction failed');
+  expect(mockOxyDispose).toHaveBeenCalledTimes(1);
+});
+it('disposes its host even if closing the SDK client fails', () => {
+  process.env.OXY_PEABLE_BILLING_AWS_PROFILE = 'reviewed-billing';
+  const owned = createPeableBillingClient();
+  mockClientDispose.mockImplementationOnce(() => {
+    throw new Error('Client close failed');
+  });
+  expect(() => owned.dispose()).toThrow('Client close failed');
+  owned.dispose();
+  expect(mockOxyDispose).toHaveBeenCalledTimes(1);
+  expect(mockClientDispose).toHaveBeenCalledTimes(1);
+});
