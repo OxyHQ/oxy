@@ -82,6 +82,7 @@ import {
   isRateLimited,
   retryAfterSeconds,
 } from '../../utils/apiErrorMessage';
+import { withoutWhitespace } from '../../utils/withoutWhitespace';
 
 /** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
 const SPLIT_WIDTH = 880;
@@ -819,7 +820,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               label={t('signin.identifier.label')}
               value={identifier}
               onChange={(value) => {
-                setIdentifier(value);
+                setIdentifier(withoutWhitespace(value));
                 clearError();
               }}
               onSubmit={submitIdentifier}

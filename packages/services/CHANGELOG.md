@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.1.2] - 2026-11-03
+
+### Fixed
+
+- The sign-in identifier and every email field (sign-up, change email, member invite) drop spaces as typed: neither a username nor an email address can hold one.
+
 ## [14.1.1] - 2026-11-03
 
 ### Changed
