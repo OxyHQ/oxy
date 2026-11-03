@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed (an unknown Bluesky account is discovered by its handle)
+
+Discovering an external account by handle only tried WebFinger, which Bluesky
+does not speak, so a Bluesky account Oxy had never stored could not be found:
+`GET /profiles/username/frenteamplio.info@bsky.social` answered 404 and
+`POST /federation/identities/resolve` found nothing, while a known one resolved.
+A `<local>@bsky.social` handle now resolves to its DID through the AppView's
+`com.atproto.identity.resolveHandle`, and the identity is accepted only when the
+profile fetched by that DID names the same account back. `normalizeExternalHandle`
+also accepts a bare atproto handle (`frenteamplio.info`, `alice.bsky.social`), and
+the identity resolve accepts a DID in `handle`.
+
 ### Changed (people search ranks by relevance; `GET /profiles/search` takes `type` and `kind`)
 
 `GET /profiles/search`, `GET /search` and `POST /users/search` ordered their

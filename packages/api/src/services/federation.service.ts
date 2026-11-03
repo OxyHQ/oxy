@@ -292,6 +292,25 @@ function normalizeFediverseHandle(handle: string): string | null {
   return `${localPart}@${domain}`;
 }
 
+/** Bluesky's network domain: Oxy names every atproto identity `<local>@bsky.social`. */
+const ATPROTO_NETWORK_DOMAIN = 'bsky.social';
+const ATPROTO_DID_RE = /^did:(plc|web):[^\s/?#]+$/;
+/** An atproto handle is a DNS name: at least two labels and an alphabetic TLD. */
+const ATPROTO_HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+
+/** `alice.bsky.social` → `alice@bsky.social`; `example.com` → `example.com@bsky.social`. */
+function atprotoAcctFromHandle(handle: string): string {
+  const lower = handle.toLowerCase();
+  const local = lower.endsWith('.bsky.social') ? lower.slice(0, -'.bsky.social'.length) : lower;
+  return `${local}@${ATPROTO_NETWORK_DOMAIN}`;
+}
+
+/** The inverse of {@link atprotoAcctFromHandle}: the atproto handle an Oxy acct names. */
+function atprotoHandleFromAcct(acct: string): string {
+  const local = acct.slice(0, acct.lastIndexOf('@'));
+  return local.includes('.') ? local : `${local}.bsky.social`;
+}
+
 function domainFromHandle(handle: string): string | null {
   const atIndex = handle.indexOf('@');
   if (atIndex === -1 || atIndex === handle.length - 1) return null;
@@ -1073,7 +1092,7 @@ class FederationService {
   }
 
   async fetchAtprotoProfile(did: string): Promise<ExternalActorProfile | null> {
-    if (!/^did:(plc|web):[^\s/?#]+$/.test(did)) return null;
+    if (!ATPROTO_DID_RE.test(did)) return null;
     const response = await safeFetch(
       `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`,
       {
@@ -1094,12 +1113,11 @@ class FederationService {
     )
       return null;
     const handle = profile.handle.toLowerCase();
-    const local = handle.endsWith('.bsky.social') ? handle.slice(0, -12) : handle;
     return {
       actorUri: did,
       protocol: 'atproto',
-      domain: 'bsky.social',
-      username: `${local}@bsky.social`,
+      domain: ATPROTO_NETWORK_DOMAIN,
+      username: atprotoAcctFromHandle(handle),
       transportAcct: handle,
       stableId: did,
       evidenceLinks: [],
@@ -1123,7 +1141,25 @@ class FederationService {
     } catch {
       /* A handle is not a URL. */
     }
+    // A bare DNS name is an atproto handle: no `@`, so never a fediverse acct.
+    const bare = value.trim().replace(/^@/, '');
+    if (ATPROTO_HANDLE_RE.test(bare)) return atprotoAcctFromHandle(bare);
     return normalizeFediverseHandle(value);
+  }
+
+  /** The DID a Bluesky handle names, or null when the AppView cannot resolve it. */
+  private async resolveAtprotoHandle(handle: string): Promise<string | null> {
+    const response = await safeFederationFetch(
+      `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    if (!response) return null;
+    if (response.status < 200 || response.status >= 300) {
+      response.response.destroy();
+      return null;
+    }
+    const body = await readFederationJson<Record<string, unknown>>(response.response);
+    return typeof body?.did === 'string' && ATPROTO_DID_RE.test(body.did) ? body.did : null;
   }
 
   async needsBridgeCanonicalization(actorUri: string): Promise<boolean> {
@@ -1320,6 +1356,9 @@ class FederationService {
   }) {
     if (input.actorUri)
       return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
+    // A DID is already an atproto actor id.
+    const did = input.handle?.trim();
+    if (did && ATPROTO_DID_RE.test(did)) return this.resolveExternalActorIdentity(did);
     const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
     if (!handle) return null;
     const at = handle.lastIndexOf('@');
@@ -1349,6 +1388,14 @@ class FederationService {
         );
     }
     if (isOwnFederationDomain(domain)) return null;
+    // Bluesky speaks no WebFinger: its handle resolves to a DID, and the profile
+    // fetched by that DID must name this same account back.
+    if (domain === ATPROTO_NETWORK_DOMAIN) {
+      const atprotoDid = await this.resolveAtprotoHandle(atprotoHandleFromAcct(handle));
+      if (!atprotoDid) return null;
+      const result = await this.resolveExternalActorIdentity(atprotoDid);
+      return result?.externalIdentity.canonicalAcct === handle ? result : null;
+    }
     // Reverse transport routing is also Oxy policy. The fetched actor must still
     // publish the reviewed per-account assertion before the identity is accepted.
     const transport = this.transportHandleForExternalAccount(handle);
