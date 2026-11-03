@@ -43,14 +43,20 @@ export function useAccountColor({
   canUse?: (name: AppColorName) => boolean;
 } = {}): void {
   const { isAuthenticated, user } = useAuth();
-  const { colorPreset, setColorPreset } = useBloomTheme();
+  const { setColorPreset } = useBloomTheme();
   const accountColor = resolveAccountColor(user);
   const allowed = accountColor !== null && (canUse?.(accountColor) ?? true);
 
+  // Follow the ACCOUNT, never fight the theme: this applies when the account's
+  // colour (or the app's permission to wear it) changes, exactly like the mode
+  // sync in `useAccountTheme`. Re-running on every local preset change would
+  // pull a colour just chosen back to the stored one while its save is still in
+  // flight, so the root theme (and every surface painted from it, such as an
+  // open settings modal) showed the old colour after a pick.
   useEffect(() => {
-    if (!isAuthenticated || !accountColor || !allowed || accountColor === colorPreset) return;
+    if (!isAuthenticated || !accountColor || !allowed) return;
     setColorPreset(accountColor);
-  }, [isAuthenticated, accountColor, allowed, colorPreset, setColorPreset]);
+  }, [isAuthenticated, accountColor, allowed, setColorPreset]);
 }
 
 type EntitlementSubject = Pick<User, 'username' | 'personalization'> | null | undefined;
@@ -82,11 +88,15 @@ export function entitledAccountColors(
 /**
  * Choose the account's colour: one `updateMe` writes `color` and the portable
  * `themePreference.colorPreset` together (the mode already on the account is
- * kept), the Bloom theme follows at once, and the session user is updated
- * optimistically so `useAccountColor` agrees with it. `colors` is what the
- * picker should list.
+ * kept), the Bloom theme follows at once and goes back if the write fails.
+ * `colors` is what the picker should list; an app with a stricter rule of its
+ * own passes the same `canUse` it gives `useAccountColor`.
  */
-export function useAccountColorSave(): {
+export function useAccountColorSave({
+  canUse,
+}: {
+  canUse?: (name: AppColorName) => boolean;
+} = {}): {
   colors: readonly AppColorName[];
   value: AppColorName;
   saveColor: (name: AppColorName) => Promise<void>;
@@ -95,7 +105,10 @@ export function useAccountColorSave(): {
   const { user } = useAuth();
   const { mode, colorPreset, setColorPreset } = useBloomTheme();
   const { mutateAsync, isPending } = useUpdateProfile();
-  const colors = useMemo(() => entitledAccountColors(user), [user]);
+  const colors = useMemo(
+    () => entitledAccountColors(user).filter((name) => canUse?.(name) ?? true),
+    [user, canUse],
+  );
   const saveColor = useCallback(
     async (name: AppColorName) => {
       if (!colors.includes(name)) throw new Error('Color is not available for this account');
