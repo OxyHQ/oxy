@@ -48,7 +48,15 @@ export type {
   AuthenticatedResponseRequest,
   AuthRefreshReason,
   AuthRefreshHandler,
+  CredentialGeneration,
 } from './HttpService';
+export { sameHolderIdentity } from './api/holderEvidence';
+export type {
+  HolderEvidence,
+  HolderEvidenceIdentity,
+  HolderEvidenceResult,
+  HolderEvidenceUnavailableReason,
+} from './api/holderEvidence';
 
 // The namespaces — their classes (for typing) and their input/output types.
 export type { SessionApi, DeviceCredentialProvider, SessionValidation } from './api/session';

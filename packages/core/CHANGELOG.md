@@ -1,5 +1,12 @@
 # Changelog — `@oxy.so/core`
 
+## 7.12.0
+
+### Added
+
+- `CredentialGeneration`: an opaque, immutable token for one installation of the bearer, owned by the token store and replaced by every write path (setter, refresh, account or actor switch, cross-tab or restored token, clear, provider change), including a repeat of identical bytes. `RequestOptions.expectedCredentialGeneration` pins a write to it, checked on the source client after the auth preflight, after queueing, at header selection, after the response and after the body; a mismatch rejects with `AUTH_SESSION_CHANGED`. Pinned writes have no cache, dedupe or retry and a 401 neither refreshes nor clears the session.
+- `oxy.session.observeHolderEvidence()` and `isHolderEvidenceCurrent()`: server evidence (`POST /session/device/context-evidence-v1`, off by default server-side) honored only if the generation is still current when the answer is committed and the answer agrees with the captured bearer's claims; `sameHolderIdentity`. Unavailable evidence is a named non-answer that never refreshes, clears or signs out. Aligns with `@oxy.so/contracts` 6.4.0 (ADR 0053).
+
 ## 7.11.0
 
 ### Added
