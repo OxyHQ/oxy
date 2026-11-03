@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 7.14.0
+
+### Changed
+
+- `@noble/ciphers`, `@noble/hashes` 2 and `@scure/bip39` 2. Keys, signatures, recovery phrases, seeds, AEAD and HKDF output are byte-identical; no export changes. Noble 2 reads `globalThis.crypto` on every call instead of capturing it at evaluation, so the Hermes capture the polyfill order guarded against is gone (the order is kept).
+- Noble 2 and bip39 2 ship ESM only, so the CommonJS build `require`s ES modules: `engines.node` is `^20.19.0 || >=22.12.0`, the Node lines with `require(esm)` (bundlers and the ESM build are unaffected). A consumer running Jest as CommonJS transforms `@noble/*` and `@scure/*` the way this repository's `scripts/jest-esm-only.cjs` does.
+- `@react-native-async-storage/async-storage` peer is `<4.0.0`: 3.x is supported (the default export it ships is the 2.x storage, so existing data reads back), 2.x still is.
+
 ## 7.13.1
 
 ### Fixed

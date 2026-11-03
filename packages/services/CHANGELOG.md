@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.3.0] - 2026-11-03
+
+### Changed
+
+- `@react-native-async-storage/async-storage` peer is `>=2.0.0 <4.0.0`: an app on 3.x (aligned above Expo SDK 58's bundled 2.2.0 and listed in `expo.install.exclude`) installs without a peer conflict; the SDK only uses `getItem`, `setItem`, `removeItem` and `clear`, which both majors provide, and 3.x's default export reads the data 2.x wrote. Expo SDK 54's 2.2.0 is still checked by `compat/expo-54`.
+- Built against `@oxy.so/core` 7.14.0 and `@oxy.so/protocol` 1.6.0 (`@noble/*` 2).
+
 ## [14.2.1] - 2026-11-03
 
 ### Changed

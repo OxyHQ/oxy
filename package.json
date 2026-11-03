@@ -37,7 +37,7 @@
       "@alia.onl/sdk": "22.10.1",
       "@hugeicons/core-free-icons": "^3.3.0",
       "@lottiefiles/dotlottie-react": "^0.19.9",
-      "@noble/curves": "^1.9.7",
+      "@noble/curves": "^2.4.0",
       "@expo/app-integrity": "~58.0.2",
       "babel-preset-expo": "58.0.20",
       "@oxy.so/bloom": "16.6.0",

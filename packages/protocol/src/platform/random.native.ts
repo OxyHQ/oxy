@@ -6,11 +6,10 @@
  *
  * This module is deliberately tiny and imports NOTHING but `expo-crypto`: it
  * backs `@oxy.so/core`'s `globalThis.crypto.getRandomValues` polyfill, which
- * must be fully installed before any module that captures `globalThis.crypto`
- * at evaluation time (`@noble/hashes` 1.x's `crypto.js` does exactly that) is
- * evaluated. Reaching a crypto library from here would let that library
- * capture the missing global first and throw
- * `crypto.getRandomValues must be defined` for the lifetime of the app.
+ * must be fully installed before any module that reads `globalThis.crypto`
+ * at evaluation time is evaluated (`@noble/hashes` 1.x's `crypto.js` did, and
+ * threw `crypto.getRandomValues must be defined` for the lifetime of the app).
+ * Reaching a crypto library from here would evaluate it before the shim.
  *
  * `expo-crypto` is an OPTIONAL peer, so it is resolved with a string-literal
  * `require` inside a `try` (Metro's optional-dependency form; see

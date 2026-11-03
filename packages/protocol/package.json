@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/protocol",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -119,7 +119,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://oxy.so",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
     "build": "bun run build:cjs && bun run build:esm && bun run build:types && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
@@ -136,7 +136,7 @@
     "@oxy.so/contracts": "workspace:^"
   },
   "peerDependencies": {
-    "@react-native-async-storage/async-storage": "<3.0.0",
+    "@react-native-async-storage/async-storage": "<4.0.0",
     "expo-crypto": "<59.0.0",
     "expo-secure-store": "<59.0.0",
     "express": "^4.18.0 || ^5.0.0",
@@ -157,7 +157,7 @@
     }
   },
   "devDependencies": {
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@types/express": "catalog:",
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",

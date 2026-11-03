@@ -23,8 +23,8 @@
 // The crypto shim MUST stay the first import. The root itself ships no crypto
 // library (`__tests__/rootEntryGraph.test.ts`), but `@oxy.so/protocol`'s root
 // entry (reached by the OAuth/PKCE and device helpers) does, and Metro does not
-// tree-shake: on Hermes, `@noble/hashes` would capture an absent
-// `globalThis.crypto` at evaluation. See the note in `./crypto/polyfill`.
+// tree-shake: on Hermes, the shim has to exist before any of it evaluates. See
+// the note in `./crypto/polyfill`.
 import './crypto/polyfill';
 
 // ---------------------------------------------------------------------------

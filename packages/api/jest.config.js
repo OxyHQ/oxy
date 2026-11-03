@@ -1,4 +1,5 @@
 const { computeMaxWorkers } = require('./jest.workerCount.cjs');
+const { NOBLE_ESM_PACKAGES } = require('../../scripts/jest-esm-only.cjs');
 
 // Keep this value shared with global setup: every Jest worker owns one isolated
 // Postgres database. `jest.workerCount.cjs` documents the measured stability
@@ -19,6 +20,9 @@ const JSDOM_ESM_PACKAGES = [
   '@csstools/css-color-parser',
   '@csstools/color-helpers',
 ];
+
+/** Every ESM-only package node_modules holds that the suites load, lowered to CommonJS below. */
+const ESM_ONLY_PACKAGES = [...JSDOM_ESM_PACKAGES, ...NOBLE_ESM_PACKAGES];
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -161,10 +165,10 @@ module.exports = {
       },
     ],
     // jsdom (the DOM DOMPurify sanitizes SVG uploads in, `utils/svgSanitizer.ts`)
-    // and its dependencies below are published ESM-only; under bun, as the API
-    // runs, `require` loads them natively, but Jest's CJS runtime cannot, so
-    // they are lowered the same way.
-    [`^.+/node_modules/(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
+    // and its dependencies, and `@noble/*` under core and protocol, are
+    // published ESM-only; under bun, as the API runs, `require` loads them
+    // natively, but Jest's CJS runtime cannot, so they are lowered the same way.
+    [`^.+/node_modules/(${ESM_ONLY_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
       'ts-jest',
       {
         diagnostics: false,
@@ -177,13 +181,13 @@ module.exports = {
       },
     ],
   },
-  // node_modules stays untransformed except @kaana.ai and jsdom's ESM-only
-  // dependencies, whose builds need the transforms above (bun's isolated linker
+  // node_modules stays untransformed except @kaana.ai and the ESM-only packages
+  // above, whose builds need the transforms above (bun's isolated linker
   // nests a package `@scope/name@x` under `node_modules/.bun/@scope+name@x/`).
   transformIgnorePatterns: [
-    `/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/|\\.bun/(${JSDOM_ESM_PACKAGES.map((name) =>
+    `/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/|\\.bun/(${ESM_ONLY_PACKAGES.map((name) =>
       escapeRegExp(name.replace('/', '+')),
-    ).join('|')})@|(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/)`,
+    ).join('|')})@|(${ESM_ONLY_PACKAGES.map(escapeRegExp).join('|')})/)`,
   ],
   // Balances `--shard=i/N` by measured duration; changes which runner runs a
   // file, never whether it runs. See jest.shardSequencer.cjs.

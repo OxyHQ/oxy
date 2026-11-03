@@ -23,7 +23,7 @@
 // Loading the polyfill guarantees `globalThis.crypto.getRandomValues` exists on
 // every platform (native crypto on web/Node; expo-crypto-backed shim on RN).
 import './polyfill';
-import { xchacha20poly1305 } from '@noble/ciphers/chacha';
+import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 
 /** Key length for XChaCha20-Poly1305, in bytes (256-bit). */
 export const AEAD_KEY_LENGTH = 32;

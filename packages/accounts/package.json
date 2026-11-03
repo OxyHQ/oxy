@@ -26,7 +26,7 @@
     "@oxy.so/core": "*",
     "@oxy.so/expo-splash": "workspace:*",
     "@oxy.so/services": "*",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@shopify/react-native-skia": "catalog:",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
@@ -103,6 +103,7 @@
   "expo": {
     "install": {
       "exclude": [
+        "@react-native-async-storage/async-storage",
         "expo-video",
         "react-native-keyboard-controller",
         "react-native-safe-area-context",
