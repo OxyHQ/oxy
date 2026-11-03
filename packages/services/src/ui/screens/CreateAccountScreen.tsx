@@ -28,7 +28,8 @@ import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-sectio
 import { useOxy } from '../context/oxyRuntimeContext';
 import { AccountCategoriesSection } from '../components/accountSettings/AccountCategoriesSection';
 import { toast } from '@oxy.so/bloom/toast';
-import { checkUsernameDraft } from '../utils/usernamePolicy';
+import { describeApiError } from '../utils/apiErrorMessage';
+import { checkUsernameDraft, describeUsernameRefusal } from '../utils/usernamePolicy';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
@@ -306,11 +307,10 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 
       onClose?.();
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t('accounts.create.toasts.failed') || 'Failed to create account';
-      toast.error(message);
+      toast.error(
+        describeUsernameRefusal(error, username, t) ??
+          describeApiError(error, t, t('accounts.create.toasts.failed')),
+      );
     } finally {
       setIsCreating(false);
     }

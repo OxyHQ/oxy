@@ -28,7 +28,7 @@ import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
-import { checkUsernameDraft } from '../../utils/usernamePolicy';
+import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
@@ -38,10 +38,8 @@ import {
   AccountFlowNote,
   AccountFlowProgress,
   EmailCodeStep,
-  describeSignInError,
-  errorCode,
-  isTicketExpired,
 } from './accountFlowParts';
+import { describeApiError, errorCode, isTicketExpired } from '../../utils/apiErrorMessage';
 
 /** Commons' own identity-creation deep link. */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
@@ -108,7 +106,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         setError(
           reason instanceof UsernameTakenError
             ? t('signup.username.taken')
-            : describeSignInError(reason, t),
+            : describeApiError(reason, t),
         );
       })
       .finally(() => setPending(false));
@@ -152,9 +150,16 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
 
   // The code step reports this promise's failure in place.
   const createAccount = async ({ ticket }: EmailVerificationConfirmResponse): Promise<void> => {
+    // A flow restored from before this check existed may carry any name.
+    const draft = checkUsernameDraft(username, t);
+    if (!draft.ok) {
+      setStep({ name: 'username' });
+      setError(draft.error);
+      return;
+    }
     try {
       const session = await oxyServices.auth.signUp({
-        username: username.trim(),
+        username: draft.username,
         email,
         emailTicket: ticket,
         languages: [currentLanguage],
@@ -168,9 +173,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         setError(t('signup.username.taken'));
         return;
       }
+      // The server refused the name by a rule this client does not know yet:
+      // the name is what to change, so that is the step to return to.
+      const refused = describeUsernameRefusal(reason, draft.username, t);
+      if (refused) {
+        setStep({ name: 'username' });
+        setError(refused);
+        return;
+      }
       if (isTicketExpired(reason)) {
         setStep({ name: 'email' });
-        setError(describeSignInError(reason, t));
+        setError(describeApiError(reason, t));
         return;
       }
       throw reason;

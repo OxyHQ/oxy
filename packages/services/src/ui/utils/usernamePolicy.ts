@@ -39,6 +39,27 @@ export function checkUsernameDraft(
   return { ok: false, error: describeUsernameIssue(username, checked.issue.message, t) };
 }
 
+/**
+ * The server's refusal of `username` (a 400 naming the `username` field, whose
+ * message is the policy's), in the same words as {@link checkUsernameDraft};
+ * `null` when `reason` is something else. The backstop for a rule this client
+ * does not know yet: the person still reads which rule, in their language.
+ */
+export function describeUsernameRefusal(
+  reason: unknown,
+  username: string,
+  t: Translate,
+): string | null {
+  const error = reason as {
+    code?: unknown;
+    message?: unknown;
+    details?: { field?: unknown };
+  } | null;
+  if (error?.code !== 'BAD_REQUEST' || error.details?.field !== 'username') return null;
+  const message = typeof error.message === 'string' ? error.message : '';
+  return describeUsernameIssue(username.trim(), message, t);
+}
+
 function describeUsernameIssue(username: string, message: string, t: Translate): string {
   switch (message) {
     case NUMERIC_USERNAME_MESSAGE:

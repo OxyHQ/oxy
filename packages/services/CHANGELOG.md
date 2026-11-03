@@ -1,5 +1,18 @@
 # Changelog
 
+## [14.1.0] - 2026-11-03
+
+### Fixed
+
+- Creating an account: the username is checked against the policy before the server is asked, and the field says which rule a name breaks (too short or long, spaces, separators, only numbers, reserved). Characters a username cannot hold are dropped as typed. A name like `hash saah` no longer ends in "Something went wrong".
+- The profile username editor and account creation use the same check and copy (a bot is held to the bot rule); neither shows the policy's or the server's English.
+- Failure toasts (profile, avatar, settings, privacy, notifications, preferences, connected apps, sessions, devices, members, domains, account settings and creation) word the failure from the API's code and status — offline, invalid input, a server fault, a rate limit, or what was being done — and never show the server's `message`. `createProfileMutation` and `createGenericMutation` show the caller's `errorMessage`, not the server's.
+- Sign-in and re-authentication never send a partly typed authenticator or backup code; password and identifier fields carry their maximum length; a new password over the maximum says so instead of "too short".
+- Inviting a member checks the email address first, and the invite form is localized.
+- Verifying a domain checks it with the server's own rule and says what to type.
+- The onboarding name step checks the name policy inline and no longer shows two toasts on failure.
+- Deleting an account says when the typed username does not match.
+
 ## [14.0.1] - 2026-11-03
 
 ### Fixed

@@ -1,5 +1,5 @@
 import { loadLocale, translate } from '@oxy.so/core';
-import { checkUsernameDraft } from '../../src/ui/utils/usernamePolicy';
+import { checkUsernameDraft, describeUsernameRefusal } from '../../src/ui/utils/usernamePolicy';
 
 const en = (key: string, vars?: Record<string, string | number>) => translate('en-US', key, vars);
 const es = (key: string, vars?: Record<string, string | number>) => translate('es-ES', key, vars);
@@ -45,5 +45,36 @@ describe('checkUsernameDraft', () => {
       ok: false,
       error: 'El nombre de usuario no puede tener espacios. Usa - o _ en su lugar.',
     });
+  });
+});
+
+describe('describeUsernameRefusal', () => {
+  const refusal = (message: string) =>
+    Object.assign(new Error(message), {
+      code: 'BAD_REQUEST',
+      status: 400,
+      details: { field: 'username' },
+    });
+
+  it('words the server policy refusal by the rule it names', () => {
+    expect(describeUsernameRefusal(refusal('Username cannot be only numbers'), '12345', en)).toBe(
+      "A username can't be only numbers. Add a letter.",
+    );
+    expect(
+      describeUsernameRefusal(
+        refusal('This username is reserved and cannot be registered'),
+        'staff',
+        en,
+      ),
+    ).toBe('That username is reserved. Choose another one.');
+  });
+
+  it('leaves every other failure to the caller', () => {
+    const other = Object.assign(new Error('Validation failed'), {
+      code: 'BAD_REQUEST',
+      status: 400,
+    });
+    expect(describeUsernameRefusal(other, 'ada', en)).toBeNull();
+    expect(describeUsernameRefusal(new Error('offline'), 'ada', en)).toBeNull();
   });
 });

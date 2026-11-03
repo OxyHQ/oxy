@@ -30,7 +30,10 @@ export interface ProfileMutationConfig<TData, TVariables> {
   cancelQueryKeys?: unknown[][];
   /** Function to apply optimistic update to the user data */
   optimisticUpdate?: (previousUser: User, variables: TVariables) => Partial<User>;
-  /** Error message to show on failure */
+  /**
+   * What the failure toast says, in the person's language. A function words it
+   * from the error; the server's own `message` is never shown.
+   */
   errorMessage?: string | ((error: Error) => string);
   /** Success message to show (optional) */
   successMessage?: string;
@@ -115,14 +118,9 @@ export function createProfileMutation<TVariables>(
         }
       }
 
-      // Show error toast
-      const message =
-        typeof errorMessage === 'function'
-          ? errorMessage(error)
-          : error instanceof Error
-            ? error.message
-            : errorMessage;
-      toast.error(message);
+      // The caller's words, never the server's `message`: that is English and,
+      // for a validation failure, just "Validation failed".
+      toast.error(typeof errorMessage === 'function' ? errorMessage(error) : errorMessage);
     },
 
     onSuccess: (data, variables) => {
@@ -217,7 +215,8 @@ export function createGenericMutation<TData, TVariables>(
       if (context?.previous !== undefined) {
         queryClient.setQueryData(queryKey, context.previous);
       }
-      toast.error(error instanceof Error ? error.message : errorMessage);
+      // The caller's words, never the server's `message` (English, developer-facing).
+      toast.error(errorMessage);
     },
 
     onSuccess: (data) => {

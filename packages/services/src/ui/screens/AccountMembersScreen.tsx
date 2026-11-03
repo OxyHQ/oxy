@@ -15,20 +15,19 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Divider } from '@oxy.so/bloom/divider';
+import { checkContract, emailAddressCheck } from '@oxy.so/contracts/client';
 import type { AccountMember, AccountRole } from '@oxy.so/core';
 import { accountRoleLabel, getNormalizedUserHandle } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
+import { describeApiError } from '../utils/apiErrorMessage';
 
 /** Roles assignable via invite / role change — everything except `owner`. */
 type AssignableRole = Exclude<AccountRole, 'owner'>;
 
 const ASSIGNABLE_ROLES: AssignableRole[] = ['admin', 'editor', 'developer', 'billing', 'viewer'];
-
-const errorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error && error.message ? error.message : fallback;
 
 /**
  * Manage the members of an account (invite by email, change roles,
@@ -102,7 +101,8 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     onSuccess: () => {
       void invitationsQuery.refetch();
     },
-    onError: (error) => toast.error(errorMessage(error, 'Could not update invitation')),
+    onError: (error) =>
+      toast.error(describeApiError(error, t, t('accounts.members.toasts.invitationUpdateFailed'))),
   });
   const members = useMemo<AccountMember[]>(() => membersQuery.data ?? [], [membersQuery.data]);
   const memberUserIds = useMemo(
@@ -162,21 +162,18 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   const inviteMutation = useMutation({
     mutationKey: ['accounts', 'members', 'invite', id],
-    mutationFn: (input: { usernameOrEmail: string; role: AssignableRole }) =>
-      oxyServices.accounts.invitations.create(id, {
-        email: input.usernameOrEmail,
-        role: input.role,
-      }),
+    mutationFn: (input: { email: string; role: AssignableRole }) =>
+      oxyServices.accounts.invitations.create(id, input),
     onSuccess: () => {
       setInviteIdentifier('');
       setInviteRole('editor');
       setInviteError(null);
       invalidateMembers();
-      toast.success('Invitation sent');
+      toast.success(t('accounts.members.toasts.invited'));
     },
     onError: (error) => {
       invalidateMembers();
-      toast.error(errorMessage(error, 'Could not send invitation'));
+      toast.error(describeApiError(error, t, t('accounts.members.toasts.inviteFailed')));
     },
   });
 
@@ -189,9 +186,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       toast.success(t('accounts.members.toasts.roleUpdated') || 'Role updated');
     },
     onError: (error) => {
-      toast.error(
-        errorMessage(error, t('accounts.members.toasts.roleFailed') || 'Failed to update role'),
-      );
+      toast.error(describeApiError(error, t, t('accounts.members.toasts.roleFailed')));
     },
   });
 
@@ -203,9 +198,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       toast.success(t('accounts.members.toasts.removed') || 'Member removed');
     },
     onError: (error) => {
-      toast.error(
-        errorMessage(error, t('accounts.members.toasts.removeFailed') || 'Failed to remove member'),
-      );
+      toast.error(describeApiError(error, t, t('accounts.members.toasts.removeFailed')));
     },
   });
 
@@ -218,8 +211,9 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     },
     onError: (error) => {
       toast.error(
-        errorMessage(
+        describeApiError(
           error,
+          t,
           t('accounts.members.toasts.transferFailed') || 'Failed to transfer ownership',
         ),
       );
@@ -227,14 +221,19 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   });
 
   const handleInvite = useCallback(() => {
-    const usernameOrEmail = inviteIdentifier.trim();
-    if (!usernameOrEmail) {
-      setInviteError('Enter an email to invite');
+    if (!inviteIdentifier.trim()) {
+      setInviteError(t('accounts.members.errors.emailRequired'));
+      return;
+    }
+    // The contract `POST /accounts/:id/invitations` holds the address to.
+    const email = checkContract(emailAddressCheck, inviteIdentifier);
+    if (email === null) {
+      setInviteError(t('accounts.members.errors.emailInvalid'));
       return;
     }
     setInviteError(null);
-    inviteMutation.mutate({ usernameOrEmail, role: inviteRole });
-  }, [inviteIdentifier, inviteRole, inviteMutation]);
+    inviteMutation.mutate({ email, role: inviteRole });
+  }, [inviteIdentifier, inviteRole, inviteMutation, t]);
 
   const handleChangeRole = useCallback(
     (member: AccountMember, role: AccountRole) => {
@@ -302,11 +301,13 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       {/* Invite form */}
       {canInvite ? (
         <View className="gap-space-12 p-space-16 rounded-radius-20 bg-fill">
-          <Text className="text-body font-semibold text-text">{'Invite a member'}</Text>
+          <Text className="text-body font-semibold text-text">
+            {t('accounts.members.invite.title')}
+          </Text>
           <TextField isInvalid={!!inviteError}>
             <TextFieldInput
               floatingLabel
-              label={'Email'}
+              label={t('accounts.members.invite.emailLabel')}
               value={inviteIdentifier}
               onChangeText={(value) => {
                 setInviteIdentifier(value);
@@ -316,6 +317,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="off"
+              keyboardType="email-address"
             />
           </TextField>
           {inviteError ? (
@@ -350,10 +352,10 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
             onPress={handleInvite}
             disabled={inviteMutation.isPending || !inviteIdentifier.trim()}
             loading={inviteMutation.isPending}
-            accessibilityLabel={'Send invitation'}
+            accessibilityLabel={t('accounts.members.invite.submit')}
             className="w-full"
           >
-            {'Send invitation'}
+            {t('accounts.members.invite.submit')}
           </Button>
         </View>
       ) : null}

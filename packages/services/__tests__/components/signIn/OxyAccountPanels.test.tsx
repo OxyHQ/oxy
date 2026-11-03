@@ -29,7 +29,8 @@ const SESSION: LoginSessionResult = {
 };
 const TICKET = 'T'.repeat(43);
 const BACKUP_CODES = Array.from({ length: 10 }, (_, i) => `abcd${i}-efgh${i}`);
-const apiError = (code: string, status = 401) => Object.assign(new Error(code), { code, status });
+const apiError = (code: string, status = 401, details?: unknown, message = code) =>
+  Object.assign(new Error(message), { code, status, details });
 
 const oxyServices = {
   auth: {
@@ -237,6 +238,23 @@ describe('creating an account', () => {
     expect(screen.queryByTestId('signup-email')).toBeNull();
   });
 
+  it('goes back to the username, worded, when the server refuses it', async () => {
+    oxyServices.auth.signUp.mockRejectedValueOnce(
+      apiError('BAD_REQUEST', 400, { field: 'username' }, 'Username cannot be only numbers'),
+    );
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada@example.com');
+    press('signup-email-continue');
+    await screen.findByTestId('email-code');
+    type('email-code', '123456');
+
+    await screen.findByTestId('signup-username');
+    expect(alertText()).toBe("A username can't be only numbers. Add a letter.");
+  });
+
   it('goes back to the username when it was taken meanwhile', async () => {
     oxyServices.auth.signUp.mockRejectedValueOnce(apiError('USERNAME_TAKEN', 409));
     const onSignedIn = jest.fn();
@@ -342,6 +360,11 @@ describe('deleting an account without a key', () => {
     // Nothing is sent before the username is typed.
     press('reauth-send-code');
     expect(alertText()).toBe('Type "ada" to confirm');
+    expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
+
+    type('delete-account-confirm', 'adaa');
+    press('reauth-send-code');
+    expect(alertText()).toBe('That isn\'t your username. Type "ada" exactly.');
     expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
 
     type('delete-account-confirm', 'ada');

@@ -40,6 +40,8 @@ import type {
 import { logger } from '../logger';
 import { extractErrorStatus } from '../utils/errorUtils';
 
+const enc = encodeURIComponent;
+
 /** One of the signed-in user's devices (`GET /devices`). */
 export interface UserDevice {
   id: string;
@@ -139,7 +141,7 @@ export class DevicesApi {
    * @param deviceId - The device ID to remove
    */
   async remove(deviceId: string): Promise<void> {
-    await this.ctx.request('DELETE', `/devices/${deviceId}`, undefined, { cache: false });
+    await this.ctx.request('DELETE', `/devices/${enc(deviceId)}`, undefined, { cache: false });
   }
 
   /**
@@ -152,7 +154,7 @@ export class DevicesApi {
     // Cache disabled by default to ensure fresh session data
     return this.ctx.request<DeviceLinkedSession[]>(
       'GET',
-      `/session/device/sessions/${sessionId}`,
+      `/session/device/sessions/${enc(sessionId)}`,
       undefined,
       {
         cache: false, // Don't cache sessions - always get fresh data
@@ -178,7 +180,7 @@ export class DevicesApi {
     if (excludeCurrent) urlParams.excludeCurrent = 'true';
     return this.ctx.request<DeviceLinkedSessionLogoutResponse>(
       'POST',
-      `/session/device/logout-all/${sessionId}`,
+      `/session/device/logout-all/${enc(sessionId)}`,
       urlParams,
       { cache: false },
     );
@@ -196,7 +198,7 @@ export class DevicesApi {
   ): Promise<{ success: boolean; message: string; deviceName: string }> {
     return this.ctx.request(
       'PUT',
-      `/session/device/name/${sessionId}`,
+      `/session/device/name/${enc(sessionId)}`,
       { deviceName },
       { cache: false },
     );
