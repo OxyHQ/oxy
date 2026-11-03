@@ -702,7 +702,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.0.0",
+      "version": "14.0.1",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "0.4.1",

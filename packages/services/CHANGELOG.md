@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.0.1] - 2026-11-03
+
+### Fixed
+
+- Dropsea (`so.oxy.dropsea`, and `so.oxy.dropsea.dev`) is an Oxy app on Android: the shared device-session provider's caller allow-list now admits it, so it can read the device's session when signed with the ecosystem key.
+
 ## [13.16.0] - 2026-11-01
 
 ### Added
