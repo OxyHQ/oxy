@@ -71686,6 +71686,231 @@
         "operationId": "postSessionDeviceBackgroundToken"
       }
     },
+    "/session/device/context-evidence-v1": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Opt-in observation of the active shared-device context and the exact bearer",
+        "description": "presented by its holder. This route mints nothing and does not authorize any\nsubsequent operation. It is unavailable until its independent budget and\nRedis are provisioned. Only personal, first-party sessions are supported;\ndelegated, OAuth, legacy and supervised contexts are unavailable. Evidence\nobserves the active context, without asserting the calling client's mode.\nIt is not a lease or permission grant and does not assert bearer scopes.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Writer-observed bearer and active holder context.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "deviceId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "deviceSessionId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "contextId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "actorId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "sessionId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "deviceId",
+                        "deviceSessionId",
+                        "revision",
+                        "contextId",
+                        "actorId",
+                        "accountId",
+                        "sessionId",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unsupported bearer lane.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Holder or active binding unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After may be present.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Session authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "deviceSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "deviceSecret"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceContextEvidenceV1"
+      }
+    },
     "/session/device/context-token-v1": {
       "post": {
         "tags": [

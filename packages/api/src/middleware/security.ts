@@ -466,6 +466,117 @@ const liveGlobalLimiter = rateLimit({
   keyGenerator: () => 'all',
 });
 
+// Holder evidence shares no quota with live server-side authorization. It is
+// disabled until its own capacity is explicitly provisioned on every task.
+const holderEvidenceEnabled = process.env.OXY_HOLDER_EVIDENCE_ENABLED === 'true';
+const holderEvidenceSubjectMax = liveBudget('OXY_HOLDER_EVIDENCE_SUBJECT_PER_MINUTE', 60);
+const holderEvidenceAddressMax = liveBudget('OXY_HOLDER_EVIDENCE_IP_PER_MINUTE', 300);
+const holderEvidenceGlobalMax = liveBudget('OXY_HOLDER_EVIDENCE_GLOBAL_PER_MINUTE', 600);
+const holderEvidenceLimiters =
+  holderEvidenceEnabled &&
+  liveRedisConfigured &&
+  holderEvidenceSubjectMax &&
+  holderEvidenceAddressMax &&
+  holderEvidenceGlobalMax
+    ? {
+        subject: rateLimit({
+          prefix: 'rl:session:holder-evidence:subject:',
+          windowMs: 60_000,
+          max: holderEvidenceSubjectMax,
+          keyGenerator: subjectOrIpKey,
+        }),
+        address: rateLimit({
+          prefix: 'rl:session:holder-evidence:ip:',
+          windowMs: 60_000,
+          max: holderEvidenceAddressMax,
+          keyGenerator: hashedIpKey,
+        }),
+        global: rateLimit({
+          prefix: 'rl:session:holder-evidence:global:',
+          windowMs: 60_000,
+          max: holderEvidenceGlobalMax,
+          keyGenerator: () => 'all',
+        }),
+      }
+    : null;
+
+interface AuthorityBudget {
+  enabled: boolean;
+  errorFormat: 'legacy' | 'holder-evidence';
+  subjectMax: number | null;
+  addressMax: number | null;
+  globalMax: number | null;
+  subjectLimiter: ReturnType<typeof rateLimit>;
+  addressLimiter: ReturnType<typeof rateLimit>;
+  globalLimiter: ReturnType<typeof rateLimit>;
+}
+
+function runAuthorityBudget(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  budget: AuthorityBudget,
+): void {
+  const unavailable = () =>
+    res
+      .status(503)
+      .json(
+        budget.errorFormat === 'holder-evidence'
+          ? { error: 'evidence_unavailable' }
+          : { message: 'Session authority unavailable' },
+      );
+  const invalidBearer = () =>
+    res
+      .status(401)
+      .json(
+        budget.errorFormat === 'holder-evidence'
+          ? { error: 'invalid_bearer' }
+          : { message: 'Bearer cannot be verified' },
+      );
+  const redis = getRedisClient();
+  if (
+    !budget.enabled ||
+    !liveRedisConfigured ||
+    !budget.subjectMax ||
+    !budget.addressMax ||
+    !budget.globalMax ||
+    redis?.status !== 'ready'
+  ) {
+    unavailable();
+    return;
+  }
+  const failClosed: NextFunction = (error?: unknown) => {
+    if (error || redis.status !== 'ready') {
+      unavailable();
+      return;
+    }
+    budget.addressLimiter(req, res, (addressError?: unknown) => {
+      if (addressError || redis.status !== 'ready') {
+        unavailable();
+        return;
+      }
+      if (!process.env.ACCESS_TOKEN_SECRET) {
+        unavailable();
+        return;
+      }
+      const verified = verifiedSession(req);
+      if (!verified.userId || verified.expiresAt === undefined) {
+        // This is budget attribution, not proof that a session has ended.
+        invalidBearer();
+        return;
+      }
+      budget.globalLimiter(req, res, (globalError?: unknown) => {
+        if (globalError || redis.status !== 'ready') {
+          unavailable();
+          return;
+        }
+        next();
+      });
+    });
+  };
+  budget.subjectLimiter(req, res, failClosed);
+}
+
 /** Separate live budget; legacy validations retain their existing limiter. */
 function sessionHeaderValidationBudget(req: Request, res: Response, next: NextFunction): void {
   if (req.header('x-oxy-session-authority') !== 'live-v1') {
@@ -474,49 +585,35 @@ function sessionHeaderValidationBudget(req: Request, res: Response, next: NextFu
   }
   res.setHeader('Cache-Control', 'no-store');
   res.vary('x-oxy-session-authority');
-  const redis = getRedisClient();
-  if (
-    !liveSessionEnabled ||
-    !liveRedisConfigured ||
-    !liveSubjectMax ||
-    !liveAddressMax ||
-    !liveGlobalMax ||
-    redis?.status !== 'ready'
-  ) {
-    res.status(503).json({ message: 'Session authority unavailable' });
+  runAuthorityBudget(req, res, next, {
+    enabled: liveSessionEnabled,
+    errorFormat: 'legacy',
+    subjectMax: liveSubjectMax,
+    addressMax: liveAddressMax,
+    globalMax: liveGlobalMax,
+    subjectLimiter: liveSubjectLimiter,
+    addressLimiter: liveAddressLimiter,
+    globalLimiter: liveGlobalLimiter,
+  });
+}
+
+/** An independent, opt-in budget for holder-context evidence. */
+function holderContextEvidenceBudget(req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!holderEvidenceLimiters) {
+    res.status(503).json({ error: 'evidence_unavailable' });
     return;
   }
-  const failClosed: NextFunction = (error?: unknown) => {
-    if (error || redis.status !== 'ready') {
-      res.status(503).json({ message: 'Session authority unavailable' });
-      return;
-    }
-    liveAddressLimiter(req, res, (addressError?: unknown) => {
-      if (addressError || redis.status !== 'ready') {
-        res.status(503).json({ message: 'Session authority unavailable' });
-        return;
-      }
-      if (!process.env.ACCESS_TOKEN_SECRET) {
-        res.status(503).json({ message: 'Session authority unavailable' });
-        return;
-      }
-      const verified = verifiedSession(req);
-      if (!verified.userId || verified.expiresAt === undefined) {
-        // No invalid-session marker: this is only a cheap budget attribution,
-        // not an authoritative decision that should clear client credentials.
-        res.status(401).json({ message: 'Bearer cannot be verified' });
-        return;
-      }
-      liveGlobalLimiter(req, res, (globalError?: unknown) => {
-        if (globalError || redis.status !== 'ready') {
-          res.status(503).json({ message: 'Session authority unavailable' });
-          return;
-        }
-        next();
-      });
-    });
-  };
-  liveSubjectLimiter(req, res, failClosed);
+  runAuthorityBudget(req, res, next, {
+    enabled: true,
+    errorFormat: 'holder-evidence',
+    subjectMax: holderEvidenceSubjectMax,
+    addressMax: holderEvidenceAddressMax,
+    globalMax: holderEvidenceGlobalMax,
+    subjectLimiter: holderEvidenceLimiters.subject,
+    addressLimiter: holderEvidenceLimiters.address,
+    globalLimiter: holderEvidenceLimiters.global,
+  });
 }
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
@@ -654,6 +751,7 @@ export {
   idpServiceLimiter,
   sessionHeaderValidationLimiter,
   sessionHeaderValidationBudget,
+  holderContextEvidenceBudget,
   federationServiceLimiter,
   authRateLimiter,
   userRateLimiter,

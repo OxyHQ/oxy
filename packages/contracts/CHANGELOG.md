@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.4.0
+
+### Added
+
+- Holder-context evidence contracts (`holderContextEvidenceV1RequestSchema`/`ResponseSchema` and the client checks) for `POST /session/device/context-evidence-v1` (ADR 0053): identifiers and expiry only, no bearer or holder secret.
+
 ## 6.3.0
 
 ### Added

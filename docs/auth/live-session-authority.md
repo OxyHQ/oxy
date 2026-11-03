@@ -100,3 +100,10 @@ rate, and 401/403/429/503 and session-clearing rates before and during adoption.
    it back. Do this before rolling the API back: an older API intentionally
    causes opted-in consumers to return 503. Returning to ordinary validation
    restores its existing cache semantics, not the live-row guarantee.
+
+## Holder-context evidence budgets
+
+`POST /session/device/context-evidence-v1` (ADR 0053) never shares the live-session budget. It is
+off unless `OXY_HOLDER_EVIDENCE_ENABLED=true` and `OXY_HOLDER_EVIDENCE_SUBJECT_PER_MINUTE` (1-60),
+`OXY_HOLDER_EVIDENCE_IP_PER_MINUTE` (1-300) and `OXY_HOLDER_EVIDENCE_GLOBAL_PER_MINUTE` (1-600) are all
+set and Redis is ready; otherwise it answers `503 evidence_unavailable`.

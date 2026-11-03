@@ -233,6 +233,35 @@ const PAIRS: Pair[] = [
     ],
   },
   {
+    name: 'holderContextEvidenceV1Request',
+    check: client.holderContextEvidenceV1RequestCheck,
+    schema: contracts.holderContextEvidenceV1RequestSchema,
+    samples: [
+      { deviceId: 'device-1', deviceSecret: 'secret' },
+      { deviceId: 'd'.repeat(128), deviceSecret: 's'.repeat(256) },
+      { deviceId: 'd'.repeat(129), deviceSecret: 'secret' },
+      { deviceId: 'device-1', deviceSecret: 's'.repeat(257) },
+    ],
+  },
+  {
+    name: 'holderContextEvidenceV1Response',
+    check: client.holderContextEvidenceV1ResponseCheck,
+    schema: contracts.holderContextEvidenceV1ResponseSchema,
+    samples: [
+      {
+        version: 1,
+        deviceId: 'device-1',
+        deviceSessionId: 'row-1',
+        revision: 5,
+        contextId: 'context-1',
+        actorId: 'actor-1',
+        accountId: 'actor-1',
+        sessionId: 'session-1',
+        expiresAt: ISO,
+      },
+    ],
+  },
+  {
     name: 'sessionAccountsChangedEvent',
     check: client.sessionAccountsChangedEventCheck,
     schema: contracts.sessionAccountsChangedEventSchema,

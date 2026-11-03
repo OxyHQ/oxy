@@ -6,6 +6,8 @@ import {
   deviceBackgroundTokenRequestSchema,
   deviceContextTokenV1RequestSchema,
   deviceContextTokenV1ResponseSchema,
+  holderContextEvidenceV1RequestSchema,
+  holderContextEvidenceV1ResponseSchema,
   deviceJoinCodeRequestSchema,
   deviceJoinCodeResponseSchema,
   deviceJoinRequestSchema,
@@ -19,6 +21,7 @@ import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { sendRateLimited } from '../middleware/errorHandler';
 import { rateLimit } from '../middleware/rateLimiter';
+import { holderContextEvidenceBudget } from '../middleware/security';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
@@ -34,6 +37,11 @@ import {
   deviceContextTokenV1EnvelopeSchema,
   deviceContextTokenV1ErrorSchema,
 } from '../schemas/deviceContextToken.schemas';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  holderContextEvidenceV1EnvelopeSchema,
+  holderContextEvidenceV1ErrorSchema,
+} from '../schemas/holderContextEvidence.schemas';
 
 const router = Router();
 
@@ -239,6 +247,77 @@ router.post(
       return;
     }
     res.json({ data: deviceContextTokenV1ResponseSchema.parse({ version: 1, ...result }) });
+  }),
+);
+
+/**
+ * Opt-in observation of the active shared-device context and the exact bearer
+ * presented by its holder. This route mints nothing and does not authorize any
+ * subsequent operation. It is unavailable until its independent budget and
+ * Redis are provisioned. Only personal, first-party sessions are supported;
+ * delegated, OAuth, legacy and supervised contexts are unavailable. Evidence
+ * observes the active context, without asserting the calling client's mode.
+ * It is not a lease or permission grant and does not assert bearer scopes.
+ *
+ * @requestBody holderContextEvidenceV1RequestSchema
+ * @response 200 holderContextEvidenceV1EnvelopeSchema Writer-observed bearer and active holder context.
+ * @response 400 holderContextEvidenceV1ErrorSchema Invalid request body.
+ * @response 401 holderContextEvidenceV1ErrorSchema Missing or invalid bearer.
+ * @response 403 holderContextEvidenceV1ErrorSchema Unsupported bearer lane.
+ * @response 409 holderContextEvidenceV1ErrorSchema Holder or active binding unavailable.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ * @response 503 holderContextEvidenceV1ErrorSchema Session authority unavailable.
+ */
+router.post(
+  '/context-evidence-v1',
+  holderContextEvidenceBudget,
+  asyncHandler(async (req: Request, res: Response) => {
+    const authorizationHeaders = req.rawHeaders.filter(
+      (_value, index) =>
+        index % 2 === 0 && req.rawHeaders[index]?.toLowerCase() === 'authorization',
+    );
+    const authorization = req.headers.authorization;
+    if (
+      authorizationHeaders.length !== 1 ||
+      typeof authorization !== 'string' ||
+      !/^Bearer [^\s]+$/.test(authorization)
+    ) {
+      res.status(401).json({ error: 'invalid_bearer' });
+      return;
+    }
+    const parsed = holderContextEvidenceV1RequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_request' });
+      return;
+    }
+    try {
+      const result = await deviceSessionService.resolveHolderContextEvidence(
+        parsed.data.deviceId,
+        parsed.data.deviceSecret,
+        authorization.slice(7),
+      );
+      if (result.status === 'invalid_bearer') {
+        res.status(401).json({ error: 'invalid_bearer' });
+        return;
+      }
+      if (result.status === 'unsupported_bearer') {
+        res.status(403).json({ error: 'unsupported_bearer' });
+        return;
+      }
+      if (result.status === 'binding_unavailable') {
+        res.status(409).json({ error: 'binding_unavailable' });
+        return;
+      }
+      res.json({ data: holderContextEvidenceV1ResponseSchema.parse(result.evidence) });
+    } catch (error: unknown) {
+      // Do not log a query, its parameters or the bearer: this is a holder
+      // credential endpoint. An unconfirmed failure is never a logout verdict.
+      logger.warn('holder context evidence unavailable', {
+        component: 'DeviceSession',
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+      res.status(503).json({ error: 'evidence_unavailable' });
+    }
   }),
 );
 

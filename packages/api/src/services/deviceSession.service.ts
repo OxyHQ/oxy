@@ -44,6 +44,11 @@ import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
 import { logger } from '../utils/logger';
 import {
+  classifyHolderBearer,
+  holderContextEvidence,
+  type HolderContextEvidenceResult,
+} from './holderContextEvidence';
+import {
   ACCESS_TOKEN_VERSION,
   checkAccessTokenBinding,
   validateAccessToken,
@@ -390,6 +395,93 @@ export type AddAccountResult = { state: DeviceSessionState; changed: boolean };
 
 /** The holder-proven active context, not an authorization grant or graph snapshot. */
 export type HolderContextToken = Omit<DeviceContextTokenV1Response, 'version'>;
+
+/** The common holder/context join used by the existing mint and evidence read. */
+function holderContextBindingQuery(
+  db: Queryable,
+  deviceId: string,
+  rawSecret: string,
+  accessToken?: string,
+) {
+  const personSession = alias(sessions, 'holder_context_person_session');
+  return db
+    .select({
+      // Each expression needs a unique SQL alias: this query is also used as a
+      // subquery and several joined tables have an `id` column.
+      credentialId: sql`${deviceCredentials.id}`.mapWith(deviceCredentials.id).as('credential_id'),
+      deviceSessionId: sql`${deviceSessions.id}`.mapWith(deviceSessions.id).as('device_session_id'),
+      revision: sql`${deviceSessions.revision}`.mapWith(deviceSessions.revision).as('revision'),
+      contextId: sql`${deviceAccountContexts.id}`
+        .mapWith(deviceAccountContexts.id)
+        .as('context_id'),
+      actorId: sql`${devicePrincipals.userId}`.mapWith(devicePrincipals.userId).as('actor_id'),
+      accountId: sql`${deviceAccountContexts.accountId}`
+        .mapWith(deviceAccountContexts.accountId)
+        .as('account_id'),
+      sessionId: sql`${sessions.sessionId}`.mapWith(sessions.sessionId).as('session_id'),
+      personSessionId: sql`${personSession.sessionId}`
+        .mapWith(personSession.sessionId)
+        .as('person_session_id'),
+      operatedByUserId: sql`${sessions.operatedByUserId}`
+        .mapWith(sessions.operatedByUserId)
+        .as('operated_by_user_id'),
+      applicationId: sql`${sessions.applicationId}`
+        .mapWith(sessions.applicationId)
+        .as('application_id'),
+      clientId: sql`${sessions.clientId}`.mapWith(sessions.clientId).as('client_id'),
+      scopes: sql`${sessions.scopes}`.mapWith(sessions.scopes).as('scopes'),
+      sessionExpiresAt: sql`${sessions.expiresAt}`
+        .mapWith(sessions.expiresAt)
+        .as('session_expires_at'),
+      accessToken: sql`${sessions.accessToken}`.mapWith(sessions.accessToken).as('access_token'),
+    })
+    .from(deviceSessions)
+    .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+    .innerJoin(
+      deviceAccountContexts,
+      and(
+        eq(deviceAccountContexts.id, deviceSessions.activeContextId),
+        eq(deviceAccountContexts.deviceSessionId, deviceSessions.id),
+      ),
+    )
+    .innerJoin(
+      devicePrincipals,
+      and(
+        eq(devicePrincipals.id, deviceAccountContexts.principalId),
+        eq(devicePrincipals.deviceSessionId, deviceSessions.id),
+      ),
+    )
+    .innerJoin(sessions, eq(sessions.sessionId, deviceAccountContexts.sessionId))
+    .innerJoin(personSession, eq(personSession.sessionId, devicePrincipals.personalSessionId))
+    .where(
+      and(
+        eq(deviceSessions.deviceId, deviceId),
+        eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+        eq(deviceSessions.activeAccountId, deviceAccountContexts.accountId),
+        isNull(deviceAccountContexts.revokedAt),
+        isNull(devicePrincipals.revokedAt),
+        eq(sessions.userId, deviceAccountContexts.accountId),
+        eq(sessions.deviceId, deviceId),
+        eq(sessions.deviceSessionId, deviceSessions.id),
+        eq(sessions.deviceContextId, deviceAccountContexts.id),
+        eq(sessions.isActive, true),
+        gt(sessions.expiresAt, sql`now()`),
+        eq(personSession.userId, devicePrincipals.userId),
+        eq(personSession.deviceId, deviceId),
+        eq(personSession.isActive, true),
+        gt(personSession.expiresAt, sql`now()`),
+        or(
+          and(
+            eq(devicePrincipals.userId, deviceAccountContexts.accountId),
+            isNull(sessions.operatedByUserId),
+          ),
+          eq(sessions.operatedByUserId, devicePrincipals.userId),
+        ),
+        accessToken === undefined ? undefined : eq(sessions.accessToken, accessToken),
+      ),
+    )
+    .limit(1);
+}
 
 class DeviceSessionService {
   /** The `device_sessions` row alone, without its principals or contexts. */
@@ -1021,70 +1113,8 @@ class DeviceSessionService {
   ): Promise<HolderContextToken | null> {
     if (!deviceId || !rawSecret) return null;
     const db = getDb();
-    const personSession = alias(sessions, 'holder_context_person_session');
     const readBinding = async (accessToken?: string) => {
-      const [row] = await db
-        .select({
-          credentialId: deviceCredentials.id,
-          deviceSessionId: deviceSessions.id,
-          revision: deviceSessions.revision,
-          contextId: deviceAccountContexts.id,
-          actorId: devicePrincipals.userId,
-          accountId: deviceAccountContexts.accountId,
-          sessionId: sessions.sessionId,
-          personSessionId: personSession.sessionId,
-          operatedByUserId: sessions.operatedByUserId,
-          applicationId: sessions.applicationId,
-          clientId: sessions.clientId,
-          scopes: sessions.scopes,
-          sessionExpiresAt: sessions.expiresAt,
-        })
-        .from(deviceSessions)
-        .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
-        .innerJoin(
-          deviceAccountContexts,
-          and(
-            eq(deviceAccountContexts.id, deviceSessions.activeContextId),
-            eq(deviceAccountContexts.deviceSessionId, deviceSessions.id),
-          ),
-        )
-        .innerJoin(
-          devicePrincipals,
-          and(
-            eq(devicePrincipals.id, deviceAccountContexts.principalId),
-            eq(devicePrincipals.deviceSessionId, deviceSessions.id),
-          ),
-        )
-        .innerJoin(sessions, eq(sessions.sessionId, deviceAccountContexts.sessionId))
-        .innerJoin(personSession, eq(personSession.sessionId, devicePrincipals.personalSessionId))
-        .where(
-          and(
-            eq(deviceSessions.deviceId, deviceId),
-            eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
-            eq(deviceSessions.activeAccountId, deviceAccountContexts.accountId),
-            isNull(deviceAccountContexts.revokedAt),
-            isNull(devicePrincipals.revokedAt),
-            eq(sessions.userId, deviceAccountContexts.accountId),
-            eq(sessions.deviceId, deviceId),
-            eq(sessions.deviceSessionId, deviceSessions.id),
-            eq(sessions.deviceContextId, deviceAccountContexts.id),
-            eq(sessions.isActive, true),
-            gt(sessions.expiresAt, sql`now()`),
-            eq(personSession.userId, devicePrincipals.userId),
-            eq(personSession.deviceId, deviceId),
-            eq(personSession.isActive, true),
-            gt(personSession.expiresAt, sql`now()`),
-            or(
-              and(
-                eq(devicePrincipals.userId, deviceAccountContexts.accountId),
-                isNull(sessions.operatedByUserId),
-              ),
-              eq(sessions.operatedByUserId, devicePrincipals.userId),
-            ),
-            accessToken === undefined ? undefined : eq(sessions.accessToken, accessToken),
-          ),
-        )
-        .limit(1);
+      const [row] = await holderContextBindingQuery(db, deviceId, rawSecret, accessToken);
       return row ?? null;
     };
 
@@ -1169,6 +1199,47 @@ class DeviceSessionService {
       accessToken: token.accessToken,
       expiresAt: expiresAt.toISOString(),
     };
+  }
+
+  /**
+   * Observe the active holder/context and its exact already-installed bearer.
+   * This does not mint or rotate any credential and is not a permission grant.
+   * The final binding and writer check share one statement and snapshot, even
+   * when no holder/context matches. A later request must still be authorized.
+   * Only a personal context whose principal session is this same validated
+   * session is supported. Delegated and supervised policies need a separate
+   * complete authority contract before they can use this evidence.
+   */
+  async resolveHolderContextEvidence(
+    deviceId: string,
+    rawSecret: string,
+    accessToken: string,
+  ): Promise<HolderContextEvidenceResult> {
+    const validated = await sessionService.validateSession(accessToken, { liveSession: true });
+    if (!validated) return { status: 'invalid_bearer' };
+    const classification = classifyHolderBearer(validated, deviceId);
+    if (classification !== 'valid') return { status: classification };
+
+    const db = getDb();
+    const binding = holderContextBindingQuery(db, deviceId, rawSecret).as('holder_evidence');
+    const [observation] = await db
+      .select({
+        inRecovery: sql<boolean>`pg_catalog.pg_is_in_recovery()`,
+        credentialId: binding.credentialId,
+        deviceSessionId: binding.deviceSessionId,
+        revision: binding.revision,
+        contextId: binding.contextId,
+        actorId: binding.actorId,
+        accountId: binding.accountId,
+        sessionId: binding.sessionId,
+        personSessionId: binding.personSessionId,
+        accessToken: binding.accessToken,
+        sessionExpiresAt: binding.sessionExpiresAt,
+      })
+      .from(sql`(select 1) as holder_evidence_authority`)
+      .leftJoin(binding, sql`true`)
+      .limit(1);
+    return holderContextEvidence(validated, deviceId, accessToken, observation);
   }
 
   async signout(
