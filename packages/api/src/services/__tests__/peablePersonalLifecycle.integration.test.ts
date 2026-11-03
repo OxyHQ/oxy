@@ -332,7 +332,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
       expect(deliveries).toHaveLength(1);
       expect(deliveries[0].event).toMatchObject({
         type: 'billing.observation.updated',
-        data: { object: { resourceId: 'in_fixture', resourceKind: 'invoice', revision: 1 } },
+        data: { object: { resource_id: 'in_fixture', resource_kind: 'invoice', revision: 1 } },
       });
       const verify = (body: string, signature: string) => rpc('verifyEvent', [body, signature]);
       await expect(
@@ -566,7 +566,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
               await rpc('relay', [], { enabled: true });
               const events = await rpc('deliveries');
               const wake = events
-                .filter((v: any) => v.event.data.object.resourceKind === 'subscription')
+                .filter((v: any) => v.event.data.object.resource_kind === 'subscription')
                 .at(-1);
               validationNow = new Date(validationNow.getTime() + 1);
               await handlePeablePersonalObservation(

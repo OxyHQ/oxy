@@ -314,6 +314,7 @@ it('subscription wake observation time is captured before an awaited source look
       data: {
         object: {
           object: 'billing_observation',
+          livemode: true,
           resource_kind: 'subscription',
           resource_id: context.subscriptionId,
           revision: 1,

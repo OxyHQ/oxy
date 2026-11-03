@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.6.0
+
+### Added
+
+- Authenticated product checkout configuration and embedded CheckoutSession bindings scoped to subject, merchant, offer version, environment and quoted amounts.
+- Payer-provided billing address, immutable checkout presentation, completed-session recovery without a client secret, and an explicit safe pre-creation location correction result.
+
+
 ## 6.5.0
 
 ### Added

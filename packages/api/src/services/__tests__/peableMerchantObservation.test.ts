@@ -15,6 +15,7 @@ function fixture() {
     data: {
       object: {
         object: 'billing_observation',
+        livemode: true,
         resource_kind: 'invoice',
         resource_id: 'in_fixture',
         subscription_id: 'sub_fixture',

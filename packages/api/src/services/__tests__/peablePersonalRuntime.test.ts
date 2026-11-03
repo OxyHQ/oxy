@@ -287,7 +287,7 @@ it('keeps a production process without configuration closed and starts no recove
   }
 });
 
-async function pendingCheckoutFixture() {
+async function pendingCheckoutFixture(observationsEnabled = false) {
   await connectPostgres();
   const account = await productAccessFixture();
   const intentId = randomUUID();
@@ -464,7 +464,26 @@ async function pendingCheckoutFixture() {
     oxy_app_id: account.app.id,
     environment: 'production',
   }));
+  const observation = {
+    id: `evt_${intentId}`,
+    object: 'event',
+    type: 'billing.observation.updated',
+    livemode: true,
+    created: Math.floor(account.now.getTime() / 1000),
+    data: {
+      object: {
+        object: 'billing_observation',
+        livemode: true,
+        resource_kind: 'invoice',
+        resource_id: paid.invoiceId,
+        subscription_id: subscription.providerSubscriptionId,
+        revision: 1,
+        observed_at: Math.floor(account.now.getTime() / 1000),
+      },
+    },
+  };
   const client = {
+    webhooks: { constructEvent: jest.fn(() => observation) },
     merchants: { retrieve: retrieveMerchant },
     billing: {
       retrieveCheckout: async () => sdkWire(await retrieveCheckout()),
@@ -482,6 +501,7 @@ async function pendingCheckoutFixture() {
       applicationId: account.app.id,
       namespace: { mode: 'live', environment: 'production' },
       recoveryEnabled: true,
+      observationsEnabled,
       offers: [
         {
           offerId: account.offers[0].id,
@@ -491,7 +511,7 @@ async function pendingCheckoutFixture() {
         },
       ],
     },
-    undefined,
+    observationsEnabled ? 'fixture_observation_secret' : undefined,
     { clock: () => account.now },
   );
   return {
@@ -791,4 +811,19 @@ it('requires a dedicated profile before reading configuration or resolving ambie
   } finally {
     process.env = previous;
   }
+});
+
+it('routes a merchant observation through its owned checkout and requires current catalogue authority on replay', async () => {
+  const test = await pendingCheckoutFixture(true);
+  await test.runtime.observeMerchant('{}', 'verified');
+  await expect(test.runtime.observeMerchant('{}', 'verified')).rejects.toThrow(
+    'price authority unavailable',
+  );
+  const [intent] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.id, test.intentId));
+  expect(intent.state).toBe('fulfilled');
+  expect(intent.initialInvoiceId).toBe(test.paid.invoiceId);
+  expect(test.retrieveFinalInvoiceAuthority).toHaveBeenCalled();
 });

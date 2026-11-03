@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 7.14.0
+
+### Added
+
+- `billing.productCheckoutConfiguration(productId, expectedSubjectAccountId)` reads authenticated public payment capabilities without creating a customer or payment.
+- Product checkout uses contracts 6.6.0 for scoped embedded sessions, payer billing evidence and durable completion/correction recovery.
+
+
 ## 7.13.0
 
 ### Added

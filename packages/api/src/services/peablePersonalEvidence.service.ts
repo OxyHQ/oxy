@@ -530,6 +530,7 @@ export const peablePersonalObservationSchema = z
         object: z
           .object({
             object: z.literal('billing_observation'),
+            livemode: z.boolean(),
             resource_kind: z.enum(['subscription', 'invoice']),
             resource_id: z.string().check(utf16MinLength(1)),
             subscription_id: z.string().check(utf16MinLength(1)).optional(),
@@ -540,7 +541,11 @@ export const peablePersonalObservationSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (event) => event.livemode === event.data.object.livemode,
+    'Peable observation mode differs',
+  );
 /** Context comes from the server's existing owner-bound
  * checkout/source, never from delivery fields. Replays reread current provider state. */
 export async function handlePeablePersonalObservation(

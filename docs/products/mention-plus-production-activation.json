@@ -80,16 +80,16 @@
       "method": "PATCH",
       "pathTemplate": "/v1/dashboard/applications/{billingApplicationId}/tax/settings",
       "body": {
-        "legalName": "Oxy Platforms, Inc.",
-        "headOffice": {
+        "legal_name": "Oxy Platforms, Inc.",
+        "head_office": {
           "line1": "2810 N Church St",
           "line2": "STE 91894",
           "city": "Wilmington",
           "state": "DE",
-          "postalCode": "19802",
+          "postal_code": "19802",
           "country": "US"
         },
-        "defaultTaxBehavior": "inclusive"
+        "default_tax_behavior": "inclusive"
       },
       "omittedPendingDecision": [],
       "approval": "Owner dashboard billing:manage approval remains required; do not invoke approve as part of drafting"
@@ -141,7 +141,7 @@
       "computedAt": null,
       "locations": []
     },
-    "interpretation": "No registrations were returned in this connected Oxy provider account. The deployed Peable account is different, so these results do not establish its configuration. Neither result establishes legal registrations or obligations. Tax registration status remains unknown_requires_verification; no tax settings or registrations were changed.",
+    "interpretation": "Historical readback before the provider account correction. Neither provider registration-list emptiness nor current configuration establishes actual legal registrations or obligations. Correct Oxy account provisioning is recorded separately; tax registrations remain unknown and no registrations were changed.",
     "accountId": "acct_1USWGhAofUef123L",
     "accountScope": "Connected Oxy account; NOT the deployed Peable provider account"
   },
@@ -254,7 +254,7 @@
     "bindingTask": "db5b15e74e9b4e77816cac6f8226b140",
     "bindingProvider": "aws-iam",
     "sourceRolePreserved": true,
-    "merchantRegistration": "pending_authorized_request"
+    "merchantRegistration": "created_and_verified"
   },
   "personalCheckoutInventory": {
     "observedOn": "2026-11-03",

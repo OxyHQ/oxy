@@ -1,7 +1,7 @@
 import { randomUUID, generateKeyPairSync, sign } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
-import { accessGrants, personalPlanCheckoutIntents } from '../../db/schema';
+import { accessGrants, personalPlanCheckoutIntents, users } from '../../db/schema';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
 import {
   EMPTY_PRODUCT_BILLING_CATALOGUE,
@@ -888,6 +888,7 @@ it('returns only the current owner capability and recovers completed embedded se
   const request = { ...f.request, productId, offerId: offer.id, presentation: 'embedded' as const };
   let observed: 'open' | 'complete' | 'expired' = 'open';
   let foreignSubject = false;
+  let archiveDuringRead = false;
   const create = jest.fn(async () => ({
     sessionId: 'cs_embedded_fixture',
     expiresAt: '2099-01-01T00:00:00.000Z',
@@ -897,8 +898,10 @@ it('returns only the current owner capability and recovers completed embedded se
     supportsEmbedded: true,
     create,
     prepare: async (input) => authority(input, 'embedded_quote'),
-    readEmbedded: async (input, sessionId) =>
-      observed === 'open'
+    readEmbedded: async (input, sessionId) => {
+      if (archiveDuringRead)
+        await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, f.payer));
+      return observed === 'open'
         ? {
             status: 'open',
             checkout: {
@@ -924,7 +927,8 @@ it('returns only the current owner capability and recovers completed embedded se
               },
             },
           }
-        : { status: observed },
+        : { status: observed };
+    },
   };
   const dependencies = { catalogue: f.catalogue, provider };
   const first = await startProductPlanCheckout(f.payer, request, dependencies);
@@ -944,6 +948,12 @@ it('returns only the current owner capability and recovers completed embedded se
     'authority differs',
   );
   foreignSubject = false;
+  archiveDuringRead = true;
+  await expect(startProductPlanCheckout(f.payer, request, dependencies)).rejects.toThrow(
+    'Personal account is unavailable',
+  );
+  archiveDuringRead = false;
+  await getDb().update(users).set({ accountStatus: 'active' }).where(eq(users.id, f.payer));
   observed = 'complete';
   expect(await startProductPlanCheckout(f.payer, request, dependencies)).toEqual({
     state: 'pending',
