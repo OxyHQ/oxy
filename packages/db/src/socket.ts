@@ -50,6 +50,7 @@
 
 import net from 'node:net';
 import { Duplex } from 'node:stream';
+import type postgres from 'postgres';
 
 /** The `code` a {@link QueryDeadlineError} carries, alongside postgres.js's own codes. */
 export const QUERY_DEADLINE_EXCEEDED = 'QUERY_DEADLINE_EXCEEDED';
@@ -81,51 +82,32 @@ export function isQueryDeadlineError(error: unknown): boolean {
 }
 
 /**
- * The parts of postgres.js's parsed options this hook reads. postgres.js
- * passes its whole parsed options object; with a `socket` hook it no longer
- * connects or sets keepalive on its own, so both are done here.
- */
-export interface SocketTarget {
-  readonly host: readonly string[];
-  readonly port: readonly number[];
-  readonly path?: string | false | null;
-  /** Seconds; falsy means no keepalive, as in postgres.js. */
-  readonly keep_alive?: number | null | false;
-}
-
-/**
  * The `socket` option for a postgres.js client: one {@link DeadlineSocket} per
- * connection. Multiple hosts are tried in turn, one per new connection, as
- * postgres.js does without the hook.
+ * connection. postgres.js picks the host and port (trying several in turn) and
+ * sets keepalive on what this returns, so the hook only connects.
  */
-export function deadlineSocketFactory(deadlineMs: number): (target: SocketTarget) => Duplex {
-  let attempt = 0;
-  return (target) => {
-    const index = attempt++ % Math.max(1, target.host.length);
-    const host = target.host[index];
-    const port = target.port[index] ?? target.port[0];
-    const inner = target.path ? net.connect(target.path) : net.connect(port, host);
-    const keepAliveSeconds = target.keep_alive;
-    if (keepAliveSeconds) {
-      inner.once('connect', () => inner.setKeepAlive(true, keepAliveSeconds * 1000));
-    }
-    return new DeadlineSocket(inner, deadlineMs, host);
+export function deadlineSocketFactory(
+  deadlineMs: number,
+): (options: postgres.ParsedOptions, host: string, port: number) => DeadlineSocket {
+  return (options, host, port) => {
+    const inner = options.path ? net.connect(options.path) : net.connect(port, host);
+    // What postgres.js does to the sockets it opens itself: requests are small
+    // and each waits on its answer, so Nagle would only add latency.
+    inner.setNoDelay(true);
+    return new DeadlineSocket(inner, deadlineMs);
   };
 }
 
 /** A TCP socket behind a Duplex that destroys itself when the server goes silent. */
 export class DeadlineSocket extends Duplex {
-  /** Read by postgres.js as the TLS `servername`. */
-  readonly host: string | undefined;
   readonly #inner: net.Socket;
   readonly #deadlineMs: number;
   #timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(inner: net.Socket, deadlineMs: number, host?: string) {
+  constructor(inner: net.Socket, deadlineMs: number) {
     super({ allowHalfOpen: false });
     this.#inner = inner;
     this.#deadlineMs = deadlineMs;
-    this.host = host;
     inner.on('data', (chunk: Buffer) => {
       this.#answered();
       if (!this.push(chunk)) inner.pause();
@@ -135,18 +117,8 @@ export class DeadlineSocket extends Duplex {
     inner.on('close', () => this.destroy());
   }
 
-  /** postgres.js sends its Terminate message only to an `'open'` socket. */
-  get readyState(): string {
-    return this.#inner.readyState;
-  }
-
   setKeepAlive(enable?: boolean, initialDelay?: number): this {
     this.#inner.setKeepAlive(enable, initialDelay);
-    return this;
-  }
-
-  setNoDelay(noDelay?: boolean): this {
-    this.#inner.setNoDelay(noDelay);
     return this;
   }
 

@@ -106,10 +106,7 @@ export function withStatementTimeout<T extends Readonly<Record<string, unknown>>
   return { statement_timeout: statementTimeoutMs, ...connection };
 }
 
-/** postgres.js's options, plus the `socket` hook its type declarations omit. */
-type ClientSettings = postgres.Options<Record<string, never>> & {
-  socket?: ReturnType<typeof deadlineSocketFactory>;
-};
+type ClientSettings = postgres.Options<Record<string, never>>;
 
 /**
  * Open a postgres.js client with this package's limits (see the module
