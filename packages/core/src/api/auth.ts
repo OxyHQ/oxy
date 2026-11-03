@@ -1622,10 +1622,15 @@ export class AuthApi {
    */
   async checkUsername(username: string): Promise<{ available: boolean; message: string }> {
     // Public availability lookup (pre-session) — skip the bearer preflight.
-    return this.ctx.request('GET', `/auth/check-username/${username}`, undefined, {
-      cache: false,
-      skipAuth: true,
-    });
+    return this.ctx.request(
+      'GET',
+      `/auth/check-username/${encodeURIComponent(username)}`,
+      undefined,
+      {
+        cache: false,
+        skipAuth: true,
+      },
+    );
   }
 
   /**

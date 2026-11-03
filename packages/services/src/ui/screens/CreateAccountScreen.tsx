@@ -15,11 +15,7 @@ import {
 import {
   applyBotUsernameSuffix,
   stripDisallowedUsernameCharacters,
-  usernameCheckForAccountKind,
-  BOT_USERNAME_INVALID_MESSAGE,
-  USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
-  USERNAME_MIN_LENGTH,
 } from '@oxy.so/contracts/client';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
@@ -32,6 +28,7 @@ import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-sectio
 import { useOxy } from '../context/oxyRuntimeContext';
 import { AccountCategoriesSection } from '../components/accountSettings/AccountCategoriesSection';
 import { toast } from '@oxy.so/bloom/toast';
+import { checkUsernameDraft } from '../utils/usernamePolicy';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
@@ -169,35 +166,20 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       }
       const seq = ++usernameCheckSeqRef.current;
 
-      if (!value || value.length < USERNAME_MIN_LENGTH) {
-        setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
-        setUsernameMessage(
-          value.length > 0
-            ? t('accounts.create.username.tooShort') ||
-                `Username must be at least ${USERNAME_MIN_LENGTH} characters`
-            : '',
-        );
+      if (!value) {
+        setUsernameStatus('idle');
+        setUsernameMessage('');
         return;
       }
 
-      // The ONE policy, from `@oxy.so/contracts`, for the kind being created. This
-      // screen used to carry a private copy of the rule, and the server it talks to
-      // enforced a LOOSER one — so a name this field refused was a name
-      // `POST /accounts` would happily have stored.
-      //
-      // WHICH half failed decides the copy: for a bot the rule has two, and telling
-      // somebody who typed `a.b` to append `bot` sends them to be refused a second
-      // time. The issue is read to choose between two LOCALIZED strings rather than
-      // shown directly — the schema's message is English, and this screen is not.
-      const checked = usernameCheckForAccountKind(forKind)(value, []);
+      // The ONE policy, from `@oxy.so/contracts`, for the kind being created
+      // (`POST /accounts` holds it to the same one), worded by the rule that
+      // failed: telling somebody who typed `a--b` to append `bot` sends them to
+      // be refused a second time.
+      const checked = checkUsernameDraft(value, t, forKind);
       if (!checked.ok) {
-        const failedTheLabel = checked.issue.message === BOT_USERNAME_INVALID_MESSAGE;
         setUsernameStatus('invalid');
-        setUsernameMessage(
-          failedTheLabel
-            ? t('accounts.create.username.mustEndInBot') || BOT_USERNAME_INVALID_MESSAGE
-            : t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE,
-        );
+        setUsernameMessage(checked.error);
         return;
       }
 
@@ -209,18 +191,16 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
           const result = await oxyServices.auth.checkUsername(value);
           if (seq !== usernameCheckSeqRef.current) return;
           setUsernameStatus(result.available ? 'available' : 'taken');
+          // The server's `message` is English; the copy is ours.
           setUsernameMessage(
-            result.message ||
-              (result.available
-                ? t('accounts.create.username.available') || 'Username is available'
-                : t('accounts.create.username.taken') || 'Username is taken'),
+            result.available
+              ? t('accounts.create.username.available')
+              : t('accounts.create.username.taken'),
           );
         } catch {
           if (seq !== usernameCheckSeqRef.current) return;
           setUsernameStatus('idle');
-          setUsernameMessage(
-            t('accounts.create.username.checkFailed') || 'Could not check availability',
-          );
+          setUsernameMessage(t('accounts.create.username.checkFailed'));
         }
       }, DEBOUNCE_MS);
     },

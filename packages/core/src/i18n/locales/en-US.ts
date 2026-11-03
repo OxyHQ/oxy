@@ -247,6 +247,18 @@ const dict = {
         'It expired or was already used. Ask for a new email in the app, or type the code from the latest one.',
     },
   },
+  usernamePolicy: {
+    hint: 'Letters, numbers, - and _. No spaces.',
+    required: 'Choose a username.',
+    tooShort: 'Use at least {{min}} characters.',
+    tooLong: 'Use at most {{max}} characters.',
+    noSpaces: "Usernames can't contain spaces. Use - or _ instead.",
+    characters:
+      'Use only letters, numbers, - and _. Start and end with a letter or number, and never put two of - or _ together.',
+    onlyNumbers: "A username can't be only numbers. Add a letter.",
+    reserved: 'That username is reserved. Choose another one.',
+    mustEndInBot: 'A bot account’s username must end in “bot”.',
+  },
   signup: {
     title: 'Create your account',
     subtitle: 'Choose your username. Then we confirm your email.',
@@ -255,7 +267,6 @@ const dict = {
     username: {
       label: 'Username',
       placeholder: 'yourname',
-      required: 'Choose a username.',
       taken: 'That username is taken.',
     },
     email: {
@@ -632,8 +643,6 @@ const dict = {
         label: 'Username',
         placeholder: 'Choose a username',
         choose: 'Choose a username',
-        required: 'Username is required',
-        tooShort: 'Username must be at least 3 characters',
       },
       email: {
         title: 'Email',
@@ -1300,7 +1309,7 @@ const dict = {
       rules: {
         title: 'Username rules',
         content:
-          'Usernames can only contain lowercase letters (a-z) and numbers (0-9). They must be at least 4 characters long. Special characters, spaces, and uppercase letters are not allowed to keep usernames simple and easy to remember.',
+          'Usernames are 3 to 30 characters long and use letters, numbers, hyphens (-) and underscores (_). They start and end with a letter or number, never put two of - or _ together, and are not only numbers. Spaces are not allowed. Capital letters are kept as you type them, but Alice and alice are the same username.',
       },
       unique: {
         title: 'Why must it be unique?',
@@ -1892,9 +1901,6 @@ const dict = {
         label: 'Username',
         available: 'Username is available',
         taken: 'Username is taken',
-        tooShort: 'Username must be at least 3 characters',
-        invalidChars: 'Only letters, numbers, hyphens, and underscores',
-        mustEndInBot: 'A bot account’s username must end in “bot”',
         checkFailed: 'Could not check availability',
       },
       accountCategory: {

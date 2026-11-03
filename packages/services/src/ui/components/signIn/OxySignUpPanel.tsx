@@ -16,12 +16,19 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
-import { SIGN_IN_ERROR_CODES, emailAddressCheck, checkContract } from '@oxy.so/contracts/client';
+import {
+  SIGN_IN_ERROR_CODES,
+  USERNAME_MAX_LENGTH,
+  checkContract,
+  emailAddressCheck,
+  stripDisallowedUsernameCharacters,
+} from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
+import { checkUsernameDraft } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
@@ -107,12 +114,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
       .finally(() => setPending(false));
   };
 
+  // The policy is checked here, before the server is asked: the availability
+  // check refuses a malformed name with a 400, and that reads as a failure of
+  // ours rather than a rule the person can follow.
   const submitUsername = () => {
-    const handle = username.trim();
-    if (!handle) {
-      setError(t('signup.username.required'));
+    const draft = checkUsernameDraft(username, t);
+    if (!draft.ok) {
+      setError(draft.error);
       return;
     }
+    const handle = draft.username;
+    setUsername(handle);
     run(async () => {
       const { available } = await oxyServices.auth.checkUsername(handle);
       if (!available) throw new UsernameTakenError();
@@ -241,13 +253,15 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
             label={t('signup.username.label')}
             value={username}
             onChange={(value) => {
-              setUsername(value);
+              setUsername(stripDisallowedUsernameCharacters(value));
               if (error) setError(null);
             }}
             onSubmit={submitUsername}
             error={error}
             disabled={pending}
             placeholder={t('signup.username.placeholder')}
+            hint={t('usernamePolicy.hint')}
+            maxLength={USERNAME_MAX_LENGTH}
             autoComplete="username"
             testID="signup-username"
           />

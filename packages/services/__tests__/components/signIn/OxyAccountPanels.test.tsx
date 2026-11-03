@@ -214,6 +214,29 @@ describe('creating an account', () => {
     expect(screen.queryByTestId('signup-email')).toBeNull();
   });
 
+  it('drops what a username cannot hold as it is typed', () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+
+    type('signup-username', 'hash saah');
+    expect((screen.getByTestId('signup-username') as HTMLInputElement).value).toBe('hashsaah');
+    expect(screen.getByText('Letters, numbers, - and _. No spaces.')).toBeTruthy();
+  });
+
+  it.each([
+    ['ab', 'Use at least 3 characters.'],
+    ['a--b', /^Use only letters, numbers, - and _/],
+    ['12345', "A username can't be only numbers. Add a letter."],
+    ['admin', 'That username is reserved. Choose another one.'],
+  ])('says why %p is refused, without asking the server', async (name, message) => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+
+    type('signup-username', name);
+    press('signup-username-continue');
+    await waitFor(() => expect(alertText()).toMatch(message));
+    expect(oxyServices.auth.checkUsername).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('signup-email')).toBeNull();
+  });
+
   it('goes back to the username when it was taken meanwhile', async () => {
     oxyServices.auth.signUp.mockRejectedValueOnce(apiError('USERNAME_TAKEN', 409));
     const onSignedIn = jest.fn();

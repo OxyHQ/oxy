@@ -249,6 +249,18 @@ const dict = {
         'Ha caducado o ya se ha usado. Pide un email nuevo en la app o escribe el código del último.',
     },
   },
+  usernamePolicy: {
+    hint: 'Letras, números, - y _. Sin espacios.',
+    required: 'Elige un nombre de usuario.',
+    tooShort: 'Usa al menos {{min}} caracteres.',
+    tooLong: 'Usa como máximo {{max}} caracteres.',
+    noSpaces: 'El nombre de usuario no puede tener espacios. Usa - o _ en su lugar.',
+    characters:
+      'Usa solo letras, números, - y _. Empieza y termina con una letra o un número, y no pongas dos - o _ seguidos.',
+    onlyNumbers: 'El nombre de usuario no puede ser solo números. Añade una letra.',
+    reserved: 'Ese nombre de usuario está reservado. Elige otro.',
+    mustEndInBot: 'El nombre de usuario de una cuenta bot debe terminar en «bot».',
+  },
   signup: {
     title: 'Crea tu cuenta',
     subtitle: 'Elige tu nombre de usuario. Después confirmamos tu email.',
@@ -257,7 +269,6 @@ const dict = {
     username: {
       label: 'Nombre de usuario',
       placeholder: 'tunombre',
-      required: 'Elige un nombre de usuario.',
       taken: 'Ese nombre de usuario ya está en uso.',
     },
     email: {
@@ -332,8 +343,6 @@ const dict = {
         label: 'Usuario',
         placeholder: 'Elige un usuario',
         choose: 'Elige un usuario',
-        required: 'El usuario es obligatorio',
-        tooShort: 'El usuario debe tener al menos 3 caracteres',
       },
       email: {
         title: 'Correo electrónico',
@@ -1306,7 +1315,7 @@ const dict = {
       rules: {
         title: 'Reglas del nombre de usuario',
         content:
-          'Los nombres de usuario solo pueden contener letras minúsculas (a-z) y números (0-9). Deben tener al menos 4 caracteres. No se permiten caracteres especiales, espacios ni mayúsculas para mantener los nombres de usuario simples y fáciles de recordar.',
+          'Los nombres de usuario tienen entre 3 y 30 caracteres y usan letras, números, guiones (-) y guiones bajos (_). Empiezan y terminan con una letra o un número, nunca llevan dos - o _ seguidos y no son solo números. No se permiten espacios. Las mayúsculas se guardan tal como las escribes, pero Alicia y alicia son el mismo nombre de usuario.',
       },
       unique: {
         title: '¿Por qué debe ser único?',
@@ -1901,9 +1910,6 @@ const dict = {
         label: 'Nombre de usuario',
         available: 'El nombre de usuario está disponible',
         taken: 'El nombre de usuario ya está en uso',
-        tooShort: 'El nombre de usuario debe tener al menos 3 caracteres',
-        invalidChars: 'Solo letras, números, guiones y guiones bajos',
-        mustEndInBot: 'El nombre de usuario de una cuenta de bot debe terminar en “bot”',
         checkFailed: 'No se pudo comprobar la disponibilidad',
       },
       accountCategory: {

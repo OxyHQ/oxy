@@ -154,6 +154,7 @@ export const AccountFlowField: React.FC<{
   secureTextEntry?: boolean;
   autoFocus?: boolean;
   hint?: string;
+  maxLength?: number;
   testID: string;
 }> = ({
   label,
@@ -168,6 +169,7 @@ export const AccountFlowField: React.FC<{
   secureTextEntry,
   autoFocus = true,
   hint,
+  maxLength,
   testID,
 }) => (
   <View style={styles.field}>
@@ -186,6 +188,7 @@ export const AccountFlowField: React.FC<{
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={autoFocus}
+        maxLength={maxLength}
         returnKeyType="go"
         onSubmitEditing={onSubmit}
         aria-required
