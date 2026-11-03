@@ -63,7 +63,9 @@ test('failed saves roll back and display a toast', async () => {
   const view = mount();
   await ready(view.client);
   fireEvent.click(screen.getAllByRole('switch')[0]);
-  await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'));
+  // The person's words for what failed, never the server's English `message`.
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith('actionErrors.updatePrivacy'));
+  expect(toast.error).not.toHaveBeenCalledWith('Save failed');
   await waitFor(() => expect(checked(0)).toBe(false));
 });
 test('search uses the privacy endpoint and retains both changes', async () => {

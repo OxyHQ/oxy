@@ -183,6 +183,9 @@ const dict = {
       requestExpired: 'Este inicio de sesión ha caducado. Envía un email nuevo.',
       secondFactorInvalid: 'Ese código no es correcto. Prueba con el actual.',
       originNotAllowed: 'Aquí no se puede iniciar sesión.',
+      network: 'No se ha podido conectar con Oxy. Comprueba tu conexión e inténtalo de nuevo.',
+      invalidInput: 'Algo de lo que has escrito no es válido. Revísalo e inténtalo de nuevo.',
+      server: 'Oxy no ha podido terminar esto ahora. Inténtalo de nuevo en un momento.',
       generic: 'Algo ha ido mal. Inténtalo de nuevo.',
     },
     subtitleToApp: 'para continuar en {{app}}',
@@ -249,6 +252,33 @@ const dict = {
         'Ha caducado o ya se ha usado. Pide un email nuevo en la app o escribe el código del último.',
     },
   },
+  actionErrors: {
+    updateProfile: 'No se ha podido actualizar tu perfil. Inténtalo de nuevo.',
+    uploadAvatar: 'No se ha podido subir la foto. Inténtalo de nuevo.',
+    updateSettings: 'No se han podido guardar tus ajustes. Inténtalo de nuevo.',
+    updatePrivacy: 'No se han podido guardar tus ajustes de privacidad. Inténtalo de nuevo.',
+    updateNotifications:
+      'No se han podido guardar tus preferencias de notificaciones. Inténtalo de nuevo.',
+    updatePreferences: 'No se han podido guardar tus preferencias. Inténtalo de nuevo.',
+    revokeConnectedApp: 'No se ha podido desconectar la app. Inténtalo de nuevo.',
+    switchSession: 'No se ha podido cambiar de cuenta. Inténtalo de nuevo.',
+    logout: 'No se ha podido cerrar la sesión. Inténtalo de nuevo.',
+    logoutAll: 'No se ha podido cerrar la sesión en todas partes. Inténtalo de nuevo.',
+    updateDeviceName: 'No se ha podido cambiar el nombre del dispositivo. Inténtalo de nuevo.',
+    removeDevice: 'No se ha podido quitar el dispositivo. Inténtalo de nuevo.',
+  },
+  usernamePolicy: {
+    hint: 'Letras, números, - y _. Sin espacios.',
+    required: 'Elige un nombre de usuario.',
+    tooShort: 'Usa al menos {{min}} caracteres.',
+    tooLong: 'Usa como máximo {{max}} caracteres.',
+    noSpaces: 'El nombre de usuario no puede tener espacios. Usa - o _ en su lugar.',
+    characters:
+      'Usa solo letras, números, - y _. Empieza y termina con una letra o un número, y no pongas dos - o _ seguidos.',
+    onlyNumbers: 'El nombre de usuario no puede ser solo números. Añade una letra.',
+    reserved: 'Ese nombre de usuario está reservado. Elige otro.',
+    mustEndInBot: 'El nombre de usuario de una cuenta bot debe terminar en «bot».',
+  },
   signup: {
     title: 'Crea tu cuenta',
     subtitle: 'Elige tu nombre de usuario. Después confirmamos tu email.',
@@ -257,7 +287,6 @@ const dict = {
     username: {
       label: 'Nombre de usuario',
       placeholder: 'tunombre',
-      required: 'Elige un nombre de usuario.',
       taken: 'Ese nombre de usuario ya está en uso.',
     },
     email: {
@@ -332,8 +361,6 @@ const dict = {
         label: 'Usuario',
         placeholder: 'Elige un usuario',
         choose: 'Elige un usuario',
-        required: 'El usuario es obligatorio',
-        tooShort: 'El usuario debe tener al menos 3 caracteres',
       },
       email: {
         title: 'Correo electrónico',
@@ -942,7 +969,6 @@ const dict = {
       firstPlaceholder: 'Tu nombre',
       lastLabel: 'Apellidos',
       lastPlaceholder: 'Tus apellidos',
-      saveFailed: 'No se pudo guardar tu nombre',
     },
     avatar: {
       title: 'Hazlo tuyo',
@@ -1306,7 +1332,7 @@ const dict = {
       rules: {
         title: 'Reglas del nombre de usuario',
         content:
-          'Los nombres de usuario solo pueden contener letras minúsculas (a-z) y números (0-9). Deben tener al menos 4 caracteres. No se permiten caracteres especiales, espacios ni mayúsculas para mantener los nombres de usuario simples y fáciles de recordar.',
+          'Los nombres de usuario tienen entre 3 y 30 caracteres y usan letras, números, guiones (-) y guiones bajos (_). Empiezan y terminan con una letra o un número, nunca llevan dos - o _ seguidos y no son solo números. No se permiten espacios. Las mayúsculas se guardan tal como las escribes, pero Alicia y alicia son el mismo nombre de usuario.',
       },
       unique: {
         title: '¿Por qué debe ser único?',
@@ -1901,9 +1927,6 @@ const dict = {
         label: 'Nombre de usuario',
         available: 'El nombre de usuario está disponible',
         taken: 'El nombre de usuario ya está en uso',
-        tooShort: 'El nombre de usuario debe tener al menos 3 caracteres',
-        invalidChars: 'Solo letras, números, guiones y guiones bajos',
-        mustEndInBot: 'El nombre de usuario de una cuenta de bot debe terminar en “bot”',
         checkFailed: 'No se pudo comprobar la disponibilidad',
       },
       accountCategory: {
@@ -1938,16 +1961,16 @@ const dict = {
         transfer: 'Transferir propiedad',
       },
       errors: {
-        identifierRequired: 'Introduce un nombre de usuario o correo para invitar',
+        emailRequired: 'Introduce un email para invitar.',
+        emailInvalid: 'Introduce un email válido, como nombre@ejemplo.com.',
         missingAccount: 'Ninguna cuenta seleccionada.',
         noPermission: 'No tienes permiso para ver los miembros.',
-        userNotFound: 'Usuario no encontrado',
       },
       invite: {
-        title: 'Añadir un miembro',
-        identifierLabel: 'Nombre de usuario o correo',
+        title: 'Invitar a un miembro',
+        emailLabel: 'Email',
         roleLabel: 'Rol',
-        submit: 'Añadir miembro',
+        submit: 'Enviar invitación',
       },
       removeConfirm: {
         title: 'Eliminar miembro',
@@ -1959,8 +1982,9 @@ const dict = {
           '¿Transferir la propiedad de esta cuenta a este miembro? Pasarás a ser administrador. Esto no se puede deshacer.',
       },
       toasts: {
-        added: 'Miembro añadido',
-        addFailed: 'No se pudo añadir el miembro',
+        invited: 'Invitación enviada',
+        inviteFailed: 'No se ha podido enviar la invitación. Inténtalo de nuevo.',
+        invitationUpdateFailed: 'No se ha podido actualizar la invitación. Inténtalo de nuevo.',
         removed: 'Miembro eliminado',
         removeFailed: 'No se pudo eliminar el miembro',
         roleUpdated: 'Rol actualizado',
@@ -2024,6 +2048,7 @@ const dict = {
     warning:
       'Esta acción no se puede deshacer. Tu cuenta y todos los datos asociados se eliminarán de forma permanente.',
     confirmLabel: 'Escribe "{{username}}" para confirmar',
+    confirmMismatch: 'Ese no es tu nombre de usuario. Escribe "{{username}}" exactamente.',
     confirm: 'Eliminar para siempre',
     error: 'No se pudo eliminar la cuenta',
     handoff: {
@@ -2395,6 +2420,7 @@ const dict = {
       newLabel: 'Contraseña nueva',
       repeatLabel: 'Repite la contraseña',
       tooShort: 'Usa al menos {{min}} caracteres.',
+      tooLong: 'Usa como máximo {{max}} caracteres.',
       mismatch: 'Las contraseñas no coinciden.',
       signOutOthers: 'Cerrar sesión en todos los demás sitios',
       save: 'Guardar contraseña',
@@ -2459,6 +2485,7 @@ const dict = {
       request: 'No se pudo empezar la verificación. Revisa el dominio e inténtalo otra vez.',
       notYet: 'Aún no está verificado. Los cambios de DNS pueden tardar en aparecer.',
       remove: 'No se pudo quitar el dominio',
+      invalid: 'Escribe solo el dominio, como ejemplo.com, sin https://, barras ni espacios.',
     },
     remove: {
       title: 'Quitar dominio',

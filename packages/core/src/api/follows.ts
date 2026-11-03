@@ -28,6 +28,8 @@ import {
   type FollowGraphParams,
 } from '../utils/apiUtils';
 
+const enc = encodeURIComponent;
+
 const GRAPH_TTL = 2 * 60 * 1000;
 const STATUS_TTL = 60 * 1000;
 
@@ -130,7 +132,7 @@ export class FollowsApi {
   async follow(userId: string): Promise<FollowMutationResult> {
     const result = await this.ctx.request<FollowMutationResult>(
       'POST',
-      `/users/${userId}/follow`,
+      `/users/${enc(userId)}/follow`,
       undefined,
       { cache: false },
     );
@@ -155,7 +157,7 @@ export class FollowsApi {
   async unfollow(userId: string): Promise<FollowMutationResult> {
     const result = await this.ctx.request<FollowMutationResult>(
       'DELETE',
-      `/users/${userId}/follow`,
+      `/users/${enc(userId)}/follow`,
       undefined,
       { cache: false },
     );
@@ -178,7 +180,7 @@ export class FollowsApi {
 
   /** Whether the signed-in user follows `userId`. Cached 1 minute, busted by every write. */
   async status(userId: string): Promise<{ isFollowing: boolean }> {
-    return this.ctx.request('GET', `/users/${userId}/follow-status`, undefined, {
+    return this.ctx.request('GET', `/users/${enc(userId)}/follow-status`, undefined, {
       cache: true,
       cacheTTL: STATUS_TTL,
     });
@@ -221,13 +223,13 @@ export class FollowsApi {
    * `limit`/`offset`/`sort` combination is its own cache entry (2 minutes).
    */
   async followers(userId: string, params?: FollowGraphParams): Promise<UserPage<'followers'>> {
-    const { data, total, hasMore } = await this.userPage(`/users/${userId}/followers`, params);
+    const { data, total, hasMore } = await this.userPage(`/users/${enc(userId)}/followers`, params);
     return { followers: data, total, hasMore };
   }
 
   /** Who a user follows. `sort` as in `followers`. */
   async following(userId: string, params?: FollowGraphParams): Promise<UserPage<'following'>> {
-    const { data, total, hasMore } = await this.userPage(`/users/${userId}/following`, params);
+    const { data, total, hasMore } = await this.userPage(`/users/${enc(userId)}/following`, params);
     return { following: data, total, hasMore };
   }
 
@@ -236,7 +238,7 @@ export class FollowsApi {
    * `userId`.
    */
   async mutuals(userId: string, params?: FollowGraphParams): Promise<UserPage<'mutuals'>> {
-    const { data, total, hasMore } = await this.userPage(`/users/${userId}/mutuals`, params);
+    const { data, total, hasMore } = await this.userPage(`/users/${enc(userId)}/mutuals`, params);
     return { mutuals: data, total, hasMore };
   }
 
@@ -443,15 +445,15 @@ export class FollowsApi {
     const keys: string[] = ['GET:/users/me/graph'];
     const prefixes: string[] = ['GET:/profiles/username/', 'GET:/profiles/resolve'];
     for (const id of targetUserIds) {
-      keys.push(`GET:/users/${id}/follow-status`);
+      keys.push(`GET:/users/${enc(id)}/follow-status`);
       // Profiles embed the viewer-relative `relationship`.
-      keys.push(`GET:/users/${id}`);
+      keys.push(`GET:/users/${enc(id)}`);
       // The target gained or lost a follower, and "followers you know" with it.
-      prefixes.push(`GET:/users/${id}/followers`, `GET:/users/${id}/mutuals`);
+      prefixes.push(`GET:/users/${enc(id)}/followers`, `GET:/users/${enc(id)}/mutuals`);
     }
     // The viewer's own following list changed.
     const viewerId = this.ctx.oxy.session.userId;
-    if (viewerId) prefixes.push(`GET:/users/${viewerId}/following`);
+    if (viewerId) prefixes.push(`GET:/users/${enc(viewerId)}/following`);
     this.ctx.http.invalidateCache({ keys, prefixes });
   }
 }

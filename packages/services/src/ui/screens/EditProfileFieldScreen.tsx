@@ -10,11 +10,9 @@ import { PhoneInput, COUNTRIES, findCountry } from '@oxy.so/bloom/phone-input';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
-import {
-  USERNAME_INVALID_MESSAGE,
-  usernameCheck as usernamePolicyCheck,
-} from '@oxy.so/contracts/client';
+import { USERNAME_MAX_LENGTH, stripDisallowedUsernameCharacters } from '@oxy.so/contracts/client';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
+import { checkUsernameDraft } from '../utils/usernamePolicy';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
@@ -263,12 +261,14 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               label: t('editProfile.items.username.label') || 'Username',
               placeholder: t('editProfile.items.username.placeholder') || 'Choose a username',
               validation: (value) => {
-                const checked = usernamePolicyCheck(value, []);
-                return checked.ok ? undefined : checked.issue.message;
+                const checked = checkUsernameDraft(value, t, kind);
+                return checked.ok ? undefined : checked.error;
               },
               inputProps: {
                 autoCapitalize: 'none',
                 autoCorrect: false,
+                autoComplete: 'username',
+                maxLength: USERNAME_MAX_LENGTH,
               },
             },
           ],
@@ -366,7 +366,9 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 
   // Field change handler
   const handleFieldChange = useCallback(
-    (key: string, value: string) => {
+    (key: string, raw: string) => {
+      // A username field takes only the characters the policy allows.
+      const value = key === 'username' ? stripDisallowedUsernameCharacters(raw) : raw;
       setFieldValues((prev) => ({ ...prev, [key]: value }));
       if (fieldErrors[key]) {
         setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
@@ -565,7 +567,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               ? t('editProfile.items.username.checking')
               : usernameCheck.status === 'available'
                 ? t('accounts.create.username.available')
-                : USERNAME_INVALID_MESSAGE
+                : t('usernamePolicy.hint')
             : undefined
         }
       >

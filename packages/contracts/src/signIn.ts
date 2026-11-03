@@ -42,6 +42,8 @@ import { deviceProofSchema } from './deviceSession';
 import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
+  SECOND_FACTOR_CODE_MAX_LENGTH,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   TOTP_DIGITS,
   TOTP_BACKUP_CODE_COUNT,
   EMAIL_SIGNIN_LONG_CODE_ALPHABET,
@@ -56,6 +58,8 @@ export {
   SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
+  SECOND_FACTOR_CODE_MAX_LENGTH,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   TOTP_DIGITS,
   TOTP_PERIOD_SECONDS,
   TOTP_BACKUP_CODE_COUNT,
@@ -87,7 +91,7 @@ export const signInIdentifierSchema = z
   .string()
   .trim()
   .check(utf16MinLength(1))
-  .check(utf16MaxLength(254));
+  .check(utf16MaxLength(SIGN_IN_IDENTIFIER_MAX_LENGTH));
 
 /** A password as typed. Its policy applies only when one is set. */
 export const passwordInputSchema = z
@@ -119,7 +123,7 @@ export const secondFactorCodeSchema = z
   .string()
   .trim()
   .check(utf16MinLength(TOTP_DIGITS))
-  .check(utf16MaxLength(16));
+  .check(utf16MaxLength(SECOND_FACTOR_CODE_MAX_LENGTH));
 
 /** The device-session fields every body that ends in a session may carry. */
 const sessionEnvelope = {

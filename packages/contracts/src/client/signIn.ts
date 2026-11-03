@@ -60,6 +60,12 @@ export const PASSWORD_MAX_LENGTH = 256;
 /** Digits in an authenticator code. */
 export const TOTP_DIGITS = 6;
 
+/** Longest second-factor code accepted: an authenticator code or a backup code, as typed. */
+export const SECOND_FACTOR_CODE_MAX_LENGTH = 16;
+
+/** Longest sign-in identifier (an email address or a username), and the field's `maxLength`. */
+export const SIGN_IN_IDENTIFIER_MAX_LENGTH = 254;
+
 /** Seconds each authenticator code lasts. */
 export const TOTP_PERIOD_SECONDS = 30;
 
@@ -185,7 +191,11 @@ const sixDigits = string(
 
 const passwordInput = string(minLength(1), maxLength(PASSWORD_MAX_LENGTH));
 
-const secondFactorCode = string(trim, minLength(TOTP_DIGITS), maxLength(16));
+const secondFactorCode = string(
+  trim,
+  minLength(TOTP_DIGITS),
+  maxLength(SECOND_FACTOR_CODE_MAX_LENGTH),
+);
 
 export const emailSignInStartResponseCheck = exact<EmailSignInStartResponse>()(
   object({

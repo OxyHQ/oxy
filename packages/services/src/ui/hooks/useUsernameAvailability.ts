@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { usernameCheck } from '@oxy.so/contracts/client';
 import { useOxy } from '../context/oxyRuntimeContext';
+import { checkUsernameDraft } from '../utils/usernamePolicy';
+import { useI18n } from './useI18n';
 
 type CheckResult = { candidate: string; status: 'available' | 'taken' | 'error' };
 
 /** Debounced server check; a response only applies to the draft that requested it. */
 export function useUsernameAvailability(value: string, enabled: boolean) {
   const { oxyServices, user } = useOxy();
+  const { t } = useI18n();
   const candidate = value.trim();
-  const checked = usernameCheck(candidate, []);
-  const invalid = checked.ok ? undefined : checked.issue.message;
+  // The policy of the signed-in account's kind: a bot's handle ends in `bot`.
+  const checked = checkUsernameDraft(candidate, t, user?.kind);
+  const invalid = checked.ok ? undefined : checked.error;
   const unchanged = candidate.toLowerCase() === user?.username?.toLowerCase();
   const [result, setResult] = useState<CheckResult>();
   const [attempt, setAttempt] = useState(0);

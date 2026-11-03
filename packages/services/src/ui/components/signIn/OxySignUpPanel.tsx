@@ -16,12 +16,19 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
-import { SIGN_IN_ERROR_CODES, emailAddressCheck, checkContract } from '@oxy.so/contracts/client';
+import {
+  SIGN_IN_ERROR_CODES,
+  USERNAME_MAX_LENGTH,
+  checkContract,
+  emailAddressCheck,
+  stripDisallowedUsernameCharacters,
+} from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
+import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
@@ -31,10 +38,8 @@ import {
   AccountFlowNote,
   AccountFlowProgress,
   EmailCodeStep,
-  describeSignInError,
-  errorCode,
-  isTicketExpired,
 } from './accountFlowParts';
+import { describeApiError, errorCode, isTicketExpired } from '../../utils/apiErrorMessage';
 
 /** Commons' own identity-creation deep link. */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
@@ -101,18 +106,23 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         setError(
           reason instanceof UsernameTakenError
             ? t('signup.username.taken')
-            : describeSignInError(reason, t),
+            : describeApiError(reason, t),
         );
       })
       .finally(() => setPending(false));
   };
 
+  // The policy is checked here, before the server is asked: the availability
+  // check refuses a malformed name with a 400, and that reads as a failure of
+  // ours rather than a rule the person can follow.
   const submitUsername = () => {
-    const handle = username.trim();
-    if (!handle) {
-      setError(t('signup.username.required'));
+    const draft = checkUsernameDraft(username, t);
+    if (!draft.ok) {
+      setError(draft.error);
       return;
     }
+    const handle = draft.username;
+    setUsername(handle);
     run(async () => {
       const { available } = await oxyServices.auth.checkUsername(handle);
       if (!available) throw new UsernameTakenError();
@@ -140,9 +150,16 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
 
   // The code step reports this promise's failure in place.
   const createAccount = async ({ ticket }: EmailVerificationConfirmResponse): Promise<void> => {
+    // A flow restored from before this check existed may carry any name.
+    const draft = checkUsernameDraft(username, t);
+    if (!draft.ok) {
+      setStep({ name: 'username' });
+      setError(draft.error);
+      return;
+    }
     try {
       const session = await oxyServices.auth.signUp({
-        username: username.trim(),
+        username: draft.username,
         email,
         emailTicket: ticket,
         languages: [currentLanguage],
@@ -156,9 +173,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         setError(t('signup.username.taken'));
         return;
       }
+      // The server refused the name by a rule this client does not know yet:
+      // the name is what to change, so that is the step to return to.
+      const refused = describeUsernameRefusal(reason, draft.username, t);
+      if (refused) {
+        setStep({ name: 'username' });
+        setError(refused);
+        return;
+      }
       if (isTicketExpired(reason)) {
         setStep({ name: 'email' });
-        setError(describeSignInError(reason, t));
+        setError(describeApiError(reason, t));
         return;
       }
       throw reason;
@@ -241,13 +266,15 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
             label={t('signup.username.label')}
             value={username}
             onChange={(value) => {
-              setUsername(value);
+              setUsername(stripDisallowedUsernameCharacters(value));
               if (error) setError(null);
             }}
             onSubmit={submitUsername}
             error={error}
             disabled={pending}
             placeholder={t('signup.username.placeholder')}
+            hint={t('usernamePolicy.hint')}
+            maxLength={USERNAME_MAX_LENGTH}
             autoComplete="username"
             testID="signup-username"
           />

@@ -287,7 +287,10 @@ describe('DevicePage', () => {
 
     click(byTestId(container, 'consent-allow'));
     await flush();
-    expect(byTestId(container, 'consent-error')?.textContent).toBe('Request already used');
+    // The page's words, never the server's English `message`.
+    expect(byTestId(container, 'consent-error')?.textContent).toBe(
+      'Could not complete sign-in. Start it again on your device.',
+    );
     expect(container.textContent).not.toMatch(/you're signed in/i);
 
     click(byTestId(container, 'consent-allow'));

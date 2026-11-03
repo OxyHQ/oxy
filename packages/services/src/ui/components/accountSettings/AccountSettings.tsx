@@ -35,12 +35,10 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { OrganizationSettings } from '../organizations/OrganizationSettings';
 import { SettingsIcon } from '../SettingsIcon';
 import { AccountCategoriesSection, accountCategoriesEqual } from './AccountCategoriesSection';
+import { describeApiError } from '../../utils/apiErrorMessage';
 
 const BIO_MAX = 160;
 const AVATAR_SIZE = 64;
-
-const errorMessage = (error: unknown, fallback: string): string =>
-  error instanceof Error && error.message ? error.message : fallback;
 
 /**
  * How archiving the account behaves, for an app whose ending of an account
@@ -185,7 +183,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       toast.success(t('accounts.settings.toasts.saved'));
     },
     onError: (error) => {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.saveFailed')));
+      toast.error(describeApiError(error, t, t('accounts.settings.toasts.saveFailed')));
     },
   });
 
@@ -211,7 +209,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       else onClose?.();
     },
     onError: (error) => {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.archiveFailed')));
+      toast.error(describeApiError(error, t, t('accounts.settings.toasts.archiveFailed')));
     },
   });
 
@@ -229,7 +227,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             destructive: true,
           });
     } catch (error) {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.archiveFailed')));
+      toast.error(describeApiError(error, t, t('accounts.settings.toasts.archiveFailed')));
       return;
     }
     if (confirmed) archiveMutation.mutate(node);
@@ -287,7 +285,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       });
       if (avatar !== undefined) updateMutation.mutate({ avatar });
     } catch (error) {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.saveFailed')));
+      toast.error(describeApiError(error, t, t('accounts.settings.toasts.saveFailed')));
     }
   }, [account?.avatar, oxyServices, storedName, t, updateMutation]);
 

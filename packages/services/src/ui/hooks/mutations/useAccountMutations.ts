@@ -23,11 +23,15 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
 import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../queries/userCache';
 import { removeAppAccessFromCache } from '../queries/useFileQueries';
+import { describeApiError } from '../../utils/apiErrorMessage';
+import { describeUsernameRefusal } from '../../utils/usernamePolicy';
+import { useI18n } from '../useI18n';
 
 /**
  * Update user profile with optimistic updates and offline queue support
  */
 export const useUpdateProfile = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId, user } = useOxy();
   const queryClient = useQueryClient();
 
@@ -94,7 +98,10 @@ export const useUpdateProfile = () => {
           }
         }
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to update profile');
+      toast.error(
+        describeUsernameRefusal(error, updates?.username ?? '', t) ??
+          describeApiError(error, t, t('actionErrors.updateProfile')),
+      );
     },
     // On success, invalidate and refetch
     onSuccess: (data, updates) => {
@@ -127,6 +134,7 @@ export const useUpdateProfile = () => {
  * Upload avatar with progress tracking and offline queue support
  */
 export const useUploadAvatar = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -188,7 +196,7 @@ export const useUploadAvatar = () => {
           }
         }
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to upload avatar');
+      toast.error(describeApiError(error, t, t('actionErrors.uploadAvatar')));
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -246,6 +254,7 @@ interface UpdateAccountSettingsVariables {
  * underlying `.mutate({ updates, currentUser })` form via `.mutation`.
  */
 export const useUpdateAccountSettings = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId, user } = useOxy();
   const queryClient = useQueryClient();
 
@@ -311,7 +320,7 @@ export const useUpdateAccountSettings = () => {
           });
         }
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to update settings');
+      toast.error(describeApiError(error, t, t('actionErrors.updateSettings')));
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -357,6 +366,7 @@ export const useUpdateAccountSettings = () => {
  * Update privacy settings with optimistic updates and authentication handling
  */
 export const useUpdatePrivacySettings = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId, user } = useOxy();
   const queryClient = useQueryClient();
 
@@ -472,7 +482,7 @@ export const useUpdatePrivacySettings = () => {
         queryClient.invalidateQueries({ queryKey: queryKeys.privacy.settings(targetUserId) });
       }
 
-      toast.error(error instanceof Error ? error.message : 'Failed to update privacy settings');
+      toast.error(describeApiError(error, t, t('actionErrors.updatePrivacy')));
     },
     // On success, MERGE the server response into the cached state. Older
     // API builds returned only the changed field (or wiped the privacySettings
@@ -555,6 +565,7 @@ interface UploadResult {
  * invalidation behaviour as `useUpdateProfile`.
  */
 export const useUpdateNotificationPreferences = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -593,9 +604,7 @@ export const useUpdateNotificationPreferences = () => {
           });
         }
       }
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to update notification preferences',
-      );
+      toast.error(describeApiError(error, t, t('actionErrors.updateNotifications')));
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -611,6 +620,7 @@ export const useUpdateNotificationPreferences = () => {
  * `PUT /users/me`.
  */
 export const useUpdateUserPreferences = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -649,7 +659,7 @@ export const useUpdateUserPreferences = () => {
           });
         }
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to update preferences');
+      toast.error(describeApiError(error, t, t('actionErrors.updatePreferences')));
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -666,6 +676,7 @@ export const useUpdateUserPreferences = () => {
  * re-consent.
  */
 export const useRevokeConnectedApp = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -680,7 +691,7 @@ export const useRevokeConnectedApp = () => {
       invalidateConnectedAppsQueries(queryClient);
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to revoke connected app');
+      toast.error(describeApiError(error, t, t('actionErrors.revokeConnectedApp')));
     },
   });
 };

@@ -88,6 +88,8 @@ export { externalIdentityReferenceCheck } from './externalIdentity';
 
 export { signedRecordEnvelopeCheck } from './identity';
 
+export { DOMAIN_NAME_MAX_LENGTH, normalizeDomainName } from './domainName';
+
 export {
   deviceActivateResponseCheck,
   deviceDirectoryCheck,
@@ -221,6 +223,8 @@ export {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   REAUTH_ACTIONS,
+  SECOND_FACTOR_CODE_MAX_LENGTH,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS,
   SIGNIN_SECOND_FACTOR_TTL_MS,
   SIGN_IN_ERROR_CODES,

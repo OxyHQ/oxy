@@ -639,6 +639,19 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
   // card from `md`: crossing the breakpoint remounts the screen inside. The
   // person must stay on their step — the e2e found them back at "Sign in" with
   // their emailed code already spent.
+  it('never sends a partly typed authenticator code', async () => {
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail('ada');
+    type('signin-code', '123456');
+    await screen.findByTestId('signin-second-factor');
+
+    type('signin-second-factor', '123');
+    press('signin-second-factor-continue');
+    expect(alertText()).toBe("That code isn't right. Try the current one.");
+    expect(oxyServices.auth.completeSecondFactor).not.toHaveBeenCalled();
+  });
+
   it('keeps "Two-step verification" and its challenge across a remount', async () => {
     oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     const first = renderPanel({ host: 'dialog' });

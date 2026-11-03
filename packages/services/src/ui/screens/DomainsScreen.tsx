@@ -5,7 +5,8 @@ import type { DomainVerificationInstructions, VerifiedDomain } from '@oxy.so/con
 import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { surfaces } from '@oxy.so/bloom/surfaces';
-import { TextField, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { TextField, TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { DOMAIN_NAME_MAX_LENGTH, normalizeDomainName } from '@oxy.so/contracts/client';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
@@ -15,9 +16,7 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-
-const errorMessage = (error: unknown, fallback: string): string =>
-  (error instanceof Error && error.message) || fallback;
+import { describeApiError } from '../utils/apiErrorMessage';
 
 /**
  * DomainsScreen — prove that the signed-in identity controls a web domain.
@@ -35,6 +34,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
   const { oxyServices, user, isAuthenticated } = useOxy();
 
   const [domain, setDomain] = useState('');
+  const [invalid, setInvalid] = useState(false);
   const [pending, setPending] = useState<DomainVerificationInstructions | null>(null);
 
   const listKey = queryKeys.domains.list(user?.id);
@@ -50,7 +50,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       setPending(instructions);
       setDomain('');
     },
-    onError: (error) => toast.error(errorMessage(error, t('domains.errors.request'))),
+    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.request'))),
   });
 
   const verify = useMutation({
@@ -64,13 +64,13 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       toast.success(t('domains.verified', { domain: result.domain.domain }));
       void queryClient.invalidateQueries({ queryKey: listKey });
     },
-    onError: (error) => toast.error(errorMessage(error, t('domains.errors.notYet'))),
+    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.notYet'))),
   });
 
   const remove = useMutation({
     mutationFn: (name: string) => oxyServices.identity.domains.remove(name),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: listKey }),
-    onError: (error) => toast.error(errorMessage(error, t('domains.errors.remove'))),
+    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.remove'))),
   });
 
   const confirmRemove = useCallback(
@@ -88,8 +88,14 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
   );
 
   const submit = () => {
-    const name = domain.trim().toLowerCase();
-    if (name && !request.isPending) request.mutate(name);
+    if (request.isPending || !domain.trim()) return;
+    // The same normalization `POST /identity/domains` applies.
+    const name = normalizeDomainName(domain);
+    if (name === null) {
+      setInvalid(true);
+      return;
+    }
+    request.mutate(name);
   };
 
   return (
@@ -135,20 +141,25 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
         <GroupedSection title={t('domains.add.title')}>
           <View className="px-space-16 py-space-12" style={styles.instructions}>
             <TextFieldLabel>{t('domains.add.label')}</TextFieldLabel>
-            <TextField disabled={request.isPending}>
+            <TextField disabled={request.isPending} invalid={invalid}>
               <TextFieldInput
                 testID="domains-input"
                 label={t('domains.add.label')}
                 value={domain}
-                onValueChange={setDomain}
+                onValueChange={(value) => {
+                  setDomain(value);
+                  setInvalid(false);
+                }}
                 placeholder="example.com"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
+                maxLength={DOMAIN_NAME_MAX_LENGTH}
                 returnKeyType="go"
                 onSubmitEditing={submit}
               />
             </TextField>
+            {invalid ? <TextFieldHint invalid>{t('domains.errors.invalid')}</TextFieldHint> : null}
             <Button
               appearance="solid"
               tone="action"
