@@ -704,9 +704,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Peable',
     description: 'Official Peable payments app.',
     websiteUrl: 'https://peable.to',
-    webOrigins: ['https://peable.to'],
+    // Orbit (orbit.peable.to) is Peable's merchant dashboard: a separate web
+    // app that signs merchants in with this same application.
+    webOrigins: ['https://peable.to', 'https://orbit.peable.to'],
     type: 'first_party',
-    redirectUris: ['https://peable.to'],
+    redirectUris: ['https://peable.to', 'https://orbit.peable.to'],
     // ADR 0043 D4: Peable records which of its records (a receipt, a
     // merchant logo) use a person's file and reads its metadata back; it owns
     // no files of its own.
