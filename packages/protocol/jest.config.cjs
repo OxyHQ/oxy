@@ -30,7 +30,7 @@ module.exports = {
         diagnostics: false,
         tsconfig: {
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           resolveJsonModule: true,

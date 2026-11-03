@@ -1264,6 +1264,8 @@ const en: LocaleDict = {
       refresh: 'Refresh',
       meta_one: '{{count}} source · {{date}}',
       meta_other: '{{count}} sources · {{date}}',
+      sources_one: '{{count}} source',
+      sources_other: '{{count}} sources',
       noSummary: 'No summary available.',
       none: 'No stories yet.',
     },

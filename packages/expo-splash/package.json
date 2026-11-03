@@ -87,6 +87,6 @@
     "jest": "^30.5.2",
     "react": "*",
     "react-native": "*",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }

@@ -4,8 +4,8 @@ import {
   generateKeyPairSync,
   randomBytes,
   sign as signBytes,
-  type JsonWebKey,
   type KeyObject,
+  type webcrypto,
 } from 'node:crypto';
 import { logger } from '../utils/logger';
 
@@ -13,7 +13,7 @@ export const SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE = 'SERVICE_TOKEN_SIGNING_KEY_
 export const SERVICE_TOKEN_PRIVATE_KEY_VARIABLE = 'SERVICE_TOKEN_PRIVATE_KEY';
 export const SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE = 'SERVICE_TOKEN_PUBLIC_JWKS';
 
-export interface ServiceTokenPublicJwk extends JsonWebKey {
+export interface ServiceTokenPublicJwk extends webcrypto.JsonWebKey {
   readonly kty: 'OKP';
   readonly crv: 'Ed25519';
   readonly x: string;
@@ -82,7 +82,7 @@ function parsePublicJwks(source: string): ServiceTokenPublicJwk[] {
       );
     }
     try {
-      const publicKey = createPublicKey({ key: key as JsonWebKey, format: 'jwk' });
+      const publicKey = createPublicKey({ key, format: 'jwk' });
       if (publicKey.asymmetricKeyType !== 'ed25519') throw new Error('wrong key type');
     } catch {
       throw new Error(

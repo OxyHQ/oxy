@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.15.1
+
+### Changed
+
+- Built with TypeScript 6.0 and checked against `@types/node` 26; the emitted JavaScript and declarations are unchanged. `@types/node` 26 dropped `node:crypto`'s `JsonWebKey`, so `OxyServer` and `middleware` hand the service-signing JWK to `createPublicKey` as it is, without a cast.
+
 ## 7.14.1
 
 ### Changed

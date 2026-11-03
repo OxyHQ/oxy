@@ -16,7 +16,7 @@ module.exports = {
         tsconfig: {
           jsx: 'react-jsx',
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           strict: true,

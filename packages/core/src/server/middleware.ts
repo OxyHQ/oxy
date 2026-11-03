@@ -25,7 +25,6 @@ import {
   type ServiceIntrospection,
 } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
-import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
@@ -1759,7 +1758,7 @@ async function verifyServiceTokenSignature(
   const jwk = await resolveServiceTokenPublicKey(header.kid, options.jwksUrl, options.cache);
   let publicKey: Awaited<ReturnType<typeof nodeCrypto.createPublicKey>>;
   try {
-    publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as JsonWebKey, format: 'jwk' });
+    publicKey = nodeCrypto.createPublicKey({ key: jwk, format: 'jwk' });
   } catch {
     throw new ServiceTokenSignatureError('Service token public key is invalid');
   }

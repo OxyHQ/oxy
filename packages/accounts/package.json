@@ -97,7 +97,7 @@
     "jest-environment-jsdom": "catalog:",
     "tailwindcss": "4.3.4",
     "ts-jest": "^29.4.15",
-    "typescript": "~6.0.3"
+    "typescript": "catalog:"
   },
   "private": true,
   "expo": {

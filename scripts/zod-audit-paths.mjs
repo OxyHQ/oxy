@@ -43,7 +43,6 @@ const residualParents = new Set([
   '@atproto/oauth-resolver',
   '@atproto/oauth-types',
   '@atproto/xrpc',
-  'shadcn',
 ]);
 const fields = ['dependencies', 'optionalDependencies', 'peerDependencies'];
 function segments(key) {
@@ -101,8 +100,6 @@ export function inspectZodLock(lock) {
         `Atproto parser path changed; re-audit transport and restore boundaries: ${identity}`,
       );
   }
-  if (residuals.includes('shadcn/zod') && packages.shadcn?.[0] !== 'shadcn@3.8.5')
-    errors.push('The reviewed dev-only shadcn path/version changed');
   // Walk every workspace, including published SDKs and tooling. A shared leaf
   // cannot become accepted just because an allowed consumer also uses it.
   for (const [directory, workspace] of Object.entries(workspaces)) {
@@ -115,11 +112,7 @@ export function inspectZodLock(lock) {
           field === 'dependencies' &&
           name === '@atproto/oauth-client-node'
             ? 'atproto'
-            : directory === 'packages/test-app-vite' &&
-                field === 'devDependencies' &&
-                name === 'shadcn'
-              ? 'shadcn'
-              : 'ordinary';
+            : 'ordinary';
         pending.push({
           from: workspace.name ?? directory,
           name,
@@ -139,15 +132,10 @@ export function inspectZodLock(lock) {
       const identity = entry[0];
       const path = `${item.path} -> ${key}`;
       if (identity.startsWith('zod@') && !patched(identity.slice(4))) {
-        if (
-          !(item.lane === 'atproto' && key.startsWith('@atproto')) &&
-          !(item.lane === 'shadcn' && key === 'shadcn/zod')
-        )
+        if (!(item.lane === 'atproto' && key.startsWith('@atproto')))
           errors.push(`Vulnerable Zod reaches an unreviewed workspace path: ${path}`);
         continue;
       }
-      if (key === 'shadcn' && item.lane !== 'shadcn')
-        errors.push(`shadcn must remain the test-app-vite dev CLI: ${path}`);
       if (key.startsWith('@atproto') && item.lane !== 'atproto')
         errors.push(`Atproto must remain behind the API linked-account boundary: ${path}`);
       const workspaceMatch = identity.match(/@workspace:(.+)$/);

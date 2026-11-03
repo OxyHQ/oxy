@@ -1,5 +1,12 @@
 # Changelog
 
+## [14.3.2] - 2026-11-03
+
+### Changed
+
+- Built with TypeScript 6.0 and react-native-builder-bob 0.44. The JavaScript is unchanged; in the declarations `FollowTargetButton` is typed as the `memo` component it is (`MemoExoticComponent`) and some string unions list their members in another order.
+- `lib/commonjs` and `lib/module` carry no `.d.ts` files: bob 0.44 copies a source `.d.ts` next to the JavaScript, and the declarations live in `lib/typescript`. That also drops the stray `lib/*/assets/assets/**/*.d.ts` copies.
+
 ## [14.3.0] - 2026-11-03
 
 ### Changed

@@ -1274,6 +1274,8 @@ const es: LocaleDict = {
       refresh: 'Actualizar',
       meta_one: '{{count}} fuente · {{date}}',
       meta_other: '{{count}} fuentes · {{date}}',
+      sources_one: '{{count}} fuente',
+      sources_other: '{{count}} fuentes',
       noSummary: 'No hay resumen disponible.',
       none: 'Todavía no hay noticias.',
     },

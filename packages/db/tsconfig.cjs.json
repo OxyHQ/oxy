@@ -1,8 +1,15 @@
+// The CommonJS emit reads drizzle-orm's types the way the ESM program does.
+// Under bundler resolution a CommonJS program takes drizzle's `require`
+// typings (`*.d.cts`), and drizzle-orm 0.45's `relations.d.cts` imports
+// `./index.ts`, i.e. the ESM `index.d.ts`, so both copies of `SQL`/`PgColumn`
+// meet in one program and nothing type-checks. Shipped declarations come from
+// tsconfig.types.json (ESM), which checks the same sources.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "CommonJS",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
+    "resolvePackageJsonExports": false,
     "outDir": "dist/cjs",
     "declaration": false,
     "noEmit": false,
