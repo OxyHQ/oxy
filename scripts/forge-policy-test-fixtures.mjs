@@ -38,17 +38,17 @@ export function policyTestRepository(decision = SYNTHETIC_INACTIVE) {
       workspaces: {
         'packages/api': {
           name: '@oxy.so/api',
-          dependencies: { '@atproto/oauth-client-node': '0.5.7' },
+          dependencies: { '@atproto/oauth-client-node': '0.5.13' },
         },
       },
       packages: {
         '@atproto/oauth-client-node': [
-          '@atproto/oauth-client-node@0.5.7',
+          '@atproto/oauth-client-node@0.5.13',
           '',
-          { dependencies: { '@atproto/oauth-types': '0.7.6' } },
+          { dependencies: { '@atproto/oauth-types': '0.7.7' } },
         ],
         '@atproto/oauth-types': [
-          '@atproto/oauth-types@0.7.6',
+          '@atproto/oauth-types@0.7.7',
           '',
           { dependencies: { zod: '3.25.76' } },
         ],

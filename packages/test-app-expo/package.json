@@ -23,8 +23,8 @@
     "@oxy.so/core": "workspace:*",
     "@oxy.so/services": "*",
     "@react-native-async-storage/async-storage": "3.1.1",
-    "@react-native/virtualized-lists": "0.88.0",
-    "@tailwindcss/postcss": "4.3.3",
+    "@react-native/virtualized-lists": "0.88.1",
+    "@tailwindcss/postcss": "4.3.4",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
@@ -59,9 +59,9 @@
     "react-native-svg": "catalog:",
     "react-native-web": "~0.21.4",
     "react-native-worklets": "catalog:",
-    "semver": "^7.7.2",
+    "semver": "^7.8.6",
     "socket.io-client": "catalog:",
-    "tailwindcss": "4.3.3",
+    "tailwindcss": "4.3.4",
     "tailwindcss-animate": "^1.0.7",
     "whatwg-fetch": "^3.6.20",
     "zustand": "catalog:",
@@ -81,9 +81,13 @@
     "install": {
       "exclude": [
         "@react-native-async-storage/async-storage",
+        "expo-video",
+        "react",
+        "react-dom",
+        "react-native-gesture-handler",
         "react-native-safe-area-context",
         "react-native-svg",
-        "expo-video"
+        "react-native-worklets"
       ]
     }
   }

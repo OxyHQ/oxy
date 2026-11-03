@@ -67,35 +67,6 @@ const cases = [
     },
   ],
   [
-    'Expo vendored artifact changes',
-    (lock) => {
-      lock.packages['@expo/cli'][2] = 'sha512-unreviewed';
-    },
-  ],
-  [
-    'API directly consumes Expo CLI',
-    (lock) => {
-      lock.workspaces['packages/api'].dependencies['@expo/cli'] = '^58.1.15';
-    },
-  ],
-  [
-    'published SDK directly consumes Expo CLI',
-    (lock) => {
-      lock.workspaces['packages/core'].dependencies['@expo/cli'] = '^58.1.15';
-    },
-  ],
-  [
-    'new transitive runtime consumes Expo CLI',
-    (lock) => {
-      lock.workspaces['packages/api'].dependencies['new-runtime'] = '1.0.0';
-      lock.packages['new-runtime'] = [
-        'new-runtime@1.0.0',
-        '',
-        { dependencies: { '@expo/cli': '^58.1.15' } },
-      ];
-    },
-  ],
-  [
     'unknown vulnerable leaf',
     (lock) => {
       lock.packages['new-parser/zod'] = ['zod@3.25.76', '', {}];

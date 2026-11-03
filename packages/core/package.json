@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "7.14.0",
+  "version": "7.14.1",
   "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -187,11 +187,11 @@
     "@scure/bip39": "^2.4.0",
     "buffer": "^6.0.3",
     "express-rate-limit": "catalog:",
-    "helmet": "^8.0.0",
+    "helmet": "^8.3.0",
     "invariant": "^2.2.4",
     "jwt-decode": "^4.0.0",
     "socket.io-client": "catalog:",
-    "tldts": "^7.4.10",
+    "tldts": "^7.4.19",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -225,17 +225,17 @@
   "devDependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@types/express": "catalog:",
-    "@types/invariant": "^2.2.34",
+    "@types/invariant": "^2.2.37",
     "@types/node": "^20.19.43",
-    "expo-crypto": "~56.0.3",
-    "expo-secure-store": "~57.0.4",
+    "expo-crypto": "~58.0.7",
+    "expo-secure-store": "~58.0.2",
     "express": "catalog:",
     "express-rate-limit": "catalog:",
-    "jest": "^30.5.1",
-    "regexpu-core": "^6.4.0",
+    "jest": "^30.5.2",
+    "regexpu-core": "^6.5.3",
     "typescript": "^5.9.2",
     "helmet": "catalog:",
-    "socket.io": "^4.8.1",
+    "socket.io": "^4.8.4",
     "@aws-sdk/credential-provider-node": "catalog:",
     "@aws-sdk/credential-provider-ini": "catalog:"
   }
