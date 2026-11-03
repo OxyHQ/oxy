@@ -1,3 +1,9 @@
+const {
+  NOBLE_ESM_PACKAGES,
+  esmOnlyTransform,
+  esmOnlyTransformIgnorePattern,
+} = require('../../scripts/jest-esm-only.cjs');
+
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'ts-jest',
@@ -42,7 +48,9 @@ module.exports = {
         },
       },
     ],
+    ...esmOnlyTransform(NOBLE_ESM_PACKAGES),
   },
+  transformIgnorePatterns: [esmOnlyTransformIgnorePattern(NOBLE_ESM_PACKAGES)],
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts'],
   testTimeout: 10000,
 };

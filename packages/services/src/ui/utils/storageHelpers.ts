@@ -86,7 +86,7 @@ const createNativeStorage = async (): Promise<StorageInterface> => {
 
   try {
     const asyncStorageModule = await import('@react-native-async-storage/async-storage');
-    asyncStorageInstance = asyncStorageModule.default as unknown as StorageInterface;
+    asyncStorageInstance = asyncStorageModule.default;
     return asyncStorageInstance;
   } catch (error) {
     if (__DEV__) {

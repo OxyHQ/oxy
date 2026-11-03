@@ -8,8 +8,8 @@
  */
 
 import './polyfill';
-import { sha256 } from '@noble/hashes/sha256';
-import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import {
   meetsRegistrationPowDifficulty,
   registrationPowMessage,
@@ -36,7 +36,7 @@ function yieldToEventLoop(): Promise<void> {
  * Grind a nonce for `publicKey`/`timestamp` that clears
  * {@link REGISTRATION_POW_DIFFICULTY_BITS}, returned as a decimal counter.
  *
- * Hashes with `@noble/hashes/sha256` — pure JS, synchronous, identical output
+ * Hashes with `@noble/hashes/sha2.js`'s `sha256` — pure JS, synchronous, identical output
  * on web/Node/React Native with no native module and no per-attempt bridge
  * crossing (see the difficulty constant's own doc for why that distinction is
  * the whole point). Nonces are sequential (0, 1, 2, …) rather than random: the

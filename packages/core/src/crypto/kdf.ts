@@ -10,8 +10,8 @@
  * ESM/CJS safe: static `import` only, no `require()`.
  */
 
-import { hkdf } from '@noble/hashes/hkdf';
-import { sha256 } from '@noble/hashes/sha256';
+import { hkdf } from '@noble/hashes/hkdf.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 /**
  * Derive `length` bytes of keying material from `ikm` using HKDF-SHA256

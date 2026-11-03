@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.6.0
+
+### Changed
+
+- `@noble/curves` 2. The secp256k1 wire formats are unchanged: signing and verification pass `prehash: false` (the input is already a SHA-256 digest; noble 2 hashes by default) and `format: 'der'`, and the historical high-S and low-S DER vectors still match byte for byte.
+- `@noble/curves` 2 ships ESM only, so the CommonJS build `require`s an ES module: `engines.node` is `^20.19.0 || >=22.12.0`, the Node lines with `require(esm)` (bundlers and the ESM build are unaffected).
+- `@react-native-async-storage/async-storage` peer is `<4.0.0`: 3.x is supported, 2.x still is.
+
 ## 1.5.1
 
 ### Changed
