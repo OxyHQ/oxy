@@ -33,7 +33,7 @@
     "@tanstack/react-query-persist-client": "catalog:",
     "babel-preset-expo": "catalog:",
     "expo": "catalog:",
-    "expo-audio": "~58.0.10",
+    "expo-audio": "~58.0.11",
     "expo-blur": "catalog:",
     "expo-build-properties": "catalog:",
     "expo-camera": "catalog:",
@@ -62,13 +62,13 @@
     "expo-splash-screen": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
-    "expo-updates": "~58.0.18",
+    "expo-updates": "~58.0.21",
     "expo-video": "catalog:",
     "expo-web-browser": "catalog:",
     "jszip": "catalog:",
     "lottie-react-native": "~7.5.0",
     "nativewind": "catalog:",
-    "posthog-react-native": "4.68.0",
+    "posthog-react-native": "4.85.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
@@ -86,17 +86,17 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.3",
-    "@testing-library/react": "^16.3.2",
+    "@tailwindcss/postcss": "4.3.4",
+    "@testing-library/react": "^16.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-expo": "catalog:",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "jest-environment-jsdom": "catalog:",
-    "tailwindcss": "4.3.3",
-    "ts-jest": "^29.4.12",
+    "tailwindcss": "4.3.4",
+    "ts-jest": "^29.4.15",
     "typescript": "~6.0.3"
   },
   "private": true,
@@ -105,9 +105,13 @@
       "exclude": [
         "@react-native-async-storage/async-storage",
         "expo-video",
+        "react",
+        "react-dom",
+        "react-native-gesture-handler",
         "react-native-keyboard-controller",
         "react-native-safe-area-context",
-        "react-native-svg"
+        "react-native-svg",
+        "react-native-worklets"
       ]
     }
   }

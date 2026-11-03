@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.14.1
+
+### Changed
+
+- Depends on `helmet` ^8.3.0, `tldts` ^7.4.19 and `socket.io-client` ^4.8.4 (were ^8.0.0, ^7.4.10 and ^4.8.1). No code change.
+
 ## 7.14.0
 
 ### Changed

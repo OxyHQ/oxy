@@ -161,13 +161,13 @@
     "@types/express": "catalog:",
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",
-    "expo-crypto": "~56.0.3",
+    "expo-crypto": "~58.0.7",
     "expo-modules-core": "catalog:",
-    "expo-secure-store": "~57.0.4",
+    "expo-secure-store": "~58.0.2",
     "express": "catalog:",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "supertest": "catalog:",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.15",
     "typescript": "^5.9.2"
   }
 }
