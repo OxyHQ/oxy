@@ -198,7 +198,7 @@
     "@react-native-async-storage/async-storage": "<4.0.0",
     "expo-crypto": "<59.0.0",
     "expo-secure-store": "<59.0.0",
-    "express": "^4.0.0",
+    "express": "^4.0.0 || ^5.0.0",
     "@aws-sdk/credential-provider-node": ">=3.972.83 <4",
     "@aws-sdk/credential-provider-ini": ">=3.973.16 <4"
   },

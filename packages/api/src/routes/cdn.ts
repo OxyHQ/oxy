@@ -67,7 +67,7 @@ const router = express.Router();
 router.get(
   '/:id',
   validate({ params: assetIdParams }),
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     const { id: fileId } = req.params;
     const variant = singleQueryValue(req.query.variant);
     const revision = req.query.revision;

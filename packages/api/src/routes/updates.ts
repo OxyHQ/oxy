@@ -95,7 +95,7 @@ async function resolveApplicationId(clientId: string): Promise<string | null> {
 router.get(
   '/apps/:clientId/manifest',
   manifestLimiter,
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     // --- Required protocol headers (the only 400 conditions) ---
     const protocolRaw = req.headers['expo-protocol-version'];
     if (Array.isArray(protocolRaw)) {

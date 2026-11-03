@@ -1,4 +1,5 @@
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import type { NamedRouteParams } from '../types/routeParams';
 import { resolveRequesterContext } from '../services/requesterContext.service';
 import {
   resolveCapabilityRequester,
@@ -94,7 +95,7 @@ router.use((_req, res, next) => {
 const handler =
   (
     fn: (req: AuthRequest & ServiceAuthRequest, res: Response) => Promise<unknown>,
-  ): RequestHandler =>
+  ): RequestHandler<NamedRouteParams> =>
   (req, res) => {
     void fn(req, res).catch((error: unknown) => {
       if (error instanceof z.ZodError)

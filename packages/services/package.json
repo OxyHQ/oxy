@@ -178,7 +178,7 @@
   "dependencies": {
     "@oxy.so/contracts": "workspace:^",
     "color": "^5.0.3",
-    "@peable.to/sdk": "0.8.0"
+    "@peable.to/sdk": "0.20.0"
   },
   "devDependencies": {
     "@expo/app-integrity": "catalog:",

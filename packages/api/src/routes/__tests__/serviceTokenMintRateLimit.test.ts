@@ -66,9 +66,9 @@ describe('the shared per-address limiters skip the mint', () => {
     app.use(
       '/auth',
       authRateLimiter,
-      express.Router().post('*', (_req, res) => res.json({ ok: true })),
+      express.Router().post('/{*path}', (_req, res) => res.json({ ok: true })),
     );
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await listen(app);
   });
 

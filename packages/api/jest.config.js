@@ -21,8 +21,17 @@ const JSDOM_ESM_PACKAGES = [
   '@csstools/color-helpers',
 ];
 
+/** The ESM-only packages the API's own code loads: `uuid` and the App Attest ASN.1 stack. */
+const API_ESM_PACKAGES = [
+  'uuid',
+  'asn1js',
+  '@peculiar/asn1-schema',
+  '@peculiar/asn1-x509',
+  '@peculiar/utils',
+];
+
 /** Every ESM-only package node_modules holds that the suites load, lowered to CommonJS below. */
-const ESM_ONLY_PACKAGES = [...JSDOM_ESM_PACKAGES, ...NOBLE_ESM_PACKAGES];
+const ESM_ONLY_PACKAGES = [...JSDOM_ESM_PACKAGES, ...NOBLE_ESM_PACKAGES, ...API_ESM_PACKAGES];
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -165,19 +174,23 @@ module.exports = {
       },
     ],
     // jsdom (the DOM DOMPurify sanitizes SVG uploads in, `utils/svgSanitizer.ts`)
-    // and its dependencies, and `@noble/*` under core and protocol, are
-    // published ESM-only; under bun, as the API runs, `require` loads them
-    // natively, but Jest's CJS runtime cannot, so they are lowered the same way.
+    // and its dependencies, `@noble/*` under core and protocol, and the API's
+    // own packages above are published ESM-only; under bun, as the API runs,
+    // `require` loads them natively, but Jest's CJS runtime cannot, so their
+    // module syntax, and only that, is lowered to CommonJS. Babel, not ts-jest:
+    // ts-jest keeps ONE compiler configuration per Jest project, whichever entry
+    // creates it, so these files compiled at this package's ES6 target, whose
+    // class-field rewrite reads `this` before `super()` in jsdom 30's CSS parser
+    // (@csstools).
     [`^.+/node_modules/(${ESM_ONLY_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
-      'ts-jest',
+      'babel-jest',
       {
-        diagnostics: false,
-        tsconfig: {
-          isolatedModules: true,
-          module: 'commonjs',
-          moduleResolution: 'bundler',
-          allowJs: true,
-        },
+        babelrc: false,
+        configFile: false,
+        plugins: [
+          '@babel/plugin-transform-export-namespace-from',
+          '@babel/plugin-transform-modules-commonjs',
+        ],
       },
     ],
   },

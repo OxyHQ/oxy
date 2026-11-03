@@ -83,7 +83,7 @@ describe('general limiter (rl:general) exempts IdP service paths', () => {
   beforeAll(async () => {
     const app = express();
     app.use(rateLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await listen(app);
   });
 
@@ -116,7 +116,7 @@ describe('idpServiceLimiter (rl:idp:service) is the dedicated high-cap limiter',
   beforeAll(async () => {
     const app = express();
     app.use(idpServiceLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await listen(app);
   });
 
@@ -141,7 +141,7 @@ describe('sessionHeaderValidationLimiter is the bearer validation route budget',
   beforeAll(async () => {
     const app = express();
     app.use(sessionHeaderValidationLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await listen(app);
   });
 

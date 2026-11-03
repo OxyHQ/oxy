@@ -1,5 +1,5 @@
 import { getEquivalentUserIds } from '../services/externalIdentityRegistry.service';
-import express, { type Request, type Response } from 'express';
+import express from 'express';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../config/postgres';
@@ -30,7 +30,7 @@ const router = express.Router();
 router.use(requesterAuthMiddleware);
 
 // Get privacy settings (own settings only)
-const getPrivacySettings = asyncHandler(async (req: Request, res: Response) => {
+const getPrivacySettings = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const authUserId = authenticatedRequesterAccountId(req);
 
@@ -53,7 +53,7 @@ const getPrivacySettings = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // Update privacy settings
-const updatePrivacySettings = asyncHandler(async (req: Request, res: Response) => {
+const updatePrivacySettings = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const settings = privacySettingsSchema.parse(req.body);
   const authUserId = authenticatedRequesterAccountId(req);
@@ -116,7 +116,7 @@ const RESTRICT_RELATION: UserRelation = {
  * One join, with the three embedded fields named explicitly.
  */
 const createUserListHandler = (relation: UserRelation) =>
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const authUserId = authenticatedRequesterAccountId(req);
     if (!authUserId) {
       throw new UnauthorizedError('Authentication required');
@@ -178,7 +178,7 @@ const createUserListHandler = (relation: UserRelation) =>
  * and it costs the operator the same nothing to be refused.
  */
 const createUserActionHandler = (relation: UserRelation, actionName: string) =>
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { targetId } = req.params;
     const authUserId = authenticatedRequesterAccountId(req);
 
@@ -235,7 +235,7 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
   });
 
 const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { targetId } = req.params;
     const authUserId = authenticatedRequesterAccountId(req);
 
