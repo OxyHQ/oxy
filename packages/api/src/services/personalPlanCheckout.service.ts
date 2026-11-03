@@ -344,8 +344,6 @@ export function personalCheckoutSnapshotFromIntent(
   intent: typeof personalPlanCheckoutIntents.$inferSelect,
 ): PersonalCheckoutSnapshot | undefined {
   if (!intent.taxQuoteRef) return undefined;
-  if (intent.taxQuoteSchemaVersion !== 2)
-    throw new ConflictError('Historical checkout quote needs explicit reconciliation');
   if (
     !intent.applicationRef ||
     !intent.customerRef ||
@@ -364,8 +362,6 @@ export function personalCheckoutSnapshotFromIntent(
     !intent.taxQuoteCustomerLocationEvidenceRef ||
     !intent.taxQuoteQuotedAt ||
     !intent.taxQuoteExpiresAt ||
-    !intent.taxQuoteQuotedAtLexeme ||
-    !intent.taxQuoteExpiresAtLexeme ||
     !intent.taxQuoteSignatureKeyRef ||
     !intent.taxQuoteSignatureValue
   )
@@ -408,8 +404,8 @@ export function personalCheckoutSnapshotFromIntent(
         coverage_evidence_id: intent.taxQuoteCoverageEvidenceRef,
         tax_rate_evidence_id: intent.taxQuoteTaxRateEvidenceRef,
         customer_location_evidence_id: intent.taxQuoteCustomerLocationEvidenceRef,
-        quoted_at: Date.parse(intent.taxQuoteQuotedAtLexeme) / 1000,
-        expires_at: Date.parse(intent.taxQuoteExpiresAtLexeme) / 1000,
+        quoted_at: signedUnixSeconds(intent.taxQuoteQuotedAt),
+        expires_at: signedUnixSeconds(intent.taxQuoteExpiresAt),
       },
       signature: {
         algorithm: 'Ed25519',
@@ -419,13 +415,20 @@ export function personalCheckoutSnapshotFromIntent(
     },
   };
 }
-/** Typed columns retain exact signed ISO lexemes alongside queryable timestamps. */
+/** A signed Peable instant is whole Unix seconds (ADR 0014), so the stored
+ * timestamptz restores it exactly; anything finer was never a signed value. */
+function signedUnixSeconds(instant: Date): number {
+  const milliseconds = instant.getTime();
+  if (!Number.isSafeInteger(milliseconds) || milliseconds % 1000 !== 0)
+    throw new ConflictError('Stored checkout authority is not a signed instant');
+  return milliseconds / 1000;
+}
+/** Typed columns hold the signed quote; its instants are exact whole seconds. */
 export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapshot) {
   const quote = snapshot.taxQuote.quote;
   return {
     returnUrl: snapshot.returnUrl,
     taxQuoteRef: quote.id,
-    taxQuoteSchemaVersion: 2,
     taxQuoteCurrency: quote.currency,
     taxQuoteNetMinorUnits: quote.net_minor_units,
     taxQuoteTaxMinorUnits: quote.tax_minor_units,
@@ -439,8 +442,6 @@ export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapsh
     taxQuoteCustomerLocationEvidenceRef: quote.customer_location_evidence_id,
     taxQuoteQuotedAt: new Date(quote.quoted_at * 1000),
     taxQuoteExpiresAt: new Date(quote.expires_at * 1000),
-    taxQuoteQuotedAtLexeme: new Date(quote.quoted_at * 1000).toISOString(),
-    taxQuoteExpiresAtLexeme: new Date(quote.expires_at * 1000).toISOString(),
     taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.key_id,
     taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
   };

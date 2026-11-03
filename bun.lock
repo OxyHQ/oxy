@@ -702,10 +702,10 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.1.0",
+      "version": "14.1.1",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
-        "@peable.to/sdk": "0.4.1",
+        "@peable.to/sdk": "0.8.0",
         "color": "^5.0.3",
       },
       "devDependencies": {
@@ -4676,7 +4676,7 @@
 
     "@oxy.so/mcp/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
-    "@oxy.so/services/@peable.to/sdk": ["@peable.to/sdk@0.4.1", "", { "dependencies": { "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.5.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-HwAowV8rPU/JYuc4c0T8suFtFaquQXuMuQxTciKaoTjmg7rfra6s9WoAsbHKlNva/01zxVdam+pGWuuzZ0V79w=="],
+    "@oxy.so/services/@peable.to/sdk": ["@peable.to/sdk@0.8.0", "", { "dependencies": { "@peable.to/contracts": "0.3.0", "@peable.to/shared-types": "0.6.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" }, "peerDependencies": { "@oxy.so/bloom": ">=16.10.0", "react": ">=19.0.0 <20.0.0", "react-native": ">=0.86.0 <1.0.0" }, "optionalPeers": ["@oxy.so/bloom", "react", "react-native"] }, "sha512-DPjTam2k0s5d0ZsQcxcpH7z5Cwde3KRuBl+0ol2ifuY/iMR/eo4KT4XcD21FZ+myqaM5g0aruc/wZWf0+k4KGg=="],
 
     "@oxy.so/services/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
@@ -5306,9 +5306,9 @@
 
     "@modelcontextprotocol/sdk/express/type-is": ["type-is@2.1.0", "", { "dependencies": { "content-type": "^2.0.0", "media-typer": "^1.1.0", "mime-types": "^3.0.0" } }, "sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA=="],
 
-    "@oxy.so/services/@peable.to/sdk/@peable.to/contracts": ["@peable.to/contracts@0.1.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="],
+    "@oxy.so/services/@peable.to/sdk/@peable.to/contracts": ["@peable.to/contracts@0.3.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-ro2hEtxglLgU8iANt6ZgjKKe5ro6o50rHwfon0bI+GyYIsJ5OMyC3qAmWnZeHKiat76xwCfBhXek1X59Iyq2bg=="],
 
-    "@oxy.so/services/@peable.to/sdk/@peable.to/shared-types": ["@peable.to/shared-types@0.5.0", "", { "dependencies": { "@peable.to/contracts": "0.1.0" } }, "sha512-ffRUGOJi/6O2Cohq3PrryNm7lFNFMaL0eit4mO5aKPzSE35bfdHuPvPW8yz2tXwQ3mBESC2BlkeyO7Km2T8kTw=="],
+    "@oxy.so/services/@peable.to/sdk/@peable.to/shared-types": ["@peable.to/shared-types@0.6.0", "", { "dependencies": { "@peable.to/contracts": "0.3.0" } }, "sha512-Ng9JoAjJETD1Mj/LH55raEv9o9rC4ijtBhZtcdn1O9xPQT2sx1/5XZT6rrQ0XC4oGK4/dLxAOcMkBgs6gZGCHw=="],
 
     "@react-native/dev-middleware/open/define-lazy-prop": ["define-lazy-prop@2.0.0", "", {}, "sha512-Ds09qNh8yw3khSjiJjiUInaGX9xlqZDY7JVryGxdxV7NPeuqQfplOpQ66yJFZut3jLa5zOwkXw1g9EI2uKh4Og=="],
 

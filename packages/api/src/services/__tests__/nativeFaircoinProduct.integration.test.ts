@@ -190,14 +190,15 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
             amountMinorUnits: offer.grossMinorUnits,
             interval: offer.interval,
           })),
-          invoiceIssuer: { legalName: 'Oxy Platforms, Inc.', id: 'issuer_fixture' },
-          sellerId: 'seller_fixture',
+          // Peable Tax names the merchant as seller, issuer and remitter of its quotes.
+          invoiceIssuer: { legalName: 'Oxy Platforms, Inc.', id: remote.merchantId },
+          sellerId: remote.merchantId,
           invoiceAuthorityKeys: { fixture: remote.publicKey },
           taxQuoteAuthorityKeys: { fixture: remote.publicKey },
           purchasesEnabled: true,
           checkout: {
             returnUrl: 'https://example.invalid/return',
-            taxRemitterId: 'remitter_fixture',
+            taxRemitterId: remote.merchantId,
             customerLocationEvidence: { [f.payer]: 'location_fixture' },
           },
           observationsEnabled: false,
@@ -241,8 +242,7 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
         const firstCheckout = await client.billing.retrieveCheckout(
           must(firstIntent.providerSessionId),
         );
-        const future =
-          Date.parse(must(firstCheckout.subscription).currentPeriodEnd) - 3 * 86_400_000;
+        const future = must(firstCheckout.subscription).current_period_end * 1000 - 3 * 86_400_000;
         const offset = future - RealDate.now();
         class FixtureDate extends RealDate {
           constructor(value?: string | number) {
@@ -280,7 +280,11 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
           (annual ? initial : active).grants.find((g) => g.origin === 'individual'),
         );
         const bundle = must((annual ? initial : active).grants.find((g) => g.origin === 'bundle'));
-        expect(Date.parse(individual.period.end)).toBeGreaterThan(Date.parse(bundle.period.end));
+        // Peable periods are whole Unix seconds, so a period bought moments after
+        // another can end in the same second; the individual never ends first.
+        expect(Date.parse(individual.period.end)).toBeGreaterThanOrEqual(
+          Date.parse(bundle.period.end),
+        );
         const afterBundleExpiry = new Date(
           Math.max(Date.parse(individual.period.end), Date.parse(bundle.period.end)) + 1000,
         );
@@ -299,9 +303,10 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
         const checkout = await client.billing.retrieveCheckout(
           must(individualIntent.providerSessionId),
         );
-        await client.billing.cancelAtPeriodEnd(must(checkout.subscription).providerSubscriptionId, {
-          idempotencyKey: 'cancel_individual',
-        });
+        await client.billing.cancelAtPeriodEnd(
+          must(checkout.subscription).provider_subscription_id,
+          { idempotencyKey: 'cancel_individual' },
+        );
         await runtime.recover(sourceIds[1]);
         expect(
           (await readSubjectProductGrantSnapshot(f.payer, productId, new Date())).grants,

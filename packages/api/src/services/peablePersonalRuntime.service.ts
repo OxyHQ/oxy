@@ -1,6 +1,5 @@
 import {
   integerCheck,
-  isoDateTime,
   safeNumberCheck,
   urlCheck,
   utf16MaxLength,
@@ -47,6 +46,7 @@ import {
   type PersonalCheckoutProvider,
 } from './personalPlanCheckout.service';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
+import { peableUnixSecondsSchema } from './peablePersonalBilling.service';
 
 const pinnedKeysSchema = z
   .record(z.string().check(utf16MinLength(1)), z.string().check(utf16MinLength(1)))
@@ -171,8 +171,8 @@ export function createPeablePersonalRuntime(
         throw new Error('Peable invoice authority unconfigured');
       const result = await sdkAuthority.readFinalInvoiceAuthority(source);
       z.object({
-        sellerId: z.literal(configuration.sellerId),
-        invoiceIssuerId: z.literal(configuration.invoiceIssuer.id),
+        seller_id: z.literal(configuration.sellerId),
+        invoice_issuer_id: z.literal(configuration.invoiceIssuer.id),
       }).parse(result.invoice);
       return result;
     },
@@ -337,18 +337,15 @@ export function createPeablePersonalRuntime(
             const session = z
               .object({
                 id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
-                expiresAt: z.string().check(isoDateTime()),
+                expires_at: peableUnixSecondsSchema,
                 url: z.string().check(urlCheck()).startsWith('https://').optional(),
               })
-              .parse({
-                ...recovered.checkout,
-                expiresAt: new Date(recovered.checkout.expires_at * 1000).toISOString(),
-              });
+              .parse(recovered.checkout);
             await getDb()
               .update(personalPlanCheckoutIntents)
               .set({
                 providerSessionId: session.id,
-                providerSessionExpiresAt: new Date(session.expiresAt),
+                providerSessionExpiresAt: new Date(session.expires_at * 1000),
                 checkoutUrl: session.url ?? null,
                 state: 'pending',
               })
@@ -438,7 +435,7 @@ export function createPeablePersonalRuntime(
         interval: intent.billingInterval,
         origin: intent.offerKind,
       };
-      // The checkout owns its immutable first invoice. latestInvoiceId may already
+      // The checkout owns its immutable first invoice. latest_invoice_id may already
       // name a renewal when a delayed checkout callback is recovered.
       const scopedAuthority = {
         ...authority,
@@ -448,21 +445,22 @@ export function createPeablePersonalRuntime(
           const final = await authority.readFinalInvoiceAuthority(source);
           const invoice = z
             .object({
-              taxQuoteId: z.literal(snapshot.taxQuote.quote.id),
-              sellerId: z.literal(snapshot.taxQuote.quote.seller_id),
-              invoiceIssuerId: z.literal(snapshot.taxQuote.quote.invoice_issuer_id),
-              customerLocationEvidenceId: z.literal(
+              tax_quote_id: z.literal(snapshot.taxQuote.quote.id),
+              seller_id: z.literal(snapshot.taxQuote.quote.seller_id),
+              invoice_issuer_id: z.literal(snapshot.taxQuote.quote.invoice_issuer_id),
+              customer_location_evidence_id: z.literal(
                 snapshot.taxQuote.quote.customer_location_evidence_id,
               ),
-              taxRateEvidenceId: z.literal(snapshot.taxQuote.quote.tax_rate_evidence_id),
+              tax_rate_evidence_id: z.literal(snapshot.taxQuote.quote.tax_rate_evidence_id),
               currency: z.literal('USD'),
-              grossMinorUnits: z.literal(intent.amountMinorUnits),
-              netMinorUnits: z.literal(snapshot.taxQuote.quote.net_minor_units),
-              taxMinorUnits: z.literal(snapshot.taxQuote.quote.tax_minor_units),
-              taxTreatment: z.literal('inclusive'),
+              gross_minor_units: z.literal(intent.amountMinorUnits),
+              net_minor_units: z.literal(snapshot.taxQuote.quote.net_minor_units),
+              tax_minor_units: z.literal(snapshot.taxQuote.quote.tax_minor_units),
+              tax_treatment: z.literal('inclusive'),
             })
             .parse(final.invoice);
-          if (!invoice.taxQuoteId) throw new Error('Peable initial invoice authority unavailable');
+          if (!invoice.tax_quote_id)
+            throw new Error('Peable initial invoice authority unavailable');
           return final;
         },
       };

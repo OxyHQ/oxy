@@ -179,7 +179,7 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
   retrieveCheckout.mockRejectedValueOnce(
     new PeableInvalidRequestError('reconciliation_required', {
       statusCode: 409,
-      code: 'invalid_request_error',
+      code: 'reconciliation_required',
     }),
   );
   await expect(
@@ -675,12 +675,13 @@ it('round-trips every typed signed v2 quote field and integer-second timestamps 
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
   const reconstructed = personalCheckoutSnapshotFromIntent(stored);
   expect(reconstructed).toEqual(prepared);
-  await expect(
-    getDb()
-      .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteExpiresAtLexeme: '2099-01-01T00:00:01Z' })
-      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
-  ).rejects.toThrow();
+  // A signed instant is whole seconds: a sub-second stored value was never signed.
+  expect(() =>
+    personalCheckoutSnapshotFromIntent({
+      ...stored,
+      taxQuoteExpiresAt: new Date(Date.parse('2099-01-01T00:00:59.001Z')),
+    }),
+  ).toThrow('not a signed instant');
   await expect(
     getDb()
       .update(personalPlanCheckoutIntents)

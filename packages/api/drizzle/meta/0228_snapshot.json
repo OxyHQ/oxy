@@ -1,6 +1,6 @@
 {
-  "id": "d09a65dc-344e-40d5-92eb-89f60e492422",
-  "prevId": "89e6c982-ce9a-449a-9180-2bb1c4c56d05",
+  "id": "9862a0ad-67ed-43dd-91e9-8275a2bc4e4c",
+  "prevId": "8dd8c6ad-64f7-4df6-aa1c-9db97ba41870",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -43362,13 +43362,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tax_quote_schema_version": {
-          "name": "tax_quote_schema_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
         "tax_quote_currency": {
           "name": "tax_quote_currency",
           "type": "text",
@@ -43444,18 +43437,6 @@
         "tax_quote_expires_at": {
           "name": "tax_quote_expires_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tax_quote_quoted_at_lexeme": {
-          "name": "tax_quote_quoted_at_lexeme",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tax_quote_expires_at_lexeme": {
-          "name": "tax_quote_expires_at_lexeme",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -43657,7 +43638,7 @@
         },
         "personal_checkout_authority_complete": {
           "name": "personal_checkout_authority_complete",
-          "value": "(\"personal_plan_checkout_intents\".\"application_ref\" is null and \"personal_plan_checkout_intents\".\"plan_ref\" is null and \"personal_plan_checkout_intents\".\"customer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\" is null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is null and \"personal_plan_checkout_intents\".\"return_url\" is null) or (\"personal_plan_checkout_intents\".\"application_ref\" is not null and \"personal_plan_checkout_intents\".\"plan_ref\" is not null and \"personal_plan_checkout_intents\".\"customer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is not null and \"personal_plan_checkout_intents\".\"return_url\" is not null)"
+          "value": "(\"personal_plan_checkout_intents\".\"application_ref\" is null and \"personal_plan_checkout_intents\".\"plan_ref\" is null and \"personal_plan_checkout_intents\".\"customer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is null and \"personal_plan_checkout_intents\".\"return_url\" is null) or (\"personal_plan_checkout_intents\".\"application_ref\" is not null and \"personal_plan_checkout_intents\".\"plan_ref\" is not null and \"personal_plan_checkout_intents\".\"customer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is not null and \"personal_plan_checkout_intents\".\"return_url\" is not null)"
         },
         "personal_checkout_quote_amounts": {
           "name": "personal_checkout_quote_amounts",
@@ -43665,7 +43646,7 @@
         },
         "personal_checkout_quote_timestamps": {
           "name": "personal_checkout_quote_timestamps",
-          "value": "\"personal_plan_checkout_intents\".\"tax_quote_ref\" is null or (\"personal_plan_checkout_intents\".\"tax_quote_expires_at\" > \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\"::timestamptz = \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\"::timestamptz = \"personal_plan_checkout_intents\".\"tax_quote_expires_at\")"
+          "value": "\"personal_plan_checkout_intents\".\"tax_quote_ref\" is null or (\"personal_plan_checkout_intents\".\"tax_quote_expires_at\" > \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\")"
         },
         "personal_checkout_quote_country": {
           "name": "personal_checkout_quote_country",

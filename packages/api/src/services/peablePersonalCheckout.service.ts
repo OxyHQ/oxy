@@ -1,3 +1,4 @@
+import { peableInstantToIso, peableUnixSecondsSchema } from './peablePersonalBilling.service';
 import {
   integerCheck,
   oxyAccountIdSchema,
@@ -24,8 +25,7 @@ function checkoutFailure(error: unknown): never {
   if (
     error instanceof PeableError &&
     error.statusCode === 409 &&
-    error.code === 'invalid_request_error' &&
-    error.message === 'reconciliation_required'
+    error.code === 'reconciliation_required'
   )
     throw new ApiError(
       409,
@@ -130,9 +130,9 @@ export function createPeablePersonalCheckoutProvider(
       quote.quote.seller_id !== configuration.sellerId ||
       quote.quote.invoice_issuer_id !== configuration.invoiceIssuerId ||
       quote.quote.tax_remitter_id !== configuration.taxRemitterId ||
-      !Number.isFinite(quote.quote.quoted_at * 1000) ||
+      !peableUnixSecondsSchema.safeParse(quote.quote.quoted_at).success ||
       quote.quote.quoted_at * 1000 > now ||
-      !Number.isFinite(quote.quote.expires_at * 1000) ||
+      !peableUnixSecondsSchema.safeParse(quote.quote.expires_at).success ||
       quote.quote.expires_at * 1000 <= now
     )
       throw new Error('Peable checkout tax quote differs or expired');
@@ -397,7 +397,7 @@ export function createPeablePersonalCheckoutProvider(
           throw new Error('Peable embedded session binding differs');
         return {
           sessionId: session.id,
-          expiresAt: new Date(session.expires_at * 1000).toISOString(),
+          expiresAt: peableInstantToIso(session.expires_at),
         };
       }
       const session = await (input.renewalSubscriptionId
@@ -417,7 +417,7 @@ export function createPeablePersonalCheckoutProvider(
             .refine((value) => new URL(value).protocol === 'https:'),
           expiresAt: z.string().check(isoDateTime()),
         })
-        .parse({ ...session, expiresAt: new Date(session.expires_at * 1000).toISOString() });
+        .parse({ ...session, expiresAt: peableInstantToIso(session.expires_at) });
       if (
         Date.parse(parsed.expiresAt) <= clock().getTime() ||
         Date.parse(parsed.expiresAt) > snapshot.taxQuote.quote.expires_at * 1000

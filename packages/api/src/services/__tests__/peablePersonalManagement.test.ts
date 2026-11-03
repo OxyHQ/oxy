@@ -16,6 +16,12 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
   const f = await productAccessFixture();
   const raw = f.input();
   const { id: _id, ...subscription } = raw.source;
+  // Peable reports periods as whole Unix seconds, so the recorded period is too.
+  const wholeSecond = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+  const period = {
+    start: new Date(wholeSecond(f.period.start) * 1000).toISOString(),
+    end: new Date(wholeSecond(f.period.end) * 1000).toISOString(),
+  };
   const binding = {
     providerAccountRef: 'merch_fixture',
     mode: 'live' as const,
@@ -23,14 +29,14 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
   };
   const paid = await recordProductProviderPeriod({
     binding,
-    subscription: { ...subscription, provider: 'peable', beneficiaryAccountId: f.payer },
+    subscription: { ...subscription, period, provider: 'peable', beneficiaryAccountId: f.payer },
     offer: { offerId: f.offers[0].id, offerVersion: 1, origin: 'bundle' },
     paidLine: {
       invoiceId: `in_${randomUUID()}`,
       lineId: `il_${randomUUID()}`,
       priceId: 'price_fixture',
       quantity: 1,
-      period: f.period,
+      period,
     },
     event: { id: `event_${randomUUID()}`, createdAt: f.now.toISOString() },
     providerObservedAt: f.now,
@@ -77,6 +83,7 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
     }),
   );
   process.env.BILLING_PRODUCT_CATALOGUE_FILE = path;
+  // Peable's wire (ADR 0014): snake_case, instants as integer Unix seconds.
   let snapshot = {
     provider_subscription_id: subscription.providerSubscriptionId,
     provider_customer_id: 'cus_fixture',
@@ -87,8 +94,8 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
     status: 'active' as const,
     interval: 'month' as const,
     cancel_at_period_end: false,
-    current_period_start: Date.parse(f.period.start) / 1000,
-    current_period_end: Date.parse(f.period.end) / 1000,
+    current_period_start: wholeSecond(f.period.start),
+    current_period_end: wholeSecond(f.period.end),
     trial_ends_at: null,
     cancel_at: null,
     cancelled_at: null,

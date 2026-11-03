@@ -23,26 +23,28 @@ import {
   stopPeablePersonalRuntime,
 } from '../peablePersonalRuntime.service';
 
+/** Peable instants are integer Unix seconds (ADR 0014). */
+const unix = (instant: string | Date | number) => Math.floor(new Date(instant).getTime() / 1000);
 const source = {
-  invoiceId: 'invoice_fixture',
-  paymentIntentId: 'payment_fixture',
-  customerId: 'customer_fixture',
-  subscriptionId: 'subscription_fixture',
-  priceId: 'price_fixture',
-  planId: 'plan_fixture',
-  merchantId: 'merch_fixture',
-  appId: 'app_fixture',
+  invoice_id: 'invoice_fixture',
+  payment_intent_id: 'payment_fixture',
+  customer_id: 'customer_fixture',
+  subscription_id: 'subscription_fixture',
+  price_id: 'price_fixture',
+  plan_id: 'plan_fixture',
+  merchant_id: 'merch_fixture',
+  app_id: 'app_fixture',
   mode: 'test' as const,
   environment: 'development' as const,
 };
 const keys = generateKeyPairSync('ed25519');
 const publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
 const configuration = {
-  merchantId: source.merchantId,
-  applicationId: source.appId,
+  merchantId: source.merchant_id,
+  applicationId: source.app_id,
   namespace: { mode: 'test' as const, environment: 'development' as const },
   offers: [
-    { offerId: 'one', offerVersion: 1, planId: source.planId, providerPriceId: source.priceId },
+    { offerId: 'one', offerVersion: 1, planId: source.plan_id, providerPriceId: source.price_id },
   ],
   invoiceIssuer: { legalName: 'Oxy Platforms, Inc.' as const, id: 'issuer_fixture' },
   sellerId: 'seller_fixture',
@@ -53,65 +55,14 @@ const configuration = {
   recoveryEnabled: false,
   recoveryIntervalMilliseconds: 60_000,
 };
-const invoice = {
-  platform: 'peable',
-  currency: 'USD',
-  grossMinorUnits: 2999,
-  netMinorUnits: 2500,
-  taxMinorUnits: 499,
-  merchantFeeMinorUnits: 0,
-  taxTreatment: 'inclusive',
-  sellerId: 'seller_fixture',
-  invoiceIssuerId: 'issuer_fixture',
-  taxQuoteId: 'quote_fixture',
-  customerLocationEvidenceId: 'location_fixture',
-  taxRateEvidenceId: 'rate_fixture',
-  issuedAt: '2026-11-03T00:00:00.000Z',
-  expiresAt: '2026-12-03T00:00:00.000Z',
-  context: {
-    payerAccountId: '698100000000000000000001',
-    beneficiaryAccountId: '698100000000000000000001',
-    providerSubscriptionId: source.subscriptionId,
-    offerId: 'one',
-    offerVersion: 1,
-    periodStart: '2026-11-03T00:00:00.000Z',
-    periodEnd: '2026-12-03T00:00:00.000Z',
-    mode: 'test',
-    environment: 'development',
-  },
-};
-/** Fixtures retain Oxy's durable shape; the SDK boundary emits the published v2 wire shape. */
-function sdkWire(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sdkWire);
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => {
-      const name = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-      if (name === 'schema_version') return [name, 2];
-      if (
-        typeof entry === 'string' &&
-        /^(quoted_at|expires_at|issued_at|current_period_start|current_period_end|period_start|period_end|paid_at|observed_at|trial_ends_at|cancel_at|cancelled_at)$/.test(
-          name,
-        )
-      )
-        return [name, Math.floor(Date.parse(entry) / 1000)];
-      return [name, sdkWire(entry)];
-    }),
-  );
-}
-
+const invoice = { seller_id: 'seller_fixture', invoice_issuer_id: 'issuer_fixture' };
 function fixture() {
-  const retrieveFinalInvoiceAuthority = jest.fn(async (..._args: unknown[]) => ({
+  const retrieveFinalInvoiceAuthority = jest.fn(async () => ({
     source,
     invoice,
     method: 'card' as const,
   }));
-  const client = {
-    billing: {
-      retrieveFinalInvoiceAuthority: async (...args: unknown[]) =>
-        sdkWire(await retrieveFinalInvoiceAuthority(...args)),
-    },
-  } as unknown as Peable;
+  const client = { billing: { retrieveFinalInvoiceAuthority } } as unknown as Peable;
   return { client, retrieveFinalInvoiceAuthority };
 }
 afterEach(stopPeablePersonalRuntime);
@@ -126,8 +77,8 @@ it('uses the new SDK invoice-authority API and verifies every frozen source bind
     method: 'card',
   });
   expect(test.retrieveFinalInvoiceAuthority).toHaveBeenCalledWith(
-    source.subscriptionId,
-    source.invoiceId,
+    source.subscription_id,
+    source.invoice_id,
   );
   for (const field of Object.keys(source)) {
     await expect(
@@ -229,13 +180,13 @@ it('requires the configured approved issuer and seller in SDK evidence', async (
   expect(await runtime.authority.readFinalInvoiceAuthority(source)).toMatchObject({ invoice });
   test.retrieveFinalInvoiceAuthority.mockResolvedValue({
     source,
-    invoice: { ...invoice, invoiceIssuerId: 'other' },
+    invoice: { ...invoice, invoice_issuer_id: 'other' },
     method: 'card',
   });
   await expect(runtime.authority.readFinalInvoiceAuthority(source)).rejects.toThrow();
   test.retrieveFinalInvoiceAuthority.mockResolvedValue({
     source,
-    invoice: { ...invoice, sellerId: 'other' },
+    invoice: { ...invoice, seller_id: 'other' },
     method: 'card',
   });
   await expect(runtime.authority.readFinalInvoiceAuthority(source)).rejects.toThrow();
@@ -291,36 +242,38 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
   await connectPostgres();
   const account = await productAccessFixture();
   const intentId = randomUUID();
-  const quote = sdkWire({
-    schemaVersion: 1,
+  const periodStart = unix(account.period.start),
+    periodEnd = unix(account.period.end);
+  const quote: BillingTaxQuote = {
+    schema_version: 2,
     source: {
-      merchantId: 'merch_fixture',
-      appId: account.app.id,
-      storeId: account.payer,
-      planId: 'plan_fixture',
+      merchant_id: 'merch_fixture',
+      app_id: account.app.id,
+      store_id: account.payer,
+      plan_id: 'plan_fixture',
       mode: 'live',
       environment: 'production',
     },
     quote: {
       id: `quote_${intentId}`,
       currency: 'USD',
-      grossMinorUnits: 2999,
-      netMinorUnits: 2500,
-      taxMinorUnits: 499,
-      taxTreatment: 'inclusive',
-      sellerId: 'seller_fixture',
-      invoiceIssuerId: 'issuer_fixture',
-      taxRemitterId: 'remitter_fixture',
-      taxServiceRef: 'tax_fixture',
+      gross_minor_units: 2999,
+      net_minor_units: 2500,
+      tax_minor_units: 499,
+      tax_treatment: 'inclusive',
+      seller_id: 'seller_fixture',
+      invoice_issuer_id: 'issuer_fixture',
+      tax_remitter_id: 'remitter_fixture',
+      tax_service_ref: 'tax_fixture',
       country: 'RO',
-      coverageEvidenceId: 'coverage_fixture',
-      taxRateEvidenceId: 'rate_fixture',
-      customerLocationEvidenceId: 'location_fixture',
-      quotedAt: account.period.start,
-      expiresAt: account.period.end,
+      coverage_evidence_id: 'coverage_fixture',
+      tax_rate_evidence_id: 'rate_fixture',
+      customer_location_evidence_id: 'location_fixture',
+      quoted_at: periodStart,
+      expires_at: periodEnd,
     },
-    signature: { algorithm: 'Ed25519', keyId: 'fixture', value: 'fixture' },
-  }) as BillingTaxQuote;
+    signature: { algorithm: 'Ed25519', key_id: 'fixture', value: 'fixture' },
+  };
   await getDb()
     .insert(personalPlanCheckoutIntents)
     .values({
@@ -363,96 +316,96 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
       }),
     });
   const subscription = {
-    providerSubscriptionId: `sub_${intentId}`,
-    latestInvoiceId: `in_${intentId}`,
-    providerCustomerId: 'customer_fixture',
-    providerPriceId: 'price_fixture',
-    storeId: account.payer,
-    planId: 'plan_fixture',
+    provider_subscription_id: `sub_${intentId}`,
+    latest_invoice_id: `in_${intentId}`,
+    provider_customer_id: 'customer_fixture',
+    provider_price_id: 'price_fixture',
+    store_id: account.payer,
+    plan_id: 'plan_fixture',
     livemode: true,
     status: 'active',
     interval: 'month',
-    cancelAtPeriodEnd: false,
-    currentPeriodStart: account.period.start,
-    currentPeriodEnd: account.period.end,
-    trialEndsAt: null,
-    cancelAt: null,
-    cancelledAt: null,
+    cancel_at_period_end: false,
+    current_period_start: periodStart,
+    current_period_end: periodEnd,
+    trial_ends_at: null,
+    cancel_at: null,
+    cancelled_at: null,
   };
   const session = {
     id: `cs_${intentId}`,
-    initialInvoiceId: subscription.latestInvoiceId,
+    initial_invoice_id: subscription.latest_invoice_id,
     status: 'complete',
-    storeId: account.payer,
-    planId: 'plan_fixture',
-    providerCustomerId: 'customer_fixture',
-    providerPriceId: 'price_fixture',
+    store_id: account.payer,
+    plan_id: 'plan_fixture',
+    provider_customer_id: 'customer_fixture',
+    provider_price_id: 'price_fixture',
     subscription,
   };
   const paid = {
-    invoiceId: subscription.latestInvoiceId,
-    lineId: `line_${intentId}`,
-    paymentIntentId: `pi_${intentId}`,
-    providerSubscriptionId: subscription.providerSubscriptionId,
-    providerCustomerId: 'customer_fixture',
-    providerPriceId: 'price_fixture',
-    storeId: account.payer,
-    planId: 'plan_fixture',
+    invoice_id: subscription.latest_invoice_id,
+    line_id: `line_${intentId}`,
+    payment_intent_id: `pi_${intentId}`,
+    provider_subscription_id: subscription.provider_subscription_id,
+    provider_customer_id: 'customer_fixture',
+    provider_price_id: 'price_fixture',
+    store_id: account.payer,
+    plan_id: 'plan_fixture',
     livemode: true,
     currency: 'USD',
-    amountPaid: '2999',
-    netAmount: '2500',
-    taxAmount: '499',
-    periodStart: account.period.start,
-    periodEnd: account.period.end,
-    paidAt: account.now.toISOString(),
-    observedAt: account.now.toISOString(),
+    amount_paid: '2999',
+    net_amount: '2500',
+    tax_amount: '499',
+    period_start: periodStart,
+    period_end: periodEnd,
+    paid_at: unix(account.now),
+    observed_at: unix(account.now),
   };
   const final = {
     platform: 'peable',
     currency: 'USD',
-    grossMinorUnits: 2999,
-    netMinorUnits: 2500,
-    taxMinorUnits: 499,
-    merchantFeeMinorUnits: 0,
-    taxTreatment: 'inclusive',
-    sellerId: 'seller_fixture',
-    invoiceIssuerId: 'issuer_fixture',
-    taxQuoteId: quote.quote.id,
-    customerLocationEvidenceId: 'location_fixture',
-    taxRateEvidenceId: 'rate_fixture',
-    issuedAt: account.period.start,
-    expiresAt: account.period.end,
+    gross_minor_units: 2999,
+    net_minor_units: 2500,
+    tax_minor_units: 499,
+    merchant_fee_minor_units: 0,
+    tax_treatment: 'inclusive',
+    seller_id: 'seller_fixture',
+    invoice_issuer_id: 'issuer_fixture',
+    tax_quote_id: quote.quote.id,
+    customer_location_evidence_id: 'location_fixture',
+    tax_rate_evidence_id: 'rate_fixture',
+    issued_at: periodStart,
+    expires_at: periodEnd,
     context: {
-      payerAccountId: account.payer,
-      beneficiaryAccountId: account.payer,
-      providerSubscriptionId: subscription.providerSubscriptionId,
-      offerId: account.offers[0].id,
-      offerVersion: 1,
-      periodStart: account.period.start,
-      periodEnd: account.period.end,
+      payer_account_id: account.payer,
+      beneficiary_account_id: account.payer,
+      provider_subscription_id: subscription.provider_subscription_id,
+      offer_id: account.offers[0].id,
+      offer_version: 1,
+      period_start: periodStart,
+      period_end: periodEnd,
       mode: 'live',
       environment: 'production',
     },
   };
   const retrieveCheckout = jest.fn(async () => session);
-  const retrievePaidInvoice = jest.fn(async (..._args: unknown[]) => paid);
+  const retrievePaidInvoice = jest.fn(async () => paid);
   const retrieveInvoiceState = jest.fn(async () => ({
     ...paid,
-    chargeId: `ch_${intentId}`,
-    amountRefunded: '0',
+    charge_id: `ch_${intentId}`,
+    amount_refunded: '0',
     state: 'paid',
   }));
   const retrieveFinalInvoiceAuthority = jest.fn(async () => ({
     source: {
-      invoiceId: paid.invoiceId,
-      paymentIntentId: paid.paymentIntentId,
-      customerId: paid.providerCustomerId,
-      subscriptionId: paid.providerSubscriptionId,
-      priceId: paid.providerPriceId,
-      planId: paid.planId,
-      merchantId: 'merch_fixture',
-      appId: account.app.id,
+      invoice_id: paid.invoice_id,
+      payment_intent_id: paid.payment_intent_id,
+      customer_id: paid.provider_customer_id,
+      subscription_id: paid.provider_subscription_id,
+      price_id: paid.provider_price_id,
+      plan_id: paid.plan_id,
+      merchant_id: 'merch_fixture',
+      app_id: account.app.id,
       mode: 'live',
       environment: 'production',
     },
@@ -464,34 +417,34 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
     oxy_app_id: account.app.id,
     environment: 'production',
   }));
-  const observation = {
-    id: `evt_${intentId}`,
-    object: 'event',
-    type: 'billing.observation.updated',
-    livemode: true,
-    created: Math.floor(account.now.getTime() / 1000),
-    data: {
-      object: {
-        object: 'billing_observation',
-        livemode: true,
-        resource_kind: 'invoice',
-        resource_id: paid.invoiceId,
-        subscription_id: subscription.providerSubscriptionId,
-        revision: 1,
-        observed_at: Math.floor(account.now.getTime() / 1000),
-      },
-    },
-  };
   const client = {
-    webhooks: { constructEvent: jest.fn(() => observation) },
+    webhooks: {
+      constructEvent: () => ({
+        id: `evt_${intentId}`,
+        object: 'event',
+        type: 'billing.observation.updated',
+        livemode: true,
+        created: Math.floor(account.now.getTime() / 1000),
+        data: {
+          object: {
+            object: 'billing_observation',
+            livemode: true,
+            resource_kind: 'invoice',
+            resource_id: paid.invoice_id,
+            subscription_id: subscription.provider_subscription_id,
+            revision: 1,
+            observed_at: Math.floor(account.now.getTime() / 1000),
+          },
+        },
+      }),
+    },
     merchants: { retrieve: retrieveMerchant },
     billing: {
-      retrieveCheckout: async () => sdkWire(await retrieveCheckout()),
-      retrievePaidInvoice: async (...args: unknown[]) =>
-        sdkWire(await retrievePaidInvoice(...args)),
-      retrieveInvoiceState: async () => sdkWire(await retrieveInvoiceState()),
-      retrieveFinalInvoiceAuthority: async () => sdkWire(await retrieveFinalInvoiceAuthority()),
-      retrieveSubscription: async () => sdkWire(subscription),
+      retrieveCheckout,
+      retrievePaidInvoice,
+      retrieveInvoiceState,
+      retrieveFinalInvoiceAuthority,
+      retrieveSubscription: async () => subscription,
     },
   } as unknown as Peable;
   const runtime = createPeablePersonalRuntime(
@@ -537,7 +490,7 @@ it('fulfills an owned initial invoice once and preserves its checkout attributio
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.id, test.intentId));
   expect(intent.state).toBe('fulfilled');
-  expect(intent.initialInvoiceId).toBe(test.paid.invoiceId);
+  expect(intent.initialInvoiceId).toBe(test.paid.invoice_id);
   expect(test.retrievePaidInvoice).toHaveBeenCalledTimes(1);
   if (!intent.fulfilledSourceId) throw new Error('Missing fulfilled source');
   expect(
@@ -545,10 +498,10 @@ it('fulfills an owned initial invoice once and preserves its checkout attributio
       test.runtime.authority,
       {
         accountId: test.account.payer,
-        customerId: test.paid.providerCustomerId,
-        subscriptionId: test.paid.providerSubscriptionId,
-        priceId: test.paid.providerPriceId,
-        planId: test.paid.planId,
+        customerId: test.paid.provider_customer_id,
+        subscriptionId: test.paid.provider_subscription_id,
+        priceId: test.paid.provider_price_id,
+        planId: test.paid.plan_id,
         merchantId: 'merch_fixture',
         appId: test.account.app.id,
         mode: 'live',
@@ -556,7 +509,7 @@ it('fulfills an owned initial invoice once and preserves its checkout attributio
         offerId: test.account.offers[0].id,
         offerVersion: 1,
       },
-      test.paid.invoiceId,
+      test.paid.invoice_id,
       () => test.account.now,
     ),
   ).toMatchObject({ status: 'replayed' });
@@ -584,13 +537,13 @@ it.each(['open', 'complete'])(
 );
 it('rejects a foreign session before reading any invoice', async () => {
   const test = await pendingCheckoutFixture();
-  test.retrieveCheckout.mockResolvedValue({ ...test.session, storeId: test.account.owner });
+  test.retrieveCheckout.mockResolvedValue({ ...test.session, store_id: test.account.owner });
   await expect(test.runtime.recoverCheckout(test.intentId)).rejects.toThrow('binding differs');
   expect(test.retrieveInvoiceState).not.toHaveBeenCalled();
 });
 it('defers a discovered renewal carrying a different quote and grants no rights', async () => {
   const test = await pendingCheckoutFixture();
-  test.final.taxQuoteId = 'renewal_quote';
+  test.final.tax_quote_id = 'renewal_quote';
   await expect(test.runtime.recoverCheckout(test.intentId)).rejects.toThrow();
   expect(
     await getDb()
@@ -624,10 +577,7 @@ it.each([false, true])(
   'uses packed SDK signed authority and refuses tampering=%s before fulfillment',
   async (hasTampering) => {
     const test = await pendingCheckoutFixture();
-    const authorityValue = sdkWire({
-      schemaVersion: 2,
-      ...(await test.retrieveFinalInvoiceAuthority()),
-    }) as Record<string, unknown> & { invoice: { tax_quote_id: string } };
+    const authorityValue = { schema_version: 2, ...(await test.retrieveFinalInvoiceAuthority()) };
     function canonical(value: unknown): string {
       if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
       if (value !== null && typeof value === 'object') {
@@ -667,7 +617,7 @@ it.each([false, true])(
       else if (path.includes('/invoice_authorities/')) response = signed;
       else if (path.includes('/subscriptions/')) response = test.session.subscription;
       else throw new Error(`Unexpected fixture request ${path}`);
-      return new Response(JSON.stringify(sdkWire(response)), {
+      return new Response(JSON.stringify(response), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -707,7 +657,7 @@ it.each([false, true])(
         .select()
         .from(personalPlanCheckoutIntents)
         .where(eq(personalPlanCheckoutIntents.id, test.intentId));
-      expect(intent.initialInvoiceId).toBe(hasTampering ? null : test.paid.invoiceId);
+      expect(intent.initialInvoiceId).toBe(hasTampering ? null : test.paid.invoice_id);
     } finally {
       transport.mockRestore();
     }
@@ -718,7 +668,7 @@ it('keeps a partially refunded initial invoice under review without creating rig
   const test = await pendingCheckoutFixture();
   test.retrieveInvoiceState.mockResolvedValue({
     ...(await test.retrieveInvoiceState()),
-    amountRefunded: '1',
+    amount_refunded: '1',
     state: 'partially_refunded',
   });
   expect(await test.runtime.recoverCheckout(test.intentId)).toEqual({
@@ -736,7 +686,7 @@ it('does not fulfill a fully refunded first invoice', async () => {
   const test = await pendingCheckoutFixture();
   test.retrieveInvoiceState.mockResolvedValue({
     ...(await test.retrieveInvoiceState()),
-    amountRefunded: '2999',
+    amount_refunded: '2999',
     state: 'fully_refunded',
   });
   await test.runtime.recoverCheckout(test.intentId);
@@ -776,11 +726,11 @@ it('rejects wrong SDK credential owner before owned checkout reads', async () =>
 
 it('recovers the immutable initial invoice after a newer renewal becomes latest', async () => {
   const test = await pendingCheckoutFixture();
-  test.session.subscription.latestInvoiceId = 'in_later_renewal';
+  test.session.subscription.latest_invoice_id = 'in_later_renewal';
   expect(await test.runtime.recoverCheckout(test.intentId)).toMatchObject({ status: 'recorded' });
   expect(test.retrievePaidInvoice).toHaveBeenCalledWith(
-    test.paid.providerSubscriptionId,
-    test.paid.invoiceId,
+    test.paid.provider_subscription_id,
+    test.paid.invoice_id,
   );
 });
 
@@ -824,6 +774,6 @@ it('routes a merchant observation through its owned checkout and requires curren
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.id, test.intentId));
   expect(intent.state).toBe('fulfilled');
-  expect(intent.initialInvoiceId).toBe(test.paid.invoiceId);
+  expect(intent.initialInvoiceId).toBe(test.paid.invoice_id);
   expect(test.retrieveFinalInvoiceAuthority).toHaveBeenCalled();
 });

@@ -338,9 +338,9 @@ it('maps authoritative review failures for creation and saved URLs without grant
   const f = fixture();
   const snapshot = await f.provider.prepare?.(input);
   if (!snapshot) throw new Error('Missing snapshot');
-  const error = new PeableInvalidRequestError('reconciliation_required', {
+  const error = new PeableInvalidRequestError('Reconciliation required', {
     statusCode: 409,
-    code: 'invalid_request_error',
+    code: 'reconciliation_required',
   });
   f.createCheckoutSession.mockRejectedValueOnce(error);
   await expect(f.provider.create({ ...input, snapshot })).rejects.toMatchObject({

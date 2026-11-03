@@ -157,6 +157,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         authorityEnd = end;
       let validationNow: Date | undefined;
       const clock = () => validationNow ?? new Date();
+      const unix = (iso: string) => Date.parse(iso) / 1000;
       const authority: PeableEvidenceAuthority = {
         client,
         readFinalInvoiceAuthority: async (source: PeableInvoiceSource) => ({
@@ -165,26 +166,26 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           invoice: {
             platform: 'peable',
             currency: 'USD',
-            grossMinorUnits: 2999,
-            netMinorUnits: 2500,
-            taxMinorUnits: 499,
-            merchantFeeMinorUnits: 0,
-            taxTreatment: 'inclusive',
-            sellerId: 'synthetic-only',
-            invoiceIssuerId: 'synthetic-only',
-            taxQuoteId: 'synthetic-only',
-            customerLocationEvidenceId: 'synthetic-only',
-            taxRateEvidenceId: 'synthetic-only',
-            issuedAt: authorityStart,
-            expiresAt: authorityEnd,
+            gross_minor_units: 2999,
+            net_minor_units: 2500,
+            tax_minor_units: 499,
+            merchant_fee_minor_units: 0,
+            tax_treatment: 'inclusive',
+            seller_id: 'synthetic-only',
+            invoice_issuer_id: 'synthetic-only',
+            tax_quote_id: 'synthetic-only',
+            customer_location_evidence_id: 'synthetic-only',
+            tax_rate_evidence_id: 'synthetic-only',
+            issued_at: unix(authorityStart),
+            expires_at: unix(authorityEnd),
             context: {
-              payerAccountId: f.payer,
-              beneficiaryAccountId: f.payer,
-              providerSubscriptionId: context.subscriptionId,
-              offerId: context.offerId,
-              offerVersion: 1,
-              periodStart: authorityStart,
-              periodEnd: authorityEnd,
+              payer_account_id: f.payer,
+              beneficiary_account_id: f.payer,
+              provider_subscription_id: context.subscriptionId,
+              offer_id: context.offerId,
+              offer_version: 1,
+              period_start: unix(authorityStart),
+              period_end: unix(authorityEnd),
               mode: context.mode,
               environment: context.environment,
             },

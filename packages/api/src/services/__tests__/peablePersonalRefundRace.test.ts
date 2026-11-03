@@ -11,13 +11,12 @@ import {
   handlePeablePersonalObservation,
   type PeableEvidenceAuthority,
 } from '../peablePersonalEvidence.service';
+/** Peable instants are integer Unix seconds (ADR 0014). */
+const unix = (instant: string | Date | number) => Math.floor(new Date(instant).getTime() / 1000);
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
   const f = await productAccessFixture();
-  f.now.setMilliseconds(0);
-  f.period.start = new Date(Math.floor(Date.parse(f.period.start) / 1000) * 1000).toISOString();
-  f.period.end = new Date(Math.floor(Date.parse(f.period.end) / 1000) * 1000).toISOString();
   const context = {
     accountId: f.payer,
     appId: f.app.id,
@@ -32,6 +31,11 @@ async function fixture() {
     environment: 'production' as const,
   };
   const invoiceId = `in_${f.payer.replaceAll('-', '')}`;
+  // The ledger period Peable's whole-second instants restore.
+  const period = {
+    start: new Date(unix(f.period.start) * 1000).toISOString(),
+    end: new Date(unix(f.period.end) * 1000).toISOString(),
+  };
   const paid = {
     invoice_id: invoiceId,
     line_id: 'il_fixture',
@@ -46,10 +50,10 @@ async function fixture() {
     amount_paid: '2999',
     net_amount: '2500',
     tax_amount: '499',
-    period_start: Math.floor(Date.parse(f.period.start) / 1000),
-    period_end: Math.floor(Date.parse(f.period.end) / 1000),
-    paid_at: Math.floor(f.now.getTime() / 1000),
-    observed_at: Math.floor(f.now.getTime() / 1000),
+    period_start: unix(f.period.start),
+    period_end: unix(f.period.end),
+    paid_at: unix(f.now),
+    observed_at: unix(f.now),
   };
   let release!: () => void;
   let captured!: () => void;
@@ -81,8 +85,8 @@ async function fixture() {
         status: 'active',
         interval: 'month',
         cancel_at_period_end: false,
-        current_period_start: Math.floor(Date.parse(f.period.start) / 1000),
-        current_period_end: Math.floor(Date.parse(f.period.end) / 1000),
+        current_period_start: unix(f.period.start),
+        current_period_end: unix(f.period.end),
         trial_ends_at: null,
       }),
     },
@@ -98,26 +102,26 @@ async function fixture() {
         invoice: {
           platform: 'peable',
           currency: 'USD',
-          grossMinorUnits: 2999,
-          netMinorUnits: 2500,
-          taxMinorUnits: 499,
-          merchantFeeMinorUnits: 0,
-          taxTreatment: 'inclusive',
-          sellerId: 'synthetic',
-          invoiceIssuerId: 'synthetic',
-          taxQuoteId: 'synthetic',
-          customerLocationEvidenceId: 'synthetic',
-          taxRateEvidenceId: 'synthetic',
-          issuedAt: new Date(f.now.getTime() - 1000).toISOString(),
-          expiresAt: new Date(f.now.getTime() + 60_000).toISOString(),
+          gross_minor_units: 2999,
+          net_minor_units: 2500,
+          tax_minor_units: 499,
+          merchant_fee_minor_units: 0,
+          tax_treatment: 'inclusive',
+          seller_id: 'synthetic',
+          invoice_issuer_id: 'synthetic',
+          tax_quote_id: 'synthetic',
+          customer_location_evidence_id: 'synthetic',
+          tax_rate_evidence_id: 'synthetic',
+          issued_at: unix(f.now.getTime() - 1000),
+          expires_at: unix(f.now.getTime() + 60_000),
           context: {
-            payerAccountId: f.payer,
-            beneficiaryAccountId: f.payer,
-            providerSubscriptionId: context.subscriptionId,
-            offerId: context.offerId,
-            offerVersion: 1,
-            periodStart: f.period.start,
-            periodEnd: f.period.end,
+            payer_account_id: f.payer,
+            beneficiary_account_id: f.payer,
+            provider_subscription_id: context.subscriptionId,
+            offer_id: context.offerId,
+            offer_version: 1,
+            period_start: unix(f.period.start),
+            period_end: unix(f.period.end),
             mode: context.mode,
             environment: context.environment,
           },
@@ -125,7 +129,7 @@ async function fixture() {
       };
     },
   };
-  return { f, context, paid, client, authority, release, atAuthority, invoiceId };
+  return { f, period, context, paid, client, authority, release, atAuthority, invoiceId };
 }
 it('a completed refund before activation commits fences the still-fresh paid worker', async () => {
   const { f, context, client, authority, release, atAuthority, invoiceId } = await fixture();
@@ -172,7 +176,7 @@ it('a completed refund before activation commits fences the still-fresh paid wor
 });
 
 it('an older subscription read cannot outrank cancellation after paid persistence awaits', async () => {
-  const { f, context, client, authority, release, invoiceId } = await fixture();
+  const { f, period, context, client, authority, release, invoiceId } = await fixture();
   release();
   const first = await reconcilePeablePersonalPaidInvoice(
     authority,
@@ -220,7 +224,7 @@ it('an older subscription read cannot outrank cancellation after paid persistenc
       },
       providerObservedAt: new Date(f.now.getTime() + 200),
       status: 'active',
-      period: f.period,
+      period,
       cancelAtPeriodEnd: true,
     });
     time = f.now.getTime() + 300;
@@ -239,7 +243,7 @@ it('an older subscription read cannot outrank cancellation after paid persistenc
 });
 
 it('subscription wake observation time is captured before an awaited source lookup', async () => {
-  const { f, context, client, authority, release, invoiceId } = await fixture();
+  const { f, period, context, client, authority, release, invoiceId } = await fixture();
   release();
   const first = await reconcilePeablePersonalPaidInvoice(
     authority,
@@ -308,9 +312,9 @@ it('subscription wake observation time is captured before an awaited source look
     const event = {
       id: 'evt_fixture',
       object: 'event',
-      livemode: true,
       type: 'billing.observation.updated',
-      created: Math.floor(f.now.getTime() / 1000),
+      livemode: true,
+      created: unix(f.now),
       data: {
         object: {
           object: 'billing_observation',
@@ -318,7 +322,7 @@ it('subscription wake observation time is captured before an awaited source look
           resource_kind: 'subscription',
           resource_id: context.subscriptionId,
           revision: 1,
-          observed_at: Math.floor(f.now.getTime() / 1000),
+          observed_at: unix(f.now),
         },
       },
     };
@@ -344,7 +348,7 @@ it('subscription wake observation time is captured before an awaited source look
       },
       providerObservedAt: new Date(f.now.getTime() + 200),
       status: 'active',
-      period: f.period,
+      period,
       cancelAtPeriodEnd: true,
     });
     time = f.now.getTime() + 300;

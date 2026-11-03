@@ -1,10 +1,4 @@
-import {
-  integerCheck,
-  isoDateTime,
-  safeNumberCheck,
-  utf16MaxLength,
-  utf16MinLength,
-} from '@oxy.so/contracts';
+import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { Peable, type PeableConfig } from '@peable.to/sdk';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
@@ -23,6 +17,17 @@ export const PEABLE_ONE_READINESS = Object.freeze({
     'live_faircoin_fx_provider_access',
   ] as const,
 });
+/** Peable instants are integer Unix seconds (ADR 0014); a fractional, negative
+ * or unsafe number is refused rather than rounded. */
+export const peableUnixSecondsSchema = z
+  .number()
+  .check(integerCheck())
+  .nonnegative()
+  .check(safeNumberCheck());
+/** Oxy's access ledger keeps ISO instants; this is the one conversion from Peable's wire. */
+export function peableInstantToIso(seconds: number): string {
+  return new Date(peableUnixSecondsSchema.parse(seconds) * 1000).toISOString();
+}
 /** Verified signed invoice contract supplied by the configured Peable SDK.
  * No zero-tax, FX or seller defaults. Gross is the final advertised merchant total.
  * External wallet/network charges are separate from this invoice total. */
@@ -30,55 +35,55 @@ export const personalFinalInvoiceSchema = z
   .object({
     platform: z.literal('peable'),
     currency: z.literal('USD'),
-    grossMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
-    netMinorUnits: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
-    taxMinorUnits: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
-    merchantFeeMinorUnits: z.literal(0),
-    taxTreatment: z.literal('inclusive'),
-    sellerId: z.string().check(utf16MinLength(1)),
-    invoiceIssuerId: z.string().check(utf16MinLength(1)),
-    taxQuoteId: z.string().check(utf16MinLength(1)),
-    customerLocationEvidenceId: z.string().check(utf16MinLength(1)),
-    taxRateEvidenceId: z.string().check(utf16MinLength(1)),
+    gross_minor_units: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
+    net_minor_units: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+    tax_minor_units: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+    merchant_fee_minor_units: z.literal(0),
+    tax_treatment: z.literal('inclusive'),
+    seller_id: z.string().check(utf16MinLength(1)),
+    invoice_issuer_id: z.string().check(utf16MinLength(1)),
+    tax_quote_id: z.string().check(utf16MinLength(1)),
+    customer_location_evidence_id: z.string().check(utf16MinLength(1)),
+    tax_rate_evidence_id: z.string().check(utf16MinLength(1)),
     context: z
       .object({
-        payerAccountId: z.string().check(utf16MinLength(1)),
-        beneficiaryAccountId: z.string().check(utf16MinLength(1)),
-        providerSubscriptionId: z.string().check(utf16MinLength(1)),
-        offerId: z.string().check(utf16MinLength(1)),
-        offerVersion: z.number().check(integerCheck()).positive(),
-        periodStart: z.string().check(isoDateTime()),
-        periodEnd: z.string().check(isoDateTime()),
+        payer_account_id: z.string().check(utf16MinLength(1)),
+        beneficiary_account_id: z.string().check(utf16MinLength(1)),
+        provider_subscription_id: z.string().check(utf16MinLength(1)),
+        offer_id: z.string().check(utf16MinLength(1)),
+        offer_version: z.number().check(integerCheck()).positive(),
+        period_start: peableUnixSecondsSchema,
+        period_end: peableUnixSecondsSchema,
         mode: z.enum(['live', 'test']),
         environment: z.enum(['production', 'development', 'staging', 'test']),
       })
       .strict(),
-    issuedAt: z.string().check(isoDateTime()),
-    expiresAt: z.string().check(isoDateTime()),
-    faircoinQuote: z
+    issued_at: peableUnixSecondsSchema,
+    expires_at: peableUnixSecondsSchema,
+    faircoin_quote: z
       .object({
         id: z.string().check(utf16MinLength(1)),
-        amountBaseUnits: z.string().regex(/^[1-9][0-9]*$/),
-        quotedAt: z.string().check(isoDateTime()),
-        expiresAt: z.string().check(isoDateTime()),
-        roundingEvidenceId: z.string().check(utf16MinLength(1)),
+        amount_base_units: z.string().regex(/^[1-9][0-9]*$/),
+        quoted_at: peableUnixSecondsSchema,
+        expires_at: peableUnixSecondsSchema,
+        rounding_evidence_id: z.string().check(utf16MinLength(1)),
       })
       .strict()
       .optional(),
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.netMinorUnits + v.taxMinorUnits !== v.grossMinorUnits)
+    if (v.net_minor_units + v.tax_minor_units !== v.gross_minor_units)
       c.addIssue({
         code: 'custom',
         message: 'Inclusive invoice breakdown differs from final price',
       });
-    if (Date.parse(v.expiresAt) <= Date.parse(v.issuedAt))
+    if (v.expires_at <= v.issued_at)
       c.addIssue({ code: 'custom', message: 'Tax quote expiry differs' });
     if (
-      v.faircoinQuote &&
-      (Date.parse(v.faircoinQuote.expiresAt) <= Date.parse(v.faircoinQuote.quotedAt) ||
-        Date.parse(v.faircoinQuote.expiresAt) > Date.parse(v.expiresAt))
+      v.faircoin_quote &&
+      (v.faircoin_quote.expires_at <= v.faircoin_quote.quoted_at ||
+        v.faircoin_quote.expires_at > v.expires_at)
     )
       c.addIssue({ code: 'custom', message: 'Faircoin quote expiry differs' });
   });
@@ -107,21 +112,20 @@ export async function cancelOwnedPeableSubscription(
     .parse(actionId);
   if (accountId !== owned.payerAccountId) throw new Error('Peable payer differs');
   const check = (v: Awaited<ReturnType<Peable['billing']['retrieveSubscription']>>) => {
-    const actual = {
-      providerSubscriptionId: v.provider_subscription_id,
-      providerCustomerId: v.provider_customer_id,
-      providerPriceId: v.provider_price_id,
-      storeId: v.store_id,
-      planId: v.plan_id,
-      livemode: v.livemode,
-    };
-    for (const key of Object.keys(actual) as (keyof typeof actual)[])
-      if (actual[key] !== owned[key]) throw new Error('Peable subscription ownership differs');
+    if (
+      v.provider_subscription_id !== owned.providerSubscriptionId ||
+      v.provider_customer_id !== owned.providerCustomerId ||
+      v.provider_price_id !== owned.providerPriceId ||
+      v.store_id !== owned.storeId ||
+      v.plan_id !== owned.planId ||
+      v.livemode !== owned.livemode
+    )
+      throw new Error('Peable subscription ownership differs');
     if (
       !['active', 'trialing', 'past_due', 'unpaid'].includes(v.status) ||
-      !Number.isFinite(v.current_period_start * 1000) ||
-      !Number.isFinite(v.current_period_end * 1000) ||
-      v.current_period_end * 1000 <= v.current_period_start * 1000
+      !peableUnixSecondsSchema.safeParse(v.current_period_start).success ||
+      !peableUnixSecondsSchema.safeParse(v.current_period_end).success ||
+      v.current_period_end <= v.current_period_start
     )
       throw new Error('Peable period unavailable');
     return v;
@@ -162,32 +166,33 @@ export function validatePersonalInvoiceForAction(
   expectedAmountMinorUnits = 2999,
 ) {
   const v = personalFinalInvoiceSchema.parse(raw);
-  if (v.grossMinorUnits !== expectedAmountMinorUnits)
+  if (v.gross_minor_units !== expectedAmountMinorUnits)
     throw new Error('Invoice differs from the declared commercial price');
+  // Signed instants are whole Unix seconds; compare them on the millisecond clock.
   const n = now.getTime();
   if (
     !billingNamespaceSchema.safeParse({ mode: context.mode, environment: context.environment })
       .success ||
     !Number.isFinite(n) ||
-    Date.parse(v.issuedAt) > n ||
-    Date.parse(v.expiresAt) <= n ||
+    v.issued_at * 1000 > n ||
+    v.expires_at * 1000 <= n ||
     Object.keys(context).some(
       (k) => v.context[k as keyof typeof context] !== context[k as keyof typeof context],
     ) ||
-    Date.parse(v.context.periodEnd) <= Date.parse(v.context.periodStart)
+    v.context.period_end <= v.context.period_start
   )
     throw new Error('Current invoice context differs');
-  if (method === 'faircoin' && !v.faircoinQuote)
+  if (method === 'faircoin' && !v.faircoin_quote)
     throw new Error('Authoritative Faircoin quote required');
   // New payment actions require a current quote; paid-evidence recovery binds
   // the original quote to the verified payment instant instead of delivery time.
   const quoteInstant = paidAt?.getTime() ?? n;
   if (
-    v.faircoinQuote &&
+    v.faircoin_quote &&
     (!Number.isFinite(quoteInstant) ||
       quoteInstant > n ||
-      Date.parse(v.faircoinQuote.quotedAt) > quoteInstant ||
-      Date.parse(v.faircoinQuote.expiresAt) <= quoteInstant)
+      v.faircoin_quote.quoted_at * 1000 > quoteInstant ||
+      v.faircoin_quote.expires_at * 1000 <= quoteInstant)
   )
     throw new Error('Current Faircoin quote unavailable');
   return v;

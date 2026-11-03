@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.1.1] - 2026-11-03
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 0.8.0 (was 0.4.1). `@peable.to/sdk/display` keeps its API; its EUR display rate now comes from the ECB reference rate and is omitted when no fresh official observation exists.
+
 ## [14.1.0] - 2026-11-03
 
 ### Fixed

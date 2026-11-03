@@ -1580,22 +1580,29 @@
     {
       "idx": 226,
       "version": "7",
-      "when": 1793718700548,
-      "tag": "0226_mighty_star_brand",
+      "when": 1793718129529,
+      "tag": "0226_personal_checkout_quote_unix_checks",
       "breakpoints": true
     },
     {
       "idx": 227,
       "version": "7",
-      "when": 1793718730421,
-      "tag": "0227_validate_checkout_presentation",
+      "when": 1793718140318,
+      "tag": "0227_drop_personal_checkout_quote_lexemes",
       "breakpoints": true
     },
     {
       "idx": 228,
       "version": "7",
-      "when": 1793719788119,
-      "tag": "0228_checkout_quote_wire_version",
+      "when": 1793722991525,
+      "tag": "0228_zippy_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1793723016149,
+      "tag": "0229_validate_checkout_presentation",
       "breakpoints": true
     }
   ]

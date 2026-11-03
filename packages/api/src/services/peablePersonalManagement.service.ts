@@ -1,3 +1,4 @@
+import { peableInstantToIso } from './peablePersonalBilling.service';
 import { integerCheck, safeNumberCheck, utf16MinLength } from '@oxy.so/contracts';
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
@@ -223,8 +224,8 @@ export async function cancelStoredPeablePersonalSource(
       providerObservedAt: confirmedObservedAt,
       status: confirmed.status,
       period: {
-        start: new Date(confirmed.current_period_start * 1000).toISOString(),
-        end: new Date(confirmed.current_period_end * 1000).toISOString(),
+        start: peableInstantToIso(confirmed.current_period_start),
+        end: peableInstantToIso(confirmed.current_period_end),
       },
       cancelAtPeriodEnd: true,
     });
