@@ -33,7 +33,7 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'billing-management-'));
   mockRetrieve.mockResolvedValue({
     id: configuration.merchantId,
-    oxyAppId: configuration.applicationId,
+    oxy_app_id: configuration.applicationId,
     environment: 'production',
   });
 });
@@ -74,7 +74,7 @@ it('disposes mismatched authority and allows a later verified retry', async () =
   await configure();
   mockRetrieve.mockResolvedValueOnce({
     id: configuration.merchantId,
-    oxyAppId: 'inbox',
+    oxy_app_id: 'inbox',
     environment: 'production',
   });
   await expect(loadPeablePersonalManagement()).rejects.toThrow('workload owner differs');

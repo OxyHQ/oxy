@@ -66,7 +66,7 @@ export async function assertPeableBillingMerchant(
   const merchant = await client.merchants.retrieve();
   if (
     merchant.id !== configuration.merchantId ||
-    merchant.oxyAppId !== configuration.applicationId ||
+    merchant.oxy_app_id !== configuration.applicationId ||
     merchant.environment !== configuration.namespace.environment
   )
     throw new Error('Peable personal workload owner differs');
