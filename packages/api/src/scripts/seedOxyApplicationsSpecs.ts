@@ -356,6 +356,8 @@ export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 /** Astro, Oxy's browser: a public sign-in client, so it can read the person's Nilo calendar. */
 export const ASTRO_APPLICATION_ID = 'c08f19e22ae6e86eb1d50361';
+/** Dropsea (formerly Stash), photos and files by Oxy at dropsea.net: a public sign-in client. */
+export const DROPSEA_APPLICATION_ID = '2610719657aed033b3a5a505';
 
 /**
  * Willo's backend service-activity principal. First credential this
@@ -975,6 +977,24 @@ export const SEED_APPS: SeedAppSpec[] = [
     // one thing: signing somebody in to write a review. Only the app's own
     // origin is listed; there is no second surface.
     redirectUris: ['https://atlas.oxy.so'],
+  },
+  {
+    id: DROPSEA_APPLICATION_ID,
+    name: 'Dropsea',
+    description: 'Photos and files by Oxy: albums of what a person keeps in Oxy Files.',
+    websiteUrl: 'https://dropsea.net',
+    webOrigins: ['https://dropsea.net'],
+    type: 'first_party',
+    // The web app is the one surface that ships. Its native builds (iOS and
+    // Android `so.oxy.dropsea`) have never been published, so the Expo
+    // `dropsea://` scheme is registered when one does: an unused redirect
+    // surface is authority nobody asked for.
+    redirectUris: ['https://dropsea.net'],
+    // Ordinary first-party sign-in. A person links their own photos to an
+    // album with their own session; Dropsea's backend, which will read them
+    // (`files:linked:read`, ADR 0021), is not deployed and gets its service
+    // authority when it is.
+    scopes: ['user:read'],
   },
   {
     name: 'CrowdSource',

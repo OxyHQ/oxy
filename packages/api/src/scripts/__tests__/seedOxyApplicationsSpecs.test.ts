@@ -50,6 +50,7 @@ import {
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
   ASTRO_APPLICATION_ID,
+  DROPSEA_APPLICATION_ID,
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
@@ -250,6 +251,28 @@ describe('the canonical official-application registry', () => {
       id: ASTRO_APPLICATION_ID,
     });
     expect(seededPrincipal(astro)).toEqual({ type: 'first_party', isInternal: false });
+  });
+
+  it('registers Dropsea by exact identity as a web sign-in client at dropsea.net with no authority beyond the session', () => {
+    const dropsea = specNamed('Dropsea');
+    expect(dropsea).toMatchObject({
+      id: DROPSEA_APPLICATION_ID,
+      websiteUrl: 'https://dropsea.net',
+      webOrigins: ['https://dropsea.net'],
+      redirectUris: ['https://dropsea.net'],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(dropsea.capabilities).toBeUndefined();
+    expect(dropsea.legacyNames).toBeUndefined();
+    expect(requiresPublicSeedCredential(dropsea)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === DROPSEA_APPLICATION_ID)).toHaveLength(1);
+    expect(DROPSEA_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(dropsea, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: DROPSEA_APPLICATION_ID,
+    });
+    expect(seededPrincipal(dropsea)).toEqual({ type: 'first_party', isInternal: false });
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
