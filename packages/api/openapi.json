@@ -18236,6 +18236,51 @@
                     "minLength": 1,
                     "maxLength": 64
                   },
+                  "presentation": {
+                    "type": "string",
+                    "enum": [
+                      "hosted",
+                      "embedded"
+                    ]
+                  },
+                  "billingAddress": {
+                    "type": "object",
+                    "properties": {
+                      "country": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{2}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "postalCode": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "line1": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "line2": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "country"
+                    ],
+                    "additionalProperties": false
+                  },
                   "offerId": {
                     "type": "string",
                     "minLength": 1,
@@ -18327,6 +18372,51 @@
                     "minLength": 1,
                     "maxLength": 64
                   },
+                  "presentation": {
+                    "type": "string",
+                    "enum": [
+                      "hosted",
+                      "embedded"
+                    ]
+                  },
+                  "billingAddress": {
+                    "type": "object",
+                    "properties": {
+                      "country": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{2}$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "postalCode": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "line1": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "line2": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "country"
+                    ],
+                    "additionalProperties": false
+                  },
                   "offerId": {
                     "type": "string",
                     "minLength": 1,
@@ -18362,6 +18452,47 @@
           }
         },
         "operationId": "postBillingCheckoutProductPlan"
+      }
+    },
+    "/billing/checkout/product-plan/configuration": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "GET /billing/checkout/product-plan/configuration",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/billing.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getBillingCheckoutProductPlanConfiguration"
       }
     },
     "/billing/checkout/subscription": {

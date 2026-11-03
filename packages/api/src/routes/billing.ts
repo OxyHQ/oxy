@@ -1,3 +1,10 @@
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  namedProductCancellationResponseSchema,
+  pendingProductCancellationResponseSchema,
+  creditSubscriptionsResponseSchema,
+  namedCreditCancellationResponseSchema,
+} from '../schemas/billing.schemas';
 import { utf16MinLength } from '@oxy.so/contracts';
 import {
   productSubscriptionRenewalRequestSchema,
