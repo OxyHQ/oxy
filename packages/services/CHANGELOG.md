@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.3] - 2026-11-03
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 0.20.0 (was 0.8.0). `@peable.to/sdk/display` keeps its API.
+
 ## [14.3.2] - 2026-11-03
 
 ### Changed
