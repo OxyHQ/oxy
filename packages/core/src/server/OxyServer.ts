@@ -106,6 +106,14 @@ import {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+import {
+  OxyCallerAccessResolver,
+  type CallerAccessOptions,
+  type OxyAccountAccess,
+  type OxyApplicationAccess,
+} from './callerAccess';
+import type { OxyCallerRequest } from './callerAuthority';
+import { OxyUserClient, userBearerOf, userClientConfig, type OxyUserSource } from './userClient';
 import { ServerSafetyApi } from './safety';
 import { SESSION_VALIDATION_CACHE_TTL_MS, ServerSessionApi } from './session';
 import { OxyServiceEventFeed } from './serviceEvents';
@@ -145,12 +153,21 @@ export interface OxyServerConfig extends OxyConfig {
    */
   applicationId?: string;
   /**
-   * How long one application-permissions answer is reused, per session
-   * (default 30 000 ms). This is the longest a revoked grant keeps working on
-   * this backend for a read that does not pass `fresh: true`. `0` disables the
-   * cache.
+   * How long one caller-authority answer — `appPermissionsFor`,
+   * `accountAccessFor`, `applicationAccessFor` and their middleware — is
+   * reused, per session (default 30 000 ms). This is the longest a revoked
+   * grant keeps working on this backend for a read that does not pass
+   * `fresh: true`. `0` disables the cache. Only positive answers are kept.
    */
   appPermissionsCacheTtlMs?: number;
+  /**
+   * The service-token audience this backend accepts when a mount names none:
+   * its own `oxy-service:<applicationId>`. Every `middleware.auth()` /
+   * `middleware.service()` mount — and so `createOxyAuthMiddleware`,
+   * `createOptionalOxyAuth` and `createOxyRateLimit` — uses it unless it
+   * passes `expectedAudience` itself. Unset, they accept `oxy-api` (unchanged).
+   */
+  expectedAudience?: string;
   /**
    * How long one successful user-bearer validation (`session.validate` with an
    * `accessToken`, which `middleware.auth()` runs on every request) is reused
@@ -316,6 +333,7 @@ export class OxyServer extends OxyServices {
   private readonly configuredApplicationId: string | null;
   private readonly sessionValidationTtlMs: number;
   private readonly appPermissions: OxyAppPermissionsResolver;
+  private readonly callerAccess: OxyCallerAccessResolver;
   /** Opened the first time the validation cache would be used; see `./serviceEvents.ts`. */
   private serviceEventFeed: OxyServiceEventFeed | null = null;
   private disposed = false;
@@ -364,15 +382,27 @@ export class OxyServer extends OxyServices {
       defaultApplicationId: () => this.defaultApplicationId(),
       fetchRolesMe: (applicationId, accessToken) => this.fetchRolesMe(applicationId, accessToken),
     });
+    this.callerAccess = new OxyCallerAccessResolver({
+      ttlMs: ttl,
+      readAccount: (accountId, accessToken) =>
+        this.withUser(accessToken, (user) => user.accounts.get(accountId)),
+      readApplication: (applicationId, accessToken) =>
+        this.withUser(accessToken, (user) => user.apps.get(applicationId)),
+    });
+    const defaultAudience = config.expectedAudience?.trim() || undefined;
     this.middleware = createOxyMiddleware({
       get baseURL() {
         return server.baseURL;
       },
+      defaultAudience,
       jwksCache: this.jwksCache,
       validateSession: (sessionId, options) => this.session.validate(sessionId, options),
       verifyActingAs: (appId, userId, options) => this.verifyActingAs(appId, userId, options),
       introspectServiceToken: (token) => this.introspectServiceToken(token),
       appPermissionsFor: (req, options) => this.appPermissionsFor(req, options),
+      accountAccessFor: (req, accountId, options) => this.accountAccessFor(req, accountId, options),
+      applicationAccessFor: (req, applicationId, options) =>
+        this.applicationAccessFor(req, applicationId, options),
     });
   }
 
@@ -909,12 +939,101 @@ export class OxyServer extends OxyServices {
   }
 
   /**
-   * Drop cached application-permission answers — all of them, or one
-   * person's (as the session user or the resolved operator). For a backend
-   * that learns of a revocation out of band and will not wait out the TTL.
+   * Drop cached caller-authority answers — application permissions and
+   * account / application access — all of them, or one person's (as the
+   * session user or the resolved operator). For a backend that learns of a
+   * revocation out of band and will not wait out the TTL.
    */
   invalidateAppPermissions(filter: { userId?: string } = {}): void {
     this.appPermissions.invalidate(filter);
+    this.callerAccess.invalidate(filter);
+  }
+
+  // ── The requesting person ────────────────────────────────────────────────
+
+  /**
+   * An isolated Oxy client authenticated as the person behind `source` — a
+   * request `middleware.auth()` resolved to a user session, or a bearer you
+   * already verified. Every `OxyServices` namespace, with no response cache,
+   * no token refresh and no fallback to this server's service identity; this
+   * server's own session is never touched.
+   *
+   * Prefer {@link withUser}, which disposes it for you. A client from here
+   * should be disposed when the request ends (`client.dispose()`) so a stray
+   * reference cannot keep using the bearer; one that is not holds no global
+   * resource and is collected normally.
+   *
+   * Throws `OxyAccessError` (`ACCESS_SESSION_REQUIRED`) for a request with no
+   * user session, including one authenticated by a service token.
+   */
+  asUser(source: OxyUserSource): OxyUserClient {
+    const config = userClientConfig(this.config);
+    return new OxyUserClient(
+      { ...config, baseURL: this.baseURL, cloudURL: this.cloudURL },
+      userBearerOf(source),
+    );
+  }
+
+  /**
+   * Run `use` with a client authenticated as the person behind `source`
+   * ({@link asUser}), and dispose it when `use` settles — success or failure.
+   *
+   * ```ts
+   * const accounts = await oxy.withUser(req, (user) => user.accounts.list());
+   * ```
+   */
+  async withUser<T>(
+    source: OxyUserSource,
+    use: (user: OxyUserClient) => T | Promise<T>,
+  ): Promise<T> {
+    const user = this.asUser(source);
+    try {
+      return await use(user);
+    } finally {
+      user.dispose();
+    }
+  }
+
+  /**
+   * What the person behind `req` may do in Oxy account `accountId` — an
+   * organization, store, channel or their own personal account: relationship,
+   * role, source and the EFFECTIVE permissions (inheritance, grants and
+   * revokes applied). Read with the request's own verified bearer.
+   *
+   * Cached per session for `appPermissionsCacheTtlMs` (30 s), positive
+   * answers only; pass `{ fresh: true }` before a write. Throws
+   * `OxyAccessError`: `ACCESS_SESSION_REQUIRED` (no session, a service token,
+   * or Oxy answered 401), `ACCESS_DENIED` (Oxy answered 403/404 — no access,
+   * or no such account), `ACCESS_UNAVAILABLE` (anything else; never a "no").
+   * Map it with `accessErrorStatus`. Gate on `has(permission)`, never on
+   * `role`.
+   */
+  accountAccessFor(
+    req: OxyCallerRequest,
+    accountId: string,
+    options: CallerAccessOptions = {},
+  ): Promise<OxyAccountAccess> {
+    return this.callerAccess.account(req, accountId, options);
+  }
+
+  /**
+   * What the person behind `req` may do to Oxy application `applicationId`,
+   * through their membership of the account that owns it (developer RBAC:
+   * `app:read`, `app:update`, `webhooks:update`, `billing:manage`, …), plus
+   * its `ownerAccountId` and whether it is `official`. Read with the
+   * request's own verified bearer.
+   *
+   * Not {@link appPermissionsFor}: that one answers which of THIS backend's
+   * own declared operator keys the person holds. Same cache, options and
+   * errors as {@link accountAccessFor}; Oxy refuses (403) a caller with no
+   * `app:read`, so a successful answer always includes it.
+   */
+  applicationAccessFor(
+    req: OxyCallerRequest,
+    applicationId: string,
+    options: CallerAccessOptions = {},
+  ): Promise<OxyApplicationAccess> {
+    return this.callerAccess.application(req, applicationId, options);
   }
 
   /**

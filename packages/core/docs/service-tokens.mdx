@@ -1,81 +1,100 @@
 ---
 title: Service tokens
-description: OAuth2 client-credentials flow for internal Oxy service-to-service auth.
-order: 3
+description: How a backend authenticates to Oxy as itself — workload identity for Oxy's own services, a customer credential for everyone else.
+order: 4
 ---
 
 # Service tokens
 
-Internal Oxy ecosystem services authenticate to each other with short-lived service JWTs minted via the OAuth2 client-credentials pattern. This page documents the flow end-to-end — how to register an internal app, how to exchange credentials for a token, how to delegate as a specific user, and how to protect downstream endpoints.
+A service token is a short-lived Ed25519-signed JWT that says which
+application a backend is. `OxyServer` mints, caches and refreshes it; you never
+handle it. What differs is how the backend proves who it is:
 
-## When to use them
+| Who | Proof | Authority | Configure |
+|---|---|---|---|
+| **An Oxy-owned backend** (Mention, Peable, Alia, …) | Workload attestation: the infrastructure it runs on (the ECS task role) vouches for it ([ADR 0026](../../../docs/adr/0026-first-party-services-authenticate-as-workloads.md), [ADR 0049](../../../docs/adr/0049-first-party-platform-authority.md)) | `first_party`, no scope list | Nothing — no key, no secret |
+| **A third-party customer backend** | An `ApplicationCredential` key pair (client id + secret) | `external`, the credential's scopes | `serviceAuth: { apiKey, apiSecret }` |
 
-- A backend service that needs to call `/users/me` on behalf of a user it has out-of-band trust with (e.g. a Mention server hitting the Oxy API to fetch the actor for an inbound ActivityPub message).
-- A scheduled job that needs to read or write Oxy state without a human session.
-- Any service-to-service call inside the Oxy ecosystem.
+**An Oxy-owned backend never holds an api key, a client secret or an
+`OXY_API_KEY`, never POSTs to `/auth/service-token` by hand, and never keeps a
+credential "as a fallback" beside its workload.** An official application name
+does not promote a customer key either: a key is always `external`.
 
-Service tokens **are not for third-party apps.** Third parties use the developer-app token flow and consent screen instead.
+## Oxy's own backends
 
-## Registration
-
-Internal service credentials are represented by `ApplicationCredential` records
-on the owning Oxy application. Create them through the Oxy API/admin tooling so
-the secret is hashed with the same code path as production credentials. Do not
-insert credential documents by hand.
-
-```ts
-// ApplicationCredential
-{
-  applicationId: '...',
-  type: 'service',
-  publicKey: 'oxy_dk_abc…',
-  secretHash: 'sha256_hash_of_secret',
-  scopes: ['user:read', 'federation:write', …],
-}
-```
-
-The cleartext secret is shown only at creation time. Store it in the service's
-secret manager; it is never recoverable from the database.
-
-## Exchanging credentials for a token
-
-The endpoint is `POST /auth/service-token`. Body: `{ apiKey, apiSecret }` — `apiKey` is the credential's `publicKey` (`oxy_dk_…`, the OAuth `client_id`) and `apiSecret` is the cleartext secret shown once at creation. Response: `{ token, expiresAt }` where `token` is a 1-hour JWT with `type: 'service'`, `appId`, and the granted scopes.
-
-The `publicKey` half is a **public identifier**, not a key: it is designed to be shipped in clients and is served unauthenticated by `GET /auth/oauth/client/:clientId`. It never authenticates on its own — only the pair, exchanged here, produces a bearer.
+One `OxyServer` per process, exported from one module:
 
 ```ts
 import { OxyServer } from '@oxy.so/core/server';
 
-const oxy = new OxyServer({
-  baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: process.env.OXY_CLIENT_ID!, apiSecret: process.env.OXY_CLIENT_SECRET! },
+export const oxy = new OxyServer({
+  baseURL: process.env.OXY_API_URL ?? 'https://api.oxy.so',
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
 });
-
-// Auto-cached, auto-refreshed.
-const token = await oxy.serviceToken();
 ```
 
-`serviceToken()` caches the token in memory and refreshes it ~5 minutes before expiry. Call it freely — there is no per-call cost.
+- On ECS the token comes from the task role; nothing else is configured. To
+  attest from a developer's AWS SSO profile as well, pass
+  `workloadCredentials: createAwsWorkloadCredentialProvider()` from
+  `@oxy.so/core/server/aws`.
+- `serviceIdentity: 'when-anonymous'` sends every request that has no user
+  session — `users.get`, `users.lookupMany`, profile reads — with the service
+  token instead of anonymous. Oxy charges anonymous traffic to the source
+  address, which a whole fleet shares behind one NAT; Mention measured
+  543–575 ms anonymous against 19–24 ms with the token.
+- `applicationId` names this backend's application, for its
+  [application roles](./application-roles.mdx).
 
-## Delegating as a specific user
+### Calling another Oxy product
 
-To make an API call that should look like it came from user X, add `X-Oxy-User-Id: <userId>`. The API treats the request as if user X had made it directly (subject to the service's granted scopes). `serviceRequest` is the ergonomic wrapper:
+Use that product's SDK (`peableForOxyService({ oxy })`, …) or a service client
+on the same `OxyServer`, with the receiving application's audience:
 
 ```ts
-const result = await oxy.serviceRequest('POST', '/some/endpoint', body, { actAs: userId });
-// Sends:
-//   Authorization: Bearer <service token>
-//   X-Oxy-User-Id: <userId>
-//   Content-Type: application/json
+const product = oxy.createServiceClient({
+  baseURL: 'https://<product-api-origin>',
+  audience: 'oxy-service:<receiving application id>',
+});
+const response = await product.fetch('/v1/things', { method: 'POST', body });
+// Keep the client for the life of the process; dispose() it on shutdown.
 ```
 
-Audit logs record both the service identity and the delegated user.
+Kaana's audience is `'kaana.ai'`. Never build a second `OxyServer` for this,
+and never keep a second token cache.
 
-## Acting for an account you cannot act as
+## Third-party customer backends
 
-Nobody acts AS a `channel` account: no session or delegation can name one. An
-app publishes to a channel with its OWN credential, on behalf of a member, and
-asks Oxy first whether that person may:
+A developer's own backend authenticates with a credential of its application
+(`type: 'service'`, created in the Oxy Console). The `publicKey` (`oxy_dk_…`) is
+a public client id; the secret is shown once at creation and rotation.
+
+```ts
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  serviceAuth: { apiKey: process.env.OXY_CLIENT_ID, apiSecret: process.env.OXY_CLIENT_SECRET },
+});
+```
+
+The token carries the credential's scopes, capped by the application's
+ceiling; `oxy.middleware.requireScope(scope)` enforces them on a receiver.
+Rotation keeps the previous secret valid for 24 hours. Keep the secret in a
+secret manager, never in client code or a committed file.
+
+## Acting for a person
+
+Three different things; pick by what you hold:
+
+- **The person is in the request** (their bearer reached your backend through
+  `middleware.auth()`): call Oxy as them with
+  `oxy.withUser(req, (user) => user.accounts.get(id))`. See
+  [building a backend](./backend.mdx#as-the-person-behind-the-request).
+- **Your service acts with the person's proof** (a forwarded session, a task,
+  a capability ticket): `oxy.withRequester({ requesterToken | taskId | capabilityTicket })`,
+  or `createServiceClient({ requester })`. Durable work keeps the `taskId`
+  from `oxy.agency.createTask(…)`, never the bearer.
+- **No person present** (a long import): ask Oxy whether they may, with your
+  own token — `oxy.accounts.accessFor(accountId, userId)`:
 
 ```ts
 const verdict = await oxy.accounts.accessFor(channelId, userId);
@@ -83,56 +102,46 @@ const verdict = await oxy.accounts.accessFor(channelId, userId);
 if (verdict.kind !== 'channel' || !verdict.access) throw new Error('Not a member of that channel');
 ```
 
-The application must be platform-trusted and hold the staff-granted
-`accounts:membership:read`. `access` is `null` for no active membership and for
-an archived, unknown or unclaimed directory account. The answer is never cached,
-and anything but a valid verdict throws, so a caller fails closed. When a finer
-right matters, gate on `access.permissions`, never on `access.role`.
+`access` is `null` for no active membership and for an archived, unknown or
+unclaimed directory account. The answer is never cached, and anything but a
+valid verdict throws, so a caller fails closed. Gate on `access.permissions`,
+never on `access.role`.
+
+Never trust a caller-supplied user id header, and never persist a bearer.
 
 ## Protecting your own endpoints
 
-Internal services that expose their own HTTP surface should validate inbound service tokens. The `middleware.service()` middleware does this:
+`oxy.middleware.service()` admits service tokens only; `oxy.middleware.auth()`
+admits users and services alike. An Oxy-owned receiver names its own
+audience — once, on the server:
 
 ```ts
-import express from 'express';
-import { OxyServer } from '@oxy.so/core/server';
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  applicationId: OWN_APP_ID,
+  serviceIdentity: 'when-anonymous',
+  expectedAudience: `oxy-service:${OWN_APP_ID}`,
+});
 
-const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-const app = express();
-
-// Only allow service tokens (rejects user JWTs and API keys).
 app.use('/internal', oxy.middleware.service());
-
 app.post('/internal/replay-webhook', (req, res) => {
-  // req.serviceApp is populated with the calling service.
-  // req.delegatedUserId is set if the caller passed X-Oxy-User-Id.
+  // req.serviceApp: the calling application, with authority 'first_party' or 'external'.
   res.json({ replayed: true });
 });
 ```
 
-The `middleware.auth()` middleware recognises service tokens too (along with user JWTs), so general endpoints accept both transparently.
+A first-party token is checked against Oxy's live introspection on every
+request, so a revoked binding stops working at once; an external token carries
+its scopes (`oxy.middleware.requireScope('files:read')`). Verification uses the
+Oxy JWKS at `https://api.oxy.so/.well-known/jwks.json`; a token whose header is
+anything but `{ "alg": "EdDSA", "typ": "JWT", "kid": … }` is refused before a
+key is looked up, and an unknown `kid` refreshes the key set at most once a
+minute.
 
-Both middleware methods verify service tokens against the Oxy public JWKS at
-`https://api.oxy.so/.well-known/jwks.json` by default. A private Oxy deployment
-may pass `serviceTokenJwksUrl`; public Oxy consumers should not override it.
-The JWKS is the only way a service token verifies: there is no shared-secret
-option, and a token whose header is anything other than
-`{ "alg": "EdDSA", "typ": "JWT", "kid": … }` (HS256, `none`, or any other
-algorithm) is refused before a key is looked up.
+## What a service token cannot do
 
-## Security notes
-
-- Service tokens are stateless — they're not stored in the session table, and they can't be remotely revoked mid-flight. If a secret leaks, rotate it.
-- Rotate `apiSecret` from the [developer console](/developers/docs/console). Rotation keeps the previous value valid for 24 hours so deploys don't go down.
-- Service JWTs are signed with Ed25519 under a `kid`; verifiers cache the public
-  JWKS, pin the algorithm, issuer/audience/type/expiry and fail closed on an
-  unknown key. An unknown `kid` refreshes the key set at most once a minute, so
-  a newly rotated key is picked up without a restart.
-- Never put `apiSecret` in client-side code or environment files committed to git. Use a secrets manager.
-- Scopes are enforced on every call — request only what you need.
-
-## What service tokens cannot do
-
-- They cannot impersonate users for human-facing actions (e.g. sending a "you logged in" email). Use the user's own session token for those.
-- They cannot bypass the rate limiter — they're subject to the same per-IP and per-token limits as user calls.
-- They cannot be issued by a non-internal developer app. Third-party apps must use the standard OAuth2 authorization code flow.
+- Act as a person for a human-facing action. Use the person's own session
+  (`withUser`) or their requester proof (`withRequester`).
+- Hold an application's operator powers: `appPermissionsFor` and
+  `requireAppPermission` refuse service-token requests.
+- Skip rate limits: it is charged to its own application instead of an IP.

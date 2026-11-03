@@ -1,7 +1,7 @@
 ---
 title: Application roles
 description: Gate your backend's operator surfaces on permissions your app declares and Oxy grants — no allow-lists in your environment.
-order: 4
+order: 5
 ---
 
 # Application roles
@@ -23,8 +23,8 @@ import { OxyServer } from '@oxy.so/core/server';
 
 const oxy = new OxyServer({
   baseURL: 'https://api.oxy.so',
-  // Which application's permissions to read. Optional when `serviceAuth` is set:
-  // the service token names the application.
+  // Which application's permissions to read. Optional when the backend has a
+  // service token (its workload identity): the token names the application.
   applicationId: process.env.OXY_APPLICATION_ID,
   // Optional: how long one answer is reused per session (default 30 000 ms, 0 = never).
   appPermissionsCacheTtlMs: 30_000,
@@ -113,6 +113,14 @@ owners and admins) declare the whole list in the Console, or with
 `PUT /applications/:appId/roles/permissions`. Removing a key retires it and
 revokes every grant of it. Declare a key before deploying code that checks it —
 until it is declared and granted, the check simply denies.
+
+## Not the same question as account or application access
+
+These are the permissions YOUR application declares. Whether a person may act
+in an Oxy account (`oxy.accountAccessFor`) or manage some application through
+the account that owns it (`oxy.applicationAccessFor` — `app:read`,
+`webhooks:update`, …) are different questions with their own readers; see
+[building a backend](./backend.mdx#who-may-do-what-three-different-questions).
 
 Mechanism, data model and the full API: `docs/auth/application-roles.md` in the
 Oxy repository.

@@ -1,5 +1,27 @@
 # Changelog — `@oxy.so/core`
 
+## 7.17.0
+
+### Added
+
+- **Calls as the person behind a request.** `oxy.withUser(req | bearer, (user) => …)` runs the callback with an `OxyUserClient` — every `OxyServices` namespace, bound to that bearer — and disposes it when the callback settles; `oxy.asUser(req | bearer)` returns the client itself (`dispose()` it). It sends exactly that bearer on every call (never refreshed, never dropped for an expired or opaque token, never replaced by the server's service token), caches nothing, rejects after disposal, and throws `OxyAccessError` (`ACCESS_SESSION_REQUIRED`) for a request with no person — anonymous, or a service token. The shared `OxyServer` session is never touched. Replaces hand-built `new OxyServices(); session.setAccessToken(t)` copies.
+- **What the person may do in an account or over an application.** `oxy.accountAccessFor(req, accountId, { fresh? })` → `OxyAccountAccess` (`relationship`, `role`, `source`, effective `permissions`, `has()`), read from `GET /accounts/:id` with the caller's bearer; `oxy.applicationAccessFor(req, applicationId, { fresh? })` → `OxyApplicationAccess` (`ownerAccountId`, `official`, `role`, application `permissions`, `has()`), read from `GET /applications/:id`. Middleware: `oxy.middleware.requireAccountAccess(permission, { param, deny?, respond?, fresh? })` and `requireApplicationAccess(…)` (answers on `req.oxyAccountAccess` / `req.oxyApplicationAccess`). One outcome mapping, `OxyAccessError` + `accessErrorStatus(error, deny = 403)`: 401 → `ACCESS_SESSION_REQUIRED`, 403/404 → `ACCESS_DENIED`, anything else or a malformed answer → `ACCESS_UNAVAILABLE` (503). Positive answers only are cached, per session, for `appPermissionsCacheTtlMs`; `invalidateAppPermissions({ userId })` drops them too. These answer different questions from `appPermissionsFor` (this backend's own operator keys).
+- `OxyServerConfig.expectedAudience`: the service-token audience every `middleware.auth()` / `service()` mount (and so `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `createOxyRateLimit`) accepts when it names none — `oxy-service:<applicationId>` for an Oxy-owned receiver. Unset keeps `oxy-api`.
+- `createOxyOriginCheck(appOrigins)` — the origin predicate `createOxyCors` applies — and `createOxySocketCors({ appOrigins })`, the Socket.IO `{ cors, allowRequest }` that admit the same browsers on polling and on the WebSocket handshake.
+- Capability tickets: `createLiveCapabilityTicketVerifier` and `createCapabilityTicketMiddleware` accept an asynchronous `resolvePublicKey` (`CapabilityTicketKeyResolver`), so `createOxyJwksKeyResolver({ jwksUrl })` is passed as it is and gets the ticket's `kid`; a key set that cannot be read is `unknown_key`. `verifyCapabilityTicket` is unchanged (synchronous).
+- `oxy.assets.references.add` / `remove` take per-call `ServiceCallOptions` (`{ timeout, retry, signal }`), so one `OxyServer` makes a single-shot outbox write and a patient reconciliation side by side.
+- `ApplicationCallerMembership`, the real shape of `Application.callerMembership`; `AccountNode.callerAccess` (an `AccountAccessGrant`, on single-account reads).
+
+### Fixed
+
+- A client that was never disposed no longer leaks: the module-wide cache sweep holds a cache only while it has entries to expire, and lets go of it once the sweep empties it, so a per-request client is collected after at most its entries' TTL.
+- `Application.callerMembership` was typed as an `AccountMember`; the API sends `{ role, permissions, source: 'account', ownerAccountId }`.
+- `safeFetch`'s refusal of a first-party Oxy host (`api.oxy.so`, which resolves to a private address inside the VPC) says so and names `OxyServer` as the way to call it. Untrusted URLs are refused exactly as before.
+
+### Docs
+
+- `service-tokens.mdx`, `api.mdx`, `index.mdx` and the README no longer tell Oxy-owned services to use an api key: they authenticate as their workload (ADR 0026/0049); `serviceAuth` is for third-party customers. New [Building a backend](./docs/backend.mdx): one `OxyServer` per process with `serviceIdentity: 'when-anonymous'`, the middleware set, the three permission questions, user clients, files and outbound HTTP. ADR 0054 proposes the breaking half for 8.0.
+
 ## 7.16.0
 
 ### Changed

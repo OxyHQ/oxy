@@ -107,25 +107,28 @@ In a React app `OxyProvider` turns the response cache off: React Query owns cach
 
 ## Servers: `OxyServer`
 
-A backend uses `OxyServer`: the same client plus a service identity.
+A backend uses `OxyServer`: the same client plus a service identity. One per
+process; an Oxy-owned backend authenticates as its workload, with no key pair
+([service tokens](./service-tokens.mdx)):
 
 ```ts
 import { OxyServer } from '@oxy.so/core/server';
 
 const oxy = new OxyServer({
   baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: process.env.OXY_API_KEY!, apiSecret: process.env.OXY_API_SECRET! },
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
 });
 
 app.use('/api', oxy.middleware.auth());          // user or service bearer
 io.use(oxy.middleware.socket());
-app.use('/internal', oxy.middleware.service(), oxy.middleware.requireScope('users:read'));
+app.use('/internal', oxy.middleware.service());
 
-const authors = await oxy.users.getMany(ids);    // uses the service token
-await oxy.serviceRequest('POST', '/some/route', body, { actAs: userId });
+const authors = await oxy.users.lookupMany(ids);                          // with the service token
+const node = await oxy.withUser(req, (user) => user.accounts.get(id));    // as the person
 ```
 
-On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `appPermissionsFor()` / `invalidateAppPermissions()` and `middleware.requireAppPermission()` ([application roles](./application-roles.mdx)), `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge` / `getImport` (a source over 40 MiB is fetched in the background and waited for), the application's own file references `assets.references.add` / `remove` / `reconcile`, revocable play sessions `assets.streams.create` / `get` / `revoke` / `revokeWhere`, and LiveKit recording targets `assets.createAppRecordingTarget` / `createUserRecordingTarget` / `getRecordingTarget` / `completeRecordingTarget` / `abortRecordingTarget` (ADR 0043; verify the file events Oxy sends with `verifyFileEventSignature`, and a play session's key authorization with `verifyStreamKeyAuthorization`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `reputation.award`. See [service tokens](./service-tokens.mdx).
+With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `createServiceClient()`, `withRequester()`, `verifyActingAs()`; the requesting person: `withUser()` / `asUser()` (an isolated `OxyUserClient` bound to their bearer), `accountAccessFor()`, `applicationAccessFor()` and `appPermissionsFor()` with `middleware.requireAccountAccess()` / `requireApplicationAccess()` / `requireAppPermission()` ([building a backend](./backend.mdx), [application roles](./application-roles.mdx)), `invalidateAppPermissions()`; `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge` / `getImport` (a source over 40 MiB is fetched in the background and waited for), the application's own file references `assets.references.add` / `remove` / `reconcile` (`add` and `remove` take per-call `{ timeout, retry, signal }`), revocable play sessions `assets.streams.create` / `get` / `revoke` / `revokeWhere`, and LiveKit recording targets `assets.createAppRecordingTarget` / `createUserRecordingTarget` / `getRecordingTarget` / `completeRecordingTarget` / `abortRecordingTarget` (ADR 0043; verify the file events Oxy sends with `verifyFileEventSignature`, and a play session's key authorization with `verifyStreamKeyAuthorization`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `reputation.award`.
 
 ## Migrating from 2.x
 

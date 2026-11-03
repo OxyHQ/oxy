@@ -28,6 +28,16 @@
  *    response; without one, a server that sends its headers and stalls holds
  *    any other reader open.
  *
+ * NOT FOR OXY'S OWN HOSTS
+ * -----------------------
+ * `safeFetch` is for UNTRUSTED or caller-influenced URLs only. Never use it to
+ * reach a first-party host (`api.oxy.so`, any `*.oxy.so`, an Oxy product's
+ * API): inside the VPC those names resolve to the internal load balancer
+ * (split-horizon DNS), a private address this module refuses by design. Call
+ * Oxy through `OxyServer` — its namespaces, `serviceRequest`, or
+ * `createServiceClient({ baseURL, audience }).fetch` for another Oxy product.
+ * A refusal of such a host says so in its message.
+ *
  * Node-only: this module imports `node:http`/`node:https`/`node:dns` and is
  * exported solely from `@oxy.so/core/server`. It MUST NOT be reachable from the
  * browser `@oxy.so/core` entry.
@@ -40,6 +50,7 @@ import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns
 import type { LookupFunction } from 'node:net';
 import { isIP } from 'node:net';
 import { URL } from 'node:url';
+import { isLoopbackOrigin, isOfficialWebOrigin } from '../utils/officialOrigins';
 import { withDeadline } from './deadline';
 import { extractEmbeddedIpv4, ipv4InCidr, ipv6InCidr } from './ipCidr';
 
@@ -297,6 +308,23 @@ export async function assertSafePublicUrl(
   };
 }
 
+/** What a refusal of a first-party Oxy host adds to its reason. */
+const FIRST_PARTY_HOST_HINT =
+  'first-party Oxy host: inside the VPC it resolves to a private address, which safeFetch refuses by design; call it through OxyServer (its namespaces, serviceRequest, or createServiceClient().fetch), not safeFetch';
+
+/** `reason`, plus the first-party hint when `rawUrl` names an official Oxy host. */
+function rejectionReason(rawUrl: string, reason: string): string {
+  let origin: string;
+  try {
+    origin = new URL(rawUrl).origin;
+  } catch {
+    return reason;
+  }
+  return isOfficialWebOrigin(origin) && !isLoopbackOrigin(origin)
+    ? `${reason} (${FIRST_PARTY_HOST_HINT})`
+    : reason;
+}
+
 /** Marker error for a blocked SSRF target (map to 403 at the route layer). */
 export class SsrfRejection extends Error {
   constructor(reason: string) {
@@ -484,7 +512,9 @@ export async function safeFetch(
       signal,
     });
     if (!guard.ok) {
-      throw guard.incomplete ? new UpstreamError(guard.reason) : new SsrfRejection(guard.reason);
+      throw guard.incomplete
+        ? new UpstreamError(guard.reason)
+        : new SsrfRejection(rejectionReason(currentUrl, guard.reason));
     }
 
     const target = new URL(currentUrl);

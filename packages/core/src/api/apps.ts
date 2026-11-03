@@ -30,7 +30,7 @@ import {
   parseContract,
 } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
-import type { AccountMember, AccountSuccessResult } from './accounts';
+import type { AccountRole, AccountSuccessResult } from './accounts';
 
 const SHORT_TTL = 60 * 1000;
 const MEDIUM_TTL = 2 * 60 * 1000;
@@ -123,11 +123,26 @@ export interface Application {
   createdAt: string;
   updatedAt: string;
   /**
-   * The caller's effective membership in the OWNING account (direct or
-   * inherited), embedded by the API on list/detail responses, or `null` when the
-   * caller has no membership. Use `callerMembership.permissions` to gate UI.
+   * The caller's access to this application, derived from their effective
+   * role over the OWNING account (direct or inherited), embedded by the API on
+   * list/detail responses, or `null` when the caller has no membership. Use
+   * `callerMembership.permissions` to gate UI; a backend asks
+   * `OxyServer.applicationAccessFor`.
    */
-  callerMembership?: AccountMember | null;
+  callerMembership?: ApplicationCallerMembership | null;
+}
+
+/**
+ * The caller's access to an application as the API embeds it: the role they
+ * hold over the owning account and the APPLICATION permissions it maps to
+ * (`app:read`, `app:update`, `webhooks:update`, …). There is no per-application
+ * member row, so this is not an `AccountMember`.
+ */
+export interface ApplicationCallerMembership {
+  role: AccountRole;
+  permissions: string[];
+  source: 'account';
+  ownerAccountId: string;
 }
 
 /**
