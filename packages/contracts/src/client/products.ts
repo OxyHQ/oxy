@@ -14,6 +14,8 @@ import type {
   SubscriptionCreditGrantsResponse,
 } from '../products/billing';
 import type {
+  EmbeddedProductCheckout,
+  ProductCheckoutConfiguration,
   PersonalPlanCheckoutRequest,
   PersonalPlanCheckoutResult,
   ProductPlanCheckoutRequest,
@@ -166,6 +168,17 @@ export const productPlanCatalogueCheck = exact<ProductPlanCatalogue>()(
 );
 
 const checkoutRequestShape = {
+  billingAddress: optional(
+    strictObject({
+      country: string(pattern(/^[A-Z]{2}$/)),
+      state: optional(string(minLength(1), maxLength(100))),
+      postalCode: optional(string(minLength(1), maxLength(32))),
+      city: optional(string(minLength(1), maxLength(100))),
+      line1: optional(string(minLength(1), maxLength(200))),
+      line2: optional(string(minLength(1), maxLength(200))),
+    }),
+  ),
+  presentation: optional(oneOf(['hosted', 'embedded'])),
   expectedSubjectAccountId: oxyAccountId,
   offerId: identifier,
   offerVersion: version,
@@ -188,6 +201,31 @@ export const productSubscriptionRenewalRequestCheck = exact<ProductSubscriptionR
   }),
 );
 
+export const embeddedProductCheckoutCheck = exact<EmbeddedProductCheckout>()(
+  strictObject({
+    transport: literal('checkout_session'),
+    subjectAccountId: oxyAccountId,
+    productId: identifier,
+    offerId: identifier,
+    offerVersion: version,
+    merchantId: string(minLength(1)),
+    mode: oneOf(['test', 'live']),
+    environment: oneOf(['development', 'test', 'staging', 'production']),
+    sessionId: string(minLength(1)),
+    clientSecret: string(minLength(1)),
+    publishableKey: string(minLength(1)),
+    currency: literal('USD'),
+    amountMinorUnits: version,
+    interval: oneOf(['month', 'year']),
+    tax: strictObject({
+      subtotalMinorUnits: count,
+      taxMinorUnits: count,
+      totalMinorUnits: version,
+      inclusive: literal(true),
+    }),
+  }),
+);
+
 export const personalPlanCheckoutResultCheck = exact<PersonalPlanCheckoutResult>()(
   discriminatedUnion('state', {
     unconfigured: strictObject({
@@ -198,8 +236,14 @@ export const personalPlanCheckoutResultCheck = exact<PersonalPlanCheckoutResult>
       state: literal('pending'),
       intentId: identifier,
       checkoutUrl: optional(string(url, startsWith('https://'))),
+      embeddedCheckout: optional(embeddedProductCheckoutCheck),
+      checkoutStatus: optional(oneOf(['open', 'complete', 'expired'])),
     }),
-    closed: strictObject({ state: literal('closed'), intentId: identifier }),
+    closed: strictObject({
+      state: literal('closed'),
+      intentId: identifier,
+      reason: optional(literal('billing_location_required')),
+    }),
     fulfilled: strictObject({ state: literal('fulfilled'), intentId: identifier }),
   }),
 );
@@ -286,3 +330,34 @@ export const productSubscriptionCancellationResultCheck =
       strictObject({ sourceId: identifier, reconciliationPending: literal(true) }),
     ),
   );
+
+export const productCheckoutConfigurationCheck = exact<ProductCheckoutConfiguration>()(
+  discriminatedUnion('state', {
+    unconfigured: strictObject({ state: literal('unconfigured') }),
+    ready: strictObject({
+      state: literal('ready'),
+      subjectAccountId: oxyAccountId,
+      productId: identifier,
+      merchantId: string(minLength(1)),
+      mode: oneOf(['test', 'live']),
+      environment: oneOf(['development', 'test', 'staging', 'production']),
+      publishableKey: string(minLength(1)),
+      paymentMethods: array(
+        strictObject({
+          id: oneOf(['card', 'bank', 'installments', 'faircoin']),
+          available: boolean,
+          reason: optional(string()),
+        }),
+      ),
+      offers: array(
+        strictObject({
+          offerId: identifier,
+          offerVersion: version,
+          amountMinorUnits: version,
+          currency: literal('USD'),
+          interval: oneOf(['month', 'year']),
+        }),
+      ),
+    }),
+  }),
+);

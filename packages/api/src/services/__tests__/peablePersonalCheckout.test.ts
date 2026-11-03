@@ -41,57 +41,57 @@ const input = {
   trial: 'none' as const,
 };
 const quote: BillingTaxQuote = {
-  schemaVersion: 1,
+  schema_version: 2,
   source: {
-    merchantId: 'merch_fixture',
-    appId: 'app_fixture',
-    storeId: 'account_fixture',
-    planId: 'one_monthly',
+    merchant_id: 'merch_fixture',
+    app_id: 'app_fixture',
+    store_id: 'account_fixture',
+    plan_id: 'one_monthly',
     mode: 'test',
     environment: 'staging',
   },
   quote: {
     id: 'quote_fixture',
     currency: 'USD',
-    grossMinorUnits: 2999,
-    netMinorUnits: 2499,
-    taxMinorUnits: 500,
-    taxTreatment: 'inclusive',
-    sellerId: 'seller_fixture',
-    invoiceIssuerId: 'issuer_fixture',
-    taxRemitterId: 'remitter_fixture',
-    taxServiceRef: 'tax_fixture',
+    gross_minor_units: 2999,
+    net_minor_units: 2499,
+    tax_minor_units: 500,
+    tax_treatment: 'inclusive',
+    seller_id: 'seller_fixture',
+    invoice_issuer_id: 'issuer_fixture',
+    tax_remitter_id: 'remitter_fixture',
+    tax_service_ref: 'tax_fixture',
     country: 'RO',
-    coverageEvidenceId: 'coverage_fixture',
-    taxRateEvidenceId: 'rate_fixture',
-    customerLocationEvidenceId: 'location_fixture',
-    quotedAt: now.toISOString(),
-    expiresAt: '2026-10-07T02:00:00.000Z',
+    coverage_evidence_id: 'coverage_fixture',
+    tax_rate_evidence_id: 'rate_fixture',
+    customer_location_evidence_id: 'location_fixture',
+    quoted_at: Math.floor(now.getTime() / 1000),
+    expires_at: Math.floor(Date.parse('2026-10-07T02:00:00.000Z') / 1000),
   },
-  signature: { algorithm: 'Ed25519', keyId: 'key_fixture', value: 'fixture' },
+  signature: { algorithm: 'Ed25519', key_id: 'key_fixture', value: 'fixture' },
 };
 function fixture() {
   const retrieve = jest.fn(async () => ({
     id: 'merch_fixture',
-    oxyAppId: 'app_fixture',
+    oxy_app_id: 'app_fixture',
     environment: 'staging',
   }));
-  const ensureCustomer = jest.fn(async () => ({ providerCustomerId: 'cus_fixture' }));
+  const ensureCustomer = jest.fn(async () => ({ provider_customer_id: 'cus_fixture' }));
   const createTaxQuote = jest.fn(async () => structuredClone(quote));
   const createCheckoutSession = jest.fn(async () => ({
     id: 'cs_fixture',
     url: 'https://checkout.example.invalid/fixture',
-    expiresAt: '2026-10-07T01:00:00.000Z',
+    expires_at: Math.floor(Date.parse('2026-10-07T01:00:00.000Z') / 1000),
   }));
   const retrieveCheckout = jest.fn(async () => ({
     id: 'cs_fixture',
-    storeId: input.subjectAccountId,
-    planId: 'one_monthly',
-    providerCustomerId: 'cus_fixture',
-    providerPriceId: input.priceId,
+    store_id: input.subjectAccountId,
+    plan_id: 'one_monthly',
+    provider_customer_id: 'cus_fixture',
+    provider_price_id: input.priceId,
     status: 'open',
     subscription: null,
-    initialInvoiceId: null,
+    initial_invoice_id: null,
   }));
   const resolveCustomerLocationEvidence = jest.fn(async () => ({
     customerLocationEvidenceId: 'location_fixture',
@@ -119,9 +119,10 @@ it('prepares trusted customer and quote then replays only the frozen checkout sn
   expect(snapshot?.taxQuote).toEqual(quote);
   expect(test.resolveCustomerLocationEvidence).toHaveBeenCalledWith(input.subjectAccountId);
   expect(test.createTaxQuote).toHaveBeenCalledWith({
-    storeId: input.subjectAccountId,
-    planId: 'one_monthly',
-    customerLocationEvidenceId: 'location_fixture',
+    store_id: input.subjectAccountId,
+    plan_id: 'one_monthly',
+    provider_price_id: input.priceId,
+    customer_location_evidence_id: 'location_fixture',
   });
   const frozen = { ...input, snapshot };
   expect(await test.provider.create(frozen)).toEqual({
@@ -137,13 +138,13 @@ it('prepares trusted customer and quote then replays only the frozen checkout sn
   );
   expect(test.createCheckoutSession).toHaveBeenCalledWith(
     {
-      providerCustomerId: 'cus_fixture',
-      providerPriceId: input.priceId,
-      trialDays: 0,
-      returnUrl: configuration.returnUrl,
-      storeId: input.subjectAccountId,
-      planId: 'one_monthly',
-      taxQuote: quote,
+      provider_customer_id: 'cus_fixture',
+      provider_price_id: input.priceId,
+      trial_days: 0,
+      return_url: configuration.returnUrl,
+      store_id: input.subjectAccountId,
+      plan_id: 'one_monthly',
+      tax_quote: quote,
     },
     { idempotencyKey: input.idempotencyKey },
   );
@@ -165,16 +166,20 @@ it.each([
 });
 it('rejects wrong credentials before customer effects', async () => {
   const test = fixture();
-  test.retrieve.mockResolvedValue({ id: 'other', oxyAppId: 'app_fixture', environment: 'staging' });
+  test.retrieve.mockResolvedValue({
+    id: 'other',
+    oxy_app_id: 'app_fixture',
+    environment: 'staging',
+  });
   await expect(test.provider.prepare?.(input)).rejects.toThrow('credential owner');
   expect(test.ensureCustomer).not.toHaveBeenCalled();
 });
 it.each([
-  'sellerId',
-  'invoiceIssuerId',
-  'taxRemitterId',
+  'seller_id',
+  'invoice_issuer_id',
+  'tax_remitter_id',
   'currency',
-  'customerLocationEvidenceId',
+  'customer_location_evidence_id',
 ] as const)('rejects quote substitution of %s', async (field) => {
   const test = fixture();
   const changed = structuredClone(quote);
@@ -194,7 +199,7 @@ it('rejects missing snapshot, foreign subject, stale quote and an altered replay
     test.provider.create({ ...input, snapshot, idempotencyKey: 'other' }),
   ).rejects.toThrow('snapshot differs');
   if (!snapshot) throw new Error('Fixture snapshot missing');
-  snapshot.taxQuote.quote.expiresAt = now.toISOString();
+  snapshot.taxQuote.quote.expires_at = Math.floor(now.getTime() / 1000);
   await expect(test.provider.create({ ...input, snapshot })).rejects.toThrow('expired');
   expect(test.createCheckoutSession).not.toHaveBeenCalled();
 });
@@ -211,8 +216,8 @@ it('keeps production purchase closed before every remote effect', async () => {
   expect(test.retrieve).not.toHaveBeenCalled();
 });
 it.each([
-  { expiresAt: now.toISOString() },
-  { expiresAt: '2026-10-07T03:00:00.000Z' },
+  { expires_at: Math.floor(now.getTime() / 1000) },
+  { expires_at: Math.floor(Date.parse('2026-10-07T03:00:00.000Z') / 1000) },
   { url: 'http://checkout.example.invalid/fixture' },
 ])('rejects unsafe or expired checkout %p', async (change) => {
   const test = fixture();
@@ -220,18 +225,20 @@ it.each([
   test.createCheckoutSession.mockResolvedValue({
     id: 'cs_fixture',
     url: 'https://checkout.example.invalid/fixture',
-    expiresAt: '2026-10-07T01:00:00.000Z',
+    expires_at: Math.floor(Date.parse('2026-10-07T01:00:00.000Z') / 1000),
     ...change,
   });
   await expect(test.provider.create({ ...input, snapshot })).rejects.toThrow();
 });
 it.each([
-  { source: { ...quote.source, storeId: 'foreign' } },
+  { source: { ...quote.source, store_id: 'foreign' } },
   { source: { ...quote.source, environment: 'production' as const } },
-  { quote: { ...quote.quote, grossMinorUnits: 3000 } },
-  { quote: { ...quote.quote, netMinorUnits: 2498 } },
-  { quote: { ...quote.quote, taxTreatment: 'exclusive' as const } },
-  { quote: { ...quote.quote, quotedAt: '2026-10-07T00:00:01.000Z' } },
+  { quote: { ...quote.quote, gross_minor_units: 3000 } },
+  { quote: { ...quote.quote, net_minor_units: 2498 } },
+  { quote: { ...quote.quote, tax_treatment: 'exclusive' as const } },
+  {
+    quote: { ...quote.quote, quoted_at: Math.floor(Date.parse('2026-10-07T00:00:01.000Z') / 1000) },
+  },
 ])('rejects foreign or invalid signed quote context %p', async (change) => {
   const test = fixture();
   test.createTaxQuote.mockResolvedValue({ ...structuredClone(quote), ...change });
@@ -321,7 +328,7 @@ it('replays the frozen return URL after provider restart with changed configurat
   );
   await restarted.create({ ...input, snapshot });
   expect(test.createCheckoutSession).toHaveBeenCalledWith(
-    expect.objectContaining({ returnUrl: configuration.returnUrl }),
+    expect.objectContaining({ return_url: configuration.returnUrl }),
     { idempotencyKey: input.idempotencyKey },
   );
   expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
@@ -350,7 +357,7 @@ it('maps authoritative review failures for creation and saved URLs without grant
   await f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture');
   f.retrieveCheckout.mockResolvedValueOnce({
     ...(await f.retrieveCheckout()),
-    storeId: 'foreign',
+    store_id: 'foreign',
   });
   await expect(f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture')).rejects.toThrow(
     'binding differs',

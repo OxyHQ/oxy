@@ -53,14 +53,65 @@ const configuration = {
   recoveryEnabled: false,
   recoveryIntervalMilliseconds: 60_000,
 };
-const invoice = { sellerId: 'seller_fixture', invoiceIssuerId: 'issuer_fixture' };
+const invoice = {
+  platform: 'peable',
+  currency: 'USD',
+  grossMinorUnits: 2999,
+  netMinorUnits: 2500,
+  taxMinorUnits: 499,
+  merchantFeeMinorUnits: 0,
+  taxTreatment: 'inclusive',
+  sellerId: 'seller_fixture',
+  invoiceIssuerId: 'issuer_fixture',
+  taxQuoteId: 'quote_fixture',
+  customerLocationEvidenceId: 'location_fixture',
+  taxRateEvidenceId: 'rate_fixture',
+  issuedAt: '2026-11-03T00:00:00.000Z',
+  expiresAt: '2026-12-03T00:00:00.000Z',
+  context: {
+    payerAccountId: '698100000000000000000001',
+    beneficiaryAccountId: '698100000000000000000001',
+    providerSubscriptionId: source.subscriptionId,
+    offerId: 'one',
+    offerVersion: 1,
+    periodStart: '2026-11-03T00:00:00.000Z',
+    periodEnd: '2026-12-03T00:00:00.000Z',
+    mode: 'test',
+    environment: 'development',
+  },
+};
+/** Fixtures retain Oxy's durable shape; the SDK boundary emits the published v2 wire shape. */
+function sdkWire(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sdkWire);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+      const name = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+      if (name === 'schema_version') return [name, 2];
+      if (
+        typeof entry === 'string' &&
+        /^(quoted_at|expires_at|issued_at|current_period_start|current_period_end|period_start|period_end|paid_at|observed_at|trial_ends_at|cancel_at|cancelled_at)$/.test(
+          name,
+        )
+      )
+        return [name, Math.floor(Date.parse(entry) / 1000)];
+      return [name, sdkWire(entry)];
+    }),
+  );
+}
+
 function fixture() {
-  const retrieveFinalInvoiceAuthority = jest.fn(async () => ({
+  const retrieveFinalInvoiceAuthority = jest.fn(async (..._args: unknown[]) => ({
     source,
     invoice,
     method: 'card' as const,
   }));
-  const client = { billing: { retrieveFinalInvoiceAuthority } } as unknown as Peable;
+  const client = {
+    billing: {
+      retrieveFinalInvoiceAuthority: async (...args: unknown[]) =>
+        sdkWire(await retrieveFinalInvoiceAuthority(...args)),
+    },
+  } as unknown as Peable;
   return { client, retrieveFinalInvoiceAuthority };
 }
 afterEach(stopPeablePersonalRuntime);
@@ -127,7 +178,7 @@ it.each(['review_required', 'not_recorded', 'unknown_status'])(
         merchants: {
           retrieve: async () => ({
             id: merchantId,
-            oxyAppId: account.app.id,
+            oxy_app_id: account.app.id,
             environment: 'production',
           }),
         },
@@ -240,7 +291,7 @@ async function pendingCheckoutFixture() {
   await connectPostgres();
   const account = await productAccessFixture();
   const intentId = randomUUID();
-  const quote: BillingTaxQuote = {
+  const quote = sdkWire({
     schemaVersion: 1,
     source: {
       merchantId: 'merch_fixture',
@@ -269,7 +320,7 @@ async function pendingCheckoutFixture() {
       expiresAt: account.period.end,
     },
     signature: { algorithm: 'Ed25519', keyId: 'fixture', value: 'fixture' },
-  };
+  }) as BillingTaxQuote;
   await getDb()
     .insert(personalPlanCheckoutIntents)
     .values({
@@ -385,7 +436,7 @@ async function pendingCheckoutFixture() {
     },
   };
   const retrieveCheckout = jest.fn(async () => session);
-  const retrievePaidInvoice = jest.fn(async () => paid);
+  const retrievePaidInvoice = jest.fn(async (..._args: unknown[]) => paid);
   const retrieveInvoiceState = jest.fn(async () => ({
     ...paid,
     chargeId: `ch_${intentId}`,
@@ -410,17 +461,18 @@ async function pendingCheckoutFixture() {
   }));
   const retrieveMerchant = jest.fn(async () => ({
     id: 'merch_fixture',
-    oxyAppId: account.app.id,
+    oxy_app_id: account.app.id,
     environment: 'production',
   }));
   const client = {
     merchants: { retrieve: retrieveMerchant },
     billing: {
-      retrieveCheckout,
-      retrievePaidInvoice,
-      retrieveInvoiceState,
-      retrieveFinalInvoiceAuthority,
-      retrieveSubscription: async () => subscription,
+      retrieveCheckout: async () => sdkWire(await retrieveCheckout()),
+      retrievePaidInvoice: async (...args: unknown[]) =>
+        sdkWire(await retrievePaidInvoice(...args)),
+      retrieveInvoiceState: async () => sdkWire(await retrieveInvoiceState()),
+      retrieveFinalInvoiceAuthority: async () => sdkWire(await retrieveFinalInvoiceAuthority()),
+      retrieveSubscription: async () => sdkWire(subscription),
     },
   } as unknown as Peable;
   const runtime = createPeablePersonalRuntime(
@@ -552,7 +604,10 @@ it.each([false, true])(
   'uses packed SDK signed authority and refuses tampering=%s before fulfillment',
   async (hasTampering) => {
     const test = await pendingCheckoutFixture();
-    const authorityValue = { schemaVersion: 1, ...(await test.retrieveFinalInvoiceAuthority()) };
+    const authorityValue = sdkWire({
+      schemaVersion: 2,
+      ...(await test.retrieveFinalInvoiceAuthority()),
+    }) as Record<string, unknown> & { invoice: { tax_quote_id: string } };
     function canonical(value: unknown): string {
       if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
       if (value !== null && typeof value === 'object') {
@@ -568,13 +623,13 @@ it.each([false, true])(
       ...authorityValue,
       signature: {
         algorithm: 'Ed25519',
-        keyId: 'fixture',
+        key_id: 'fixture',
         value: sign(null, Buffer.from(canonical(authorityValue)), keys.privateKey).toString(
           'base64url',
         ),
       },
     };
-    if (hasTampering) signed.invoice.taxQuoteId = 'tampered_quote';
+    if (hasTampering) signed.invoice.tax_quote_id = 'tampered_quote';
     const calls: string[] = [];
     const transport = jest.spyOn(globalThis, 'fetch').mockImplementation(async (request) => {
       const path = new URL(String(request)).pathname;
@@ -583,7 +638,7 @@ it.each([false, true])(
       if (path === '/v1/merchants/me')
         response = {
           id: 'merch_fixture',
-          oxyAppId: test.account.app.id,
+          oxy_app_id: test.account.app.id,
           environment: 'production',
         };
       else if (path.includes('/checkout_sessions/')) response = test.session;
@@ -592,7 +647,7 @@ it.each([false, true])(
       else if (path.includes('/invoice_authorities/')) response = signed;
       else if (path.includes('/subscriptions/')) response = test.session.subscription;
       else throw new Error(`Unexpected fixture request ${path}`);
-      return new Response(JSON.stringify(response), {
+      return new Response(JSON.stringify(sdkWire(response)), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -692,7 +747,7 @@ it('rejects wrong SDK credential owner before owned checkout reads', async () =>
   const test = await pendingCheckoutFixture();
   test.retrieveMerchant.mockResolvedValue({
     id: 'foreign',
-    oxyAppId: test.account.app.id,
+    oxy_app_id: test.account.app.id,
     environment: 'production',
   });
   await expect(test.runtime.recoverCheckout(test.intentId)).rejects.toThrow('credential owner');

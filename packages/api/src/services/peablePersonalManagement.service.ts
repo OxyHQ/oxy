@@ -136,13 +136,13 @@ export async function cancelStoredPeablePersonalSource(
   const merchant = await client.merchants.retrieve();
   if (
     merchant.id !== cfg.merchantId ||
-    merchant.oxyAppId !== cfg.applicationId ||
+    merchant.oxy_app_id !== cfg.applicationId ||
     merchant.environment !== cfg.namespace.environment
   )
     throw new ApiError(409, 'Peable credential owner differs', 'SOURCE_CONFLICT');
   const observed = await client.billing.retrieveSubscription(source.providerSubscriptionId);
   const matches = cfg.offers.filter(
-    (v) => v.providerPriceId === observed.providerPriceId && v.planId === observed.planId,
+    (v) => v.providerPriceId === observed.provider_price_id && v.planId === observed.plan_id,
   );
   if (matches.length !== 1)
     throw new ApiError(503, 'Named Peable offer is unconfigured', 'PEABLE_UNCONFIGURED');
@@ -159,8 +159,8 @@ export async function cancelStoredPeablePersonalSource(
         v.origin === (mapping.kind === 'existing_product' ? 'individual' : 'bundle') &&
         v.offerId === mapping.offerId &&
         v.offerVersion === mapping.offerVersion &&
-        v.periodStart.getTime() <= Date.parse(observed.currentPeriodStart) &&
-        v.periodEnd.getTime() <= Date.parse(observed.currentPeriodEnd),
+        v.periodStart.getTime() <= observed.current_period_start * 1000 &&
+        v.periodEnd.getTime() <= observed.current_period_end * 1000,
     )
     .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime());
   const segment = historical[0];
@@ -204,7 +204,7 @@ export async function cancelStoredPeablePersonalSource(
   const owned = {
     payerAccountId: accountId,
     providerSubscriptionId: source.providerSubscriptionId,
-    providerCustomerId: observed.providerCustomerId,
+    providerCustomerId: observed.provider_customer_id,
     providerPriceId: mapping.providerPriceId,
     storeId: accountId,
     planId: mapping.planId,
@@ -222,7 +222,10 @@ export async function cancelStoredPeablePersonalSource(
       providerBinding: { providerAccountRef: cfg.merchantId, ...cfg.namespace },
       providerObservedAt: confirmedObservedAt,
       status: confirmed.status,
-      period: { start: confirmed.currentPeriodStart, end: confirmed.currentPeriodEnd },
+      period: {
+        start: new Date(confirmed.current_period_start * 1000).toISOString(),
+        end: new Date(confirmed.current_period_end * 1000).toISOString(),
+      },
       cancelAtPeriodEnd: true,
     });
     return { sourceId: source.id, cancelAtPeriodEnd: true as const };

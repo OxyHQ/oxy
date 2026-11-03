@@ -12,6 +12,9 @@ beforeAll(connectPostgres);
 afterAll(closePostgres);
 it('requires real authority, activates exact paid period once and preserves individual sources', async () => {
   const f = await productAccessFixture();
+  f.now.setMilliseconds(0);
+  f.period.start = new Date(Math.floor(Date.parse(f.period.start) / 1000) * 1000).toISOString();
+  f.period.end = new Date(Math.floor(Date.parse(f.period.end) / 1000) * 1000).toISOString();
   const raw = f.input(f.offers[1]);
   await recordProductAccessPeriod({
     ...raw,
@@ -32,23 +35,23 @@ it('requires real authority, activates exact paid period once and preserves indi
     offerVersion: 1,
   };
   const value = {
-    invoiceId: 'in_fixture',
-    lineId: 'il_fixture',
-    paymentIntentId: 'pi_fixture',
-    providerSubscriptionId: context.subscriptionId,
-    providerCustomerId: context.customerId,
-    providerPriceId: context.priceId,
-    storeId: f.payer,
-    planId: context.planId,
+    invoice_id: 'in_fixture',
+    line_id: 'il_fixture',
+    payment_intent_id: 'pi_fixture',
+    provider_subscription_id: context.subscriptionId,
+    provider_customer_id: context.customerId,
+    provider_price_id: context.priceId,
+    store_id: f.payer,
+    plan_id: context.planId,
     livemode: true,
     currency: 'USD',
-    amountPaid: '2999',
-    netAmount: '2500',
-    taxAmount: '499',
-    periodStart: f.period.start,
-    periodEnd: f.period.end,
-    paidAt: f.now.toISOString(),
-    observedAt: f.now.toISOString(),
+    amount_paid: '2999',
+    net_amount: '2500',
+    tax_amount: '499',
+    period_start: Math.floor(Date.parse(f.period.start) / 1000),
+    period_end: Math.floor(Date.parse(f.period.end) / 1000),
+    paid_at: Math.floor(f.now.getTime() / 1000),
+    observed_at: Math.floor(f.now.getTime() / 1000),
   };
   const final = {
     platform: 'peable',
@@ -79,24 +82,24 @@ it('requires real authority, activates exact paid period once and preserves indi
   };
   const read = jest.fn(async () => value);
   const current = jest.fn(async () => ({
-    providerSubscriptionId: context.subscriptionId,
-    providerCustomerId: context.customerId,
-    providerPriceId: context.priceId,
-    storeId: f.payer,
-    planId: context.planId,
+    provider_subscription_id: context.subscriptionId,
+    provider_customer_id: context.customerId,
+    provider_price_id: context.priceId,
+    store_id: f.payer,
+    plan_id: context.planId,
     livemode: true,
     status: 'active',
     interval: 'month',
-    cancelAtPeriodEnd: true,
-    currentPeriodStart: f.period.start,
-    currentPeriodEnd: f.period.end,
-    trialEndsAt: null,
+    cancel_at_period_end: true,
+    current_period_start: Math.floor(Date.parse(f.period.start) / 1000),
+    current_period_end: Math.floor(Date.parse(f.period.end) / 1000),
+    trial_ends_at: null,
   }));
   const client = {
     merchants: {
       retrieve: async () => ({
         id: context.merchantId,
-        oxyAppId: context.appId,
+        oxy_app_id: context.appId,
         environment: context.environment,
       }),
     },
@@ -121,13 +124,13 @@ it('requires real authority, activates exact paid period once and preserves indi
   await expect(
     reconcilePeablePersonalPaidInvoice(faircoinAuthority, context, 'in_fixture', () => f.now),
   ).rejects.toThrow('Faircoin quote');
-  read.mockResolvedValue({ ...value, storeId: f.owner });
+  read.mockResolvedValue({ ...value, store_id: f.owner });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => f.now),
   ).rejects.toThrow('ownership');
   read.mockResolvedValue({
     ...value,
-    observedAt: new Date(f.now.getTime() - 60_001).toISOString(),
+    observed_at: Math.floor((f.now.getTime() - 60_001) / 1000),
   });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => f.now),
@@ -165,41 +168,41 @@ it('requires real authority, activates exact paid period once and preserves indi
   read.mockImplementation(async () => {
     await Promise.resolve();
     moving += 100;
-    return { ...value, observedAt: new Date(moving).toISOString() };
+    return { ...value, observed_at: Math.floor(moving / 1000) };
   });
   current.mockImplementation(async () => {
     await Promise.resolve();
     moving += 100;
     return {
-      providerSubscriptionId: context.subscriptionId,
-      providerCustomerId: context.customerId,
-      providerPriceId: context.priceId,
-      storeId: f.payer,
-      planId: context.planId,
+      provider_subscription_id: context.subscriptionId,
+      provider_customer_id: context.customerId,
+      provider_price_id: context.priceId,
+      store_id: f.payer,
+      plan_id: context.planId,
       livemode: true,
       status: 'active',
       interval: 'month',
-      cancelAtPeriodEnd: true,
-      currentPeriodStart: f.period.start,
-      currentPeriodEnd: f.period.end,
-      trialEndsAt: null,
+      cancel_at_period_end: true,
+      current_period_start: Date.parse(f.period.start) / 1000,
+      current_period_end: Date.parse(f.period.end) / 1000,
+      trial_ends_at: null,
     };
   });
   current.mockImplementationOnce(async () => {
     moving += 60_001;
     return {
-      providerSubscriptionId: context.subscriptionId,
-      providerCustomerId: context.customerId,
-      providerPriceId: context.priceId,
-      storeId: f.payer,
-      planId: context.planId,
+      provider_subscription_id: context.subscriptionId,
+      provider_customer_id: context.customerId,
+      provider_price_id: context.priceId,
+      store_id: f.payer,
+      plan_id: context.planId,
       livemode: true,
       status: 'active',
       interval: 'month',
-      cancelAtPeriodEnd: true,
-      currentPeriodStart: f.period.start,
-      currentPeriodEnd: f.period.end,
-      trialEndsAt: null,
+      cancel_at_period_end: true,
+      current_period_start: Date.parse(f.period.start) / 1000,
+      current_period_end: Date.parse(f.period.end) / 1000,
+      trial_ends_at: null,
     };
   });
   await expect(

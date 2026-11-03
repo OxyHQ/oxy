@@ -33,5 +33,20 @@ export async function receivePeablePersonalObservation(req: Request, res: Respon
     return res.status(503).json({ error: 'PEABLE_OBSERVATION_DEFERRED' });
   }
 }
+export async function receivePeableMerchantObservation(req: Request, res: Response) {
+  const runtime = getPeablePersonalRuntime();
+  if (!runtime?.configuration.observationsEnabled)
+    return res.status(503).json({ error: 'PEABLE_OBSERVATIONS_DISABLED' });
+  const signature = req.get('peable-signature');
+  if (!Buffer.isBuffer(req.body) || req.body.length > 1_048_576 || !signature)
+    return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
+  try {
+    await runtime.observeMerchant(req.body.toString('utf8'), signature);
+    return res.status(200).json({ received: true });
+  } catch {
+    return res.status(503).json({ error: 'PEABLE_OBSERVATION_DEFERRED' });
+  }
+}
+router.post('/', receivePeableMerchantObservation);
 router.post('/:sourceId', receivePeablePersonalObservation);
 export default router;

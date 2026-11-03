@@ -1,0 +1,45 @@
+{
+  "deployment": {
+    "provider": "stripe",
+    "platformAccountId": "acct_1USWGhAofUef123L",
+    "livemode": true
+  },
+  "observationsEnabled": false,
+  "taxQuoteAdapterRef": "peable_tax",
+  "invoiceSigningKeyId": "peable-billing-2026-10",
+  "webhookEndpointRef": "we_1UXjfnAofUef123LuYjDylsp",
+  "portalConfigurationRef": "bpc_1UXjuXAofUef123LLx4e2UX2",
+  "cohorts": [
+    {
+      "merchantId": "01a1a211-3576-7653-94c2-78b1348085d8",
+      "oxyAppId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+      "environment": "production",
+      "evidenceRef": "oxy-central-billing-mention-plus-v1",
+      "requireTaxQuote": true,
+      "offers": [
+        {
+          "providerPriceId": "price_1UXjQuAofUef123LJWl0Qkcs",
+          "planId": "mention_plus_monthly",
+          "offerId": "mention_plus_monthly",
+          "offerVersion": 1,
+          "interval": "month",
+          "intervalCount": 1,
+          "currency": "USD",
+          "grossMinorUnits": 599,
+          "taxTreatment": "inclusive"
+        },
+        {
+          "providerPriceId": "price_1UXjR2AofUef123LZ8oFLfos",
+          "planId": "mention_plus_annual",
+          "offerId": "mention_plus_annual",
+          "offerVersion": 1,
+          "interval": "year",
+          "intervalCount": 1,
+          "currency": "USD",
+          "grossMinorUnits": 5750,
+          "taxTreatment": "inclusive"
+        }
+      ]
+    }
+  ]
+}

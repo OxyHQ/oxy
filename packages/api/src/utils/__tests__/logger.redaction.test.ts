@@ -332,3 +332,20 @@ it('redacts derived contexts and the presented caller service JWT at every trans
   expect(lines[0].raw).not.toContain(value);
   expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
 });
+
+it('redacts ephemeral checkout capabilities in Oxy and provider response envelopes', () => {
+  const value = secret('checkout-capability');
+  const message = 'checkout response redaction';
+  const lines = capture(
+    () =>
+      logger.info(message, {
+        control: CONTROL_VALUE,
+        response: { embeddedCheckout: { clientSecret: value }, action: { client_secret: value } },
+      }),
+    message,
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].raw).toContain(CONTROL_VALUE);
+  expect(lines[0].raw).toContain(CENSOR);
+});

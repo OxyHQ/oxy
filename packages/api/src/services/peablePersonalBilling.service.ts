@@ -107,26 +107,27 @@ export async function cancelOwnedPeableSubscription(
     .parse(actionId);
   if (accountId !== owned.payerAccountId) throw new Error('Peable payer differs');
   const check = (v: Awaited<ReturnType<Peable['billing']['retrieveSubscription']>>) => {
-    for (const key of [
-      'providerSubscriptionId',
-      'providerCustomerId',
-      'providerPriceId',
-      'storeId',
-      'planId',
-      'livemode',
-    ] as const)
-      if (v[key] !== owned[key]) throw new Error('Peable subscription ownership differs');
+    const actual = {
+      providerSubscriptionId: v.provider_subscription_id,
+      providerCustomerId: v.provider_customer_id,
+      providerPriceId: v.provider_price_id,
+      storeId: v.store_id,
+      planId: v.plan_id,
+      livemode: v.livemode,
+    };
+    for (const key of Object.keys(actual) as (keyof typeof actual)[])
+      if (actual[key] !== owned[key]) throw new Error('Peable subscription ownership differs');
     if (
       !['active', 'trialing', 'past_due', 'unpaid'].includes(v.status) ||
-      !Number.isFinite(Date.parse(v.currentPeriodStart)) ||
-      !Number.isFinite(Date.parse(v.currentPeriodEnd)) ||
-      Date.parse(v.currentPeriodEnd) <= Date.parse(v.currentPeriodStart)
+      !Number.isFinite(v.current_period_start * 1000) ||
+      !Number.isFinite(v.current_period_end * 1000) ||
+      v.current_period_end * 1000 <= v.current_period_start * 1000
     )
       throw new Error('Peable period unavailable');
     return v;
   };
   const current = check(await client.billing.retrieveSubscription(owned.providerSubscriptionId));
-  if (current.cancelAtPeriodEnd) return current;
+  if (current.cancel_at_period_end) return current;
   const updated = check(
     await client.billing.cancelAtPeriodEnd(owned.providerSubscriptionId, {
       idempotencyKey: `oxy-one-cancel:${createHash('sha256')
@@ -135,16 +136,16 @@ export async function cancelOwnedPeableSubscription(
     }),
   );
   if (
-    !updated.cancelAtPeriodEnd ||
-    updated.currentPeriodStart !== current.currentPeriodStart ||
-    updated.currentPeriodEnd !== current.currentPeriodEnd
+    !updated.cancel_at_period_end ||
+    updated.current_period_start !== current.current_period_start ||
+    updated.current_period_end !== current.current_period_end
   )
     throw new Error('Peable cancellation period differs');
   const fresh = check(await client.billing.retrieveSubscription(owned.providerSubscriptionId));
   if (
-    !fresh.cancelAtPeriodEnd ||
-    fresh.currentPeriodStart !== updated.currentPeriodStart ||
-    fresh.currentPeriodEnd !== updated.currentPeriodEnd
+    !fresh.cancel_at_period_end ||
+    fresh.current_period_start !== updated.current_period_start ||
+    fresh.current_period_end !== updated.current_period_end
   )
     throw new Error('Peable cancellation reconciliation required');
   return fresh;

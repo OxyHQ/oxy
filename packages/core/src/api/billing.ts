@@ -15,6 +15,7 @@ import type {
   PersonalPlanCheckoutRequest,
   PersonalPlanCheckoutResult,
   ProductPlanCatalogue,
+  ProductCheckoutConfiguration,
   ProductPlanCheckoutRequest,
   ProductSubscriptionCancellationResult,
   ProductSubscriptionRenewalRequest,
@@ -30,6 +31,7 @@ import {
   personalPlanCheckoutRequestCheck,
   personalPlanCheckoutResultCheck,
   productPlanCatalogueCheck,
+  productCheckoutConfigurationCheck,
   productPlanCheckoutRequestCheck,
   productSubscriptionCancellationResultCheck,
   productSubscriptionRenewalRequestCheck,
@@ -143,6 +145,21 @@ export class BillingApi {
         'POST',
         '/billing/product-subscriptions/renew',
         parseContract(productSubscriptionRenewalRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
+
+  async productCheckoutConfiguration(
+    productId: string,
+    expectedSubjectAccountId: string,
+  ): Promise<ProductCheckoutConfiguration> {
+    return parseContract(
+      productCheckoutConfigurationCheck,
+      await this.ctx.request<unknown>(
+        'GET',
+        `/billing/checkout/product-plan/configuration?${new URLSearchParams({ productId, expectedSubjectAccountId })}`,
+        undefined,
         { cache: false },
       ),
     );

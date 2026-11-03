@@ -179,3 +179,32 @@ it.each([['{}'], [['{}']], [{ length: 0 }], [null], [Buffer.alloc(1_048_577)]])(
     }
   },
 );
+
+it('accepts fixed merchant delivery only after complete authenticated reconciliation and preserves retry on failure', async () => {
+  const observeMerchant = jest.fn(async () => {});
+  const configured = {
+    configuration: { observationsEnabled: true },
+    observeMerchant,
+  } as unknown as NonNullable<ReturnType<typeof runtimeService.getPeablePersonalRuntime>>;
+  const getter = jest.spyOn(runtimeService, 'getPeablePersonalRuntime').mockReturnValue(configured);
+  try {
+    const app = express();
+    app.use(
+      '/billing/peable/observations',
+      express.raw({ type: 'application/json', limit: '1mb' }),
+      router,
+    );
+    const deliver = () =>
+      request(app)
+        .post('/billing/peable/observations')
+        .set('peable-signature', 'fixture')
+        .set('Content-Type', 'application/json')
+        .send('{ "unchanged":  1 }');
+    expect((await deliver()).status).toBe(200);
+    expect(observeMerchant).toHaveBeenCalledWith('{ "unchanged":  1 }', 'fixture');
+    observeMerchant.mockRejectedValue(new Error('Owned read pending'));
+    expect((await deliver()).status).toBe(503);
+  } finally {
+    getter.mockRestore();
+  }
+});

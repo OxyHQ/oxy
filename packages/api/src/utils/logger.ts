@@ -106,6 +106,12 @@ const REDACTED_PATHS = [
   '*.deviceSecret',
   'clientSecret',
   '*.clientSecret',
+  'client_secret',
+  '*.client_secret',
+  'embeddedCheckout.clientSecret',
+  '*.embeddedCheckout.clientSecret',
+  'action.client_secret',
+  '*.action.client_secret',
   'password',
   '*.password',
   // Express's own request shape, for any middleware that logs `{ req }`.

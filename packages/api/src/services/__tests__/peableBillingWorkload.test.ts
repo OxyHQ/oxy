@@ -75,7 +75,7 @@ it('does not dispose a host owned by explicit deployment composition', () => {
   expect(host.dispose).not.toHaveBeenCalled();
   expect(mockClientDispose).toHaveBeenCalledTimes(1);
 });
-it.each(['id', 'oxyAppId', 'environment'])(
+it.each(['id', 'oxy_app_id', 'environment'])(
   'refuses a merchant with different %s',
   async (field) => {
     const cfg = {
@@ -85,7 +85,7 @@ it.each(['id', 'oxyAppId', 'environment'])(
     };
     mockMerchant.mockResolvedValue({
       id: cfg.merchantId,
-      oxyAppId: cfg.applicationId,
+      oxy_app_id: cfg.applicationId,
       environment: 'production',
       [field]: 'other',
     });
@@ -104,7 +104,7 @@ it('accepts only the complete reviewed merchant/application/environment binding'
   };
   mockMerchant.mockResolvedValue({
     id: cfg.merchantId,
-    oxyAppId: cfg.applicationId,
+    oxy_app_id: cfg.applicationId,
     environment: 'production',
   });
   const owned = createPeableBillingClient({}, { createServiceClient: jest.fn() });

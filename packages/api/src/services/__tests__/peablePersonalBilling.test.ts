@@ -15,17 +15,22 @@ const owned = {
   livemode: false,
 };
 const subscription = {
-  ...owned,
+  provider_subscription_id: owned.providerSubscriptionId,
+  provider_customer_id: owned.providerCustomerId,
+  provider_price_id: owned.providerPriceId,
+  store_id: owned.storeId,
+  plan_id: owned.planId,
+  livemode: owned.livemode,
   status: 'active',
-  cancelAtPeriodEnd: false,
-  currentPeriodStart: '2026-10-01T00:00:00Z',
-  currentPeriodEnd: '2026-11-01T00:00:00Z',
+  cancel_at_period_end: false,
+  current_period_start: Math.floor(Date.parse('2026-10-01T00:00:00Z') / 1000),
+  current_period_end: Math.floor(Date.parse('2026-11-01T00:00:00Z') / 1000),
 };
 function fixture() {
   let current = subscription;
   const retrieveSubscription = jest.fn(async () => current);
   const cancelAtPeriodEnd = jest.fn(async () => {
-    current = { ...subscription, cancelAtPeriodEnd: true };
+    current = { ...subscription, cancel_at_period_end: true };
     return current;
   });
   return {
@@ -43,7 +48,7 @@ it('verifies payer and exact Peable ownership before cancellation', async () => 
     'payer',
   );
   expect(f.retrieveSubscription).not.toHaveBeenCalled();
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, storeId: 'another' });
+  f.retrieveSubscription.mockResolvedValue({ ...subscription, store_id: 'another' });
   await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
     'ownership',
   );
@@ -52,7 +57,8 @@ it('verifies payer and exact Peable ownership before cancellation', async () => 
 it('schedules existing period with stable replay key and never extends it', async () => {
   const f = fixture();
   expect(
-    (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).cancelAtPeriodEnd,
+    (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1'))
+      .cancel_at_period_end,
   ).toBe(true);
   expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith('sub_test', {
     idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/),
@@ -60,13 +66,13 @@ it('schedules existing period with stable replay key and never extends it', asyn
   f.retrieveSubscription.mockResolvedValue(subscription);
   f.cancelAtPeriodEnd.mockResolvedValue({
     ...subscription,
-    cancelAtPeriodEnd: true,
-    currentPeriodEnd: '2026-12-01T00:00:00Z',
+    cancel_at_period_end: true,
+    current_period_end: Math.floor(Date.parse('2026-12-01T00:00:00Z') / 1000),
   });
   await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
     'period differs',
   );
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, cancelAtPeriodEnd: true });
+  f.retrieveSubscription.mockResolvedValue({ ...subscription, cancel_at_period_end: true });
   f.cancelAtPeriodEnd.mockClear();
   await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1');
   expect(f.cancelAtPeriodEnd).not.toHaveBeenCalled();
@@ -133,7 +139,7 @@ it('does not substitute one-off Faircoin for recurring purchase', () => {
 
 it('rejects invalid provider period snapshots before financial calls', async () => {
   const f = fixture();
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, currentPeriodEnd: 'invalid' });
+  f.retrieveSubscription.mockResolvedValue({ ...subscription, current_period_end: Number.NaN });
   await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
     'period unavailable',
   );
@@ -168,7 +174,7 @@ it('separates historical parsing from action-time ownership and expiry', () => {
 it('cannot accept cached success after external resume', async () => {
   const f = fixture();
   f.retrieveSubscription.mockResolvedValue(subscription);
-  f.cancelAtPeriodEnd.mockResolvedValue({ ...subscription, cancelAtPeriodEnd: true });
+  f.cancelAtPeriodEnd.mockResolvedValue({ ...subscription, cancel_at_period_end: true });
   await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
     'reconciliation required',
   );
@@ -209,13 +215,14 @@ it.each(['past_due', 'unpaid'])(
   'allows owned %s subscriptions to cancel without granting access',
   async (status) => {
     const f = fixture();
-    const canceled = { ...subscription, status, cancelAtPeriodEnd: true };
+    const canceled = { ...subscription, status, cancel_at_period_end: true };
     f.retrieveSubscription
       .mockResolvedValueOnce({ ...subscription, status })
       .mockResolvedValueOnce(canceled);
     f.cancelAtPeriodEnd.mockResolvedValue(canceled);
     expect(
-      (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).cancelAtPeriodEnd,
+      (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1'))
+        .cancel_at_period_end,
     ).toBe(true);
   },
 );

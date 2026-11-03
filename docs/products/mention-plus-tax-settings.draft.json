@@ -1,0 +1,12 @@
+{
+  "legal_name": "Oxy Platforms, Inc.",
+  "head_office": {
+    "line1": "2810 N Church St",
+    "line2": "STE 91894",
+    "city": "Wilmington",
+    "state": "DE",
+    "postal_code": "19802",
+    "country": "US"
+  },
+  "default_tax_behavior": "inclusive"
+}

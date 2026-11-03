@@ -162,6 +162,8 @@ export {
   personalPlanCatalogueCheck,
   personalPlanCheckoutRequestCheck,
   personalPlanCheckoutResultCheck,
+  embeddedProductCheckoutCheck,
+  productCheckoutConfigurationCheck,
   productPlanCatalogueCheck,
   productPlanCheckoutRequestCheck,
   productSubscriptionCancellationResultCheck,

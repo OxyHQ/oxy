@@ -128,8 +128,8 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
       expect(initialized.correlation).toMatchObject({
         id: initialized.checkoutId,
         status: 'complete',
-        storeId: f.payer,
-        subscription: { providerSubscriptionId: 'sub_fixture' },
+        store_id: f.payer,
+        subscription: { provider_subscription_id: 'sub_fixture' },
       });
       const context = {
         accountId: f.payer,

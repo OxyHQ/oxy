@@ -3,6 +3,9 @@ import {
   productSubscriptionRenewalRequestSchema,
   productPlanCheckoutRequestSchema,
   productPlanCatalogueSchema,
+  productCheckoutConfigurationSchema,
+  oxyAccountIdSchema,
+  utf16MaxLength,
 } from '@oxy.so/contracts';
 import {
   cancelStoredPeablePersonalSource,
@@ -49,10 +52,6 @@ import { accessProviderPeriods } from '../db/schema/productProviderEvidence';
 import { type AuthRequest, authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import {
-  namedProductCancellationResponseSchema,
-  pendingProductCancellationResponseSchema,
-  creditSubscriptionsResponseSchema,
-  namedCreditCancellationResponseSchema,
   cancelCreditSubscriptionSchema,
   checkoutCreditsSchema,
   checkoutSubscriptionSchema,
@@ -370,6 +369,56 @@ router.post(
       if (error instanceof ApiError)
         return res.status(error.statusCode).json({ error: error.code });
       return res.status(409).json({ error: 'RENEWAL_UNAVAILABLE' });
+    }
+  },
+);
+
+router.get(
+  '/checkout/product-plan/configuration',
+  authMiddleware,
+  async (req: AuthRequest, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const parsed = z
+      .object({
+        productId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
+        expectedSubjectAccountId: oxyAccountIdSchema,
+      })
+      .strict()
+      .safeParse(req.query);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'INVALID_CHECKOUT_CONFIGURATION_REQUEST' });
+    const subject = req.user?._id?.toString();
+    if (!subject || subject !== parsed.data.expectedSubjectAccountId)
+      return res.status(403).json({ error: 'SUBJECT_CHANGED' });
+    const provider = getPeablePersonalRuntime()?.checkoutProvider;
+    if (!provider?.supportsEmbedded || !provider.readConfiguration)
+      return res.json({ state: 'unconfigured' });
+    try {
+      const configuration = await provider.readConfiguration();
+      const catalogue = await loadProductBillingCatalogue();
+      const offers = configuration.offers.filter((offer) =>
+        catalogue.productPlans.some(
+          (plan) =>
+            plan.productId === parsed.data.productId &&
+            plan.offerId === offer.offerId &&
+            plan.offerVersion === offer.offerVersion &&
+            plan.price.amountMinorUnits === offer.amountMinorUnits &&
+            plan.price.currency === offer.currency &&
+            plan.price.interval === offer.interval,
+        ),
+      );
+      if (!offers.length) return res.json({ state: 'unconfigured' });
+      return res.json(
+        productCheckoutConfigurationSchema.parse({
+          ...configuration,
+          state: 'ready',
+          subjectAccountId: subject,
+          productId: parsed.data.productId,
+          offers,
+        }),
+      );
+    } catch {
+      return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
     }
   },
 );

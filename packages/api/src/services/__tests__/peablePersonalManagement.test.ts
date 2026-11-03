@@ -78,29 +78,29 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
   );
   process.env.BILLING_PRODUCT_CATALOGUE_FILE = path;
   let snapshot = {
-    providerSubscriptionId: subscription.providerSubscriptionId,
-    providerCustomerId: 'cus_fixture',
-    providerPriceId: 'price_fixture',
-    storeId: f.payer,
-    planId: 'approved_fixture',
+    provider_subscription_id: subscription.providerSubscriptionId,
+    provider_customer_id: 'cus_fixture',
+    provider_price_id: 'price_fixture',
+    store_id: f.payer,
+    plan_id: 'approved_fixture',
     livemode: true,
     status: 'active' as const,
     interval: 'month' as const,
-    cancelAtPeriodEnd: false,
-    currentPeriodStart: f.period.start,
-    currentPeriodEnd: f.period.end,
-    trialEndsAt: null,
-    cancelAt: null,
-    cancelledAt: null,
+    cancel_at_period_end: false,
+    current_period_start: Date.parse(f.period.start) / 1000,
+    current_period_end: Date.parse(f.period.end) / 1000,
+    trial_ends_at: null,
+    cancel_at: null,
+    cancelled_at: null,
   };
   const retrieve = jest.fn(async () => snapshot);
   const cancel = jest.fn(async () => {
-    snapshot = { ...snapshot, cancelAtPeriodEnd: true };
+    snapshot = { ...snapshot, cancel_at_period_end: true };
     return snapshot;
   });
   const merchant = jest.fn(async () => ({
     id: cfg.merchantId,
-    oxyAppId: cfg.applicationId,
+    oxy_app_id: cfg.applicationId,
     environment: 'production',
   }));
   const client = {
@@ -120,14 +120,14 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
       }),
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(merchant).not.toHaveBeenCalled();
-    snapshot = { ...snapshot, storeId: f.owner };
+    snapshot = { ...snapshot, store_id: f.owner };
     await expect(
       cancelStoredPeablePersonalSource(f.payer, paid.sourceId, 'action_001', {
         management: { configuration: cfg, client },
       }),
     ).rejects.toThrow('ownership');
     expect(cancel).not.toHaveBeenCalled();
-    snapshot = { ...snapshot, storeId: f.payer };
+    snapshot = { ...snapshot, store_id: f.payer };
     expect(
       await cancelStoredPeablePersonalSource(f.payer, paid.sourceId, 'action_001', {
         management: { configuration: cfg, client },

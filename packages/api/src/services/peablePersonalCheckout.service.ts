@@ -1,5 +1,6 @@
 import {
   integerCheck,
+  oxyAccountIdSchema,
   isoDateTime,
   safeNumberCheck,
   urlCheck,
@@ -7,6 +8,7 @@ import {
   utf16MinLength,
 } from '@oxy.so/contracts';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { PeableError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
 import { ApiError } from '../utils/error';
 import { z } from 'zod';
@@ -35,6 +37,7 @@ function checkoutFailure(error: unknown): never {
 
 export const peablePersonalCheckoutConfigurationSchema = z
   .object({
+    embeddedEnabled: z.boolean().optional(),
     merchantId: z.string().check(utf16MinLength(1)),
     applicationId: z.string().check(utf16MinLength(1)),
     namespace: billingNamespaceSchema,
@@ -66,7 +69,7 @@ export const peablePersonalCheckoutConfigurationSchema = z
 
 /** Explicit deployment opt-in; all customer, fiscal and price bindings still verify. */
 export function createPeablePersonalCheckoutProvider(
-  client: Pick<Peable, 'merchants' | 'billing'>,
+  client: Pick<Peable, 'merchants' | 'billing'> & Partial<Pick<Peable, 'tax'>>,
   rawConfiguration: z.input<typeof peablePersonalCheckoutConfigurationSchema>,
   clock: () => Date = () => new Date(),
   dependencies?: {
@@ -109,38 +112,125 @@ export function createPeablePersonalCheckoutProvider(
   ) => {
     const now = clock().getTime();
     if (
-      quote.schemaVersion !== 1 ||
-      quote.source.merchantId !== configuration.merchantId ||
-      quote.source.appId !== configuration.applicationId ||
-      quote.source.storeId !== subjectAccountId ||
-      quote.source.planId !== planId ||
+      quote.schema_version !== 2 ||
+      quote.source.merchant_id !== configuration.merchantId ||
+      quote.source.app_id !== configuration.applicationId ||
+      quote.source.store_id !== subjectAccountId ||
+      quote.source.plan_id !== planId ||
       quote.source.mode !== configuration.namespace.mode ||
       quote.source.environment !== configuration.namespace.environment ||
       quote.quote.currency !== 'USD' ||
-      quote.quote.grossMinorUnits !== amountMinorUnits ||
-      quote.quote.taxTreatment !== 'inclusive' ||
-      !Number.isSafeInteger(quote.quote.netMinorUnits) ||
-      !Number.isSafeInteger(quote.quote.taxMinorUnits) ||
-      quote.quote.netMinorUnits < 0 ||
-      quote.quote.taxMinorUnits < 0 ||
-      quote.quote.netMinorUnits + quote.quote.taxMinorUnits !== amountMinorUnits ||
-      quote.quote.sellerId !== configuration.sellerId ||
-      quote.quote.invoiceIssuerId !== configuration.invoiceIssuerId ||
-      quote.quote.taxRemitterId !== configuration.taxRemitterId ||
-      !Number.isFinite(Date.parse(quote.quote.quotedAt)) ||
-      Date.parse(quote.quote.quotedAt) > now ||
-      !Number.isFinite(Date.parse(quote.quote.expiresAt)) ||
-      Date.parse(quote.quote.expiresAt) <= now
+      quote.quote.gross_minor_units !== amountMinorUnits ||
+      quote.quote.tax_treatment !== 'inclusive' ||
+      !Number.isSafeInteger(quote.quote.net_minor_units) ||
+      !Number.isSafeInteger(quote.quote.tax_minor_units) ||
+      quote.quote.net_minor_units < 0 ||
+      quote.quote.tax_minor_units < 0 ||
+      quote.quote.net_minor_units + quote.quote.tax_minor_units !== amountMinorUnits ||
+      quote.quote.seller_id !== configuration.sellerId ||
+      quote.quote.invoice_issuer_id !== configuration.invoiceIssuerId ||
+      quote.quote.tax_remitter_id !== configuration.taxRemitterId ||
+      !Number.isFinite(quote.quote.quoted_at * 1000) ||
+      quote.quote.quoted_at * 1000 > now ||
+      !Number.isFinite(quote.quote.expires_at * 1000) ||
+      quote.quote.expires_at * 1000 <= now
     )
       throw new Error('Peable checkout tax quote differs or expired');
   };
   return {
     kind: 'peable',
+    supportsEmbedded: configuration.embeddedEnabled === true,
+    async readConfiguration() {
+      assertEnabled();
+      if (!configuration.embeddedEnabled) throw new Error('Embedded checkout unconfigured');
+      const value = await client.billing.embeddedCheckoutConfiguration();
+      if (
+        value.scope.merchant_id !== configuration.merchantId ||
+        value.scope.app_id !== configuration.applicationId ||
+        value.scope.mode !== configuration.namespace.mode ||
+        value.scope.environment !== configuration.namespace.environment
+      )
+        throw new Error('Peable configuration authority differs');
+      return {
+        merchantId: configuration.merchantId,
+        mode: configuration.namespace.mode,
+        environment: configuration.namespace.environment,
+        publishableKey: value.publishable_key,
+        paymentMethods: value.payment_methods,
+        offers: configuration.offers.map((offer) => ({
+          offerId: offer.offerId,
+          offerVersion: offer.offerVersion,
+          amountMinorUnits: offer.amountMinorUnits,
+          currency: offer.currency,
+          interval: offer.interval,
+        })),
+      };
+    },
+    async readEmbedded(input, sessionId) {
+      assertEnabled();
+      if (!configuration.embeddedEnabled || !input.snapshot || !input.productId)
+        throw new Error('Embedded checkout authority unavailable');
+      select(input);
+      const snapshot = input.snapshot;
+      const value = await client.billing.retrieveEmbeddedCheckoutAction(sessionId);
+      if (
+        value.scope.merchant_id !== snapshot.merchantId ||
+        value.scope.app_id !== snapshot.applicationId ||
+        value.scope.store_id !== snapshot.subjectAccountId ||
+        value.scope.plan_id !== snapshot.planId ||
+        value.scope.provider_customer_id !== snapshot.customerId ||
+        value.scope.provider_price_id !== snapshot.priceId ||
+        value.scope.mode !== snapshot.mode ||
+        value.scope.environment !== snapshot.environment ||
+        !isDeepStrictEqual(value.tax_quote, snapshot.taxQuote)
+      )
+        throw new Error('Peable embedded checkout owner or quote differs');
+      const action = value.action;
+      if (!action) {
+        if (value.status === 'open') throw new Error('Open checkout capability unavailable');
+        return { status: value.status };
+      }
+      if (
+        value.status !== 'open' ||
+        !Number.isSafeInteger(value.expires_at) ||
+        value.expires_at * 1000 <= clock().getTime() ||
+        action.kind !== 'checkout_session' ||
+        action.session_id !== sessionId ||
+        action.amount_minor_units !== input.amountMinorUnits ||
+        action.currency.toUpperCase() !== input.currency.toUpperCase()
+      )
+        throw new Error('Peable embedded payment action differs');
+      return {
+        status: value.status,
+        checkout: {
+          transport: 'checkout_session',
+          subjectAccountId: oxyAccountIdSchema.parse(input.subjectAccountId),
+          productId: input.productId,
+          offerId: input.offerId,
+          offerVersion: input.offerVersion,
+          merchantId: snapshot.merchantId,
+          mode: configuration.namespace.mode,
+          environment: configuration.namespace.environment,
+          sessionId,
+          clientSecret: action.client_secret,
+          publishableKey: action.publishable_key,
+          currency: 'USD',
+          amountMinorUnits: input.amountMinorUnits,
+          interval: input.interval,
+          tax: {
+            subtotalMinorUnits: snapshot.taxQuote.quote.net_minor_units,
+            taxMinorUnits: snapshot.taxQuote.quote.tax_minor_units,
+            totalMinorUnits: snapshot.taxQuote.quote.gross_minor_units,
+            inclusive: true,
+          },
+        },
+      };
+    },
     async validateExistingCheckout(snapshot, sessionId) {
       const merchant = await client.merchants.retrieve();
       if (
         merchant.id !== configuration.merchantId ||
-        merchant.oxyAppId !== configuration.applicationId ||
+        merchant.oxy_app_id !== configuration.applicationId ||
         merchant.environment !== configuration.namespace.environment ||
         snapshot.merchantId !== configuration.merchantId ||
         snapshot.applicationId !== configuration.applicationId ||
@@ -151,21 +241,22 @@ export function createPeablePersonalCheckoutProvider(
       const session = await client.billing.retrieveCheckout(sessionId).catch(checkoutFailure);
       if (
         session.id !== sessionId ||
-        session.storeId !== snapshot.subjectAccountId ||
-        session.planId !== snapshot.planId ||
-        session.providerCustomerId !== snapshot.customerId ||
-        session.providerPriceId !== snapshot.priceId
+        session.store_id !== snapshot.subjectAccountId ||
+        session.plan_id !== snapshot.planId ||
+        session.provider_customer_id !== snapshot.customerId ||
+        session.provider_price_id !== snapshot.priceId
       )
         throw new Error('Peable checkout observation binding differs');
     },
     async prepare(input) {
       assertEnabled();
       const offer = select(input);
-      if (!dependencies) throw new Error('Peable trusted customer location is unconfigured');
+      if (!dependencies && !input.billingAddress)
+        throw new Error('Peable trusted customer location is unconfigured');
       const merchant = await client.merchants.retrieve();
       if (
         merchant.id !== configuration.merchantId ||
-        merchant.oxyAppId !== configuration.applicationId ||
+        merchant.oxy_app_id !== configuration.applicationId ||
         merchant.environment !== configuration.namespace.environment
       )
         throw new Error('Peable checkout credential owner differs');
@@ -181,29 +272,66 @@ export function createPeablePersonalCheckoutProvider(
         .digest('hex');
       const customer = await client.billing.ensureCustomer(
         {
-          storeId: input.subjectAccountId,
-          storeName: input.subjectAccountId,
+          store_id: input.subjectAccountId,
+          store_name: input.subjectAccountId,
         },
         { idempotencyKey: `oxy-one-customer:${customerKey}` },
       );
-      if (!customer.providerCustomerId) throw new Error('Peable checkout customer unavailable');
-      const location = await dependencies.resolveCustomerLocationEvidence(input.subjectAccountId);
+      if (!customer.provider_customer_id) throw new Error('Peable checkout customer unavailable');
+      const address = input.billingAddress;
+      const location = address
+        ? await (async () => {
+            if (!client.tax) throw new Error('Peable payer location collection unavailable');
+            const evidence = await client.tax.locationEvidence.create({
+              customer_ref: input.subjectAccountId,
+              evidence: [
+                {
+                  type: 'billing_address',
+                  address: {
+                    country: address.country,
+                    state: address.state,
+                    postal_code: address.postalCode,
+                    city: address.city,
+                    line1: address.line1,
+                    line2: address.line2,
+                  },
+                },
+              ],
+            });
+            if (
+              evidence.customer_ref !== input.subjectAccountId ||
+              evidence.status !== 'sufficient' ||
+              evidence.livemode !== (configuration.namespace.mode === 'live') ||
+              evidence.expires_at * 1000 <= clock().getTime()
+            )
+              throw new ApiError(
+                422,
+                'More billing location evidence is required',
+                'BILLING_LOCATION_EVIDENCE_REQUIRED',
+              );
+            return { customerLocationEvidenceId: evidence.id };
+          })()
+        : await (async () => {
+            if (!dependencies) throw new Error('Peable trusted customer location is unconfigured');
+            return dependencies.resolveCustomerLocationEvidence(input.subjectAccountId);
+          })();
       if (!location.customerLocationEvidenceId)
         throw new Error('Peable trusted customer location unavailable');
       const quote = await client.billing.createTaxQuote({
-        storeId: input.subjectAccountId,
-        planId: offer.planId,
-        customerLocationEvidenceId: location.customerLocationEvidenceId,
+        store_id: input.subjectAccountId,
+        plan_id: offer.planId,
+        provider_price_id: offer.priceId,
+        customer_location_evidence_id: location.customerLocationEvidenceId,
       });
       validateQuote(quote, input.subjectAccountId, offer.planId, offer.amountMinorUnits);
-      if (quote.quote.customerLocationEvidenceId !== location.customerLocationEvidenceId)
+      if (quote.quote.customer_location_evidence_id !== location.customerLocationEvidenceId)
         throw new Error('Peable checkout customer location differs');
       const snapshot: PersonalCheckoutSnapshot = {
         applicationId: configuration.applicationId,
         merchantId: configuration.merchantId,
         subjectAccountId: input.subjectAccountId,
         planId: offer.planId,
-        customerId: customer.providerCustomerId,
+        customerId: customer.provider_customer_id,
         offerId: input.offerId,
         offerVersion: input.offerVersion,
         priceId: input.priceId,
@@ -245,14 +373,33 @@ export function createPeablePersonalCheckoutProvider(
         offer.amountMinorUnits,
       );
       const checkoutInput = {
-        providerCustomerId: snapshot.customerId,
-        providerPriceId: snapshot.priceId,
-        trialDays: 0,
-        returnUrl: snapshot.returnUrl,
-        storeId: snapshot.subjectAccountId,
-        planId: snapshot.planId,
-        taxQuote: structuredClone(snapshot.taxQuote),
+        provider_customer_id: snapshot.customerId,
+        provider_price_id: snapshot.priceId,
+        trial_days: 0,
+        return_url: snapshot.returnUrl,
+        store_id: snapshot.subjectAccountId,
+        plan_id: snapshot.planId,
+        tax_quote: structuredClone(snapshot.taxQuote),
       };
+      if (input.presentation === 'embedded') {
+        if (!configuration.embeddedEnabled || input.renewalSubscriptionId)
+          throw new Error('Embedded checkout is unavailable for this operation');
+        const session = await client.billing
+          .createEmbeddedCheckoutSession(checkoutInput, { idempotencyKey: input.idempotencyKey })
+          .catch(checkoutFailure);
+        if (
+          session.presentation !== 'embedded' ||
+          !session.id ||
+          !Number.isSafeInteger(session.expires_at) ||
+          session.expires_at * 1000 <= clock().getTime() ||
+          session.expires_at > snapshot.taxQuote.quote.expires_at
+        )
+          throw new Error('Peable embedded session binding differs');
+        return {
+          sessionId: session.id,
+          expiresAt: new Date(session.expires_at * 1000).toISOString(),
+        };
+      }
       const session = await (input.renewalSubscriptionId
         ? client.billing.renewSubscription(input.renewalSubscriptionId, checkoutInput, {
             idempotencyKey: input.idempotencyKey,
@@ -270,10 +417,10 @@ export function createPeablePersonalCheckoutProvider(
             .refine((value) => new URL(value).protocol === 'https:'),
           expiresAt: z.string().check(isoDateTime()),
         })
-        .parse(session);
+        .parse({ ...session, expiresAt: new Date(session.expires_at * 1000).toISOString() });
       if (
         Date.parse(parsed.expiresAt) <= clock().getTime() ||
-        Date.parse(parsed.expiresAt) > Date.parse(snapshot.taxQuote.quote.expiresAt)
+        Date.parse(parsed.expiresAt) > snapshot.taxQuote.quote.expires_at * 1000
       )
         throw new Error('Peable checkout session expired or exceeds quote');
       return { sessionId: parsed.id, checkoutUrl: parsed.url, expiresAt: parsed.expiresAt };

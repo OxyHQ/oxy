@@ -2,11 +2,14 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { uuidv7 } from '@oxy.so/db';
 import type { BillingTaxQuote } from '@peable.to/sdk';
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import {
   personalPlanCheckoutRequestSchema,
   productPlanCheckoutRequestSchema,
   type ProductPlanCheckoutRequest,
+  type EmbeddedProductCheckout,
+  type CheckoutBillingAddress,
+  type ProductCheckoutConfiguration,
   personalPlanCheckoutResultSchema,
   type PersonalPlanCheckoutRequest,
   type PersonalPlanCheckoutResult,
@@ -44,6 +47,9 @@ export interface PersonalCheckoutSnapshot {
   returnUrl: string;
 }
 export interface PersonalCheckoutInput {
+  billingAddress?: CheckoutBillingAddress;
+  productId?: string;
+  presentation?: 'hosted' | 'embedded';
   intentId: string;
   idempotencyKey: string;
   subjectAccountId: string;
@@ -62,12 +68,23 @@ export interface PersonalCheckoutInput {
 }
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
+  supportsEmbedded?: boolean;
+  readConfiguration?(): Promise<
+    Omit<
+      Extract<ProductCheckoutConfiguration, { state: 'ready' }>,
+      'state' | 'subjectAccountId' | 'productId'
+    >
+  >;
+  readEmbedded?(
+    input: PersonalCheckoutInput,
+    sessionId: string,
+  ): Promise<{ status: 'open' | 'complete' | 'expired'; checkout?: EmbeddedProductCheckout }>;
   prepare?(input: PersonalCheckoutInput): Promise<PersonalCheckoutSnapshot>;
   /** Re-read the owning provider before exposing a saved payment URL. */
   validateExistingCheckout?(snapshot: PersonalCheckoutSnapshot, sessionId: string): Promise<void>;
   create(input: PersonalCheckoutInput): Promise<{
     sessionId: string;
-    checkoutUrl: string;
+    checkoutUrl?: string;
     expiresAt?: string;
   }>;
 }
@@ -126,6 +143,8 @@ export async function startPersonalPlanCheckout(
       reason: published ? 'provider_unconfigured' : 'offer_unconfigured',
     };
   }
+  if (request.presentation === 'embedded' && !dependencies.provider.supportsEmbedded)
+    return { state: 'unconfigured', reason: 'provider_unconfigured' };
   const namespace = await assertBillingDatabaseNamespace(getDb());
   const idempotencyHash = hash(request.idempotencyKey);
   const [prior] = await getDb()
@@ -141,10 +160,14 @@ export async function startPersonalPlanCheckout(
     );
   if (prior && (prior.offerId !== request.offerId || prior.offerVersion !== request.offerVersion))
     throw new ConflictError('Checkout idempotency key was reused for another selection');
+  if (prior && prior.presentation !== (request.presentation ?? 'hosted'))
+    throw new ConflictError('Checkout presentation differs from original selection');
   if (prior && prior.renewalSourceId !== (dependencies.renewalSourceId ?? null))
     throw new ConflictError('Checkout renewal source differs');
   if (prior && prior.offerKind !== (dependencies.productId ? 'individual' : 'bundle'))
     throw new ConflictError('Checkout kind differs from original selection');
+  if (prior?.productId && prior.productId !== dependencies.productId)
+    throw new ConflictError('Checkout product differs from original selection');
   // A prior intent owns its frozen selection even after the catalogue changes.
   const catalogue = productBillingCatalogueSchema.parse(
     dependencies.catalogue ?? (await loadProductBillingCatalogue()),
@@ -200,6 +223,8 @@ export async function startPersonalPlanCheckout(
     JSON.stringify({
       offerId: request.offerId,
       offerVersion: request.offerVersion,
+      ...(request.presentation === 'embedded' ? { presentation: 'embedded' } : {}),
+      ...(request.billingAddress ? { billingAddress: request.billingAddress } : {}),
       renewalSourceId: dependencies.renewalSourceId ?? null,
       providerAccountRef: price.providerAccountId,
       priceId: price.priceId,
@@ -252,19 +277,19 @@ export async function startPersonalPlanCheckout(
           eq(accessSubscriptionSources.beneficiaryAccountId, subjectAccountId),
           eq(accessSubscriptionSources.mode, namespace.mode),
           eq(accessSubscriptionSources.environment, namespace.environment),
-          eq(accessOfferSegments.origin, offerKind),
+          dependencies.productId ? undefined : eq(accessOfferSegments.origin, offerKind),
           dependencies.productId
-            ? inArray(
-                accessOfferSegments.offerId,
-                catalogue.offers
-                  .filter(
-                    (offer) =>
-                      offer.kind === 'individual' &&
-                      offer.benefits.some(
-                        (benefit) => benefit.productId === dependencies.productId,
-                      ),
+            ? or(
+                ...catalogue.offers
+                  .filter((offer) =>
+                    offer.benefits.some((benefit) => benefit.productId === dependencies.productId),
                   )
-                  .map((offer) => offer.id),
+                  .map((offer) =>
+                    and(
+                      eq(accessOfferSegments.offerId, offer.id),
+                      eq(accessOfferSegments.offerVersion, offer.version),
+                    ),
+                  ),
               )
             : undefined,
           gt(accessSubscriptionSources.periodEnd, now),
@@ -288,6 +313,8 @@ export async function startPersonalPlanCheckout(
         ...namespace,
         idempotencyHash,
         requestHash,
+        productId: dependencies.productId ?? null,
+        presentation: request.presentation ?? 'hosted',
         offerId: request.offerId,
         offerVersion: request.offerVersion,
         providerAccountRef: price.providerAccountId,
@@ -307,6 +334,7 @@ export async function startPersonalPlanCheckout(
     return created;
   });
   return resumePersonalPlanCheckout(intent.id, {
+    billingAddress: request.billingAddress,
     provider: dependencies.provider,
     now: dependencies.now,
   });
@@ -316,6 +344,8 @@ export function personalCheckoutSnapshotFromIntent(
   intent: typeof personalPlanCheckoutIntents.$inferSelect,
 ): PersonalCheckoutSnapshot | undefined {
   if (!intent.taxQuoteRef) return undefined;
+  if (intent.taxQuoteSchemaVersion !== 2)
+    throw new ConflictError('Historical checkout quote needs explicit reconciliation');
   if (
     !intent.applicationRef ||
     !intent.customerRef ||
@@ -353,12 +383,12 @@ export function personalCheckoutSnapshotFromIntent(
     environment: intent.environment,
     returnUrl: intent.returnUrl,
     taxQuote: {
-      schemaVersion: 1,
+      schema_version: 2,
       source: {
-        merchantId: intent.providerAccountRef,
-        appId: intent.applicationRef,
-        storeId: intent.subjectAccountId,
-        planId: intent.planRef,
+        merchant_id: intent.providerAccountRef,
+        app_id: intent.applicationRef,
+        store_id: intent.subjectAccountId,
+        plan_id: intent.planRef,
         mode: billingNamespaceSchema.parse({ mode: intent.mode, environment: intent.environment })
           .mode,
         environment: z.enum(['development', 'staging', 'production']).parse(intent.environment),
@@ -366,24 +396,24 @@ export function personalCheckoutSnapshotFromIntent(
       quote: {
         id: intent.taxQuoteRef,
         currency: intent.taxQuoteCurrency,
-        grossMinorUnits: intent.amountMinorUnits,
-        netMinorUnits: intent.taxQuoteNetMinorUnits,
-        taxMinorUnits: intent.taxQuoteTaxMinorUnits,
-        taxTreatment: 'inclusive',
-        sellerId: intent.taxQuoteSellerRef,
-        invoiceIssuerId: intent.taxQuoteInvoiceIssuerRef,
-        taxRemitterId: intent.taxQuoteTaxRemitterRef,
-        taxServiceRef: intent.taxQuoteTaxServiceRef,
+        gross_minor_units: intent.amountMinorUnits,
+        net_minor_units: intent.taxQuoteNetMinorUnits,
+        tax_minor_units: intent.taxQuoteTaxMinorUnits,
+        tax_treatment: 'inclusive',
+        seller_id: intent.taxQuoteSellerRef,
+        invoice_issuer_id: intent.taxQuoteInvoiceIssuerRef,
+        tax_remitter_id: intent.taxQuoteTaxRemitterRef,
+        tax_service_ref: intent.taxQuoteTaxServiceRef,
         country: intent.taxQuoteCountry,
-        coverageEvidenceId: intent.taxQuoteCoverageEvidenceRef,
-        taxRateEvidenceId: intent.taxQuoteTaxRateEvidenceRef,
-        customerLocationEvidenceId: intent.taxQuoteCustomerLocationEvidenceRef,
-        quotedAt: intent.taxQuoteQuotedAtLexeme,
-        expiresAt: intent.taxQuoteExpiresAtLexeme,
+        coverage_evidence_id: intent.taxQuoteCoverageEvidenceRef,
+        tax_rate_evidence_id: intent.taxQuoteTaxRateEvidenceRef,
+        customer_location_evidence_id: intent.taxQuoteCustomerLocationEvidenceRef,
+        quoted_at: Date.parse(intent.taxQuoteQuotedAtLexeme) / 1000,
+        expires_at: Date.parse(intent.taxQuoteExpiresAtLexeme) / 1000,
       },
       signature: {
         algorithm: 'Ed25519',
-        keyId: intent.taxQuoteSignatureKeyRef,
+        key_id: intent.taxQuoteSignatureKeyRef,
         value: intent.taxQuoteSignatureValue,
       },
     },
@@ -395,22 +425,23 @@ export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapsh
   return {
     returnUrl: snapshot.returnUrl,
     taxQuoteRef: quote.id,
+    taxQuoteSchemaVersion: 2,
     taxQuoteCurrency: quote.currency,
-    taxQuoteNetMinorUnits: quote.netMinorUnits,
-    taxQuoteTaxMinorUnits: quote.taxMinorUnits,
-    taxQuoteSellerRef: quote.sellerId,
-    taxQuoteInvoiceIssuerRef: quote.invoiceIssuerId,
-    taxQuoteTaxRemitterRef: quote.taxRemitterId,
-    taxQuoteTaxServiceRef: quote.taxServiceRef,
+    taxQuoteNetMinorUnits: quote.net_minor_units,
+    taxQuoteTaxMinorUnits: quote.tax_minor_units,
+    taxQuoteSellerRef: quote.seller_id,
+    taxQuoteInvoiceIssuerRef: quote.invoice_issuer_id,
+    taxQuoteTaxRemitterRef: quote.tax_remitter_id,
+    taxQuoteTaxServiceRef: quote.tax_service_ref,
     taxQuoteCountry: quote.country,
-    taxQuoteCoverageEvidenceRef: quote.coverageEvidenceId,
-    taxQuoteTaxRateEvidenceRef: quote.taxRateEvidenceId,
-    taxQuoteCustomerLocationEvidenceRef: quote.customerLocationEvidenceId,
-    taxQuoteQuotedAt: sql`${quote.quotedAt}::timestamptz`,
-    taxQuoteExpiresAt: sql`${quote.expiresAt}::timestamptz`,
-    taxQuoteQuotedAtLexeme: quote.quotedAt,
-    taxQuoteExpiresAtLexeme: quote.expiresAt,
-    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.keyId,
+    taxQuoteCoverageEvidenceRef: quote.coverage_evidence_id,
+    taxQuoteTaxRateEvidenceRef: quote.tax_rate_evidence_id,
+    taxQuoteCustomerLocationEvidenceRef: quote.customer_location_evidence_id,
+    taxQuoteQuotedAt: new Date(quote.quoted_at * 1000),
+    taxQuoteExpiresAt: new Date(quote.expires_at * 1000),
+    taxQuoteQuotedAtLexeme: new Date(quote.quoted_at * 1000).toISOString(),
+    taxQuoteExpiresAtLexeme: new Date(quote.expires_at * 1000).toISOString(),
+    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.key_id,
     taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
   };
 }
@@ -430,18 +461,18 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     snapshot.priceId !== input.priceId ||
     snapshot.mode !== input.mode ||
     snapshot.environment !== input.environment ||
-    source?.merchantId !== snapshot.merchantId ||
-    source.appId !== snapshot.applicationId ||
-    source.storeId !== snapshot.subjectAccountId ||
-    source.planId !== snapshot.planId ||
+    source?.merchant_id !== snapshot.merchantId ||
+    source.app_id !== snapshot.applicationId ||
+    source.store_id !== snapshot.subjectAccountId ||
+    source.plan_id !== snapshot.planId ||
     source.mode !== snapshot.mode ||
     source.environment !== snapshot.environment ||
-    snapshot.taxQuote.schemaVersion !== 1 ||
+    snapshot.taxQuote.schema_version !== 2 ||
     snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
-    quote?.grossMinorUnits !== input.amountMinorUnits ||
+    quote?.gross_minor_units !== input.amountMinorUnits ||
     quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
-    quote.taxTreatment !== 'inclusive' ||
-    !Number.isFinite(Date.parse(quote.expiresAt))
+    quote.tax_treatment !== 'inclusive' ||
+    !Number.isFinite(quote.expires_at * 1000)
   )
     throw new ConflictError('Prepared checkout authority differs');
 }
@@ -449,7 +480,11 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
 /** Recover using the persisted authority and provider replay key, without browser input. */
 export async function resumePersonalPlanCheckout(
   intentId: string,
-  dependencies: { provider: PersonalCheckoutProvider; now?: Date },
+  dependencies: {
+    provider: PersonalCheckoutProvider;
+    now?: Date;
+    billingAddress?: CheckoutBillingAddress;
+  },
 ): Promise<PersonalPlanCheckoutResult> {
   // Synthetic adapters never execute outside tests. Real adapters are opt-in.
   if (process.env.NODE_ENV !== 'test' && dependencies.provider?.kind !== 'peable')
@@ -489,8 +524,17 @@ export async function resumePersonalPlanCheckout(
     intent = await load();
   }
   const terminal = (row: typeof intent): PersonalPlanCheckoutResult | undefined => {
-    if (row.state === 'closed') return { state: 'closed', intentId: row.id };
+    if (row.state === 'closed')
+      return {
+        state: 'closed',
+        intentId: row.id,
+        ...(row.closedReason === 'billing_location_required'
+          ? { reason: 'billing_location_required' as const }
+          : {}),
+      };
     if (row.state === 'fulfilled') return { state: 'fulfilled', intentId: row.id };
+    if (row.providerSessionId && row.presentation === 'embedded')
+      return { state: 'pending', intentId: row.id };
     if (row.checkoutUrl)
       return personalPlanCheckoutResultSchema.parse({
         state: 'pending',
@@ -502,8 +546,12 @@ export async function resumePersonalPlanCheckout(
     return undefined;
   };
   const existing = terminal(intent);
-  if (existing) return existing;
+  if (existing && (existing.state !== 'pending' || intent.presentation !== 'embedded'))
+    return existing;
   const input: PersonalCheckoutInput = {
+    billingAddress: dependencies.billingAddress,
+    productId: intent.productId ?? undefined,
+    presentation: intent.presentation,
     intentId,
     idempotencyKey: `personal-checkout:${intentId}`,
     subjectAccountId: intent.subjectAccountId,
@@ -518,6 +566,64 @@ export async function resumePersonalPlanCheckout(
     interval: intent.billingInterval,
     trial: 'none',
   };
+  const exposeEmbedded = async (row: typeof intent): Promise<PersonalPlanCheckoutResult> => {
+    const state = terminal(row);
+    if (state?.state === 'closed' || state?.state === 'fulfilled') return state;
+    if (
+      !row.providerSessionId ||
+      !dependencies.provider.readEmbedded ||
+      !row.providerSessionExpiresAt ||
+      row.providerSessionExpiresAt <= clock()
+    )
+      return { state: 'pending', intentId };
+    const snapshot = personalCheckoutSnapshotFromIntent(row);
+    if (!snapshot) throw new ConflictError('Checkout authority is unavailable');
+    const observed = await dependencies.provider.readEmbedded(
+      { ...input, snapshot },
+      row.providerSessionId,
+    );
+    const embeddedCheckout = observed.checkout;
+    if (
+      embeddedCheckout &&
+      (embeddedCheckout.subjectAccountId !== row.subjectAccountId ||
+        embeddedCheckout.productId !== row.productId ||
+        embeddedCheckout.offerId !== row.offerId ||
+        embeddedCheckout.offerVersion !== row.offerVersion ||
+        embeddedCheckout.merchantId !== row.providerAccountRef ||
+        embeddedCheckout.mode !== row.mode ||
+        embeddedCheckout.environment !== row.environment ||
+        embeddedCheckout.sessionId !== row.providerSessionId ||
+        embeddedCheckout.amountMinorUnits !== row.amountMinorUnits ||
+        embeddedCheckout.currency !== row.currency.toUpperCase() ||
+        embeddedCheckout.interval !== row.billingInterval ||
+        embeddedCheckout.tax.subtotalMinorUnits !== row.taxQuoteNetMinorUnits ||
+        embeddedCheckout.tax.taxMinorUnits !== row.taxQuoteTaxMinorUnits ||
+        embeddedCheckout.tax.totalMinorUnits !== row.amountMinorUnits)
+    )
+      throw new ConflictError('Embedded checkout authority differs');
+    const [account] = await getDb()
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, row.subjectAccountId));
+    const [fence] = await getDb()
+      .select({ id: accountClosureFences.accountId })
+      .from(accountClosureFences)
+      .where(eq(accountClosureFences.accountId, row.subjectAccountId));
+    if (account?.status !== 'active' || fence)
+      throw new ApiError(403, 'Personal account is unavailable', 'ACCOUNT_UNAVAILABLE');
+    const current = await load();
+    if (current.providerSessionId !== row.providerSessionId)
+      throw new ConflictError('Embedded checkout session changed');
+    const settled = terminal(current);
+    if (settled?.state === 'closed' || settled?.state === 'fulfilled') return settled;
+    return personalPlanCheckoutResultSchema.parse({
+      state: 'pending',
+      intentId,
+      embeddedCheckout,
+      checkoutStatus: observed.status,
+    });
+  };
+  if (intent.presentation === 'embedded' && intent.providerSessionId) return exposeEmbedded(intent);
   if (intent.renewalSourceId) {
     const [source] = await getDb()
       .select()
@@ -540,7 +646,32 @@ export async function resumePersonalPlanCheckout(
   if (!snapshot && dependencies.provider.prepare) {
     // Preparation can race. Only the first stored authority wins; losing quotes
     // are never dispatched and never replace the winner after timeout/restart.
-    const prepared = await dependencies.provider.prepare(input);
+    let prepared: PersonalCheckoutSnapshot;
+    try {
+      prepared = await dependencies.provider.prepare(input);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.statusCode === 422 &&
+        error.code === 'BILLING_LOCATION_EVIDENCE_REQUIRED'
+      ) {
+        const [closed] = await getDb()
+          .update(personalPlanCheckoutIntents)
+          .set({ state: 'closed', closedReason: 'billing_location_required' })
+          .where(
+            and(
+              eq(personalPlanCheckoutIntents.id, intent.id),
+              eq(personalPlanCheckoutIntents.state, 'reserved'),
+              isNull(personalPlanCheckoutIntents.taxQuoteRef),
+              isNull(personalPlanCheckoutIntents.providerSessionId),
+            ),
+          )
+          .returning({ id: personalPlanCheckoutIntents.id });
+        if (closed)
+          return { state: 'closed', intentId: closed.id, reason: 'billing_location_required' };
+      }
+      throw error;
+    }
     assertSnapshot(prepared, input);
     await getDb().transaction(async (tx) => {
       const [account] = await tx
@@ -580,7 +711,7 @@ export async function resumePersonalPlanCheckout(
     throw new ConflictError('Checkout authority is unavailable');
   if (snapshot) {
     assertSnapshot(snapshot, input);
-    if (Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
+    if (snapshot.taxQuote.quote.expires_at * 1000 <= clock().getTime())
       return { state: 'pending', intentId };
   }
   // Recheck closure before dispatch; no remote work runs under an account lock.
@@ -639,7 +770,7 @@ export async function resumePersonalPlanCheckout(
       current.state === 'closed' ||
       (current.providerSessionId &&
         (current.providerSessionId !== session.sessionId ||
-          current.checkoutUrl !== session.checkoutUrl ||
+          current.checkoutUrl !== (session.checkoutUrl ?? null) ||
           current.providerSessionExpiresAt?.toISOString() !== session.expiresAt))
     )
       throw new ConflictError('Provider checkout replay differs');
@@ -649,12 +780,13 @@ export async function resumePersonalPlanCheckout(
         .set({
           state: 'pending',
           providerSessionId: session.sessionId,
-          checkoutUrl: session.checkoutUrl,
+          checkoutUrl: session.checkoutUrl ?? null,
           providerSessionExpiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
         })
         .where(eq(personalPlanCheckoutIntents.id, intentId));
   });
   intent = await load();
+  if (intent.presentation === 'embedded') return exposeEmbedded(intent);
   return terminal(intent) ?? { state: 'pending', intentId };
 }
 

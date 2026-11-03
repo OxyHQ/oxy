@@ -90,22 +90,22 @@ it('keeps HTTP-equivalent provider absence and empty offers unconfigured; grants
 it('reserves and replays the SDK transport without granting from a hosted session', async () => {
   const test = await fixture();
   test.catalogue.prices[0].amountMinorUnits = 2999;
-  const merchant = { id: 'merch_synthetic', oxyAppId: 'app_fixture', environment: 'production' };
-  const ensureCustomer = jest.fn(async () => ({ providerCustomerId: 'cus_fixture' }));
+  const merchant = { id: 'merch_synthetic', oxy_app_id: 'app_fixture', environment: 'production' };
+  const ensureCustomer = jest.fn(async () => ({ provider_customer_id: 'cus_fixture' }));
   const createCheckoutSession = jest.fn(async () => ({
     id: 'cs_fixture',
     url: 'https://checkout.example.invalid/fixture',
-    expiresAt: '2099-01-01T00:00:00.000Z',
+    expires_at: Math.floor(Date.parse('2099-01-01T00:00:00.000Z') / 1000),
   }));
   const retrieveCheckout = jest.fn(async () => ({
     id: 'cs_fixture',
-    storeId: test.payer,
-    planId: 'one_monthly',
-    providerCustomerId: 'cus_fixture',
-    providerPriceId: 'price_synthetic',
+    store_id: test.payer,
+    plan_id: 'one_monthly',
+    provider_customer_id: 'cus_fixture',
+    provider_price_id: 'price_synthetic',
     status: 'open',
     subscription: null,
-    initialInvoiceId: null,
+    initial_invoice_id: null,
   }));
   const client = {
     merchants: { retrieve: async () => merchant },
@@ -132,11 +132,11 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
           },
           'quote_transport',
         );
-        snapshot.taxQuote.source.planId = 'one_monthly';
-        snapshot.taxQuote.quote.sellerId = 'seller_fixture';
-        snapshot.taxQuote.quote.invoiceIssuerId = 'issuer_fixture';
-        snapshot.taxQuote.quote.taxRemitterId = 'remitter_fixture';
-        snapshot.taxQuote.quote.customerLocationEvidenceId = 'location_fixture';
+        snapshot.taxQuote.source.plan_id = 'one_monthly';
+        snapshot.taxQuote.quote.seller_id = 'seller_fixture';
+        snapshot.taxQuote.quote.invoice_issuer_id = 'issuer_fixture';
+        snapshot.taxQuote.quote.tax_remitter_id = 'remitter_fixture';
+        snapshot.taxQuote.quote.customer_location_evidence_id = 'location_fixture';
         return snapshot.taxQuote;
       },
     },
@@ -145,7 +145,7 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
     client,
     {
       merchantId: merchant.id,
-      applicationId: merchant.oxyAppId,
+      applicationId: merchant.oxy_app_id,
       sellerId: 'seller_fixture',
       invoiceIssuerId: 'issuer_fixture',
       taxRemitterId: 'remitter_fixture',
@@ -479,34 +479,34 @@ function authority(
     mode: input.mode,
     environment: input.environment,
     taxQuote: {
-      schemaVersion: 1,
+      schema_version: 2,
       source: {
-        merchantId: input.providerAccountRef,
-        appId: 'app_fixture',
-        storeId: input.subjectAccountId,
-        planId: 'plan_fixture',
+        merchant_id: input.providerAccountRef,
+        app_id: 'app_fixture',
+        store_id: input.subjectAccountId,
+        plan_id: 'plan_fixture',
         mode: 'live',
         environment: 'production',
       },
       quote: {
         id,
         currency: input.currency,
-        grossMinorUnits: input.amountMinorUnits,
-        netMinorUnits: input.amountMinorUnits,
-        taxMinorUnits: 0,
-        taxTreatment: 'inclusive',
-        sellerId: 'synthetic',
-        invoiceIssuerId: 'synthetic',
-        taxRemitterId: 'synthetic',
-        taxServiceRef: 'synthetic',
+        gross_minor_units: input.amountMinorUnits,
+        net_minor_units: input.amountMinorUnits,
+        tax_minor_units: 0,
+        tax_treatment: 'inclusive',
+        seller_id: 'synthetic',
+        invoice_issuer_id: 'synthetic',
+        tax_remitter_id: 'synthetic',
+        tax_service_ref: 'synthetic',
         country: 'US',
-        coverageEvidenceId: 'synthetic',
-        taxRateEvidenceId: 'synthetic',
-        customerLocationEvidenceId: 'synthetic',
-        quotedAt: '2026-01-01T00:00:00.000Z',
-        expiresAt: '2099-01-01T00:00:00.000Z',
+        coverage_evidence_id: 'synthetic',
+        tax_rate_evidence_id: 'synthetic',
+        customer_location_evidence_id: 'synthetic',
+        quoted_at: Math.floor(Date.parse('2026-01-01T00:00:00.000Z') / 1000),
+        expires_at: Math.floor(Date.parse('2099-01-01T00:00:00.000Z') / 1000),
       },
-      signature: { algorithm: 'Ed25519', keyId: 'synthetic', value: 'synthetic' },
+      signature: { algorithm: 'Ed25519', key_id: 'synthetic', value: 'synthetic' },
     },
   };
 }
@@ -622,7 +622,7 @@ it('rejects prepared authority for another subject without storing or dispatchin
   expect(intent.state).toBe('reserved');
 });
 
-it('round-trips every typed signed quote field and exact valid ISO lexemes through PostgreSQL and official SDK verification', async () => {
+it('round-trips every typed signed v2 quote field and integer-second timestamps through PostgreSQL and official SDK verification', async () => {
   const f = await fixture();
   const keys = generateKeyPairSync('ed25519');
   const publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
@@ -643,14 +643,16 @@ it('round-trips every typed signed quote field and exact valid ISO lexemes throu
     async prepare(input) {
       const snapshot = authority(input, 'signed_quote_roundtrip');
       snapshot.taxQuote.quote.currency = 'USD';
-      snapshot.taxQuote.quote.quotedAt = '2026-01-01T00:00:00Z';
-      snapshot.taxQuote.quote.expiresAt = '2099-01-01T00:00:00.000001Z';
-      snapshot.taxQuote.signature.keyId = 'fixture';
+      snapshot.taxQuote.quote.quoted_at = Math.floor(Date.parse('2026-01-01T00:00:00Z') / 1000);
+      snapshot.taxQuote.quote.expires_at = Math.floor(
+        Date.parse('2099-01-01T00:00:00.000001Z') / 1000,
+      );
+      snapshot.taxQuote.signature.key_id = 'fixture';
       snapshot.taxQuote.signature.value = sign(
         null,
         Buffer.from(
           canonical({
-            schemaVersion: snapshot.taxQuote.schemaVersion,
+            schema_version: snapshot.taxQuote.schema_version,
             source: snapshot.taxQuote.source,
             quote: snapshot.taxQuote.quote,
           }),
@@ -709,9 +711,9 @@ it('round-trips every typed signed quote field and exact valid ISO lexemes throu
     });
     expect(
       await sdk.billing.createTaxQuote({
-        storeId: f.payer,
-        planId: 'plan_fixture',
-        customerLocationEvidenceId: 'synthetic',
+        store_id: f.payer,
+        plan_id: 'plan_fixture',
+        customer_location_evidence_id: 'synthetic',
       }),
     ).toEqual(prepared?.taxQuote);
   } finally {
@@ -786,4 +788,336 @@ it('does not admit a different Oxy One price through the generic provider', asyn
     startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider: f.provider }),
   ).rejects.toThrow('personal bundle price');
   expect(f.create).not.toHaveBeenCalled();
+});
+
+it('refuses unsupported embedded transport before reserving or creating a payment', async () => {
+  const f = await fixture();
+  expect(
+    await startPersonalPlanCheckout(
+      f.payer,
+      { ...f.request, presentation: 'embedded' },
+      {
+        catalogue: f.catalogue,
+        provider: f.provider,
+      },
+    ),
+  ).toEqual({ state: 'unconfigured', reason: 'provider_unconfigured' });
+  expect(f.create).not.toHaveBeenCalled();
+  expect(
+    await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer)),
+  ).toHaveLength(0);
+});
+
+it('does not change the presentation of a reserved hosted payment on replay', async () => {
+  const f = await fixture();
+  const provider = { ...f.provider, supportsEmbedded: true };
+  await startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider });
+  await expect(
+    startPersonalPlanCheckout(
+      f.payer,
+      { ...f.request, presentation: 'embedded' },
+      {
+        catalogue: f.catalogue,
+        provider,
+      },
+    ),
+  ).rejects.toThrow('presentation differs');
+  expect(f.create).toHaveBeenCalledTimes(1);
+});
+
+it('pins payer billing evidence to the operation without persisting the address', async () => {
+  const f = await fixture();
+  const request = {
+    ...f.request,
+    billingAddress: { country: 'US', postalCode: '19802', line1: 'Fixture billing address' },
+  };
+  await startPersonalPlanCheckout(f.payer, request, {
+    catalogue: f.catalogue,
+    provider: f.provider,
+  });
+  await expect(
+    startPersonalPlanCheckout(
+      f.payer,
+      { ...request, billingAddress: { ...request.billingAddress, country: 'CA' } },
+      {
+        catalogue: f.catalogue,
+        provider: f.provider,
+      },
+    ),
+  ).rejects.toThrow('idempotency key was reused');
+  const rows = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+  expect(JSON.stringify(rows)).not.toContain('Fixture billing address');
+  expect(f.create).toHaveBeenCalledTimes(1);
+});
+
+it('returns only the current owner capability and recovers completed embedded sessions without storing secrets', async () => {
+  const f = await fixture();
+  const productId = f.products[0].id;
+  const offer = f.offers[1];
+  f.catalogue.productPlans = [
+    {
+      productId,
+      offerId: offer.id,
+      offerVersion: 1,
+      displayName: 'Fixture',
+      price: {
+        currency: 'USD',
+        amountMinorUnits: 1999,
+        interval: 'month',
+        trial: 'none',
+        taxTreatment: 'inclusive',
+        merchantTotal: 'final',
+      },
+    },
+  ];
+  f.catalogue.prices = [
+    {
+      ...f.catalogue.prices[0],
+      offerId: offer.id,
+      offerKind: 'individual',
+      kind: 'existing_product',
+      amountMinorUnits: 1999,
+    },
+  ];
+  const request = { ...f.request, productId, offerId: offer.id, presentation: 'embedded' as const };
+  let observed: 'open' | 'complete' | 'expired' = 'open';
+  let foreignSubject = false;
+  const create = jest.fn(async () => ({
+    sessionId: 'cs_embedded_fixture',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  }));
+  const provider: PersonalCheckoutProvider = {
+    kind: 'synthetic',
+    supportsEmbedded: true,
+    create,
+    prepare: async (input) => authority(input, 'embedded_quote'),
+    readEmbedded: async (input, sessionId) =>
+      observed === 'open'
+        ? {
+            status: 'open',
+            checkout: {
+              transport: 'checkout_session',
+              subjectAccountId: foreignSubject ? f.owner : f.payer,
+              productId,
+              offerId: offer.id,
+              offerVersion: 1,
+              merchantId: input.providerAccountRef,
+              mode: 'live',
+              environment: 'production',
+              sessionId,
+              clientSecret: 'ephemeral_fixture_secret',
+              publishableKey: 'pk_live_fixture',
+              amountMinorUnits: 1999,
+              currency: 'USD',
+              interval: 'month',
+              tax: {
+                subtotalMinorUnits: 1999,
+                taxMinorUnits: 0,
+                totalMinorUnits: 1999,
+                inclusive: true,
+              },
+            },
+          }
+        : { status: observed },
+  };
+  const dependencies = { catalogue: f.catalogue, provider };
+  const first = await startProductPlanCheckout(f.payer, request, dependencies);
+  expect(first).toMatchObject({
+    state: 'pending',
+    checkoutStatus: 'open',
+    embeddedCheckout: { clientSecret: 'ephemeral_fixture_secret' },
+  });
+  const [stored] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+  expect(JSON.stringify(stored)).not.toContain('ephemeral_fixture_secret');
+  expect(stored.checkoutUrl).toBeNull();
+  foreignSubject = true;
+  await expect(startProductPlanCheckout(f.payer, request, dependencies)).rejects.toThrow(
+    'authority differs',
+  );
+  foreignSubject = false;
+  observed = 'complete';
+  expect(await startProductPlanCheckout(f.payer, request, dependencies)).toEqual({
+    state: 'pending',
+    intentId: stored.id,
+    checkoutStatus: 'complete',
+  });
+  observed = 'expired';
+  expect(await startProductPlanCheckout(f.payer, request, dependencies)).toEqual({
+    state: 'pending',
+    intentId: stored.id,
+    checkoutStatus: 'expired',
+  });
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(
+    await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, f.payer)),
+  ).toHaveLength(0);
+});
+
+it('refuses a second product purchase when an active bundle already includes it', async () => {
+  const f = await fixture();
+  const { recordProductAccessPeriod } = await import('../productAccessPersistence.service');
+  const bundle = f.input(f.offers[0]);
+  await recordProductAccessPeriod({
+    ...bundle,
+    source: { ...bundle.source, beneficiaryAccountId: f.payer },
+    segment: { ...bundle.segment, beneficiaryAccountId: f.payer },
+  });
+  const productId = f.products[0].id;
+  const offer = f.offers[1];
+  f.catalogue.productPlans = [
+    {
+      productId,
+      offerId: offer.id,
+      offerVersion: 1,
+      displayName: 'Included product',
+      price: {
+        currency: 'USD',
+        amountMinorUnits: 1999,
+        interval: 'month',
+        trial: 'none',
+        taxTreatment: 'inclusive',
+        merchantTotal: 'final',
+      },
+    },
+  ];
+  f.catalogue.prices = [
+    {
+      ...f.catalogue.prices[0],
+      offerId: offer.id,
+      offerKind: 'individual',
+      kind: 'existing_product',
+      amountMinorUnits: 1999,
+    },
+  ];
+  await expect(
+    startProductPlanCheckout(
+      f.payer,
+      { ...f.request, productId, offerId: offer.id },
+      { catalogue: f.catalogue, provider: f.provider },
+    ),
+  ).rejects.toThrow('subscription already exists');
+  expect(f.create).not.toHaveBeenCalled();
+  expect(
+    await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer)),
+  ).toHaveLength(0);
+});
+
+it('closes only a proven pre-creation location rejection so a corrected address can start explicitly', async () => {
+  const f = await fixture();
+  const { ApiError } = await import('../../utils/error');
+  const create = jest.fn();
+  const provider: PersonalCheckoutProvider = {
+    kind: 'synthetic',
+    create,
+    prepare: async () => {
+      throw new ApiError(422, 'More evidence needed', 'BILLING_LOCATION_EVIDENCE_REQUIRED');
+    },
+  };
+  const request = { ...f.request, billingAddress: { country: 'US', postalCode: '19802' } };
+  const first = await startPersonalPlanCheckout(f.payer, request, {
+    catalogue: f.catalogue,
+    provider,
+  });
+  expect(first).toMatchObject({ state: 'closed', reason: 'billing_location_required' });
+  expect(
+    await startPersonalPlanCheckout(f.payer, request, { catalogue: f.catalogue, provider }),
+  ).toEqual(first);
+  expect(create).not.toHaveBeenCalled();
+  const corrected = await startPersonalPlanCheckout(
+    f.payer,
+    {
+      ...request,
+      idempotencyKey: randomUUID(),
+      billingAddress: { country: 'US', postalCode: '10001' },
+    },
+    { catalogue: f.catalogue, provider: f.provider },
+  );
+  expect(corrected.state).toBe('pending');
+  expect(f.create).toHaveBeenCalledTimes(1);
+});
+
+it('never releases a payment reservation for an ambiguous location provider failure', async () => {
+  const f = await fixture();
+  const provider: PersonalCheckoutProvider = {
+    kind: 'synthetic',
+    create: jest.fn(),
+    prepare: async () => {
+      throw new Error('Response lost');
+    },
+  };
+  await expect(
+    startPersonalPlanCheckout(
+      f.payer,
+      { ...f.request, billingAddress: { country: 'US' } },
+      { catalogue: f.catalogue, provider },
+    ),
+  ).rejects.toThrow('Response lost');
+  await expect(
+    startPersonalPlanCheckout(
+      f.payer,
+      { ...f.request, idempotencyKey: randomUUID(), billingAddress: { country: 'CA' } },
+      { catalogue: f.catalogue, provider: f.provider },
+    ),
+  ).rejects.toThrow('already pending');
+  expect(f.create).not.toHaveBeenCalled();
+});
+
+it('prevents a late prepared quote from reviving a safely closed location operation', async () => {
+  const f = await fixture();
+  const { ApiError } = await import('../../utils/error');
+  let release: () => void = () => {};
+  let arrived: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  let attempts = 0;
+  const create = jest.fn();
+  const provider: PersonalCheckoutProvider = {
+    kind: 'synthetic',
+    create,
+    prepare: async (input) => {
+      attempts++;
+      if (attempts === 1) {
+        arrived();
+        await pending;
+        return authority(input, 'late_quote');
+      }
+      throw new ApiError(422, 'More evidence needed', 'BILLING_LOCATION_EVIDENCE_REQUIRED');
+    },
+  };
+  const request = { ...f.request, billingAddress: { country: 'US' } };
+  const late = startPersonalPlanCheckout(f.payer, request, { catalogue: f.catalogue, provider });
+  const rejected = expect(late).rejects.toThrow('Checkout closed');
+  await entered;
+  expect(
+    await startPersonalPlanCheckout(f.payer, request, { catalogue: f.catalogue, provider }),
+  ).toMatchObject({ state: 'closed', reason: 'billing_location_required' });
+  release();
+  await rejected;
+  expect(create).not.toHaveBeenCalled();
+  const [row] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+  expect(row).toMatchObject({
+    state: 'closed',
+    closedReason: 'billing_location_required',
+    taxQuoteRef: null,
+    providerSessionId: null,
+  });
 });

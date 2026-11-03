@@ -1576,6 +1576,27 @@
       "when": 1793626417303,
       "tag": "0225_application_account_registrations",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1793718700548,
+      "tag": "0226_mighty_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1793718730421,
+      "tag": "0227_validate_checkout_presentation",
+      "breakpoints": true
+    },
+    {
+      "idx": 228,
+      "version": "7",
+      "when": 1793719788119,
+      "tag": "0228_checkout_quote_wire_version",
+      "breakpoints": true
     }
   ]
 }

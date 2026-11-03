@@ -1,0 +1,303 @@
+{
+  "purpose": "Production activation evidence and remaining gates; not a runtime configuration",
+  "activationAllowed": true,
+  "commercial": {
+    "currency": "USD",
+    "monthlyMinorUnits": 599,
+    "annualMinorUnits": 5750,
+    "annualDiscountPercent": 20,
+    "taxBehavior": "inclusive"
+  },
+  "verifiedOwnership": {
+    "ownerAccountId": "69b2d3df5d12f58c9800d651",
+    "ownerProfileLegalName": "Oxy Platforms, Inc.",
+    "ownerProfileCountry": null,
+    "mentionApplicationId": "6a2f851751b784a86fd0e916",
+    "billingMerchantId": "merch_e78538355d2d3c5be4da912a",
+    "historicalApiWorkloadApplicationId": "6a37b3e61ddfd195b656819b",
+    "historicalApiWorkloadApplicationDisplayName": "Oxy Inbox",
+    "historicalApiWorkloadPurpose": "Inbox; not established central product billing authority",
+    "dedicatedBillingAuthority": {
+      "applicationId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+      "applicationRegistration": "applied_and_verified",
+      "workloadBinding": "created_and_verified",
+      "roleArn": "arn:aws:iam::237343248947:role/oxy-central-billing",
+      "roleInfrastructure": "applied_and_verified",
+      "trustedSourceRoleArn": "arn:aws:iam::237343248947:role/oxy-oxy-api-task",
+      "awsProfile": "oxy-central-billing",
+      "profileMount": "verified_in_api_revision_1149",
+      "sourceMigration": "deployed_OxyHQ_oxy_2090_api_revision_1149",
+      "merchantBinding": "created_and_verified",
+      "bindingId": "01a1a207-5781-71c5-8f2e-b3e958f8a359",
+      "attestationId": "wl_a10c7f482590f5669e638950",
+      "environment": "production"
+    }
+  },
+  "proposedProduct": {
+    "schemaVersion": 1,
+    "id": "mention",
+    "ownerAccountId": "69b2d3df5d12f58c9800d651",
+    "applicationId": "6a2f851751b784a86fd0e916"
+  },
+  "registrationBody": {
+    "display_name": "Oxy",
+    "description": "Oxy product subscriptions"
+  },
+  "requiredOwnerFacts": [
+    "Verified actual applicable tax registrations; user currently does not know"
+  ],
+  "engineeringWork": [
+    "Finish production embedded binding and owned observation ingress tests/release",
+    "Publish exact SDK/core/contracts and deploy immutable production artifacts",
+    "Mount reviewed closed runtime and cohort through AWS authority",
+    "Enable purchases only after actual owner tax settings/registration approval and readiness validation"
+  ],
+  "authorityEvidence": [
+    "docs/inference/inbox-point-inference.md Identity explicitly scopes existing role to Inbox",
+    "docs/inference/inbox-principal-readback.md Operator scope forbids borrowing Inbox principal for other Oxy work"
+  ],
+  "schemaVersion": 1,
+  "recordedOn": "2026-11-03",
+  "provenance": {
+    "prices": "User approved USD 5.99 monthly and a 20% annual discount rounded to USD 57.50",
+    "headOffice": "User supplied 2810 N Church St STE 91894 Wilmington DE 19802 US; recorded without inferring tax registrations",
+    "legalName": "Read-only production organization_profiles for verified owner account; profile identity is not tax approval",
+    "ownership": "Production ownership readbacks and approved supported registration: Mention product and both frozen offers registered without access grants or provider calls; dedicated billing seed/binding status tracked separately",
+    "taxTreatment": "User explicitly confirmed the approved USD5.99/57.50 prices include tax",
+    "taxRegistrations": "User answered Ni idea de como va eso; no absence or coverage inferred"
+  },
+  "draftRequests": {
+    "registerMerchant": {
+      "method": "POST",
+      "path": "/v1/merchants",
+      "body": {
+        "display_name": "Oxy",
+        "description": "Oxy product subscriptions"
+      },
+      "authority": "Completed under dedicated central billing workload; stable operation recorded"
+    },
+    "updateTaxSettings": {
+      "method": "PATCH",
+      "pathTemplate": "/v1/dashboard/applications/{billingApplicationId}/tax/settings",
+      "body": {
+        "legalName": "Oxy Platforms, Inc.",
+        "headOffice": {
+          "line1": "2810 N Church St",
+          "line2": "STE 91894",
+          "city": "Wilmington",
+          "state": "DE",
+          "postalCode": "19802",
+          "country": "US"
+        },
+        "defaultTaxBehavior": "inclusive"
+      },
+      "omittedPendingDecision": [],
+      "approval": "Owner dashboard billing:manage approval remains required; do not invoke approve as part of drafting"
+    },
+    "createTaxRegistrations": {
+      "status": "unknown_requires_verification",
+      "requests": null,
+      "reason": "User does not know the registration status. Unknown is not confirmation of none; verify actual fiscal records before approval or sales."
+    }
+  },
+  "runtimePreparation": {
+    "oxyRuntimeFile": "docs/products/mention-plus-runtime.closed.json",
+    "peableCohortFile": "docs/products/mention-plus-peable-cohort.proposed.json",
+    "signingKeyId": "peable-billing-2026-10",
+    "signingKeyVerifiedAtTask": "d4d0209fa41d4b21819cda3cfd86438f",
+    "signingPrivateKeySsm": "/oxy/peable/BILLING_INVOICE_PRIVATE_KEY",
+    "observationSecretSsm": "/oxy/oxy-api/OXY_ONE_PEABLE_OBSERVATION_SECRET",
+    "observationUrl": "https://api.oxy.so/billing/peable/observations",
+    "observationIngressStatus": "implemented_and_focused_tests_pass_deployment_pending",
+    "taxRegistrations": "unknown_not_inferred",
+    "fiscalSettingsApproval": "pending_actual_owner_facts",
+    "purchasesEnabled": false,
+    "observationMerchantConfigured": true,
+    "observationSecretBinding": "exact SSM value mounted into supported merchant POST, not returned/logged"
+  },
+  "validation": {
+    "canonicalPeableTaxAddressSchema": "passed",
+    "canonicalPeableCreateMerchantBodySchema": "passed",
+    "canonicalOxyProductDefinitionSchema": "passed",
+    "annualRounding": "Math.round(599 * 12 * 0.8) = 5750",
+    "runtimeSchema": "Intentionally incomplete preparation envelope; must not be loaded as runtime configuration"
+  },
+  "providerTaxReadback": {
+    "observedAtApproximate": "2026-11-02T23:40:00Z",
+    "provider": "Stripe",
+    "mode": "live",
+    "operation": "read_only",
+    "registrations": {
+      "returnedCount": 0,
+      "hasMore": false
+    },
+    "settings": {
+      "status": "pending",
+      "missingFields": [
+        "head_office"
+      ]
+    },
+    "monitoring": {
+      "computedAt": null,
+      "locations": []
+    },
+    "interpretation": "No registrations were returned in this connected Oxy provider account. The deployed Peable account is different, so these results do not establish its configuration. Neither result establishes legal registrations or obligations. Tax registration status remains unknown_requires_verification; no tax settings or registrations were changed.",
+    "accountId": "acct_1USWGhAofUef123L",
+    "accountScope": "Connected Oxy account; NOT the deployed Peable provider account"
+  },
+  "historicalBaselineEvidence": {
+    "centralCatalogue": "unconfigured",
+    "mentionProducts": 0,
+    "billingActorMerchants": 0,
+    "allPeableTaxSettings": 0,
+    "configuredSubscriptionRails": [
+      "stripe"
+    ],
+    "configuredSubscriptionCohort": "Mercaria only",
+    "interpretation": "Initial read-only baseline before the dedicated authority and inactive catalogue preparation; not current activation status"
+  },
+  "liveEvidence": {
+    "observedOn": "2026-11-03",
+    "centralCatalogue": "configured_purchase_unavailable",
+    "publicCatalogueEndpoint": "https://api.oxy.so/billing/product-plans/mention",
+    "catalogueApiRevision": "1149",
+    "productId": "mention",
+    "productRegistration": "verified_via_supported_service",
+    "offerRegistration": "verified_via_supported_service_idempotent_rerun",
+    "offers": [
+      {
+        "id": "mention_plus_monthly",
+        "version": 1,
+        "amountMinorUnits": 599,
+        "currency": "USD",
+        "interval": "month"
+      },
+      {
+        "id": "mention_plus_annual",
+        "version": 1,
+        "amountMinorUnits": 5750,
+        "currency": "USD",
+        "interval": "year"
+      }
+    ],
+    "benefitKeys": [
+      "plus",
+      "mono_theme"
+    ],
+    "grantCountAfterRegistration": 0,
+    "providerPriceBindings": [],
+    "purchaseEnabled": false,
+    "rollout": "stable_3_of_3_preserved_profile_and_catalogue_mounts",
+    "activationPause": "Superseded by explicit user production activation instruction; implementation and fiscal gates still apply"
+  },
+  "deployedProviderAccount": {
+    "provider": "Stripe",
+    "accountId": "acct_1TnXkUQWiCE02OnU",
+    "taxConfiguration": "requires_readback_for_this_exact_account",
+    "accountSelection": "Do not substitute the connected Oxy account or reuse its provider price identifiers",
+    "status": "Legacy Mercaria account; not approved for Oxy Mention charges. Correct Oxy credential deployment is being verified separately."
+  },
+  "authorization": "User explicitly authorized production activation on 2026-11-03; prior local-only pause superseded. Tax facts and owner approvals remain required.",
+  "liveProviderCatalogue": {
+    "observedOn": "2026-11-03",
+    "accountId": "acct_1USWGhAofUef123L",
+    "accountIdentity": "Oxy",
+    "productId": "prod_VYr9JHT7P9T9tI",
+    "monthly": {
+      "priceId": "price_1UXjQuAofUef123LJWl0Qkcs",
+      "amountMinorUnits": 599,
+      "currency": "USD",
+      "interval": "month",
+      "intervalCount": 1,
+      "taxTreatment": "inclusive",
+      "trial": "none"
+    },
+    "annual": {
+      "priceId": "price_1UXjR2AofUef123LZ8oFLfos",
+      "amountMinorUnits": 5750,
+      "currency": "USD",
+      "interval": "year",
+      "intervalCount": 1,
+      "taxTreatment": "inclusive",
+      "trial": "none"
+    },
+    "readback": "Verified by release operator after supported provider API creation",
+    "taxChanges": "No tax code, settings or registration writes",
+    "paymentsCreated": false
+  },
+  "mentionBuildBindings": {
+    "EXPO_PUBLIC_MENTION_PLUS_PRODUCT_ID": "mention",
+    "EXPO_PUBLIC_MENTION_PLUS_CAPABILITY_KEY": "plus",
+    "EXPO_PUBLIC_MENTION_PLUS_OFFER_ID": "mention_plus_monthly",
+    "EXPO_PUBLIC_MENTION_PLUS_OFFER_VERSION": "1",
+    "EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_ID": "mention_plus_annual",
+    "EXPO_PUBLIC_MENTION_PLUS_ANNUAL_OFFER_VERSION": "1",
+    "status": "GitHub repository variables configured and read back by release operator; does not activate purchase authority"
+  },
+  "productionRuntimeReadback": {
+    "taskDefinition": "oxy-oxy-api:1157",
+    "catalogueFile": "/run/secrets/billing-product-catalogue.json",
+    "personalRuntimeEnabledVariablePresent": false,
+    "personalRuntimeFileVariablePresent": false,
+    "observationSecretBindingPresent": false,
+    "observedOn": "2026-11-03"
+  },
+  "taxRegistrationStatus": "unknown_requires_owner_verification_and_dashboard_approval",
+  "authorityActivationEvidence": {
+    "seedPreflightRun": 41662069503,
+    "seedApplyRun": 41662880710,
+    "seedWrites": {
+      "applicationsCreated": 1,
+      "credentialsCreated": 0,
+      "applicationsUpdated": 0
+    },
+    "bindingTask": "db5b15e74e9b4e77816cac6f8226b140",
+    "bindingProvider": "aws-iam",
+    "sourceRolePreserved": true,
+    "merchantRegistration": "pending_authorized_request"
+  },
+  "personalCheckoutInventory": {
+    "observedOn": "2026-11-03",
+    "task": "4257cb8c11c9441db5b0fbac688d1bbb",
+    "total": 0,
+    "signedQuotes": 0,
+    "fulfilled": 0,
+    "readOnly": true
+  },
+  "providerWebhook": {
+    "endpointId": "we_1UXjfnAofUef123LuYjDylsp",
+    "accountId": "acct_1USWGhAofUef123L",
+    "apiVersion": "2026-07-29.dahlia",
+    "taxEvents": 9,
+    "secretStorage": "AWS SSM only",
+    "verifiedBy": "release operator"
+  },
+  "merchantRegistration": {
+    "status": "created_readback_verified",
+    "merchantId": "merch_e78538355d2d3c5be4da912a",
+    "applicationId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+    "environment": "production",
+    "authority": "aws workload oxy-central-billing",
+    "operationKey": "oxy-central-billing-merchant-v1",
+    "evidenceTask": "7016bee15389405fa48407e8bf98d246",
+    "privateKeysSupplied": false,
+    "customerChargesCreated": false,
+    "internalPrimaryKey": "01a1a211-3576-7653-94c2-78b1348085d8",
+    "internalKeyReadbackTask": "618fdf13b4c846aa967b304eb50376ad",
+    "identityBoundary": "Server-only Peable cohort uses internalPrimaryKey; merchant DTO, signed quote/invoice source, embedded config/action scope and Oxy runtime use public merchantId"
+  },
+  "providerPortalConfiguration": {
+    "id": "bpc_1UXjuXAofUef123LLx4e2UX2",
+    "accountId": "acct_1USWGhAofUef123L",
+    "live": true,
+    "active": true,
+    "subscriptionUpdate": false,
+    "cancellation": "at_period_end",
+    "proration": false,
+    "invoiceHistory": true,
+    "paymentMethodUpdate": true,
+    "customerUpdate": false,
+    "source": "root verified provider configuration",
+    "customerOrPortalSessionCreated": false
+  }
+}

@@ -10,7 +10,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, timestamptz } from '@oxy.so/db';
 import { users } from './users';
-import { accessOffers, accessSubscriptionSources } from './productAccess';
+import { accessOffers, accessProducts, accessSubscriptionSources } from './productAccess';
 /** Durable checkout reservation, never an entitlement or financial award.
  * The approved price is frozen into typed columns at reservation, so a replay
  * keeps the original price after the catalogue changes. */
@@ -44,6 +44,10 @@ export const personalPlanCheckoutIntents = pgTable(
     priceValidUntil: timestamptz(),
     state: text({ enum: ['reserved', 'pending', 'fulfilled', 'closed'] }).notNull(),
     closedReason: text(),
+    productId: text().references(() => accessProducts.id, { onDelete: 'restrict' }),
+    presentation: text({ enum: ['hosted', 'embedded'] })
+      .notNull()
+      .default('hosted'),
     providerSessionId: text(),
     checkoutUrl: text(),
     providerSessionExpiresAt: timestamptz(),
@@ -51,6 +55,7 @@ export const personalPlanCheckoutIntents = pgTable(
     planRef: text(),
     customerRef: text(),
     taxQuoteRef: text(),
+    taxQuoteSchemaVersion: integer().notNull().default(1),
     taxQuoteCurrency: text(),
     taxQuoteNetMinorUnits: bigint({ mode: 'number' }),
     taxQuoteTaxMinorUnits: bigint({ mode: 'number' }),
@@ -91,6 +96,7 @@ export const personalPlanCheckoutIntents = pgTable(
       columns: [t.offerId, t.offerVersion, t.offerKind],
       foreignColumns: [accessOffers.id, accessOffers.version, accessOffers.kind],
     }).onDelete('restrict'),
+    check('personal_checkout_presentation', sql`${t.presentation} IN ('hosted', 'embedded')`),
     check(
       'personal_checkout_interval',
       sql`${t.billingInterval} IN ('month', 'year') AND (${t.priceKind} <> 'oxy_one' OR ${t.billingInterval} = 'month')`,

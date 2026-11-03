@@ -1,0 +1,49 @@
+{
+  "merchantId": "merch_e78538355d2d3c5be4da912a",
+  "applicationId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+  "namespace": {
+    "mode": "live",
+    "environment": "production"
+  },
+  "offers": [
+    {
+      "offerId": "mention_plus_monthly",
+      "offerVersion": 1,
+      "planId": "mention_plus_monthly",
+      "providerPriceId": "price_1UXjQuAofUef123LJWl0Qkcs",
+      "kind": "existing_product",
+      "amountMinorUnits": 599,
+      "interval": "month"
+    },
+    {
+      "offerId": "mention_plus_annual",
+      "offerVersion": 1,
+      "planId": "mention_plus_annual",
+      "providerPriceId": "price_1UXjR2AofUef123LZ8oFLfos",
+      "kind": "existing_product",
+      "amountMinorUnits": 5750,
+      "interval": "year"
+    }
+  ],
+  "invoiceIssuer": {
+    "legalName": "Oxy Platforms, Inc.",
+    "id": "merch_e78538355d2d3c5be4da912a"
+  },
+  "sellerId": "merch_e78538355d2d3c5be4da912a",
+  "invoiceAuthorityKeys": {
+    "peable-billing-2026-10": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAt6lkqirzUxlnt22igH+lRWW7+dRRlk4QK0a2wIKfnCA=\n-----END PUBLIC KEY-----\n"
+  },
+  "taxQuoteAuthorityKeys": {
+    "peable-billing-2026-10": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAt6lkqirzUxlnt22igH+lRWW7+dRRlk4QK0a2wIKfnCA=\n-----END PUBLIC KEY-----\n"
+  },
+  "purchasesEnabled": false,
+  "checkout": {
+    "embeddedEnabled": true,
+    "returnUrl": "https://mention.earth/plus",
+    "taxRemitterId": "merch_e78538355d2d3c5be4da912a",
+    "customerLocationEvidence": {}
+  },
+  "observationsEnabled": false,
+  "recoveryEnabled": false,
+  "recoveryIntervalMilliseconds": 60000
+}
