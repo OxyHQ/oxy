@@ -112,6 +112,18 @@ describe('asUser / withUser', () => {
     expect(oxy.http.getAccessToken()).toBeNull();
   });
 
+  it('never lets a caller-supplied credential ride along', async () => {
+    oxyAnswers({ '/accounts/org-1': { status: 200, body: { account: ACCOUNT } } });
+    await server().withUser(sessionReq(), (user) =>
+      user.request('GET', '/accounts/org-1', undefined, {
+        headers: { authorization: 'Bearer someone-else', 'x-trace': 't' },
+      }),
+    );
+    expect(seen).toEqual([
+      { method: 'GET', url: '/accounts/org-1', authorization: 'Bearer bearer-1' },
+    ]);
+  });
+
   it('disposes the client when the callback settles, success or failure', async () => {
     oxyAnswers({});
     const oxy = server();

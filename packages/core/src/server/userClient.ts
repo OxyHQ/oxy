@@ -129,10 +129,14 @@ export class OxyUserClient extends OxyServices {
   ): Promise<ResponsePayload<T>> {
     const bearer = this.bearer;
     if (!bearer) throw new Error('This Oxy user client has been disposed');
-    return super.request<T>(method, url, data, {
-      ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${bearer}` },
-    });
+    // This client speaks as its person only: no caller-supplied credential,
+    // in any letter case, rides along.
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(options.headers ?? {})) {
+      if (name.toLowerCase() !== 'authorization') headers[name] = value;
+    }
+    headers.Authorization = `Bearer ${bearer}`;
+    return super.request<T>(method, url, data, { ...options, headers });
   }
 
   /** Forget the bearer: every later call rejects. */
