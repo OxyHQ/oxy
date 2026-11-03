@@ -1,4 +1,4 @@
-import { integerCheck, utf16MinLength } from '@oxy.so/contracts';
+import { integerCheck, utf16MinLength, utf16MaxLength } from '@oxy.so/contracts';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
 import {
@@ -449,6 +449,14 @@ export const peablePersonalObservationSchema = z
     id: z.string().check(utf16MinLength(1)),
     object: z.literal('event'),
     type: z.literal('billing.observation.updated'),
+    api_version: z.literal('2026-11-03').optional(),
+    request: z
+      .object({
+        id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)).nullable(),
+        idempotency_key: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)).nullable(),
+      })
+      .strict()
+      .optional(),
     livemode: z.boolean(),
     created: z.number().check(integerCheck()).nonnegative(),
     data: z

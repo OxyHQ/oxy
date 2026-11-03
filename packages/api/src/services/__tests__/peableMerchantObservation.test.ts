@@ -11,6 +11,8 @@ function fixture() {
     object: 'event',
     livemode: true,
     type: 'billing.observation.updated',
+    api_version: '2026-11-03',
+    request: { id: null as string | null, idempotency_key: null as string | null },
     created: 1793720000,
     data: {
       object: {
@@ -96,5 +98,25 @@ it('rejects a contradictory parent on a subscription observation', async () => {
   const f = fixture();
   f.event.data.object.resource_kind = 'subscription';
   await expect(f.runtime.observeMerchant('{}', 'verified')).rejects.toThrow('parent unavailable');
+  expect(f.retrieveSubscription).not.toHaveBeenCalled();
+});
+
+it('rejects malformed request metadata before any owned provider lookup', async () => {
+  const f = fixture();
+  Reflect.set(f.event.request, 'id', 42);
+  await expect(f.runtime.observeMerchant('{}', 'verified')).rejects.toThrow();
+  expect(f.retrieveSubscription).not.toHaveBeenCalled();
+});
+it('accepts historical envelopes without additive request metadata', async () => {
+  const f = fixture();
+  Reflect.deleteProperty(f.event, 'request');
+  Reflect.deleteProperty(f.event, 'api_version');
+  await expect(f.runtime.observeMerchant('{}', 'verified')).rejects.toThrow('parent differs');
+  expect(f.retrieveSubscription).toHaveBeenCalledWith('sub_fixture');
+});
+it('rejects an unsupported event wire version before owned lookup', async () => {
+  const f = fixture();
+  f.event.api_version = '2099-01-01';
+  await expect(f.runtime.observeMerchant('{}', 'verified')).rejects.toThrow();
   expect(f.retrieveSubscription).not.toHaveBeenCalled();
 });
