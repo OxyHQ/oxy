@@ -69,6 +69,12 @@ describe('describeUsernameRefusal', () => {
     ).toBe('That username is reserved. Choose another one.');
   });
 
+  it('never names a rule the server did not report', () => {
+    expect(describeUsernameRefusal(refusal('A rule this client does not know'), 'ada', en)).toBe(
+      "Something you entered isn't valid. Check it and try again.",
+    );
+  });
+
   it('leaves every other failure to the caller', () => {
     const other = Object.assign(new Error('Validation failed'), {
       code: 'BAD_REQUEST',

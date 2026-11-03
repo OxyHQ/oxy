@@ -144,4 +144,17 @@ describe('evictOxyIdentityCache — every prefix matches a real read', () => {
     await warm(oxy);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('evicts the by-id read of an id that needs encoding (one spelling of the key)', async () => {
+    const id = 'did:web:a b/c';
+    fetchMock.mockImplementation(async () => jsonResponse({ id, username: 'alice' }));
+    await oxy.users.get(id);
+    await oxy.users.get(id);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/users/did%3Aweb%3Aa%20b%2Fc');
+
+    evictOxyIdentityCache(oxy.http, id);
+    await oxy.users.get(id);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

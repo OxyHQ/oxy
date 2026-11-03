@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.13.1
+
+### Fixed
+
+- A user's by-id path is built in one place (`oxyUserByIdPath`), and `oxyUserByIdCacheKey`, `users.get`, the follow reads and the follow cache sweep all use it: 7.13.0 encoded the read but not the key the identity sweep evicts, so an id that needs encoding stayed cached.
+
+### Removed
+
+- Strings no screen can show: `signInSecurity.password.tooLong` (the field's `maxLength` already bounds it) and `accounts.members.errors.emailRequired` (the invite button is disabled while the field is empty).
+
 ## 7.13.0
 
 ### Added

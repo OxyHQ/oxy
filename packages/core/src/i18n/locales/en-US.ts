@@ -1951,7 +1951,6 @@ const dict = {
         transfer: 'Transfer ownership',
       },
       errors: {
-        emailRequired: 'Enter an email to invite.',
         emailInvalid: 'Enter a valid email address, like name@example.com.',
         missingAccount: 'No account selected.',
         noPermission: 'You do not have permission to view members.',
@@ -2407,7 +2406,6 @@ const dict = {
       newLabel: 'New password',
       repeatLabel: 'Repeat the password',
       tooShort: 'Use at least {{min}} characters.',
-      tooLong: 'Use at most {{max}} characters.',
       mismatch: "The passwords don't match.",
       signOutOthers: 'Sign out everywhere else',
       save: 'Save password',

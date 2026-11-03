@@ -95,9 +95,6 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         if (password.length < PASSWORD_MIN_LENGTH) {
           return t('signInSecurity.password.tooShort', { min: PASSWORD_MIN_LENGTH });
         }
-        if (password.length > PASSWORD_MAX_LENGTH) {
-          return t('signInSecurity.password.tooLong', { max: PASSWORD_MAX_LENGTH });
-        }
         return password === repeat ? null : t('signInSecurity.password.mismatch');
       }}
       onSubmit={async (reauth) => {
