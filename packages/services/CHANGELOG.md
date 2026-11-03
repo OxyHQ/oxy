@@ -1,5 +1,14 @@
 # Changelog
 
+## [14.2.1] - 2026-11-03
+
+### Changed
+
+- Failure toasts go through one `useApiErrorToast` hook; the error wording reuses core's `getErrorStatus`, `isRateLimitError` and `isServerError`, and the follow errors share the offline codes with every other toast.
+- A server username refusal whose message this client does not know reads as "something you entered isn't valid" instead of naming a rule it did not break.
+- The profile username editor checks the policy once (the availability hook), not twice; the check is skipped on edit screens that are not the username's.
+- Dead branches removed: the empty-email invite check (the button is disabled while empty) and the too-long new-password check (the field's `maxLength` bounds it).
+
 ## [14.2.0] - 2026-11-03
 
 ### Added

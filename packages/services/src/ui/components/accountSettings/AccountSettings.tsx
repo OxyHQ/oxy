@@ -35,7 +35,7 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { OrganizationSettings } from '../organizations/OrganizationSettings';
 import { SettingsIcon } from '../SettingsIcon';
 import { AccountCategoriesSection, accountCategoriesEqual } from './AccountCategoriesSection';
-import { describeApiError } from '../../utils/apiErrorMessage';
+import { useApiErrorToast } from '../../hooks/useApiErrorToast';
 
 const BIO_MAX = 160;
 const AVATAR_SIZE = 64;
@@ -132,6 +132,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 }) => {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, user, accounts, switchToAccount, showBottomSheet } = useOxy();
   const queryClient = useQueryClient();
   const id = accountId;
@@ -183,7 +184,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       toast.success(t('accounts.settings.toasts.saved'));
     },
     onError: (error) => {
-      toast.error(describeApiError(error, t, t('accounts.settings.toasts.saveFailed')));
+      showApiError(error, 'accounts.settings.toasts.saveFailed');
     },
   });
 
@@ -209,7 +210,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       else onClose?.();
     },
     onError: (error) => {
-      toast.error(describeApiError(error, t, t('accounts.settings.toasts.archiveFailed')));
+      showApiError(error, 'accounts.settings.toasts.archiveFailed');
     },
   });
 
@@ -227,11 +228,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             destructive: true,
           });
     } catch (error) {
-      toast.error(describeApiError(error, t, t('accounts.settings.toasts.archiveFailed')));
+      showApiError(error, 'accounts.settings.toasts.archiveFailed');
       return;
     }
     if (confirmed) archiveMutation.mutate(node);
-  }, [archive, archiveMutation, node, t]);
+  }, [archive, archiveMutation, node, showApiError, t]);
 
   const handleDisplayNameChange = useCallback(
     (value: string) => {
@@ -285,9 +286,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       });
       if (avatar !== undefined) updateMutation.mutate({ avatar });
     } catch (error) {
-      toast.error(describeApiError(error, t, t('accounts.settings.toasts.saveFailed')));
+      showApiError(error, 'accounts.settings.toasts.saveFailed');
     }
-  }, [account?.avatar, oxyServices, storedName, t, updateMutation]);
+  }, [account?.avatar, oxyServices, showApiError, storedName, updateMutation]);
 
   const avatarUri = useMemo(
     () => (account?.avatar ? oxyServices.assets.publicUrl(account.avatar, 'thumb') : undefined),

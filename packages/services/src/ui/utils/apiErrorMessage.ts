@@ -7,6 +7,7 @@
  */
 
 import { EMAIL_VERIFICATION_ERROR_CODES, SIGN_IN_ERROR_CODES } from '@oxy.so/contracts/client';
+import { ErrorCodes, getErrorStatus, isRateLimitError, isServerError } from '@oxy.so/core';
 import type { Translate } from '../hooks/useI18n';
 
 /** How long a screen waits after a 429 that names no wait of its own. */
@@ -18,18 +19,16 @@ export function errorCode(error: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
-/** An HTTP status off a thrown SDK error. */
-export function errorStatus(error: unknown): number | undefined {
-  return (
-    (error as { status?: number } | undefined)?.status ??
-    (error as { response?: { status?: number } } | undefined)?.response?.status
-  );
-}
-
-/** A 429: too many attempts or emails. */
-export function isRateLimited(error: unknown): boolean {
-  return errorStatus(error) === 429;
-}
+/**
+ * The transport codes (core's `ErrorCodes`) for a request that never got an
+ * answer: offline, or timed out. Literals, so a module-load read never depends
+ * on core's values being initialised first.
+ */
+export const OFFLINE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'NETWORK_ERROR',
+  'CONNECTION_FAILED',
+  'TIMEOUT',
+]);
 
 /** How long to wait after a 429, from the API's `retryAfterSeconds` when it sent one. */
 export function retryAfterSeconds(error: unknown): number {
@@ -47,7 +46,9 @@ export function retryAfterSeconds(error: unknown): number {
  * for a failure with no more specific reason; it defaults to the generic line.
  */
 export function describeApiError(error: unknown, t: Translate, fallback?: string): string {
-  switch (errorCode(error)) {
+  const code = errorCode(error);
+  if (code !== undefined && OFFLINE_ERROR_CODES.has(code)) return t('signin.errors.network');
+  switch (code) {
     case SIGN_IN_ERROR_CODES.invalidCredentials:
       return t('signin.errors.invalidCredentials');
     case SIGN_IN_ERROR_CODES.requestInvalid:
@@ -84,20 +85,14 @@ export function describeApiError(error: unknown, t: Translate, fallback?: string
       return t('emailCode.errors.unavailable');
     // A malformed request: every screen checks the contract before sending, so
     // this is the backstop for a rule the client does not know yet.
-    case 'BAD_REQUEST':
+    case ErrorCodes.BAD_REQUEST:
       return t('signin.errors.invalidInput');
-    case 'NETWORK_ERROR':
-    case 'CONNECTION_FAILED':
-    case 'TIMEOUT':
-      return t('signin.errors.network');
-    default: {
-      if (isRateLimited(error))
+    default:
+      if (isRateLimitError(error))
         return t('signin.errors.rateLimited', { seconds: retryAfterSeconds(error) });
-      const status = errorStatus(error);
-      if (status === 0) return t('signin.errors.network');
-      if (status !== undefined && status >= 500) return t('signin.errors.server');
+      if (getErrorStatus(error) === 0) return t('signin.errors.network');
+      if (isServerError(error)) return t('signin.errors.server');
       return fallback ?? t('signin.errors.generic');
-    }
   }
 }
 

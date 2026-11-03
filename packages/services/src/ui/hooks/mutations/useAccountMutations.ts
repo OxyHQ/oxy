@@ -25,6 +25,7 @@ import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../queries/use
 import { removeAppAccessFromCache } from '../queries/useFileQueries';
 import { describeApiError } from '../../utils/apiErrorMessage';
 import { describeUsernameRefusal } from '../../utils/usernamePolicy';
+import { useApiErrorToast } from '../useApiErrorToast';
 import { useI18n } from '../useI18n';
 
 /**
@@ -134,7 +135,7 @@ export const useUpdateProfile = () => {
  * Upload avatar with progress tracking and offline queue support
  */
 export const useUploadAvatar = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -196,7 +197,7 @@ export const useUploadAvatar = () => {
           }
         }
       }
-      toast.error(describeApiError(error, t, t('actionErrors.uploadAvatar')));
+      showApiError(error, 'actionErrors.uploadAvatar');
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -254,7 +255,7 @@ interface UpdateAccountSettingsVariables {
  * underlying `.mutate({ updates, currentUser })` form via `.mutation`.
  */
 export const useUpdateAccountSettings = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId, user } = useOxy();
   const queryClient = useQueryClient();
 
@@ -320,7 +321,7 @@ export const useUpdateAccountSettings = () => {
           });
         }
       }
-      toast.error(describeApiError(error, t, t('actionErrors.updateSettings')));
+      showApiError(error, 'actionErrors.updateSettings');
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -366,7 +367,7 @@ export const useUpdateAccountSettings = () => {
  * Update privacy settings with optimistic updates and authentication handling
  */
 export const useUpdatePrivacySettings = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId, user } = useOxy();
   const queryClient = useQueryClient();
 
@@ -482,7 +483,7 @@ export const useUpdatePrivacySettings = () => {
         queryClient.invalidateQueries({ queryKey: queryKeys.privacy.settings(targetUserId) });
       }
 
-      toast.error(describeApiError(error, t, t('actionErrors.updatePrivacy')));
+      showApiError(error, 'actionErrors.updatePrivacy');
     },
     // On success, MERGE the server response into the cached state. Older
     // API builds returned only the changed field (or wiped the privacySettings
@@ -565,7 +566,7 @@ interface UploadResult {
  * invalidation behaviour as `useUpdateProfile`.
  */
 export const useUpdateNotificationPreferences = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -604,7 +605,7 @@ export const useUpdateNotificationPreferences = () => {
           });
         }
       }
-      toast.error(describeApiError(error, t, t('actionErrors.updateNotifications')));
+      showApiError(error, 'actionErrors.updateNotifications');
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -620,7 +621,7 @@ export const useUpdateNotificationPreferences = () => {
  * `PUT /users/me`.
  */
 export const useUpdateUserPreferences = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -659,7 +660,7 @@ export const useUpdateUserPreferences = () => {
           });
         }
       }
-      toast.error(describeApiError(error, t, t('actionErrors.updatePreferences')));
+      showApiError(error, 'actionErrors.updatePreferences');
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
@@ -676,7 +677,7 @@ export const useUpdateUserPreferences = () => {
  * re-consent.
  */
 export const useRevokeConnectedApp = () => {
-  const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -691,7 +692,7 @@ export const useRevokeConnectedApp = () => {
       invalidateConnectedAppsQueries(queryClient);
     },
     onError: (error) => {
-      toast.error(describeApiError(error, t, t('actionErrors.revokeConnectedApp')));
+      showApiError(error, 'actionErrors.revokeConnectedApp');
     },
   });
 };
