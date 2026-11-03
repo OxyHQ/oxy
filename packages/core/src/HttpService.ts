@@ -56,6 +56,21 @@ export type AccessTokenProvider = () => string | null;
  */
 export type AnonymousAuthProvider = () => Promise<string | null>;
 
+declare const credentialGenerationBrand: unique symbol;
+/**
+ * An opaque, immutable token for ONE installation of a bearer in a client.
+ *
+ * `TokenStore` swaps it on every write path (setter, refresh, account or actor
+ * switch, cross-tab or restored token, clear), so two installations of the same
+ * bytes (A, B, A) are different generations. It names a local sequence only: it
+ * is not evidence of an account, a scope or authorization.
+ */
+export type CredentialGeneration = { readonly [credentialGenerationBrand]: true };
+
+function newCredentialGeneration(): CredentialGeneration {
+  return Object.freeze({}) as CredentialGeneration;
+}
+
 /** Comparison only fences local async work; it never validates token authority. */
 function sameTokenSession(left: string | null, right: string | null): boolean {
   if (left === right) return true;
@@ -190,6 +205,13 @@ interface FormDataLike {
 }
 
 export interface RequestOptions {
+  /**
+   * Bind a write to ONE installation of the source's bearer. The transport
+   * rejects (`AUTH_SESSION_CHANGED`) when the generation was replaced before
+   * dispatch, after queueing, or before the result is returned. Implies no cache,
+   * deduplication or retry, and a 401 neither refreshes nor clears the session.
+   */
+  expectedCredentialGeneration?: CredentialGeneration;
   cache?: boolean;
   cacheTTL?: number;
   deduplicate?: boolean;
@@ -434,9 +456,21 @@ const CACHE_SIZE_WARNING_THROTTLE_MS = 60000;
  */
 class TokenStore {
   private accessToken: string | null = null;
+  private generation: CredentialGeneration = newCredentialGeneration();
 
   setTokens(accessToken: string): void {
+    this.generation = newCredentialGeneration();
     this.accessToken = accessToken;
+  }
+
+  /** The identity of the bearer's current installation, never of its bytes. */
+  getGeneration(): CredentialGeneration {
+    return this.generation;
+  }
+
+  /** Retire the current generation without touching the bearer (provider swaps). */
+  invalidateGeneration(): void {
+    this.generation = newCredentialGeneration();
   }
 
   getAccessToken(): string | null {
@@ -444,6 +478,7 @@ class TokenStore {
   }
 
   clearTokens(): void {
+    this.generation = newCredentialGeneration();
     this.accessToken = null;
   }
 
@@ -576,6 +611,7 @@ export class HttpService {
    * bearer — and through the token listeners, the account — back.
    */
   private sessionEpoch = 0;
+  private readonly credentialSource: HttpService | null;
   /** Preserve a known device across legacy rotations which omit the claim. */
   private sessionDeviceId: string | null = null;
   /** Preserve known actor and context hints across rotations without those claims. */
@@ -618,8 +654,9 @@ export class HttpService {
     averageResponseTime: 0,
   };
 
-  constructor(config: OxyConfig) {
+  constructor(config: OxyConfig, credentialSource: HttpService | null = null) {
     this.config = config;
+    this.credentialSource = credentialSource;
     this.baseURL = config.baseURL;
     this.tokenStore = new TokenStore();
 
@@ -760,6 +797,21 @@ export class HttpService {
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
     if (config.signal?.aborted) throw createCancelledError('Request cancelled before it was sent');
+    if (config.expectedCredentialGeneration) {
+      // The prototype is deliberately limited to writes; it does not
+      // yet define leases for cached/deduplicated reads or raw response paths.
+      if (
+        !['POST', 'PUT', 'PATCH', 'DELETE'].includes(config.method) ||
+        config.skipAuth ||
+        Object.keys(config.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
+      ) {
+        throw new Error('A credential generation requires an implicitly authenticated write');
+      }
+      (this.credentialSource ?? this).assertCredentialGeneration(
+        config.expectedCredentialGeneration,
+      );
+      config = { ...config, cache: false, deduplicate: false, retry: false };
+    }
     // The provider can change independently of the last request. Synchronize
     // before deriving the cache and deduplication identity, including hits.
     const explicitAuthorization = Object.keys(config.headers ?? {}).some(
@@ -878,6 +930,15 @@ export class HttpService {
     const authHeader = usesSessionAuth
       ? await awaitRequestSignal(this.getAuthHeader(), signal)
       : null;
+    const assertExpectedCredential = () => {
+      if (config.expectedCredentialGeneration) {
+        (this.credentialSource ?? this).assertCredentialGeneration(
+          config.expectedCredentialGeneration,
+          authHeader,
+        );
+      }
+    };
+    assertExpectedCredential();
     const isOriginalSession = () => {
       if (this.sessionEpoch !== contextEpoch) return false;
       const currentToken = this.syncAccessTokenFromProvider();
@@ -929,6 +990,7 @@ export class HttpService {
       if (usesSessionAuth && !isOriginalSession()) {
         throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
       }
+      assertExpectedCredential();
 
       /**
        * Whether OUR timer fired, so a timeout can be told apart from a
@@ -1042,6 +1104,9 @@ export class HttpService {
           throw new Error('Requester proofs require a transport that rejects redirects');
         }
 
+        // Header and source generation are checked together in this synchronous
+        // dispatch segment, after the preflight and any queue wait.
+        assertExpectedCredential();
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -1065,6 +1130,13 @@ export class HttpService {
         // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
+        try {
+          assertExpectedCredential();
+        } catch (error) {
+          void discardResponseBody(response);
+          throw error;
+        }
+
         if (usesSessionAuth && !isOriginalSession()) {
           void discardResponseBody(response);
           throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
@@ -1077,6 +1149,7 @@ export class HttpService {
           // session routes; the refresh handler owns session rotation.
           if (
             response.status === 401 &&
+            !config.expectedCredentialGeneration &&
             !config._isAuthRetry &&
             usesSessionAuth &&
             isOriginalSession()
@@ -1218,12 +1291,14 @@ export class HttpService {
         if (usesSessionAuth && !isOriginalSession()) {
           throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
         }
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(true, duration);
         this.config.onRequestEnd?.(url, method, duration, true);
 
         return responseData as T;
       } catch (error: unknown) {
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(false, duration);
         // A body reader can reject or finish parsing an error after the viewer
@@ -1348,6 +1423,7 @@ export class HttpService {
     if (usesSessionAuth && !isOriginalSession()) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
+    assertExpectedCredential();
 
     // Cache the result if caching is enabled
     if (cache && cacheKey && lease.valid && result) {
@@ -2192,6 +2268,36 @@ export class HttpService {
     return this.sessionEpoch;
   }
 
+  /** Capture only the local generation; the caller must separately bind authority. */
+  captureCredentialGeneration(): CredentialGeneration | null {
+    // A pull-only provider can change A→B→A between reads without notifying us.
+    if (this.accessTokenProvider) return null;
+    return this.tokenStore.getAccessToken() ? this.tokenStore.getGeneration() : null;
+  }
+
+  isCredentialGenerationCurrent(generation: CredentialGeneration): boolean {
+    return (
+      !this.accessTokenProvider &&
+      this.tokenStore.getAccessToken() !== null &&
+      generation === this.tokenStore.getGeneration()
+    );
+  }
+
+  private assertCredentialGeneration(
+    generation: CredentialGeneration,
+    selectedHeader?: string | null,
+  ): void {
+    const token = this.tokenStore.getAccessToken();
+    if (
+      this.accessTokenProvider ||
+      !token ||
+      generation !== this.tokenStore.getGeneration() ||
+      (selectedHeader !== undefined && selectedHeader !== `Bearer ${token}`)
+    ) {
+      throw new OxyAuthenticationError('The request credential changed', 'AUTH_SESSION_CHANGED');
+    }
+  }
+
   /** Whether {@link endSession} ran and no token has been planted since. */
   hasSessionEnded(): boolean {
     return this.sessionEnded;
@@ -2202,6 +2308,7 @@ export class HttpService {
   }
 
   setAccessTokenProvider(provider: AccessTokenProvider | null): void {
+    this.tokenStore.invalidateGeneration();
     this.accessTokenProvider = provider;
   }
 
