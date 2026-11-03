@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.5.0
+
+### Added
+
+- `normalizeDomainName` and `DOMAIN_NAME_MAX_LENGTH` (client entry): the one domain rule `POST /identity/domains` and the domains screen share. Written without lookbehind, so it runs on Hermes.
+- `SIGN_IN_IDENTIFIER_MAX_LENGTH` (254) and `SECOND_FACTOR_CODE_MAX_LENGTH` (16), the bounds `signInIdentifierSchema` and `secondFactorCodeSchema` already enforced, named so a field can carry them as `maxLength`.
+
 ## 6.4.0
 
 ### Added

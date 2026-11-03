@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 7.13.0
+
+### Added
+
+- Strings: `usernamePolicy.*` (each username rule, and the field hint), `actionErrors.*` (what a failed save or session action was), `signin.errors.{network,invalidInput,server}`, `signInSecurity.password.tooLong`, `deleteAccount.confirmMismatch`, `domains.errors.invalid` and the email-invitation copy under `accounts.members`.
+
+### Changed
+
+- Every path segment the API clients build from a caller's value is encoded (`auth.checkUsername`, `topics`, `users`, `follows`, `privacy`, `devices`, `session`, `billing`, `apps`): a name like `hash saah` or a slug with `/` reached a different route.
+- The "username rules" help text states the real policy (3–30 characters, letters, numbers, `-` and `_`; case kept, compared without case).
+- Aligns with `@oxy.so/contracts` 6.5.0.
+
+### Removed
+
+- Strings no screen reads any more: `signup.username.required`, `editProfile.items.username.{required,tooShort}`, `accounts.create.username.{tooShort,invalidChars,mustEndInBot}`, `welcomeNew.name.saveFailed`, `accounts.members.errors.{identifierRequired,userNotFound}`, `accounts.members.invite.identifierLabel`, `accounts.members.toasts.{added,addFailed}`.
+
 ## 7.12.0
 
 ### Added

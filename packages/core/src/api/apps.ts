@@ -494,7 +494,7 @@ export class ConnectedAppsApi {
   async revoke(applicationId: string): Promise<void> {
     await this.ctx.request<{ revoked: boolean }>(
       'DELETE',
-      `/auth/grants/${applicationId}`,
+      `/auth/grants/${enc(applicationId)}`,
       undefined,
       { cache: false },
     );

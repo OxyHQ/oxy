@@ -25,6 +25,7 @@ import {
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   EMAIL_VERIFICATION_ERROR_CODES,
   SIGN_IN_ERROR_CODES,
+  TOTP_DIGITS,
   normalizeEmailSignInCode,
 } from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/oxyRuntimeContext';
@@ -32,91 +33,7 @@ import { useI18n } from '../../hooks/useI18n';
 import type { Translate } from '../authChooser/types';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
-
-/** How long a screen waits after a 429 that names no wait of its own. */
-export const RATE_LIMIT_SECONDS = 60;
-
-/** The API error code a thrown SDK error carries (`error.code`), if any. */
-export function errorCode(error: unknown): string | undefined {
-  const code = (error as { code?: unknown } | null)?.code;
-  return typeof code === 'string' ? code : undefined;
-}
-
-/** An HTTP status off a thrown SDK error. */
-function errorStatus(error: unknown): number | undefined {
-  return (
-    (error as { status?: number } | undefined)?.status ??
-    (error as { response?: { status?: number } } | undefined)?.response?.status
-  );
-}
-
-/** A 429: too many attempts or emails. */
-export function isRateLimited(error: unknown): boolean {
-  return errorStatus(error) === 429;
-}
-
-/** How long to wait after a 429, from the API's `retryAfterSeconds` when it sent one. */
-export function retryAfterSeconds(error: unknown): number {
-  const seconds = (error as { details?: { retryAfterSeconds?: unknown } } | undefined)?.details
-    ?.retryAfterSeconds;
-  return typeof seconds === 'number' && seconds > 0 ? Math.ceil(seconds) : RATE_LIMIT_SECONDS;
-}
-
-/**
- * A failure of a sign-in or account screen, in the person's language. Never
- * says whether an account exists: every "no" is the same sentence.
- */
-export function describeSignInError(error: unknown, t: Translate): string {
-  switch (errorCode(error)) {
-    case SIGN_IN_ERROR_CODES.invalidCredentials:
-      return t('signin.errors.invalidCredentials');
-    case SIGN_IN_ERROR_CODES.requestInvalid:
-    case SIGN_IN_ERROR_CODES.linkInvalid:
-      return t('signin.errors.requestExpired');
-    case SIGN_IN_ERROR_CODES.secondFactorInvalid:
-    case SIGN_IN_ERROR_CODES.totpCodeInvalid:
-      return t('signin.errors.secondFactorInvalid');
-    case SIGN_IN_ERROR_CODES.reauthInvalid:
-    case SIGN_IN_ERROR_CODES.reauthRequired:
-      return t('reauth.errors.invalid');
-    case SIGN_IN_ERROR_CODES.totpRequired:
-      return t('reauth.errors.totpRequired');
-    case SIGN_IN_ERROR_CODES.originNotAllowed:
-      return t('signin.errors.originNotAllowed');
-    case SIGN_IN_ERROR_CODES.usernameTaken:
-      return t('signup.username.taken');
-    case SIGN_IN_ERROR_CODES.emailAccountsFull:
-      return t('signin.errors.emailAccountsFull');
-    case SIGN_IN_ERROR_CODES.lastSignInMethod:
-      return t('signInSecurity.errors.lastSignInMethod');
-    case SIGN_IN_ERROR_CODES.passwordRequired:
-      return t('signInSecurity.errors.passwordRequired');
-    case SIGN_IN_ERROR_CODES.emailUnchanged:
-      return t('signInSecurity.errors.emailUnchanged');
-    case EMAIL_VERIFICATION_ERROR_CODES.codeInvalid:
-      return t('emailCode.errors.codeInvalid');
-    case EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts:
-      return t('emailCode.errors.tooManyAttempts');
-    case EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid:
-    case EMAIL_VERIFICATION_ERROR_CODES.ticketRequired:
-      return t('emailCode.errors.expired');
-    case EMAIL_VERIFICATION_ERROR_CODES.unavailable:
-      return t('emailCode.errors.unavailable');
-    default:
-      if (isRateLimited(error))
-        return t('signin.errors.rateLimited', { seconds: retryAfterSeconds(error) });
-      return t('signin.errors.generic');
-  }
-}
-
-/** Whether the confirmation this flow holds is gone and it must start again. */
-export function isTicketExpired(error: unknown): boolean {
-  const code = errorCode(error);
-  return (
-    code === EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid ||
-    code === EMAIL_VERIFICATION_ERROR_CODES.ticketRequired
-  );
-}
+import { describeApiError } from '../../utils/apiErrorMessage';
 
 const SIX_DIGITS = new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`);
 const LONG_CODE = new RegExp(
@@ -137,6 +54,15 @@ export function isCompleteSignInCode(typed: string): boolean {
 export const BACKUP_CODE_LENGTH = 10;
 
 /**
+ * Every box of the second-factor field is filled: six digits, or a backup code's
+ * ten characters. A partial code is never sent — the server would refuse it as
+ * a malformed request, which reads as "Something went wrong".
+ */
+export function isCompleteSecondFactorCode(typed: string, backup: boolean): boolean {
+  return typed.trim().length === (backup ? BACKUP_CODE_LENGTH : TOTP_DIGITS);
+}
+
+/**
  * One labelled input, the way the sign-in screen draws its fields. A
  * `secureTextEntry` field is always revealable: Bloom's eye button shows and
  * hides the password, named in the locale Bloom speaks (`OxyProvider` sets it).
@@ -154,6 +80,7 @@ export const AccountFlowField: React.FC<{
   secureTextEntry?: boolean;
   autoFocus?: boolean;
   hint?: string;
+  maxLength?: number;
   testID: string;
 }> = ({
   label,
@@ -168,6 +95,7 @@ export const AccountFlowField: React.FC<{
   secureTextEntry,
   autoFocus = true,
   hint,
+  maxLength,
   testID,
 }) => (
   <View style={styles.field}>
@@ -186,6 +114,7 @@ export const AccountFlowField: React.FC<{
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={autoFocus}
+        maxLength={maxLength}
         returnKeyType="go"
         onSubmitEditing={onSubmit}
         aria-required
@@ -376,7 +305,7 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({
     oxyServices.auth.email
       .confirmVerification(verificationId, digits)
       .then(onConfirmed)
-      .catch((reason: unknown) => setError(describeSignInError(reason, t)))
+      .catch((reason: unknown) => setError(describeApiError(reason, t)))
       .finally(() => setPending(false));
   };
 
@@ -386,7 +315,7 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({
     setCode('');
     onResend()
       .then(() => setNotice(t('emailCode.resent')))
-      .catch((reason: unknown) => setError(describeSignInError(reason, t)));
+      .catch((reason: unknown) => setError(describeApiError(reason, t)));
   };
 
   return (

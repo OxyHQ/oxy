@@ -182,6 +182,9 @@ const dict = {
       requestExpired: 'This sign-in expired. Send a new email.',
       secondFactorInvalid: "That code isn't right. Try the current one.",
       originNotAllowed: "Sign-in isn't available here.",
+      network: "Couldn't reach Oxy. Check your connection and try again.",
+      invalidInput: "Something you entered isn't valid. Check it and try again.",
+      server: "Oxy couldn't finish this right now. Try again in a moment.",
       generic: 'Something went wrong. Please try again.',
     },
     subtitleToApp: 'to continue to {{app}}',
@@ -247,6 +250,32 @@ const dict = {
         'It expired or was already used. Ask for a new email in the app, or type the code from the latest one.',
     },
   },
+  actionErrors: {
+    updateProfile: "Couldn't update your profile. Please try again.",
+    uploadAvatar: "Couldn't upload the picture. Please try again.",
+    updateSettings: "Couldn't save your settings. Please try again.",
+    updatePrivacy: "Couldn't save your privacy settings. Please try again.",
+    updateNotifications: "Couldn't save your notification preferences. Please try again.",
+    updatePreferences: "Couldn't save your preferences. Please try again.",
+    revokeConnectedApp: "Couldn't disconnect the app. Please try again.",
+    switchSession: "Couldn't switch accounts. Please try again.",
+    logout: "Couldn't sign out. Please try again.",
+    logoutAll: "Couldn't sign out everywhere. Please try again.",
+    updateDeviceName: "Couldn't rename the device. Please try again.",
+    removeDevice: "Couldn't remove the device. Please try again.",
+  },
+  usernamePolicy: {
+    hint: 'Letters, numbers, - and _. No spaces.',
+    required: 'Choose a username.',
+    tooShort: 'Use at least {{min}} characters.',
+    tooLong: 'Use at most {{max}} characters.',
+    noSpaces: "Usernames can't contain spaces. Use - or _ instead.",
+    characters:
+      'Use only letters, numbers, - and _. Start and end with a letter or number, and never put two of - or _ together.',
+    onlyNumbers: "A username can't be only numbers. Add a letter.",
+    reserved: 'That username is reserved. Choose another one.',
+    mustEndInBot: 'A bot account’s username must end in “bot”.',
+  },
   signup: {
     title: 'Create your account',
     subtitle: 'Choose your username. Then we confirm your email.',
@@ -255,7 +284,6 @@ const dict = {
     username: {
       label: 'Username',
       placeholder: 'yourname',
-      required: 'Choose a username.',
       taken: 'That username is taken.',
     },
     email: {
@@ -304,7 +332,6 @@ const dict = {
       firstPlaceholder: 'Your first name',
       lastLabel: 'Last name',
       lastPlaceholder: 'Your last name',
-      saveFailed: 'Could not save your name',
     },
     avatar: {
       title: 'Make It Yours',
@@ -632,8 +659,6 @@ const dict = {
         label: 'Username',
         placeholder: 'Choose a username',
         choose: 'Choose a username',
-        required: 'Username is required',
-        tooShort: 'Username must be at least 3 characters',
       },
       email: {
         title: 'Email',
@@ -1300,7 +1325,7 @@ const dict = {
       rules: {
         title: 'Username rules',
         content:
-          'Usernames can only contain lowercase letters (a-z) and numbers (0-9). They must be at least 4 characters long. Special characters, spaces, and uppercase letters are not allowed to keep usernames simple and easy to remember.',
+          'Usernames are 3 to 30 characters long and use letters, numbers, hyphens (-) and underscores (_). They start and end with a letter or number, never put two of - or _ together, and are not only numbers. Spaces are not allowed. Capital letters are kept as you type them, but Alice and alice are the same username.',
       },
       unique: {
         title: 'Why must it be unique?',
@@ -1892,9 +1917,6 @@ const dict = {
         label: 'Username',
         available: 'Username is available',
         taken: 'Username is taken',
-        tooShort: 'Username must be at least 3 characters',
-        invalidChars: 'Only letters, numbers, hyphens, and underscores',
-        mustEndInBot: 'A bot account’s username must end in “bot”',
         checkFailed: 'Could not check availability',
       },
       accountCategory: {
@@ -1929,16 +1951,16 @@ const dict = {
         transfer: 'Transfer ownership',
       },
       errors: {
-        identifierRequired: 'Enter a username or email to invite',
+        emailRequired: 'Enter an email to invite.',
+        emailInvalid: 'Enter a valid email address, like name@example.com.',
         missingAccount: 'No account selected.',
         noPermission: 'You do not have permission to view members.',
-        userNotFound: 'User not found',
       },
       invite: {
-        title: 'Add a member',
-        identifierLabel: 'Username or email',
+        title: 'Invite a member',
+        emailLabel: 'Email',
         roleLabel: 'Role',
-        submit: 'Add member',
+        submit: 'Send invitation',
       },
       removeConfirm: {
         title: 'Remove member',
@@ -1950,8 +1972,9 @@ const dict = {
           'Transfer ownership of this account to this member? You will be demoted to admin. This cannot be undone.',
       },
       toasts: {
-        added: 'Member added',
-        addFailed: 'Failed to add member',
+        invited: 'Invitation sent',
+        inviteFailed: "Couldn't send the invitation. Please try again.",
+        invitationUpdateFailed: "Couldn't update the invitation. Please try again.",
         removed: 'Member removed',
         removeFailed: 'Failed to remove member',
         roleUpdated: 'Role updated',
@@ -2015,6 +2038,7 @@ const dict = {
     warning:
       'This action cannot be undone. Your account and all associated data will be permanently deleted.',
     confirmLabel: 'Type "{{username}}" to confirm',
+    confirmMismatch: 'That isn\'t your username. Type "{{username}}" exactly.',
     confirm: 'Delete Forever',
     error: 'Failed to delete account',
     handoff: {
@@ -2383,6 +2407,7 @@ const dict = {
       newLabel: 'New password',
       repeatLabel: 'Repeat the password',
       tooShort: 'Use at least {{min}} characters.',
+      tooLong: 'Use at most {{max}} characters.',
       mismatch: "The passwords don't match.",
       signOutOthers: 'Sign out everywhere else',
       save: 'Save password',
@@ -2447,6 +2472,7 @@ const dict = {
       request: "Couldn't start the verification. Check the domain and try again.",
       notYet: 'Not verified yet. Changes to DNS can take a while to show up.',
       remove: "Couldn't remove the domain",
+      invalid: 'Enter just the domain, like example.com — no https://, slashes or spaces.',
     },
     remove: {
       title: 'Remove domain',

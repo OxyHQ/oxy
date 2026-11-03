@@ -20,6 +20,8 @@ import type {
   HolderEvidenceUnavailableReason,
 } from './holderEvidence';
 
+const enc = encodeURIComponent;
+
 /** How long a refusal (disabled, rate limited, unreachable) is remembered per installation. */
 const EVIDENCE_REFUSAL_MS = 5_000;
 const unavailable = (reason: HolderEvidenceUnavailableReason): HolderEvidenceResult => ({
@@ -376,7 +378,7 @@ export class SessionApi {
           )
         : await this.ctx.request<SessionValidation>(
             'GET',
-            `/session/validate/${sessionId}`,
+            `/session/validate/${enc(sessionId)}`,
             {
               ...(options.deviceFingerprint
                 ? { deviceFingerprint: options.deviceFingerprint }
@@ -407,7 +409,7 @@ export class SessionApi {
         const invalid =
           candidate?.status === 401 && candidate.code === 'OXY_LIVE_SESSION_INVALID_V1';
         const denied = candidate?.status === 403 && candidate.code === 'OXY_LIVE_SESSION_POLICY_V1';
-        if (invalid) this.ctx.oxy.cache.delete(`GET:/session/user/${sessionId}`);
+        if (invalid) this.ctx.oxy.cache.delete(`GET:/session/user/${enc(sessionId)}`);
         if (invalid || denied) throw error;
         throw new OxyApiError('Live session authority is unavailable', {
           status: 503,
@@ -416,29 +418,36 @@ export class SessionApi {
         });
       }
       // The session is gone: drop any user cached for it (#196).
-      this.ctx.oxy.cache.delete(`GET:/session/user/${sessionId}`);
+      this.ctx.oxy.cache.delete(`GET:/session/user/${enc(sessionId)}`);
       throw error;
     }
   }
 
   /** The sessions that belong with `sessionId` (same account set). */
   async list(sessionId: string): Promise<ClientSession[]> {
-    return this.ctx.request<ClientSession[]>('GET', `/session/sessions/${sessionId}`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<ClientSession[]>(
+      'GET',
+      `/session/sessions/${enc(sessionId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /** Sign out `sessionId`, or — with `targetSessionId` — one of the sessions beside it. */
   async logout(sessionId: string, targetSessionId?: string): Promise<void> {
     const url = targetSessionId
-      ? `/session/logout/${sessionId}/${targetSessionId}`
-      : `/session/logout/${sessionId}`;
+      ? `/session/logout/${enc(sessionId)}/${enc(targetSessionId)}`
+      : `/session/logout/${enc(sessionId)}`;
     await this.ctx.request('POST', url, undefined, { cache: false });
   }
 
   /** Sign out the other sessions for this account; preserve `sessionId`. */
   async logoutAll(sessionId: string): Promise<void> {
-    await this.ctx.request('POST', `/session/logout-all/${sessionId}`, undefined, { cache: false });
+    await this.ctx.request('POST', `/session/logout-all/${enc(sessionId)}`, undefined, {
+      cache: false,
+    });
   }
 
   /** Decoded claims of the current token, memoised per token string. */

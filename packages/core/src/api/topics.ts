@@ -4,6 +4,8 @@
 import type { OxyContext } from '../client/context';
 import type { TopicData, TopicListResult, TopicTranslation } from '../models/Topic';
 
+const enc = encodeURIComponent;
+
 const SHORT = 60 * 1000;
 const LONG = 5 * 60 * 1000;
 const EXTRA_LONG = 30 * 60 * 1000;
@@ -51,7 +53,7 @@ export class TopicsApi {
 
   /** One topic by slug. */
   async get(slug: string): Promise<TopicData> {
-    return this.ctx.request<TopicData>('GET', `/topics/${slug}`, undefined, {
+    return this.ctx.request<TopicData>('GET', `/topics/${enc(slug)}`, undefined, {
       cache: true,
       cacheTTL: LONG,
     });
@@ -86,10 +88,10 @@ export class TopicsApi {
     slug: string,
     data: { description?: string; translations?: Record<string, TopicTranslation> },
   ): Promise<TopicData> {
-    const topic = await this.ctx.request<TopicData>('PATCH', `/topics/${slug}`, data, {
+    const topic = await this.ctx.request<TopicData>('PATCH', `/topics/${enc(slug)}`, data, {
       cache: false,
     });
-    this.ctx.oxy.cache.delete(`GET:/topics/${slug}`);
+    this.ctx.oxy.cache.delete(`GET:/topics/${enc(slug)}`);
     return topic;
   }
 }

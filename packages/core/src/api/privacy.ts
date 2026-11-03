@@ -5,6 +5,8 @@ import type { BlockedUser, PrivacySettings, RestrictedUser } from '../models/int
 import type { OxyContext } from '../client/context';
 import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
 
+const enc = encodeURIComponent;
+
 const LIST_TTL = 60 * 1000;
 const SETTINGS_TTL = 2 * 60 * 1000;
 
@@ -20,7 +22,7 @@ export class PrivacyApi {
   /** A user's privacy settings (default: the signed-in user's). */
   async settings(userId?: string): Promise<PrivacySettings> {
     const id = await this.resolveUserId(userId);
-    return this.ctx.request<PrivacySettings>('GET', `/privacy/${id}/privacy`, undefined, {
+    return this.ctx.request<PrivacySettings>('GET', `/privacy/${enc(id)}/privacy`, undefined, {
       cache: true,
       cacheTTL: SETTINGS_TTL,
     });
@@ -34,13 +36,13 @@ export class PrivacyApi {
     const id = await this.resolveUserId(userId);
     const res = await this.ctx.request<PrivacySettings>(
       'PATCH',
-      `/privacy/${id}/privacy`,
+      `/privacy/${enc(id)}/privacy`,
       settings,
       { cache: false },
     );
     // Privacy settings ride the user DTO, so every identity read goes stale too.
     evictOxyIdentityCache(this.ctx.http, id);
-    this.ctx.oxy.cache.delete(`GET:/privacy/${id}/privacy`);
+    this.ctx.oxy.cache.delete(`GET:/privacy/${enc(id)}/privacy`);
     return res;
   }
 
@@ -59,7 +61,7 @@ export class PrivacyApi {
     requireId(userId);
     const res = await this.ctx.request<{ message: string }>(
       'POST',
-      `/privacy/blocked/${userId}`,
+      `/privacy/blocked/${enc(userId)}`,
       undefined,
       { cache: false },
     );
@@ -72,7 +74,7 @@ export class PrivacyApi {
     requireId(userId);
     const res = await this.ctx.request<{ message: string }>(
       'DELETE',
-      `/privacy/blocked/${userId}`,
+      `/privacy/blocked/${enc(userId)}`,
       undefined,
       { cache: false },
     );
@@ -105,7 +107,7 @@ export class PrivacyApi {
     requireId(userId);
     const res = await this.ctx.request<{ message: string }>(
       'POST',
-      `/privacy/restricted/${userId}`,
+      `/privacy/restricted/${enc(userId)}`,
       undefined,
       { cache: false },
     );
@@ -118,7 +120,7 @@ export class PrivacyApi {
     requireId(userId);
     const res = await this.ctx.request<{ message: string }>(
       'DELETE',
-      `/privacy/restricted/${userId}`,
+      `/privacy/restricted/${enc(userId)}`,
       undefined,
       { cache: false },
     );

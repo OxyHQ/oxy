@@ -164,16 +164,13 @@ export function DevicePage() {
           body: '{}',
         },
       );
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(
-          typeof payload?.message === 'string' ? payload.message : t('device.errors.approveFailed'),
-        );
-      }
+      // The server's `message` is English and developer-facing; the page
+      // says what to do, in the person's language.
+      if (!response.ok) throw new Error('authorize-code refused');
       setOutcome('approved');
-    } catch (caught) {
+    } catch {
       completingRef.current = false;
-      setError(caught instanceof Error ? caught.message : t('device.errors.approveFailed'));
+      setError(t('device.errors.approveFailed'));
     } finally {
       setSubmitting(false);
     }

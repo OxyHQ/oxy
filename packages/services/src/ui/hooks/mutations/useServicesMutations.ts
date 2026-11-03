@@ -4,11 +4,14 @@ import { queryKeys, invalidateSessionQueries } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
+import { describeApiError } from '../../utils/apiErrorMessage';
+import { useI18n } from '../useI18n';
 
 /**
  * Switch active session
  */
 export const useSwitchSession = () => {
+  const { t } = useI18n();
   const { switchSession } = useOxy();
   const queryClient = useQueryClient();
 
@@ -28,7 +31,7 @@ export const useSwitchSession = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to switch session');
+      toast.error(describeApiError(error, t, t('actionErrors.switchSession')));
     },
   });
 };
@@ -37,6 +40,7 @@ export const useSwitchSession = () => {
  * Logout from a session
  */
 export const useLogoutSession = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -75,7 +79,7 @@ export const useLogoutSession = () => {
       if (context?.previousSessions) {
         queryClient.setQueryData(queryKeys.sessions.list(), context.previousSessions);
       }
-      toast.error(error instanceof Error ? error.message : 'Failed to logout');
+      toast.error(describeApiError(error, t, t('actionErrors.logout')));
     },
     onSuccess: () => {
       // Invalidate all session queries
@@ -91,6 +95,7 @@ export const useLogoutSession = () => {
  * Logout from all sessions
  */
 export const useLogoutAll = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId, clearSessionState } = useOxy();
   const queryClient = useQueryClient();
 
@@ -110,7 +115,7 @@ export const useLogoutAll = () => {
       toast.success('Logged out from all sessions');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to logout from all sessions');
+      toast.error(describeApiError(error, t, t('actionErrors.logoutAll')));
     },
   });
 };
@@ -119,6 +124,7 @@ export const useLogoutAll = () => {
  * Update device name
  */
 export const useUpdateDeviceName = () => {
+  const { t } = useI18n();
   const { oxyServices, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
 
@@ -138,7 +144,7 @@ export const useUpdateDeviceName = () => {
       toast.success('Device name updated');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to update device name');
+      toast.error(describeApiError(error, t, t('actionErrors.updateDeviceName')));
     },
   });
 };
@@ -147,6 +153,7 @@ export const useUpdateDeviceName = () => {
  * Remove a device
  */
 export const useRemoveDevice = () => {
+  const { t } = useI18n();
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
 
@@ -163,7 +170,7 @@ export const useRemoveDevice = () => {
       toast.success('Device removed');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to remove device');
+      toast.error(describeApiError(error, t, t('actionErrors.removeDevice')));
     },
   });
 };
