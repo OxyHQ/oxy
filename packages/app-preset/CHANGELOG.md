@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 5.3.0
+
+### Changed
+
+- The static-hydration document assembly parses with `parse5` 8 (was 7.3.0). parse5 8 is published ESM-only and is loaded with `require`, so the preset now declares Node `>=20.19.0`, the first release that loads an ES module from `require` without a flag (Expo SDK 58 already requires it).
+
 ## 5.2.0
 
 ### Security

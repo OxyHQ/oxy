@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.16.0
+
+### Changed
+
+- The optional `express` peer admits Express 5 (`^4.0.0 || ^5.0.0`). `OxyServer`'s middleware and `@oxy.so/core/server` are exercised against Express 5 in this repository's own tests; Express 4 consumers are unaffected.
+
 ## 7.15.1
 
 ### Changed

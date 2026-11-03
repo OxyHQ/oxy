@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.6.1
+
+### Changed
+
+- `createNodeApp` runs on Express 5 (already in the peer range): the blob read infers its `:hash` param from the route instead of typing the request by hand. Repeated query params (`?limit=2&limit=99`) still read as their first value under either Express's query parser.
+
 ## 1.6.0
 
 ### Changed

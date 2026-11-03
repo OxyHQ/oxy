@@ -1,4 +1,5 @@
 import { optionalUserOrServiceAuth } from '../middleware/optionalAuth';
+import type { NamedRouteParams } from '../types/routeParams';
 /**
  * Profile Routes
  *
@@ -79,7 +80,7 @@ import {
   type RecommendationBoost,
 } from '@oxy.so/contracts';
 
-interface AuthRequest extends Request {
+interface AuthRequest extends Request<NamedRouteParams> {
   user?: {
     id: string;
   };

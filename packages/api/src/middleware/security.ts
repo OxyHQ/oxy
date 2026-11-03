@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import type { NamedRouteParams } from '../types/routeParams';
 import slowDown from 'express-slow-down';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
@@ -151,7 +152,7 @@ export function isCapabilityUrlPath(path: string): boolean {
  */
 const SERVICE_PRINCIPAL = Symbol('oxy.rateLimit.servicePrincipal');
 
-interface RequestWithServicePrincipal extends Request {
+interface RequestWithServicePrincipal extends Request<NamedRouteParams> {
   [SERVICE_PRINCIPAL]?: { payload: ReturnType<typeof verifyServiceToken> };
 }
 
@@ -203,7 +204,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 /** Cache slot for {@link userPrincipal}; see {@link SERVICE_PRINCIPAL}. */
 const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
 
-interface RequestWithUserPrincipal extends Request {
+interface RequestWithUserPrincipal extends Request<NamedRouteParams> {
   [USER_PRINCIPAL]?: { userId?: string; clientId?: string; expiresAt?: number };
 }
 
