@@ -1576,6 +1576,20 @@
       "when": 1793626417303,
       "tag": "0225_application_account_registrations",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1793718129529,
+      "tag": "0226_personal_checkout_quote_unix_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1793718140318,
+      "tag": "0227_drop_personal_checkout_quote_lexemes",
+      "breakpoints": true
     }
   ]
 }

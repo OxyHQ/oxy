@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { uuidv7 } from '@oxy.so/db';
 import type { BillingTaxQuote } from '@peable.to/sdk';
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import {
   personalPlanCheckoutRequestSchema,
   productPlanCheckoutRequestSchema,
@@ -334,8 +334,6 @@ export function personalCheckoutSnapshotFromIntent(
     !intent.taxQuoteCustomerLocationEvidenceRef ||
     !intent.taxQuoteQuotedAt ||
     !intent.taxQuoteExpiresAt ||
-    !intent.taxQuoteQuotedAtLexeme ||
-    !intent.taxQuoteExpiresAtLexeme ||
     !intent.taxQuoteSignatureKeyRef ||
     !intent.taxQuoteSignatureValue
   )
@@ -353,12 +351,12 @@ export function personalCheckoutSnapshotFromIntent(
     environment: intent.environment,
     returnUrl: intent.returnUrl,
     taxQuote: {
-      schemaVersion: 1,
+      schema_version: 2,
       source: {
-        merchantId: intent.providerAccountRef,
-        appId: intent.applicationRef,
-        storeId: intent.subjectAccountId,
-        planId: intent.planRef,
+        merchant_id: intent.providerAccountRef,
+        app_id: intent.applicationRef,
+        store_id: intent.subjectAccountId,
+        plan_id: intent.planRef,
         mode: billingNamespaceSchema.parse({ mode: intent.mode, environment: intent.environment })
           .mode,
         environment: z.enum(['development', 'staging', 'production']).parse(intent.environment),
@@ -366,51 +364,57 @@ export function personalCheckoutSnapshotFromIntent(
       quote: {
         id: intent.taxQuoteRef,
         currency: intent.taxQuoteCurrency,
-        grossMinorUnits: intent.amountMinorUnits,
-        netMinorUnits: intent.taxQuoteNetMinorUnits,
-        taxMinorUnits: intent.taxQuoteTaxMinorUnits,
-        taxTreatment: 'inclusive',
-        sellerId: intent.taxQuoteSellerRef,
-        invoiceIssuerId: intent.taxQuoteInvoiceIssuerRef,
-        taxRemitterId: intent.taxQuoteTaxRemitterRef,
-        taxServiceRef: intent.taxQuoteTaxServiceRef,
+        gross_minor_units: intent.amountMinorUnits,
+        net_minor_units: intent.taxQuoteNetMinorUnits,
+        tax_minor_units: intent.taxQuoteTaxMinorUnits,
+        tax_treatment: 'inclusive',
+        seller_id: intent.taxQuoteSellerRef,
+        invoice_issuer_id: intent.taxQuoteInvoiceIssuerRef,
+        tax_remitter_id: intent.taxQuoteTaxRemitterRef,
+        tax_service_ref: intent.taxQuoteTaxServiceRef,
         country: intent.taxQuoteCountry,
-        coverageEvidenceId: intent.taxQuoteCoverageEvidenceRef,
-        taxRateEvidenceId: intent.taxQuoteTaxRateEvidenceRef,
-        customerLocationEvidenceId: intent.taxQuoteCustomerLocationEvidenceRef,
-        quotedAt: intent.taxQuoteQuotedAtLexeme,
-        expiresAt: intent.taxQuoteExpiresAtLexeme,
+        coverage_evidence_id: intent.taxQuoteCoverageEvidenceRef,
+        tax_rate_evidence_id: intent.taxQuoteTaxRateEvidenceRef,
+        customer_location_evidence_id: intent.taxQuoteCustomerLocationEvidenceRef,
+        quoted_at: signedUnixSeconds(intent.taxQuoteQuotedAt),
+        expires_at: signedUnixSeconds(intent.taxQuoteExpiresAt),
       },
       signature: {
         algorithm: 'Ed25519',
-        keyId: intent.taxQuoteSignatureKeyRef,
+        key_id: intent.taxQuoteSignatureKeyRef,
         value: intent.taxQuoteSignatureValue,
       },
     },
   };
 }
-/** Typed columns retain exact signed ISO lexemes alongside queryable timestamps. */
+/** A signed Peable instant is whole Unix seconds (ADR 0014), so the stored
+ * timestamptz restores it exactly; anything finer was never a signed value. */
+function signedUnixSeconds(instant: Date): number {
+  const milliseconds = instant.getTime();
+  if (!Number.isSafeInteger(milliseconds) || milliseconds % 1000 !== 0)
+    throw new ConflictError('Stored checkout authority is not a signed instant');
+  return milliseconds / 1000;
+}
+/** Typed columns hold the signed quote; its instants are exact whole seconds. */
 export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapshot) {
   const quote = snapshot.taxQuote.quote;
   return {
     returnUrl: snapshot.returnUrl,
     taxQuoteRef: quote.id,
     taxQuoteCurrency: quote.currency,
-    taxQuoteNetMinorUnits: quote.netMinorUnits,
-    taxQuoteTaxMinorUnits: quote.taxMinorUnits,
-    taxQuoteSellerRef: quote.sellerId,
-    taxQuoteInvoiceIssuerRef: quote.invoiceIssuerId,
-    taxQuoteTaxRemitterRef: quote.taxRemitterId,
-    taxQuoteTaxServiceRef: quote.taxServiceRef,
+    taxQuoteNetMinorUnits: quote.net_minor_units,
+    taxQuoteTaxMinorUnits: quote.tax_minor_units,
+    taxQuoteSellerRef: quote.seller_id,
+    taxQuoteInvoiceIssuerRef: quote.invoice_issuer_id,
+    taxQuoteTaxRemitterRef: quote.tax_remitter_id,
+    taxQuoteTaxServiceRef: quote.tax_service_ref,
     taxQuoteCountry: quote.country,
-    taxQuoteCoverageEvidenceRef: quote.coverageEvidenceId,
-    taxQuoteTaxRateEvidenceRef: quote.taxRateEvidenceId,
-    taxQuoteCustomerLocationEvidenceRef: quote.customerLocationEvidenceId,
-    taxQuoteQuotedAt: sql`${quote.quotedAt}::timestamptz`,
-    taxQuoteExpiresAt: sql`${quote.expiresAt}::timestamptz`,
-    taxQuoteQuotedAtLexeme: quote.quotedAt,
-    taxQuoteExpiresAtLexeme: quote.expiresAt,
-    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.keyId,
+    taxQuoteCoverageEvidenceRef: quote.coverage_evidence_id,
+    taxQuoteTaxRateEvidenceRef: quote.tax_rate_evidence_id,
+    taxQuoteCustomerLocationEvidenceRef: quote.customer_location_evidence_id,
+    taxQuoteQuotedAt: new Date(quote.quoted_at * 1000),
+    taxQuoteExpiresAt: new Date(quote.expires_at * 1000),
+    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.key_id,
     taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
   };
 }
@@ -430,18 +434,21 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     snapshot.priceId !== input.priceId ||
     snapshot.mode !== input.mode ||
     snapshot.environment !== input.environment ||
-    source?.merchantId !== snapshot.merchantId ||
-    source.appId !== snapshot.applicationId ||
-    source.storeId !== snapshot.subjectAccountId ||
-    source.planId !== snapshot.planId ||
+    source?.merchant_id !== snapshot.merchantId ||
+    source.app_id !== snapshot.applicationId ||
+    source.store_id !== snapshot.subjectAccountId ||
+    source.plan_id !== snapshot.planId ||
     source.mode !== snapshot.mode ||
     source.environment !== snapshot.environment ||
-    snapshot.taxQuote.schemaVersion !== 1 ||
+    snapshot.taxQuote.schema_version !== 2 ||
     snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
-    quote?.grossMinorUnits !== input.amountMinorUnits ||
+    quote?.gross_minor_units !== input.amountMinorUnits ||
     quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
-    quote.taxTreatment !== 'inclusive' ||
-    !Number.isFinite(Date.parse(quote.expiresAt))
+    quote.tax_treatment !== 'inclusive' ||
+    !Number.isSafeInteger(quote.quoted_at) ||
+    !Number.isSafeInteger(quote.expires_at) ||
+    quote.quoted_at < 0 ||
+    quote.expires_at <= quote.quoted_at
   )
     throw new ConflictError('Prepared checkout authority differs');
 }
@@ -580,7 +587,7 @@ export async function resumePersonalPlanCheckout(
     throw new ConflictError('Checkout authority is unavailable');
   if (snapshot) {
     assertSnapshot(snapshot, input);
-    if (Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
+    if (snapshot.taxQuote.quote.expires_at * 1000 <= clock().getTime())
       return { state: 'pending', intentId };
   }
   // Recheck closure before dispatch; no remote work runs under an account lock.
