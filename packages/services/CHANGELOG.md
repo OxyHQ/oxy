@@ -1,5 +1,15 @@
 # Changelog
 
+## [14.2.0] - 2026-11-03
+
+### Added
+
+- `useAccountColorSave({ canUse })` takes the same app rule as `useAccountColor`: `colors` lists only presets the app allows and `saveColor` refuses the rest, so an app with its own paywall saves through the SDK instead of its own `updateMe`.
+
+### Fixed
+
+- `useAccountColor` applies the account colour when the account's colour (or the app's permission to wear it) changes, not whenever the local theme differs. A colour just picked was pulled back to the stored one while its save was in flight, and an app that saved without updating the session user kept the old colour on its root theme (an open settings modal stayed on the old colour while profile surfaces showed the new one).
+
 ## [14.1.2] - 2026-11-03
 
 ### Fixed

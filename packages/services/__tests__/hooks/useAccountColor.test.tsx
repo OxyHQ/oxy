@@ -63,14 +63,25 @@ describe('useAccountColor', () => {
     expect(mockSetColorPreset).toHaveBeenCalledWith('teal');
   });
 
-  it('does nothing when signed out or already wearing the colour', () => {
+  it('does nothing when signed out', () => {
     mockUser = { color: 'teal' };
     mockAuthenticated = false;
     renderHook(() => useAccountColor());
-    mockAuthenticated = true;
-    mockCurrent = 'teal';
-    renderHook(() => useAccountColor());
     expect(mockSetColorPreset).not.toHaveBeenCalled();
+  });
+
+  it('never pulls a colour just chosen back to the stored one', () => {
+    mockUser = { color: 'teal' };
+    const { rerender } = renderHook(() => useAccountColor());
+    mockSetColorPreset.mockClear();
+    // A pick paints the theme before the account write lands.
+    mockCurrent = 'blue';
+    rerender();
+    expect(mockSetColorPreset).not.toHaveBeenCalled();
+    // The saved colour arriving on the account applies again.
+    mockUser = { color: 'blue' };
+    rerender();
+    expect(mockSetColorPreset).toHaveBeenCalledWith('blue');
   });
 
   it('leaves a colour the app refuses unapplied', () => {
