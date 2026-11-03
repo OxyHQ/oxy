@@ -215,6 +215,15 @@ describe('creating an account', () => {
     expect(screen.queryByTestId('signup-email')).toBeNull();
   });
 
+  it('drops spaces from the email as it is typed', async () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada @example.com');
+    expect((screen.getByTestId('signup-email') as HTMLInputElement).value).toBe('ada@example.com');
+  });
+
   it('drops what a username cannot hold as it is typed', () => {
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
 

@@ -23,6 +23,7 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { describeApiError } from '../utils/apiErrorMessage';
+import { withoutWhitespace } from '../utils/withoutWhitespace';
 
 /** Roles assignable via invite / role change — everything except `owner`. */
 type AssignableRole = Exclude<AccountRole, 'owner'>;
@@ -310,7 +311,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               label={t('accounts.members.invite.emailLabel')}
               value={inviteIdentifier}
               onChangeText={(value) => {
-                setInviteIdentifier(value);
+                setInviteIdentifier(withoutWhitespace(value));
                 if (inviteError) setInviteError(null);
               }}
               isInvalid={!!inviteError}
