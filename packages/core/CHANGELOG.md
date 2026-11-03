@@ -10,12 +10,11 @@
 - `createOxyOriginCheck(appOrigins)` — the origin predicate `createOxyCors` applies — and `createOxySocketCors({ appOrigins })`, the Socket.IO `{ cors, allowRequest }` that admit the same browsers on polling and on the WebSocket handshake.
 - Capability tickets: `createLiveCapabilityTicketVerifier` and `createCapabilityTicketMiddleware` accept an asynchronous `resolvePublicKey` (`CapabilityTicketKeyResolver`), so `createOxyJwksKeyResolver({ jwksUrl })` is passed as it is and gets the ticket's `kid`; a key set that cannot be read is `unknown_key`. `verifyCapabilityTicket` is unchanged (synchronous).
 - `oxy.assets.references.add` / `remove` take per-call `ServiceCallOptions` (`{ timeout, retry, signal }`), so one `OxyServer` makes a single-shot outbox write and a patient reconciliation side by side.
-- `ApplicationCallerMembership`, the real shape of `Application.callerMembership`; `AccountNode.callerAccess` (an `AccountAccessGrant`, on single-account reads).
+- `ApplicationCallerMembership`, the shape `Application.callerMembership` really has on the wire (the field keeps its `AccountMember` type until 8.0, ADR 0054); `AccountNode.callerAccess` (an `AccountAccessGrant`, on single-account reads).
 
 ### Fixed
 
 - A client that was never disposed no longer leaks: the module-wide cache sweep holds a cache only while it has entries to expire, and lets go of it once the sweep empties it, so a per-request client is collected after at most its entries' TTL.
-- `Application.callerMembership` was typed as an `AccountMember`; the API sends `{ role, permissions, source: 'account', ownerAccountId }`.
 - `safeFetch`'s refusal of a first-party Oxy host (`api.oxy.so`, which resolves to a private address inside the VPC) says so and names `OxyServer` as the way to call it. Untrusted URLs are refused exactly as before.
 
 ### Docs

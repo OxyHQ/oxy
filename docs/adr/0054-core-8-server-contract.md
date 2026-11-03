@@ -52,6 +52,12 @@
 7. **`users.getMany` stops hiding failed chunks**: it throws, or is removed in
    favour of `users.lookupMany`, which reports them. `accounts.get` and
    `apps.get` take `{ cache: false }`.
+8. **`Application.callerMembership` gets its real type**,
+   `ApplicationCallerMembership` (`{ role, permissions, source: 'account',
+   ownerAccountId }`, exported since 7.17.0). It is typed `AccountMember`
+   today, whose `_id`, `memberUserId`, `inherit` … the API never sends;
+   correcting it in a minor breaks consumers that pass it on as an
+   `AccountMember` (the Console's `useCallerAccess`).
 
 ## Consequences
 

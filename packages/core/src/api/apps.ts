@@ -30,7 +30,7 @@ import {
   parseContract,
 } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
-import type { AccountRole, AccountSuccessResult } from './accounts';
+import type { AccountMember, AccountRole, AccountSuccessResult } from './accounts';
 
 const SHORT_TTL = 60 * 1000;
 const MEDIUM_TTL = 2 * 60 * 1000;
@@ -128,12 +128,16 @@ export interface Application {
    * list/detail responses, or `null` when the caller has no membership. Use
    * `callerMembership.permissions` to gate UI; a backend asks
    * `OxyServer.applicationAccessFor`.
+   *
+   * The wire shape is {@link ApplicationCallerMembership} — only `role` and
+   * `permissions` of this `AccountMember` type are present. The type is
+   * corrected in 8.0 (ADR 0054); changing it in a minor would break compiles.
    */
-  callerMembership?: ApplicationCallerMembership | null;
+  callerMembership?: AccountMember | null;
 }
 
 /**
- * The caller's access to an application as the API embeds it: the role they
+ * The caller's access to an application as the API actually embeds it: the role they
  * hold over the owning account and the APPLICATION permissions it maps to
  * (`app:read`, `app:update`, `webhooks:update`, …). There is no per-application
  * member row, so this is not an `AccountMember`.
