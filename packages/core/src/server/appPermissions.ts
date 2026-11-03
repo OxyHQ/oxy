@@ -46,11 +46,17 @@
 
 import { applicationRolesMeSchema, isApplicationPermissionKey } from '@oxy.so/contracts';
 import { logger } from '../logger';
+import {
+  authorityErrorBody,
+  CallerAuthorityCache,
+  errorStatus,
+  permissionSet,
+  readCallerSession,
+  type OxyCallerRequest,
+} from './callerAuthority';
 
 /** Default cache lifetime of one answer. */
 export const APP_PERMISSIONS_CACHE_TTL_MS = 30_000;
-/** Entries kept per server; the oldest goes first. */
-const APP_PERMISSIONS_CACHE_MAX = 1000;
 
 /** What a refused request is answered with. */
 export type OxyAppPermissionDenyStatus = 403 | 404;
@@ -130,11 +136,7 @@ export interface RequireAppPermissionOptions extends AppPermissionsOptions {
 }
 
 /** The request fields the resolver reads — all set by `middleware.auth()`. */
-export interface AppPermissionsRequest {
-  userId?: string | null;
-  sessionId?: string | null;
-  accessToken?: string;
-  serviceApp?: unknown;
+export interface AppPermissionsRequest extends OxyCallerRequest {
   oxyAppPermissions?: OxyAppPermissions;
 }
 
@@ -156,22 +158,7 @@ export function appPermissionErrorStatus(
 }
 
 /** The response body for a status: the API error envelope (`docs/api-conventions.md`). */
-export function appPermissionErrorBody(status: number): {
-  error: { code: string; message: string };
-} {
-  switch (status) {
-    case 401:
-      return { error: { code: 'unauthorized', message: 'Authentication required' } };
-    case 403:
-      return { error: { code: 'forbidden', message: 'Not permitted' } };
-    case 404:
-      return { error: { code: 'not_found', message: 'Not found' } };
-    case 503:
-      return { error: { code: 'service_unavailable', message: 'Temporarily unavailable' } };
-    default:
-      return { error: { code: 'internal_error', message: 'Internal error' } };
-  }
-}
+export const appPermissionErrorBody = authorityErrorBody;
 
 /** Throws at MOUNT time on a key that could never be held — a typo is a deploy error. */
 export function assertApplicationPermissionKey(permission: unknown): asserts permission is string {
@@ -187,20 +174,7 @@ function heldPermissions(
   operatorId: string,
   permissions: readonly string[],
 ): OxyAppPermissions {
-  const sorted = Object.freeze([...new Set(permissions)].sort());
-  const set = new Set(sorted);
-  return Object.freeze({
-    applicationId,
-    operatorId,
-    permissions: sorted,
-    has: (permission: string) => set.has(permission),
-  });
-}
-
-interface CacheEntry {
-  value: OxyAppPermissions;
-  startedAt: number;
-  expiresAt: number;
+  return Object.freeze({ applicationId, operatorId, ...permissionSet(permissions) });
 }
 
 /** What the resolver needs from the server it belongs to. */
@@ -212,20 +186,19 @@ export interface AppPermissionsHost {
   readonly ttlMs: number;
 }
 
-function errorStatus(error: unknown): number | undefined {
-  const status = (error as { status?: unknown } | null)?.status;
-  return typeof status === 'number' ? status : undefined;
-}
-
 /**
  * The cache and the lookup behind `OxyServer.appPermissionsFor` and
  * `middleware.requireAppPermission`. One per server.
  */
 export class OxyAppPermissionsResolver {
-  private readonly cache = new Map<string, CacheEntry>();
-  private readonly pending = new Map<string, Promise<OxyAppPermissions>>();
+  private readonly cache: CallerAuthorityCache<OxyAppPermissions>;
 
-  constructor(private readonly host: AppPermissionsHost) {}
+  constructor(private readonly host: AppPermissionsHost) {
+    this.cache = new CallerAuthorityCache<OxyAppPermissions>(
+      host.ttlMs,
+      (value, userId) => value.operatorId === userId,
+    );
+  }
 
   /**
    * What the person behind `req` holds. Throws {@link OxyAppPermissionError};
@@ -235,21 +208,13 @@ export class OxyAppPermissionsResolver {
     req: AppPermissionsRequest,
     options: AppPermissionsOptions = {},
   ): Promise<OxyAppPermissions> {
-    if (req.serviceApp) {
+    const caller = readCallerSession(req);
+    if (!caller.ok) {
       throw new OxyAppPermissionError(
         'APP_PERMISSION_SESSION_REQUIRED',
-        'Application permissions are held by a person in a session; this request is authenticated by a service token',
-      );
-    }
-    const userId = typeof req.userId === 'string' && req.userId.length > 0 ? req.userId : null;
-    const sessionId =
-      typeof req.sessionId === 'string' && req.sessionId.length > 0 ? req.sessionId : null;
-    const accessToken =
-      typeof req.accessToken === 'string' && req.accessToken.length > 0 ? req.accessToken : null;
-    if (!userId || !sessionId || !accessToken) {
-      throw new OxyAppPermissionError(
-        'APP_PERMISSION_SESSION_REQUIRED',
-        'No verified user session on this request; mount middleware.auth() first',
+        caller.reason === 'service'
+          ? 'Application permissions are held by a person in a session; this request is authenticated by a service token'
+          : 'No verified user session on this request; mount middleware.auth() first',
       );
     }
 
@@ -272,30 +237,10 @@ export class OxyAppPermissionsResolver {
       );
     }
 
-    const key = JSON.stringify([applicationId, sessionId, userId]);
-    const ttl = this.host.ttlMs;
-    if (options.fresh !== true && ttl > 0) {
-      const cached = this.cache.get(key);
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.value;
-      }
-      const inFlight = this.pending.get(key);
-      if (inFlight) return inFlight;
-    }
-
-    const startedAt = Date.now();
-    const lookup = this.lookup(applicationId, accessToken).then((value) => {
-      if (ttl > 0) this.remember(key, value, startedAt, ttl);
-      return value;
-    });
-    if (options.fresh === true || ttl <= 0) return lookup;
-
-    this.pending.set(key, lookup);
-    try {
-      return await lookup;
-    } finally {
-      if (this.pending.get(key) === lookup) this.pending.delete(key);
-    }
+    const appId = applicationId;
+    return this.cache.read([appId], caller.session, options.fresh === true, () =>
+      this.lookup(appId, caller.session.accessToken),
+    );
   }
 
   /**
@@ -303,29 +248,7 @@ export class OxyAppPermissionsResolver {
    * either the session's user or the resolved operator).
    */
   invalidate(filter: { userId?: string } = {}): void {
-    if (!filter.userId) {
-      this.cache.clear();
-      return;
-    }
-    for (const [key, entry] of this.cache) {
-      const [, , userId] = JSON.parse(key) as [string, string, string];
-      if (userId === filter.userId || entry.value.operatorId === filter.userId) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  private remember(key: string, value: OxyAppPermissions, startedAt: number, ttl: number): void {
-    // A slower, OLDER read must not overwrite a newer one — the newer one may
-    // be the fresh read that saw a revocation.
-    const existing = this.cache.get(key);
-    if (existing && existing.startedAt > startedAt) return;
-    this.cache.delete(key);
-    this.cache.set(key, { value, startedAt, expiresAt: startedAt + ttl });
-    if (this.cache.size > APP_PERMISSIONS_CACHE_MAX) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest !== undefined) this.cache.delete(oldest);
-    }
+    this.cache.invalidate(filter);
   }
 
   private async lookup(applicationId: string, accessToken: string): Promise<OxyAppPermissions> {

@@ -4,14 +4,33 @@
  * This subpath export provides Express middleware and Node.js-specific
  * utilities that are not available in React Native or browser environments.
  *
+ * One `OxyServer` per process, authenticated as the backend's own workload
+ * (ADR 0026/0049 — no api key, no client secret):
+ *
  * @example
  * ```ts
- * import { OxyServer, createOxyAuthMiddleware, createOxyRateLimit } from '@oxy.so/core/server';
+ * import {
+ *   OxyServer,
+ *   createOxyAuthMiddleware,
+ *   createOxyCors,
+ *   createOxyRateLimit,
+ *   createOxySecurityHeaders,
+ *   oxyTrustProxy,
+ * } from '@oxy.so/core/server';
  *
- * const oxy = new OxyServer({ baseURL: 'https://api.oxy.so', serviceAuth: { apiKey, apiSecret } });
+ * export const oxy = new OxyServer({
+ *   baseURL: process.env.OXY_API_URL ?? 'https://api.oxy.so',
+ *   applicationId: process.env.OXY_APPLICATION_ID,
+ *   serviceIdentity: 'when-anonymous',
+ * });
  *
+ * app.set('trust proxy', oxyTrustProxy);
+ * app.use(createOxySecurityHeaders(), createOxyCors({ appOrigins }));
  * app.use(createOxyRateLimit(oxy, { store: redisStore }));
  * app.use('/api', createOxyAuthMiddleware(oxy));
+ *
+ * // As the person behind the request, never on the shared client:
+ * const node = await oxy.withUser(req, (user) => user.accounts.get(accountId));
  * ```
  */
 
@@ -24,6 +43,17 @@ export {
   DEFAULT_SERVICE_TOKEN_AUDIENCE,
 } from './OxyServer';
 export type { OxyServerConfig, ServiceTokenAudience, ServiceTokenResponse } from './OxyServer';
+// The requesting person: an isolated client bound to their bearer, and what
+// they may do in an account or over an application (with typed outcomes).
+export { OxyUserClient } from './userClient';
+export type { OxyUserSource } from './userClient';
+export { OxyAccessError, accessErrorStatus } from './callerAuthority';
+export type { OxyAccessDenyStatus, OxyAccessErrorCode, OxyCallerRequest } from './callerAuthority';
+export type {
+  CallerAccessOptions,
+  OxyAccountAccess,
+  OxyApplicationAccess,
+} from './callerAccess';
 export {
   ServerAccountsApi,
   ServerAppsApi,
@@ -53,6 +83,7 @@ export type {
   CapabilityTicketGrant,
   CapabilityTicketIntrospection,
   CreateExecutionAuthorizationInput,
+  ServiceCallOptions,
   ServiceCapabilityCatalog,
   ServiceUploadBody,
   ServiceUploadDescription,
@@ -77,6 +108,7 @@ export type {
   OxyAccountEventFeedItem,
   OxyAccountEventFeedPage,
   OxyMiddleware,
+  RequireAccessOptions,
   ServiceActingAsVerification,
   ServiceApp,
   VerifyAccountEventOptions,
@@ -186,8 +218,8 @@ export type {
 } from './largeUpload';
 
 // Strict CORS allowlist (Oxy apex family + explicit app origins).
-export { createOxyCors } from './cors';
-export type { OxyCorsOptions } from './cors';
+export { createOxyCors, createOxyOriginCheck, createOxySocketCors } from './cors';
+export type { OxyCorsOptions, OxySocketCorsOptions } from './cors';
 
 // Shared Helmet + Content-Security-Policy baseline (Cloudflare Insights beacon,
 // Oxy API/CDN origins) with additive, per-app extensions.
@@ -224,6 +256,8 @@ export {
   verifyCapabilityTicket,
 } from './capabilityTicket';
 export type {
+  AsyncCapabilityTicketVerificationOptions,
+  CapabilityTicketKeyResolver,
   CapabilityTicketMiddlewareOptions,
   CapabilityTicketRequest,
   CapabilityTicketSigningOptions,

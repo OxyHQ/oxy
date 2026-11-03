@@ -142,6 +142,29 @@ const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
 export type ServiceUploadBody = Uint8Array | ArrayBuffer | Blob;
 
 /** What `uploadAppFile` and `uploadUserMedia` may say about the bytes besides their type. */
+/**
+ * Per-call transport options for a service call, overriding the server's
+ * `requestTimeout` / `enableRetry` for that one call — so one `OxyServer` can
+ * make a short, single-shot write and a patient read side by side.
+ */
+export interface ServiceCallOptions {
+  /** Abort the call. */
+  signal?: AbortSignal;
+  /** Per-attempt timeout in ms. */
+  timeout?: number;
+  /** `false` sends the call once; a transient failure is the caller's to retry (an outbox). */
+  retry?: boolean;
+}
+
+/** The `RequestOptions` half of {@link ServiceCallOptions}, only the fields that were set. */
+function serviceCallRequestOptions(options: ServiceCallOptions): RequestOptions {
+  return {
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+    ...(options.retry !== undefined ? { retry: options.retry } : {}),
+  };
+}
+
 export interface ServiceUploadDescription {
   /**
    * Stored as the file's original name. Sent as a header, so only printable
@@ -305,12 +328,19 @@ export class ServerAssetsApi extends AssetsApi {
    *   changes the file's visibility.
    * - `remove`: only references this application holds. Never trashes or
    *   deletes the file.
+   *
+   * Both take {@link ServiceCallOptions} for each request they send — e.g.
+   * `{ retry: false, timeout: 5000 }` from an outbox that retries by itself.
    */
   readonly references = {
-    add: (references: ServiceFileReference[]): Promise<ServiceFileReferenceResult[]> =>
-      this.sendReferences('POST', references),
-    remove: (references: ServiceFileReference[]): Promise<ServiceFileReferenceResult[]> =>
-      this.sendReferences('DELETE', references),
+    add: (
+      references: ServiceFileReference[],
+      options: ServiceCallOptions = {},
+    ): Promise<ServiceFileReferenceResult[]> => this.sendReferences('POST', references, options),
+    remove: (
+      references: ServiceFileReference[],
+      options: ServiceCallOptions = {},
+    ): Promise<ServiceFileReferenceResult[]> => this.sendReferences('DELETE', references, options),
     /**
      * Reconcile this application's references of ONE entity type with its
      * real inventory (ADR 0043 D6) — the safety net for a reference a crash or
@@ -516,6 +546,7 @@ export class ServerAssetsApi extends AssetsApi {
   private async sendReferences(
     method: 'POST' | 'DELETE',
     references: ServiceFileReference[],
+    options: ServiceCallOptions,
   ): Promise<ServiceFileReferenceResult[]> {
     const results: ServiceFileReferenceResult[] = [];
     for (let start = 0; start < references.length; start += SERVICE_REFERENCES_CHUNK_SIZE) {
@@ -526,7 +557,7 @@ export class ServerAssetsApi extends AssetsApi {
         method,
         '/assets/service/references',
         { references: chunk },
-        { cache: false },
+        { ...serviceCallRequestOptions(options), cache: false },
       );
       results.push(...res.results);
     }

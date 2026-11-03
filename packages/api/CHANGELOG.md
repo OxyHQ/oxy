@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added (`GET /accounts/:id` says what the caller may do: `callerAccess`)
+
+`GET /accounts/:id` — and the `PATCH` and `move` answers that return the same
+node — carries `callerAccess: { role, permissions, status: 'active', source }`,
+the caller's EFFECTIVE access in the `AccountAccessGrant` contract shape: the
+answer `requireAccountPermission` itself gates on. `callerMembership` could not
+say it for `self` (a person's own account, or an autonomous account operating
+itself): no membership row exists there, so it is `null` and a client reading
+`callerMembership.permissions` concluded that an owner could do nothing.
+`OxyServer.accountAccessFor` (`@oxy.so/core` 7.17.0) reads this field. Lists and
+trees are unchanged.
+
 ### Fixed (an unknown Bluesky account is discovered by its handle)
 
 Discovering an external account by handle only tried WebFinger, which Bluesky

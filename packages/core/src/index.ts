@@ -159,6 +159,7 @@ export type {
   AppsApi,
   AppAssertionsApi,
   Application,
+  ApplicationCallerMembership,
   ApplicationType,
   ApplicationStatus,
   ApplicationCredential,
