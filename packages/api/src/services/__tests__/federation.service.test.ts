@@ -1469,3 +1469,54 @@ describe('federation source failure diagnostics', () => {
     },
   );
 });
+
+describe('FederationService.resolveExternalIdentity — an unknown Bluesky handle', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetAssetMocks();
+  });
+
+  /** Bluesky's AppView: `handle` resolves to `did`, whose profile names `handle` back. */
+  function mockBluesky(handle: string, did: string) {
+    mockSafeFetch.mockImplementation(async (url: string) => {
+      const json = { 'content-type': 'application/json' };
+      if (url.includes('com.atproto.identity.resolveHandle'))
+        return new URL(url).searchParams.get('handle') === handle
+          ? makeSafeFetchResult(200, json, JSON.stringify({ did }))
+          : makeSafeFetchResult(400, json, '{}');
+      if (url.includes('app.bsky.actor.getProfile'))
+        return makeSafeFetchResult(
+          200,
+          json,
+          JSON.stringify({ did, handle, displayName: 'Frente' }),
+        );
+      return makeSafeFetchResult(404, {});
+    });
+  }
+
+  it.each([
+    [
+      'a custom-domain handle',
+      (n: number) => `frente${n}.example`,
+      (h: string) => `${h}@bsky.social`,
+    ],
+    [
+      'a bsky.social handle',
+      (n: number) => `frente${n}.bsky.social`,
+      (h: string) => h.replace('.bsky.social', '@bsky.social'),
+    ],
+  ])('discovers %s through its DID', async (_label, makeHandle, acctOf) => {
+    actorCounter += 1;
+    const handle = makeHandle(actorCounter);
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+
+    for (const input of [handle, acctOf(handle)]) {
+      const resolved = await federationService.resolveExternalIdentity({ handle: input });
+      expect(resolved?.externalIdentity).toMatchObject({
+        actorUri: did,
+        canonicalAcct: acctOf(handle),
+      });
+    }
+  });
+});
