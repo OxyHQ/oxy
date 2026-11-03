@@ -362,6 +362,16 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       },
     );
 
+    // The plan, field by field, so a dry run shows WHAT an update would write
+    // and an operator can confirm nothing beyond the intended change moves.
+    if (plan.changes.length > 0) {
+      logger.info('Planned application changes', {
+        app: spec.name,
+        creates: plan.creates,
+        changes: plan.changes,
+      });
+    }
+
     if (plan.creates) {
       createdApplication = true;
       appsCreated += 1;
