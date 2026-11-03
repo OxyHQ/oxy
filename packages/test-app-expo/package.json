@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@babel/plugin-syntax-dynamic-import": "^7.8.3",
-    "@babel/plugin-transform-export-namespace-from": "^7.27.1",
     "@expo/vector-icons": "^15.1.1",
     "@gorhom/bottom-sheet": "^5.2.14",
     "@lottiefiles/dotlottie-react": "catalog:",
@@ -74,7 +73,7 @@
     "babel-preset-expo": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-expo": "catalog:",
-    "typescript": "~6.0.3"
+    "typescript": "catalog:"
   },
   "private": true,
   "expo": {

@@ -68,20 +68,17 @@ clearing and replay rejection.
 
 ## Build tooling residuals
 
-- `shadcn@3.8.5 → zod@3.25.76` is a development dependency of the Vite test app.
-  The app imports its static Tailwind stylesheet at build time; it does not import
-  the generator's JavaScript or execute the CLI in a served runtime. Moving it
-  into runtime dependencies or another workspace fails the guard.
+None. shadcn 4 resolves patched Zod 4, and Expo CLI 58.1.19 dropped Zod.
 
 ## Removal and regression gates
 
 Upgrade or replace the upstream atproto dependency when a supported patched
 parser is available; rerun actual linking/restore tests and remove the residual
-entry. Upgrade the tooling path independently (Expo CLI 58.1.19 dropped Zod,
-which retired its entry). Once no vulnerable resolution remains, the audit gate
+entry. The tooling paths are retired: Expo CLI 58.1.19 dropped Zod and
+shadcn 4 resolves patched Zod 4. Once no vulnerable resolution remains, the audit gate
 rejects the stale acknowledgement until it is removed. The guard mutation tests
 cover a vulnerable API/SDK parser, alternate runtime consumer, old v3 or v4
-resolution, atproto and shadcn version drift, new weak leaf and complete removal. The generic audit tests also reject any new high Zod
+resolution, atproto version drift, new weak leaf and complete removal. The generic audit tests also reject any new high Zod
 advisory. Full API and shared contract tests remain required.
 
 Sources: [GitHub advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),

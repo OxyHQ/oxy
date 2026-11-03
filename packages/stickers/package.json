@@ -92,6 +92,6 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "ts-jest": "^29.4.15",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }

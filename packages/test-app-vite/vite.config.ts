@@ -2,6 +2,7 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import babel from '@rolldown/plugin-babel';
 import viteReact from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import reactNativeWeb from 'vite-plugin-react-native-web';
@@ -12,7 +13,7 @@ const reactNativeCssBabel = require('react-native-css/babel');
 const emptyModule = resolve(currentDir, './src/empty-module.js');
 
 // test-app-vite bundles the `@oxy.so/services` React Native graph on the web via
-// rolldown-vite + `vite-plugin-react-native-web` (same pattern as packages/console):
+// Vite 8 (Rolldown) + `vite-plugin-react-native-web` (same pattern as packages/console):
 // it aliases react-native → react-native-web, applies `.web.*` extension priority
 // in dev AND build, strips Flow types, keeps expo-modules-core's side-effectful web
 // polyfill from being tree-shaken, and defines the RN globals.
@@ -20,11 +21,10 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     reactNativeWeb(),
     tailwindcss(),
-    viteReact({
-      babel: {
-        presets: [reactNativeCssBabel],
-      },
-    }),
+    viteReact(),
+    // react-native-css rewrites `react-native` imports to its className-aware
+    // components; plugin-react 6 no longer runs Babel itself.
+    babel({ presets: [reactNativeCssBabel] }),
   ],
   resolve: {
     alias: [

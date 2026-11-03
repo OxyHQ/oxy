@@ -109,7 +109,7 @@ export function useClarityJob(jobId: string) {
   const client = useClarityClient();
   return useQuery({
     queryKey: keys.job(jobId),
-    queryFn: () => client.jobs.get(jobId),
+    queryFn: () => client.operations.get(jobId),
     enabled: jobId !== '',
     refetchInterval: (query) =>
       ['queued', 'running'].includes(query.state.data?.status ?? '') ? 2000 : false,
@@ -120,7 +120,7 @@ export function useCancelJob(jobId: string) {
   const client = useClarityClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => client.jobs.cancel(jobId, idempotencyKey()),
+    mutationFn: () => client.operations.cancel(jobId, idempotencyKey()),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.job(jobId) }),
   });
 }

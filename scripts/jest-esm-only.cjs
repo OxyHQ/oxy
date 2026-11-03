@@ -28,7 +28,7 @@ function esmOnlyTransform(packages) {
         tsconfig: {
           isolatedModules: true,
           module: 'commonjs',
-          moduleResolution: 'node10',
+          moduleResolution: 'bundler',
           allowJs: true,
         },
       },

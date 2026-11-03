@@ -1380,7 +1380,7 @@ export class OxyServer extends OxyServices {
     let verified = false;
     try {
       const publicKey = nodeCrypto.createPublicKey({
-        key: jwk as unknown as import('node:crypto').JsonWebKey,
+        key: jwk,
         format: 'jwk',
       });
       verified = nodeCrypto.verify(

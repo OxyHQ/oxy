@@ -44,10 +44,12 @@ export function ClarityNews() {
                 <CardHeader>
                   <CardTitle>{story.title}</CardTitle>
                   <CardDescription>
-                    {t('clarityPage.news.meta', {
-                      count: story.sourceCount,
-                      date: new Date(story.lastPublishedAt).toLocaleString(),
-                    })}
+                    {story.lastPublishedAt
+                      ? t('clarityPage.news.meta', {
+                          count: story.sourceCount,
+                          date: new Date(story.lastPublishedAt).toLocaleString(),
+                        })
+                      : t('clarityPage.news.sources', { count: story.sourceCount })}
                   </CardDescription>
                 </CardHeader>
                 <CardBody>

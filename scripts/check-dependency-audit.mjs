@@ -110,10 +110,10 @@ const ACKNOWLEDGED_PACKAGES = [
   {
     package: 'zod',
     advisories: [ZOD_ADVISORY],
-    reachedBy: 'Only API atproto OAuth 0.5.13 and the reviewed shadcn build CLI path',
+    reachedBy: 'Only API atproto OAuth 0.5.13',
     reason:
       'Own runtime schemas use patched Zod 4.6.7. Atproto JSON and restored DPoP state are ' +
-      'bounded before the unavoidable Zod 3.25.76 parsers; the build-only CLI path is isolated. ' +
+      'bounded before the unavoidable Zod 3.25.76 parsers. ' +
       'The mandatory lock graph guard rejects every other vulnerable version or consumer. ' +
       'Evidence, limits and removal conditions: docs/security/zod-parser-boundary.md.',
   },

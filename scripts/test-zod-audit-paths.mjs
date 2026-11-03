@@ -54,19 +54,6 @@ const cases = [
     },
   ],
   [
-    'shadcn becomes runtime',
-    (lock) => {
-      lock.workspaces['packages/test-app-vite'].dependencies.shadcn = 'catalog:';
-      delete lock.workspaces['packages/test-app-vite'].devDependencies.shadcn;
-    },
-  ],
-  [
-    'shadcn version drift',
-    (lock) => {
-      lock.packages.shadcn[0] = 'shadcn@3.8.6';
-    },
-  ],
-  [
     'unknown vulnerable leaf',
     (lock) => {
       lock.packages['new-parser/zod'] = ['zod@3.25.76', '', {}];

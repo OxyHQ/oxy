@@ -51,9 +51,9 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "^20.19.43",
+    "@types/node": "catalog:",
     "jest": "^30.5.2",
-    "typescript": "^5.9.2",
+    "typescript": "catalog:",
     "@oxy.so/core": "workspace:^"
   }
 }

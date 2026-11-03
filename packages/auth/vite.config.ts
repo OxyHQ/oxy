@@ -1,14 +1,15 @@
 import { resolve } from 'path';
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
+import babel from '@rolldown/plugin-babel';
 import react from '@vitejs/plugin-react';
 import reactNativeWeb from 'vite-plugin-react-native-web';
 
-const emptyModule = resolve(__dirname, 'src/empty-module.js');
+const emptyModule = resolve(import.meta.dirname, 'src/empty-module.js');
 const require = createRequire(import.meta.url);
 const reactNativeCssBabel = require('react-native-css/babel');
 
-// The IdP runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
+// The IdP runs on Vite 8 (Rolldown) so the
 // `@oxy.so/services` React Native graph bundles through the maintained
 // `vite-plugin-react-native-web` plugin instead of hand-rolled empty-module
 // stubs: it aliases react-native→react-native-web, applies `.web.*` platform
@@ -43,16 +44,15 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     bridgePage(),
     reactNativeWeb(),
-    react({
-      babel: {
-        presets: [reactNativeCssBabel],
-      },
-    }),
+    react(),
+    // react-native-css rewrites `react-native` imports to its className-aware
+    // components; plugin-react 6 no longer runs Babel itself.
+    babel({ presets: [reactNativeCssBabel] }),
   ],
   resolve: {
     alias: [
       // Auth's `@/*` maps to the package ROOT (see tsconfig `paths`), not src.
-      { find: '@', replacement: resolve(__dirname, '.') },
+      { find: '@', replacement: resolve(import.meta.dirname, '.') },
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
@@ -80,8 +80,8 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        bridge: resolve(__dirname, 'bridge.html'),
+        main: resolve(import.meta.dirname, 'index.html'),
+        bridge: resolve(import.meta.dirname, 'bridge.html'),
       },
     },
   },

@@ -159,7 +159,7 @@
   "devDependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@types/express": "catalog:",
-    "@types/node": "^22.20.1",
+    "@types/node": "catalog:",
     "@types/supertest": "catalog:",
     "expo-crypto": "~58.0.7",
     "expo-modules-core": "catalog:",
@@ -168,6 +168,6 @@
     "jest": "^30.5.2",
     "supertest": "catalog:",
     "ts-jest": "^29.4.15",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }

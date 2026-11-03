@@ -146,7 +146,7 @@ module.exports = {
         // to `require`. `moduleResolution` has to follow `module` or TypeScript
         // rejects the pair; a single-file transpile resolves nothing either way.
         // This also silences the TS151002 warning every worker printed.
-        tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'node10' },
+        tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'bundler' },
       },
     ],
     // `@kaana.ai/contracts` (Kaana ADR 0002) is published ESM-only. Jest's CJS
@@ -159,7 +159,7 @@ module.exports = {
         tsconfig: {
           isolatedModules: true,
           module: 'commonjs',
-          moduleResolution: 'node10',
+          moduleResolution: 'bundler',
           allowJs: true,
         },
       },
@@ -175,7 +175,7 @@ module.exports = {
         tsconfig: {
           isolatedModules: true,
           module: 'commonjs',
-          moduleResolution: 'node10',
+          moduleResolution: 'bundler',
           allowJs: true,
         },
       },
