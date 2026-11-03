@@ -86,6 +86,7 @@ import {
   resolveCanonicalUserId,
 } from './externalIdentityRegistry.service';
 import { normalizeAvatarImage } from './federation/avatarImage';
+import { avatarSeedColor } from './federation/avatarColor';
 import {
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
@@ -700,6 +701,8 @@ export interface AvatarDownloadResult {
   httpStatus?: number;
   /** Which picture was mirrored when the result carries a new file id. */
   source?: 'remote' | 'instagram_graph';
+  /** The mirrored picture's seed colour (`#rrggbb`), when it has one. */
+  color?: string;
 }
 
 function avatarFailure(
@@ -1835,7 +1838,8 @@ class FederationService {
         }
       }
 
-      return { fileId, etag, lastModified, notModified: false, source: 'remote' };
+      const color = (await avatarSeedColor(image.buffer)) ?? undefined;
+      return { fileId, etag, lastModified, notModified: false, source: 'remote', color };
     } catch (err) {
       logger.warn(`Failed to download/store federated avatar: ${err}`);
       return avatarFailure('transient', 'transport');
@@ -2232,7 +2236,11 @@ class FederationService {
       setFields.federationAvatarETag = stored.etag ?? null;
       setFields.federationAvatarLastModified = stored.lastModified ?? null;
 
-      await persistFederatedAvatar(userId, { fileId: stored.fileId }, setFields);
+      await persistFederatedAvatar(
+        userId,
+        { fileId: stored.fileId, color: stored.color },
+        setFields,
+      );
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently
@@ -2360,7 +2368,7 @@ class FederationService {
         if (stored.notModified) {
           setFields.federationLastAvatarFetchedAt = new Date();
         } else if (stored.fileId) {
-          avatarWrite = { fileId: stored.fileId };
+          avatarWrite = { fileId: stored.fileId, color: stored.color };
           setFields.federationLastAvatarFetchedAt = new Date();
           setFields.federationAvatarETag = stored.etag ?? null;
           setFields.federationAvatarLastModified = stored.lastModified ?? null;

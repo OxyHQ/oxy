@@ -33,6 +33,12 @@
  * bounded concurrency (CONCURRENCY, default 4), the per-origin request gap and
  * 429 backoff. Failures stay queued with backoff for the server's retry sweep.
  *
+ * Colour mode (MODE=color): give every federated user with a stored avatar that
+ * still wears a preset the seed colour of that avatar (`avatarColor.ts`), read
+ * from the mirrored file. Users already on a hex colour are skipped, so a run
+ * stopped by MAX_MINUTES (default 50) resumes by running again. CONCURRENCY
+ * (default 8) avatars at once. Prints one progress line per batch.
+ *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/src/scripts/repair-federated-remote-avatars.ts            # dry run
  *   bun run packages/api/src/scripts/repair-federated-remote-avatars.ts --apply
@@ -54,6 +60,9 @@ import { users } from '../db/schema/users';
 import { federationService, isExpiredSignedAvatarUrl } from '../services/federation.service';
 import { AVATAR_FILE_ID_SQL_PATTERN, persistFederatedAvatar } from '../utils/federatedAvatar';
 import userCache from '../utils/userCache';
+import { AssetService } from '../services/assetService';
+import { s3Service } from '../services/s3ServiceSingleton';
+import { backfillFederatedAvatarColors } from '../services/federation/avatarColor';
 import {
   queueRecoveryForAvatarlessFederatedUsers,
   runFederatedAvatarRetrySweep,
@@ -249,6 +258,24 @@ async function main(): Promise<void> {
           effect: 'consumer caches expire by TTL instead of an immediate eviction',
         }),
       );
+    }
+    if ((process.env.MODE ?? '').trim() === 'color') {
+      const concurrency = Number.parseInt(process.env.CONCURRENCY ?? '', 10);
+      const maxMinutes = Number.parseInt(process.env.MAX_MINUTES ?? '', 10);
+      const assets = new AssetService(s3Service);
+      const summary = await backfillFederatedAvatarColors({
+        apply,
+        readAvatar: (fileId) => assets.getFileBuffer(fileId),
+        onWritten: (userId) => userCache.invalidate(userId),
+        batchSize: Number.isInteger(batchSize) && batchSize > 0 ? batchSize : undefined,
+        concurrency: Number.isInteger(concurrency) && concurrency > 0 ? concurrency : undefined,
+        after: afterArg ?? process.env.AFTER ?? undefined,
+        deadline:
+          Date.now() + (Number.isInteger(maxMinutes) && maxMinutes > 0 ? maxMinutes : 50) * 60_000,
+        log: print,
+      });
+      print(JSON.stringify({ summary: { mode: 'color', ...summary } }));
+      return;
     }
     if (argv.includes('--recover') || (process.env.MODE ?? '').trim() === 'recover') {
       // Recovery: re-derive the CURRENT source picture of every federated user
