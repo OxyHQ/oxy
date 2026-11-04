@@ -441,8 +441,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     await settleBackgroundWork();
 
     const row = await storedUser(userId);
-    expect(row?.bio).toBe('');
-    expect(row?.description).toBe('');
+    expect(row?.bio).toBeNull();
+    expect(row?.description).toBeNull();
   });
 
   it('clears the unavailable tombstone on a successful background refresh', async () => {
@@ -1480,7 +1480,7 @@ describe('FederationService.resolveExternalIdentity — an unknown Bluesky handl
   });
 
   /** Bluesky's AppView: `handle` resolves to `did`, whose profile names `handle` back. */
-  function mockBluesky(handle: string, did: string) {
+  function mockBluesky(handle: string, did: string, displayName = 'Frente') {
     mockSafeFetch.mockImplementation(async (url: string) => {
       const json = { 'content-type': 'application/json' };
       if (url.includes('com.atproto.identity.resolveHandle'))
@@ -1488,11 +1488,7 @@ describe('FederationService.resolveExternalIdentity — an unknown Bluesky handl
           ? makeSafeFetchResult(200, json, JSON.stringify({ did }))
           : makeSafeFetchResult(400, json, '{}');
       if (url.includes('app.bsky.actor.getProfile'))
-        return makeSafeFetchResult(
-          200,
-          json,
-          JSON.stringify({ did, handle, displayName: 'Frente' }),
-        );
+        return makeSafeFetchResult(200, json, JSON.stringify({ did, handle, displayName }));
       return makeSafeFetchResult(404, {});
     });
   }
@@ -1521,5 +1517,35 @@ describe('FederationService.resolveExternalIdentity — an unknown Bluesky handl
         canonicalAcct: acctOf(handle),
       });
     }
+  });
+
+  it("names an account whose handle does not verify by its DID, never Bluesky's shared sentinel", async () => {
+    for (const did of [
+      `did:plc:unverified${++actorCounter}`,
+      `did:plc:unverified${++actorCounter}`,
+    ]) {
+      mockBluesky('handle.invalid', did);
+      const resolved = await federationService.resolveExternalIdentity({ handle: did });
+      expect(resolved?.externalIdentity.canonicalAcct).toBe(`${did}@bsky.social`);
+    }
+  });
+
+  it('background-refreshes a stale cached Bluesky account through its DID', async () => {
+    actorCounter += 1;
+    const handle = `frente${actorCounter}.bsky.social`;
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+    const resolved = await federationService.resolveExternalIdentity({ handle });
+    const userId = resolved?.externalIdentity.userId ?? '';
+    await getDb()
+      .update(users)
+      .set({ updatedAt: new Date(Date.now() - STALE_AGE_MS) })
+      .where(eq(users.id, userId));
+
+    mockBluesky(handle, did, 'Frente Renamed');
+    await federationService.resolveAndUpsert(handle);
+    await settleBackgroundWork();
+
+    expect((await storedUser(userId))?.nameFirst).toBe('Frente Renamed');
   });
 });
