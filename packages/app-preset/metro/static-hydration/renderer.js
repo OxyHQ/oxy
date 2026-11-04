@@ -1,5 +1,5 @@
 /*
- * Adapted from @expo/router-server 58.0.14 / 58.0.16 renderStreamingContent.
+ * Adapted from @expo/router-server 58.0.14–58.0.16 and 58.0.18–58.0.21 renderStreamingContent.
  * Copyright © 2026 650 Industries. MIT license: ./EXPO-LICENSE.
  * Static output only. Keep Expo's live streaming renderer unchanged.
  */
@@ -9,11 +9,7 @@ const { ExpoRoot } = require('expo-router');
 const { ctx } = require('expo-router/_ctx');
 const Head = require('expo-router/head').default;
 const { ServerDocument } = require('expo-router/internal/server');
-const {
-  InnerRoot,
-  getRouteInfoForLocation,
-  registerStaticRootComponent,
-} = require('expo-router/internal/static');
+const routerStatic = require('expo-router/internal/static');
 const { normalizeCssAssets } = require('expo-server/private');
 const { getRootComponent } = require('@expo/router-server/build/static/getRootComponent');
 const assets = require('@expo/router-server/build/utils/react');
@@ -22,6 +18,32 @@ const original = require('@expo/router-server/build/server/renderStreamingConten
 const { renderHydratableDocument } = require('./render-document');
 
 const h = React.createElement;
+
+const { InnerRoot, registerStaticRootComponent } = routerStatic;
+
+// The page's route and its loader key, as the installed Expo renderer derives
+// them. Through router-server 58.0.16 (expo-router ≤ 58.0.25) the route comes
+// from the location and the loader key appends `location.search`. From 58.0.18
+// (expo-router 58.0.30 removed `getRouteInfoForLocation`) the CLI passes the
+// route it matched and its params, and the loader key appends the route's own
+// search params.
+function routeInfo(location, options) {
+  if (typeof routerStatic.getRouteInfoForMatchedRoute === 'function') {
+    if (!options.route) {
+      throw new Error(
+        '[@oxy.so/app-preset] staticHydrationBoundary: Expo called the renderer without the matched route.',
+      );
+    }
+    const { pathname, params, searchParams } = routerStatic.getRouteInfoForMatchedRoute(
+      options.route,
+      options.params ?? {},
+      location,
+    );
+    const search = searchParams.toString();
+    return { route: { pathname, params }, search: search ? `?${search}` : '' };
+  }
+  return { route: routerStatic.getRouteInfoForLocation(ctx, location), search: location.search };
+}
 
 function StaticApp({ headContext, loadedData, element }) {
   return h(Head.Provider, { context: headContext }, h(InnerRoot, { loadedData }, element));
@@ -40,7 +62,7 @@ function getStreamingContent(location, options) {
   return fonts.withServerContext(async () => {
     const headContext = {};
     const Document = getRootComponent();
-    const route = getRouteInfoForLocation(ctx, location);
+    const { route, search } = routeInfo(location, options);
     // No document wrapper here: this is exactly the boundary hydrated in #root.
     const { element, getStyleElement } = registerStaticRootComponent(ExpoRoot, {
       location,
@@ -48,7 +70,7 @@ function getStreamingContent(location, options) {
     });
     // Match Expo's per-page reset; React Navigation caches named contexts globally.
     globalThis.__react_navigation__elements_contexts = new Map();
-    const loaderKey = options.loader ? options.loader.key + location.search : null;
+    const loaderKey = options.loader ? options.loader.key + search : null;
     const loadedData = loaderKey ? { [loaderKey]: options.loader.data ?? null } : null;
     const app = h(StaticAppRoot, { headContext, loadedData, element });
 
