@@ -82,7 +82,10 @@ const ACCOUNT = {
 const APPLICATION = {
   _id: 'app-1',
   name: 'Shop',
+  type: 'third_party',
+  status: 'active',
   isOfficial: true,
+  isInternal: false,
   ownerAccountId: 'org-1',
   callerMembership: {
     role: 'developer',
@@ -244,10 +247,50 @@ describe('applicationAccessFor', () => {
       applicationId: 'app-1',
       ownerAccountId: 'org-1',
       official: true,
+      status: 'active',
       role: 'developer',
       permissions: ['app:read', 'webhooks:update'],
     });
     expect(seen[0]?.authorization).toBe('Bearer bearer-1');
+  });
+
+  it.each([
+    [{ type: 'first_party', isOfficial: false, isInternal: false }, true],
+    [{ type: 'internal', isOfficial: false, isInternal: false }, true],
+    [{ type: 'system', isOfficial: false, isInternal: false }, true],
+    [{ type: 'third_party', isOfficial: false, isInternal: true }, true],
+    [{ type: 'third_party', isOfficial: false, isInternal: false }, false],
+  ])("is official by oxy-api's trust rule: %o -> %s", async (trust, official) => {
+    oxyAnswers({
+      '/applications/app-1': { status: 200, body: { application: { ...APPLICATION, ...trust } } },
+    });
+    const access = await server().applicationAccessFor(sessionReq(), 'app-1');
+    expect(access.official).toBe(official);
+  });
+
+  it('answers a suspended application with its status', async () => {
+    oxyAnswers({
+      '/applications/app-1': {
+        status: 200,
+        body: { application: { ...APPLICATION, status: 'suspended' } },
+      },
+    });
+    const access = await server().applicationAccessFor(sessionReq(), 'app-1');
+    expect(access.status).toBe('suspended');
+  });
+
+  it.each([
+    ['an unknown status', { status: 'archived' }],
+    ['no type', { type: undefined }],
+    ['no isInternal', { isInternal: undefined }],
+  ])('is unavailable for %s', async (_case, broken) => {
+    oxyAnswers({
+      '/applications/app-1': { status: 200, body: { application: { ...APPLICATION, ...broken } } },
+    });
+    const error = await server()
+      .applicationAccessFor(sessionReq(), 'app-1')
+      .catch((e: unknown) => e);
+    expect((error as OxyAccessError).code).toBe('ACCESS_UNAVAILABLE');
   });
 
   it('is unavailable when the membership names another owner', async () => {

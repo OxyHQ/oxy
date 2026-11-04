@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.18.0
+
+### Added
+
+- `OxyApplicationAccess.status` (`active`, `suspended`, `pending_review`): Oxy answers a member about a suspended application too, and whether it may act is the receiver's decision — Peable lets only an active application manage contributions.
+
+### Fixed
+
+- `OxyApplicationAccess.official` follows oxy-api's own trust rule (`isTrustedApplication`): `isOfficial`, `isInternal`, or a `first_party` / `internal` / `system` type, all staff-controlled. 7.17.0 read `isOfficial` alone, so Oxy's seeded first-party applications (typed `first_party`, `isOfficial` unset) answered `official: false`. An answer missing `type`, `isInternal` or a known `status` is `ACCESS_UNAVAILABLE`, like any other answer off the contract.
+
 ## 7.17.0
 
 ### Added
