@@ -15,11 +15,12 @@ async function catalog(files) {
 
 const rules = (issues) => issues.map((issue) => `${issue.rule} ${issue.locale} ${issue.key}`);
 
-test('a nested, namespaced catalog passes; missing translations only warn', async () => {
+test('a nested, namespaced catalog passes; plural forms; missing translations only warn', async () => {
   const root = await catalog({
     'app/locales/en.json': {
       compose: { toolbar: { addImage: 'Add image' }, status: { picked_up: 'Picked up' } },
       items: { count_one: 'One item', count_other: '{{count}} items', tips: ['a', 'b'] },
+      cart: { items: { one: '%{count} item', other: '%{count} items' } },
     },
     'app/locales/es.json': {
       compose: { toolbar: { addImage: 'Añadir imagen' } },
@@ -34,17 +35,22 @@ test('a nested, namespaced catalog passes; missing translations only warn', asyn
         count_other: '{{count}} шт.',
         tips: ['a'],
       },
+      cart: { items: { one: 'a', few: 'b', many: 'c', other: 'd' } },
     },
     'app/locales/ja.json': {
       compose: { toolbar: { addImage: '画像' }, status: { picked_up: '集荷済み' } },
       items: { count_other: '{{count}} 件', tips: ['a'] },
+      cart: { items: { other: '%{count} 件' } },
     },
   });
 
   const [result] = await inspectTranslations(root);
 
   expect(result.errors).toEqual([]);
-  expect(rules(result.warnings)).toEqual(['missing-translation es compose.status']);
+  expect(rules(result.warnings)).toEqual([
+    'missing-translation es compose.status',
+    'missing-translation es cart',
+  ]);
 });
 
 test('reports text keys, flat keys, top-level strings and stray translations', async () => {

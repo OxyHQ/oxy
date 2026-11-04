@@ -110,14 +110,25 @@ const isLeaf = (value) =>
 const PLURAL_FORM = /_(?:zero|one|two|few|many|other)$/;
 const PLURAL_CATEGORIES = ['zero', 'one', 'two', 'few', 'many', 'other'];
 
-/** Whether `node` holds another plural form of the same base as `segment`. */
+const isPluralCategory = (segment) => PLURAL_CATEGORIES.includes(segment);
+
+/** An i18n-js plural object, `{ one, other }`: every key a CLDR category, `other` among them. */
+const isPluralObject = (node) =>
+  'other' in node && Object.keys(node).every((segment) => isPluralCategory(segment));
+
+/**
+ * Whether `node` holds another plural form of the same base as `segment`:
+ * i18next's suffixed siblings (`count_one` / `count_many`) or i18n-js's nested
+ * plural object (`count.one` / `count.many`).
+ */
 function hasPluralSibling(node, segment) {
+  if (isPluralCategory(segment)) return isPluralObject(node);
   if (!PLURAL_FORM.test(segment)) return false;
   const base = segment.replace(PLURAL_FORM, '');
   return PLURAL_CATEGORIES.some((category) => `${base}_${category}` in node);
 }
 
-const SINGULAR_PLURAL = /_(?:zero|one|two)$/;
+const SINGULAR_PLURAL = /[._](?:zero|one|two)$/;
 
 /**
  * The placeholders a string interpolates. A singular plural form may spell its
@@ -198,7 +209,7 @@ export function checkCatalogs({ locales }, sourceLocale = DEFAULT_SOURCE_LOCALE)
       for (const [segment, value] of Object.entries(node)) {
         const key = path ? `${path}.${segment}` : segment;
         if (!(segment in sourceNode)) {
-          // Another CLDR plural form of a source key: `_few` / `_many` exist in
+          // Another CLDR plural form of a source key: `few` / `many` exist in
           // languages English has no form for.
           if (hasPluralSibling(sourceNode, segment)) continue;
           errors.push({
