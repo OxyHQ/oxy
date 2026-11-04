@@ -20,6 +20,13 @@
  *                            mirroring `routes/applications.ts`. Existing public
  *                            prod credentials are REUSED — never re-minted.
  *
+ *   - Operator permissions (ADR 0056): the application's vocabulary becomes
+ *                      EXACTLY `spec.operatorPermissions` (absent = none), each
+ *                      key held by the owning account's roles it names; every
+ *                      per-person grant on the application is revoked. The run
+ *                      logs each change, each grant revoked and, per key, who
+ *                      holds it through which role.
+ *
  * Safety:
  *   - No deletes, no drops, no modification of unrelated documents.
  *   - Application web origins (`spec.webOrigins`, ADR 0045) in
@@ -61,13 +68,25 @@
 
 import crypto from 'crypto';
 import { scopeSeedMain } from '../src/scripts/seedOxyApplicationScopes';
-import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import {
   applicationCredentials,
   excludeWorkloadRows,
 } from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
+import { accountMembers } from '../src/db/schema/accountMembers';
+import {
+  applicationRoleGrants,
+  applicationRolePermissions,
+} from '../src/db/schema/applicationRoles';
+import { userAncestors } from '../src/db/schema/userAncestors';
+import { accountService } from '../src/services/account.service';
+import {
+  declareFirstPartyPermissions,
+  type PermissionDeclaration,
+} from '../src/services/applicationRoles.service';
+import { operatorKeysHeldByAccountRole } from '../src/utils/accountRoles';
 import {
   declareApplicationWebOrigins,
   undeclaredApplicationWebOrigins,
@@ -86,6 +105,7 @@ import {
   SEED_APPS,
   seedApplicationLookupIdentity,
   requiresPublicSeedCredential,
+  type FirstPartyOperatorPermission,
   type SeedAppSpec,
   type SeedAppType,
 } from '../src/scripts/seedOxyApplicationsSpecs';
@@ -229,6 +249,77 @@ async function retireLegacyApplication(
   return revoked.length;
 }
 
+function operatorDeclarations(
+  permissions: readonly FirstPartyOperatorPermission[],
+): PermissionDeclaration[] {
+  return permissions.map((permission) => ({
+    key: permission.key,
+    description: permission.description,
+    heldByAccountRoles: permission.heldBy,
+  }));
+}
+
+/**
+ * Who holds each of `declarations` through their role over `ownerAccountId`:
+ * every active person-member of the account or an ancestor, resolved by the
+ * same `resolveEffectiveAccess` `roles/me` reads. Reported, never written.
+ */
+async function operatorHolders(
+  ownerAccountId: string,
+  declarations: readonly PermissionDeclaration[],
+): Promise<{ userId: string; username: string | null; role: string; keys: string[] }[]> {
+  const ancestors = await getDb()
+    .select({ id: userAncestors.ancestorId })
+    .from(userAncestors)
+    .where(eq(userAncestors.userId, ownerAccountId));
+  const members = await getDb()
+    .selectDistinct({ userId: accountMembers.memberUserId, username: users.username })
+    .from(accountMembers)
+    .innerJoin(users, eq(users.id, accountMembers.memberUserId))
+    .where(
+      and(
+        inArray(accountMembers.accountId, [ownerAccountId, ...ancestors.map((row) => row.id)]),
+        eq(accountMembers.status, 'active'),
+        eq(users.kind, 'personal'),
+      ),
+    )
+    .orderBy(accountMembers.memberUserId);
+
+  const holders: { userId: string; username: string | null; role: string; keys: string[] }[] = [];
+  for (const member of members) {
+    const access = await accountService.resolveEffectiveAccess(member.userId, ownerAccountId);
+    if (!access) continue;
+    const keys = operatorKeysHeldByAccountRole(access.role, declarations);
+    if (keys.length > 0) holders.push({ ...member, role: access.role, keys });
+  }
+  return holders;
+}
+
+/**
+ * Every live per-person grant on one of Oxy's own applications, across the
+ * WHOLE registry, not only this run's selection. After a full run this is
+ * empty; a row here is an application whose registry entry has not been
+ * applied since ADR 0056.
+ */
+async function liveGrantsOnOwnApplications(): Promise<
+  { applicationId: string; permission: string; userId: string }[]
+> {
+  return getDb()
+    .select({
+      applicationId: applicationRolePermissions.applicationId,
+      permission: applicationRolePermissions.key,
+      userId: applicationRoleGrants.userId,
+    })
+    .from(applicationRoleGrants)
+    .innerJoin(
+      applicationRolePermissions,
+      eq(applicationRolePermissions.id, applicationRoleGrants.permissionId),
+    )
+    .innerJoin(applications, eq(applications.id, applicationRolePermissions.applicationId))
+    .where(and(isNull(applicationRoleGrants.revokedAt), ne(applications.type, 'third_party')))
+    .orderBy(applicationRolePermissions.applicationId, applicationRolePermissions.key);
+}
+
 async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   const dryRun = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
   const ownerUsername = process.env.OXY_USERNAME || 'oxy';
@@ -270,6 +361,9 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   let legacyCredentialsRevoked = 0;
   let credentialsReused = 0;
   let webOriginsDeclared = 0;
+  let operatorKeysAdded = 0;
+  let operatorKeysRetired = 0;
+  let operatorGrantsRevoked = 0;
 
   for (const spec of seedApps) {
     let createdApplication = false;
@@ -475,6 +569,57 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         : webOrigins;
     webOriginsDeclared += webOriginsAdded.length;
 
+    // ADR 0056: the operator vocabulary is exactly the registry entry, held by
+    // role; a dry run plans it under the same lock and writes nothing.
+    const declarations = operatorDeclarations(spec.operatorPermissions ?? []);
+    if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {
+      const operator = await declareFirstPartyPermissions({
+        applicationId: application.id,
+        declared: declarations,
+        dryRun,
+      });
+      operatorKeysAdded += operator.plan.add.length;
+      operatorKeysRetired += operator.plan.retire.length;
+      operatorGrantsRevoked += operator.revokedGrants.length;
+      if (
+        operator.plan.add.length + operator.plan.retire.length + operator.plan.describe.length >
+          0 ||
+        operator.revokedGrants.length > 0
+      ) {
+        logger.info('Planned operator permission changes', {
+          app: spec.name,
+          applicationId: application.id,
+          add: operator.plan.add.map(({ key, heldByAccountRoles }) => ({
+            key,
+            heldByAccountRoles,
+          })),
+          retire: operator.plan.retire.map(({ key, heldByAccountRoles }) => ({
+            key,
+            heldByAccountRoles,
+          })),
+          describe: operator.plan.describe.map(({ row }) => row.key),
+          revokeGrants: operator.revokedGrants.map(({ userId, permission }) => ({
+            userId,
+            permission,
+          })),
+        });
+      }
+      if (declarations.length > 0) {
+        logger.info('Operator permission holders', {
+          app: spec.name,
+          applicationId: application.id,
+          ownerAccountId,
+          holders: await operatorHolders(ownerAccountId, declarations),
+        });
+      }
+    } else if (declarations.length > 0) {
+      operatorKeysAdded += declarations.length;
+      logger.info('Planned operator permission changes', {
+        app: spec.name,
+        add: declarations.map(({ key, heldByAccountRoles }) => ({ key, heldByAccountRoles })),
+      });
+    }
+
     mapping.push({
       webOriginsAdded,
       app: spec.name,
@@ -505,6 +650,15 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     legacyCredentialsRevoked,
     credentialsReused,
     webOriginsDeclared,
+    operatorKeysAdded,
+    operatorKeysRetired,
+    operatorGrantsRevoked,
+  });
+
+  const leftoverGrants = await liveGrantsOnOwnApplications();
+  logger.info('Read-back: live per-person grants on Oxy applications (ADR 0056)', {
+    count: leftoverGrants.length,
+    grants: leftoverGrants,
   });
 
   const [{ value: ownedAppCount }] = await getDb()

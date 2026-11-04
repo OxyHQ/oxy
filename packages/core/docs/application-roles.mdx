@@ -1,16 +1,28 @@
 ---
 title: Application roles
-description: Gate your backend's operator surfaces on permissions your app declares and Oxy grants — no allow-lists in your environment.
+description: Gate your backend's operator surfaces on permissions your app declares and Oxy decides who holds — no allow-lists in your environment.
 order: 5
 ---
 
 # Application roles
 
 Your application declares its own permissions — `payments.operate`,
-`catalog.operate`, `moderation.review` — in the Oxy Console (application →
-Settings → Roles). Its owners grant them to people there. Your backend asks Oxy
-which of them the person in front of it holds. Nobody keeps a list of Oxy user
-ids in your environment.
+`catalog.operate`, `moderation.review` — and Oxy decides who holds them. Your
+backend asks Oxy which of them the person in front of it holds. Nobody keeps a
+list of Oxy user ids in your environment.
+
+Who holds a key depends on whose application it is:
+
+- **A third-party application** declares its keys in the Oxy Console
+  (application → Settings → Roles), and its owners grant them to people there.
+- **One of Oxy's own applications** declares its keys in code, in Oxy's
+  first-party registry, and each key names the roles of the owning organization
+  that hold it (normally owners and admins). Nobody is granted anything: making
+  someone an operator is giving them that role in the organization. The Console
+  shows those keys read-only and refuses grants (`FIRST_PARTY_ROLES_IN_CODE`).
+  See Oxy ADR 0056.
+
+Your backend's code is the same in both cases.
 
 A key is 2–4 dot-separated lowercase words. It never contains a colon, so it can
 never be mistaken for one of Oxy's own permissions or scopes, and only your app
@@ -100,7 +112,7 @@ It never answers "holds nothing" for a failure.
 
 ## How fast a revocation takes effect
 
-Oxy reads grants live. This SDK reuses one answer per session for
+Oxy reads grants and roles live. This SDK reuses one answer per session for
 `appPermissionsCacheTtlMs` (default 30 s), so a revoked person keeps a cached
 permission on your backend for at most that long. Use `fresh: true` on writes
 and irreversible actions; it asks Oxy every time and refreshes the cache. To
@@ -108,11 +120,18 @@ drop a person's cached answers immediately: `oxy.invalidateAppPermissions({ user
 
 ## Declaring the vocabulary
 
-Holders of the application's `roles:manage` permission (the owning account's
-owners and admins) declare the whole list in the Console, or with
-`PUT /applications/:appId/roles/permissions`. Removing a key retires it and
-revokes every grant of it. Declare a key before deploying code that checks it —
-until it is declared and granted, the check simply denies.
+**One of Oxy's own applications:** add the key, with its description and the
+roles holding it, to the application's `operatorPermissions` in
+`packages/api/src/scripts/seedOxyApplicationsSpecs.ts` (Oxy repository) and run
+the `Seed Oxy applications` workflow (dry run first). Do it before deploying
+code that checks the key; until the seed runs, the check denies.
+
+**A third-party application:** holders of the application's `roles:manage`
+permission (the owning account's owners and admins) declare the whole list in
+the Console, or with `PUT /applications/:appId/roles/permissions`. Removing a
+key retires it and revokes every grant of it. Declare a key before deploying
+code that checks it — until it is declared and granted, the check simply
+denies.
 
 ## Not the same question as account or application access
 
