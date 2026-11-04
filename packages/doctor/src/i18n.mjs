@@ -107,6 +107,16 @@ const isLeaf = (value) =>
   typeof value === 'string' ||
   (Array.isArray(value) && value.every((item) => typeof item === 'string'));
 
+const PLURAL_FORM = /_(?:zero|one|two|few|many|other)$/;
+const PLURAL_CATEGORIES = ['zero', 'one', 'two', 'few', 'many', 'other'];
+
+/** Whether `node` holds another plural form of the same base as `segment`. */
+function hasPluralSibling(node, segment) {
+  if (!PLURAL_FORM.test(segment)) return false;
+  const base = segment.replace(PLURAL_FORM, '');
+  return PLURAL_CATEGORIES.some((category) => `${base}_${category}` in node);
+}
+
 const SINGULAR_PLURAL = /_(?:zero|one|two)$/;
 
 /**
@@ -188,6 +198,9 @@ export function checkCatalogs({ locales }, sourceLocale = DEFAULT_SOURCE_LOCALE)
       for (const [segment, value] of Object.entries(node)) {
         const key = path ? `${path}.${segment}` : segment;
         if (!(segment in sourceNode)) {
+          // Another CLDR plural form of a source key: `_few` / `_many` exist in
+          // languages English has no form for.
+          if (hasPluralSibling(sourceNode, segment)) continue;
           errors.push({
             rule: 'stray-key',
             locale,
@@ -216,7 +229,8 @@ export function checkCatalogs({ locales }, sourceLocale = DEFAULT_SOURCE_LOCALE)
         }
       }
       for (const segment of Object.keys(sourceNode)) {
-        if (!(segment in node)) {
+        // A language without this plural category (`_one` in Japanese) is not missing it.
+        if (!(segment in node) && !hasPluralSibling(node, segment)) {
           const key = path ? `${path}.${segment}` : segment;
           warnings.push({
             rule: 'missing-translation',

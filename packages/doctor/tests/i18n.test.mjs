@@ -25,6 +25,20 @@ test('a nested, namespaced catalog passes; missing translations only warn', asyn
       compose: { toolbar: { addImage: 'Añadir imagen' } },
       items: { count_one: 'Un elemento', count_other: '{{count}} elementos', tips: ['a', 'b'] },
     },
+    'app/locales/ru.json': {
+      compose: { toolbar: { addImage: 'Добавить' }, status: { picked_up: 'Забран' } },
+      items: {
+        count_one: 'a',
+        count_few: 'b',
+        count_many: 'c',
+        count_other: '{{count}} шт.',
+        tips: ['a'],
+      },
+    },
+    'app/locales/ja.json': {
+      compose: { toolbar: { addImage: '画像' }, status: { picked_up: '集荷済み' } },
+      items: { count_other: '{{count}} 件', tips: ['a'] },
+    },
   });
 
   const [result] = await inspectTranslations(root);
