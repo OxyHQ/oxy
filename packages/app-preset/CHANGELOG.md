@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 5.3.1
+
+### Fixed
+
+- `staticHydrationBoundary` supports `@expo/router-server` 58.0.18–58.0.21, the renderer Expo 58.0.23 and expo-router 58.0.30 install. From 58.0.18 the CLI passes the renderer the route it matched and its params, and expo-router no longer exports `getRouteInfoForLocation`. The adapter reads the route with `getRouteInfoForMatchedRoute` and keys loader data by the route's own search params, as Expo's renderer does. 58.0.14–58.0.16 keep the location-based path. 58.0.17, a halfway renderer, stays refused. Before, an app on Expo 58.0.23 with the adapter enabled could not export.
+
 ## 5.3.0
 
 ### Changed

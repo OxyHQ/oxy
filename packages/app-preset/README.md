@@ -33,7 +33,8 @@ module.exports = createOxyMetroConfig(__dirname, {
 });
 ```
 
-Expo Router's renderer in `@expo/router-server` 58.0.14–58.0.16 renders the app
+Expo Router's renderer in `@expo/router-server` 58.0.14–58.0.16 and 58.0.18–58.0.21
+(Expo 58.0.23, expo-router 58.0.30) renders the app
 inside `+html`, but the browser hydrates only `#root`. Document siblings then
 change React `useId` paths. An ID in text (for example Bloom's scoped stylesheet)
 causes React to replace the workspace during hydration.

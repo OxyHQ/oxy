@@ -46,10 +46,20 @@ test('redirects only the Expo renderer in web node bundles; delegates other plat
   );
   assert.equal(resolve(context, '/app/something.js', 'web').filePath, '/app/something.js');
 });
+test('accepts the reviewed upstream versions', () => {
+  for (const version of ['58.0.14', '58.0.16', '58.0.18', '58.0.21']) {
+    assert.doesNotThrow(() => withStaticHydrationBoundary(config(), project(version)));
+  }
+});
 test('refuses unreviewed upstream versions when the compatibility adapter is enabled', () => {
+  for (const version of ['58.0.13', '58.0.17', '58.0.22', '59.0.0']) {
+    assert.throws(
+      () => withStaticHydrationBoundary(config(), project(version)),
+      /Review the upstream renderer/,
+    );
+  }
   assert.throws(
-    () => withStaticHydrationBoundary(config(), project('58.0.17')),
-    /Review the upstream renderer/,
+    () => withStaticHydrationBoundary(config(), project('57.0.0')),
+    /58.0.14–58.0.16 and 58.0.18–58.0.21/,
   );
-  assert.throws(() => withStaticHydrationBoundary(config(), project('57.0.0')), /58.0.14–58.0.16/);
 });
