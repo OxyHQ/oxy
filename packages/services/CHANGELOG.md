@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.8] - 2026-11-04
+
+### Changed
+
+- `@peable.to/sdk` 3.0.0. Peable retired its Stripe-Billing proxy (`billing.*` beyond meters, the signed tax-quote and invoice-authority overlay, `billing.observation.updated`); services reads only `@peable.to/sdk/display`, which is unchanged.
+
 ## [14.3.7] - 2026-11-04
 
 ### Fixed
