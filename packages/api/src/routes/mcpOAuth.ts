@@ -1,9 +1,4 @@
-import {
-  type ApplicationRolesMe,
-  urlCheck,
-  utf16MaxLength,
-  utf16MinLength,
-} from '@oxy.so/contracts';
+import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -48,7 +43,7 @@ import {
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
-import { permissionsHeldBy } from '../services/applicationRoles.service';
+import { resolveApplicationPermissions } from '../services/applicationRoles.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
 
@@ -756,7 +751,9 @@ router.post(
  *   - grants are read live. Revoking the grant, the token or the role ends it on
  *     the next call.
  *
- * The body is `roles/me`'s own contract, so the SDK reads both one way.
+ * The answer is `roles/me`'s, from the same resolver
+ * (`resolveApplicationPermissions`), so the two can never disagree about what
+ * a person holds and the SDK reads both one way.
  */
 router.post(
   '/app-permissions',
@@ -766,14 +763,16 @@ router.post(
     try {
       const body = connectionTokenSchema.parse(request.body);
       const caller = await connectionCallerGrant(request, body.token);
-      // `resolveLiveMcpAccessToken` refused the token unless this equals the
-      // calling service's own application.
-      const applicationId = caller.descriptor.registeredByApplicationId;
-      const answer: ApplicationRolesMe = {
-        applicationId,
-        userId: caller.grant.principalUserId,
-        permissions: await permissionsHeldBy(applicationId, caller.grant.principalUserId),
-      };
+      // `resolveLiveMcpAccessToken` refused the token unless the resource's
+      // application is the calling service's own. What the person holds is
+      // `roles/me`'s own resolver: this route only establishes who and which.
+      const answer = await resolveApplicationPermissions(
+        caller.descriptor.registeredByApplicationId,
+        caller.grant.principalUserId,
+      );
+      if (!answer) {
+        throw new McpOAuthError('invalid_client', 'The resource application is not live', 401);
+      }
       response.set('cache-control', 'no-store');
       response.json(answer);
     } catch (error) {

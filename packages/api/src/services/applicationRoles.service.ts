@@ -32,8 +32,9 @@
  * {@link declareFirstPartyPermissions} (the seed) is the only writer of those
  * roles, and it revokes every grant on the application. The routes refuse a
  * Console declaration or grant on one of Oxy's own applications. The read,
- * {@link permissionsHeldBy}, is the same for every application: live grants
- * plus role-held keys.
+ * {@link resolveApplicationPermissions} (over {@link permissionsHeldBy}), is the
+ * same for every application and every caller — `roles/me` and the MCP
+ * `app-permissions` read: live grants plus role-held keys.
  */
 
 import { createHash } from 'node:crypto';
@@ -44,6 +45,7 @@ import {
   type ApplicationPermissionDeclaration,
   type ApplicationPermissionDefinition,
   type ApplicationRoleGrant,
+  type ApplicationRolesMe,
   type DeclareApplicationPermissionsResponse,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
@@ -142,6 +144,34 @@ function grantsQuery() {
 // ── The read an application makes ──────────────────────────────────────────
 
 /**
+ * THE answer to "which of application `applicationId`'s declared permissions
+ * does `operatorId` hold" — the one resolver behind every route that asks it:
+ * `GET /applications/:appId/roles/me` (a person in a session) and
+ * `POST /auth/mcp/oauth/app-permissions` (the person behind an MCP access
+ * token). Each route only establishes WHO is asking and about WHICH
+ * application; what that person holds is decided here, so a change to how
+ * operator authority is derived reaches every caller at once.
+ *
+ * `null` for an unknown or deleted application.
+ */
+export async function resolveApplicationPermissions(
+  applicationId: string,
+  operatorId: string,
+): Promise<ApplicationRolesMe | null> {
+  const [application] = await getDb()
+    .select({ id: applications.id })
+    .from(applications)
+    .where(and(eq(applications.id, applicationId), ne(applications.status, 'deleted')))
+    .limit(1);
+  if (!application) return null;
+  return {
+    applicationId: application.id,
+    userId: operatorId,
+    permissions: await permissionsHeldBy(application.id, operatorId),
+  };
+}
+
+/**
  * The live keys `userId` holds for `applicationId`, sorted: the keys granted to
  * them, plus the keys their effective role over the application's owning
  * account holds (ADR 0056).
@@ -155,7 +185,7 @@ function grantsQuery() {
  * own has no grants, so its answer is its role-held keys. The owning account is
  * asked only when the application has a role-held key.
  */
-export async function permissionsHeldBy(applicationId: string, userId: string): Promise<string[]> {
+async function permissionsHeldBy(applicationId: string, userId: string): Promise<string[]> {
   const db = getDb();
   const granted = await db
     .select({ key: applicationRolePermissions.key })

@@ -360,10 +360,10 @@ The flow, from inside an assistant:
    server follows it over its own protocol.
 
 7. `POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)
-   answers `{ applicationId, userId, permissions }` — `roles/me`'s contract —
-   for the token's `sub` (the person who authorized the connector, not the
-   active account) and the application that registered the token's resource,
-   which must be the caller's. `@oxy.so/core` reads it through
+   answers `roles/me`'s answer, from the same resolver
+   (`resolveApplicationPermissions`), for the token's `sub` (the person who
+   authorized the connector, not the active account) and the application that
+   registered the token's resource, which must be the caller's. `@oxy.so/core` reads it through
    `oxy.appPermissionsFor(context.request)` (`docs/auth/application-roles.md`).
 
 Revocation needs no special path: a member revokes its own grant, `revokeGrant`

@@ -135,8 +135,9 @@ createCatalogMcpHttpService({
 ```
 
 The SDK presents the token, with your backend's service token, to Oxy
-(`POST /auth/mcp/oauth/app-permissions`). Same answer, cache, `fresh` and errors
-as a session, with three differences:
+(`POST /auth/mcp/oauth/app-permissions`). Oxy answers from the same resolver as
+`roles/me`, so the MCP answer is always the session answer for the same person.
+Same cache, `fresh` and errors as a session, with three differences:
 
 - `operatorId` is the person who authorized the connector. A connection that
   holds several accounts is acting as one of them (`principal.activeAccountId`);

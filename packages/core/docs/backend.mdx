@@ -77,7 +77,7 @@ the optional-user mount.
 
 | Question | Ask | Middleware |
 |---|---|---|
-| Does this person hold one of **my application's** operator keys (`payments.operate`)? | `oxy.appPermissionsFor(req)` | `oxy.middleware.requireAppPermission('payments.operate')` |
+| Does this person hold one of **my application's** operator keys (`payments.operate`)? | `oxy.appPermissionsFor(req)` — or, in an MCP tool, `oxy.appPermissionsFor(context.request)` | `oxy.middleware.requireAppPermission('payments.operate')` |
 | What may this person do in **Oxy account X** — an organization, store, channel, their own account? | `oxy.accountAccessFor(req, accountId)` | `oxy.middleware.requireAccountAccess('account:update', { param: 'accountId' })` |
 | What may this person do to **application A**, through the account that owns it (`app:read`, `app:update`, `webhooks:update`, `billing:manage`)? | `oxy.applicationAccessFor(req, applicationId)` | `oxy.middleware.requireApplicationAccess('app:read', { param: 'appId' })` |
 
@@ -87,7 +87,11 @@ granted per person on a third-party app, held by organization role on one of
 Oxy's own); account
 and application access are the person's membership in Oxy's account graph.
 Each reads Oxy with the request's own verified bearer, so a person acting as
-their organization is answered for themselves.
+their organization is answered for themselves. An MCP tool call has no session;
+`appPermissionsFor` takes the call itself and gets the same answer for the
+person who authorized the connector
+([in an MCP tool](./application-roles.mdx#in-an-mcp-tool)) — never keep an
+allow-list of user ids for your MCP admin tools.
 
 ```ts
 // A Console-style dashboard over a developer's application:

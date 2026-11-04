@@ -12,8 +12,11 @@ from an `OXY_ADMIN_USER_IDS` allow-list. The proof is introspection's: the token
 must be for a resource the calling application registered (`401 invalid_grant`
 otherwise), the application is that one — there is no parameter to name
 another — and the person is the token's `sub`, whichever member account the
-connection is acting as. Grants are read live; `Cache-Control: no-store`. No new
-scope. `OxyServer.appPermissionsFor(context.request)` (`@oxy.so/core`) reads it.
+connection is acting as. What the person holds comes from the same resolver as
+`roles/me` — `resolveApplicationPermissions`, now the one function both routes
+call — so the two answers cannot diverge. Read live; `Cache-Control: no-store`.
+No new scope. `OxyServer.appPermissionsFor(context.request)` (`@oxy.so/core`)
+reads it.
 
 ### Changed (Oxy's own applications hold operator keys by role — ADR 0056)
 

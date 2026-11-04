@@ -18,14 +18,20 @@ let serviceCredentialId = '';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { oxyToken?: Record<string, unknown>; sessionId?: string },
+    req: {
+      oxyToken?: Record<string, unknown>;
+      sessionId?: string;
+      user?: { _id: string; id: string };
+    },
     _res: unknown,
     next: () => void,
   ) => {
     req.sessionId = approvingSessionId;
+    req.user = { _id: principalUserId, id: principalUserId };
     req.oxyToken = {
       principalUserId,
       subjectAccountId: principalUserId,
+      applicationId: null,
     };
     next();
   },
@@ -49,6 +55,17 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+// `roles/me` is mounted beside the MCP routes so the two answers can be compared.
+jest.mock('../../middleware/operator', () => ({
+  resolveOperatorId: async () => principalUserId,
+  resolveSubjectId: () => principalUserId,
+}));
+
+jest.mock('../../config/dynamicOriginRegistry', () => ({
+  __esModule: true,
+  refreshOriginRegistry: async () => {},
+}));
+
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../../db/schema/agency';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -61,6 +78,7 @@ import { blocks } from '../../db/schema/blocks';
 import { mcpOauthGrants } from '../../db/schema/mcpOAuth';
 import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
+import applicationsRouter from '../applications';
 import mcpOAuthRouter, { mcpOAuthDiscoveryRouter } from '../mcpOAuth';
 
 const keyPair = generateKeyPairSync('ed25519');
@@ -73,6 +91,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', mcpOAuthRouter);
+app.use('/applications', applicationsRouter);
 
 async function fixture(): Promise<{
   resource: string;
@@ -580,6 +599,47 @@ describe('POST /auth/mcp/oauth/app-permissions', () => {
       userId: personId,
       permissions: [],
     });
+  });
+
+  it("is roles/me's answer: the same resolver, the same permissions for the same person", async () => {
+    const input = await fixture();
+    const personId = principalUserId;
+    const applicationId = serviceApplicationId;
+    const grantId = await grantRole(applicationId, personId, 'site.content.manage');
+    await grantRole(applicationId, personId, 'site.billing.manage');
+    // A key held by role over the owning account (ADR 0056): the fixture's
+    // application is owned by the person's own account, so they are its owner.
+    await getDb()
+      .insert(applicationRolePermissions)
+      .values({
+        applicationId,
+        key: 'site.desk.operate',
+        description: 'Role-held test permission',
+        heldByAccountRoles: ['owner', 'admin'],
+      });
+    const accessToken = await issueAccessToken(input);
+
+    const compare = async () => {
+      const session = await request(app)
+        .get(`/applications/${applicationId}/roles/me`)
+        .set('authorization', 'Bearer user-session');
+      const mcp = await appPermissions(accessToken);
+      expect(session.status).toBe(200);
+      expect(mcp.status).toBe(200);
+      expect(mcp.body).toEqual(session.body);
+      return mcp.body.permissions as string[];
+    };
+    expect(await compare()).toEqual([
+      'site.billing.manage',
+      'site.content.manage',
+      'site.desk.operate',
+    ]);
+
+    await getDb()
+      .update(applicationRoleGrants)
+      .set({ revokedAt: new Date(), revokedByUserId: personId })
+      .where(eq(applicationRoleGrants.id, grantId));
+    expect(await compare()).toEqual(['site.billing.manage', 'site.desk.operate']);
   });
 
   it("refuses another application's service, a revoked grant and a non-token", async () => {

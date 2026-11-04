@@ -181,37 +181,6 @@ or a claim. A request authenticated by a service token — delegated
 (`X-Oxy-User-Id`) or not — is refused: an operator power is exercised by a
 person in a session.
 
-### An MCP tool call
-
-An external MCP request has no session: its bearer is a resource-bound access
-token (ADR 0018/0020) that must never be forwarded as one. The app passes the
-tool call instead — `oxy.appPermissionsFor(context.request)` — and the SDK
-presents the token, under the app's own service token, to
-`POST /auth/mcp/oauth/app-permissions` (body `{ token }`). The answer is
-`roles/me`'s own contract (`applicationRolesMeSchema`), `Cache-Control: no-store`.
-The proof is the one introspection and the connection endpoints take
-(`connectionCallerGrant` in `routes/mcpOAuth.ts`):
-
-- the token must be live and for a resource the CALLING application registered,
-  else `401 invalid_grant` — a token for another app's resource is refused;
-- the application is the one that registered the resource. There is no
-  application parameter, so a service can never read another application's
-  grants;
-- the person is the token's `sub`, the human who authorized the connector,
-  whichever member account the connection is acting as. A linked account lends
-  the connection its data, never its approver's operator powers — the same
-  operator/subject split `roles/me` makes for a session switched into an
-  organization;
-- grants are read live, and revoking the token, the MCP grant or the role ends
-  the answer on the next call. No new scope: a service that may introspect may
-  ask.
-
-The SDK maps `401 invalid_grant` to `APP_PERMISSION_SESSION_REQUIRED`, its own
-credential refused (`invalid_client`) or anything else to
-`APP_PERMISSION_UNAVAILABLE`, and an answer about an application other than the
-server's to `APP_PERMISSION_NOT_CONFIGURED`. Cache and `fresh` behave as for a
-session, keyed by a digest of the token.
-
 - **API side:** no cache. A grant, a revocation or a role change in the owning
   account is visible to the next read.
 - **SDK side:** one answer per (application, session, user) is reused for
@@ -224,6 +193,45 @@ session, keyed by a digest of the token.
 - **Failures deny.** Oxy unreachable answers 503, a missing/unknown application
   id 500; neither is ever read as "holds nothing" or "holds everything", and a
   failure is never cached.
+
+### An MCP tool call
+
+An external MCP request has no session: its bearer is a resource-bound access
+token (ADR 0018/0020) that must never be forwarded as one. The app passes the
+tool call instead — `oxy.appPermissionsFor(context.request)` — and the SDK
+presents the token, under the app's own service token, to
+`POST /auth/mcp/oauth/app-permissions` (body `{ token }`), `Cache-Control: no-store`.
+
+**One resolver.** Both routes only establish WHO is asking and about WHICH
+application, then call `resolveApplicationPermissions(applicationId, operatorId)`
+(`services/applicationRoles.service.ts`) — the single answer to "what does this
+person hold". The two can never disagree (a route test pins it), and a change to
+how operator authority is derived reaches both at once. So an MCP caller gets
+exactly the session answer: on one of Oxy's own applications, the keys the
+person's role over the owning organization holds (ADR 0056); on a third-party
+application, the keys granted to them.
+
+The MCP route's proof is the one introspection and the connection endpoints take
+(`connectionCallerGrant` in `routes/mcpOAuth.ts`):
+
+- the token must be live and for a resource the CALLING application registered,
+  else `401 invalid_grant` — a token for another app's resource is refused;
+- the application is the one that registered the resource. There is no
+  application parameter, so a service can never read about another
+  application;
+- the person is the token's `sub`, the human who authorized the connector,
+  whichever member account the connection is acting as. A linked account lends
+  the connection its data, never its approver's operator powers — the same
+  operator/subject split `roles/me` makes for a session switched into an
+  organization;
+- the answer is read live, and revoking the token or the MCP grant ends it on
+  the next call. No new scope: a service that may introspect may ask.
+
+The SDK maps `401 invalid_grant` to `APP_PERMISSION_SESSION_REQUIRED`, its own
+credential refused (`invalid_client`) or anything else to
+`APP_PERMISSION_UNAVAILABLE`, and an answer about an application other than the
+server's to `APP_PERMISSION_NOT_CONFIGURED`. Cache and `fresh` behave as for a
+session, keyed by a digest of the token.
 
 ## Not built yet
 

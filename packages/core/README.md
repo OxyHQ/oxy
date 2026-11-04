@@ -172,8 +172,8 @@ router.get('/orgs/:accountId', async (req, res) => {
 
 `createOxyAuthMiddleware(oxy)` resolves the bearer session and requires a user
 in one middleware; `createOptionalOxyAuth(oxy)` is the optional form. The
-permission questions (`appPermissionsFor`, `accountAccessFor`,
-`applicationAccessFor`), user clients (`withUser`), per-call options
+permission questions (`appPermissionsFor` — for a session or an MCP tool call —
+`accountAccessFor`, `applicationAccessFor`), user clients (`withUser`), per-call options
 (`oxy.withCallOptions({ timeout, deadline, retry, signal })`), files and
 outbound HTTP (`safeFetch`, with `validated` to reuse an `assertSafePublicUrl`
 check and `requireHttps` for an all-https chain) are in
