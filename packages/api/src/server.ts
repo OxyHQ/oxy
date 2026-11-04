@@ -24,6 +24,7 @@ import {
   authRateLimiter,
   userRateLimiter,
   federationServiceLimiter,
+  cdnResolverLimiter,
   bruteForceProtection,
   securityHeaders,
 } from './middleware/security';
@@ -115,6 +116,7 @@ import contactsRouter from './routes/contacts';
 import consoleOnboardingRouter from './routes/consoleOnboarding';
 import userDataRouter from './routes/userData';
 import appSignalsRouter from './routes/appSignals';
+import applicationAccountsRouter from './routes/applicationAccounts';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
@@ -259,6 +261,11 @@ const app = express();
 // Cloudflare: the private socket peer and one Cloudflare edge hop are trusted,
 // nothing a caller wrote is (`oxyTrustProxy`, @oxy.so/core/server).
 app.set('trust proxy', oxyTrustProxy);
+// Express 5 defaults to the `simple` parser (node:querystring), which leaves
+// `ids[]=a&ids[]=b` and `filter[kind]=x` as literal keys. Callers outside this
+// repository (axios encodes arrays as `key[]`) have always been parsed with
+// `qs`, so the API keeps that wire contract.
+app.set('query parser', 'extended');
 
 // Per-route request metrics (CloudWatch EMF). First, so every response is
 // measured, including those the MCP mounts and the limiters below answer.
@@ -375,6 +382,14 @@ app.use((req, res, next) =>
     ? next()
     : urlencodedParser(req, res, next),
 );
+// Express 5's parsers leave `req.body` undefined when a request carries no body
+// (a bare `POST /session/cancel/:token`), where Express 4's set `{}`. Handlers
+// and body schemas here were written against `{}`, and clients send bodiless
+// POSTs, so a request no parser claimed still reads as an empty object.
+app.use((req, _res, next) => {
+  req.body ??= {};
+  next();
+});
 
 // Request timeout to prevent slow clients holding connections. The cache
 // stream-upload legitimately takes longer than a normal request (it pipes up
@@ -840,9 +855,11 @@ app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
 app.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use('/assets', assetRoutes);
-// Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
-// auth — serves ONLY public CDN-backed assets via 302; 404 otherwise.
-app.use('/cdn', cdnRoutes);
+// Public by-id resolver behind cloud.oxy.so/<id> (ADR 0047). No auth — serves
+// ONLY public CDN-backed assets via 302; 404 otherwise. Skipped by rl:general
+// and slowDown (`isCdnResolverPath`), so its own per-visitor limiter MUST stay
+// on this mount.
+app.use('/cdn', cdnResolverLimiter, cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
 // auth — devices fetch it with only expo-updates headers — so it is mounted
 // here with its own limiter. The admin router (bearer/service-token
@@ -1024,6 +1041,7 @@ app.use('/contacts', userRateLimiter, contactsRouter);
 app.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
 // Service-token-only cross-app signal ingest (endorsements + interests).
 app.use('/app-signals', appSignalsRouter);
+app.use('/application-accounts', applicationAccountsRouter);
 // Encrypted off-device identity backup (b3 Feature 1). Mixed private (bearer
 // upsert/status/delete) + public (restore-by-locator) routes; each gates its own
 // auth. Mounted

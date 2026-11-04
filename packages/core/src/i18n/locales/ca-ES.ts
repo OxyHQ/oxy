@@ -18,6 +18,9 @@ const dict = {
       caption: 'Escaneja amb Commons per entrar',
       renew: 'Mostra un codi nou',
     },
+    device: {
+      codeHint: 'Comprova que el mòbil mostra aquest codi',
+    },
     errors: {
       rateLimited: 'Massa intents. Torna-ho a provar d’aquí a {{seconds}} s.',
       invalidCredentials:

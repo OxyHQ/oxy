@@ -2,6 +2,7 @@ import * as providerEvidence from '../productProviderEvidence.service';
 import { reconcileProductAccessFinancialState } from '../productAccessPersistence.service';
 import { accessSubscriptionSources, accessProviderRefunds } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import { PEABLE_API_VERSION, type WebhookEvent } from '@peable.to/sdk';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessGrants } from '../../db/schema';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
@@ -11,6 +12,8 @@ import {
   handlePeablePersonalObservation,
   type PeableEvidenceAuthority,
 } from '../peablePersonalEvidence.service';
+/** Peable instants are integer Unix seconds (ADR 0014). */
+const unix = (instant: string | Date | number) => Math.floor(new Date(instant).getTime() / 1000);
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
@@ -29,24 +32,29 @@ async function fixture() {
     environment: 'production' as const,
   };
   const invoiceId = `in_${f.payer.replaceAll('-', '')}`;
+  // The ledger period Peable's whole-second instants restore.
+  const period = {
+    start: new Date(unix(f.period.start) * 1000).toISOString(),
+    end: new Date(unix(f.period.end) * 1000).toISOString(),
+  };
   const paid = {
-    invoiceId,
-    lineId: 'il_fixture',
-    paymentIntentId: 'pi_fixture',
-    providerSubscriptionId: context.subscriptionId,
-    providerCustomerId: context.customerId,
-    providerPriceId: context.priceId,
-    storeId: f.payer,
-    planId: context.planId,
+    invoice_id: invoiceId,
+    line_id: 'il_fixture',
+    payment_intent_id: 'pi_fixture',
+    provider_subscription_id: context.subscriptionId,
+    provider_customer_id: context.customerId,
+    provider_price_id: context.priceId,
+    store_id: f.payer,
+    plan_id: context.planId,
     livemode: true,
     currency: 'USD',
-    amountPaid: '2999',
-    netAmount: '2500',
-    taxAmount: '499',
-    periodStart: f.period.start,
-    periodEnd: f.period.end,
-    paidAt: f.now.toISOString(),
-    observedAt: f.now.toISOString(),
+    amount_paid: '2999',
+    net_amount: '2500',
+    tax_amount: '499',
+    period_start: unix(f.period.start),
+    period_end: unix(f.period.end),
+    paid_at: unix(f.now),
+    observed_at: unix(f.now),
   };
   let release!: () => void;
   let captured!: () => void;
@@ -56,7 +64,7 @@ async function fixture() {
     merchants: {
       retrieve: async () => ({
         id: context.merchantId,
-        oxyAppId: context.appId,
+        oxy_app_id: context.appId,
         environment: context.environment,
       }),
     },
@@ -65,22 +73,22 @@ async function fixture() {
       retrieveInvoiceState: async () => ({
         ...paid,
         state: 'fully_refunded',
-        chargeId: 'ch_fixture',
-        amountRefunded: '2999',
+        charge_id: 'ch_fixture',
+        amount_refunded: '2999',
       }),
       retrieveSubscription: async () => ({
-        providerSubscriptionId: context.subscriptionId,
-        providerCustomerId: context.customerId,
-        providerPriceId: context.priceId,
-        storeId: f.payer,
-        planId: context.planId,
+        provider_subscription_id: context.subscriptionId,
+        provider_customer_id: context.customerId,
+        provider_price_id: context.priceId,
+        store_id: f.payer,
+        plan_id: context.planId,
         livemode: true,
         status: 'active',
         interval: 'month',
-        cancelAtPeriodEnd: false,
-        currentPeriodStart: f.period.start,
-        currentPeriodEnd: f.period.end,
-        trialEndsAt: null,
+        cancel_at_period_end: false,
+        current_period_start: unix(f.period.start),
+        current_period_end: unix(f.period.end),
+        trial_ends_at: null,
       }),
     },
   } as unknown as PeableEvidenceAuthority['client'];
@@ -95,26 +103,26 @@ async function fixture() {
         invoice: {
           platform: 'peable',
           currency: 'USD',
-          grossMinorUnits: 2999,
-          netMinorUnits: 2500,
-          taxMinorUnits: 499,
-          merchantFeeMinorUnits: 0,
-          taxTreatment: 'inclusive',
-          sellerId: 'synthetic',
-          invoiceIssuerId: 'synthetic',
-          taxQuoteId: 'synthetic',
-          customerLocationEvidenceId: 'synthetic',
-          taxRateEvidenceId: 'synthetic',
-          issuedAt: new Date(f.now.getTime() - 1000).toISOString(),
-          expiresAt: new Date(f.now.getTime() + 60_000).toISOString(),
+          gross_minor_units: '2999',
+          net_minor_units: '2500',
+          tax_minor_units: '499',
+          merchant_fee_minor_units: '0',
+          tax_treatment: 'inclusive',
+          seller_id: 'synthetic',
+          invoice_issuer_id: 'synthetic',
+          tax_quote_id: 'synthetic',
+          customer_location_evidence_id: 'synthetic',
+          tax_rate_evidence_id: 'synthetic',
+          issued_at: unix(f.now.getTime() - 1000),
+          expires_at: unix(f.now.getTime() + 60_000),
           context: {
-            payerAccountId: f.payer,
-            beneficiaryAccountId: f.payer,
-            providerSubscriptionId: context.subscriptionId,
-            offerId: context.offerId,
-            offerVersion: 1,
-            periodStart: f.period.start,
-            periodEnd: f.period.end,
+            payer_account_id: f.payer,
+            beneficiary_account_id: f.payer,
+            provider_subscription_id: context.subscriptionId,
+            offer_id: context.offerId,
+            offer_version: 1,
+            period_start: unix(f.period.start),
+            period_end: unix(f.period.end),
             mode: context.mode,
             environment: context.environment,
           },
@@ -122,7 +130,7 @@ async function fixture() {
       };
     },
   };
-  return { f, context, paid, client, authority, release, atAuthority, invoiceId };
+  return { f, period, context, paid, client, authority, release, atAuthority, invoiceId };
 }
 it('a completed refund before activation commits fences the still-fresh paid worker', async () => {
   const { f, context, client, authority, release, atAuthority, invoiceId } = await fixture();
@@ -169,7 +177,7 @@ it('a completed refund before activation commits fences the still-fresh paid wor
 });
 
 it('an older subscription read cannot outrank cancellation after paid persistence awaits', async () => {
-  const { f, context, client, authority, release, invoiceId } = await fixture();
+  const { f, period, context, client, authority, release, invoiceId } = await fixture();
   release();
   const first = await reconcilePeablePersonalPaidInvoice(
     authority,
@@ -217,7 +225,7 @@ it('an older subscription read cannot outrank cancellation after paid persistenc
       },
       providerObservedAt: new Date(f.now.getTime() + 200),
       status: 'active',
-      period: f.period,
+      period,
       cancelAtPeriodEnd: true,
     });
     time = f.now.getTime() + 300;
@@ -236,7 +244,7 @@ it('an older subscription read cannot outrank cancellation after paid persistenc
 });
 
 it('subscription wake observation time is captured before an awaited source lookup', async () => {
-  const { f, context, client, authority, release, invoiceId } = await fixture();
+  const { f, period, context, client, authority, release, invoiceId } = await fixture();
   release();
   const first = await reconcilePeablePersonalPaidInvoice(
     authority,
@@ -306,17 +314,21 @@ it('subscription wake observation time is captured before an awaited source look
       id: 'evt_fixture',
       object: 'event',
       type: 'billing.observation.updated',
-      created: f.now.toISOString(),
+      created: unix(f.now),
+      livemode: true,
+      api_version: PEABLE_API_VERSION,
       data: {
         object: {
           object: 'billing_observation',
-          resourceKind: 'subscription',
-          resourceId: context.subscriptionId,
+          livemode: true,
+          resource_kind: 'subscription',
+          resource_id: context.subscriptionId,
           revision: 1,
-          observedAt: f.now.toISOString(),
+          observed_at: unix(f.now),
         },
       },
-    };
+      request: { id: null, idempotency_key: null },
+    } satisfies WebhookEvent;
     const old = handlePeablePersonalObservation(
       authority,
       context,
@@ -339,7 +351,7 @@ it('subscription wake observation time is captured before an awaited source look
       },
       providerObservedAt: new Date(f.now.getTime() + 200),
       status: 'active',
-      period: f.period,
+      period,
       cancelAtPeriodEnd: true,
     });
     time = f.now.getTime() + 300;

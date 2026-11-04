@@ -6,6 +6,7 @@
  */
 
 import type { Request } from 'express';
+import type { NamedRouteParams } from '../types/routeParams';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import sessionService from '../services/session.service';
@@ -44,7 +45,7 @@ export interface NormalizedUser {
   [key: string]: unknown;
 }
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request<NamedRouteParams> {
   /** Session already verified by optional auth. */
   sessionId?: string;
   user?: NormalizedUser;

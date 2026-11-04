@@ -1,3 +1,9 @@
+const {
+  NOBLE_ESM_PACKAGES,
+  esmOnlyTransform,
+  esmOnlyTransformIgnorePattern,
+} = require('../../scripts/jest-esm-only.cjs');
+
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'jsdom',
@@ -11,7 +17,7 @@ module.exports = {
         tsconfig: {
           jsx: 'react-jsx',
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           strict: true,
@@ -23,7 +29,9 @@ module.exports = {
         },
       },
     ],
+    ...esmOnlyTransform(NOBLE_ESM_PACKAGES),
   },
+  transformIgnorePatterns: [esmOnlyTransformIgnorePattern(NOBLE_ESM_PACKAGES)],
   testMatch: ['<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',

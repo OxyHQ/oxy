@@ -188,8 +188,7 @@ export const serviceTokenSchema = z.object({
 // that guessed at AWS's fields would have to change to admit the next provider.
 export const workloadServiceTokenSchema = z
   .object({
-    protocolVersion: z.literal(2).optional(),
-    scopes: serviceTokenScopesSchema.optional(),
+    protocolVersion: z.literal(2),
     provider: z.enum(ATTESTATION_PROVIDERS),
     nonce: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
     attestation: z.record(z.string(), z.unknown()),
@@ -203,15 +202,7 @@ export const workloadServiceTokenSchema = z
       )
       .optional(),
   })
-  .superRefine((value, context) => {
-    if (value.protocolVersion === 2 && value.scopes !== undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['scopes'],
-        message: 'Workloads authenticate without scopes.',
-      });
-    }
-  });
+  .strict();
 
 // POST /auth/oauth/authorize
 // Issued from the auth UI after the user clicks "Allow". Requires the user

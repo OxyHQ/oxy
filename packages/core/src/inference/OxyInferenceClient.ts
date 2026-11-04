@@ -375,9 +375,10 @@ export class OxyInferenceClient {
   /**
    * The models this caller may use — `GET /v1/models`.
    *
-   * Audience-scoped server-side. A machine credential and an anonymous caller
-   * both see the PUBLIC catalogue; only an internal/system application's
-   * service token sees internal-only routes.
+   * Visibility is resolved server-side from the live application and its
+   * commercial catalogue audience. Anonymous callers and plain user sessions
+   * see the public catalogue; eligible own applications can see platform routes.
+   * Catalogue visibility does not grant permission to execute inference.
    *
    * **`[]` is a normal answer**: a route is not publicly exposed until
    * somebody has reviewed the right to resell it. An official application's
@@ -650,10 +651,10 @@ export class OxyInferenceClient {
    * `GET /v1/generations/:id`.
    *
    * `id` is the `requestId` you already hold (it is on every response and
-   * every error) or the `generationId`. Requires the `inference:usage:read`
-   * scope; a caller without it, or one whose application did not make the
-   * request, is told the receipt does not exist rather than that it belongs to
-   * somebody else.
+   * every error) or the `generationId`. External callers require
+   * `inference:usage:read`; verified own workloads do not request app scopes.
+   * Receipt ownership and account boundaries apply to both lanes. A caller
+   * outside that authority is told the receipt does not exist.
    */
   async getGeneration(
     id: string,
@@ -678,6 +679,27 @@ export class OxyInferenceClient {
       'GET',
       `/v1/generations/${encodeURIComponent(id)}`,
       options,
+    );
+    return body.data;
+  }
+
+  /**
+   * Recover settled usage when a disconnected request never delivered its id.
+   * Uses the ORIGINAL key and current caller/attribution, never starts inference.
+   * A not-found response can mean pending or unauthorized; it is not zero usage
+   * and does not authorize replaying the generation. The key stays in a header.
+   */
+  async getGenerationRecordByIdempotencyKey(
+    idempotencyKey: string,
+    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+  ): Promise<OxyGenerationRecord> {
+    if (!idempotencyKey.trim() || idempotencyKey.length > 128 || /[\r\n]/.test(idempotencyKey)) {
+      throw new TypeError('A nonempty Idempotency-Key of at most 128 characters is required.');
+    }
+    const body = await this.#request<{ data: OxyGenerationRecord }>(
+      'GET',
+      '/v1/generations/by-idempotency-key',
+      { ...options, idempotencyKey },
     );
     return body.data;
   }

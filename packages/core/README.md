@@ -31,7 +31,7 @@ The package exposes two public entry points:
 - `@oxy.so/core/session` — `SessionClient`, the account dialog controller, auth-state stores, cold boot
 - `@oxy.so/core/crypto` — `KeyManager`, `SignatureService`, `RecoveryPhraseService` and the primitives under them
 - `@oxy.so/core/civic`, `@oxy.so/core/inference`, `@oxy.so/core/logger`
-- `@oxy.so/core/server` — `OxyServer` (service tokens, `middleware.*`) and the Express helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
+- `@oxy.so/core/server` — `OxyServer` (workload service tokens, `middleware.*`, `withUser` / `asUser`, `appPermissionsFor`, `accountAccessFor`, `applicationAccessFor`) and the Express helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySocketCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
 
 Heavy pieces have their own entries so an app ships only what it uses; React Native and browser bundles never import Express. The full API map is [docs/api.mdx](./docs/api.mdx).
 
@@ -136,34 +136,48 @@ Caching is left to the consumer's own layer (React Query / stores). Pass
 `oxy.createLinkedClient({ baseURL, enableCache: true })` to opt back in when the
 consumer accepts responsibility for invalidation.
 
-## Backend Auth Middleware
+## Backends
 
-Backends should use the SDK server helpers instead of local auth request types
-or `requireAuth` copies.
+A backend uses ONE `OxyServer` per process. An Oxy-owned backend authenticates
+as its workload (ADR 0026/0049): no api key, no client secret.
 
 ```ts
-import { OxyServices } from '@oxy.so/core';
 import {
+  OxyServer,
+  createOxyAuthMiddleware,
   createOxyRateLimit,
-  requireOxyAuth,
   getRequiredOxyUserId,
   type OxyAuthRequest,
 } from '@oxy.so/core/server';
 
-const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+export const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
+});
 
 app.use(createOxyRateLimit(oxy, { store: redisStore }));
-router.use(requireOxyAuth);
+app.use('/api', createOxyAuthMiddleware(oxy));
 
 router.get('/me', (req: OxyAuthRequest, res) => {
-  const userId = getRequiredOxyUserId(req);
-  res.json({ userId });
+  res.json({ userId: getRequiredOxyUserId(req) });
+});
+
+// As the person behind the request — never on the shared client:
+router.get('/orgs/:accountId', async (req, res) => {
+  const access = await oxy.accountAccessFor(req, req.params.accountId);
+  res.json({ canEdit: access.has('account:update') });
 });
 ```
 
-For routers that are not mounted after `createOxyRateLimit`, use
-`createOxyAuthMiddleware(oxy)` to resolve the bearer session and require a user
-in one middleware.
+`createOxyAuthMiddleware(oxy)` resolves the bearer session and requires a user
+in one middleware; `createOptionalOxyAuth(oxy)` is the optional form. The
+permission questions (`appPermissionsFor` — for a session or an MCP tool call —
+`accountAccessFor`, `applicationAccessFor`), user clients (`withUser`), per-call options
+(`oxy.withCallOptions({ timeout, deadline, retry, signal })`), files and
+outbound HTTP (`safeFetch`, with `validated` to reuse an `assertSafePublicUrl`
+check and `requireHttps` for an all-https chain) are in
+[Building a backend](./docs/backend.mdx).
 
 ## Security Headers And CSP
 
@@ -225,3 +239,11 @@ optional/platform-specific modules.
 ## `verifyChallenge` Token Planting
 
 `OxyServices.verifyChallenge()` plants the freshly-minted access token internally before returning. Callers do not need to plant tokens manually after `verifyChallenge` — the SDK handles it.
+
+The optional `@oxy.so/core/server/aws` entry requires the optional
+`@aws-sdk/credential-provider-node` peer. Explicit profiles additionally require
+`@aws-sdk/credential-provider-ini`, loaded lazily only when resolving that profile.
+`createAwsWorkloadCredentialProvider({ profile })` resolves only that explicit profile
+and fails if it cannot be resolved; it never falls back to an ambient identity. Omitting
+`profile` retains the default AWS credential chain. Both paths require unexpired
+temporary credentials with a session token.

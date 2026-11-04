@@ -1,5 +1,43 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.7.0
+
+### Added
+
+- `notificationAccessBatchInputSchema` / `notificationAccessBatchResponseSchema` (types `NotificationAccessInput`, `NotificationAccessBatchInput`): up to 100 unique `{ resourceId, actorAccountId, recipientAccountId }` items for `POST /safety/service/notification-access-batch`, one decision per resource.
+
+## 6.6.0
+
+### Added
+
+- `applicationPermissionSchema.heldByAccountRoles`: the owning account's roles whose members hold a key (ADR 0056). Set on a first-party application's keys, which are declared in code; empty for a key held through per-person grants.
+- `APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode` (`FIRST_PARTY_ROLES_IN_CODE`, 409): a Console declaration or grant on one of Oxy's own applications.
+
+## 6.5.0
+
+### Added
+
+- `normalizeDomainName` and `DOMAIN_NAME_MAX_LENGTH` (client entry): the one domain rule `POST /identity/domains` and the domains screen share. Written without lookbehind, so it runs on Hermes.
+- `SIGN_IN_IDENTIFIER_MAX_LENGTH` (254) and `SECOND_FACTOR_CODE_MAX_LENGTH` (16), the bounds `signInIdentifierSchema` and `secondFactorCodeSchema` already enforced, named so a field can carry them as `maxLength`.
+
+## 6.4.0
+
+### Added
+
+- Holder-context evidence contracts (`holderContextEvidenceV1RequestSchema`/`ResponseSchema` and the client checks) for `POST /session/device/context-evidence-v1` (ADR 0053): identifiers and expiry only, no bearer or holder secret.
+
+## 6.3.0
+
+### Added
+
+- Registered-account aggregate contracts for a first-party deployment: the batched registration request/response and the total snapshot (`total`, `exact`, `computedAt`, `maxAgeSeconds`, `stale`), with their limits.
+
+## 6.2.0
+
+### Added
+
+- Versioned holder-proven active-context token request and response, with Zod-free client checks.
+
 ## 6.0.0
 
 ### Breaking

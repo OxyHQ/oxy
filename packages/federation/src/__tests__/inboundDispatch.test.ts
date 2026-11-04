@@ -375,7 +375,7 @@ describe('Move → onMove', () => {
 });
 
 describe('content verbs → onContentActivity', () => {
-  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update'])(
+  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update', 'Add', 'Remove'])(
     'routes %s to the app',
     async (type) => {
       const rig = makeRig();
@@ -404,7 +404,7 @@ describe('content verbs → onContentActivity', () => {
 describe('blocked-origin domain policy', () => {
   const BLOCKED_ACTOR = 'https://spam.example/users/mallory';
 
-  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update'])(
+  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update', 'Add', 'Remove'])(
     'drops %s from a blocked origin without reaching the app',
     async (type) => {
       const rig = makeRig({ blockedHosts: ['spam.example'] });

@@ -1,6 +1,6 @@
 // Jest setup for API package
 const dotenv = require('dotenv');
-dotenv.config({ path: '.env.test' });
+dotenv.config({ path: '.env.test', quiet: true });
 
 // The suite's environment, defined once for every run: CI and a local
 // `bun run test` see the same values. They used to live only in the CI job's

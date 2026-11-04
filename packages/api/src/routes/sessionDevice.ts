@@ -4,6 +4,10 @@ import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
+  deviceContextTokenV1RequestSchema,
+  deviceContextTokenV1ResponseSchema,
+  holderContextEvidenceV1RequestSchema,
+  holderContextEvidenceV1ResponseSchema,
   deviceJoinCodeRequestSchema,
   deviceJoinCodeResponseSchema,
   deviceJoinRequestSchema,
@@ -17,6 +21,7 @@ import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { sendRateLimited } from '../middleware/errorHandler';
 import { rateLimit } from '../middleware/rateLimiter';
+import { holderContextEvidenceBudget } from '../middleware/security';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
@@ -27,6 +32,16 @@ import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { isAuthWebOrigin, isBrowserClient, normaliseOrigin } from '../utils/origin';
 import { hashedIpKey } from '../utils/ipKey';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  deviceContextTokenV1EnvelopeSchema,
+  deviceContextTokenV1ErrorSchema,
+} from '../schemas/deviceContextToken.schemas';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  holderContextEvidenceV1EnvelopeSchema,
+  holderContextEvidenceV1ErrorSchema,
+} from '../schemas/holderContextEvidence.schemas';
 
 const router = Router();
 
@@ -190,6 +205,119 @@ router.post(
         state,
       },
     });
+  }),
+);
+
+/**
+ * Opt-in account-mode mint with the active context bound to the bearer.
+ * Identity-pinned clients keep using `/token` with their explicit accountId.
+ * Directory/permission data is not frozen by this response.
+ *
+ * @requestBody deviceContextTokenV1RequestSchema
+ * @response 200 deviceContextTokenV1EnvelopeSchema Holder-proven active context and bearer.
+ * @response 400 deviceContextTokenV1ErrorSchema Invalid request body.
+ * @response 401 deviceContextTokenV1ErrorSchema Invalid device secret.
+ * @response 409 deviceContextTokenV1ErrorSchema Active context binding unavailable.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ */
+router.post(
+  '/context-token-v1',
+  deviceTokenLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const parsed = deviceContextTokenV1RequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'deviceId and deviceSecret are required' });
+      return;
+    }
+    const { deviceId, deviceSecret } = parsed.data;
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    if (lockout.locked) {
+      refuseLockedOut(res, lockout);
+      return;
+    }
+    if (!(await deviceSessionService.getStateBySecret(deviceId, deviceSecret))) {
+      res.status(401).json({ error: 'invalid_device_secret' });
+      return;
+    }
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    const result = await deviceSessionService.resolveHolderContextToken(deviceId, deviceSecret);
+    if (!result) {
+      res.status(409).json({ error: 'binding_unavailable' });
+      return;
+    }
+    res.json({ data: deviceContextTokenV1ResponseSchema.parse({ version: 1, ...result }) });
+  }),
+);
+
+/**
+ * Opt-in observation of the active shared-device context and the exact bearer
+ * presented by its holder. This route mints nothing and does not authorize any
+ * subsequent operation. It is unavailable until its independent budget and
+ * Redis are provisioned. Only personal, first-party sessions are supported;
+ * delegated, OAuth, legacy and supervised contexts are unavailable. Evidence
+ * observes the active context, without asserting the calling client's mode.
+ * It is not a lease or permission grant and does not assert bearer scopes.
+ *
+ * @requestBody holderContextEvidenceV1RequestSchema
+ * @response 200 holderContextEvidenceV1EnvelopeSchema Writer-observed bearer and active holder context.
+ * @response 400 holderContextEvidenceV1ErrorSchema Invalid request body.
+ * @response 401 holderContextEvidenceV1ErrorSchema Missing or invalid bearer.
+ * @response 403 holderContextEvidenceV1ErrorSchema Unsupported bearer lane.
+ * @response 409 holderContextEvidenceV1ErrorSchema Holder or active binding unavailable.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ * @response 503 holderContextEvidenceV1ErrorSchema Session authority unavailable.
+ */
+router.post(
+  '/context-evidence-v1',
+  holderContextEvidenceBudget,
+  asyncHandler(async (req: Request, res: Response) => {
+    const authorizationHeaders = req.rawHeaders.filter(
+      (_value, index) =>
+        index % 2 === 0 && req.rawHeaders[index]?.toLowerCase() === 'authorization',
+    );
+    const authorization = req.headers.authorization;
+    if (
+      authorizationHeaders.length !== 1 ||
+      typeof authorization !== 'string' ||
+      !/^Bearer [^\s]+$/.test(authorization)
+    ) {
+      res.status(401).json({ error: 'invalid_bearer' });
+      return;
+    }
+    const parsed = holderContextEvidenceV1RequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_request' });
+      return;
+    }
+    try {
+      const result = await deviceSessionService.resolveHolderContextEvidence(
+        parsed.data.deviceId,
+        parsed.data.deviceSecret,
+        authorization.slice(7),
+      );
+      if (result.status === 'invalid_bearer') {
+        res.status(401).json({ error: 'invalid_bearer' });
+        return;
+      }
+      if (result.status === 'unsupported_bearer') {
+        res.status(403).json({ error: 'unsupported_bearer' });
+        return;
+      }
+      if (result.status === 'binding_unavailable') {
+        res.status(409).json({ error: 'binding_unavailable' });
+        return;
+      }
+      res.json({ data: holderContextEvidenceV1ResponseSchema.parse(result.evidence) });
+    } catch (error: unknown) {
+      // Do not log a query, its parameters or the bearer: this is a holder
+      // credential endpoint. An unconfirmed failure is never a logout verdict.
+      logger.warn('holder context evidence unavailable', {
+        component: 'DeviceSession',
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+      res.status(503).json({ error: 'evidence_unavailable' });
+    }
   }),
 );
 
@@ -597,6 +725,14 @@ router.post(
       req,
     );
     if (!outcome.ok) {
+      if (outcome.reason === 'superseded') {
+        if (outcome.changed && outcome.state) {
+          broadcastDeviceState(outcome.state);
+          broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
+        }
+        res.status(409).json({ error: 'context_superseded' });
+        return;
+      }
       if (outcome.reason === 'unauthorized') {
         // The target was stale or revoked and has been healed out of the device.
         // Broadcast the healed state so the device's other apps drop it too, then

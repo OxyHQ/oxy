@@ -12,7 +12,11 @@ import type { OxyContext } from '../client/context';
 import type { PaginationInfo, SearchProfilesResponse, User } from '../models/interfaces';
 import { buildQueryParams, type PaginationParams } from '../utils/apiUtils';
 import { normalizeUserIdentity, normalizeUserIdentityOrNull } from '../utils/userIdentity';
-import { OXY_IDENTITY_CACHE_PREFIXES, oxyUserByIdCacheKey } from '../utils/identityCacheSweep';
+import {
+  OXY_IDENTITY_CACHE_PREFIXES,
+  oxyUserByIdCacheKey,
+  oxyUserByIdPath,
+} from '../utils/identityCacheSweep';
 import {
   OXY_ACCOUNT_LIST_CACHE_KEY,
   OXY_ACCOUNT_LIST_CACHE_QUERY_PREFIX,
@@ -21,6 +25,8 @@ import {
 import { extractErrorStatus } from '../utils/errorUtils';
 import { type BatchLookup, runBatchLookup } from '../utils/batchLookup';
 import { logger } from '../logger';
+
+const enc = encodeURIComponent;
 
 const PROFILE_TTL = 5 * 60 * 1000;
 const SESSION_USER_TTL = 2 * 60 * 1000;
@@ -65,7 +71,7 @@ export class UsersApi {
    * registry-fresh read that neither serves nor overwrites a cached entry.
    */
   async get(userId: string, options?: { cache?: boolean }): Promise<User> {
-    const user = await this.ctx.request<User>('GET', `/users/${userId}`, undefined, {
+    const user = await this.ctx.request<User>('GET', oxyUserByIdPath(userId), undefined, {
       cache: options?.cache ?? true,
       cacheTTL: PROFILE_TTL,
     });
@@ -166,7 +172,7 @@ export class UsersApi {
 
   /** The user a session belongs to. */
   async bySession(sessionId: string): Promise<User> {
-    const user = await this.ctx.request<User>('GET', `/session/user/${sessionId}`, undefined, {
+    const user = await this.ctx.request<User>('GET', `/session/user/${enc(sessionId)}`, undefined, {
       cache: true,
       cacheTTL: SESSION_USER_TTL,
     });
@@ -271,7 +277,7 @@ export class UsersApi {
         : (limitOrPagination ?? {});
     const users = await this.ctx.request<User[]>(
       'GET',
-      `/profiles/${userId}/similar`,
+      `/profiles/${enc(userId)}/similar`,
       buildQueryParams(pagination),
       {
         cache: true,
@@ -289,7 +295,7 @@ export class UsersApi {
   async moderators(communityId: string): Promise<User[]> {
     const moderators = await this.ctx.request<User[]>(
       'GET',
-      `/users/${communityId}/moderators`,
+      `/users/${enc(communityId)}/moderators`,
       undefined,
       { cache: true, cacheTTL: PROFILE_TTL },
     );

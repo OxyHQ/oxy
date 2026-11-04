@@ -3,6 +3,7 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 import {
   MESSAGE_ACCESS_MAX_SUPERVISED_PARTICIPANTS,
   type DeliveryAccessInput,
+  type NotificationAccessInput,
   type ContentAccessInput,
   type SafetyDecision,
   type SupervisedAction,
@@ -19,7 +20,7 @@ export const safetyDecision = (
 ): SafetyDecision => ({ allowed, reason, policyVersion: '2' });
 export function consumerSupports(
   principal: LiveAgencyServicePrincipal | null,
-  action: SupervisedAction | 'messaging-delivery' | 'content-publication',
+  action: SupervisedAction | 'messaging-delivery' | 'notification-delivery' | 'content-publication',
 ): boolean {
   return (
     !!principal &&
@@ -223,6 +224,30 @@ export async function decideMessagesBatch(
         principal,
         graph,
       ),
+    })),
+  };
+}
+/**
+ * Whether each actor's activity may notify each recipient, for background
+ * delivery. Unlike conversations, adult blocks are decided here, in either
+ * direction: a notification is Oxy-owned relationship policy, not an
+ * application's group semantics. A supervised party needs reviewed `content`
+ * support and contact approval both ways, as for any other pair.
+ */
+export async function decideNotificationsBatch(
+  items: NotificationAccessInput[],
+  principal: LiveAgencyServicePrincipal | null,
+) {
+  const graph = await loadSafetyGraph(
+    items.flatMap((item) => [item.actorAccountId, item.recipientAccountId]),
+  );
+  return {
+    items: items.map((item) => ({
+      resourceId: item.resourceId,
+      decision:
+        item.actorAccountId === item.recipientAccountId
+          ? safetyDecision(available(graph, item.actorAccountId), 'owner')
+          : pair(graph, item.recipientAccountId, item.actorAccountId, principal, 'content'),
     })),
   };
 }

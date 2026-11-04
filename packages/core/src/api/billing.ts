@@ -40,6 +40,8 @@ import {
 } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 
+const enc = encodeURIComponent;
+
 const SUBSCRIPTION_TTL = 2 * 60 * 1000;
 const WALLET_TTL = 60 * 1000;
 
@@ -282,7 +284,7 @@ export class BillingApi {
   /** A user's subscription (default: the signed-in user's). */
   async subscription(userId?: string): Promise<Subscription> {
     const id = this.resolveUserId(userId);
-    return this.ctx.request<Subscription>('GET', `/subscription/${id}`, undefined, {
+    return this.ctx.request<Subscription>('GET', `/subscription/${enc(id)}`, undefined, {
       cache: true,
       cacheTTL: SUBSCRIPTION_TTL,
     });
@@ -291,7 +293,7 @@ export class BillingApi {
   /** A user's wallet (default: the signed-in user's). Cached briefly: the balance moves. */
   async wallet(userId?: string): Promise<Wallet> {
     const id = this.resolveUserId(userId);
-    return this.ctx.request<Wallet>('GET', `/wallet/${id}`, undefined, {
+    return this.ctx.request<Wallet>('GET', `/wallet/${enc(id)}`, undefined, {
       cache: true,
       cacheTTL: WALLET_TTL,
     });
@@ -305,9 +307,14 @@ export class BillingApi {
     const params: Record<string, number> = {};
     if (options.limit) params.limit = options.limit;
     if (options.offset) params.offset = options.offset;
-    return this.ctx.request<WalletTransactionsPage>('GET', `/wallet/transactions/${id}`, params, {
-      cache: false,
-    });
+    return this.ctx.request<WalletTransactionsPage>(
+      'GET',
+      `/wallet/transactions/${enc(id)}`,
+      params,
+      {
+        cache: false,
+      },
+    );
   }
 
   private resolveUserId(userId?: string): string {

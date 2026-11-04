@@ -399,7 +399,7 @@ export function createNodeApp(deps: NodeAppDependencies): NodeApp {
   );
 
   // ── Serve a content-addressed blob ───────────────────────────────────────────
-  app.get(`${NODE_BLOBS_PATH}/:hash`, async (req: Request, res: Response, next: NextFunction) => {
+  app.get(`${NODE_BLOBS_PATH}/:hash`, async (req, res, next) => {
     try {
       const hash = req.params.hash.toLowerCase();
       if (!SHA256_HEX.test(hash)) {

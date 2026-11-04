@@ -92,7 +92,7 @@ const PROJECTIONS = {
       where: "application_id = '6a2f851751b784a86fd0e934'",
     },
     application_workload_identities: {
-      columns: ['id', 'application_id', 'provider', 'subject', 'scopes', 'expires_at'],
+      columns: ['id', 'application_id', 'provider', 'subject', 'environment', 'expires_at'],
       where: "application_id = '6a2f851751b784a86fd0e934'",
     },
     inference_provider_cost_feed_cursors: {

@@ -18,6 +18,9 @@ const dict = {
       caption: 'Giriş yapmak için Commons ile tarayın',
       renew: 'Yeni kod göster',
     },
+    device: {
+      codeHint: 'Telefonunda bu kodun göründüğünü kontrol et',
+    },
     errors: {
       rateLimited: 'Çok fazla deneme yapıldı. {{seconds}} sn sonra tekrar deneyin.',
       invalidCredentials:

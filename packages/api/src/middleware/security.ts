@@ -1,12 +1,14 @@
 import jwt from 'jsonwebtoken';
+import type { NamedRouteParams } from '../types/routeParams';
 import slowDown from 'express-slow-down';
-import type { Request } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import type { AuthRequest } from './auth';
 import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
 import { rateLimit } from './rateLimiter';
+import { getRedisClient } from '../config/redis';
 
 const isProd = process.env.NODE_ENV !== 'development';
 
@@ -40,8 +42,8 @@ export function isIdpServiceToServicePath(path: string): boolean {
  * under `rl:general` (1000/15min) and `slowDown` (100/15min) — both keyed by
  * the same subject — a reader browsing an app would spend their own budget on
  * the app's validations and then pay 500ms on every request, here and to the
- * app. It is excluded from both and capped by its own per-subject limiter,
- * {@link sessionHeaderValidationLimiter}, mounted on the route.
+ * app. It is excluded from both; the route applies separate legacy and opt-in
+ * live budgets via {@link sessionHeaderValidationBudget}.
  */
 export function isSessionHeaderValidationPath(path: string): boolean {
   return path.startsWith('/session/validate-header/');
@@ -131,6 +133,55 @@ export function isCapabilityUrlPath(path: string): boolean {
 }
 
 /**
+ * The public by-id resolver, `GET /cdn/:id` — the origin behind
+ * `cloud.oxy.so/<fileId>?variant=` (ADR 0047). It answers a cacheable 302 for a
+ * PUBLIC, active file and 404 for anything else: no auth, no bytes, one row read.
+ *
+ * Every avatar and media id a page shows is resolved here on a miss in the
+ * Worker's edge cache, so a single page view is dozens of resolves. Charged to
+ * the general application budget (`rl:general`, 1000/15min) and the slowDown
+ * penalty (500 ms after 100), images spent the budget a visitor's API calls
+ * need, and every resolve past the hundredth paid half a second. Worse, the
+ * Worker's subrequests carried no visitor address, so all of them were ONE
+ * anonymous client: on 2026-11-04 that one bucket ran dry and every avatar on
+ * mention.earth answered `429 Too many requests` until the window rolled.
+ *
+ * The Worker now names the visitor (`workers/cloud/src/visitor.ts`), so `req.ip`
+ * is the visitor here by the same `oxyTrustProxy` rule as any browser request,
+ * and this surface carries its own per-address budget ({@link cdnResolverLimiter}).
+ * Both forms, with and without the `/api` prefix, are matched: the prefix is
+ * stripped after the global limiters run.
+ *
+ * MOUNT-ORDER INVARIANT: `rl:general` and `slowDown` skip these paths, so the
+ * `/cdn` mount MUST carry `cdnResolverLimiter` (it does, in server.ts).
+ */
+export function isCdnResolverPath(path: string): boolean {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  return stripped.startsWith('/cdn/');
+}
+
+/**
+ * The Cloudflare Email Routing webhook, `POST /email/inbound`, posted by
+ * `workers/email-inbound` — a machine caller with no visitor behind it, so it
+ * has no address of its own to be charged to: its subrequests leave through a
+ * Cloudflare Worker address (for a subrequest from outside the API's zone,
+ * Cloudflare reports one constant, `2a06:98c0:3600::103`, for every Worker on
+ * the internet). Under `rl:general` and `slowDown` its deliveries shared one
+ * anonymous per-address bucket with whatever else arrived from there, and a
+ * 429 there deferred everyone's mail.
+ *
+ * MOUNT-ORDER INVARIANT: in server.ts, both forms of this path pass
+ * `verifyEmailInboundWebhookSecret` and then `inboundRateLimit` (per recipient,
+ * plus a platform backstop) BEFORE the global limiters run, so a request that
+ * reaches them here has already been authenticated and charged to its own
+ * budgets. Removing that earlier mount would leave this path unthrottled.
+ */
+export function isEmailInboundWebhookPath(path: string): boolean {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  return stripped === '/email/inbound' || stripped.startsWith('/email/inbound/');
+}
+
+/**
  * NOTE — the token-gated BULK-PATH exemption that used to live here
  * (`SERVICE_TO_SERVICE_BULK_PATHS` + `isServiceToServiceBulkRequest`) is gone,
  * subsumed by {@link isFirstPartyServiceRequest}: a valid service credential is
@@ -150,7 +201,7 @@ export function isCapabilityUrlPath(path: string): boolean {
  */
 const SERVICE_PRINCIPAL = Symbol('oxy.rateLimit.servicePrincipal');
 
-interface RequestWithServicePrincipal extends Request {
+interface RequestWithServicePrincipal extends Request<NamedRouteParams> {
   [SERVICE_PRINCIPAL]?: { payload: ReturnType<typeof verifyServiceToken> };
 }
 
@@ -202,8 +253,8 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 /** Cache slot for {@link userPrincipal}; see {@link SERVICE_PRINCIPAL}. */
 const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
 
-interface RequestWithUserPrincipal extends Request {
-  [USER_PRINCIPAL]?: { userId?: string; clientId?: string };
+interface RequestWithUserPrincipal extends Request<NamedRouteParams> {
+  [USER_PRINCIPAL]?: { userId?: string; clientId?: string; expiresAt?: number };
 }
 
 /**
@@ -231,11 +282,11 @@ function userPrincipal(req: Request): string | undefined {
   return verifiedSession(req).userId;
 }
 
-function verifiedSession(req: Request): { userId?: string; clientId?: string } {
+function verifiedSession(req: Request): { userId?: string; clientId?: string; expiresAt?: number } {
   const cached = (req as RequestWithUserPrincipal)[USER_PRINCIPAL];
   if (cached) return cached;
 
-  const resolve = (): { userId?: string; clientId?: string } => {
+  const resolve = (): { userId?: string; clientId?: string; expiresAt?: number } => {
     const secret = process.env.ACCESS_TOKEN_SECRET;
     const authHeader = req.headers.authorization;
     if (!secret || !authHeader?.startsWith('Bearer ')) return {};
@@ -248,13 +299,16 @@ function verifiedSession(req: Request): { userId?: string; clientId?: string } {
         id?: unknown;
         _id?: unknown;
         azp?: unknown;
+        exp?: unknown;
       };
       if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return {};
       const clientId =
         typeof claims.azp === 'string' && claims.azp.length > 0 ? claims.azp : undefined;
+      const expiresAt =
+        typeof claims.exp === 'number' && Number.isFinite(claims.exp) ? claims.exp : undefined;
       for (const candidate of [claims.userId, claims.id, claims._id]) {
         if (typeof candidate === 'string' && candidate.length > 0) {
-          return { userId: candidate, clientId };
+          return { userId: candidate, clientId, expiresAt };
         }
       }
       return {};
@@ -370,6 +424,8 @@ const rateLimiter = rateLimit({
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isCapabilityUrlPath(req.path) ||
+    isCdnResolverPath(req.path) ||
+    isEmailInboundWebhookPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -414,7 +470,31 @@ const idpServiceLimiter = rateLimit({
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
 
-// The SOLE budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
+// Dedicated limiter for the public by-id resolver (see isCdnResolverPath:
+// /cdn/*). Because those paths are skipped by rl:general and slowDown, this is
+// their SOLE budget. Mounted at the `/cdn` router in server.ts.
+//
+// Keyed per VISITOR: `cloud.oxy.so` forwards the visitor's address on its
+// same-zone subrequest and `oxyTrustProxy` reads it exactly as it reads a
+// browser's, so a forged header buys nothing. One visitor's page is dozens of
+// resolves, but only on a miss in the Worker's edge cache, which keeps each
+// redirect for the hour oxy-api states: 20000/15min (≈22 req/s sustained per
+// address) leaves room for a carrier NAT or an office full of readers behind
+// one address, while one scraper walking ids is still stopped at that rate.
+// The same ceiling bounds a caller with no visitor to name — a Worker on
+// another zone, which Cloudflare reports as one constant address — so that
+// pool is bounded too, without any of it reaching the application budget.
+// Unique prefix (`rl:cdn:`) keeps this budget distinct from every other
+// limiter (no ERR_ERL_DOUBLE_COUNT).
+const cdnResolverLimiter = rateLimit({
+  prefix: 'rl:cdn:',
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 20000 : 40000,
+  message: 'Too many file lookups, please try again later.',
+  keyGenerator: hashedIpKey,
+});
+
+// The legacy budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
 // sized like idpServiceLimiter: one subject's validations are one per request
 // an app serves them, and a request without a verified bearer falls back to the
 // per-IP key, as `/session/validate/` is capped today.
@@ -425,6 +505,192 @@ const sessionHeaderValidationLimiter = rateLimit({
   message: 'Too many requests, please try again later.',
   keyGenerator: subjectOrIpKey,
 });
+
+/*
+ * The live lane is intentionally off until its owner provisions and sizes all
+ * three shared budgets. A fixed window can admit bursts at its boundaries;
+ * this limits aggregate volume, not instantaneous concurrency or DoS.
+ */
+function liveBudget(name: string, hardMaximum: number): number | null {
+  const raw = process.env[name];
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value > 0 && value <= hardMaximum ? value : null;
+}
+
+const liveSessionEnabled = process.env.OXY_LIVE_SESSION_ENABLED === 'true';
+const liveRedisConfigured = Boolean(process.env.REDIS_URL);
+const liveSubjectMax = liveBudget('OXY_LIVE_SESSION_SUBJECT_PER_MINUTE', 60);
+const liveAddressMax = liveBudget('OXY_LIVE_SESSION_IP_PER_MINUTE', 300);
+const liveGlobalMax = liveBudget('OXY_LIVE_SESSION_GLOBAL_PER_MINUTE', 600);
+const liveSubjectLimiter = rateLimit({
+  prefix: 'rl:session:live:subject:',
+  windowMs: 60_000,
+  max: liveSubjectMax ?? 1,
+  keyGenerator: subjectOrIpKey,
+});
+const liveAddressLimiter = rateLimit({
+  prefix: 'rl:session:live:ip:',
+  windowMs: 60_000,
+  max: liveAddressMax ?? 1,
+  keyGenerator: hashedIpKey,
+});
+const liveGlobalLimiter = rateLimit({
+  prefix: 'rl:session:live:global:',
+  windowMs: 60_000,
+  max: liveGlobalMax ?? 1,
+  keyGenerator: () => 'all',
+});
+
+// Holder evidence shares no quota with live server-side authorization. It is
+// disabled until its own capacity is explicitly provisioned on every task.
+const holderEvidenceEnabled = process.env.OXY_HOLDER_EVIDENCE_ENABLED === 'true';
+const holderEvidenceSubjectMax = liveBudget('OXY_HOLDER_EVIDENCE_SUBJECT_PER_MINUTE', 60);
+const holderEvidenceAddressMax = liveBudget('OXY_HOLDER_EVIDENCE_IP_PER_MINUTE', 300);
+const holderEvidenceGlobalMax = liveBudget('OXY_HOLDER_EVIDENCE_GLOBAL_PER_MINUTE', 600);
+const holderEvidenceLimiters =
+  holderEvidenceEnabled &&
+  liveRedisConfigured &&
+  holderEvidenceSubjectMax &&
+  holderEvidenceAddressMax &&
+  holderEvidenceGlobalMax
+    ? {
+        subject: rateLimit({
+          prefix: 'rl:session:holder-evidence:subject:',
+          windowMs: 60_000,
+          max: holderEvidenceSubjectMax,
+          keyGenerator: subjectOrIpKey,
+        }),
+        address: rateLimit({
+          prefix: 'rl:session:holder-evidence:ip:',
+          windowMs: 60_000,
+          max: holderEvidenceAddressMax,
+          keyGenerator: hashedIpKey,
+        }),
+        global: rateLimit({
+          prefix: 'rl:session:holder-evidence:global:',
+          windowMs: 60_000,
+          max: holderEvidenceGlobalMax,
+          keyGenerator: () => 'all',
+        }),
+      }
+    : null;
+
+interface AuthorityBudget {
+  enabled: boolean;
+  errorFormat: 'legacy' | 'holder-evidence';
+  subjectMax: number | null;
+  addressMax: number | null;
+  globalMax: number | null;
+  subjectLimiter: ReturnType<typeof rateLimit>;
+  addressLimiter: ReturnType<typeof rateLimit>;
+  globalLimiter: ReturnType<typeof rateLimit>;
+}
+
+function runAuthorityBudget(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  budget: AuthorityBudget,
+): void {
+  const unavailable = () =>
+    res
+      .status(503)
+      .json(
+        budget.errorFormat === 'holder-evidence'
+          ? { error: 'evidence_unavailable' }
+          : { message: 'Session authority unavailable' },
+      );
+  const invalidBearer = () =>
+    res
+      .status(401)
+      .json(
+        budget.errorFormat === 'holder-evidence'
+          ? { error: 'invalid_bearer' }
+          : { message: 'Bearer cannot be verified' },
+      );
+  const redis = getRedisClient();
+  if (
+    !budget.enabled ||
+    !liveRedisConfigured ||
+    !budget.subjectMax ||
+    !budget.addressMax ||
+    !budget.globalMax ||
+    redis?.status !== 'ready'
+  ) {
+    unavailable();
+    return;
+  }
+  const failClosed: NextFunction = (error?: unknown) => {
+    if (error || redis.status !== 'ready') {
+      unavailable();
+      return;
+    }
+    budget.addressLimiter(req, res, (addressError?: unknown) => {
+      if (addressError || redis.status !== 'ready') {
+        unavailable();
+        return;
+      }
+      if (!process.env.ACCESS_TOKEN_SECRET) {
+        unavailable();
+        return;
+      }
+      const verified = verifiedSession(req);
+      if (!verified.userId || verified.expiresAt === undefined) {
+        // This is budget attribution, not proof that a session has ended.
+        invalidBearer();
+        return;
+      }
+      budget.globalLimiter(req, res, (globalError?: unknown) => {
+        if (globalError || redis.status !== 'ready') {
+          unavailable();
+          return;
+        }
+        next();
+      });
+    });
+  };
+  budget.subjectLimiter(req, res, failClosed);
+}
+
+/** Separate live budget; legacy validations retain their existing limiter. */
+function sessionHeaderValidationBudget(req: Request, res: Response, next: NextFunction): void {
+  if (req.header('x-oxy-session-authority') !== 'live-v1') {
+    sessionHeaderValidationLimiter(req, res, next);
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.vary('x-oxy-session-authority');
+  runAuthorityBudget(req, res, next, {
+    enabled: liveSessionEnabled,
+    errorFormat: 'legacy',
+    subjectMax: liveSubjectMax,
+    addressMax: liveAddressMax,
+    globalMax: liveGlobalMax,
+    subjectLimiter: liveSubjectLimiter,
+    addressLimiter: liveAddressLimiter,
+    globalLimiter: liveGlobalLimiter,
+  });
+}
+
+/** An independent, opt-in budget for holder-context evidence. */
+function holderContextEvidenceBudget(req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!holderEvidenceLimiters) {
+    res.status(503).json({ error: 'evidence_unavailable' });
+    return;
+  }
+  runAuthorityBudget(req, res, next, {
+    enabled: true,
+    errorFormat: 'holder-evidence',
+    subjectMax: holderEvidenceSubjectMax,
+    addressMax: holderEvidenceAddressMax,
+    globalMax: holderEvidenceGlobalMax,
+    subjectLimiter: holderEvidenceLimiters.subject,
+    addressLimiter: holderEvidenceLimiters.address,
+    globalLimiter: holderEvidenceLimiters.global,
+  });
+}
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
 // auth surface; individual sensitive endpoints (/auth/challenge, /auth/verify,
@@ -509,6 +775,8 @@ const bruteForceProtection = slowDown({
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isCapabilityUrlPath(req.path) ||
+    isCdnResolverPath(req.path) ||
+    isEmailInboundWebhookPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -560,7 +828,10 @@ export {
   serviceCredentialLimiter,
   idpServiceLimiter,
   sessionHeaderValidationLimiter,
+  sessionHeaderValidationBudget,
+  holderContextEvidenceBudget,
   federationServiceLimiter,
+  cdnResolverLimiter,
   authRateLimiter,
   userRateLimiter,
   bruteForceProtection,

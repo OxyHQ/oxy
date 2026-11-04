@@ -1,0 +1,144 @@
+{
+  "kind": "workload-scope-schema-cleanup",
+  "recordedOn": "2026-10-26",
+  "status": "verified_completed",
+  "bridge": {
+    "pullRequest": "https://github.com/OxyHQ/oxy/pull/1996",
+    "source": "6a6d6f0292b1ad68cb45f82dd1f37589e5b0e6df",
+    "observedAt": "2026-10-26T06:28:29.745209+00:00",
+    "imageIndex": "sha256:c1115f8bb8c969693f36de8b6222840ed178f11492a45a8ee24c82ecca79ab2f",
+    "runtimeDigests": [
+      "sha256:c1115f8bb8c969693f36de8b6222840ed178f11492a45a8ee24c82ecca79ab2f"
+    ],
+    "services": [
+      {
+        "name": "oxy-api",
+        "revision": 1082,
+        "running": 3,
+        "desired": 3,
+        "healthyTargetCounts": [
+          3,
+          3
+        ]
+      },
+      {
+        "name": "oxy-asset-variant-worker",
+        "revision": 547,
+        "running": 8,
+        "desired": 8,
+        "healthyTargetCounts": []
+      }
+    ]
+  },
+  "removal": {
+    "pullRequest": "https://github.com/OxyHQ/oxy/pull/1998",
+    "source": "e734c03c413142930b7215249639959de6faef26",
+    "observedAt": "2026-10-26T07:02:06.325091+00:00",
+    "imageIndex": "sha256:13feeefd77d28701b672c3e443e67dc0b7608da8597de1a463bbbe3bd68bca52",
+    "runtimeDigests": [
+      "sha256:13feeefd77d28701b672c3e443e67dc0b7608da8597de1a463bbbe3bd68bca52"
+    ],
+    "services": [
+      {
+        "name": "oxy-api",
+        "revision": 1084,
+        "running": 3,
+        "desired": 3,
+        "healthyTargetCounts": [
+          3,
+          3
+        ]
+      },
+      {
+        "name": "oxy-asset-variant-worker",
+        "revision": 549,
+        "running": 8,
+        "desired": 8,
+        "healthyTargetCounts": []
+      }
+    ]
+  },
+  "migration": "0220_drop_workload_scope_column.sql",
+  "operator": {
+    "readOnly": true,
+    "isolation": "repeatable read",
+    "frozenReadbackSha256": "864f1b53ef843045a8e59a2ca2d501efc732fdcaa83a94d9ea22991e87dcbbdc",
+    "preObservedAt": "2026-10-26 06:33:21.929609+00",
+    "postObservedAt": "2026-10-26 07:02:31.947423+00",
+    "before": {
+      "legacyColumnPresent": true,
+      "legacyConstraintPresent": true
+    },
+    "after": {
+      "legacyColumnPresent": false,
+      "legacyConstraintPresent": false
+    },
+    "unexpectedDependencies": [],
+    "preserved": {
+      "routineReferences": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "routineScopeReferences": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "bindingTriggers": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "triggerScopeReferences": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "bindingViews": {
+        "count": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "bindings": {
+        "count": 27,
+        "sha256": "c453befe055270745f2122153536fe0f723d521b39a1a1edea1f29ee9a68a089"
+      },
+      "workloadAttribution": {
+        "count": 27,
+        "sha256": "b54bb58c8e57a3dee0735a9a6623a07c70045ec4df41d29cce47445ccbd048ab"
+      },
+      "bindingRelations": {
+        "count": 2,
+        "sha256": "b378a0cca0f49fc49c8177bf076136489b9c80517c5645d88651cc4697a849fa"
+      },
+      "externalScopeColumns": {
+        "count": 2,
+        "sha256": "e4e5a6a82535957400eeda7663495c6b720f772afd0845ed0f5f0e1948a08da2"
+      },
+      "externalScopeChecks": {
+        "count": 3,
+        "sha256": "e545b31560f30daf3bc2720bcc8bf2d134e22f7fb31e7361b1fb36bbf128c729"
+      }
+    },
+    "comparisonVerified": true
+  },
+  "diagnostics": [
+    {
+      "phase": "pre-drop",
+      "taskStatus": "STOPPED",
+      "exitCode": 0,
+      "definitionStatus": "INACTIVE",
+      "noActiveFamilyTasks": true,
+      "secretValuesRead": false
+    },
+    {
+      "phase": "post-drop",
+      "taskStatus": "STOPPED",
+      "exitCode": 0,
+      "definitionStatus": "INACTIVE",
+      "noActiveFamilyTasks": true,
+      "secretValuesRead": false
+    }
+  ],
+  "limits": [
+    "Only the historical workload binding scopes column/check were removed; application, external credential and OAuth grant scopes retain their contracts.",
+    "Hashes cover explicit preservation projections, not private row contents. Routine/trigger source scanning does not rule out computed dynamic SQL; source/operator review was separate.",
+    "This schema receipt does not claim completion of product, native-device, cancellation or cookie-free realtime acceptance."
+  ]
+}

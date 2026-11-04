@@ -7,8 +7,8 @@
  */
 
 import './polyfill';
-import { sha256 } from '@noble/hashes/sha256';
-import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { signMessage } from '@oxy.so/protocol/sign';
 import type { IdentityProof, IdentityProofClaims } from '@oxy.so/contracts';
 import {

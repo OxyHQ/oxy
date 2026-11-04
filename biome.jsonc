@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true, "defaultBranch": "main" },
   "files": {
     "ignoreUnknown": true,
@@ -60,6 +60,11 @@
     }
   },
   "json": { "formatter": { "trailingCommas": "none" } },
+  // Biome 2.6 added Markdown and YAML formatters. Neither was ever formatted here:
+  // the YAML formatter re-quotes every workflow string, and CHANGELOG/AGENTS
+  // Markdown is read as text by the release workflow and the size gates.
+  "markdown": { "formatter": { "enabled": false } },
+  "yaml": { "formatter": { "enabled": false } },
   "css": { "parser": { "tailwindDirectives": true } },
   "assist": { "enabled": true, "actions": { "source": { "organizeImports": "off" } } },
   "linter": {
@@ -94,6 +99,43 @@
     }
   },
   "overrides": [
+    {
+      // Tests define probe components inside each test so they close over that
+      // test's state; each is created once per test, not on every parent render.
+      "includes": ["**/__tests__/**", "**/__mocks__/**", "**/*.test.*"],
+      "linter": { "rules": { "correctness": { "noComponentHookFactories": "off" } } }
+    },
+    {
+      // The maximum of BigInt quota amounts: Math.max throws on BigInt operands.
+      "includes": ["packages/contracts/src/products/access.ts"],
+      "linter": { "rules": { "complexity": { "useMathMinMax": "off" } } }
+    },
+    {
+      // Services is the React Native package (the rule's domain). Bloom's Button and
+      // Chip render string children inside their own <Text>.
+      "includes": ["packages/services/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noReactNativeRawText": { "level": "error", "options": { "skip": ["Button", "Chip"] } }
+          }
+        }
+      }
+    },
+    {
+      // Services tests render through react-dom, where text inside DOM elements is valid.
+      "includes": ["packages/services/**/__tests__/**", "packages/services/**/*.test.*"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noReactNativeRawText": {
+              "level": "error",
+              "options": { "skip": ["Button", "Chip", "button", "div", "p", "span"] }
+            }
+          }
+        }
+      }
+    },
     {
       // Formatter OFF, lint on: source whose exact layout a gate or test reads as
       // text. Formatting any of these turns a check red without a behaviour change.

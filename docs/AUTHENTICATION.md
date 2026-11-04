@@ -47,12 +47,12 @@ export default function RootLayout() {
 
 ## Web (Vite + React Native Web)
 
-The same `OxyProvider` runs on web. Bundle the React Native graph with **rolldown-vite** + `vite-plugin-react-native-web` — the working reference is `packages/test-app-vite` ([`packages/test-app-vite/vite.config.ts`](../packages/test-app-vite/vite.config.ts)):
+The same `OxyProvider` runs on web. Bundle the React Native graph with **Vite 8** (Rolldown) + `vite-plugin-react-native-web` — the working reference is `packages/test-app-vite` ([`packages/test-app-vite/vite.config.ts`](../packages/test-app-vite/vite.config.ts)):
 
 ```jsonc
-// package.json — alias vite to rolldown-vite
-"vite": "npm:rolldown-vite@^7.3.1",
-"vite-plugin-react-native-web": "^3.1.2"
+// package.json
+"vite": "^8.3.5",
+"vite-plugin-react-native-web": "^3.2.0"
 ```
 
 ```ts

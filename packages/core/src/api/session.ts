@@ -11,6 +11,23 @@ import type { OxyContext } from '../client/context';
 import type { ClientSession } from '../models/session';
 import type { User } from '../models/interfaces';
 import { normalizeUserIdentity } from '../utils/userIdentity';
+import { OxyApiError } from '../OxyServices.errors';
+import { checkContract, holderContextEvidenceV1ResponseCheck } from '@oxy.so/contracts/client';
+import type { CredentialGeneration } from '../HttpService';
+import type {
+  HolderEvidence,
+  HolderEvidenceResult,
+  HolderEvidenceUnavailableReason,
+} from './holderEvidence';
+
+const enc = encodeURIComponent;
+
+/** How long a refusal (disabled, rate limited, unreachable) is remembered per installation. */
+const EVIDENCE_REFUSAL_MS = 5_000;
+const unavailable = (reason: HolderEvidenceUnavailableReason): HolderEvidenceResult => ({
+  status: 'unavailable',
+  reason,
+});
 
 /**
  * Reads the device credential this client holds, if any — `{ deviceId,
@@ -41,12 +58,21 @@ interface AccessTokenClaims {
   exp?: number;
   userId?: string;
   id?: string;
+  sessionId?: string;
+  deviceId?: string;
+  device_context_id?: string;
+  act?: { sub?: string };
 }
 
 export class SessionApi {
   private deviceCredentialProvider: DeviceCredentialProvider | null = null;
   private decodedFor: string | null = null;
   private decoded: AccessTokenClaims | null = null;
+  /** One server round trip per installed bearer; the key is the opaque generation. */
+  private readonly evidence = new WeakMap<
+    CredentialGeneration,
+    { result: Promise<HolderEvidenceResult>; settledAt?: number }
+  >();
 
   constructor(protected readonly ctx: OxyContext) {}
 
@@ -162,6 +188,128 @@ export class SessionApi {
     }
   }
 
+  // ── Holder-context evidence (ADR 0053) ───────────────────────────────────
+
+  /**
+   * Ask the server which shared-device context the INSTALLED bearer belongs to,
+   * and bind the answer to that exact installation.
+   *
+   * The result is honored only if the credential generation captured before
+   * the request is still current when the answer is committed, so a refresh,
+   * setter, account or actor switch, cross-tab change, restore or A to B to A
+   * during the request yields `changed`. The answer must also agree with the
+   * claims of the bearer that was captured; a disagreement is
+   * `binding_unavailable`. Nothing here refreshes, clears or mints a credential,
+   * and no outcome is a revocation verdict: callers keep their existing checks.
+   * Concurrent callers share one request per installation.
+   */
+  observeHolderEvidence(): Promise<HolderEvidenceResult> {
+    const generation = this.ctx.http.captureCredentialGeneration();
+    const token = this.ctx.http.getAccessToken();
+    if (!generation || !token) return Promise.resolve(unavailable('no_credential'));
+    const known = this.evidence.get(generation);
+    if (known) {
+      const refused = known.settledAt !== undefined;
+      if (!refused || Date.now() - (known.settledAt as number) < EVIDENCE_REFUSAL_MS) {
+        return known.result.then((result) =>
+          result.status === 'ok' && result.evidence.expiresAtMs <= Date.now()
+            ? this.refreshEvidence(generation, token)
+            : result,
+        );
+      }
+    }
+    return this.refreshEvidence(generation, token);
+  }
+
+  /** Whether evidence still names the installed bearer and has not expired. */
+  isHolderEvidenceCurrent(evidence: HolderEvidence): boolean {
+    return (
+      Date.now() < evidence.expiresAtMs &&
+      this.ctx.http.isCredentialGenerationCurrent(evidence.generation)
+    );
+  }
+
+  private refreshEvidence(
+    generation: CredentialGeneration,
+    token: string,
+  ): Promise<HolderEvidenceResult> {
+    const entry: { result: Promise<HolderEvidenceResult>; settledAt?: number } = {
+      result: this.acquireEvidence(generation, token).then((result) => {
+        if (result.status !== 'ok') entry.settledAt = Date.now();
+        return result;
+      }),
+    };
+    this.evidence.set(generation, entry);
+    return entry.result;
+  }
+
+  private async acquireEvidence(
+    generation: CredentialGeneration,
+    token: string,
+  ): Promise<HolderEvidenceResult> {
+    let claims: AccessTokenClaims;
+    try {
+      claims = jwtDecode<AccessTokenClaims>(token);
+    } catch {
+      return unavailable('unsupported');
+    }
+    const proof = await this.readDeviceProof();
+    if (!proof) return unavailable('no_holder');
+    let response: unknown;
+    try {
+      response = await this.ctx.request<unknown>(
+        'POST',
+        '/session/device/context-evidence-v1',
+        proof,
+        {
+          cache: false,
+          retry: false,
+          expectedCredentialGeneration: generation,
+        },
+      );
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'AUTH_SESSION_CHANGED') {
+        return unavailable('changed');
+      }
+      const status = error instanceof OxyApiError ? error.status : 0;
+      if (status === 403) return unavailable('unsupported');
+      if (status === 409) return unavailable('binding_unavailable');
+      return unavailable('unavailable');
+    }
+    const parsed = checkContract(holderContextEvidenceV1ResponseCheck, response);
+    if (!parsed) return unavailable('unavailable');
+    // Commit synchronously: nothing may replace the bearer between this check
+    // and the evidence becoming visible to its caller.
+    if (!this.ctx.http.isCredentialGenerationCurrent(generation)) return unavailable('changed');
+    const expiresAtMs = Date.parse(parsed.expiresAt);
+    if (
+      parsed.deviceId !== proof.deviceId ||
+      parsed.accountId !== claims.userId ||
+      parsed.sessionId !== claims.sessionId ||
+      (claims.act?.sub !== undefined && parsed.actorId !== claims.act.sub) ||
+      (claims.device_context_id !== undefined && parsed.contextId !== claims.device_context_id)
+    ) {
+      return unavailable('binding_unavailable');
+    }
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+      return unavailable('unavailable');
+    }
+    const evidence: HolderEvidence = Object.freeze({
+      generation,
+      identity: Object.freeze({
+        deviceId: parsed.deviceId,
+        deviceSessionId: parsed.deviceSessionId,
+        contextId: parsed.contextId,
+        actorId: parsed.actorId,
+        accountId: parsed.accountId,
+        sessionId: parsed.sessionId,
+      }),
+      deviceRevision: parsed.revision,
+      expiresAtMs,
+    });
+    return { status: 'ok', evidence };
+  }
+
   // ── The server session ───────────────────────────────────────────────────
 
   /** Ask the server whether the current access token is valid. */
@@ -189,17 +337,39 @@ export class SessionApi {
     sessionId: string,
     options: SessionValidateOptions = {},
   ): Promise<SessionValidation> {
+    if ('liveSession' in options)
+      throw new OxyApiError('Live session validation requires OxyServer', {
+        status: 503,
+        code: 'SESSION_AUTHORITY_UNAVAILABLE',
+      });
+    return this.validateRequest(sessionId, options);
+  }
+
+  /** Server implementations use this transport after enforcing their own contract. */
+  protected async validateRequest(
+    sessionId: string,
+    options: SessionValidateOptions & { liveSession?: boolean },
+  ): Promise<SessionValidation> {
     try {
-      const validation = options.accessToken
-        ? await this.ctx.request<SessionValidation>(
+      if (options.liveSession && !options.accessToken)
+        throw new OxyApiError('Live session authority requires a bearer', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+        });
+      const validation: SessionValidation & { liveSessionAuthority?: unknown } = options.accessToken
+        ? await this.ctx.request<SessionValidation & { liveSessionAuthority?: unknown }>(
             'GET',
             `/session/validate-header/${encodeURIComponent(sessionId)}`,
             undefined,
             {
               cache: false,
               skipAuth: true,
+              ...(options.liveSession ? { deduplicate: false, retry: false } : {}),
               headers: {
                 Authorization: `Bearer ${options.accessToken}`,
+                ...(options.liveSession
+                  ? { 'x-oxy-session-authority': 'live-v1', 'cache-control': 'no-store' }
+                  : {}),
                 ...(options.deviceFingerprint
                   ? { 'x-device-fingerprint': options.deviceFingerprint }
                   : {}),
@@ -208,7 +378,7 @@ export class SessionApi {
           )
         : await this.ctx.request<SessionValidation>(
             'GET',
-            `/session/validate/${sessionId}`,
+            `/session/validate/${enc(sessionId)}`,
             {
               ...(options.deviceFingerprint
                 ? { deviceFingerprint: options.deviceFingerprint }
@@ -217,32 +387,67 @@ export class SessionApi {
             },
             { cache: false },
           );
+      if (
+        options.liveSession &&
+        (validation.liveSessionAuthority !== 'session-row-v1' ||
+          validation.valid !== true ||
+          validation.sessionId !== sessionId ||
+          typeof validation.expiresAt !== 'string' ||
+          !Number.isFinite(Date.parse(validation.expiresAt)) ||
+          Date.parse(validation.expiresAt) <= Date.now() ||
+          typeof validation.lastActivity !== 'string' ||
+          !Number.isFinite(Date.parse(validation.lastActivity)))
+      )
+        throw new OxyApiError('Live session authority is unavailable', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+        });
       return { ...validation, user: normalizeUserIdentity(validation.user) };
     } catch (error) {
+      if (options.liveSession) {
+        const candidate = error as { status?: unknown; code?: unknown } | null;
+        const invalid =
+          candidate?.status === 401 && candidate.code === 'OXY_LIVE_SESSION_INVALID_V1';
+        const denied = candidate?.status === 403 && candidate.code === 'OXY_LIVE_SESSION_POLICY_V1';
+        if (invalid) this.ctx.oxy.cache.delete(`GET:/session/user/${enc(sessionId)}`);
+        if (invalid || denied) throw error;
+        throw new OxyApiError('Live session authority is unavailable', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+          cause: error,
+        });
+      }
       // The session is gone: drop any user cached for it (#196).
-      this.ctx.oxy.cache.delete(`GET:/session/user/${sessionId}`);
+      this.ctx.oxy.cache.delete(`GET:/session/user/${enc(sessionId)}`);
       throw error;
     }
   }
 
   /** The sessions that belong with `sessionId` (same account set). */
   async list(sessionId: string): Promise<ClientSession[]> {
-    return this.ctx.request<ClientSession[]>('GET', `/session/sessions/${sessionId}`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<ClientSession[]>(
+      'GET',
+      `/session/sessions/${enc(sessionId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /** Sign out `sessionId`, or — with `targetSessionId` — one of the sessions beside it. */
   async logout(sessionId: string, targetSessionId?: string): Promise<void> {
     const url = targetSessionId
-      ? `/session/logout/${sessionId}/${targetSessionId}`
-      : `/session/logout/${sessionId}`;
+      ? `/session/logout/${enc(sessionId)}/${enc(targetSessionId)}`
+      : `/session/logout/${enc(sessionId)}`;
     await this.ctx.request('POST', url, undefined, { cache: false });
   }
 
-  /** Sign out every session beside `sessionId`, and it. */
+  /** Sign out the other sessions for this account; preserve `sessionId`. */
   async logoutAll(sessionId: string): Promise<void> {
-    await this.ctx.request('POST', `/session/logout-all/${sessionId}`, undefined, { cache: false });
+    await this.ctx.request('POST', `/session/logout-all/${enc(sessionId)}`, undefined, {
+      cache: false,
+    });
   }
 
   /** Decoded claims of the current token, memoised per token string. */

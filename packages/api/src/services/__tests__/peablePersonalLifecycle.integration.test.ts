@@ -128,8 +128,8 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
       expect(initialized.correlation).toMatchObject({
         id: initialized.checkoutId,
         status: 'complete',
-        storeId: f.payer,
-        subscription: { providerSubscriptionId: 'sub_fixture' },
+        store_id: f.payer,
+        subscription: { provider_subscription_id: 'sub_fixture' },
       });
       const context = {
         accountId: f.payer,
@@ -150,13 +150,16 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           retrievePaidInvoice: (...args: any[]) => rpc('retrievePaidInvoice', args),
           retrieveInvoiceState: (...args: any[]) => rpc('retrieveInvoiceState', args),
           retrieveSubscription: (...args: any[]) => rpc('retrieveSubscription', args),
-          cancelAtPeriodEnd: (...args: any[]) => rpc('cancelAtPeriodEnd', args),
+          // The fixture's line is `[id, options]`; the 1.0 call is `(id, params, options)`.
+          cancelAtPeriodEnd: (id: string, _params: unknown, options: unknown) =>
+            rpc('cancelAtPeriodEnd', [id, options]),
         },
       } as unknown as PeableEvidenceAuthority['client'];
       let authorityStart = start,
         authorityEnd = end;
       let validationNow: Date | undefined;
       const clock = () => validationNow ?? new Date();
+      const unix = (iso: string) => Date.parse(iso) / 1000;
       const authority: PeableEvidenceAuthority = {
         client,
         readFinalInvoiceAuthority: async (source: PeableInvoiceSource) => ({
@@ -165,26 +168,26 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           invoice: {
             platform: 'peable',
             currency: 'USD',
-            grossMinorUnits: 2999,
-            netMinorUnits: 2500,
-            taxMinorUnits: 499,
-            merchantFeeMinorUnits: 0,
-            taxTreatment: 'inclusive',
-            sellerId: 'synthetic-only',
-            invoiceIssuerId: 'synthetic-only',
-            taxQuoteId: 'synthetic-only',
-            customerLocationEvidenceId: 'synthetic-only',
-            taxRateEvidenceId: 'synthetic-only',
-            issuedAt: authorityStart,
-            expiresAt: authorityEnd,
+            gross_minor_units: '2999',
+            net_minor_units: '2500',
+            tax_minor_units: '499',
+            merchant_fee_minor_units: '0',
+            tax_treatment: 'inclusive',
+            seller_id: 'synthetic-only',
+            invoice_issuer_id: 'synthetic-only',
+            tax_quote_id: 'synthetic-only',
+            customer_location_evidence_id: 'synthetic-only',
+            tax_rate_evidence_id: 'synthetic-only',
+            issued_at: unix(authorityStart),
+            expires_at: unix(authorityEnd),
             context: {
-              payerAccountId: f.payer,
-              beneficiaryAccountId: f.payer,
-              providerSubscriptionId: context.subscriptionId,
-              offerId: context.offerId,
-              offerVersion: 1,
-              periodStart: authorityStart,
-              periodEnd: authorityEnd,
+              payer_account_id: f.payer,
+              beneficiary_account_id: f.payer,
+              provider_subscription_id: context.subscriptionId,
+              offer_id: context.offerId,
+              offer_version: 1,
+              period_start: unix(authorityStart),
+              period_end: unix(authorityEnd),
               mode: context.mode,
               environment: context.environment,
             },
@@ -276,8 +279,6 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         const environment = {
           OXY_ONE_PEABLE_RUNTIME_ENABLED: 'true',
           OXY_ONE_PEABLE_RUNTIME_FILE: runtimePath,
-          OXY_ONE_PEABLE_PUBLIC_KEY: 'synthetic',
-          OXY_ONE_PEABLE_SECRET: 'synthetic',
           OXY_ONE_PEABLE_OBSERVATION_SECRET: initialized.observationSecret,
         };
         const previousEnvironment: Record<string, string | undefined> = {};
@@ -334,7 +335,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
       expect(deliveries).toHaveLength(1);
       expect(deliveries[0].event).toMatchObject({
         type: 'billing.observation.updated',
-        data: { object: { resourceId: 'in_fixture', resourceKind: 'invoice', revision: 1 } },
+        data: { object: { resource_id: 'in_fixture', resource_kind: 'invoice', revision: 1 } },
       });
       const verify = (body: string, signature: string) => rpc('verifyEvent', [body, signature]);
       await expect(
@@ -568,7 +569,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
               await rpc('relay', [], { enabled: true });
               const events = await rpc('deliveries');
               const wake = events
-                .filter((v: any) => v.event.data.object.resourceKind === 'subscription')
+                .filter((v: any) => v.event.data.object.resource_kind === 'subscription')
                 .at(-1);
               validationNow = new Date(validationNow.getTime() + 1);
               await handlePeablePersonalObservation(

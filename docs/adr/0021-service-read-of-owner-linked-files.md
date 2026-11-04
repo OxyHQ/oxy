@@ -114,3 +114,32 @@ than the control the user already has.
 - `packages/api/src/routes/__tests__/assetsServiceLinkedUrl.test.ts` — every
   weaker predicate refused by its own case, each paired with an authorized id
 - Mercaria ADR 0010 (digital commerce) — the entitlement half of this split
+
+## Private-only consumer visibility checks (2026-10-28)
+
+The linked URL response now includes the file's current `visibility`, read from
+the same authorized file record used to mint the URL. A valid application grant
+does not imply the bytes remain private: an owner can change visibility after
+upload, and duplicate uploads preserve the existing file's visibility. A
+consumer serving protected membership content must require `private` before
+returning a URL to its viewer, and continue checking its own live entitlement.
+The SDK field is optional during rolling API deployment; absence is unknown,
+never a private default. This adds no owner/session impersonation or new grant.
+The existing 300-second bearer lifetime and owner revocation semantics remain.
+
+## Private viewer access (2026-10-28)
+
+An ordinary account's private file is readable through a person-bound URL,
+stream, download, batch lookup or own-service requester fallback only by its
+owner. A public profile, follow edge or supplied entity context does not grant
+access to that account's private library. The service path still honors the
+exact application's owner-created reference or explicit file grant, and its
+revocation; it does not turn a requester proof into that grant.
+
+Supervised accounts retain their separate, live guardian-approved contact
+policy. Their assets are forced private by the database, and approved contacts
+are an explicit audience, revoked immediately when that approval is withdrawn.
+Consequently a paid-content consumer must not treat `private` alone as proof
+that a supervised owner's file has no audience outside its own entitlement
+policy. Application-owned private assets remain readable only by their owning
+application.

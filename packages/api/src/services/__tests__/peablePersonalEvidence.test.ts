@@ -8,6 +8,8 @@ import {
   type PeableEvidenceAuthority,
 } from '../peablePersonalEvidence.service';
 import { recordProductAccessPeriod } from '../productAccessPersistence.service';
+/** Peable instants are integer Unix seconds (ADR 0014). */
+const unix = (instant: string | Date | number) => Math.floor(new Date(instant).getTime() / 1000);
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 it('requires real authority, activates exact paid period once and preserves individual sources', async () => {
@@ -32,71 +34,72 @@ it('requires real authority, activates exact paid period once and preserves indi
     offerVersion: 1,
   };
   const value = {
-    invoiceId: 'in_fixture',
-    lineId: 'il_fixture',
-    paymentIntentId: 'pi_fixture',
-    providerSubscriptionId: context.subscriptionId,
-    providerCustomerId: context.customerId,
-    providerPriceId: context.priceId,
-    storeId: f.payer,
-    planId: context.planId,
+    invoice_id: 'in_fixture',
+    line_id: 'il_fixture',
+    payment_intent_id: 'pi_fixture',
+    provider_subscription_id: context.subscriptionId,
+    provider_customer_id: context.customerId,
+    provider_price_id: context.priceId,
+    store_id: f.payer,
+    plan_id: context.planId,
     livemode: true,
     currency: 'USD',
-    amountPaid: '2999',
-    netAmount: '2500',
-    taxAmount: '499',
-    periodStart: f.period.start,
-    periodEnd: f.period.end,
-    paidAt: f.now.toISOString(),
-    observedAt: f.now.toISOString(),
+    amount_paid: '2999',
+    net_amount: '2500',
+    tax_amount: '499',
+    period_start: unix(f.period.start),
+    period_end: unix(f.period.end),
+    paid_at: unix(f.now),
+    observed_at: unix(f.now),
   };
   const final = {
     platform: 'peable',
     currency: 'USD',
-    grossMinorUnits: 2999,
-    netMinorUnits: 2500,
-    taxMinorUnits: 499,
-    merchantFeeMinorUnits: 0,
-    taxTreatment: 'inclusive',
-    sellerId: 'synthetic-review-seller',
-    invoiceIssuerId: 'synthetic-review-issuer',
-    taxQuoteId: 'synthetic-review-tax',
-    customerLocationEvidenceId: 'synthetic-location',
-    taxRateEvidenceId: 'synthetic-rate',
-    issuedAt: new Date(f.now.getTime() - 1000).toISOString(),
-    expiresAt: new Date(f.now.getTime() + 60_000).toISOString(),
+    gross_minor_units: '2999',
+    net_minor_units: '2500',
+    tax_minor_units: '499',
+    merchant_fee_minor_units: '0',
+    tax_treatment: 'inclusive',
+    seller_id: 'synthetic-review-seller',
+    invoice_issuer_id: 'synthetic-review-issuer',
+    tax_quote_id: 'synthetic-review-tax',
+    customer_location_evidence_id: 'synthetic-location',
+    tax_rate_evidence_id: 'synthetic-rate',
+    issued_at: unix(f.now.getTime() - 1000),
+    expires_at: unix(f.now.getTime() + 60_000),
     context: {
-      payerAccountId: f.payer,
-      beneficiaryAccountId: f.payer,
-      providerSubscriptionId: context.subscriptionId,
-      offerId: context.offerId,
-      offerVersion: 1,
-      periodStart: f.period.start,
-      periodEnd: f.period.end,
+      payer_account_id: f.payer,
+      beneficiary_account_id: f.payer,
+      provider_subscription_id: context.subscriptionId,
+      offer_id: context.offerId,
+      offer_version: 1,
+      period_start: unix(f.period.start),
+      period_end: unix(f.period.end),
       mode: 'live',
       environment: 'production',
     },
   };
-  const read = jest.fn(async () => value);
-  const current = jest.fn(async () => ({
-    providerSubscriptionId: context.subscriptionId,
-    providerCustomerId: context.customerId,
-    providerPriceId: context.priceId,
-    storeId: f.payer,
-    planId: context.planId,
+  const subscription = {
+    provider_subscription_id: context.subscriptionId,
+    provider_customer_id: context.customerId,
+    provider_price_id: context.priceId,
+    store_id: f.payer,
+    plan_id: context.planId,
     livemode: true,
     status: 'active',
     interval: 'month',
-    cancelAtPeriodEnd: true,
-    currentPeriodStart: f.period.start,
-    currentPeriodEnd: f.period.end,
-    trialEndsAt: null,
-  }));
+    cancel_at_period_end: true,
+    current_period_start: unix(f.period.start),
+    current_period_end: unix(f.period.end),
+    trial_ends_at: null,
+  };
+  const read = jest.fn(async () => value);
+  const current = jest.fn(async () => subscription);
   const client = {
     merchants: {
       retrieve: async () => ({
         id: context.merchantId,
-        oxyAppId: context.appId,
+        oxy_app_id: context.appId,
         environment: context.environment,
       }),
     },
@@ -121,25 +124,22 @@ it('requires real authority, activates exact paid period once and preserves indi
   await expect(
     reconcilePeablePersonalPaidInvoice(faircoinAuthority, context, 'in_fixture', () => f.now),
   ).rejects.toThrow('Faircoin quote');
-  read.mockResolvedValue({ ...value, storeId: f.owner });
+  read.mockResolvedValue({ ...value, store_id: f.owner });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => f.now),
   ).rejects.toThrow('ownership');
-  read.mockResolvedValue({
-    ...value,
-    observedAt: new Date(f.now.getTime() - 60_001).toISOString(),
-  });
+  read.mockResolvedValue({ ...value, observed_at: unix(f.now.getTime() - 60_001) });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => f.now),
   ).rejects.toThrow('time');
   read.mockResolvedValue(value);
   for (const key of [
-    'invoiceId',
-    'paymentIntentId',
-    'customerId',
-    'priceId',
-    'merchantId',
-    'appId',
+    'invoice_id',
+    'payment_intent_id',
+    'customer_id',
+    'price_id',
+    'merchant_id',
+    'app_id',
     'environment',
   ] as const) {
     const wrong = {
@@ -165,42 +165,16 @@ it('requires real authority, activates exact paid period once and preserves indi
   read.mockImplementation(async () => {
     await Promise.resolve();
     moving += 100;
-    return { ...value, observedAt: new Date(moving).toISOString() };
+    return { ...value, observed_at: unix(moving) };
   });
   current.mockImplementation(async () => {
     await Promise.resolve();
     moving += 100;
-    return {
-      providerSubscriptionId: context.subscriptionId,
-      providerCustomerId: context.customerId,
-      providerPriceId: context.priceId,
-      storeId: f.payer,
-      planId: context.planId,
-      livemode: true,
-      status: 'active',
-      interval: 'month',
-      cancelAtPeriodEnd: true,
-      currentPeriodStart: f.period.start,
-      currentPeriodEnd: f.period.end,
-      trialEndsAt: null,
-    };
+    return subscription;
   });
   current.mockImplementationOnce(async () => {
     moving += 60_001;
-    return {
-      providerSubscriptionId: context.subscriptionId,
-      providerCustomerId: context.customerId,
-      providerPriceId: context.priceId,
-      storeId: f.payer,
-      planId: context.planId,
-      livemode: true,
-      status: 'active',
-      interval: 'month',
-      cancelAtPeriodEnd: true,
-      currentPeriodStart: f.period.start,
-      currentPeriodEnd: f.period.end,
-      trialEndsAt: null,
-    };
+    return subscription;
   });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => new Date(moving)),

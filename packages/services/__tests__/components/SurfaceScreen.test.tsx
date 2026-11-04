@@ -23,7 +23,10 @@ jest.mock('@oxy.so/bloom/dialog', () => ({
 }));
 jest.mock('../../src/ui/navigation/routes', () => ({
   getScreenComponent: () => MockScreen,
+  screensReady: () => true,
+  loadScreens: jest.fn(),
 }));
+jest.mock('../../src/ui/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 jest.mock('../../src/ui/navigation/surfaceRegistry', () => ({
   getSurfaceConfig: () => ({ header: mockHeaderMode, morph: true }),
 }));

@@ -15,6 +15,7 @@ android {
 }
 
 dependencies {
+  testImplementation "junit:junit:4.13.2"
   // Hardware-backed EncryptedSharedPreferences (MasterKey AES256_GCM) for the
   // device-session and background-session credentials.
   implementation "androidx.security:security-crypto:1.1.0-alpha06"

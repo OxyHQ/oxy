@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { createOxyCors } from '../cors';
+import { createOxyCors, createOxyOriginCheck, createOxySocketCors } from '../cors';
 
 interface FakeResponse extends Response {
   __headers: Record<string, string>;
@@ -154,5 +154,44 @@ describe('@oxy.so/core/server createOxyCors', () => {
     mw(req, res, makeNext());
     expect(res.__headers['Access-Control-Allow-Origin']).toBe('https://api.oxy.so');
     expect(res.__headers['Access-Control-Allow-Credentials']).toBeUndefined();
+  });
+});
+
+describe('createOxyOriginCheck', () => {
+  it('admits what createOxyCors admits, and nothing opaque', () => {
+    const allowed = createOxyOriginCheck(['https://app.example.com', 'exp://localhost:8081']);
+    expect(allowed('https://api.oxy.so')).toBe(true);
+    expect(allowed('https://app.example.com')).toBe(true);
+    expect(allowed('https://evil.example')).toBe(false);
+    expect(allowed('http://api.oxy.so')).toBe(false);
+    expect(allowed('exp://localhost:8081')).toBe(false);
+    expect(allowed('null')).toBe(false);
+  });
+});
+
+describe('createOxySocketCors', () => {
+  const { cors, allowRequest } = createOxySocketCors({ appOrigins: ['https://app.example.com'] });
+  const decide = (origin: string | undefined) =>
+    new Promise<boolean | undefined>((resolve) =>
+      cors.origin(origin, (_error, allow) => resolve(allow)),
+    );
+  const handshake = (origin: string | undefined) =>
+    new Promise<boolean>((resolve) =>
+      allowRequest({ headers: origin === undefined ? {} : { origin } }, (_error, ok) =>
+        resolve(ok),
+      ),
+    );
+
+  it('answers polling with the same allowlist, with credentials', async () => {
+    expect(cors.credentials).toBe(true);
+    await expect(decide('https://app.example.com')).resolves.toBe(true);
+    await expect(decide('https://mention.oxy.so')).resolves.toBe(true);
+    await expect(decide('https://evil.example')).resolves.toBe(false);
+  });
+
+  it('refuses a WebSocket handshake from another browser origin, admits a native client', async () => {
+    await expect(handshake('https://evil.example')).resolves.toBe(false);
+    await expect(handshake('https://app.example.com')).resolves.toBe(true);
+    await expect(handshake(undefined)).resolves.toBe(true);
   });
 });

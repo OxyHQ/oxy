@@ -2,7 +2,7 @@ import React, { memo, useMemo, type ComponentProps } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { darkenColor } from '@/utils/colorUtils';
 import { normalizeColorScheme } from '@/utils/themeUtils';
 import { Colors } from '@/constants/theme';
@@ -76,7 +76,7 @@ const GroupedItemComponent = ({
     </View>
   );
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   if (onPress && !disabled) {
     return (

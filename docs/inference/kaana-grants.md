@@ -1,8 +1,11 @@
 # Grants and settlements for `kaana.ai/v1`
 
-**Rolling out** (Kaana ADR 0002, phase 2). Oxy's side is built and deployable
-with no caller: nothing reaches it until Kaana serves `https://kaana.ai/v1`
-(phase 3). The old edge (`api.oxy.so/v1`) keeps serving until phase 5.
+This is the grant/settlement mechanism introduced in Kaana ADR 0002 phase 2.
+Its original "built, no caller until phase 3" status is historical. Current
+source lives at the paths below; verified deployment and authority cutovers are
+recorded in the [migration ledger](../architecture/first-party-integration-migration.md).
+Neither source presence nor a service-identity probe proves a particular model,
+provider route or paid generation has executed.
 
 Kaana serves the public API and keeps the request's content. Oxy keeps
 identity, Console policy, the ledger and billing, and answers two questions
@@ -15,7 +18,7 @@ over a private API:
 
 Shapes are `@kaana.ai/contracts/internal` (`grant.ts`, `settlement.ts`,
 `catalogue.ts`), the published npm package pinned exactly in
-`packages/api/package.json` (**4.4.0**).
+[`packages/api/package.json`](../../packages/api/package.json).
 Code: `packages/api/src/routes/internalKaana.ts`,
 `services/kaanaGrant.service.ts`, `kaanaGrantRoutes.service.ts`,
 `kaanaDeclaredCatalogue.service.ts`, `kaanaGrantReads.service.ts`,
@@ -28,7 +31,7 @@ catalogue — identity, licence, provenance, data policy, capabilities, voices,
 audience, power class and the **list price per unit** — is Kaana's
 `configs/public-catalogue.json`, and nobody else's. Kaana relays it, whole, as
 the `declaredCatalogue` member of its signed `GET /internal/v1/models`
-(`declaredCatalogueSchema`, contract set 4.3.0). Oxy does not own a catalogue
+(`declaredCatalogueSchema` in that pinned contract package). Oxy does not own a catalogue
 any more; it **rates grants by reading Kaana's**.
 
 ```text
@@ -40,7 +43,8 @@ Kaana  GET /internal/v1/models  (signed, empty body)
    ▼
 authorize  (kaanaGrant + kaanaGrantRoutes)
    1. model          declared? audience admits the viewer? not `retired`?   else model_not_found
-   2. shape          modalities, apiFormats, realtime kind, context/output   else unsupported_modality / *_limit_exceeded
+   2. shape          modalities, apiFormats, realtime kind, context/output,  else unsupported_modality / *_limit_exceeded
+                     a declared `imageInput` when facts.inputImages > 0
    3. price          `pricing` present? priceVersionId not republished?      else no_route_available (typed), never 0
    4. routes         deployments Kaana PUBLISHES for the line, with how Kaana says each may be sold (`commercial`)
                      ∩ the application's policy (providers, regions, ZDR, licences, price caps). EVERY eligible
@@ -176,16 +180,33 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
   limits on the **same Redis buckets**, so a key has one budget across both
   surfaces. Over it: `429 rate_limited` with `retryAfterMs`.
 - A service token minted with **`audience: "kaana.ai"`** (`POST /auth/service-token`
-  or the workload mint). The mint refuses `kaana.ai` unless the minted scopes
-  include `inference:invoke`; Oxy's own API refuses `kaana.ai` tokens and the
-  grant API refuses `oxy-api` ones.
-- A user session (`product_session`) is **not granted yet** (see below).
+  for external credentials, or protocol-2 workload mint for own services).
+  External tokens require the live `inference:invoke` scope. Own workloads
+  carry `authority: 'first_party'` without scopes and retain live binding,
+  owner, environment and inference-domain checks. Oxy's ordinary API refuses
+  `kaana.ai` tokens and the grant API refuses `oxy-api` ones.
+- A person's Oxy session (`product_session`, [ADR 0050](../adr/0050-product-session-inference-on-kaana.md)),
+  tried when the bearer is neither, or is presented as
+  `oxy_session:<public client id>:<access token>`: verified by
+  `sessionService.validateSession`; the application read from the session ROW
+  (`sessions.application_id` and the live credential `client_id` names), or, for
+  the shared device session of every official app (ADR 0029, no application on
+  its row), from the live `public` credential row of the presented client id,
+  only when that application's terms accept it (`sharedSessionAttribution`);
+  its owner the payer, the session's subject account the `userId`. Grants only
+  (a catalogue or receipt read is `permission_denied`), and only under reviewed
+  product-session terms. A shared session presented alone, or with an unknown,
+  revoked or termless client id, or an application-bound one with another
+  client id, is `permission_denied`; an invalid, expired, revoked, supervised or
+  malformed one is `authentication_failed`. `X-Oxy-User-Id` may be omitted; naming anyone
+  but the session's person is `permission_denied`.
 
 ## The grant
 
 `kind: "inference"`, from Kaana's content-free facts (counts, never content):
 
-1. `inference:invoke`; `X-Oxy-User-Id` (`onBehalfOfUserId`) is attribution only.
+1. Verified own workload authority, or external `inference:invoke`;
+   `X-Oxy-User-Id` (`onBehalfOfUserId`) is attribution only.
 2. Treatment from the versioned relationships (`config/inferenceEconomicPolicy.ts`).
 3. The operation's hold units from the facts — a missing fact is `invalid_request`
    naming it: completions `estimatedInputTokens` (+ `maxOutputTokens`, else the
@@ -193,7 +214,12 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    **`audioInputMilliseconds`** (Kaana reads it from the upload's container;
    the hold is exactly that duration, and a route that prices the transcript's
    output tokens is not admitted), decisions `estimatedInputTokens` (input
-   only; a line that prices output is not admitted).
+   only; a line that prices output is not admitted). A completion carrying
+   images also sends **`inputImages`** (contract 8.2.0, Kaana ADR 0007): only a
+   line Kaana declares `imageInput` for is admitted, and each image adds the
+   line's `maxInputTokensPerImage` to the input that line must fit and is
+   quoted at; the hold is still the dearest admitted line. On any other
+   operation `inputImages` is `invalid_request` ([ADR 0051](../adr/0051-image-input.md)).
 4. The routing policy, pinned: default target, allowed levels, price cap,
    providers, regions, ZDR, licences, fallback.
 5. **Steps.** A model target is one step plus the policy's authorized
@@ -238,7 +264,9 @@ credential only) in the public shape: amount, never provider.
 | Alia naming `pro`/`ultra` (ADR 0037) | `internal_metered` | no | step 1: the level, `maxFundingTier: credit`, USD 1.00; step 2: `xhigh` on the pilot's lines and providers, USD 0.05 |
 | BYOK route | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | rated at Oxy's platform fee (`config/inferencePlatformFee.ts`), never a model price; no `maxFundingTier`; internal + BYOK is refused; no approved fee schedule yet, so refused |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
-| `product_session` (Inbox, app sessions) | — | — | **not yet**: needs the public credential and Inbox's session check |
+| `product_session` of Astro, `responses` (`astro-kaana-session`, ADR 0050) | Astro's owner; `internal_metered`, `relationshipId: astro-kaana-session` | **no** | application from the session row; `instant` only (else `policy_violation`, `pilot-level`); 8 000 input, 512 output tokens (the caller's limit is required), USD 0.004 a request; 200 a person, 10 000 an application a UTC day, 16 in flight. Astro's shared device session is attributed by its public client id in the bearer (ADR 0050 option b) |
+| `product_session` without reviewed terms (Inbox, any other app) | — | — | refused `permission_denied` (`product-session-not-enabled`); nothing is held or recorded |
+| a completion carrying images (`facts.inputImages`) | as the lane's row | as the lane's row | commercial: on lines declaring `imageInput`, held per image at the line's bound. An internal relationship: only under its `pilot.imageInput` terms (Alia), else `unsupported_modality` (`pilot-image-input`); Astro's and Mention's terms carry none |
 | service token of Mention in production, `decisions` (`mention-kaana-decisions`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-decisions` | **no** | decisions only, on the decisions profile; 2 in flight, 2 000 a UTC day on its own rows; first-party class, not `is_internal`; Mention's other operations are `commercial` unless the next row names them ([decisions.md](decisions.md)) |
 | service token of Mention in production, `responses` / `chat_completions` (`mention-kaana-text`) | Mention's owner; `internal_metered`, `relationshipId: mention-kaana-text` | **no** | the `instant` level only (a model or other level is `policy_violation`, `pilot-level`); 32 000 input and 8 192 output tokens (the caller's limit is required), USD 0.035 a request (the dearest instant line at full size quotes USD 0.0301); 8 in flight, 5 000 a UTC day on its own rows; first-party class |
 | `decisions` without decisions terms | — | — | refused `permission_denied` (`decisions-not-enabled`) |
@@ -249,14 +277,22 @@ carry its hold, so a shadow-metering deployment answers 503 instead.
 ## Realtime and transcription for `alia-kaana` (Alia ADR 0017)
 
 Terms in `config/inferenceEconomicPolicy.ts` (policy version
-`oxy-inference-economics/2026-10-15.2`, unchanged in `.3`), read only by the grant API:
+`oxy-inference-economics/2026-10-15.2`, unchanged in `.3`; `transcription`
+sessions added in `2026-10-28.2`), read only by the grant API:
 
-- **`realtime_session`** (`conversation`): a line is admitted when ONE MINUTE of
+- **`realtime_session`** (`conversation` and, since `2026-10-28.2`,
+  `transcription`: Alia's word-by-word dictation, Kaana ADR 0006 and Alia ADR
+  0024, approved by the owner on 2026-10-28): a line is admitted when ONE MINUTE of
   it quotes at most **USD 0.25**, over audio in, audio out, session time and,
   where the line prices it apart, the input transcription of that minute
   (`input_transcription_milliseconds`, `@kaana.ai/contracts` 4.1.0). Token-priced
   realtime lines have no per-minute bound and are not admitted. No hold; the
   usage row is the session's slot (`/v1/realtime`, up to 75 min unless settled).
+  A transcription line is xAI's `grok-voice-transcribe-2.0`, declared with its
+  file transcription in `audio_input_milliseconds` ($0.10/h), its stream in
+  `session_milliseconds` ($0.20/h) and `audio_output_milliseconds` at zero: a
+  minute quotes $0.005 and the stream settles its wall clock. One dictation is
+  one grant (and one capacity request) instead of one per phrase.
 - **`audio_transcriptions`**: at most **300 000 ms** (Alia's 5-minute clip) and
   **USD 0.05** per request. The hold is the measured duration; a line that also
   prices `requests` is quoted with one request, a line that prices the duration
@@ -328,7 +364,7 @@ and Kaana refused every read as unsigned (`Kaana settlement feed answered 401`).
 ## Not in this phase
 
 - Token exchange (`POST /auth/service-token/exchange`) for Alia's product
-  agents; the `product_session` lane and Inbox's session check.
+  agents.
 - Commercial realtime grants (the contract needs session ceiling facts).
 - `OxyServer.serviceToken({ audience: 'kaana.ai' })` in `@oxy.so/core`.
 - An approved BYOK platform fee amount (the schedule list ships empty).

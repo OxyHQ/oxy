@@ -223,17 +223,11 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
-  return exchangeWorkloadServiceToken(options, 2);
-}
-
-/** @internal Finite reader-first rollout bridge; not exported by the package. */
-export function requestLegacyWorkloadServiceToken(options: WorkloadServiceTokenOptions) {
-  return exchangeWorkloadServiceToken(options, 1);
+  return exchangeWorkloadServiceToken(options);
 }
 
 async function exchangeWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
-  protocolVersion: 1 | 2,
 ): Promise<WorkloadServiceToken> {
   if ('scopes' in options) throw new Error('First-party workloads do not request scopes');
   // Bound the shared exchange independently of any one consumer's deadline.
@@ -252,7 +246,7 @@ async function exchangeWorkloadServiceToken(
   };
   try {
     return await awaitRequestSignal(
-      completeWorkloadExchange(options, protocolVersion, boundedFetch),
+      completeWorkloadExchange(options, boundedFetch),
       controller.signal,
     );
   } finally {
@@ -262,7 +256,6 @@ async function exchangeWorkloadServiceToken(
 
 async function completeWorkloadExchange(
   options: WorkloadServiceTokenOptions,
-  protocolVersion: 1 | 2,
   fetchImpl: typeof fetch,
 ): Promise<WorkloadServiceToken> {
   const base = trimTrailingSlashes(options.baseUrl);
@@ -288,7 +281,7 @@ async function completeWorkloadExchange(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       provider: 'aws-iam',
-      ...(protocolVersion === 2 ? { protocolVersion: 2 } : {}),
+      protocolVersion: 2,
       nonce: challenge.nonce,
       attestation,
       ...(options.audience === undefined ? {} : { audience: options.audience }),

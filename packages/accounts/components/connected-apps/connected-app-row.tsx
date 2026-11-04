@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { ConnectedApp } from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 
@@ -40,7 +40,7 @@ export function ConnectedAppRow({
 }: ConnectedAppRowProps) {
   const colors = useColors();
   const { t } = useTranslation();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const formatRelativeTime = useRelativeTime();
 
   const scopesLabel = app.scopes.length > 0 ? app.scopes.join(', ') : t('connectedApps.noScopes');

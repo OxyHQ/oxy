@@ -55,7 +55,7 @@ interface PersistedBlob {
   clientState: DehydratedState;
 }
 
-export function rootOf(query: Query): string | null {
+export function rootOf(query: Pick<Query, 'queryKey'>): string | null {
   const head = query.queryKey[0];
   return typeof head === 'string' ? head : null;
 }
@@ -83,6 +83,11 @@ export function hydrateSnapshot(
   queryClient: QueryClient,
   raw: string | null,
   maxAge: number,
+  options?: {
+    shouldRestoreQuery?: (query: DehydratedState['queries'][number]) => boolean;
+    shouldRestoreMutation?: (mutation: DehydratedState['mutations'][number]) => boolean;
+    restoreMutations?: boolean;
+  },
 ): boolean {
   if (!raw) return false;
   let blob: PersistedBlob;
@@ -100,8 +105,17 @@ export function hydrateSnapshot(
   }
   const sameBuild = blob.buster === getOxyBuildId();
   hydrate(queryClient, {
-    queries: sameBuild ? blob.clientState.queries : [],
-    mutations: blob.clientState.mutations ?? [],
+    queries: sameBuild
+      ? (blob.clientState.queries ?? []).filter(
+          (query) => options?.shouldRestoreQuery?.(query) ?? true,
+        )
+      : [],
+    mutations:
+      options?.restoreMutations === false
+        ? []
+        : (blob.clientState.mutations ?? []).filter(
+            (mutation) => options?.shouldRestoreMutation?.(mutation) ?? true,
+          ),
   });
   return true;
 }

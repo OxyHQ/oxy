@@ -6,8 +6,8 @@
  * directly: `@noble/hashes` must load after this entry's polyfill, and through
  * the ONE lazy root, so it never lands in an app's startup JavaScript.
  */
-import { sha256 } from '@noble/hashes/sha256';
-import { bytesToHex } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 export interface ContentHasher {
   update(chunk: Uint8Array): void;

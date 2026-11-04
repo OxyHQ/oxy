@@ -88,6 +88,8 @@ export { externalIdentityReferenceCheck } from './externalIdentity';
 
 export { signedRecordEnvelopeCheck } from './identity';
 
+export { DOMAIN_NAME_MAX_LENGTH, normalizeDomainName } from './domainName';
+
 export {
   deviceActivateResponseCheck,
   deviceDirectoryCheck,
@@ -98,6 +100,10 @@ export {
   SESSION_ACCOUNTS_CHANGED_EVENT,
   activeTokenCheck,
   deviceBackgroundCredentialResponseCheck,
+  deviceContextTokenV1RequestCheck,
+  deviceContextTokenV1ResponseCheck,
+  holderContextEvidenceV1RequestCheck,
+  holderContextEvidenceV1ResponseCheck,
   deviceJoinCodeResponseCheck,
   deviceJoinResponseCheck,
   deviceRegisterResponseCheck,
@@ -215,6 +221,8 @@ export {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   REAUTH_ACTIONS,
+  SECOND_FACTOR_CODE_MAX_LENGTH,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS,
   SIGNIN_SECOND_FACTOR_TTL_MS,
   SIGN_IN_ERROR_CODES,
@@ -290,3 +298,12 @@ export {
   FREE_USER_PROFILE_COLOR_PRESETS,
 } from '../profileColors.generated';
 export * from '../products/one';
+
+export {
+  CAMPAIGN_LABEL_MAX_LENGTH,
+  CAMPAIGN_CLICK_ID_MAX_LENGTH,
+  hasCampaignControlCharacters,
+} from './campaignAttribution';
+export type { CampaignAttribution } from './campaignAttribution';
+
+export { isLanguageTag } from './language';

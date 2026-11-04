@@ -10,7 +10,8 @@
  * ## The order, and what it reuses
  *
  * ```text
- * 1. the credential        authenticateInferenceBearer — the edge's two lanes, audience kaana.ai
+ * 1. the credential        authenticateInferenceBearer — the edge's two lanes, audience kaana.ai;
+ *                          or authenticateProductSession — a person's session (ADR 0050)
  * 2. scope, attribution    inference:invoke; X-Oxy-User-Id as attribution only
  * 3. treatment             resolveEconomicTreatment — the same versioned policy
  * 4. the operation         facts → the units its hold is sized in; unsound facts refuse
@@ -54,8 +55,9 @@
  *
  *  - A COMMERCIAL realtime session: the authorization's facts carry no session
  *    duration, so no hold Oxy could size from them would be a bound.
- *  - The `product_session` lane: a user session needs the new public
- *    credential the ADR names, and Inbox's session check, first.
+ *  - A `product_session` for an application with no reviewed terms: the lane
+ *    (ADR 0050) is admitted only under a relationship that names it, and the
+ *    person is the session's, never a header's.
  *
  * Each is a typed refusal, never a grant on different terms.
  *
@@ -126,7 +128,6 @@ import {
   viewerForPrincipal,
 } from './inferenceEdge.service';
 import {
-  type EdgeCapacityRequirement,
   type EdgeModalityRequirement,
   TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
@@ -158,6 +159,7 @@ import {
 } from './kaanaDeclaredCatalogue.service';
 import { currentDeploymentLiveness } from './kaanaDeploymentPublication.service';
 import {
+  type GrantCapacityRequirement,
   type GrantLane,
   type GrantLine,
   type GrantLineResolution,
@@ -185,13 +187,22 @@ export type GrantDecision =
 type UnresolvedRoute = Exclude<GrantLineResolution, { readonly status: 'resolved' }>;
 
 /** The ceilings a plan sizes a line's hold from: its declared capabilities. */
-type LineCeilings = Pick<GrantLine, 'maxContextTokens' | 'maxOutputTokens'>;
+type LineCeilings = Pick<
+  GrantLine,
+  'maxContextTokens' | 'maxOutputTokens' | 'maxInputTokensPerImage'
+>;
 
 export interface AuthorizeInferenceInput {
   readonly request: InferenceAuthorizationRequest;
   readonly principal: EdgePrincipal;
   /** The Oxy edge key; absent when this deployment has no Kaana binding. */
   readonly signing: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'> | undefined;
+  /**
+   * The person a `product_session` principal's session proves (its subject
+   * account), from the session row. Required on that lane and absent on every
+   * other: it is the request's attributed user, never a header's.
+   */
+  readonly sessionUserId?: string;
   readonly now?: () => number;
 }
 
@@ -315,7 +326,9 @@ interface OperationPlan {
     | 'realtime'
     | 'decisions';
   readonly modality: EdgeModalityRequirement;
-  readonly capacity: EdgeCapacityRequirement;
+  readonly capacity: GrantCapacityRequirement;
+  /** Image parts a completion's input carries (`facts.inputImages`); 0 for every other operation. */
+  readonly inputImages: number;
   /** Token units Oxy reserves as known (`reserve`'s `knownUnits`). */
   readonly knownUnits: Partial<Record<UsageUnit, number>>;
   /** The caller's own output limit, when it named one; Kaana executes the bound body. */
@@ -349,29 +362,64 @@ function completionOutputBudget(
   );
 }
 
+/** The input a completion holds on one line: its text and every image at the line's bound. */
+function lineInputTokens(
+  route: Pick<LineCeilings, 'maxInputTokensPerImage'>,
+  text: number,
+  images: number,
+): number {
+  return text + images * (route.maxInputTokensPerImage ?? 0);
+}
+
 function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
   const { facts } = request;
+  if (
+    facts.inputImages !== undefined &&
+    request.operation !== 'responses' &&
+    request.operation !== 'chat_completions'
+  ) {
+    throw new GrantRefusal('invalid_request', 'Only a completion carries input images.', {
+      param: 'facts.inputImages',
+      reason: 'image-input-operation',
+    });
+  }
   switch (request.operation) {
     case 'responses':
     case 'chat_completions': {
       const input = requireFact(facts.estimatedInputTokens, 'estimatedInputTokens');
       const requested = facts.maxOutputTokens;
+      // Images (Kaana ADR 0007): a line that takes them and declares what one
+      // costs. The text estimate carries none of their bytes; each line adds its
+      // own bound per image to the context it must fit and the quote it holds.
+      const images = facts.inputImages ?? 0;
       return {
         family: 'completion',
-        modality: { ...TEXT_COMPLETION_MODALITY, apiFormat: request.operation },
-        capacity: { inputTokens: input, outputTokens: requested ?? 'model-maximum' },
+        modality: {
+          ...TEXT_COMPLETION_MODALITY,
+          ...(images > 0 ? { input: 'image' as const } : {}),
+          apiFormat: request.operation,
+        },
+        capacity: {
+          inputTokens: input,
+          outputTokens: requested ?? 'model-maximum',
+          ...(images > 0 ? { inputImages: images } : {}),
+        },
+        inputImages: images,
         knownUnits: { input_tokens: input },
         maxOutputTokens: requested,
-        plans: (route) => [
-          {
-            metering: 'tokens',
-            scenarios: ceilingQuoteScenarios(
-              { kind: 'completion' },
-              input,
-              completionOutputBudget(route, input, requested),
-            ),
-          },
-        ],
+        plans: (route) => {
+          const lineInput = lineInputTokens(route, input, images);
+          return [
+            {
+              metering: 'tokens',
+              scenarios: ceilingQuoteScenarios(
+                { kind: 'completion' },
+                lineInput,
+                completionOutputBudget(route, lineInput, requested),
+              ),
+            },
+          ];
+        },
       };
     }
     case 'embeddings': {
@@ -390,6 +438,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: Math.ceil(input / embeddings), outputTokens: 0 },
         knownUnits: { input_tokens: input },
         maxOutputTokens: undefined,
+        inputImages: 0,
         plans: () => [
           {
             metering: 'tokens',
@@ -406,6 +455,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: characters + SPEECH_FRAMING_TOKENS, outputTokens: 0 },
         knownUnits: { characters },
         maxOutputTokens: undefined,
+        inputImages: 0,
         plans: () => [
           {
             metering: 'tokens',
@@ -427,6 +477,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: 0, outputTokens: 0 },
         knownUnits: { audio_input_milliseconds: milliseconds },
         maxOutputTokens: undefined,
+        inputImages: 0,
         // The hold is the measured duration Kaana read from the upload
         // (`facts.audioInputMilliseconds`), exactly; the transcript's text is
         // free on every route this admits (see `admitLine`). A line that also
@@ -455,6 +506,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: input, outputTokens: 0 },
         knownUnits: { input_tokens: input },
         maxOutputTokens: undefined,
+        inputImages: 0,
         plans: () => [
           {
             metering: 'tokens',
@@ -485,6 +537,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: facts.estimatedInputTokens ?? 0, outputTokens: 0 },
         knownUnits: {},
         maxOutputTokens: undefined,
+        inputImages: 0,
         // A per-minute figure: what a minute of this line costs, at most. It
         // qualifies a line under the pilot's per-minute ceiling; no hold is
         // sized from it (an internal session holds nothing, and a commercial one
@@ -514,6 +567,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         capacity: { inputTokens: input, outputTokens: 0 },
         knownUnits: { input_tokens: input },
         maxOutputTokens: undefined,
+        inputImages: 0,
         plans: () => [
           {
             metering: 'tokens',
@@ -539,6 +593,8 @@ interface GrantPilotTerms {
   readonly deployments: readonly InternalMeteredPilotDeployment[] | undefined;
   /** The only power levels a request may target; absent: any target. */
   readonly levels?: readonly PowerLevel[];
+  /** Image parts one request may carry; present only for a completion carrying images. */
+  readonly maxImages?: number;
 }
 
 function grantPilotTerms(
@@ -549,6 +605,21 @@ function grantPilotTerms(
   switch (plan.family) {
     case 'completion': {
       const text = pilotTextTerms(pilot);
+      if (plan.inputImages > 0) {
+        // Images answer to the pilot's own image terms: their routes and quote
+        // ceiling, the text terms' input and output ceilings. A level-only
+        // pilot (Astro, Mention) has none.
+        const images = pilot.imageInput;
+        return text === undefined || images === undefined
+          ? undefined
+          : {
+              maxInput: text.maxControlledInputBudget,
+              maxOutputTokens: text.maxOutputTokens,
+              maxPriceUsd: images.maxPricePerRequestUsd,
+              deployments: images.deployments,
+              maxImages: images.maxImages,
+            };
+      }
       if (text === undefined && pilot.levelText !== undefined) {
         return {
           maxInput: pilot.levelText.maxInputTokens,
@@ -667,6 +738,8 @@ interface AdmittedLine {
   readonly quote: { readonly amount: string; readonly currency: string };
   readonly bestRoute: GrantRoute;
   readonly providers: readonly string[];
+  /** The line's declared cost of one image, which its quote added per image. */
+  readonly maxInputTokensPerImage: number | undefined;
 }
 
 interface ResolvedStep {
@@ -722,13 +795,14 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       reason: 'grant-signing-not-configured',
     });
   }
+  const economics = resolveEconomicTreatment(principal, request.operation);
+  const delegatedUserId = productSessionUser(input, economics);
   if (!hasInferenceScope(principal, 'inference:invoke')) {
     throw new GrantRefusal(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.',
     );
   }
-  const economics = resolveEconomicTreatment(principal, request.operation);
   const plan = planOperation(request);
 
   // Decisions are granted only under an economic relationship's decisions terms.
@@ -747,6 +821,20 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
   const pilotTerms = pilot === undefined ? undefined : grantPilotTerms(pilot, plan, request);
   if (pilot !== undefined) {
+    if (plan.inputImages > 0 && pilotTerms === undefined) {
+      throw new GrantRefusal(
+        'unsupported_modality',
+        'Images are outside the controlled internal pilot.',
+        { param: 'input', reason: 'pilot-image-input' },
+      );
+    }
+    if (pilotTerms?.maxImages !== undefined && plan.inputImages > pilotTerms.maxImages) {
+      throw new GrantRefusal(
+        'invalid_request',
+        `The internal pilot carries at most ${pilotTerms.maxImages} images a request.`,
+        { param: 'input', reason: 'pilot-image-count' },
+      );
+    }
     if (pilotTerms === undefined) {
       throw new GrantRefusal(
         'unsupported_modality',
@@ -1096,7 +1184,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   const limits = await readApplicationInferenceLimits(principal.applicationId);
   const claimEconomics = withConsoleCapacity(economics, limits);
   const endpoint = GRANT_ENDPOINTS[request.operation];
-  const delegatedUserId = request.onBehalfOfUserId;
   const expiresInSeconds =
     plan.family === 'realtime' ? REALTIME_GRANT_SLOT_SECONDS : RESERVATION_TTL_SECONDS;
   const requestedReference =
@@ -1153,13 +1240,19 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
             'This application has reached its concurrent inference capacity. Try again shortly.',
             { reason: 'internal-capacity-concurrency' },
           )
-        : new GrantRefusal(
-            'quota_exceeded',
-            'This application has reached its daily inference capacity.',
-            {
-              reason: 'internal-capacity-daily',
-            },
-          );
+        : claim.limit === 'user-daily'
+          ? new GrantRefusal(
+              'quota_exceeded',
+              'You have reached this application’s daily inference limit.',
+              { reason: 'internal-capacity-user-daily' },
+            )
+          : new GrantRefusal(
+              'quota_exceeded',
+              'This application has reached its daily inference capacity.',
+              {
+                reason: 'internal-capacity-daily',
+              },
+            );
   }
   const meteredUsageId = claim.meteredUsageId;
 
@@ -1183,7 +1276,17 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     const reservation = await reserve({
       idempotencyKey: ledgerKey,
       attribution,
-      knownUnits: plan.knownUnits,
+      knownUnits:
+        plan.inputImages > 0
+          ? {
+              ...plan.knownUnits,
+              input_tokens: lineInputTokens(
+                ceilingLine,
+                plan.knownUnits.input_tokens ?? 0,
+                plan.inputImages,
+              ),
+            }
+          : plan.knownUnits,
       ...(plan.maxOutputTokens === undefined || plan.maxOutputTokens <= 0
         ? {}
         : { maxOutputTokens: plan.maxOutputTokens }),
@@ -1308,6 +1411,42 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * The request's attributed user. On every lane but `product_session` it is
+ * `X-Oxy-User-Id`, attribution only. On `product_session` it is the person the
+ * session proves, and the lane is admitted only under a relationship that names
+ * it (ADR 0050): with no reviewed terms the application's owner is never
+ * charged for a person's session, and a header naming someone else is refused
+ * rather than recorded.
+ */
+function productSessionUser(
+  input: AuthorizeInferenceInput,
+  economics: EconomicTreatmentDecision,
+): string | undefined {
+  const { request, principal, sessionUserId } = input;
+  if (principal.lane !== 'product_session') return request.onBehalfOfUserId;
+  if (sessionUserId === undefined) {
+    throw new GrantRefusal('authentication_failed', 'This session could not be verified.', {
+      reason: 'product-session-without-user',
+    });
+  }
+  if (economics.treatment !== 'internal_metered') {
+    throw new GrantRefusal(
+      'permission_denied',
+      'This application does not offer inference with a signed-in session.',
+      { reason: 'product-session-not-enabled' },
+    );
+  }
+  if (request.onBehalfOfUserId !== undefined && request.onBehalfOfUserId !== sessionUserId) {
+    throw new GrantRefusal(
+      'permission_denied',
+      'X-Oxy-User-Id must name the signed-in person, or be omitted.',
+      { param: 'X-Oxy-User-Id', reason: 'product-session-user-mismatch' },
+    );
+  }
+  return sessionUserId;
+}
 
 /** The caller-facing reason a named model has no route, as the edge words it. */
 function refusalForResolution(
@@ -1618,6 +1757,7 @@ async function admitLine(
       quote: { amount: quote.amount, currency: quote.currency },
       bestRoute: best,
       providers: [...new Set(served.map((route) => route.provider))],
+      maxInputTokensPerImage: line.maxInputTokensPerImage,
     },
   };
 }

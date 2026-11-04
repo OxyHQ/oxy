@@ -9,19 +9,27 @@ jest.mock('../../middleware/auth', () => ({
   serviceAuthMiddleware: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = {
       appId: CLARITY_BACKEND_APPLICATION_ID,
+      authority: 'first_party',
       environment: 'production',
     };
     next();
   },
 }));
-jest.mock('../../services/legacyResourceWorkload.service', () => ({
-  // This suite isolates subject revocation; receiver signature/live binding is
-  // exercised without mocks by resourceIntrospection.transition.db.test.ts.
-  resolveLegacyResourceWorkload: async (token: { appId: string }) =>
-    token.appId === CLARITY_BACKEND_APPLICATION_ID
-      ? { authority: 'first_party', applicationId: CLARITY_BACKEND_APPLICATION_ID }
-      : null,
-}));
+jest.mock('../../services/agencyServicePrincipal.service', () => {
+  const actual = jest.requireActual('../../services/agencyServicePrincipal.service');
+  return {
+    ...actual,
+    // Subject revocation stays real; receiver signature/live binding is covered
+    // by the HTTP transition suite without this receiver-only fixture.
+    resolveLiveAgencyServicePrincipal: (token: { appId: string }) =>
+      token.appId === CLARITY_BACKEND_APPLICATION_ID
+        ? Promise.resolve({
+            authority: 'first_party',
+            applicationId: CLARITY_BACKEND_APPLICATION_ID,
+          })
+        : actual.resolveLiveAgencyServicePrincipal(token),
+  };
+});
 import router from '../resourceIntrospection';
 import { errorHandler } from '../../middleware/errorHandler';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';

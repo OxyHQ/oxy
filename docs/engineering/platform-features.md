@@ -16,6 +16,8 @@
 
 **Bot accounts carry a 3D avatar `character`** (`users.character`, `avatarCharacterSchema` in `@oxy.so/contracts`): generated at `POST /accounts` (`avatarCharacterFor(username)`) unless the caller names one, replaced with `PATCH /accounts/:id`, emitted on the user DTOs for `kind: 'bot'` ONLY (`userIdentityFields`). `isAgent` is `kind === 'bot'`; `type: 'agent'` is the federation-resolve actor flavour, a different thing.
 
+The public projection must carry `character` through both `publicUserColumns` and `toPublicUserView`, including self reads that reuse it. On 2026-10-31, two real bot profiles had stored characters but returned no character publicly because only the SELECT contained it. `profilesCharacter.test.ts` exercises database → projection → serializer → username/resolve/search HTTP plus public/self/batch reads; malformed payloads, old NULLs and non-bots remain without a character. Never synthesize a look on the read path to hide missing data.
+
 **Production "Oxy" team workspace:** `_id 6a2f9d8989b795cfdfac350f`, slug `oxy`, owned by user `oxy` (`_id 69b2d3df5d12f58c9800d651`, username `oxy`, email `hello@oxy.so` — DISTINCT from human `nateus`/`nate@oxy.so`). All 12 official Applications assigned to it. Migration `scripts/migrate-workspaces.ts` ran (idempotent).
 
 ## Oxy Trust — Reputation System (#217 + #219, 2026-06-16)
@@ -89,6 +91,7 @@ All limiters use `rate-limit-redis` with a shared ioredis client. The factory `r
 **Prefixes in use:**
 - `rl:general:` — global limiter (1000 / 15min)
 - `rl:idp:service:` — IdP worker server-to-server READ budget (`/session/validate/*`, 20000 / 15min prod)
+- `rl:cdn:` — the public by-id resolver behind `cloud.oxy.so/<id>` (`/cdn/*`, per visitor, 20000 / 15min prod). `isCdnResolverPath` exempts it from `rl:general` and `slowDown`; the Worker names the visitor with Cloudflare's same-zone `x-real-ip` (`workers/cloud/src/visitor.ts`), so `oxyTrustProxy` reads the visitor, not the Worker
 - `rl:auth:` — broad auth routes (`authRateLimiter`, 300 / 15min)
 - `rl:user:` — user routes (`userRateLimiter`, 200 / 15min)
 - `rl:auth:challenge:`, `rl:auth:verify:`, `rl:auth:refresh:`, `rl:auth:lookup:`, `rl:auth:session-claim:`, `rl:auth:oauth-authorize:`, `rl:auth:oauth-consent:`, `rl:auth:oauth-token:`, `rl:auth:login:`, `rl:auth:client-lookup:`
@@ -98,7 +101,7 @@ All limiters use `rate-limit-redis` with a shared ioredis client. The factory `r
 - `rl:apps:authorized:read:`, `rl:apps:authorized:revoke:` — connected-apps (`AppGrant`) surface; `rl:auth:grants:read:`, `rl:auth:grants:revoke:` — OAuth grant management
 - `rl:contacts:discover:` (200 hashes/request, 5 req/min/user)
 - `rl:social-auth:`
-- `rl:email:inbound:`, `rl:email:proxy:`
+- `rl:email:inbound:` (+ `rl:email:inbound:rcpt:`), `rl:email:proxy:` — the inbound webhook is verified and charged to its own budgets before the global limiters, which skip it (`isEmailInboundWebhookPath`)
 - `rl:userdata:write:`
 - `rl:reputation:read:`, `rl:reputation:award:`, `rl:reputation:admin:`, `rl:reputation:dispute:`
 - `rl:auth:session-approve-info:`, `rl:auth:session-authorize-signed:` — Commons QR handoff endpoints
@@ -343,3 +346,38 @@ indexed edge owner, but must sort the eligible set instead of using the old
 chronological covering index. Regression evidence: `user.service.followGraphSort.test.ts`
 (reversed timestamps, replaced edge ids, re-follow, all sort aliases and three
 list directions) and `user.service.graph.pg.test.ts` (pagination and visibility).
+
+
+### Existing local bot characters
+
+`packages/api/src/scripts/backfill-local-bot-characters.ts` repairs accounts that
+predate character seeding: `kind = bot`, character NULL, no federation actor URI,
+non-federated type, and non-archived status. This includes local automated bots;
+`type` and `kind` are independent. It preserves every stored character and never
+assigns a generated identity to a remote account. Seeds use the existing
+`avatarCharacterFor(username)` creation policy.
+
+Dry-run is a read-only transaction with a five-second statement limit and emits
+the complete candidate inventory and SHA-256. Apply requires that exact hash,
+locks candidates, compares the inventory again, and repeats eligibility plus
+username in every conditional write. A stale review aborts the transaction.
+Locks wait at most five seconds; statements at most fifteen. Configured Redis
+must answer before writes; the normal identity invalidation runs after commit
+and an ordered PING drains queued DEL/PUBLISH before process teardown. Without
+Redis the report explicitly says local-only; it does not claim a broadcast.
+
+Run dry-run in the deployed API environment and review its inventory before
+`--apply --expected-hash=<sha256>`. The test suite uses its own migrated database
+because this operation intentionally inventories all eligible accounts. Tests
+cover existing/remote/archived/human exclusions, canonical seeds, idempotence,
+concurrent character choice, lazy Redis readiness, command draining and failed
+Redis before writes. Applying is an operational step, not a migration side effect.
+
+For a reviewed one-shot before deployment, run
+`node packages/api/scripts/prepare-local-bot-character-backfill.mjs --out=.local/avatar-backfill`.
+It transpiles only that script, emits a SHA-checked gzip payload and an ECS command
+array that imports the deployed image's existing `dist` dependencies. It performs
+no service call, writes no container file and duplicates no repair logic. The
+command budget is 6 KB, reserving 2 KB of ECS's 8 KB overrides limit. The same
+generator accepts `--apply --expected-hash=<reviewed-inventory-hash>`; task launch
+and inventory review remain separate operational actions.

@@ -6,6 +6,7 @@ import type {
   FollowMutationResult,
 } from '@oxy.so/core';
 import { type FollowErrorCode, toFollowErrorCode } from '../utils/followErrors';
+import { createSessionChangedError } from '../utils/sessionChangedError';
 
 interface FollowState {
   // Tri-state follow map: a MISSING key means UNKNOWN (status not yet resolved),
@@ -206,6 +207,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
           });
         })
         .finally(() => {
+          if (generation !== batchGeneration) return;
           for (const id of ids) inFlightIds.delete(id);
         });
     });
@@ -215,6 +217,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     oxyServices: OxyServices,
     isCurrentlyFollowing: boolean,
   ) => {
+    const generation = batchGeneration;
     // Snapshot the prior value for rollback. `undefined` = was UNKNOWN.
     const priorState = get().followingUsers;
     const hadPrevious = hasKey(priorState, userId);
@@ -233,6 +236,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       const response: FollowMutationResult = isCurrentlyFollowing
         ? await oxyServices.follows.unfollow(userId)
         : await oxyServices.follows.follow(userId);
+      if (generation !== batchGeneration) return false;
 
       // Reconcile: confirm the optimistic value is authoritative, clear loading.
       set((state) => ({
@@ -262,6 +266,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       }
       return true;
     } catch (error: unknown) {
+      if (generation !== batchGeneration) return false;
       // Roll back to the prior value (or back to UNKNOWN if there was none).
       set((state) => {
         const followingUsers = { ...state.followingUsers };
@@ -286,6 +291,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     userIds: string[],
     oxyServices: OxyServices,
   ): Promise<BulkFollowResult> => {
+    const generation = batchGeneration;
     // Snapshot prior values for rollback (tri-state: undefined = unknown).
     const prior = get().followingUsers;
     const previous = new Map<string, boolean | undefined>();
@@ -308,6 +314,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
 
     try {
       const result = await oxyServices.follows.followMany(userIds);
+      if (generation !== batchGeneration) throw createSessionChangedError();
       set((state) => {
         const followingUsers = { ...state.followingUsers };
         const loadingUsers = { ...state.loadingUsers };
@@ -334,6 +341,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
       return result;
     } catch (error: unknown) {
+      if (generation !== batchGeneration) throw createSessionChangedError();
       const code = toFollowErrorCode(error, 'update_failed');
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
@@ -359,6 +367,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     userIds: string[],
     oxyServices: OxyServices,
   ): Promise<BulkUnfollowResult> => {
+    const generation = batchGeneration;
     // Snapshot prior values for rollback (tri-state: undefined = unknown).
     const prior = get().followingUsers;
     const previous = new Map<string, boolean | undefined>();
@@ -381,6 +390,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
 
     try {
       const result = await oxyServices.follows.unfollowMany(userIds);
+      if (generation !== batchGeneration) throw createSessionChangedError();
       set((state) => {
         const followingUsers = { ...state.followingUsers };
         const loadingUsers = { ...state.loadingUsers };
@@ -407,6 +417,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
       return result;
     } catch (error: unknown) {
+      if (generation !== batchGeneration) throw createSessionChangedError();
       const code = toFollowErrorCode(error, 'update_failed');
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
@@ -454,11 +465,13 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     });
   },
   fetchUserCounts: async (userId: string, oxyServices: OxyServices) => {
+    const generation = batchGeneration;
     set((state) => ({
       loadingCounts: { ...state.loadingCounts, [userId]: true },
     }));
     try {
       const user = await oxyServices.users.get(userId);
+      if (generation !== batchGeneration) return;
       if (user?._count) {
         set((state) => ({
           followerCounts: {
@@ -477,6 +490,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         }));
       }
     } catch (error: unknown) {
+      if (generation !== batchGeneration) return;
       set((state) => ({
         loadingCounts: { ...state.loadingCounts, [userId]: false },
       }));

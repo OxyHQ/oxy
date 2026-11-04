@@ -489,6 +489,10 @@ export {
   deviceSessionSyncSchema,
   deviceTokenMintRequestSchema,
   deviceTokenMintResponseSchema,
+  deviceContextTokenV1RequestSchema,
+  deviceContextTokenV1ResponseSchema,
+  holderContextEvidenceV1RequestSchema,
+  holderContextEvidenceV1ResponseSchema,
   deviceBackgroundCredentialResponseSchema,
   deviceBackgroundTokenRequestSchema,
   deviceBackgroundTokenResponseSchema,
@@ -510,6 +514,10 @@ export type {
   DeviceSessionSync,
   DeviceTokenMintRequest,
   DeviceTokenMintResponse,
+  DeviceContextTokenV1Request,
+  DeviceContextTokenV1Response,
+  HolderContextEvidenceV1Request,
+  HolderContextEvidenceV1Response,
   DeviceBackgroundCredentialResponse,
   DeviceBackgroundTokenRequest,
   DeviceBackgroundTokenResponse,
@@ -712,6 +720,8 @@ export {
   SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
+  SECOND_FACTOR_CODE_MAX_LENGTH,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   TOTP_DIGITS,
   TOTP_PERIOD_SECONDS,
   TOTP_BACKUP_CODE_COUNT,
@@ -1643,3 +1653,19 @@ export {
 } from './stringChecks';
 
 export { integerCheck, safeNumberCheck } from './numberChecks';
+
+export { campaignAttributionSchema } from './campaignAttribution';
+export type { CampaignAttribution } from './client/campaignAttribution';
+
+export {
+  APPLICATION_ACCOUNT_REGISTRATION_BATCH_MAX,
+  APPLICATION_ACCOUNT_TOTAL_MAX_AGE_SECONDS,
+  applicationAccountRegistrationRequestSchema,
+  applicationAccountRegistrationResponseSchema,
+  applicationAccountTotalSchema,
+} from './applicationAccounts';
+export type {
+  ApplicationAccountRegistrationRequest,
+  ApplicationAccountRegistrationResponse,
+  ApplicationAccountTotal,
+} from './applicationAccounts';

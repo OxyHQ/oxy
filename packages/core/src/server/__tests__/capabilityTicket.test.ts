@@ -2,6 +2,7 @@ import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import { generateKeyPairSync } from 'node:crypto';
 import type { CapabilityTicketError } from '../capabilityTicket';
 import {
+  createCapabilityTicketMiddleware,
   inputSatisfiesCapabilityLimits,
   issueCapabilityTicket,
   readCapabilityAuthorization,
@@ -152,5 +153,77 @@ describe('capability tickets', () => {
         [{ tool: 'updateFlags', key: 'flags.seen', value: true }],
       ),
     ).toBe(true);
+  });
+});
+
+describe('createCapabilityTicketMiddleware with an asynchronous key lookup', () => {
+  function run(
+    token: string,
+    resolvePublicKey: (keyId: string) => Promise<import('node:crypto').KeyObject | undefined>,
+  ) {
+    const authorize = jest.fn(async () => ({ allowed: true }) as never);
+    const middleware = createCapabilityTicketMiddleware({
+      audience: 'inbox-api',
+      issuer: 'https://api.oxy.so',
+      now: NOW,
+      resolvePublicKey,
+      authorize,
+    });
+    const response = { statusCode: 200, body: undefined as unknown };
+    const res = {
+      status(code: number) {
+        response.statusCode = code;
+        return this;
+      },
+      json(body: unknown) {
+        response.body = body;
+        return this;
+      },
+    };
+    const next = jest.fn();
+    const req = {
+      header: (name: string) => (name === 'authorization' ? `Capability ${token}` : undefined),
+    };
+    return {
+      done: middleware(req as never, res as never, next),
+      response,
+      next,
+      authorize,
+    };
+  }
+
+  const token = () =>
+    issueCapabilityTicket(claims, {
+      privateKey: KEY_PAIR.privateKey,
+      keyId: KEY_ID,
+      issuer: 'https://api.oxy.so',
+      now: NOW,
+    });
+
+  it('awaits the lookup with the ticket kid and admits a valid ticket', async () => {
+    const resolvePublicKey = jest.fn(async (keyId: string) =>
+      keyId === KEY_ID ? KEY_PAIR.publicKey : undefined,
+    );
+    const call = run(token(), resolvePublicKey);
+    await call.done;
+    expect(resolvePublicKey).toHaveBeenCalledWith(KEY_ID);
+    expect(call.next).toHaveBeenCalledWith();
+  });
+
+  it('answers 401 unknown_key when the key set has no such key or cannot be read', async () => {
+    for (const resolvePublicKey of [
+      async () => undefined,
+      async () => {
+        throw new Error('jwks unreachable');
+      },
+    ]) {
+      const call = run(token(), resolvePublicKey);
+      await call.done;
+      expect(call.response).toEqual({
+        statusCode: 401,
+        body: { error: 'invalid_capability_ticket', code: 'unknown_key' },
+      });
+      expect(call.authorize).not.toHaveBeenCalled();
+    }
   });
 });

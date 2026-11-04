@@ -16,6 +16,9 @@ import {
 } from '../../src/ui/utils/errorHandlers';
 
 describe('isInvalidSessionError', () => {
+  it('does not treat a locally superseded request as an invalid session', () => {
+    expect(isInvalidSessionError({ code: 'AUTH_SESSION_CHANGED', status: 401 })).toBe(false);
+  });
   it('returns true when response.status === 401', () => {
     expect(isInvalidSessionError({ response: { status: 401 } })).toBe(true);
   });

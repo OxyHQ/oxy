@@ -1,3 +1,4 @@
+import { accountAcquisition } from '../../db/schema/accountAcquisition';
 /**
  * Signing in — `POST /auth/signin/*` and `POST /auth/signup`
  * — through the real router, the real services, the real session mint and the
@@ -12,7 +13,7 @@
  */
 
 import express from 'express';
-import http from 'http';
+import type http from 'http';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
@@ -1166,6 +1167,63 @@ describe('sign-up', () => {
     expect(
       (await post('/signup', { username: `other${suffix()}`, email, emailTicket })).status,
     ).toBe(401);
+  });
+
+  it('stores the guest language and first-touch campaign once without exposing attribution in the session', async () => {
+    const email = `campaign-${suffix()}@example.test`;
+    const username = `campaign${suffix()}`;
+    const emailTicket = await signupTicket(email);
+    const campaignAttribution = { utmSource: 'meta', utmCampaign: 'spain', fbclid: 'click-id' };
+    const response = await post('/signup', {
+      username,
+      email,
+      emailTicket,
+      languages: ['es-ES'],
+      campaignAttribution,
+    });
+    expect(response.status).toBe(200);
+    const [preferences] = await getDb()
+      .select({ languages: users.languages })
+      .from(users)
+      .where(eq(users.id, response.body.user.id));
+    expect(preferences?.languages).toEqual(['es-ES']);
+    expect(response.body.user.campaignAttribution).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain('click-id');
+    const userId = response.body.user.id;
+    const [stored] = await getDb()
+      .select({
+        utmSource: accountAcquisition.utmSource,
+        utmCampaign: accountAcquisition.utmCampaign,
+        fbclid: accountAcquisition.fbclid,
+      })
+      .from(accountAcquisition)
+      .where(eq(accountAcquisition.userId, userId));
+    expect(stored).toEqual(campaignAttribution);
+    const retry = await post('/signup', {
+      username: `retry${suffix()}`,
+      email,
+      emailTicket,
+      campaignAttribution: { utmSource: 'other' },
+    });
+    expect(retry.status).toBe(401);
+    expect(
+      await getDb()
+        .select({ source: accountAcquisition.utmSource })
+        .from(accountAcquisition)
+        .where(eq(accountAcquisition.userId, userId)),
+    ).toEqual([{ source: 'meta' }]);
+  });
+
+  it('rejects malformed attribution before consuming the signup ticket', async () => {
+    const email = `bounded-${suffix()}@example.test`;
+    const emailTicket = await signupTicket(email);
+    const input = { username: `bounded${suffix()}`, email, emailTicket };
+    expect(
+      (await post('/signup', { ...input, campaignAttribution: { fbclid: 'x'.repeat(1025) } }))
+        .status,
+    ).toBe(400);
+    expect((await post('/signup', { ...input, languages: ['zz-ZZ'] })).status).toBe(400);
+    expect((await post('/signup', { ...input, languages: ['es-ES'] })).status).toBe(200);
   });
 
   it('refuses a taken username without spending the ticket, and a ticket for another email', async () => {

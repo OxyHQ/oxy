@@ -21,7 +21,7 @@ An ordinary consumer, with three things that make it a first-party one:
 |---|---|
 | Registered as | an `internal` Oxy `Application` named `Alia` |
 | Owned by | the `alia-production-chat` project account, under the platform owner |
-| Authenticates with | native service tokens (`clientId + clientSecret` → 1h JWT), one credential per environment |
+| Authenticates with | attested workload service tokens, with an explicit registered environment and no static key fallback |
 | Spends | the balance of its OWNER account, never a delegated end user's |
 | Booked to | the `alia-production-chat` cost centre |
 
@@ -56,8 +56,7 @@ behaviour below is what `main` does.
 
 Every model the Kaana catalogue sync has written for `platform_internal`
 ([catalogue.md](./catalogue.md#automatic-sync-from-kaana), ADR 0027) — no
-hand-curated list. Alia reads `GET /v1/models` with its service credential
-(`inference:models:read`), shows the entries, and sends:
+hand-curated list. Alia reads `GET /v1/models` with its workload identity, shows the entries, and sends:
 
 - `model`: the entry's `modelId` (`publisher/model`), never a routing profile.
   With no routing policy of its own, the `Alia` application is served under
@@ -78,25 +77,18 @@ because the sync does not write non-text-output models. Under Alia's
 (15,000 characters, that route only, USD 0.25) —
 [internal-metering.md](./internal-metering.md#speech-synthesis-2026-10-15).
 
-### Scopes: what Alia holds, and what it does not
+### Own authority and domain boundaries
 
-Alia is a **consumer** of the inference platform, not an operator of it. That
-sentence decides the whole list.
+Alia's own workload does not request inference scopes, application grants or
+per-app enablement levels. Its verified binding identifies the product,
+environment and billing owner. Requester, effective account and bot actor stay
+explicit for user work, including deferred tasks and nested agents. Existing
+receipt ownership, spending policy, commercial route availability and privileged
+operator checks still apply; scope-less identity does not remove them.
 
-| Scope | Held | Why |
-|---|---|---|
-| `user:read` | yes | The baseline every official application holds. |
-| `inference:invoke` | yes | Alia serves chat. This is the scope that spends the owner account's balance. |
-| `inference:models:read` | yes | Alia renders a model picker and resolves a model reference before invoking one. |
-| `inference:usage:read` | yes | Required by `GET /billing/accounts/:accountId/entitlements` for a service principal, and by the per-application usage reports. Both are Alia's own records. |
-| `inference:routing:read` | yes | Alia has to be able to say WHICH routing profile served a request when a user reports a slow or wrong answer. |
-| `inference:routing:write` | **no** | Staff-gated. Routing profiles are catalogue objects the platform serves every tenant from; holding this would let Alia repoint traffic that is not its own. Being first-party is not an argument for it — the reason the scope is privileged is that the object is *shared*, and Alia is one tenant of it. Routing policy for Alia's traffic is set by Oxy on Alia's behalf, through the staff surface, exactly as for every other consumer. |
-| `inference:providers:write` | **no** | Staff-gated, and the most consequential scope in the family: it manages provider connections, BYOK credentials included. Alia neither holds nor rotates provider secrets under this integration — that is precisely the responsibility this workstream moves *off* Alia. Granting it would re-create the thing being removed. |
-| `inference:providers:read` | **no** | Not privileged, and withheld anyway because Alia has no use for it. The one provider fact Alia surfaces is which provider served a request, and the edge already returns that as `X-Oxy-Provider`. A scope granted "in case" is authority nobody re-examines; this one is self-grantable and can be added the day a surface needs it, with no staff round trip. |
-
-Nothing outside the `inference:*` family and `user:read` is granted. Alia is not
-a federation peer, does not move reputation, writes no signals, sends no
-notifications and touches no follow graph.
+Provider credentials remain in Kaana. External customer credentials and OAuth
+connections retain their explicit scopes and revocable grants. See
+[ADR 0049](../adr/0049-first-party-platform-authority.md).
 
 ### Native product-agent identities
 
@@ -122,8 +114,8 @@ review. Sindi's grant is exactly `web`, `artifacts`, `memory`, in that order;
 Clarity's is empty, which DENIES everything rather than meaning unset. Neither
 carries anything that acts in the world (shell, browser, files, messaging,
 automation, delegation) and neither carries a connector: Oxy app access is not
-expressible in that vocabulary at all, and Oxy's normalized DelegationGrant
-records remain its sole authority.
+expressible in that vocabulary at all, and own Oxy operations use the shared task/execution authority with live
+account and resource checks. External connections retain their separate grants.
 
 Homiio's project row predates this bootstrap and is adopted by its exact
 primary key. Bootstrap verifies its username, account kind, hierarchy, status
@@ -131,15 +123,12 @@ and privacy fields byte for byte; it never renames or replaces the existing
 project to resolve an identity collision.
 
 Clarity's public sign-in application remains separate:
-`01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
-to the backend service application above, whose exact scopes are `user:read`
-and `inference:invoke`. Each backend authenticates as its attested ECS task role
-(ADR 0026), bound to its service application; Homiio's binding reaches
-`inference:invoke` and `acting-as:offline`, Clarity's `user:read` and
-`inference:invoke` — exactly what the retired credentials carried. The service
-credentials listed above are revoked by the bootstrap and no key pair for
-either exists. A signed-in person reaches Sindi through a present-requester
-assertion (ADR 0025); a human bearer is never forwarded to Alia.
+`01a0646a-2382-74a3-a795-788924d55722`. Its agent is bound to the backend
+service application above. Each backend authenticates through its registered
+workload identity and environment; legacy scope lists are not own authority.
+The retired service credentials above are not a fallback. A signed-in person
+reaches a product agent through the shared requester transport, preserving the
+original requester and effective account; a workload alone cannot invent one.
 
 These Oxy application identities identify product services. They are not
 provider keys. Provider keys exist only encrypted in Kaana's PostgreSQL/KMS
@@ -154,7 +143,8 @@ Alia passes the end user it is acting for as `X-Oxy-User-Id`. That identity is
 there is nothing for this integration to configure:
 
 - `ServiceTokenPayload` (`packages/api/src/middleware/serviceToken.ts`) carries
-  `appId`, `credentialId`, `ownerAccountId`, `environment` and `scopes`. A
+  `appId`, `credentialId`, `ownerAccountId`, `environment` and an explicit
+  authority lane. Only external authority carries scopes. A
   delegated user is deliberately **absent from the type** — a field on that
   payload is exactly what code reaches for when it wants "who is responsible for
   this request".
@@ -162,9 +152,9 @@ there is nothing for this integration to configure:
   into a field the billing principal cannot be confused with:
   `billingPrincipalSchema` is `.strict()` and holds one differently-branded
   field.
-- `resolveViewerId` (`packages/api/src/middleware/optionalAuth.ts`) honours the
-  header only for a SERVICE token. On a user bearer it is ignored, so a user
-  cannot impersonate another by sending it.
+- This inference attribution does not authorize access to the named person's
+  Files or other resources. Those operations require shared requester proof
+  and live account/resource authorization; a raw user-id header is insufficient.
 
 ADR [0007](../adr/0007-canonical-request-attribution.md) is the rule;
 [#989](https://github.com/OxyHQ/oxy/pull/989) made it structural. For Alia's
@@ -222,14 +212,16 @@ own".
 `GET /billing/accounts/:accountId/entitlements` — built by
 [#1005](https://github.com/OxyHQ/oxy/pull/1005) (workstream 7.5), served by
 `resolveProductEntitlement` in `packages/api/src/services/entitlement.service.ts`.
-Nothing was added for Alia; what it needed was the scope to reach it.
+Own Alia workloads use their verified platform authority; external credentials
+retain the endpoint's scope requirement.
 
 A SERVICE principal is authorised when **all three** hold
 (`authorizeAccount`, `packages/api/src/routes/accountBilling.ts`):
 
 1. the operation is a read — there is no write lane for a service credential on
    this surface at all;
-2. the credential carries `inference:usage:read`;
+2. the principal is a verified own workload, or its external credential carries
+   `inference:usage:read`;
 3. `ownerAccountId` on the verified token equals the `accountId` in the path.
 
 So Alia reads its OWN owner account and nothing else, and the account id in the
@@ -276,89 +268,26 @@ only_app_ids:  6a2f851751b784a86fd0e934
 dry_run:       true      ← then false
 ```
 
-The plan should show `type: first_party → internal`, `isInternal: false → true`,
-`ownerAccountId: <oxy> → <alia-production-chat account id>` and the scope union.
-If it instead FAILS naming a missing account, step 1 has not run.
+Review the exact application and billing owner against the current registry
+before applying. Application credential ceilings can still serve external
+customers under that application; they are not own workload permissions and
+must not be erased as part of this migration.
 
-The seed UNIONs scopes rather than replacing them, so a scope granted
-out-of-band survives. Removing one is a deliberate operation on the application
-record, never a side effect of a re-run.
+### 3. Verify workload identity and recipient readiness
 
-Verify: `OXY_APP_MAPPING_JSON=` in the output carries
-`"type":"internal"` and an `ownerAccountId` equal to the account from step 1.
+Use the registered backend task role, active binding and explicit environment.
+Alia and its integrations process have separate workload identities. The shared
+AWS provider also accepts temporary local/SSO credentials where the registered
+identity permits them; no static API-key fallback is part of the own contract.
 
-### 3. Mint one service credential per environment
+Follow the [migration ledger](../architecture/first-party-integration-migration.md)
+for receiver-before-producer deployment, live source/image receipts and bounded
+credential retirement. Stage A alone does not satisfy every event receiver;
+verify the actual caller-to-recipient edge before cutting over its producer.
 
-`packages/api/scripts/create-service-credential.ts`, run as an ECS one-shot in
-the same shape as the workflows above — **one run per environment**, so each run
-emits exactly one secret and a secret bound for one deployment environment is
-never sitting in the same output as the two that must not be.
-
-```
-APP_NAME=Alia
-SCOPES=user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index,inference:models:read,inference:usage:read,inference:routing:read
-ENVIRONMENT=development | staging | production
-OUTPUT_ENCRYPTION_KEY=<32 random bytes, hex — generated by the operator, never committed>
-DRY_RUN=true      ← then false
-```
-
-The plaintext secret is never logged: it is AES-256-GCM encrypted with
-`OUTPUT_ENCRYPTION_KEY` and emitted as `SERVICE_CRED_JSON=`, useless to anyone
-without the key. Decrypt out of band. Production is operated through
-`provision-service-credential.yml`, whose exact application-ID registry fixes
-Alia's name, environment, scopes, SSM destinations and ECS consumer. None of
-those authority-bearing values is a dispatch input.
-
-Re-running against the exact named production lane with matching scopes reuses
-the credential and verifies both destination SecureStrings. If that lane is
-usable but carries an older scope set, the Alia registry arm explicitly enables
-a scope rotation that uses a two-phase handoff. The first transaction creates the
-replacement as `pending`, which cannot authenticate, and leaves the old row
-untouched. Only after the exact encrypted secret has become a durable recovery
-package does a second exact-ID transaction activate the replacement, mark the
-previous row `deprecated` for the standard seven-day grace, and append the
-`rotated` and `created` audit events. Thus neither a losing `stop-task` race nor
-a crash between database commit and SSM persistence can strand an active
-one-time secret. An ambiguous set still fails closed; the workflow never accepts
-a credential ID or name selector. The recovery package is bound to the exact
-application, credential, name, environment and scope set. A separate
-SecureString binds the exact ECS task ARN to the workflow run and attempt before
-the task is awaited; recovery never searches or orders an ECS task list. It
-finalizes, installs and authenticates the secret/key pair, deletes that package
-and the ephemeral task definition, and forces the exact `alia` ECS service to a
-stable, completed rollout. If either destination write or authentication fails,
-the package is deliberately retained and the service is not rolled out. A retry
-may name only that app-namespaced run parameter; it validates every binding and
-replays the same already-minted credential, repairing a partial pair without
-minting another database row. A dry run performs none of those writes and cannot
-consume a recovery package; it also leaves any abandoned `pending` row and its
-audit trail untouched. Finalization replay validates the exact committed
-replacement, predecessor binding and lifecycle events. An elapsed predecessor
-grace does not invalidate that replay: expiry means the deprecated key no longer
-authenticates, not that the already-committed rotation ceased to exist.
-
-Migration/deploy order is causal and reserved: #1237 owns `0076`–`0078`, and
-#1239 owns `0079`; both must be safely deployed first. This credential handoff
-owns `0080` and must deploy before Alia is rotated. The open economic-routing PR
-#1234 must not merge from its current journal: after this change reaches `main`,
-rebase #1234 and regenerate its two migrations as `0081`/`0082`. Reviewing those
-numbers independently of that rebase would silently accept duplicate migration
-indexes from open branches.
-
-**`service`, not `machine`.** The `oxy_sk_*` machine lane exists so external
-developers can use a standard OpenAI SDK without implementing a token exchange;
-it authenticates on no route today. Alia is a platform-trusted internal service
-and takes the native lane, which is the one that works.
-
-The credential's scopes are intersected with the application's at every mint
-(`intersectScopes`), so step 2 must have landed or the intersection drops them.
-
-### 4. Hand the credentials over
-
-Three `clientId` + `clientSecret` pairs go to the Alia deployment environments as
-secrets. **Not Oxy's step** past this point: how Alia stores them is
-[OxyHQ/Alia#139](https://github.com/OxyHQ/Alia/issues/139). Never commit one, and
-never register a GitHub secret with a placeholder value.
+The former instructions here to mint three environment secrets and union an
+Alia scope list are retired. Do not recreate those keys. Existing external
+customer credentials remain external and follow their independent lifecycle.
 
 ---
 

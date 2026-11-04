@@ -24,6 +24,7 @@ import type { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import { publicColumns } from '@oxy.so/db/assert';
+import { getAuthWebOrigin } from '../config/env';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
@@ -899,6 +900,14 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   const qrPayload = `oxycommons://approve?v=1&code=${authorizeCode}&app=${resolvedApp.id}` +
     `&origin=${encodeURIComponent(boundOrigin ?? '')}&nonce=${qrNonce}&exp=${expiresAtDate.getTime()}`;
 
+  // The same request as an https page any phone camera opens: the IdP's device
+  // approval page (`packages/auth/src/pages/device.tsx`), for a device whose
+  // QR is scanned by someone who may not have Commons (a TV, a photo frame, a
+  // terminal). `user_code`, never `code`: `OxyProvider`'s cold boot on that page
+  // consumes and strips any `?code=`. Only the PUBLIC handle travels.
+  const approvalUrl = new URL('/device', getAuthWebOrigin());
+  approvalUrl.searchParams.set('user_code', authorizeCode);
+
   logger.debug('Auth session created', {
     sessionToken: sessionToken.substring(0, 8) + '...',
     authorizeCode: authorizeCode.substring(0, 8) + '...',
@@ -915,6 +924,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
     expiresAt: authSession.expiresAt.toISOString(),
     status: authSession.status,
     qrPayload,
+    approvalUrl: approvalUrl.href,
   });
 }));
 

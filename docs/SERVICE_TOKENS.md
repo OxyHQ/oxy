@@ -1,374 +1,126 @@
-# Service Tokens
+# Service tokens
 
-Internal Oxy ecosystem apps authenticate with each other using short-lived service JWTs (OAuth2 Client Credentials pattern).
+Own Oxy backends authenticate with workload identity. External integrations use
+bounded customer credentials. [ADR 0049](adr/0049-first-party-platform-authority.md)
+and [first-party platform access](auth/first-party-platform-access.md) define the
+boundary; an official application name never promotes an external credential.
 
-## Flow
+| Lane | Issuance | Authority |
+|---|---|---|
+| Own workload | Shared infrastructure proof, live binding and protocol-2 mint | `first_party`, no OAuth scope list |
+| External service credential | Client id + secret exchanged at `/auth/service-token` | `external`, live credential/application scope ceilings |
+| External machine key or OAuth session | Its documented key/session API | Its existing scopes and revocable grants; not a workload |
 
-```
-1. Register an Application (type: 'internal' or isOfficial) with an
-   ApplicationCredential of type: 'service' (Console staff view or DB)
-2. Service exchanges the credential's publicKey (oxy_dk_…) + secret
-   -> POST /auth/service-token
-   -> Returns 1-hour JWT with type: 'service'
-3. Service sends JWT as Authorization: Bearer <token>
-   + X-Oxy-User-Id: <userId> for user delegation
-4. auth() middleware recognizes type: 'service' JWTs
-   (stateless — no session DB lookup)
-```
-
-## Setup
-
-Service credentials belong to an `Application` (collection `applications`) via an `ApplicationCredential` (collection `applicationcredentials`):
-
-- `ApplicationCredential.publicKey` = the client id (`oxy_dk_…`)
-- `ApplicationCredential.secretHash` = sha256 of the secret — the plaintext secret is shown **once** at create/rotate time and never retrievable again
-- `ApplicationCredential.type` must be `'service'`
-- The owning `Application` must be `status: 'active'` and platform-trusted (`type: 'internal'` or official) — self-service third-party applications cannot mint service tokens
-- Rotation: a rotated credential stays usable during a 7-day grace window; `revoked` is immediate
-
-## Usage
-
-### Get a Service Token
+## Own service clients
 
 ```typescript
 import { OxyServer } from '@oxy.so/core/server';
+import { createAwsWorkloadCredentialProvider } from '@oxy.so/core/server/aws';
 
 const oxy = new OxyServer({
-  baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: 'oxy_dk_...', apiSecret: 'secret...' },
+  workloadCredentials: createAwsWorkloadCredentialProvider(),
 });
-
-// Auto-cached, auto-refreshed (cached until expiry minus buffer)
-const token = await oxy.serviceToken();
-```
-
-### Delegated Requests
-
-Act on behalf of a user:
-
-```typescript
-const result = await oxy.serviceRequest(
-  'POST',
-  '/notifications',
-  { message: 'New follower' },
-  { actAs: 'user-id-to-act-as' }  // Sets X-Oxy-User-Id header
-);
-```
-
-### Protect Internal Endpoints
-
-```typescript
-// Service-only (rejects user JWTs)
-// Defaults to https://api.oxy.so/.well-known/jwks.json.
-// Override serviceTokenJwksUrl only for a private Oxy deployment.
-app.use('/internal', oxy.middleware.service());
-
-app.post('/internal/trigger', (req, res) => {
-  req.serviceApp; // { appId, appName, credentialId, ownerAccountId, scopes, environment }
-  req.userId;     // from X-Oxy-User-Id (or null) — attribution, NEVER the payer
+const product = oxy.createServiceClient({
+  baseURL: 'https://<product-api-origin>',
+  audience: 'oxy-service:<registered-product-application-id>',
 });
+// Use product.fetch (or the product SDK factory) for that recipient.
+// Keep the client until its owning process/context ends, then dispose it.
 ```
 
-### Mixed Auth (user + service)
+The server-only AWS provider uses temporary role credentials, including supported
+local role/SSO development. It does not fall back to a customer key. Install its
+optional AWS peer as an explicit server dependency. The shared transport handles
+challenge, mint, caching, one authorized refresh, destination checks, redirects
+and cancellation. Do not implement those in an application.
 
-```typescript
-app.use('/data', oxy.middleware.auth());
+`application_workload_identities` binds the canonical infrastructure subject to
+one application and explicit environment. The issuer checks the active own
+application, owner and unexpired binding; live receiver introspection repeats the
+relevant authority checks. `credentialId: wl_…` identifies the materialized
+attribution row, not a secret. Binding scopes are historical storage, not runtime
+authority. Provisioning rejects `--scopes`; see
+[binding administration](engineering/auth-and-identity.md#binding-administration).
 
-app.get('/data', (req, res) => {
-  if (req.serviceApp) {
-    // Service token request
-  } else {
-    // Regular user request
-  }
-});
-```
+All workload token helpers now emit protocol 2, including maintenance uses of
+`serviceToken()` and `serviceTokenFor()`. Protocol 1 and scoped workload requests
+are refused. The [verified retirement](auth/workload-v1-retirement.md) records
+publication, rollout, parking and drain separately from source tests.
 
-## Token Payload
+## Recipient and token lifetime
 
-```json
-{
-  "type": "service",
-  "appId": "<applicationId>",
-  "appName": "mention-backend",
-  "credentialId": "<applicationCredentialId>",
-  "ownerAccountId": "<accountId>",
-  "environment": "production",
-  "tier": "internal",
-  "scopes": ["notifications:write"],
-  "iss": "oxy-auth",
-  "aud": "oxy-api",
-  "iat": 1707235200,
-  "exp": 1707235500
-}
-```
+Product APIs use the exact `oxy-service:<applicationId>` audience, Oxy uses
+`oxy-api`, and Kaana uses `kaana.ai`. Shared middleware verifies EdDSA, `kid`,
+issuer `oxy-auth`, recipient, token type, attribution, expiry and live authority.
+It fetches public keys from `https://api.oxy.so/.well-known/jwks.json` by default;
+a receiver cannot mint with those public keys. HS256 is refused.
 
-Every one of `appId`, `appName`, `credentialId`, `ownerAccountId` and `environment`
-is REQUIRED. A signature-valid token missing any of them is refused by both
-verifiers — the API's `verifyServiceToken` answers `not_service`, and
-`@oxy.so/core`'s middleware answers `401 INVALID_SERVICE_TOKEN`.
+Both issuer and verifiers use `OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS` from
+`packages/core/src/server/serviceTokenLifetime.ts`: **300 seconds**, not one hour.
+`iat`/`exp` must be integer seconds with a positive bounded lifetime. Cache checks
+alone confer no authority. Recheck the deployed constant when planning a drain.
 
-- `appId` is the `Application._id` (the claim name is intentionally stable — `@oxy.so/core` reads it under this name).
-- `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
-- `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
-- `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
-- `tier` classifies the registered application. Internal applications obey the same scope ceilings and offline delegation check as external applications; classification alone grants no user authority.
-- `scopes` carry the mint-time credential ∩ application ceiling. An empty credential scope list inherits the existing application ceiling. A delegated effect additionally verifies the current application and credential/workload ceiling in the authority snapshot; `acting-as:offline` must survive this live intersection.
-- `iat` and `exp` are required integer seconds with a positive lifetime of at most 300 seconds. Both JWT verifiers reject older hour-long tokens; there is no grace that broadens that ceiling. The common issuer produces 300-second tokens.
+An own token carries `authority: 'first_party'`, application id, credential
+handle, owner account, environment and exact audience, with no `scopes`. External
+service tokens carry `authority: 'external'` and bounded scopes. Branding or
+legacy `tier` is never an authority proof. The supported external `oxy-api`
+audience compatibility does not admit retired workload-v1 tokens.
 
+## Requester authority and attribution
 
-There is deliberately **no user claim**. A delegated end user travels in the
-`X-Oxy-User-Id` header, is authorised per request against an explicit acting-as
-grant, and is attribution only.
+A service identity authorizes the service's own operations. Access to private
+resources additionally needs a verified original requester and effective account:
+use the shared session/task/context facilities in
+[first-party tasks](auth/first-party-tasks.md). Downstream services use the
+verified derived context; they cannot reuse another coordinator's naked task id.
+Resource ownership, membership, bot identity and operation constraints remain.
+No own app connection grant or permission level is required.
 
-## Attribution — who pays vs. on whose behalf
+`X-Oxy-User-Id` by itself is not proof. Inference's immutable `kaana.ai`
+attribution is deliberately separate from private-data authority. The billing
+principal comes from the verified application owner and credential/workload
+identity, never a forwarded user header; see
+[inference attribution](inference/attribution.md).
+`getOxyBillingPrincipal`, `getOxyDelegatedUserId` and
+`getOxyRequestAttribution` keep those concepts separate.
 
-The five claims above are the canonical attribution tuple of
-[ADR 0007](adr/0007-canonical-request-attribution.md) minus the delegated user.
-`@oxy.so/core/server` exposes them as two deliberately different shapes:
+## External credentials and delegation
 
-```typescript
-import {
-  getOxyBillingPrincipal,      // OxyBillingPrincipal | null  — who is charged
-  getOxyDelegatedUserId,       // string | null               — on whose behalf
-  getOxyRequestAttribution,    // both, as one object
-} from '@oxy.so/core/server';
+Explicit `serviceAuth` remains the external customer credential flow. Its
+credential must be usable and its application active; live scope intersections,
+owner/environment checks, rotation grace and revocation remain enforced. Creating
+that credential under an official app does not make it an own workload.
 
-const principal = getOxyBillingPrincipal(req);
-// { accountId, applicationId, credentialId, environment, scopes }
-```
+External offline delegation requires the real user's `acting-as:offline` grant
+and the matching live application/credential ceiling. `DELETE
+/auth/grants/:applicationId` removes the grant, records the revocation and advances
+the durable epoch. A stale token or racing grant write cannot override an explicit
+revocation. OAuth consent and MCP connection scopes retain their distinct
+contracts. Forwarding an external bearer through an own backend never widens it.
 
-`getOxyBillingPrincipal` reads `req.serviceApp` and nothing else — never
-`req.userId`, `req.user` or `req.serviceActingAs`. And because it returns an
-OBJECT while every user-identity accessor returns a `string`, a delegated user
-id cannot be passed where a billing principal is expected: the substitution
-ADR 0007 forbids is a compile error, not a review question.
+Shared `verifyActingAs` and middleware perform central verification and fail
+closed on unavailable or malformed authority; callers must not synthesize a
+person from a raw header. Account membership and sensitive-operation policy are
+additional checks, not substitutes for an external grant. Use
+[external auth integration](auth/integration-guide.md) for consent and PKCE,
+and [inference credentials](inference/credentials.md) for customer key examples.
 
-Restated as the rule a reviewer applies: **if removing `X-Oxy-User-Id` from a
-request would change what any account is charged, the code is wrong.**
+## Receiver integration and source pointers
 
-## Acting as a user
+Use `OxyServer.middleware.service()` for a service-only mount and
+`middleware.auth()` for supported mixed identity lanes. Configure the registered
+recipient identity; apply product ownership and domain rules after authentication.
+Use `req.serviceApp.authority`, not a brand flag or `tier`, when distinguishing
+own service authority from external scope checks. Do not require OAuth scopes
+from a first-party workload or skip resource checks because it is first-party.
 
-`X-Oxy-User-Id` is a header, so on its own it proves nothing. `oxy.middleware.auth()`
-therefore treats it as a request to be authorised, not as an identity: on every
-request carrying it, the middleware calls
-
-```
-GET /internal/service-acting-as/verify?appId=<app>&userId=<user>&credentialId=<verified credential>&ownerAccountId=<verified owner>&environment=<verified environment>
-→ { "authorized": boolean, "scopes": string[], "epoch": "<decimal bigint>" }
-```
-
-and refuses with `403 SERVICE_ACTING_AS_UNAUTHORIZED` unless the answer is yes.
-There is **no fail-open path**: an unreachable endpoint, an unconfigured
-verifier and an explicit refusal all produce the same 403. Omitting the header
-is not a failure — it means the service acts as itself, and `req.userId` is
-`null`.
-
-### Who may be acted for
-
-**Every application needs explicit user consent.** Platform trust permits an
-application to hold a service credential; it does not permit that credential to
-borrow an arbitrary person's identity. The user must approve the
-consent-required `acting-as:offline` scope, which writes a per-(user,
-application) `app_grants` row.
-
-Resolution order, and the order is the security property:
-
-| | condition | answer |
-|---|---|---|
-| 1 | the user revoked this application | no |
-| 2 | subject/owner is inactive or fenced, application inactive, or the credential/workload binding is unusable/mismatched | no |
-| 3 | the grant ∩ live application ∩ credential/workload ceiling contains `acting-as:offline` | yes, with that live intersection |
-| 4 | otherwise | no |
-
-Revocation is checked **first**, so it wins over a stale or concurrently
-recreated grant. Trust is deliberately absent from this resolution: it is a
-credential-mint decision, not a per-user consent decision. A user who has never
-approved `acting-as:offline` is refused, including for an official application.
-This bounds a leaked first-party credential to users who explicitly opted in.
-
-### Revocation
-
-`DELETE /auth/grants/:applicationId` is the one user action. It deletes the
-`app_grants` row if there is one **and** writes a marker to
-`service_acting_as_revocations`, and increments the durable user/application epoch in the same transaction. Consent increments that same epoch with grant upsert, explicit marker clear and code insertion; failures roll all of them back. The marker makes an explicit refusal win even
-if a stale or racing writer recreates the grant; absence of a grant always means
-unauthorized.
-
-It is a marker table rather than a column on `app_grants` because a revocation
-row living in the grant table would be a row whose presence means the opposite of
-every other row there, in a table `followCapability` already reads as consent.
-This is not a second revocation surface of the dangerous kind: a second place to
-say YES is dangerous because revoking in one leaves the other authorising, while
-a second place to say NO can only ever subtract authority.
-
-**Undoing it takes a real decision.** The marker is cleared only when an
-authorize names `acting-as:offline` — a scope that is privileged (staff-only on an
-application's ceiling) and consent-required (never auto-approved, whoever the
-application is), so a request carrying it always reaches a consent screen.
-Clearing on any successful authorize would have made revocation worthless: a
-a weaker authorize can still be auto-approved for a first-party application and
-must not silently undo a deliberate refusal.
-
-### Non-trusted applications
-
-They keep the grant path: a grant naming `acting-as:offline`, and nothing weaker.
-Unreachable today — the mint refuses them a service token and `/internal` refuses
-them again — and kept because "unreachable" is a property of two other files, and
-the day either changes this must not start authorizing an application no user
-agreed to.
-
-### How the two scope sets compose
-
-| | source | says |
-|---|---|---|
-| `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
-| `req.serviceActingAs.scopes` | grant ∩ live application ∩ live credential/workload ceiling, one repeatable-read snapshot with epoch | currently delegated authority |
-
-`oxy.middleware.requireScope(s)` requires `s` in **both** for a delegated request, and in
-`serviceApp.scopes` alone for a request acting as itself. The intersection is
-the point: only the app scope would let an app do to a user what that user never
-consented to; only the grant would let a user hand an app authority staff never
-gave it.
-
-There is no automatic path, including for internal applications. The user's decision and current ceilings always narrow the token.
-
-### Who may call the verify endpoint
-
-`/internal` is service-to-service only, gated on a valid service token **and** a
-platform-trusted calling application. The second gate is not redundant — the
-mint has a deliberate carve-out letting a non-trusted app mint a service token
-from a payments-only credential, so holding a token is not the same as being a
-first-party service.
-
-The verifier is not the application being asked about (Syra asks about Alia), so
-"may only ask about itself" would break the mechanism rather than tighten it.
-The residual disclosure — a trusted first-party service can learn whether a user
-delegated to some other app — is accepted and logged. Every negative answer is
-byte-identical (`{ authorized: false, scopes: [] }`, always 200, never 404), so
-the endpoint is not an oracle for which users or applications exist.
-
-## Asking whether a person may act for an account
-
-```
-GET /internal/accounts/<accountId>/access/<userId>
-→ { "accountId": "…", "kind": "channel" | … | null,
-    "access": { "role": "…", "permissions": ["…"], "status": "active",
-                "source": "direct" | "inherited" | "self" } | null }
-```
-
-A Mention channel is an account of kind `channel`, which can never be acted AS
-(`isDelegatedActAsEligibleKind`). An app publishes to one with its OWN
-credential, on behalf of a member Oxy vouches for here — so the invariant holds
-and nobody holds a bearer that speaks as the channel. The user-facing
-`GET /accounts/:id/members` needs the person's own session; a long server-side
-import (Oxy Move) has only a service token, so this is its question.
-
-- **Gates:** the `/internal` service-token and trust gates, plus the privileged
-  `accounts:membership:read`. The scope is for the DISCLOSURE: a channel is
-  anonymous, so who is behind it is what trust alone must not hand every
-  first-party service. Staff add it to an application's ceiling (the canonical
-  seed, `packages/api/src/scripts/seedOxyApplicationsSpecs.ts`).
-- **Answer:** always 200. The effective access `accountService` resolves for
-  every other membership check — inherited memberships count, invited and
-  removed ones do not, a per-member revoke shows in `permissions`, a personal
-  account is its own `owner` (`source: 'self'`). `access` is `null` for no
-  active membership and for an archived, unknown or unclaimed directory
-  account; `kind` is `null` only for an unknown one.
-- **Bounds:** 600/minute per calling application; nothing cached on either side
-  (`@oxy.so/core`'s `oxy.accounts.accessFor` throws on anything but a valid
-  verdict); each answer logged with caller, account and outcome, never the
-  person asked about. It mints and grants nothing.
-
-## Security
-
-- Service tokens are signed with Ed25519 and carry an exact `kid`; external
-  `middleware.auth()` / `middleware.service()` verifiers fetch public keys from
-  `https://api.oxy.so/.well-known/jwks.json` by default.
-- A verifier pins EdDSA, issuer `oxy-auth`, audience `oxy-api`, expiry/not-before,
-  token type and exact non-empty scopes/attribution IDs. Unknown keys and an
-  unavailable expired cache fail closed.
-- EdDSA is the only service-token algorithm. An HS256 token is refused
-  everywhere, even one signed with a real platform secret, and the SDK has no
-  shared-secret option: a verifier holds public keys only and can never mint.
-  `oxy-api` refuses to boot in production without its signing key; outside
-  production it signs with a per-process ephemeral key. See
-  [ADR 0012](adr/0012-service-token-signing-key-model.md).
-- Secrets stored as sha256 hashes; timing-safe comparison on exchange
-- Bearer-only, so not exposed to CSRF (the API has no ambient credential)
-- Expiration checked locally (no DB round-trip)
-- Per-scope authorisation via `oxy.middleware.requireScope('files:write')` after `middleware.service()`
-- **Per-request authority reads are cached for at most 5 s per oxy-api task**
-  (`packages/api/src/utils/authorityCache.ts`): `/internal`'s "is this
-  application active and trusted", `serviceAuthMiddleware`'s "is the owner
-  supervised / does the organization still hold operating authority", and
-  session validation's supervision read. A write that changes the answer
-  (application PATCH or delete, supervision enrolment or its end) invalidates
-  the key on every task at once through Redis (`oxy-api:authority-cache:invalidate`);
-  anything else — organization claim changes, a lost broadcast — takes effect
-  within the 5 s TTL. **Max staleness: 5 s.** Concurrent misses share one
-  query, errors are never cached (fail closed), and `OXY_AUTHORITY_CACHE_TTL_MS`
-  overrides the TTL (0 disables; the jest suite runs with 0). Why: on
-  2026-10-16 the uncached `/internal` read was 12.5 of 16 AAS queued behind a
-  migration's lock on `applications`.
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint; `GET`/`DELETE /auth/grants` |
-| `packages/api/src/routes/internal.ts` | `/internal` router + `GET /internal/service-acting-as/verify` + `GET /internal/accounts/:accountId/access/:userId` |
-| `packages/api/src/services/serviceActingAs.service.ts` | resolves the delegation grant; `acting-as:offline` |
-| `packages/api/src/db/schema/appGrants.ts` | `app_grants` — the revocable per-(user, app) consent row |
-| `packages/api/src/utils/applicationScopes.ts` | the scope vocabulary, privileged and consent-required sets |
-| `packages/api/src/db/schema/applications.ts` | `type` / `isOfficial` / `isInternal` fields |
-| `packages/api/src/db/schema/applicationCredentials.ts` | `publicKey`, `secretHash`, `type: 'service'` |
-| `packages/api/src/utils/credentialUsability.ts` | `isCredentialUsable()` (active or in rotation grace) |
-| `packages/core/src/server/middleware.ts` | `middleware.auth()` + `middleware.service()` |
-| `packages/core/src/server/OxyServer.ts` | `OxyServer`: `serviceToken()`, `serviceRequest()`, `configureServiceAuth()`, `verifyActingAs()` |
-
-### Approved freshness and rollout boundary (I03, 2026-10-03)
-
-`OxyServer.verifyActingAs` defaults to a fresh, non-retrying authority request;
-all header-based delegated middleware effects use this default with the verified
-credential/owner/environment tuple. Only explicit `{ cache: true }` read callers
-reuse a positive answer for at most 60 seconds or an authoritative denial for at
-most 10 seconds, measured from lookup start. Errors and malformed answers are
-never cached. A request taking five seconds or more cannot authorize. Durable
-pair epochs and local request order reject delayed responses after a newer deny,
-including credential/application/owner revocations that leave the epoch unchanged.
-The five-second deadline is not a measurement of production revocation latency.
-
-The authority reader uses one repeatable-read snapshot for epoch, grant,
-revocation, accounts, application and credential/workload binding. A request
-already reading before a revocation can complete with that older coherent
-snapshot within its deadline; a subsequent fresh request sees the committed deny.
-The local test records revoke-commit → fresh denials in two independent SDK
-processes. It does not establish production p99 or every receiver's adoption.
-
-`POST /internal/accounts/:id/service-switch` passes the credential, owner and
-environment already verified by the service-token middleware to that same live
-reader before creating or reusing a delegated session. A still-valid signed JWT
-does not preserve permission after credential revocation or removal of
-`acting-as:offline` from its live ceiling; an owner or environment mismatch also
-denies the mint. Existing operator consent and account membership remain separate
-requirements. The HTTP/JWT/PostgreSQL regression covers those four denials and
-the existing successful managed-account mints; it is local acceptance, not a
-measurement of production freshness.
-
-Deploy the common issuer and verifiers, wait for the new API revision to be
-steady with all older API tasks retired, then refresh each verified live caller
-that retains an older hour token. The new SDK discards a cached token whose
-unverified lifetime metadata exceeds 300 seconds and remints; that cache check
-confers no authority. Published older SDKs require existing explicit invalidation
-or a coordinated restart of the exact workload after new issuance is available.
-Do not treat API-first deployment alone as recovery for those older caches.
-During a rolling API deployment, an older task can still issue an hour token
-that the newer verifier rejects; record this possible failure window and exercise
-the existing rollout/canary mechanism. Do not claim zero downtime or weaken TTL.
-
-Caller refresh and receiver adoption are separate gates. Restarting a caller
-with old core resolves its token cache but leaves any old receiving middleware's
-internal-tier bypass in place. Extend the effect guarantee to a concrete receiver
-only after it adopts the published core containing these checks and verifies its
-live domain authorization. Preserve image/shape readback and rollback per workload;
-no blanket restart or claim of complete ecosystem coverage follows from this source.
+| Source | Responsibility |
+|---|---|
+| `packages/api/src/routes/auth.ts` | External credential exchange and own workload mint |
+| `packages/api/src/services/workloadIdentity.service.ts` | Infrastructure binding and explicit environment |
+| `packages/api/src/services/agencyServicePrincipal.service.ts` | Live workload and external credential authority |
+| `packages/api/src/services/serviceActingAs.service.ts` | External delegation grants and revocation |
+| `packages/api/src/services/firstPartyTaskAuthority.service.ts` | Own durable requester/task authority |
+| `packages/core/src/server/OxyServer.ts` | Shared caller transport and authority clients |
+| `packages/core/src/server/middleware.ts` | Shared recipient authentication |
+| `packages/core/src/server/serviceTokenLifetime.ts` | Shared 300-second ceiling |

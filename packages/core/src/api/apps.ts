@@ -30,7 +30,7 @@ import {
   parseContract,
 } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
-import type { AccountMember, AccountSuccessResult } from './accounts';
+import type { AccountMember, AccountRole, AccountSuccessResult } from './accounts';
 
 const SHORT_TTL = 60 * 1000;
 const MEDIUM_TTL = 2 * 60 * 1000;
@@ -123,11 +123,30 @@ export interface Application {
   createdAt: string;
   updatedAt: string;
   /**
-   * The caller's effective membership in the OWNING account (direct or
-   * inherited), embedded by the API on list/detail responses, or `null` when the
-   * caller has no membership. Use `callerMembership.permissions` to gate UI.
+   * The caller's access to this application, derived from their effective
+   * role over the OWNING account (direct or inherited), embedded by the API on
+   * list/detail responses, or `null` when the caller has no membership. Use
+   * `callerMembership.permissions` to gate UI; a backend asks
+   * `OxyServer.applicationAccessFor`.
+   *
+   * The wire shape is {@link ApplicationCallerMembership} — only `role` and
+   * `permissions` of this `AccountMember` type are present. The type is
+   * corrected in 8.0 (ADR 0054); changing it in a minor would break compiles.
    */
   callerMembership?: AccountMember | null;
+}
+
+/**
+ * The caller's access to an application as the API actually embeds it: the role they
+ * hold over the owning account and the APPLICATION permissions it maps to
+ * (`app:read`, `app:update`, `webhooks:update`, …). There is no per-application
+ * member row, so this is not an `AccountMember`.
+ */
+export interface ApplicationCallerMembership {
+  role: AccountRole;
+  permissions: string[];
+  source: 'account';
+  ownerAccountId: string;
 }
 
 /**
@@ -494,7 +513,7 @@ export class ConnectedAppsApi {
   async revoke(applicationId: string): Promise<void> {
     await this.ctx.request<{ revoked: boolean }>(
       'DELETE',
-      `/auth/grants/${applicationId}`,
+      `/auth/grants/${enc(applicationId)}`,
       undefined,
       { cache: false },
     );

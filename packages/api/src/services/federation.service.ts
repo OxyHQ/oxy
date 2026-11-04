@@ -15,12 +15,17 @@ import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { and, eq } from 'drizzle-orm';
 import {
+  atprotoIdentityHandle,
+  blueskyHandleFromUsername,
+  blueskyUsernameFromHandle,
+  BSKY_NETWORK_DOMAIN,
   signRequest,
   canonicalFederationHost,
   createUrlBuilders,
   federatedUsernameFromUpstreamUrl,
   INSTANCE_ACTOR_USERNAME,
   normalizeAlsoKnownAs,
+  isActivityPubMediaType,
   localActorTypeForAccountKind,
 } from '@oxy.so/federation';
 import { createTcoLinkExpander } from '@oxy.so/federation/node';
@@ -48,11 +53,7 @@ import { AssetService } from './assetService';
 import { s3Service } from './s3ServiceSingleton';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
-import {
-  isAvatarFileId,
-  persistFederatedAvatar,
-  type FederatedAvatarWrite,
-} from '../utils/federatedAvatar';
+import { isAvatarFileId, persistFederatedAvatar } from '../utils/federatedAvatar';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanAccountName } from '../utils/displayNameSanitize';
 import { sanitizePlainText } from '../utils/sanitize';
@@ -86,6 +87,7 @@ import {
   resolveCanonicalUserId,
 } from './externalIdentityRegistry.service';
 import { normalizeAvatarImage } from './federation/avatarImage';
+import { avatarSeedColor } from './federation/avatarColor';
 import {
   acquireAvatarOriginLease,
   clearAvatarOriginFailures,
@@ -291,6 +293,10 @@ function normalizeFediverseHandle(handle: string): string | null {
 
   return `${localPart}@${domain}`;
 }
+
+const ATPROTO_DID_RE = /^did:(plc|web):[^\s/?#]+$/;
+/** An atproto handle is a DNS name: at least two labels and an alphabetic TLD. */
+const ATPROTO_HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 
 function domainFromHandle(handle: string): string | null {
   const atIndex = handle.indexOf('@');
@@ -681,6 +687,8 @@ export interface AvatarDownloadResult {
   httpStatus?: number;
   /** Which picture was mirrored when the result carries a new file id. */
   source?: 'remote' | 'instagram_graph';
+  /** The mirrored picture's seed colour (`#rrggbb`), when it has one. */
+  color?: string;
 }
 
 function avatarFailure(
@@ -877,9 +885,7 @@ class FederationService {
         return null;
       }
 
-      const link = data.links?.find(
-        (l) => l.rel === 'self' && l.type && AP_ACCEPT_TYPES.includes(l.type),
-      );
+      const link = data.links?.find((l) => l.rel === 'self' && isActivityPubMediaType(l.type));
       if (!link?.href) {
         resolutionFailure(
           'webfinger_document',
@@ -1073,7 +1079,7 @@ class FederationService {
   }
 
   async fetchAtprotoProfile(did: string): Promise<ExternalActorProfile | null> {
-    if (!/^did:(plc|web):[^\s/?#]+$/.test(did)) return null;
+    if (!ATPROTO_DID_RE.test(did)) return null;
     const response = await safeFetch(
       `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`,
       {
@@ -1093,13 +1099,13 @@ class FederationService {
       !/^[a-z0-9.-]+$/i.test(profile.handle)
     )
       return null;
-    const handle = profile.handle.toLowerCase();
-    const local = handle.endsWith('.bsky.social') ? handle.slice(0, -12) : handle;
+    // An unverified handle is Bluesky's shared `handle.invalid`: name it by its DID.
+    const handle = atprotoIdentityHandle(profile.handle, did).toLowerCase();
     return {
       actorUri: did,
       protocol: 'atproto',
-      domain: 'bsky.social',
-      username: `${local}@bsky.social`,
+      domain: BSKY_NETWORK_DOMAIN,
+      username: `${blueskyUsernameFromHandle(handle)}@${BSKY_NETWORK_DOMAIN}`,
       transportAcct: handle,
       stableId: did,
       evidenceLinks: [],
@@ -1123,7 +1129,26 @@ class FederationService {
     } catch {
       /* A handle is not a URL. */
     }
+    // A bare DNS name is an atproto handle: no `@`, so never a fediverse acct.
+    const bare = value.trim().replace(/^@/, '');
+    if (ATPROTO_HANDLE_RE.test(bare))
+      return `${blueskyUsernameFromHandle(bare.toLowerCase())}@${BSKY_NETWORK_DOMAIN}`;
     return normalizeFediverseHandle(value);
+  }
+
+  /** The DID a Bluesky handle names, or null when the AppView cannot resolve it. */
+  private async resolveAtprotoHandle(handle: string): Promise<string | null> {
+    const response = await safeFederationFetch(
+      `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    if (!response) return null;
+    if (response.status < 200 || response.status >= 300) {
+      response.response.destroy();
+      return null;
+    }
+    const body = await readFederationJson<Record<string, unknown>>(response.response);
+    return typeof body?.did === 'string' && ATPROTO_DID_RE.test(body.did) ? body.did : null;
   }
 
   async needsBridgeCanonicalization(actorUri: string): Promise<boolean> {
@@ -1320,6 +1345,9 @@ class FederationService {
   }) {
     if (input.actorUri)
       return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
+    // A DID is already an atproto actor id.
+    const did = input.handle?.trim();
+    if (did && ATPROTO_DID_RE.test(did)) return this.resolveExternalActorIdentity(did);
     const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
     if (!handle) return null;
     const at = handle.lastIndexOf('@');
@@ -1349,6 +1377,18 @@ class FederationService {
         );
     }
     if (isOwnFederationDomain(domain)) return null;
+    // Bluesky speaks no WebFinger: its handle resolves to a DID, and the profile
+    // fetched by that DID must name this same account back.
+    if (domain === BSKY_NETWORK_DOMAIN) {
+      // An account whose handle does not verify is already named by its DID.
+      const local = handle.slice(0, at);
+      const atprotoDid = ATPROTO_DID_RE.test(local)
+        ? local
+        : await this.resolveAtprotoHandle(blueskyHandleFromUsername(local));
+      if (!atprotoDid) return null;
+      const result = await this.resolveExternalActorIdentity(atprotoDid);
+      return result?.externalIdentity.canonicalAcct === handle ? result : null;
+    }
     // Reverse transport routing is also Oxy policy. The fetched actor must still
     // publish the reviewed per-account assertion before the identity is accepted.
     const transport = this.transportHandleForExternalAccount(handle);
@@ -1788,7 +1828,8 @@ class FederationService {
         }
       }
 
-      return { fileId, etag, lastModified, notModified: false, source: 'remote' };
+      const color = (await avatarSeedColor(image.buffer)) ?? undefined;
+      return { fileId, etag, lastModified, notModified: false, source: 'remote', color };
     } catch (err) {
       logger.warn(`Failed to download/store federated avatar: ${err}`);
       return avatarFailure('transient', 'transport');
@@ -2185,7 +2226,11 @@ class FederationService {
       setFields.federationAvatarETag = stored.etag ?? null;
       setFields.federationAvatarLastModified = stored.lastModified ?? null;
 
-      await persistFederatedAvatar(userId, { fileId: stored.fileId }, setFields);
+      await persistFederatedAvatar(
+        userId,
+        { fileId: stored.fileId, color: stored.color },
+        setFields,
+      );
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently
@@ -2203,9 +2248,12 @@ class FederationService {
   }
 
   /**
-   * Re-fetch a federated actor's avatar/name/bio and update the cached Oxy user
-   * in place. Runs in the background (fire-and-forget). Wraps its whole body so
-   * a rejection can never escape the caller — all failures are logged.
+   * Re-fetch a cached federated actor in the background through
+   * {@link resolveExternalActorIdentity}, the one path that dispatches by source
+   * (atproto DID, Instagram Graph, ActivityPub), registers the profile, refreshes
+   * the Meta proof and invalidates the cache. The avatar is re-checked by the
+   * avatar worker, which replays the stored conditional-request validators.
+   * Wraps its whole body so a rejection can never escape the caller.
    *
    * @param existing - The cached federated user to refresh.
    * @param handle   - The lowercased handle, used to re-WebFinger if no actorUri.
@@ -2215,145 +2263,19 @@ class FederationService {
       return;
     }
 
-    let userId = existing._id;
     try {
-      // Resolve the actor URI: reuse the stored one, else re-WebFinger.
       const actorUri = existing.federation.actorUri || (await this.resolveWebFinger(handle));
       if (!actorUri) {
         logger.warn(`Background refresh: could not resolve actor URI for ${handle}`);
         return;
       }
-      if (isInstagramGraphActorUri(actorUri)) {
-        // Graph sources refresh through the id-checked resolver, which also
-        // registers the profile and schedules the avatar download.
-        await this.resolveExternalActorIdentity(actorUri);
-        return;
-      }
-
-      const proofObservationStartedAt = new Date();
-      const profile = await this.fetchActorProfile(actorUri, handle);
-      if (!profile) {
-        await revokeMetaIdentityProof(
-          actorUri,
-          'source_actor_unavailable',
-          proofObservationStartedAt,
-        );
-        logger.warn(`Background refresh: actor profile fetch returned null for ${actorUri}`);
-        return;
-      }
-
-      const registered = await registerExternalIdentity({
-        canonicalAcct: profile.username,
-        actorUri: profile.actorUri,
-        transportAcct: profile.transportAcct,
-        protocol: profile.protocol,
-        stableId: profile.stableId,
-        evidenceLinks: profile.evidenceLinks,
-        profile: federatedProfile(profile),
+      const refreshed = await this.resolveExternalActorIdentity(actorUri, handle, {
+        forceAvatarRefresh: true,
       });
-      const identityProof = await this.refreshMetaIdentityProof(profile, registered);
-      userId = registered.identity.userId;
-      userCache.invalidate(registered.userId);
-      userCache.invalidate(registered.identity.userId);
-      if (
-        profile.domain === 'instagram.com' &&
-        ((registered.deferredInstagramOwnerRefresh && !identityProof?.sourceOwnerVerified) ||
-          [
-            'source_binding_changed',
-            'source_profile_contradiction',
-            'proof_predates_revocation',
-          ].includes(identityProof?.reason ?? ''))
-      )
+      if (!refreshed) {
+        logger.warn(`Background refresh: ${actorUri} did not resolve`);
         return;
-
-      // COLUMN PROPERTIES, never dot paths — see the note in
-      // `resolveAndUpsert`. `name.first` here would silently write nothing.
-      const setFields: Partial<typeof users.$inferInsert> = {};
-      let avatarWrite: FederatedAvatarWrite | undefined;
-
-      // The name and kind were written by `registerExternalIdentity` above.
-      setFields.federationLastResolvedAt = new Date();
-      if (typeof profile.bio === 'string') {
-        const safeBio = sanitizePlainText(profile.bio);
-        setFields.bio = safeBio;
-        setFields.description = safeBio;
       }
-
-      // Download the latest avatar and replace the old stored file, replaying any
-      // stored validators as a conditional request. Only set the avatar field
-      // when the download succeeded — never clobber a good avatar with null
-      // because the remote fetch failed. On 304 we keep the existing file but
-      // still advance the fetch clock so we don't re-attempt every request.
-      if (profile.avatarUrl) {
-        // The conditional-request validators are read from the ROW, not from
-        // the account document this worker was handed. `AccountDocument`'s
-        // `federation` key carries only `actorUri`/`domain` (it is the wire
-        // shape `PUT /users/resolve` returns), so reading `avatarETag` off it
-        // would compile — through the index signature — and be `undefined`
-        // forever, quietly turning every background refresh into an
-        // unconditional re-download of an unchanged image.
-        const [validators] = await getDb()
-          .select({
-            avatar: users.avatar,
-            etag: users.federationAvatarETag,
-            lastModified: users.federationAvatarLastModified,
-          })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
-        const stored = await this.mirrorFederatedAvatar(
-          userId,
-          profile.avatarUrl,
-          storedAvatarFileId(validators?.avatar),
-          {
-            etag: validators?.etag ?? undefined,
-            lastModified: validators?.lastModified ?? undefined,
-          },
-        );
-        if (stored.notModified) {
-          setFields.federationLastAvatarFetchedAt = new Date();
-        } else if (stored.fileId) {
-          avatarWrite = { fileId: stored.fileId };
-          setFields.federationLastAvatarFetchedAt = new Date();
-          setFields.federationAvatarETag = stored.etag ?? null;
-          setFields.federationAvatarLastModified = stored.lastModified ?? null;
-        } else {
-          // Keep the previous mirror; a remote URL is never left standing in.
-          avatarWrite = {
-            failed: stored.reason ?? 'unexpected',
-            permanent: stored.failure === 'permanent',
-          };
-          setFields.federationLastAvatarFetchedAt = new Date();
-          logger.warn(
-            `Background refresh: avatar download failed for ${actorUri} (keeping existing mirror)`,
-            { failure: stored.failure, reason: stored.reason },
-          );
-        }
-      } else {
-        // The source has no picture: nothing is owed.
-        avatarWrite = 'no_source_picture';
-      }
-
-      // `federationLastResolvedAt` is set unconditionally above, so `setFields`
-      // is never empty, so no write ever needs to touch `updated_at` alone.
-      // `updated_at` is maintained by drizzle's `$onUpdate` on the write below.
-      await getDb()
-        .update(users)
-        .set({
-          ...setFields,
-          // Clear the tombstone fields — NULL is "available".
-          federationUnavailableAt: null,
-          federationUnavailableReason: null,
-        })
-        .where(eq(users.id, userId));
-
-      if (avatarWrite) await persistFederatedAvatar(userId, avatarWrite);
-
-      // CRITICAL: every path that mutates user state must invalidate the cache,
-      // otherwise getUserBySession serves stale in-memory data and silently
-      // reverts this update.
-      userCache.invalidate(userId);
-
       logger.info(
         `Background-refreshed federated user ${existing.username || handle} (${actorUri})`,
       );
@@ -2362,7 +2284,7 @@ class FederationService {
       // fire-and-forget caller. The scheduler also has a .catch, but we log here
       // with full context too.
       logger.error(
-        `Background refresh threw for ${handle} (${userId}): ${err instanceof Error ? err.message : String(err)}`,
+        `Background refresh threw for ${handle} (${existing._id}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

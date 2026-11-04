@@ -37,10 +37,18 @@ import {
   type ApplicationScope,
 } from '../../utils/applicationScopes';
 import { isTrustedApplication } from '../../utils/trustedApplication';
+import { isAccountRole } from '../../utils/accountRoles';
+import {
+  APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+  APPLICATION_PERMISSIONS_MAX_DECLARED,
+  isApplicationPermissionKey,
+} from '@oxy.so/contracts';
 import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
+  OXY_CENTRAL_BILLING_APPLICATION_ID,
+  OXY_CENTRAL_BILLING_SPEC,
   OXY_PROFILE_REGISTRAR_APPLICATION_ID,
   OXY_PROFILE_REGISTRAR_SPEC,
   requiresPublicSeedCredential,
@@ -48,6 +56,7 @@ import {
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
   ASTRO_APPLICATION_ID,
+  DROPSEA_APPLICATION_ID,
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
@@ -113,8 +122,12 @@ describe('the canonical official-application registry', () => {
       publicClient: false,
     });
     expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
-    // The two machine-only applications: this registrar and Clarity's backend.
-    const machineOnly = [OXY_PROFILE_REGISTRAR_SPEC, specNamed('Clarity Backend')];
+    // Machine identities never acquire public sign-in credentials.
+    const machineOnly = [
+      OXY_CENTRAL_BILLING_SPEC,
+      OXY_PROFILE_REGISTRAR_SPEC,
+      specNamed('Clarity Backend'),
+    ];
     expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual(machineOnly);
     expect(
       SEED_APPS.filter((spec) => !machineOnly.includes(spec)).every(requiresPublicSeedCredential),
@@ -123,6 +136,22 @@ describe('the canonical official-application registry', () => {
       kind: 'id',
       id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
     });
+  });
+
+  it('keeps central billing separate from Inbox without sign-in or external grants', () => {
+    expect(OXY_CENTRAL_BILLING_SPEC).toMatchObject({
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: [],
+      publicClient: false,
+    });
+    expect(OXY_CENTRAL_BILLING_APPLICATION_ID).not.toBe(specNamed('Oxy Inbox').id);
+    expect(seedApplicationLookupIdentity(OXY_CENTRAL_BILLING_SPEC, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+    });
+    expect(requiresPublicSeedCredential(OXY_CENTRAL_BILLING_SPEC)).toBe(false);
   });
 
   it("pins Clarity's client by id under the clarity project, beside its backend", () => {
@@ -228,6 +257,28 @@ describe('the canonical official-application registry', () => {
       id: ASTRO_APPLICATION_ID,
     });
     expect(seededPrincipal(astro)).toEqual({ type: 'first_party', isInternal: false });
+  });
+
+  it('registers Dropsea by exact identity as a web sign-in client at dropsea.net with no authority beyond the session', () => {
+    const dropsea = specNamed('Dropsea');
+    expect(dropsea).toMatchObject({
+      id: DROPSEA_APPLICATION_ID,
+      websiteUrl: 'https://dropsea.net',
+      webOrigins: ['https://dropsea.net'],
+      redirectUris: ['https://dropsea.net'],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(dropsea.capabilities).toBeUndefined();
+    expect(dropsea.legacyNames).toBeUndefined();
+    expect(requiresPublicSeedCredential(dropsea)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === DROPSEA_APPLICATION_ID)).toHaveLength(1);
+    expect(DROPSEA_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(dropsea, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: DROPSEA_APPLICATION_ID,
+    });
+    expect(seededPrincipal(dropsea)).toEqual({ type: 'first_party', isInternal: false });
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
@@ -928,4 +979,56 @@ it('registers the native Authenticator client without backend or external app pe
   expect(spec.scopes).toEqual([]);
   expect(spec.capabilities ?? []).toEqual([]);
   expect(spec.type).toBe('first_party');
+});
+
+describe('operator permissions (ADR 0056)', () => {
+  const declaring = SEED_APPS.filter((spec) => (spec.operatorPermissions ?? []).length > 0);
+
+  it('every key is a valid application key, unique per application, described within bounds, held by the owner', () => {
+    for (const spec of declaring) {
+      const keys = (spec.operatorPermissions ?? []).map((permission) => permission.key);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const permission of spec.operatorPermissions ?? []) {
+        expect(isApplicationPermissionKey(permission.key)).toBe(true);
+        expect(permission.description.trim().length).toBeGreaterThan(0);
+        expect(permission.description.length).toBeLessThanOrEqual(
+          APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+        );
+        expect(permission.heldBy).toContain('owner');
+        expect(permission.heldBy.every((role) => isAccountRole(role))).toBe(true);
+        expect(new Set(permission.heldBy).size).toBe(permission.heldBy.length);
+      }
+      expect(keys.length).toBeLessThanOrEqual(APPLICATION_PERMISSIONS_MAX_DECLARED);
+    }
+  });
+
+  it('declares exactly the keys each application’s backend checks', () => {
+    const byApp = Object.fromEntries(
+      declaring.map((spec) => [
+        spec.name,
+        (spec.operatorPermissions ?? []).map((permission) => permission.key).sort(),
+      ]),
+    );
+    expect(byApp).toEqual({
+      CrowdSource: [
+        'trust_safety.appeals',
+        'trust_safety.evidence',
+        'trust_safety.policy',
+        'trust_safety.security',
+      ],
+      GoWay: ['capture.pilot', 'moderation.operate'],
+      Homiio: ['homiio.scraper.operate'],
+      Mercaria: [
+        'analytics.operate',
+        'catalog.operate',
+        'guest.operate',
+        'payments.operate',
+        'procurement.operate',
+        'referrals.operate',
+        'retail.operate',
+      ],
+      'Oxy Website': ['website.content.manage'],
+      Syra: ['compliance.review'],
+    });
+  });
 });

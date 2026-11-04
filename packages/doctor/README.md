@@ -46,3 +46,70 @@ Use Renovate with a shared organisation preset for grouped, reviewable updates.
 Require normal tests and typecheck before merging; never use `latest` ranges or
 mutate dependencies during application startup or CI. Renovate proposes
 changes; Doctor detects drift and duplicate installations.
+
+## Translation keys
+
+Every translation catalog follows one key convention (oxy
+`docs/adr/0055-translation-keys.md`): nested objects of identifier segments
+(`compose.toolbar.addImage`), the first segment a namespace, never the English
+text and never a flat dotted string, and English as the source.
+
+```bash
+bunx oxy-doctor-i18n --ci            # every locales/ directory with an en catalog
+bunx oxy-doctor-i18n --root=packages/frontend --json
+```
+
+It finds `locales/<lang>.json` (single file) and `locales/<lang>/<namespace>.json`
+(per namespace) catalogs. **Errors** (`--ci` exits 1): a key segment that is
+text (`text-key`), a dotted key stored flat (`flat-key`), a top-level string in
+a single-file catalog (`top-level-string`), a leaf that is neither a string
+nor a list of strings (`non-string`), a translation key the source lacks
+(`stray-key`), a string where the source has a namespace or the reverse
+(`shape-mismatch`). **Warnings**: a missing translation (`missing-translation`,
+rendered in English) and a placeholder set that differs from the source
+(`placeholder-mismatch`).
+
+## Expo Android device-session autolinking
+
+After a complete frozen install, run the separate check against the Expo app
+root (the current directory by default):
+
+```bash
+oxy-doctor-expo-android --project-root=packages/frontend \
+  --require-source=SharedDeviceSessionPublish.kt \
+  --require-source=SharedDeviceSessionSweep.kt \
+  --require-source=OxyDeviceSessionStore.kt
+```
+
+The command invokes the app's installed `expo-modules-autolinking` resolver and
+requires exactly one Oxy Services entry matching the version resolved by Node
+from the app root, and one device-session module from that package's Android
+directory. It requires
+`OxyDeviceSessionModule.kt` and any repeated `--require-source` filenames.
+Choose additional sources according to the Services version and guarantees the
+app expects; older releases need not contain newer files. Missing or ambiguous
+results and resolver failures exit nonzero. This does not change the existing
+Doctor or emulator preflight commands.
+
+The check verifies discovery and source presence in the installed dependency
+graph, not source contents, Android compilation, native binary distribution,
+or device runtime behavior. It cannot exclude additional installed copies or
+prove which copy Metro resolves from nested importers. Run it in a complete
+install; a partial install cannot establish that the full app graph is correct.
+
+## Android emulator preflight
+
+`oxy-emulator-preflight --serial emulator-5554` checks that the explicitly
+selected serial occurs exactly once as an online device in `adb devices -l`,
+then asks its emulator console for the AVD name. It prints only the serial on
+success and exits nonzero on invalid input, offline or ambiguous devices, an
+unavailable ADB, or a missing AVD response. It never starts an emulator or runs
+shell, installation, clearing, or uninstallation commands on a device.
+
+The caller must carry the returned serial into every subsequent command, for
+example using `adb -s "$serial" ...`; never rely on ADB's default selection.
+Run the preflight immediately before the operation and fail on errors. This is a
+read-only selection check, not an atomic device lock: devices can disconnect or
+change between commands. It does not prove the AVD is disposable, has no user
+data, or is isolated from production networks. Those are separate prerequisites
+for an isolated mobile test.

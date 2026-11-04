@@ -2,7 +2,12 @@ import { integerCheck, safeNumberCheck, utf16MinLength } from '@oxy.so/contracts
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { Peable } from '@peable.to/sdk';
+import type { Peable } from '@peable.to/sdk';
+import {
+  assertPeableBillingWorkloadConfiguration,
+  assertPeableBillingMerchant,
+  createPeableBillingClient,
+} from './peableBillingWorkload.service';
 import {
   billingNamespaceSchema,
   assertPersistedBillingNamespace,
@@ -17,7 +22,7 @@ import {
 import { ApiError } from '../utils/error';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
-import { cancelOwnedPeableSubscription } from './peablePersonalBilling.service';
+import { cancelOwnedPeableSubscription, peableInstantToIso } from './peablePersonalBilling.service';
 export const peablePersonalManagementConfigurationSchema = z
   .object({
     merchantId: z.string().regex(/^merch_[A-Za-z0-9_]+$/),
@@ -45,20 +50,55 @@ export const peablePersonalManagementConfigurationSchema = z
       .min(1),
   })
   .strict();
-export async function loadPeablePersonalManagement() {
+type PeablePersonalManagement = {
+  configuration: z.infer<typeof peablePersonalManagementConfigurationSchema>;
+  client: Peable;
+};
+let fallbackManagement: Promise<PeablePersonalManagement> | undefined;
+let fallbackPath: string | undefined;
+let disposeFallback: (() => void) | undefined;
+export async function loadPeablePersonalManagement(): Promise<
+  PeablePersonalManagement | undefined
+> {
   const runtime = (await import('./peablePersonalRuntime.service.js')).getPeablePersonalRuntime();
   if (runtime) return runtime.management;
   const path = process.env.OXY_ONE_PEABLE_MANAGEMENT_FILE;
-  if (!path || !process.env.OXY_ONE_PEABLE_PUBLIC_KEY || !process.env.OXY_ONE_PEABLE_SECRET)
-    return undefined;
-  const configuration = peablePersonalManagementConfigurationSchema.parse(
-    JSON.parse(await readFile(path, 'utf8')),
-  );
-  const client = new Peable({
-    publicKey: process.env.OXY_ONE_PEABLE_PUBLIC_KEY,
-    secret: process.env.OXY_ONE_PEABLE_SECRET,
-  });
-  return { configuration, client };
+  if (!path) return undefined;
+  assertPeableBillingWorkloadConfiguration();
+  if (fallbackPath && fallbackPath !== path)
+    throw new Error('Peable management configuration changed; restart the billing runtime');
+  if (!fallbackManagement) {
+    fallbackPath = path;
+    const pending = (async () => {
+      const configuration = peablePersonalManagementConfigurationSchema.parse(
+        JSON.parse(await readFile(path, 'utf8')),
+      );
+      const owned = createPeableBillingClient();
+      try {
+        await assertPeableBillingMerchant(owned.client, configuration);
+        disposeFallback = owned.dispose;
+        return { configuration, client: owned.client };
+      } catch (error) {
+        owned.dispose();
+        throw error;
+      }
+    })();
+    fallbackManagement = pending;
+    void pending.catch(() => {
+      if (fallbackManagement === pending) {
+        fallbackManagement = undefined;
+        fallbackPath = undefined;
+      }
+    });
+  }
+  return fallbackManagement;
+}
+export async function stopPeablePersonalManagement(): Promise<void> {
+  await fallbackManagement?.catch(() => undefined);
+  disposeFallback?.();
+  disposeFallback = undefined;
+  fallbackManagement = undefined;
+  fallbackPath = undefined;
 }
 /** Named-source cancellation through Peable's durable action ledger. Source and
  * customer ownership remain authoritative at both services; no grants are created. */
@@ -96,13 +136,13 @@ export async function cancelStoredPeablePersonalSource(
   const merchant = await client.merchants.retrieve();
   if (
     merchant.id !== cfg.merchantId ||
-    merchant.oxyAppId !== cfg.applicationId ||
+    merchant.oxy_app_id !== cfg.applicationId ||
     merchant.environment !== cfg.namespace.environment
   )
     throw new ApiError(409, 'Peable credential owner differs', 'SOURCE_CONFLICT');
   const observed = await client.billing.retrieveSubscription(source.providerSubscriptionId);
   const matches = cfg.offers.filter(
-    (v) => v.providerPriceId === observed.providerPriceId && v.planId === observed.planId,
+    (v) => v.providerPriceId === observed.provider_price_id && v.planId === observed.plan_id,
   );
   if (matches.length !== 1)
     throw new ApiError(503, 'Named Peable offer is unconfigured', 'PEABLE_UNCONFIGURED');
@@ -119,8 +159,8 @@ export async function cancelStoredPeablePersonalSource(
         v.origin === (mapping.kind === 'existing_product' ? 'individual' : 'bundle') &&
         v.offerId === mapping.offerId &&
         v.offerVersion === mapping.offerVersion &&
-        v.periodStart.getTime() <= Date.parse(observed.currentPeriodStart) &&
-        v.periodEnd.getTime() <= Date.parse(observed.currentPeriodEnd),
+        v.periodStart.getTime() <= observed.current_period_start * 1000 &&
+        v.periodEnd.getTime() <= observed.current_period_end * 1000,
     )
     .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime());
   const segment = historical[0];
@@ -164,7 +204,7 @@ export async function cancelStoredPeablePersonalSource(
   const owned = {
     payerAccountId: accountId,
     providerSubscriptionId: source.providerSubscriptionId,
-    providerCustomerId: observed.providerCustomerId,
+    providerCustomerId: observed.provider_customer_id,
     providerPriceId: mapping.providerPriceId,
     storeId: accountId,
     planId: mapping.planId,
@@ -182,7 +222,10 @@ export async function cancelStoredPeablePersonalSource(
       providerBinding: { providerAccountRef: cfg.merchantId, ...cfg.namespace },
       providerObservedAt: confirmedObservedAt,
       status: confirmed.status,
-      period: { start: confirmed.currentPeriodStart, end: confirmed.currentPeriodEnd },
+      period: {
+        start: peableInstantToIso(confirmed.current_period_start),
+        end: peableInstantToIso(confirmed.current_period_end),
+      },
       cancelAtPeriodEnd: true,
     });
     return { sourceId: source.id, cancelAtPeriodEnd: true as const };

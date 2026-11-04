@@ -2,7 +2,8 @@ import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
 /**
  * The Express and Socket.IO middleware `OxyServer` mounts
  * (`server.middleware.auth()`, `.socket()`, `.service()`, `.requireScope()`,
- * `.requireAppPermission()`),
+ * `.requireAppPermission()`, `.requireAccountAccess()`,
+ * `.requireApplicationAccess()`),
  * and the Ed25519 service-token and account-event verification they share.
  *
  * Node only; reachable solely from `@oxy.so/core/server`.
@@ -19,13 +20,19 @@ import {
   type RequireAppPermissionOptions,
 } from './appPermissions';
 import {
+  accessErrorStatus,
+  authorityErrorBody,
+  OxyAccessError,
+  type OxyAccessDenyStatus,
+} from './callerAuthority';
+import type { CallerAccessOptions, OxyAccountAccess, OxyApplicationAccess } from './callerAccess';
+import {
   accountActorChainSchema,
   type AccountActorChain,
   type SupervisedAction,
   type ServiceIntrospection,
 } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
-import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
@@ -278,11 +285,13 @@ export interface AuthMiddlewareOptions {
   /** Keep anonymous access, but reject every supplied invalid credential or authority outage. */
   strictOptionalBearer?: boolean;
   /**
-   * Ask Oxy about the session on every request instead of reusing a recent
-   * successful validation (`OxyServerConfig.sessionValidationCacheTtlMs`, 30 s).
-   * For routes where a just-revoked session must not act — deletion, payments.
+   * Ask Oxy instead of reusing this server's recent successful validation
+   * (`OxyServerConfig.sessionValidationCacheTtlMs`, 30 s). Oxy may itself
+   * serve a cached answer; use `liveSession` for a live session-row read.
    */
   freshSession?: boolean;
+  /** Require a live session-row read. Unsupported servers fail with 503. */
+  liveSession?: boolean;
   /**
    * Called whenever a PRESENTED credential is refused, on the optional path as
    * well as the blocking one. Runs before the response (if any) and after
@@ -308,7 +317,8 @@ export interface AuthMiddlewareOptions {
    * Own product receivers use their SDK's canonical `oxy-service:<appId>` audience.
    * First-party tokens must name that recipient exactly. External scoped tokens
    * also retain the legacy `oxy-api` audience. Other audience overrides remain exact.
-   * Oxy API defaults to `oxy-api`.
+   * Defaults to `OxyServerConfig.expectedAudience` when the server sets one,
+   * else `oxy-api`.
    */
   expectedAudience?: string;
 }
@@ -320,6 +330,8 @@ export interface AuthMiddlewareOptions {
  */
 export interface OxyMiddlewareHost {
   readonly baseURL: string;
+  /** `OxyServerConfig.expectedAudience`: the audience `auth()` accepts when a mount names none. */
+  readonly defaultAudience?: string;
   readonly jwksCache: ServiceTokenJwksCache;
   validateSession(
     sessionId: string,
@@ -329,6 +341,7 @@ export interface OxyMiddlewareHost {
       accessToken?: string;
       supervisedAction?: SupervisedAction;
       fresh?: boolean;
+      liveSession?: boolean;
     },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(
@@ -351,6 +364,36 @@ export interface OxyMiddlewareHost {
     req: AppPermissionsRequest,
     options?: AppPermissionsOptions,
   ): Promise<OxyAppPermissions>;
+  /** `OxyServer.accountAccessFor`. */
+  accountAccessFor(
+    req: AuthReq,
+    accountId: string,
+    options?: CallerAccessOptions,
+  ): Promise<OxyAccountAccess>;
+  /** `OxyServer.applicationAccessFor`. */
+  applicationAccessFor(
+    req: AuthReq,
+    applicationId: string,
+    options?: CallerAccessOptions,
+  ): Promise<OxyApplicationAccess>;
+}
+
+/** Options of `middleware.requireAccountAccess` / `requireApplicationAccess`. */
+export interface RequireAccessOptions extends CallerAccessOptions {
+  /** The route parameter that names the account or application (`':appId'` → `'appId'`). */
+  param: string;
+  /**
+   * What a refusal is answered: `403` (default; `401` without a session) or
+   * `404` (`404` without a session too), for a surface that must not reveal
+   * what exists. Oxy unreachable is always `503`.
+   */
+  deny?: OxyAccessDenyStatus;
+  /**
+   * `false` hands the {@link OxyAccessError} to `next(error)` instead of
+   * answering; `accessErrorStatus(error, deny)` gives the status the
+   * middleware would have used.
+   */
+  respond?: boolean;
 }
 
 /** Build the middleware set for one server. See `OxyServer.middleware`. */
@@ -441,9 +484,11 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
       optional = false,
       serviceTokenJwksUrl = new URL('/.well-known/jwks.json', host.baseURL).toString(),
       expectedIssuer = OXY_JWT_ISSUER,
-      expectedAudience = OXY_JWT_AUDIENCE,
+      expectedAudience = host.defaultAudience ?? OXY_JWT_AUDIENCE,
     } = options;
-    const strictPresentedBearer = Boolean(options.supervisedAction || options.strictOptionalBearer);
+    const strictPresentedBearer = Boolean(
+      options.supervisedAction || options.strictOptionalBearer || options.liveSession,
+    );
 
     /**
      * Make a refusal observable to the HOST, without telling the client
@@ -567,6 +612,16 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         // Handle service tokens (internal service-to-service auth)
         // Service tokens are stateless JWTs with type: 'service' — requires signature verification
         if (decoded.type === 'service') {
+          if (options.liveSession) {
+            const error = {
+              error: 'SESSION_REQUIRED',
+              message: 'A live user session is required',
+              code: 'SESSION_REQUIRED',
+              status: 403,
+            };
+            if (onError) return onError(error);
+            return res.status(403).json(error);
+          }
           // Verify JWT signature, then audience / issuer / type / appId claims.
           //
           // Signature verification uses Node crypto rather than
@@ -704,7 +759,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             ? decoded.scopes === undefined &&
               credentialId?.toString().startsWith('wl_') &&
               decoded.tier === 'internal'
-            : Array.isArray(decoded.scopes) &&
+            : !(typeof credentialId === 'string' && credentialId.startsWith('wl_')) &&
+              Array.isArray(decoded.scopes) &&
               decoded.scopes.every(
                 (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
               ) &&
@@ -753,13 +809,6 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(401).json(error);
           }
 
-          // Temporary reader-first bridge: a legacy workload is only a candidate.
-          // Oxy must verify its exact finite cohort and live identity centrally.
-          const legacyCandidate =
-            !firstParty &&
-            expectedAudience.startsWith('oxy-service:') &&
-            decoded.aud === OXY_JWT_AUDIENCE &&
-            credentialId.startsWith('wl_');
           let effectiveScopes = decoded.scopes as string[];
           if (firstParty || expectedAudience.startsWith('oxy-service:')) {
             let live: ServiceIntrospection | undefined;
@@ -775,7 +824,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (
               !live.active ||
               (firstParty && live.authority !== 'first_party') ||
-              (!firstParty && !legacyCandidate && live.authority !== 'external') ||
+              (!firstParty && live.authority !== 'external') ||
               live.applicationId !== appId ||
               live.credentialId !== credentialId ||
               live.accountId !== ownerAccountId ||
@@ -1008,6 +1057,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             accessToken: token,
             supervisedAction: options.supervisedAction,
             fresh: options.freshSession,
+            ...(options.liveSession ? { liveSession: true } : {}),
           });
 
           if (!validationResult || !validationResult.valid || !validationResult.user) {
@@ -1164,8 +1214,13 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             if (onError) return onError(refusal);
             return res.status(403).json(refusal);
           }
+          // A temporary authority failure is not a revoked session or an anonymous visitor.
+          const authorityUnavailable = extractErrorStatus(validationError) === 503;
           const validationStatus =
-            strictPresentedBearer && extractErrorStatus(validationError) !== 401 ? 503 : 401;
+            authorityUnavailable ||
+            (strictPresentedBearer && extractErrorStatus(validationError) !== 401)
+              ? 503
+              : 401;
           recordRefusal(req, {
             code: 'SESSION_VALIDATION_ERROR',
             stage: 'session',
@@ -1186,7 +1241,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             );
           }
 
-          if (optional && !strictPresentedBearer) {
+          if (optional && !strictPresentedBearer && !authorityUnavailable) {
             req.userId = null;
             req.user = null;
             return next();
@@ -1573,7 +1628,130 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
     };
   }
 
-  return { auth, socket, service, requireScope, requireAppPermission };
+  /**
+   * One gate for both caller-access readers: read the id from the route
+   * parameter, ask, admit on `permission`, answer a refusal by its outcome.
+   */
+  function requireCallerAccess<T extends { has(permission: string): boolean }>(
+    method: 'requireAccountAccess' | 'requireApplicationAccess',
+    permission: string,
+    options: RequireAccessOptions,
+    read: (req: AuthReq, id: string, lookup: CallerAccessOptions) => Promise<T>,
+    admit: (req: AuthReq, access: T) => void,
+  ) {
+    const { param, deny = 403, respond = true, ...lookup } = options;
+    if (typeof permission !== 'string' || permission.trim() === '') {
+      throw new Error(`${method}: permission must be a non-empty string`);
+    }
+    if (typeof param !== 'string' || param.trim() === '') {
+      throw new Error(`${method}: param must name the route parameter that holds the id`);
+    }
+    if (deny !== 403 && deny !== 404) {
+      throw new Error(`${method}: deny must be 403 or 404`);
+    }
+
+    return async (req: AuthReq, res: AuthRes, next: AuthNext): Promise<void> => {
+      let refusal: OxyAccessError;
+      const id = req.params?.[param];
+      try {
+        if (typeof id !== 'string' || id === '') {
+          throw new OxyAccessError('ACCESS_DENIED', `No ${param} on this route`);
+        }
+        const access = await read(req, id, lookup);
+        if (access.has(permission)) {
+          admit(req, access);
+          next();
+          return;
+        }
+        refusal = new OxyAccessError('ACCESS_DENIED', `Missing permission ${permission}`, {
+          permission,
+        });
+      } catch (error) {
+        if (!(error instanceof OxyAccessError)) {
+          next(error);
+          return;
+        }
+        refusal = new OxyAccessError(error.code, error.message, {
+          permission,
+          cause: error.cause ?? error,
+        });
+      }
+
+      if (refusal.code === 'ACCESS_UNAVAILABLE') {
+        logger.warn(`[oxy.auth] ${method} could not ask Oxy`, {
+          component: 'auth',
+          method,
+          permission,
+          path: req.path,
+        });
+      }
+      if (!respond) {
+        next(refusal);
+        return;
+      }
+      const status = accessErrorStatus(refusal, deny);
+      res.status(status).json(authorityErrorBody(status));
+    };
+  }
+
+  /**
+   * Express middleware: the person behind the request must hold `permission`
+   * in the Oxy ACCOUNT named by the route parameter `param` (an organization,
+   * store, channel). Mount after `auth()`. On success the answer is on
+   * `req.oxyAccountAccess`. See `OxyServer.accountAccessFor`.
+   *
+   * @example
+   * ```typescript
+   * router.patch('/stores/:storeId', oxy.middleware.requireAccountAccess('account:update', { param: 'storeId', fresh: true }), handler);
+   * ```
+   */
+  function requireAccountAccess(permission: string, options: RequireAccessOptions) {
+    return requireCallerAccess(
+      'requireAccountAccess',
+      permission,
+      options,
+      (req, id, lookup) => host.accountAccessFor(req, id, lookup),
+      (req, access) => {
+        req.oxyAccountAccess = access;
+      },
+    );
+  }
+
+  /**
+   * Express middleware: the person behind the request must hold the
+   * application permission `permission` (`app:read`, `app:update`,
+   * `webhooks:update`, …) over the APPLICATION named by the route parameter
+   * `param`, through the account that owns it. Mount after `auth()`. On
+   * success the answer is on `req.oxyApplicationAccess`. See
+   * `OxyServer.applicationAccessFor`; for THIS backend's own operator keys use
+   * `requireAppPermission` instead.
+   *
+   * @example
+   * ```typescript
+   * router.get('/apps/:appId/payments', oxy.middleware.requireApplicationAccess('app:read', { param: 'appId' }), handler);
+   * ```
+   */
+  function requireApplicationAccess(permission: string, options: RequireAccessOptions) {
+    return requireCallerAccess(
+      'requireApplicationAccess',
+      permission,
+      options,
+      (req, id, lookup) => host.applicationAccessFor(req, id, lookup),
+      (req, access) => {
+        req.oxyApplicationAccess = access;
+      },
+    );
+  }
+
+  return {
+    auth,
+    socket,
+    service,
+    requireScope,
+    requireAppPermission,
+    requireAccountAccess,
+    requireApplicationAccess,
+  };
 }
 
 /** The middleware set `OxyServer.middleware` exposes. */
@@ -1744,7 +1922,7 @@ async function verifyServiceTokenSignature(
   const jwk = await resolveServiceTokenPublicKey(header.kid, options.jwksUrl, options.cache);
   let publicKey: Awaited<ReturnType<typeof nodeCrypto.createPublicKey>>;
   try {
-    publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as JsonWebKey, format: 'jwk' });
+    publicKey = nodeCrypto.createPublicKey({ key: jwk, format: 'jwk' });
   } catch {
     throw new ServiceTokenSignatureError('Service token public key is invalid');
   }
@@ -1877,6 +2055,9 @@ interface AuthReq {
   oxyActor?: AccountActorChain | null;
   oxyAuthRefusal?: OxyAuthRefusal;
   oxyAppPermissions?: OxyAppPermissions;
+  oxyAccountAccess?: OxyAccountAccess;
+  oxyApplicationAccess?: OxyApplicationAccess;
+  params?: Record<string, string | string[] | undefined>;
 }
 
 interface AuthRes {

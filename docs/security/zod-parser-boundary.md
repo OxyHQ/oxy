@@ -1,6 +1,6 @@
 # Zod parser boundary review
 
-Status: reviewed residual paths for `GHSA-mrhx-c7xc-m3w5`, 2026-10-24.
+Status: reviewed residual paths for `GHSA-mrhx-c7xc-m3w5`, 2026-10-24; atproto graph re-reviewed 2026-11-03.
 The platform's own schemas use Zod **4.6.7**, including published contracts and
 core. This document does not acknowledge Zod 3 in a public SDK or another runtime
 parser. The audit gate enforces the exact advisory and dependency graph with
@@ -25,8 +25,8 @@ resource, financial, numeric and strict-object limits remain in place.
 
 ## Unavoidable atproto runtime dependency
 
-Reviewed chain: API → `@atproto/oauth-client-node@0.5.7` →
-`@atproto/oauth-client@0.8.7` → `@atproto/oauth-types@0.7.6` → `zod@3.25.76`.
+Reviewed chain: API → `@atproto/oauth-client-node@0.5.13` →
+`@atproto/oauth-client@0.9.0` → `@atproto/oauth-types@0.7.7` → `zod@3.25.76`.
 The lock guard freezes all reviewed atproto parser/resolver versions, not just
 this abbreviated chain. The upstream replacement still depends on Zod 3; there
 is no supported patched v3 release. This is a bounded residual risk, not a claim
@@ -43,7 +43,7 @@ remain. Non-JSON responses retain their normal downstream failure behavior.
 
 | Parser input | Actual upstream path | Boundary and provenance |
 | --- | --- | --- |
-| Authorization and protected-resource metadata | `oauth-authorization-server-metadata-resolver.js`, `oauth-protected-resource-metadata-resolver.js` call `response.json()` and schema parsers | Constructor receives the guarded fetch; both resolvers receive that same function. |
+| Authorization and protected-resource metadata | `@atproto/oauth-resolver` (split out of `oauth-client` in 0.9.0): `oauth-authorization-server-metadata-resolver.js`, `oauth-protected-resource-metadata-resolver.js` call `response.json()` and schema parsers | Constructor receives the guarded fetch; `createOAuthResolver(options)` hands that same function to both resolvers and the identity resolver. |
 | PAR and token responses | `oauth-server-agent.js` uses `fetchJsonProcessor`, then `oauthParResponseSchema` or `atprotoOAuthTokenResponseSchema` | `OAuthServerFactory` forwards the guarded fetch to each agent. Access/refresh token strings are opaque in this flow. |
 | DID PLC/web documents | `@atproto-labs/did-resolver` methods `plc.js` and `web.js` use `didDocumentValidator` | `createIdentityResolver(options)` receives the same injected fetch. The Node handle resolver also receives it; Bun's configured AppView resolver uses it. |
 | Client metadata | `validate-client-metadata.js`; optional static `OAuthClient.fetchMetadata` | Oxy passes its own fixed metadata object to the constructor. It does not invoke the static remote-client metadata loader. |
@@ -68,28 +68,17 @@ clearing and replay rejection.
 
 ## Build tooling residuals
 
-- `shadcn@3.8.5 → zod@3.25.76` is a development dependency of the Vite test app.
-  The app imports its static Tailwind stylesheet at build time; it does not import
-  the generator's JavaScript or execute the CLI in a served runtime. Moving it
-  into runtime dependencies or another workspace fails the guard.
-- The exact vendored `@oxy.so/expo-cli-native@58.1.15+oxy.native.1` artifact contains
-  Expo's Node build CLI dependency on Zod 3.25.76. Expo installs this CLI alongside
-  the framework, but it is not the React Native app runtime or an API parser.
-  The guard binds the existing artifact identifier and integrity, and admits only
-  the current incoming `expo@58.0.19 → @expo/cli (^58.1.15)` edge. Direct API/SDK
-  CLI dependencies and a new transitive parent are rejected. This exception
-  does not cover another CLI version, an altered artifact, or a direct weak Zod
-  import in an app or published package.
+None. shadcn 4 resolves patched Zod 4, and Expo CLI 58.1.19 dropped Zod.
 
 ## Removal and regression gates
 
 Upgrade or replace the upstream atproto dependency when a supported patched
 parser is available; rerun actual linking/restore tests and remove the residual
-entry. Upgrade the two tooling paths independently. Once no vulnerable resolution
-remains, the audit gate rejects the stale acknowledgement until it is removed.
-The guard mutation tests cover a vulnerable API/SDK parser, alternate runtime
-consumer, old v3 or v4 resolution, atproto version drift, CLI drift, new weak leaf
-and complete removal. The generic audit tests also reject any new high Zod
+entry. The tooling paths are retired: Expo CLI 58.1.19 dropped Zod and
+shadcn 4 resolves patched Zod 4. Once no vulnerable resolution remains, the audit gate
+rejects the stale acknowledgement until it is removed. The guard mutation tests
+cover a vulnerable API/SDK parser, alternate runtime consumer, old v3 or v4
+resolution, atproto version drift, new weak leaf and complete removal. The generic audit tests also reject any new high Zod
 advisory. Full API and shared contract tests remain required.
 
 Sources: [GitHub advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),

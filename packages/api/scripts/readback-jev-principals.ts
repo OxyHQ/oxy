@@ -182,7 +182,7 @@ async function readback(): Promise<boolean> {
           applicationId: applicationWorkloadIdentities.applicationId,
           provider: applicationWorkloadIdentities.provider,
           subject: applicationWorkloadIdentities.subject,
-          scopes: applicationWorkloadIdentities.scopes,
+          environment: applicationWorkloadIdentities.environment,
           expiresAt: applicationWorkloadIdentities.expiresAt,
         })
         .from(applicationWorkloadIdentities)
@@ -218,7 +218,7 @@ async function readback(): Promise<boolean> {
           applicationId: applicationWorkloadIdentities.applicationId,
           provider: applicationWorkloadIdentities.provider,
           subject: applicationWorkloadIdentities.subject,
-          scopes: applicationWorkloadIdentities.scopes,
+          environment: applicationWorkloadIdentities.environment,
           expiresAt: applicationWorkloadIdentities.expiresAt,
         })
         .from(applicationWorkloadIdentities)

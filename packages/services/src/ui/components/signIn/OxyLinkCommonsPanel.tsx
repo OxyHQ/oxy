@@ -26,13 +26,9 @@ import { loadIdentityCrypto } from '../../utils/identityCrypto';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
-import {
-  AccountFlowAction,
-  AccountFlowErrorLine,
-  AccountFlowNote,
-  describeSignInError,
-} from './accountFlowParts';
+import { AccountFlowAction, AccountFlowErrorLine, AccountFlowNote } from './accountFlowParts';
 import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
+import { describeApiError } from '../../utils/apiErrorMessage';
 
 /** How often the page asks whether Commons has signed. */
 export const IDENTITY_LINK_POLL_MS = 2000;
@@ -71,7 +67,7 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
       .create()
       .then((link) => setStep({ name: 'qr', link }))
       .catch((reason: unknown) => {
-        setError(describeSignInError(reason, t));
+        setError(describeApiError(reason, t));
         setStep({ name: 'expired' });
       });
   }, [oxyServices, t]);

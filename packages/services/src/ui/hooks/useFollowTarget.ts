@@ -20,6 +20,7 @@ import type { FollowStatus } from '@oxy.so/contracts';
 import { useOxy } from '../context/oxyRuntimeContext';
 import {
   isCompleteFollowStatus,
+  getFollowTargetGeneration,
   isFollowedGlobally,
   UNKNOWN_FOLLOW_STATUS,
   useFollowTargetStore,
@@ -92,11 +93,14 @@ export function useFollowTarget(
     // that window 401s and would leave the button stuck reporting an error the
     // user cannot act on.
     if (!targetId || !canUsePrivateApi) return;
+    const generation = getFollowTargetGeneration();
     try {
       const next = await oxyServices.follows.targetStatus(targetId);
+      if (generation !== getFollowTargetGeneration()) return;
       useFollowTargetStore.getState().setStatus(targetId, next);
       useFollowTargetStore.getState().setError(targetId, undefined);
     } catch (e) {
+      if (generation !== getFollowTargetGeneration()) return;
       const store = useFollowTargetStore.getState();
       // Leave `isUnknown` false so the button stays interactive and can retry.
       // A failed read is not the same as "never asked" — disabling forever would
@@ -127,6 +131,7 @@ export function useFollowTarget(
       failure: FollowActionErrorCode,
     ): Promise<boolean> => {
       if (!targetId) return false;
+      const generation = getFollowTargetGeneration();
       const store = useFollowTargetStore.getState();
       const previous = store.statuses[targetId];
       store.setStatus(targetId, optimistic);
@@ -134,9 +139,11 @@ export function useFollowTarget(
       store.setError(targetId, undefined);
       try {
         const settled = await run();
+        if (generation !== getFollowTargetGeneration()) return false;
         if (settled) useFollowTargetStore.getState().setStatus(targetId, settled);
         return true;
       } catch (e) {
+        if (generation !== getFollowTargetGeneration()) return false;
         const s = useFollowTargetStore.getState();
         // Back to what was true, not to a guess. Clearing the entry instead
         // would make the next render ask again and flash the wrong state.
@@ -144,7 +151,9 @@ export function useFollowTarget(
         s.setError(targetId, toFollowErrorCode(e, failure));
         return false;
       } finally {
-        useFollowTargetStore.getState().setPending(targetId, false);
+        if (generation === getFollowTargetGeneration()) {
+          useFollowTargetStore.getState().setPending(targetId, false);
+        }
       }
     },
     [targetId],

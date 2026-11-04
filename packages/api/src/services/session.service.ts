@@ -2,8 +2,8 @@ import { supervisionProfiles } from '../db/schema/supervision';
 import { inArray } from 'drizzle-orm';
 import { hasOrganizationOperatingAuthority } from './organizationAuthority.service';
 import { supervisionValidAfter } from './supervisionPolicy.service';
-import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { and, desc, asc, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import { organizationProfiles } from '../db/schema/organizationProfiles';
@@ -19,6 +19,7 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
  */
 import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
+import { ServiceUnavailableError } from '../utils/error';
 import sessionCache, { type CachedSession } from '../utils/sessionCache';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
@@ -46,6 +47,7 @@ import {
   announceUserSessionsRevoked,
   deactivateSessionRows,
 } from './sessionRevocation.service';
+import { sessionActorScope } from './sessionActorScope';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
@@ -54,6 +56,56 @@ import type {
   SessionCreateOptions,
   SessionRefreshResult,
 } from '../types/session.types';
+
+type SessionReachability = {
+  sessionId: string;
+  subjectId: string;
+  principalId: string;
+  deviceId: string;
+  /** When supplied, require this application binding to survive until the lock. */
+  applicationId?: string | null;
+};
+type SessionDeactivationOptions =
+  | { expectedXmin: string; reachableFrom?: SessionReachability }
+  | { expectedXmin?: never; reachableFrom: SessionReachability };
+
+export class ActingSessionChangedError extends Error {
+  constructor() {
+    super('The acting session changed');
+  }
+}
+
+async function withLockedActingSession<T>(
+  acting: SessionReachability,
+  write: (tx: DatabaseOrTransaction) => Promise<T>,
+): Promise<T> {
+  // Lock the acting row through the write; cross-requests can deadlock, so a
+  // database abort must propagate and no notifications are sent before commit.
+  return getDb().transaction(async (tx) => {
+    const [current] = await tx
+      .select({ sessionId: sessions.sessionId })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.sessionId, acting.sessionId),
+          eq(sessions.deviceId, acting.deviceId),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, new Date()),
+          sessionActorScope(acting.subjectId, acting.principalId),
+          ...(acting.applicationId === undefined
+            ? []
+            : [
+                acting.applicationId === null
+                  ? isNull(sessions.applicationId)
+                  : eq(sessions.applicationId, acting.applicationId),
+              ]),
+        ),
+      )
+      .for('update');
+    if (!current) throw new ActingSessionChangedError();
+    return write(tx);
+  });
+}
 
 /**
  * The half of `SessionTokenBindingRow` a MINT decides. `sessionId` and `userId`
@@ -236,7 +288,7 @@ class SessionService {
       CachedSession,
       'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'
     >,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; throwOnError?: boolean; preserveOnUnconfirmedNegative?: boolean } = {},
   ): Promise<boolean> {
     if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
     if (session.authMethodId) {
@@ -250,6 +302,7 @@ class SessionService {
         )
           return false;
       } catch {
+        if (opts.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
         return false; // no stale positive cache for autonomous credentials
       }
     }
@@ -277,6 +330,7 @@ class SessionService {
       const { accountService } = await import('./account.service.js');
       const role = await accountService.verifyActingAs(operatorId, accountId);
       if (!role) {
+        if (opts.preserveOnUnconfirmedNegative) return false;
         await this.deactivateSession(sessionId);
         managedSessionRecheckAt.delete(sessionId);
         logger.info('[SessionService] Managed-account session revoked — operator lost act_as', {
@@ -313,6 +367,7 @@ class SessionService {
           sessionId: sessionId.substring(0, 8),
         },
       );
+      if (opts.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       return false;
     }
   }
@@ -327,7 +382,11 @@ class SessionService {
    * @param useCache - Whether to use cache (default: true)
    * @returns Session object or null if not found or expired
    */
-  async getSession(sessionId: string, useCache = true): Promise<CachedSession | null> {
+  async getSession(
+    sessionId: string,
+    useCache = true,
+    options: { throwOnError?: boolean } = {},
+  ): Promise<CachedSession | null> {
     try {
       // Try cache first
       if (useCache) {
@@ -371,6 +430,7 @@ class SessionService {
           method: 'getSession',
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error to allow graceful degradation
       // Caller should handle null case appropriately
       return null;
@@ -391,7 +451,7 @@ class SessionService {
    */
   async getSessionWithUser(
     sessionId: string,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
       const { useCache = true } = options;
@@ -473,6 +533,7 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error for graceful degradation - consistent error handling pattern
       // Caller should handle null case appropriately
       return null;
@@ -490,16 +551,24 @@ class SessionService {
    */
   async validateSession(
     accessToken: string,
-    options: { allowSupervisedPolicyEvaluation?: boolean; throwOnError?: boolean } = {},
+    options: {
+      allowSupervisedPolicyEvaluation?: boolean;
+      throwOnError?: boolean;
+      liveSession?: boolean;
+    } = {},
   ): Promise<SessionValidationResult | null> {
     try {
-      const validationResult = validateAccessToken(accessToken);
+      const validationResult = validateAccessToken(accessToken, {
+        throwOnUnavailable: options.liveSession,
+      });
       if (!validationResult.valid || !validationResult.payload?.sessionId) {
         return null;
       }
 
       const sessionId = validationResult.payload.sessionId;
-      const result = await this.getSessionWithUser(sessionId, { useCache: true });
+      const result = options.liveSession
+        ? await this.getLiveSessionWithUser(sessionId)
+        : await this.getSessionWithUser(sessionId, { useCache: true });
       if (!result) {
         return null;
       }
@@ -517,18 +586,35 @@ class SessionService {
       ).flat();
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
-        if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
-        const live = await this.getSessionWithUser(sessionId, { useCache: false });
-        if (!live || supervised.some((validAfter) => live.session.createdAt <= validAfter))
+        if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
           return null;
+        }
+        const live = options.liveSession
+          ? await this.getLiveSessionWithUser(sessionId, { freshUser: true })
+          : await this.getSessionWithUser(sessionId, { useCache: false });
+        if (!live) return null;
+        if (supervised.some((validAfter) => live.session.createdAt <= validAfter)) {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
+          return null;
+        }
         session = live.session;
         user = live.user;
-        if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') return null;
+        if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') {
+          if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
+          return null;
+        }
       }
 
       // A managed-account session is only valid while its operator still holds
       // act_as over the account. Revoked membership → deactivate + reject.
-      if (!(await this.ensureManagedSessionAuthorized(session))) {
+      if (
+        !(await this.ensureManagedSessionAuthorized(session, {
+          throwOnError: options.liveSession,
+          preserveOnUnconfirmedNegative: options.liveSession,
+        }))
+      ) {
+        if (options.liveSession) throw new ServiceUnavailableError('Session policy unavailable');
         return null;
       }
 
@@ -570,9 +656,48 @@ class SessionService {
           method: 'validateSession',
         },
       );
+      if (options.liveSession) throw new ServiceUnavailableError('Session authority unavailable');
       if (options.throwOnError) throw error;
       return null;
     }
+  }
+
+  private async getLiveSessionWithUser(
+    sessionId: string,
+    options: { freshUser?: boolean } = {},
+  ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
+    const session = await this.readLiveSessionRow(sessionId);
+    if (!session) return null;
+    let user = options.freshUser ? undefined : userCache.get(session.userId);
+    if (!user) {
+      user = (await userService.readAccountDocument(session.userId)) ?? null;
+      if (user && !options.freshUser) userCache.set(session.userId, user);
+    }
+    if (!user) throw new ServiceUnavailableError('Session user unavailable');
+    return { session, user };
+  }
+
+  private async readLiveSessionRow(sessionId: string): Promise<CachedSession | null> {
+    // The recovery check and row share one SQL statement, connection and snapshot.
+    // A physical read replica cannot authoritatively report a missing session.
+    const [result] = await getDb()
+      .select({
+        inRecovery: sql<boolean>`pg_catalog.pg_is_in_recovery()`,
+        session: SESSION_COLUMNS,
+      })
+      .from(sql`(select 1) as live_session_authority`)
+      .leftJoin(
+        sessions,
+        and(
+          eq(sessions.sessionId, sessionId),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+    if (!result || result.inRecovery !== false)
+      throw new ServiceUnavailableError('Session authority is not a writable primary');
+    return result.session?.sessionId ? result.session : null;
   }
 
   /**
@@ -1274,23 +1399,39 @@ class SessionService {
    * @param sessionId - The session ID to deactivate
    * @returns true if session was deactivated, false otherwise
    */
-  async deactivateSession(sessionId: string, options?: { expectedXmin: string }): Promise<boolean> {
-    if (options && !/^[0-9]+$/.test(options.expectedXmin)) {
+  async deactivateSession(
+    sessionId: string,
+    options?: SessionDeactivationOptions,
+  ): Promise<boolean> {
+    if (options?.expectedXmin !== undefined && !/^[0-9]+$/.test(options.expectedXmin)) {
       throw new Error('SESSION_DEACTIVATION_CAS_INVALID');
     }
     try {
       // `deactivate` never DELETES — only the expiry sweep removes a row, which
       // is what keeps every `session_id` reference from another table
       // lifecycle-independent.
-      const deactivated = await deactivateSessionRows(
-        getDb(),
-        and(
-          eq(sessions.sessionId, sessionId),
-          ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : []),
-        ),
+      const predicate = and(
+        eq(sessions.sessionId, sessionId),
+        ...(options?.expectedXmin !== undefined ? [sql`xmin::text = ${options.expectedXmin}`] : []),
+        ...(options?.reachableFrom
+          ? [
+              or(
+                eq(sessions.deviceId, options.reachableFrom.deviceId),
+                sessionActorScope(
+                  options.reachableFrom.subjectId,
+                  options.reachableFrom.principalId,
+                ),
+              ),
+            ]
+          : []),
       );
+      const deactivated = options?.reachableFrom
+        ? await withLockedActingSession(options.reachableFrom, (tx) =>
+            deactivateSessionRows(tx, predicate),
+          )
+        : await deactivateSessionRows(getDb(), predicate);
 
-      if (options && deactivated.length !== 1) {
+      if (options?.expectedXmin !== undefined && deactivated.length !== 1) {
         throw new Error('SESSION_DEACTIVATION_CAS_MISMATCH');
       }
 
@@ -1314,7 +1455,7 @@ class SessionService {
       );
       // Administrative CAS must never confuse an unsuccessful write with retirement.
       // Ordinary callers retain their existing non-throwing contract.
-      if (options) throw error;
+      if (options?.expectedXmin !== undefined || options?.reachableFrom) throw error;
       // Return false on error for graceful degradation - consistent with other non-critical operations
       return false;
     }
@@ -1363,6 +1504,56 @@ class SessionService {
     }
   }
 
+  /** Revoke the live sessions of one principal acting as one subject. */
+  async deactivateActorSessions(acting: SessionReachability) {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(
+        tx,
+        and(
+          sessionActorScope(acting.subjectId, acting.principalId),
+          ne(sessions.sessionId, acting.sessionId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      ),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked;
+  }
+
+  /** Revoke this principal's sessions for the subject on a remote device. */
+  async deactivateActorSessionsOnDevice(acting: SessionReachability, deviceId: string) {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(
+        tx,
+        and(
+          sessionActorScope(acting.subjectId, acting.principalId),
+          eq(sessions.deviceId, deviceId),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      ),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked;
+  }
+
+  async deactivateDeviceSessions(acting: SessionReachability): Promise<number> {
+    const revoked = await withLockedActingSession(acting, (tx) =>
+      deactivateSessionRows(tx, eq(sessions.deviceId, acting.deviceId)),
+    );
+    announceSessionRevocations(revoked);
+    for (const row of revoked) managedSessionRecheckAt.delete(row.sessionId);
+    return revoked.length;
+  }
+
+  async withActingSession<T>(
+    acting: SessionReachability,
+    read: (tx: DatabaseOrTransaction) => Promise<T>,
+  ): Promise<T> {
+    return withLockedActingSession(acting, read);
+  }
+
   /**
    * Get all active sessions for a user
    *
@@ -1372,15 +1563,30 @@ class SessionService {
    * @param userId - The user ID to get sessions for
    * @returns Array of active sessions (empty array on error)
    */
-  async getUserActiveSessions(userId: string): Promise<CachedSession[]> {
+  async getUserActiveSessions(
+    userId: string,
+    principalId?: string,
+    deviceId?: string,
+    executor?: DatabaseOrTransaction,
+  ): Promise<CachedSession[]> {
     try {
+      if (deviceId !== undefined && (!principalId || !deviceId)) {
+        throw new Error('Session listing scope is required');
+      }
+      const principalScope =
+        principalId !== undefined ? sessionActorScope(userId, principalId) : undefined;
+      const allowed =
+        deviceId !== undefined
+          ? or(principalScope, eq(sessions.deviceId, deviceId))
+          : principalScope;
       // Serves the (user_id, is_active, expires_at) index.
-      return await getDb()
+      return await (executor ?? getDb())
         .select(SESSION_COLUMNS)
         .from(sessions)
         .where(
           and(
             eq(sessions.userId, userId),
+            ...(allowed ? [allowed] : []),
             eq(sessions.isActive, true),
             gt(sessions.expiresAt, new Date()),
           ),
@@ -1399,6 +1605,7 @@ class SessionService {
           userId,
         },
       );
+      if (executor) throw error;
       // Return empty array on error for graceful degradation - consistent error handling pattern
       return [];
     }
@@ -1417,30 +1624,43 @@ class SessionService {
   async validateSessionById(
     sessionId: string,
     populateUser = true,
-    options: { useCache?: boolean } = {},
+    options: { useCache?: boolean; throwOnError?: boolean } = {},
   ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
     // `useCache: false` is for authority decisions that must observe a sign-out
     // or revocation made on another task inside the cache TTL (ADR 0025).
     const useCache = options.useCache ?? true;
     try {
       if (populateUser) {
-        const result = await this.getSessionWithUser(sessionId, { useCache });
+        const result = await this.getSessionWithUser(sessionId, {
+          useCache,
+          throwOnError: options.throwOnError,
+        });
         if (
           result &&
-          !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))
+          !(await this.ensureManagedSessionAuthorized(result.session, {
+            force: !useCache,
+            throwOnError: options.throwOnError,
+          }))
         ) {
           return null;
         }
         return result;
       }
 
-      const session = await this.getSession(sessionId, useCache);
+      const session = await this.getSession(sessionId, useCache, {
+        throwOnError: options.throwOnError,
+      });
       if (!session) {
         return null;
       }
 
       // Bind managed-account sessions to the operator's act_as membership here too.
-      if (!(await this.ensureManagedSessionAuthorized(session, { force: !useCache }))) {
+      if (
+        !(await this.ensureManagedSessionAuthorized(session, {
+          force: !useCache,
+          throwOnError: options.throwOnError,
+        }))
+      ) {
         return null;
       }
 
@@ -1455,6 +1675,7 @@ class SessionService {
           sessionId,
         },
       );
+      if (options.throwOnError) throw new ServiceUnavailableError('Session authority unavailable');
       // Return null on error for graceful degradation - consistent error handling pattern
       return null;
     }

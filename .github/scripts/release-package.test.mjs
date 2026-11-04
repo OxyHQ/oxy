@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import test from 'node:test';
@@ -441,3 +442,140 @@ test('plan and published remain usable from a sparse helper checkout without ins
     0,
   );
 });
+
+for (const scenario of [
+  'identical',
+  'absent',
+  'different',
+  'missing-integrity',
+  'wrong-version',
+  'forbidden',
+  'unavailable',
+]) {
+  test(`publish-time registry recheck fails closed: ${scenario}`, (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'release-recheck-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, 'bin'));
+    const bytes = Buffer.from('trusted artifact bytes');
+    const tarball = join(root, 'package.tgz');
+    writeFileSync(tarball, bytes);
+    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    const metadata = {
+      name: '@example/package',
+      version: scenario === 'wrong-version' ? '2.0.0' : '1.0.0',
+      dist:
+        scenario === 'missing-integrity'
+          ? {}
+          : { integrity: scenario === 'different' ? 'sha512-other' : integrity },
+    };
+    const error = { absent: 'E404', forbidden: 'E403', unavailable: 'E503' }[scenario];
+    const calls = join(root, 'calls.json');
+    writeFileSync(
+      join(root, 'bin/npm'),
+      `#!/usr/bin/env node
+require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));
+${error ? `console.error(${JSON.stringify(error)}); process.exit(1);` : `console.log(${JSON.stringify(JSON.stringify(metadata))});`}
+`,
+      { mode: 0o755 },
+    );
+    // Sparse helper checkout has no inspector dependencies or repository hooks.
+    const sparseTool = join(root, 'release-package.mjs');
+    writeFileSync(sparseTool, readFileSync(tool));
+    const result = spawnSync(
+      'node',
+      [sparseTool, 'publish-status', '@example/package', '1.0.0', tarball],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+      },
+    );
+    assert.equal(
+      result.status,
+      scenario === 'identical' ? 0 : scenario === 'absent' ? 1 : 2,
+      result.stderr,
+    );
+    assert.deepEqual(JSON.parse(readFileSync(calls, 'utf8')), [
+      'view',
+      '@example/package@1.0.0',
+      '--json',
+      '--prefer-online',
+      '--userconfig',
+      '/dev/null',
+    ]);
+  });
+}
+
+for (const scenario of ['identical', 'absent', 'different', 'forbidden', 'publish-forbidden']) {
+  test(`actual publish workflow shell handles ${scenario} without hiding failures`, (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'release-shell-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, 'bin'));
+    const workflow = readFileSync(new URL('../workflows/npm-release.yml', import.meta.url), 'utf8');
+    const block = workflow
+      .split('      - name: publish the trusted tarballs, dependencies first\n')[1]
+      .split('        run: |\n')[1]
+      .split('\n      # Also when')[0];
+    const shell = block
+      .split('\n')
+      .map((line) => line.replace(/^ {10}/, ''))
+      .join('\n');
+    const bytes = Buffer.from('trusted artifact bytes');
+    writeFileSync(join(root, 'package.tgz'), bytes);
+    const packageLine = JSON.stringify({
+      name: '@example/package',
+      version: '1.0.0',
+      tag: 'latest',
+      tarball: 'package.tgz',
+    });
+    writeFileSync(join(root, 'release.jsonl'), `${packageLine}\n`);
+    writeFileSync(
+      join(root, 'SHA512SUMS'),
+      ['package.tgz', 'release.jsonl']
+        .map(
+          (file) =>
+            `${createHash('sha512')
+              .update(readFileSync(join(root, file)))
+              .digest('hex')}  ${file}\n`,
+        )
+        .join(''),
+    );
+    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    const metadata = {
+      name: '@example/package',
+      version: '1.0.0',
+      dist: { integrity: scenario === 'different' ? 'sha512-other' : integrity },
+    };
+    const calls = join(root, 'calls.jsonl');
+    writeFileSync(
+      join(root, 'bin/npm'),
+      `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');
+if(process.argv[2]==='publish') { ${scenario === 'publish-forbidden' ? "console.error('E403');process.exit(1);" : 'process.exit(0);'} }
+${scenario === 'forbidden' ? "console.error('E403');process.exit(1);" : scenario === 'absent' || scenario === 'publish-forbidden' ? "console.error('E404');process.exit(1);" : `console.log(${JSON.stringify(JSON.stringify(metadata))});`}
+`,
+      { mode: 0o755 },
+    );
+    const result = spawnSync('bash', ['-euo', 'pipefail', '-c', shell], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${join(root, 'bin')}:${process.env.PATH}`,
+        RUNNER_TEMP: root,
+        RELEASE_PACKAGE: tool,
+      },
+    });
+    assert.equal(
+      result.status,
+      scenario === 'identical' || scenario === 'absent' ? 0 : 1,
+      result.stderr,
+    );
+    const commands = readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(
+      commands.filter((args) => args[0] === 'publish').length,
+      scenario === 'absent' || scenario === 'publish-forbidden' ? 1 : 0,
+    );
+    assert.equal(existsSync(join(root, 'published.jsonl')), scenario === 'absent');
+  });
+}

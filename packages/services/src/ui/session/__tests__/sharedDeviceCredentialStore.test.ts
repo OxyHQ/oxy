@@ -264,6 +264,23 @@ describe('Android broker slot', () => {
     expect((await store?.read())?.state).toBe('unavailable');
   });
 
+  test('a temporary unavailable status does not prevent the next read from recovering', async () => {
+    let available = false;
+    const store = loadStore('android', {
+      broker: {
+        read: async () =>
+          available
+            ? { status: 'present', ...CRED }
+            : { status: 'unavailable', reason: 'SecurityException' },
+        write: async () => true,
+        clear: async () => undefined,
+      },
+    });
+    expect((await store?.read())?.state).toBe('unavailable');
+    available = true;
+    await expect(store?.read()).resolves.toEqual({ state: 'present', credential: CRED });
+  });
+
   test('a THROWN broker call is unavailable, never absent', async () => {
     const store = loadStore('android', {
       broker: {
@@ -303,5 +320,54 @@ describe('Android broker slot', () => {
       },
     });
     await expect(unverified?.publish(CRED)).resolves.toBe(false);
+  });
+
+  test.each(['false', 'reject'] as const)(
+    'native publish %s preserves the local save and retries on a later save',
+    async (failure) => {
+      const write = jest.fn().mockResolvedValue(true);
+      if (failure === 'false') write.mockResolvedValueOnce(false);
+      else write.mockRejectedValueOnce(new Error('native failure'));
+      const clear = jest.fn(async () => undefined);
+      const shared = loadStore('android', {
+        broker: { read: async () => ({ status: 'absent' }), write, clear },
+      });
+      if (!shared) throw new Error('missing Android store');
+      const { createMemoryAuthStateStore, createSharedMirroringAuthStateStore } =
+        require('@oxy.so/core/session') as typeof import('@oxy.so/core/session');
+      const local = createMemoryAuthStateStore();
+      const store = createSharedMirroringAuthStateStore({ local, shared });
+      const state = { sessionId: 'session', userId: 'user', ...CRED };
+
+      await expect(store.save(state)).resolves.toBe(true);
+      expect(await local.load()).toEqual(state);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(clear).not.toHaveBeenCalled();
+      await expect(store.save(state)).resolves.toBe(true);
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(clear).not.toHaveBeenCalled();
+    },
+  );
+
+  test('failed native publish preserves a successful conditional local save', async () => {
+    const write = jest.fn(async () => false);
+    const clear = jest.fn(async () => undefined);
+    const shared = loadStore('android', {
+      broker: { read: async () => ({ status: 'absent' }), write, clear },
+    });
+    if (!shared) throw new Error('missing Android store');
+    const { createMemoryAuthStateStore, createSharedMirroringAuthStateStore } =
+      require('@oxy.so/core/session') as typeof import('@oxy.so/core/session');
+    const local = createMemoryAuthStateStore();
+    const initial = { sessionId: 'session', userId: 'user', ...CRED };
+    const next = { ...initial, accessToken: 'next' };
+    await local.save(initial);
+    const store = createSharedMirroringAuthStateStore({ local, shared });
+    await expect(
+      store.saveIfCurrent?.(next, { expectedState: initial, isCurrent: () => true }),
+    ).resolves.toBe(true);
+    expect(await local.load()).toEqual(next);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(clear).not.toHaveBeenCalled();
   });
 });

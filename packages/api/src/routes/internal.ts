@@ -9,7 +9,6 @@ import {
   resolveFirstPartyTask,
   taskAllowsEffectiveAccount,
 } from '../services/firstPartyTasks.service';
-import { isLegacyWorkloadCohort } from '../config/legacyWorkloadTransition';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { serviceActingAsAuthorityEpochs } from '../db/schema/serviceActingAsAuthorityEpochs';
 import { resolveLiveAgencyWorkloadByHandle } from '../services/agencyServicePrincipal.service';
@@ -101,10 +100,7 @@ import { accountService } from '../services/account.service';
 import { resolveServiceActingAsGrant } from '../services/serviceActingAs.service';
 import sessionService from '../services/session.service';
 import type { SessionAuthResponse } from '../types/session';
-import {
-  ACCOUNT_MEMBERSHIP_READ_SCOPE,
-  SERVICE_ACCOUNT_SWITCH_SCOPE,
-} from '../utils/applicationScopes';
+import { ACCOUNT_MEMBERSHIP_READ_SCOPE } from '../utils/applicationScopes';
 import { isActiveTrustedApplication } from '../services/applicationTrust.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -552,8 +548,7 @@ const serviceAccountSwitchOperator = z
  * membership and eligible target kind still govern the switch. Tasks additionally
  * bind the target to their original effective account or exact self bot.
  *
- * External credentials cannot mint shared sessions. Only the inventoried legacy
- * workload cohort retains its old scoped/granted path during the fleet migration.
+ * External credentials and retired workload tokens cannot mint shared sessions.
  * The minted session records operatedByUserId so membership revocation remains
  * effective on validation/refresh. No browser device registration is created.
  */
@@ -567,33 +562,13 @@ router.post(
       throw new UnauthorizedError('Service authentication required');
     }
 
-    if (serviceApp.authority !== 'first_party') {
-      const workload = await resolveLiveAgencyWorkloadByHandle(
-        serviceApp.appId,
-        serviceApp.credentialId,
-      );
-      if (
-        !workload ||
-        !isLegacyWorkloadCohort({
-          id: workload.bindingId,
-          applicationId: workload.applicationId,
-          provider: workload.provider,
-          subject: workload.subject,
-        })
-      ) {
-        throw new ForbiddenError('External credentials cannot mint shared Oxy sessions.');
-      }
-    }
-    if (!hasServiceAuthority(serviceApp, SERVICE_ACCOUNT_SWITCH_SCOPE)) {
-      throw new ForbiddenError(`This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`);
-    }
+    if (serviceApp.authority !== 'first_party')
+      throw new ForbiddenError('External credentials cannot mint shared Oxy sessions.');
 
     if (req.serviceRequester?.operation || req.serviceRequester?.forwardedContext)
       throw new ForbiddenError('Operation context cannot mint shared sessions.');
     const operator = serviceAccountSwitchOperator.safeParse(
-      serviceApp.authority === 'first_party'
-        ? req.serviceRequester?.principalAccountId
-        : req.headers['x-oxy-user-id'],
+      req.serviceRequester?.principalAccountId,
     );
     if (!operator.success) {
       throw new BadRequestError(
@@ -602,10 +577,7 @@ router.post(
     }
     const operatorId = operator.data;
     const accountId = req.params.id;
-    if (
-      serviceApp.authority === 'first_party' &&
-      typeof req.headers['x-oxy-task-id'] === 'string'
-    ) {
+    if (typeof req.headers['x-oxy-task-id'] === 'string') {
       const task = await resolveFirstPartyTask(req.headers['x-oxy-task-id'], {
         applicationId: serviceApp.appId,
         credentialId: serviceApp.credentialId,
@@ -618,25 +590,6 @@ router.post(
         }))
       )
         throw new ForbiddenError('The switch target is outside the original task.');
-    }
-
-    // The finite legacy cohort retains its original scoped delegation checks.
-    // Own workload authority comes from the verified requester proof above.
-    const grant =
-      serviceApp.authority === 'first_party'
-        ? { authorized: true }
-        : await resolveServiceActingAsGrant(serviceApp.appId, operatorId, {
-            credentialId: serviceApp.credentialId,
-            ownerAccountId: serviceApp.ownerAccountId,
-            environment: serviceApp.environment,
-          });
-    if (!grant.authorized) {
-      logger.warn('[internal] service-switch refused: no live delegation', {
-        callerAppId: serviceApp.appId,
-        operatorId,
-        accountId,
-      });
-      throw new ForbiddenError('This application may not act for that user');
     }
 
     const [account] = await getDb()

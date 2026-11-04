@@ -66,6 +66,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       makeRequestSpy.mockResolvedValue({
         authorizeCode: 'code-1',
         qrPayload: 'oxycommons://approve?v=1&code=code-1',
+        approvalUrl: 'https://auth.oxy.so/device?user_code=code-1',
         status: 'pending',
         expiresAt: 1700000300000,
       });
@@ -84,11 +85,13 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
         sessionToken: 'secret-session-token',
         authorizeCode: 'code-1',
         qrPayload: 'oxycommons://approve?v=1&code=code-1',
+        approvalUrl: 'https://auth.oxy.so/device?user_code=code-1',
         expiresAt: 1700000300000,
         status: 'pending',
       });
-      // The secret token must never leak into the QR payload.
+      // The secret token must never leak into the QR payload or the approval page.
       expect(handle.qrPayload).not.toContain('secret-session-token');
+      expect(handle.approvalUrl).not.toContain('secret-session-token');
     });
 
     it('omits the oauth key entirely when no OAuth binding is given (body byte-identical to a plain device sign-in)', async () => {

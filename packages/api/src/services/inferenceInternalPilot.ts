@@ -30,11 +30,20 @@ export interface InternalPilotOperationTerms {
   readonly maxOutputTokens: number | undefined;
   readonly maxPricePerRequestUsd: string | undefined;
   readonly deployments: readonly InternalMeteredPilotDeployment[];
+  /** Image parts one request may carry; present only for a request carrying images. */
+  readonly maxImages?: number;
 }
 
+/**
+ * The terms that bind ONE request: its operation and, for a completion, how
+ * many image parts it carries. A completion carrying images answers to the
+ * pilot's `imageInput` terms (their routes and quote ceiling, the text terms'
+ * input and output ceilings) and is outside a pilot without them.
+ */
 export function pilotTermsFor(
   pilot: InternalMeteredPilot,
   operation: EdgeOperation,
+  images = 0,
 ): InternalPilotOperationTerms | undefined {
   if (operation.kind === 'speech') {
     const speech = pilot.speech;
@@ -50,14 +59,25 @@ export function pilotTermsFor(
   // Every other operation answers to the text terms; a pilot without them
   // (one that only embeds, for instance) leaves it outside the pilot.
   const text = pilotTextTerms(pilot);
-  return text === undefined
-    ? undefined
-    : {
-        maxInput: text.maxControlledInputBudget,
-        maxOutputTokens: text.maxOutputTokens,
-        maxPricePerRequestUsd: text.maxPricePerRequestUsd,
-        deployments: text.deployments,
-      };
+  if (text === undefined) return undefined;
+  if (images > 0) {
+    const imageInput = pilot.imageInput;
+    return imageInput === undefined
+      ? undefined
+      : {
+          maxInput: text.maxControlledInputBudget,
+          maxOutputTokens: text.maxOutputTokens,
+          maxPricePerRequestUsd: imageInput.maxPricePerRequestUsd,
+          deployments: imageInput.deployments,
+          maxImages: imageInput.maxImages,
+        };
+  }
+  return {
+    maxInput: text.maxControlledInputBudget,
+    maxOutputTokens: text.maxOutputTokens,
+    maxPricePerRequestUsd: text.maxPricePerRequestUsd,
+    deployments: text.deployments,
+  };
 }
 
 export function controlledInputBudget(request: NormalizedEdgeRequest): number | undefined {
@@ -81,12 +101,17 @@ export function controlledInputBudget(request: NormalizedEdgeRequest): number | 
     return undefined;
   if (
     request.input.format === 'messages' &&
-    request.input.messages.some((message) => message.content.some((part) => part.type !== 'text'))
+    request.input.messages.some((message) =>
+      message.content.some((part) => part.type !== 'text' && part.type !== 'image'),
+    )
   )
     return undefined;
   const messages = request.input.format === 'messages' ? request.input.messages.length : 1;
+  // An image's bytes are not text the model reads as tokens: each is bounded
+  // apart, by its line's declared `imageInput` and the pilot's image count. The
+  // part's framing (its type, media type and detail) still counts.
   const payload = JSON.stringify({
-    input: request.input,
+    input: withoutImageData(request.input),
     tools: request.tools,
     toolChoice: request.toolChoice,
     responseFormat: request.responseFormat,
@@ -99,13 +124,29 @@ export function controlledInputBudget(request: NormalizedEdgeRequest): number | 
   );
 }
 
-/** Whether `route` is one of the exact tuples the pilot admits for `operation`. */
+function withoutImageData(input: NormalizedEdgeRequest['input']): NormalizedEdgeRequest['input'] {
+  if (input.format !== 'messages') return input;
+  return {
+    ...input,
+    messages: input.messages.map((message) => ({
+      ...message,
+      content: message.content.map((part) =>
+        part.type === 'image' && part.source.kind === 'inline'
+          ? { ...part, source: { ...part.source, data: '' } }
+          : part,
+      ),
+    })),
+  };
+}
+
+/** Whether `route` is one of the exact tuples the pilot admits for this request. */
 export function pilotAllowsDeployment(
   pilot: InternalMeteredPilot,
   operation: EdgeOperation,
   route: InternalMeteredPilotDeployment,
+  images = 0,
 ): boolean {
-  const deployments = pilotTermsFor(pilot, operation)?.deployments ?? [];
+  const deployments = pilotTermsFor(pilot, operation, images)?.deployments ?? [];
   return deployments.some(
     (allowed) =>
       allowed.deploymentId === route.deploymentId &&

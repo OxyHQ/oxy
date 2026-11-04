@@ -1,4 +1,4 @@
-import type { OrganizationType } from '@oxy.so/contracts';
+import type { AccountAccessGrant, OrganizationType } from '@oxy.so/contracts';
 /**
  * `oxy.accounts` — the unified account graph (`/accounts`).
  *
@@ -163,6 +163,13 @@ export interface AccountNode {
    * ownership is implicit). Use `callerMembership.permissions` to gate UI.
    */
   callerMembership: AccountMember | null;
+  /**
+   * The caller's EFFECTIVE access to this account — role, permissions and
+   * where it comes from, `self` included (where `callerMembership` is `null`).
+   * Present on single-account reads (`accounts.get`); a backend asks
+   * `OxyServer.accountAccessFor`.
+   */
+  callerAccess?: AccountAccessGrant;
   /** Number of direct child accounts (present when the API computes it). */
   childCount?: number;
   /** Direct children, populated when the list is requested with `tree:true`. */

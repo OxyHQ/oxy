@@ -16,6 +16,12 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
   const f = await productAccessFixture();
   const raw = f.input();
   const { id: _id, ...subscription } = raw.source;
+  // Peable reports periods as whole Unix seconds, so the recorded period is too.
+  const wholeSecond = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+  const period = {
+    start: new Date(wholeSecond(f.period.start) * 1000).toISOString(),
+    end: new Date(wholeSecond(f.period.end) * 1000).toISOString(),
+  };
   const binding = {
     providerAccountRef: 'merch_fixture',
     mode: 'live' as const,
@@ -23,14 +29,14 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
   };
   const paid = await recordProductProviderPeriod({
     binding,
-    subscription: { ...subscription, provider: 'peable', beneficiaryAccountId: f.payer },
+    subscription: { ...subscription, period, provider: 'peable', beneficiaryAccountId: f.payer },
     offer: { offerId: f.offers[0].id, offerVersion: 1, origin: 'bundle' },
     paidLine: {
       invoiceId: `in_${randomUUID()}`,
       lineId: `il_${randomUUID()}`,
       priceId: 'price_fixture',
       quantity: 1,
-      period: f.period,
+      period,
     },
     event: { id: `event_${randomUUID()}`, createdAt: f.now.toISOString() },
     providerObservedAt: f.now,
@@ -77,30 +83,31 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
     }),
   );
   process.env.BILLING_PRODUCT_CATALOGUE_FILE = path;
+  // Peable's wire (ADR 0014): snake_case, instants as integer Unix seconds.
   let snapshot = {
-    providerSubscriptionId: subscription.providerSubscriptionId,
-    providerCustomerId: 'cus_fixture',
-    providerPriceId: 'price_fixture',
-    storeId: f.payer,
-    planId: 'approved_fixture',
+    provider_subscription_id: subscription.providerSubscriptionId,
+    provider_customer_id: 'cus_fixture',
+    provider_price_id: 'price_fixture',
+    store_id: f.payer,
+    plan_id: 'approved_fixture',
     livemode: true,
     status: 'active' as const,
     interval: 'month' as const,
-    cancelAtPeriodEnd: false,
-    currentPeriodStart: f.period.start,
-    currentPeriodEnd: f.period.end,
-    trialEndsAt: null,
-    cancelAt: null,
-    cancelledAt: null,
+    cancel_at_period_end: false,
+    current_period_start: wholeSecond(f.period.start),
+    current_period_end: wholeSecond(f.period.end),
+    trial_ends_at: null,
+    cancel_at: null,
+    cancelled_at: null,
   };
   const retrieve = jest.fn(async () => snapshot);
   const cancel = jest.fn(async () => {
-    snapshot = { ...snapshot, cancelAtPeriodEnd: true };
+    snapshot = { ...snapshot, cancel_at_period_end: true };
     return snapshot;
   });
   const merchant = jest.fn(async () => ({
     id: cfg.merchantId,
-    oxyAppId: cfg.applicationId,
+    oxy_app_id: cfg.applicationId,
     environment: 'production',
   }));
   const client = {
@@ -120,14 +127,14 @@ it('wires exact personal source through trusted Peable owner/customer mapping, p
       }),
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(merchant).not.toHaveBeenCalled();
-    snapshot = { ...snapshot, storeId: f.owner };
+    snapshot = { ...snapshot, store_id: f.owner };
     await expect(
       cancelStoredPeablePersonalSource(f.payer, paid.sourceId, 'action_001', {
         management: { configuration: cfg, client },
       }),
     ).rejects.toThrow('ownership');
     expect(cancel).not.toHaveBeenCalled();
-    snapshot = { ...snapshot, storeId: f.payer };
+    snapshot = { ...snapshot, store_id: f.payer };
     expect(
       await cancelStoredPeablePersonalSource(f.payer, paid.sourceId, 'action_001', {
         management: { configuration: cfg, client },

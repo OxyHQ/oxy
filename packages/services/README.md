@@ -216,6 +216,13 @@ rather than raw `fontFamily` strings.
 
 ## Usage Patterns
 
+### Organization forms
+
+`parseOrganizationDraft` from `@oxy.so/services/organization-draft` trims form fields,
+normalizes an optional country code, and returns a validated creation payload or
+`null`. It validates input only: the caller must still check the current session
+and supervision before creating an organization.
+
 ### 1. OxyProvider + useAuth Hook (Recommended)
 
 `OxyProvider` works on all platforms (iOS, Android, Web). Use `useAuth` for authentication.

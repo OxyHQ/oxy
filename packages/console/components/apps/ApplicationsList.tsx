@@ -56,6 +56,7 @@ export function ApplicationsList() {
 
   return (
     <Screen
+      scroll="content"
       header={
         <PageHeader
           safeArea={false}

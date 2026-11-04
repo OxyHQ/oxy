@@ -57,7 +57,7 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 ## Crypto polyfill order
 
-`@noble/hashes` 1.x captures `globalThis.crypto` once, when its `crypto.js` is evaluated, and `randomBytes` keeps that binding for the life of the app. Hermes has no `globalThis.crypto` at startup, so `@oxy.so/core`'s `crypto/polyfill` must install the shim before ANY `@noble/*` module is evaluated. ES imports are evaluated before the importing module's body, so the polyfill may import only modules that reach no crypto library: `buffer` and `@oxy.so/protocol/random` (the platform randomness source and nothing else). Importing `@oxy.so/protocol`'s root entry from the polyfill reached `@noble/curves` through the envelope signer, noble captured `undefined`, and every Android identity creation failed with `crypto.getRandomValues must be defined` (core 1.8.0). Node never shows this: noble's `node` export condition serves `cryptoNode.js`, which does not capture the global. Guards: `packages/core/src/crypto/__tests__/polyfillOrder.test.ts` (loads core with the capturing `crypto.js` and no global), `packages/protocol/src/__tests__/randomEntry.test.ts` (the entry's module graph), `packages/services/__tests__/boot/cryptoPolyfillOrder.test.ts` (services evaluates core first and reaches no crypto library on its own).
+Hermes has no `globalThis.crypto` at startup, so `@oxy.so/core`'s `crypto/polyfill` installs the shim before ANY other module is evaluated. ES imports are evaluated before the importing module's body, so the polyfill may import only modules that reach no crypto library: `buffer` and `@oxy.so/protocol/random` (the platform randomness source and nothing else). Under `@noble/hashes` 1.x this was load-bearing: its `crypto.js` captured `globalThis.crypto` once, at evaluation; importing `@oxy.so/protocol`'s root entry from the polyfill reached `@noble/curves` through the envelope signer, noble captured `undefined`, and every Android identity creation failed with `crypto.getRandomValues must be defined` (core 1.8.0). Noble 2.x (core 7.14.0) reads the global on every call, so that capture is gone; the order is kept so the shim exists before any module body that reads it. Noble 2.x and `@scure/bip39` 2.x ship ESM only: each package's Jest lowers them to CommonJS with `scripts/jest-esm-only.cjs`. Guards: `packages/core/src/crypto/__tests__/polyfillOrder.test.ts` (loads core with no global and draws randomness through noble), `packages/protocol/src/__tests__/randomEntry.test.ts` (the entry's module graph), `packages/services/__tests__/boot/cryptoPolyfillOrder.test.ts` (services evaluates core first and reaches no crypto library on its own).
 
 ## React Compiler
 
@@ -106,7 +106,9 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
 - `publish` (environment `npm`, `id-token: write`) runs none of the repository's code: it checks the
   trusted bytes against their SHA-512 and runs `npm publish <tgz> --provenance --access public
   --tag <tag>` for each, in dependency order, with npm trusted publishing (OIDC); there is no
-  `NPM_TOKEN` in any repository. A version already on the registry (a re-run) is skipped.
+  `NPM_TOKEN` in any repository. Immediately before each publish, a fresh registry read compares the exact version and
+  SHA-512 of the trusted tarball. Only identical bytes are skipped; a conflicting version or
+  registry error fails the release. Publish errors, including HTTP 403, remain failures.
 - `tag` (`contents: write`, nothing else) creates the annotated tag `<name>@<version>` at the
   released commit for each package it published — the website's docs sync pins packages by that
   tag — and, when the package's `CHANGELOG.md` has a section for the version, a GitHub release

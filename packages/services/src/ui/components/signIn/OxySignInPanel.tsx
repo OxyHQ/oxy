@@ -35,6 +35,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
+import { isRateLimitError } from '@oxy.so/core';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
 import type {
   EmailSignInAccountOption,
@@ -44,7 +45,9 @@ import type {
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
+  PASSWORD_MAX_LENGTH,
   SIGN_IN_ERROR_CODES,
+  SIGN_IN_IDENTIFIER_MAX_LENGTH,
   TOTP_DIGITS,
   isEmailSignInChooseAccount,
   isSecondFactorRequired,
@@ -69,14 +72,13 @@ import {
   AccountFlowField,
   AccountFlowNotice,
   BACKUP_CODE_LENGTH,
-  describeSignInError,
-  errorCode,
+  isCompleteSecondFactorCode,
   isCompleteSignInCode,
-  isRateLimited,
-  retryAfterSeconds,
 } from './accountFlowParts';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import { resolveSignInMethods } from './signInMethods';
+import { describeApiError, errorCode, retryAfterSeconds } from '../../utils/apiErrorMessage';
+import { withoutWhitespace } from '../../utils/withoutWhitespace';
 
 /** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
 const SPLIT_WIDTH = 880;
@@ -231,8 +233,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 
   const fail = useCallback(
     (reason: unknown) => {
-      if (isRateLimited(reason)) setRateLimitSeconds(retryAfterSeconds(reason));
-      else setError(describeSignInError(reason, t));
+      if (isRateLimitError(reason)) setRateLimitSeconds(retryAfterSeconds(reason));
+      else setError(describeApiError(reason, t));
     },
     [t],
   );
@@ -381,7 +383,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const submitSecondFactor = (typed: string) => {
     if (step.name !== 'second-factor' || blocked) return;
     const value = typed.trim();
-    if (!value) {
+    if (!isCompleteSecondFactorCode(value, useBackupCode)) {
       setError(t('signin.errors.secondFactorInvalid'));
       return;
     }
@@ -657,6 +659,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             disabled={blocked}
             autoComplete="current-password"
             secureTextEntry
+            maxLength={PASSWORD_MAX_LENGTH}
             testID="signin-password"
           />
           {rateLimitNotice}
@@ -813,7 +816,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               label={t('signin.identifier.label')}
               value={identifier}
               onChange={(value) => {
-                setIdentifier(value);
+                setIdentifier(withoutWhitespace(value));
                 clearError();
               }}
               onSubmit={submitIdentifier}
@@ -822,6 +825,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               placeholder={t('signin.identifier.placeholder')}
               autoComplete="username"
               keyboardType="email-address"
+              maxLength={SIGN_IN_IDENTIFIER_MAX_LENGTH}
               autoFocus={Platform.OS === 'web'}
               testID="signin-identifier"
             />

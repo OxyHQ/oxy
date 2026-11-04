@@ -19,7 +19,7 @@ import { Header } from '@/components/header';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useScrollContext } from '@/contexts/scroll-context';
 import { useOxy } from '@oxy.so/services';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useSearchNavigation } from '@/hooks/use-search-navigation';
 import { useTranslation } from '@/lib/i18n';
 import { ErrorFallback } from '@/components/error-fallback';
@@ -92,7 +92,7 @@ export default function TabLayout() {
   const { scrollToTop, scrollY } = useScrollContext();
   const [showGoToTopButton, setShowGoToTopButton] = useState(false);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const handleReload = useCallback(async () => {
     if (!refreshSessions) return;

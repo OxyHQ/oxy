@@ -90,6 +90,8 @@ export interface PublicUserView {
    * actor is a `Service`). Orthogonal to `type` — both are carried.
    */
   kind?: AccountKind;
+  /** Stored character; the shared serializer validates it and emits it only for bots. */
+  character?: AvatarCharacter | null;
   /**
    * What the account is about — ORDERED, primary first. PUBLIC and on every
    * profile row, because the profile screen renders it: a channel's or an
@@ -266,6 +268,7 @@ export function toPublicUserView(row: PublicUserRow): PublicUserView {
       displayName: optional(row.nameDisplay),
     },
     kind: row.kind,
+    character: row.character,
     // Passed through UNTOUCHED. Not sorted, not de-duplicated, not filtered —
     // index 0 is the primary category, so a rewrite here would silently change
     // which one a profile leads with. Empty stays empty; the serializer decides

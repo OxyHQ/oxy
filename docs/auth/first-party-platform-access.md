@@ -91,22 +91,24 @@ and the live credential/application ceiling; official branding never changes
 that authority. Invalidated service identities fail authentication before a
 resource is resolved. Domain and tenant checks still run after authentication.
 
-The `/service-events` revocation feed admits only live registered own workloads;
-legacy admission is restricted to the same finite inventoried workload cohort.
+The `/service-events` revocation feed admits only live registered own workloads.
 An official application's customer credential never receives this global feed.
 The server rechecks authority before event delivery and each heartbeat, closes
 revoked or expired sockets, and serializes outgoing batches so a heartbeat cannot
 overtake a pending revocation. The SDK drops cached session validations when the
-feed disconnects or loses its heartbeat. Retire the legacy feed admission with
-the rest of the protocol-v1 cohort after consumer rollout.
+feed disconnects or loses its heartbeat.
 
-During the same finite transition, `/assets/service/by-ids` preserves owner
-metadata for the exact live legacy workload cohort, after its signed and live
-`files:read` intersection succeeds. Mention's existing importer needs this field
-to reject files owned by another account. This response-only bridge does not
-promote the caller's authority or grant access to file contents, and customer
-keys remain excluded even on official applications. Remove this projection
-bridge when these consumers use protocol v2.
+The [verified protocol-v1 retirement](workload-v1-retirement.md) removed the finite
+legacy workload cohort, old resource-introspection serializers and owner-metadata
+projection bridge. Core 7.4.0 publication, API/worker rollout, supported launcher
+inventory, Schedio parking and token drain were verified on 2026-10-25; the linked
+record distinguishes those facts from source and consumer tests. The subsequent
+[compatible writer and physical schema cleanup](workload-schema-cleanup.md)
+completed on 2026-10-26: the historical workload scope column/check was removed
+after the rollback-compatible writer was deployed, with preservation checks
+verified. External customer service tokens retain their supported
+legacy `oxy-api` audience and live scope ceilings; no external credential becomes
+an own workload.
 
 ### External housing document tools
 

@@ -30,9 +30,10 @@ import {
   AccountFlowField,
   AccountFlowNote,
   AccountFlowNotice,
-  describeSignInError,
 } from './accountFlowParts';
 import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
+import { describeApiError } from '../../utils/apiErrorMessage';
+import { withoutWhitespace } from '../../utils/withoutWhitespace';
 
 type Step =
   | { name: 'status' }
@@ -91,7 +92,7 @@ export const OxyEmailPanel: React.FC<OxyEmailPanelProps> = ({ onDone }) => {
         setCode('');
         setStep({ name: 'confirm', email, verificationId: started.verificationId });
       })
-      .catch((reason: unknown) => setError(describeSignInError(reason, t)))
+      .catch((reason: unknown) => setError(describeApiError(reason, t)))
       .finally(() => setPending(false));
   };
 
@@ -120,7 +121,7 @@ export const OxyEmailPanel: React.FC<OxyEmailPanelProps> = ({ onDone }) => {
             label={t('signInSecurity.email.newLabel')}
             value={address}
             onChange={(value) => {
-              setAddress(value);
+              setAddress(withoutWhitespace(value));
               if (error) setError(null);
             }}
             onSubmit={submitAddress}

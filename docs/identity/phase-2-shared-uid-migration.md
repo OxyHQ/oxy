@@ -82,8 +82,8 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
    from anything the caller sends.
 2. It must be on the Oxy allow-list: Mention `earth.mention.app`, Alia
    `onl.alia.app`, Allo `com.allo.app`, Homiio `com.homiio.android`, CrowdSource
-   `so.oxy.crowdsource`, Peable `to.peable.app`, Atlas `so.oxy.atlas`, GoWay
-   `to.goway.app`, Move `so.oxy.move`, Willo `sh.willo.app`, Moovo
+   `so.oxy.crowdsource`, Peable `to.peable.app`, Atlas `so.oxy.atlas`, Dropsea
+   `so.oxy.dropsea`, GoWay `to.goway.app`, Move `so.oxy.move`, Willo `sh.willo.app`, Moovo
    `now.moovo.app` / `.go` / `.tracker` / `.hub`, Noted `so.oxy.noted`, Inbox
    `so.oxy.inbox`, Clarity `so.oxy.clarity`, Nilo `so.oxy.nilo`, Mercaria
    `co.mercaria.app` / `.dashboard` / `.pos`, Schedio `com.schedio.app`, Syra

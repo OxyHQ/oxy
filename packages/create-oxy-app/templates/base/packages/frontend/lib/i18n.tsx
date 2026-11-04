@@ -4,15 +4,30 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 // safe to mount at the root of the provider tree. Swap in i18next later if the
 // app grows to need pluralization / interpolation / lazy locale loading.
 
-type Messages = Record<string, string>;
+// Keys follow the Oxy convention (ADR 0055): nested objects of identifier
+// segments, read as a dotted path (`t('home.title')`), never the English text.
+type Messages = { [segment: string]: string | Messages };
 
 const en: Messages = {
-  'home.title': '{{APP_NAME}}',
-  'home.subtitle': 'Built with the Oxy SDK.',
-  'home.signedInAs': 'Signed in as',
-  'auth.title': 'Welcome to {{APP_NAME}}',
-  'auth.subtitle': 'Sign in with your Oxy account to continue.',
+  home: {
+    title: '{{APP_NAME}}',
+    subtitle: 'Built with the Oxy SDK.',
+    signedInAs: 'Signed in as',
+  },
+  auth: {
+    title: 'Welcome to {{APP_NAME}}',
+    subtitle: 'Sign in with your Oxy account to continue.',
+  },
 };
+
+function lookup(messages: Messages, key: string): string | undefined {
+  let node: string | Messages | undefined = messages;
+  for (const segment of key.split('.')) {
+    if (typeof node !== 'object') return undefined;
+    node = node[segment];
+  }
+  return typeof node === 'string' ? node : undefined;
+}
 
 const locales: Record<string, Messages> = { en };
 
@@ -30,7 +45,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       : 'en-US';
     const base = full.split('-')[0];
     const messages = locales[base] ?? en;
-    return { locale: full, t: (key) => messages[key] ?? key };
+    return { locale: full, t: (key) => lookup(messages, key) ?? lookup(en, key) ?? key };
   }, []);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

@@ -90,22 +90,22 @@ it('keeps HTTP-equivalent provider absence and empty offers unconfigured; grants
 it('reserves and replays the SDK transport without granting from a hosted session', async () => {
   const test = await fixture();
   test.catalogue.prices[0].amountMinorUnits = 2999;
-  const merchant = { id: 'merch_synthetic', oxyAppId: 'app_fixture', environment: 'production' };
-  const ensureCustomer = jest.fn(async () => ({ providerCustomerId: 'cus_fixture' }));
+  const merchant = { id: 'merch_synthetic', oxy_app_id: 'app_fixture', environment: 'production' };
+  const ensureCustomer = jest.fn(async () => ({ provider_customer_id: 'cus_fixture' }));
   const createCheckoutSession = jest.fn(async () => ({
     id: 'cs_fixture',
     url: 'https://checkout.example.invalid/fixture',
-    expiresAt: '2099-01-01T00:00:00.000Z',
+    expires_at: Date.parse('2099-01-01T00:00:00.000Z') / 1000,
   }));
   const retrieveCheckout = jest.fn(async () => ({
     id: 'cs_fixture',
-    storeId: test.payer,
-    planId: 'one_monthly',
-    providerCustomerId: 'cus_fixture',
-    providerPriceId: 'price_synthetic',
+    store_id: test.payer,
+    plan_id: 'one_monthly',
+    provider_customer_id: 'cus_fixture',
+    provider_price_id: 'price_synthetic',
     status: 'open',
     subscription: null,
-    initialInvoiceId: null,
+    initial_invoice_id: null,
   }));
   const client = {
     merchants: { retrieve: async () => merchant },
@@ -132,11 +132,11 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
           },
           'quote_transport',
         );
-        snapshot.taxQuote.source.planId = 'one_monthly';
-        snapshot.taxQuote.quote.sellerId = 'seller_fixture';
-        snapshot.taxQuote.quote.invoiceIssuerId = 'issuer_fixture';
-        snapshot.taxQuote.quote.taxRemitterId = 'remitter_fixture';
-        snapshot.taxQuote.quote.customerLocationEvidenceId = 'location_fixture';
+        snapshot.taxQuote.source.plan_id = 'one_monthly';
+        snapshot.taxQuote.quote.seller_id = 'seller_fixture';
+        snapshot.taxQuote.quote.invoice_issuer_id = 'issuer_fixture';
+        snapshot.taxQuote.quote.tax_remitter_id = 'remitter_fixture';
+        snapshot.taxQuote.quote.customer_location_evidence_id = 'location_fixture';
         return snapshot.taxQuote;
       },
     },
@@ -145,7 +145,7 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
     client,
     {
       merchantId: merchant.id,
-      applicationId: merchant.oxyAppId,
+      applicationId: merchant.oxy_app_id,
       sellerId: 'seller_fixture',
       invoiceIssuerId: 'issuer_fixture',
       taxRemitterId: 'remitter_fixture',
@@ -177,9 +177,9 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
   expect(await startPersonalPlanCheckout(test.payer, test.request, dependencies)).toEqual(first);
   expect(createCheckoutSession).toHaveBeenCalledTimes(1);
   retrieveCheckout.mockRejectedValueOnce(
-    new PeableInvalidRequestError('reconciliation_required', {
+    new PeableInvalidRequestError('The billing state must be reconciled before this can proceed.', {
       statusCode: 409,
-      code: 'invalid_request_error',
+      code: 'reconciliation_required',
     }),
   );
   await expect(
@@ -479,34 +479,34 @@ function authority(
     mode: input.mode,
     environment: input.environment,
     taxQuote: {
-      schemaVersion: 1,
+      schema_version: 3,
       source: {
-        merchantId: input.providerAccountRef,
-        appId: 'app_fixture',
-        storeId: input.subjectAccountId,
-        planId: 'plan_fixture',
+        merchant_id: input.providerAccountRef,
+        app_id: 'app_fixture',
+        store_id: input.subjectAccountId,
+        plan_id: 'plan_fixture',
         mode: 'live',
         environment: 'production',
       },
       quote: {
         id,
         currency: input.currency,
-        grossMinorUnits: input.amountMinorUnits,
-        netMinorUnits: input.amountMinorUnits,
-        taxMinorUnits: 0,
-        taxTreatment: 'inclusive',
-        sellerId: 'synthetic',
-        invoiceIssuerId: 'synthetic',
-        taxRemitterId: 'synthetic',
-        taxServiceRef: 'synthetic',
+        gross_minor_units: String(input.amountMinorUnits),
+        net_minor_units: String(input.amountMinorUnits),
+        tax_minor_units: '0',
+        tax_treatment: 'inclusive',
+        seller_id: 'synthetic',
+        invoice_issuer_id: 'synthetic',
+        tax_remitter_id: 'synthetic',
+        tax_service_ref: 'synthetic',
         country: 'US',
-        coverageEvidenceId: 'synthetic',
-        taxRateEvidenceId: 'synthetic',
-        customerLocationEvidenceId: 'synthetic',
-        quotedAt: '2026-01-01T00:00:00.000Z',
-        expiresAt: '2099-01-01T00:00:00.000Z',
+        coverage_evidence_id: 'synthetic',
+        tax_rate_evidence_id: 'synthetic',
+        customer_location_evidence_id: 'synthetic',
+        quoted_at: Date.parse('2026-01-01T00:00:00.000Z') / 1000,
+        expires_at: Date.parse('2099-01-01T00:00:00.000Z') / 1000,
       },
-      signature: { algorithm: 'Ed25519', keyId: 'synthetic', value: 'synthetic' },
+      signature: { algorithm: 'Ed25519', key_id: 'synthetic', value: 'synthetic' },
     },
   };
 }
@@ -622,7 +622,7 @@ it('rejects prepared authority for another subject without storing or dispatchin
   expect(intent.state).toBe('reserved');
 });
 
-it('round-trips every typed signed quote field and exact valid ISO lexemes through PostgreSQL and official SDK verification', async () => {
+it('round-trips every typed signed quote field and exact Unix-second instants through PostgreSQL and official SDK verification', async () => {
   const f = await fixture();
   const keys = generateKeyPairSync('ed25519');
   const publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
@@ -643,14 +643,14 @@ it('round-trips every typed signed quote field and exact valid ISO lexemes throu
     async prepare(input) {
       const snapshot = authority(input, 'signed_quote_roundtrip');
       snapshot.taxQuote.quote.currency = 'USD';
-      snapshot.taxQuote.quote.quotedAt = '2026-01-01T00:00:00Z';
-      snapshot.taxQuote.quote.expiresAt = '2099-01-01T00:00:00.000001Z';
-      snapshot.taxQuote.signature.keyId = 'fixture';
+      snapshot.taxQuote.quote.quoted_at = Date.parse('2026-01-01T00:00:07Z') / 1000;
+      snapshot.taxQuote.quote.expires_at = Date.parse('2099-01-01T00:00:59Z') / 1000;
+      snapshot.taxQuote.signature.key_id = 'fixture';
       snapshot.taxQuote.signature.value = sign(
         null,
         Buffer.from(
           canonical({
-            schemaVersion: snapshot.taxQuote.schemaVersion,
+            schema_version: snapshot.taxQuote.schema_version,
             source: snapshot.taxQuote.source,
             quote: snapshot.taxQuote.quote,
           }),
@@ -673,16 +673,23 @@ it('round-trips every typed signed quote field and exact valid ISO lexemes throu
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
   const reconstructed = personalCheckoutSnapshotFromIntent(stored);
   expect(reconstructed).toEqual(prepared);
+  // A signed instant is whole seconds: a sub-second stored value was never signed.
+  expect(() =>
+    personalCheckoutSnapshotFromIntent({
+      ...stored,
+      taxQuoteExpiresAt: new Date(Date.parse('2099-01-01T00:00:59.001Z')),
+    }),
+  ).toThrow('not a signed instant');
   await expect(
     getDb()
       .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteExpiresAtLexeme: '2099-01-01T00:00:01Z' })
+      .set({ taxQuoteExpiresAt: stored.taxQuoteQuotedAt })
       .where(eq(personalPlanCheckoutIntents.id, stored.id)),
   ).rejects.toThrow();
   await expect(
     getDb()
       .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteNetMinorUnits: stored.amountMinorUnits + 1 })
+      .set({ taxQuoteNetMinorUnits: BigInt(stored.amountMinorUnits) + 1n })
       .where(eq(personalPlanCheckoutIntents.id, stored.id)),
   ).rejects.toThrow();
   await expect(
@@ -707,13 +714,26 @@ it('round-trips every typed signed quote field and exact valid ISO lexemes throu
       tokenProvider: { getToken: async () => 'synthetic', invalidate: () => {} },
       taxQuoteAuthorityKeys: { fixture: publicKey },
     });
-    expect(
-      await sdk.billing.createTaxQuote({
-        storeId: f.payer,
-        planId: 'plan_fixture',
-        customerLocationEvidenceId: 'synthetic',
-      }),
-    ).toEqual(prepared?.taxQuote);
+    const params = {
+      store_id: f.payer,
+      plan_id: 'plan_fixture',
+      customer_location_evidence_id: 'synthetic',
+    };
+    expect(await sdk.billing.createTaxQuote(params)).toEqual(prepared?.taxQuote);
+    // A stored instant moved by one whole second no longer carries the signature.
+    if (!stored.taxQuoteExpiresAt) throw new Error('Missing stored expiry');
+    const shifted = personalCheckoutSnapshotFromIntent({
+      ...stored,
+      taxQuoteExpiresAt: new Date(stored.taxQuoteExpiresAt.getTime() + 1000),
+    });
+    transport.mockImplementation(
+      async () =>
+        new Response(JSON.stringify(shifted?.taxQuote), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    await expect(sdk.billing.createTaxQuote(params)).rejects.toThrow();
   } finally {
     transport.mockRestore();
   }

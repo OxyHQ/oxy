@@ -95,8 +95,7 @@ The census excluded `node_modules`, `dist` and worktrees.
 
 | Caller | Endpoint | Effect |
 |---|---|---|
-| Mention `services/mtn/PostMaterializer.ts:227` | by-sha256 | Unchanged: it still gets the oldest row. It maps `sha256 -> id` into post media, so it should pass the record author's `ownerUserId` once core is released. |
-| Mention `services/mtn/mtnNodeBlobMirror.ts:121` | by-sha256 | Unchanged. It treats "any owner has it" as "already mirrored". With `ownerUserId` it would upload the author's own row instead, and the bytes would still be stored once. |
+| ~~Mention `services/mtn/PostMaterializer.ts`, `services/mtn/mtnNodeBlobMirror.ts`~~ | by-sha256 | Removed with Mention nodes and the MTN record chain (OxyHQ/Mention#1805); no by-sha256 caller remains in Mention. |
 | Mention `mediaCache/cacheWorker.ts:376`, `mediaCache/oxyMediaStore.ts:403`, `connectors/*` | `/service/federation` | A different owner's bytes now return `200` with a new row instead of a `409`. The cache worker currently retries a 409 indefinitely, so this fixes that loop. |
 | Mention `cacheWorker.ts:216`, `gifLibraryService.ts:472`, eviction and purge scripts | `/service/cache`, `DELETE /service/cache/:id` | Unchanged. The cache namespace still keeps one row per hash, so two cache entries with the same bytes share an id. |
 | Mention `utils/oxyHelpers.ts:195`, Move `utils/oxyHelpers.ts:64` | `/service/user-media` | Another user's bytes now give the caller its own row instead of a `409`. |
@@ -167,9 +166,9 @@ the final `DROP INDEX`, which queues them behind any long-running query on
    `--max-batches`, and `--after=<lastLinkId>` to resume). Keep the JSONL
    output: it is the `(sourceFileId, ownerUserId) -> fileId` mapping the
    consuming apps need.
-5. **Consumers switch their stored ids** using that mapping, and Mention passes
-   `ownerUserId` to by-sha256. Both need a release of `@oxy.so/core`, which this
-   change does not publish.
+5. **Consumers switch their stored ids** using that mapping. That needs a
+   release of `@oxy.so/core`, which this change does not publish. (Mention no
+   longer calls by-sha256, so it has nothing to pass `ownerUserId` to.)
 6. **Repoint links per application** with
    `--apply=repoint-links --app=<name>`, and only for an app that now stores the
    new ids. Until then, the foreign link on the original is what keeps
@@ -206,6 +205,27 @@ and no enlargement beyond the displayed source dimensions. MP4 and HLS share
 one tier calculation; HLS has aligned two-second segments. MP4 stores its index
 at the beginning of the file. The HLS master advertises the encoded dimensions
 and measured segment bandwidth.
+
+A background generation acquires its original once through the configured R2
+S3-compatible GET (including Sippy hydration), then probes and decodes that
+seekable local file through an inherited descriptor. The input protocol allows
+only that descriptor, so uploaded containers cannot open nested local paths or
+network URLs. On-demand poster reads retain their bounded remote range path.
+The download has a 15-minute overall deadline, the existing 8 GiB upload ceiling,
+and one restart for an interrupted body; SDK retries own HTTP/status failures.
+Temporary originals are removed on success or failure. A live disk check before
+GET and at 1 MiB body intervals preserves 2 GiB of shared host headroom. This is
+an acquisition guard, not an isolated disk quota or a reservation for encoder
+outputs; low space remains an operational error under the normal queue policy.
+
+File uploads use the existing bounded multipart upload manager (5 MiB parts,
+four in flight). Each request can replay buffered bytes on transient storage
+errors; terminal failures abort incomplete multipart uploads. Caller cancellation
+rejects immediately; SDK multipart cleanup follows after outstanding parts settle.
+Storage connections have a 10-second connection limit and 120-second socket
+inactivity limit, so a silent part cannot defer that cleanup indefinitely. Queue attempts and
+backoff remain unchanged. Probes and poster output are bounded, and failures
+retain process status plus safe local-source diagnostics without signed URLs.
 
 Each tier is encoded once into a local faststart MP4 with closed GOPs and
 keyframes at two-second boundaries. HLS remuxes that same H.264/AAC stream
@@ -384,3 +404,24 @@ candidate count and recorded failures with the initial count to monitor progress
 After completed generations publish, consumers that persist rendition metadata
 must reconcile the new `hls_master.readyAt` value. Oxy's original is unchanged,
 and completing a rendition does not currently emit an application file event.
+
+
+### Retained terminal rendition jobs
+
+A pre-durable BullMQ job can remain in `completed` or `failed` and reserve the
+stable per-file ID. Admission reconciles that record under the fleet scheduler
+lock before adding a due request: an explicitly older terminal request (or an
+unstamped legacy job created before the durable request) is removed through
+BullMQ, while a matching terminal result settles only that exact PostgreSQL
+request. This does not reset the completed/exhausted request's retry budget.
+Active, waiting, paused and delayed jobs retain their ownership and attempts;
+newer or invalid request identities are not retired. A failed removal/add rolls
+back the lease, leaving durable work available to the next pass.
+
+Normal producers share admission ownership; the database-outage fallback only
+adds/deduplicates and does not retry terminal jobs. There is no application API
+for manually retrying these jobs. Any future manual recovery must coordinate
+with the scheduler lock or stop admission: BullMQ removal refuses an active
+worker lock, but `getState()` followed by `remove()` is not an atomic comparison
+against arbitrary administrative state changes. Do not bulk-delete or re-seed
+the queue to recover a retained terminal head.

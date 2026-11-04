@@ -20,6 +20,7 @@
  */
 
 import { canonicalFederationHost, isSameFederationHost } from '../apUri';
+import { apDate, apImageUrl, apIri, apIriList, apList, isActivityPubMediaType } from '../apValue';
 import {
   readProxyDeclarations,
   type DeriveNetworkIdentity,
@@ -103,12 +104,6 @@ async function readBoundedJson(res: Response, maxBytes: number): Promise<Record<
   return record;
 }
 
-function isApActorContentType(type: string | undefined): boolean {
-  if (!type) return false;
-  const base = type.split(';')[0]?.trim().toLowerCase();
-  return base === 'application/activity+json' || base === 'application/ld+json';
-}
-
 /** The minimal fields the resolver reads off / writes to a stored actor record. */
 export interface FederatedActorRecordBase {
   _id?: unknown;
@@ -148,12 +143,19 @@ export interface FederatedActorUpsert {
   type: string;
   manuallyApprovesFollowers: boolean;
   discoverable: boolean;
+  /**
+   * Mastodon's opt-in to search engines and full-text search (`indexable`).
+   * Absent when the actor does not say, which Mastodon reads as "no".
+   */
+  indexable?: boolean;
   memorial: boolean;
   suspended: boolean;
   fields: FederatedActorField[];
   featuredUrl?: string;
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
+  /** The account this actor moved to (`movedTo`), when it advertises one. */
+  movedTo?: string;
   /**
    * The `<handle>@<network-domain>` identity this actor was re-labelled onto, when
    * it came from a bridge; absent for the ordinary actor whose identity is simply
@@ -287,8 +289,11 @@ export interface ActorResolverConfig<TActor extends FederatedActorRecordBase> {
   normalizeFederatedAcct: (acct: string | undefined) => string | undefined;
   /** Extract the domain from a canonical acct. */
   domainFromAcct: (acct: string) => string | undefined;
-  /** Recursively find the first absolute http(s) URL in a value (icon/image). */
-  firstStringUrl: (value: unknown) => string | undefined;
+  /**
+   * The first absolute http(s) URL in an `icon` / `image` value. Optional: the
+   * default is {@link apImageUrl}, which reads every image shape.
+   */
+  firstStringUrl?: (value: unknown) => string | undefined;
   /**
    * Optional re-labelling of a bridged actor onto its real network. Absent means
    * every actor keeps the identity of the host it was fetched from.
@@ -396,7 +401,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     try {
       const data = await this.config.fetchWebFinger(url);
       if (!data) return null;
-      const link = data.links?.find((l) => l.rel === 'self' && isApActorContentType(l.type));
+      const link = data.links?.find((l) => l.rel === 'self' && isActivityPubMediaType(l.type));
       return link?.href || null;
     } catch (err) {
       this.config.logger.warn(`WebFinger resolution failed for ${acct}:`, err);
@@ -500,7 +505,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       const actor = await readBoundedJson(res, ACTOR_BODY_MAX_BYTES);
       const actorId = asString(actor.id);
-      const actorInbox = asString(actor.inbox);
+      const actorInbox = apIri(actor.inbox);
       if (!actorId || !actorInbox) {
         this.config.logger.info(
           `[FedSync] fetchRemoteActor missing fields for ${currentUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${String(actor.type)} keys=${Object.keys(actor).join(',')}`,
@@ -557,35 +562,34 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       // Fetch collection counts (followers, following, posts) in parallel
       const [followersCount, followingCount, postsCount] = await Promise.all([
-        this.fetchCollectionCount(asString(actor.followers)),
-        this.fetchCollectionCount(asString(actor.following)),
-        this.fetchCollectionCount(asString(actor.outbox)),
+        this.fetchCollectionCount(apIri(actor.followers)),
+        this.fetchCollectionCount(apIri(actor.following)),
+        this.fetchCollectionCount(apIri(actor.outbox)),
       ]);
 
       // Extract profile fields (PropertyValue attachments). Sanitize BEFORE
       // normalizing: the canonical normalizer collapses whitespace, it never
       // strips markup — so the sanitizer must run first, on the raw value.
       const fields: FederatedActorField[] = [];
-      if (Array.isArray(actor.attachment)) {
-        for (const att of actor.attachment) {
-          const attRecord = asRecord(att);
-          if (!attRecord || attRecord.type !== 'PropertyValue') continue;
-          const fieldName = this.config.text.inlineField(attRecord.name);
-          const fieldValue =
-            typeof attRecord.value === 'string'
-              ? this.config.text.sanitizeFieldValue(attRecord.value)
-              : '';
-          if (!fieldName || !fieldValue) continue;
-          fields.push({
-            name: fieldName,
-            value: fieldValue,
-            verifiedAt: attRecord.verifiedAt ? new Date(String(attRecord.verifiedAt)) : undefined,
-          });
-        }
+      for (const att of apList(actor.attachment)) {
+        const attRecord = asRecord(att);
+        if (!attRecord || attRecord.type !== 'PropertyValue') continue;
+        const fieldName = this.config.text.inlineField(attRecord.name);
+        const fieldValue =
+          typeof attRecord.value === 'string'
+            ? this.config.text.sanitizeFieldValue(attRecord.value)
+            : '';
+        if (!fieldName || !fieldValue) continue;
+        fields.push({
+          name: fieldName,
+          value: fieldValue,
+          verifiedAt: apDate(attRecord.verifiedAt),
+        });
       }
 
-      const avatarUrl = this.config.firstStringUrl(actor.icon);
-      const headerUrl = this.config.firstStringUrl(actor.image);
+      const imageUrl = this.config.firstStringUrl ?? apImageUrl;
+      const avatarUrl = imageUrl(actor.icon);
+      const headerUrl = imageUrl(actor.image);
       // `summary` is the actor's bio — a BODY, so its line breaks are the author's
       // and must survive; `htmlToPlainText` normalizes it as multiline.
       const summary =
@@ -595,9 +599,15 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const rawDisplayName = typeof actor.name === 'string' ? actor.name : '';
       const displayName = this.config.text.inlineDisplayName(rawDisplayName) || username;
 
-      const alsoKnownAs = Array.isArray(actor.alsoKnownAs)
-        ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
-        : undefined;
+      // Absent stays absent (the store keeps what it has); one alias or a list
+      // of them is the list.
+      const alsoKnownAs =
+        actor.alsoKnownAs === undefined || actor.alsoKnownAs === null
+          ? undefined
+          : apIriList(actor.alsoKnownAs);
+      // A move target is an actor URL; anything else is not one.
+      const movedToValue = apIri(actor.movedTo);
+      const movedTo = movedToValue && /^https?:\/\//.test(movedToValue) ? movedToValue : undefined;
 
       // The IDENTITY the actor is stored under in Oxy, which is not necessarily the
       // host it was fetched from — see `DeriveNetworkIdentity`. Everything below
@@ -638,24 +648,25 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         avatarUrl,
         headerUrl,
         inboxUrl: actorInbox,
-        outboxUrl: asString(actor.outbox) || undefined,
-        sharedInboxUrl: asString(actorEndpoints?.sharedInbox) || undefined,
-        followersUrl: asString(actor.followers) || undefined,
-        followingUrl: asString(actor.following) || undefined,
+        outboxUrl: apIri(actor.outbox),
+        sharedInboxUrl: apIri(actorEndpoints?.sharedInbox),
+        followersUrl: apIri(actor.followers),
+        followingUrl: apIri(actor.following),
         publicKeyPem: asString(actorPublicKey?.publicKeyPem) || undefined,
         publicKeyId: asString(actorPublicKey?.id) || undefined,
         type: asString(actor.type) || 'Person',
         manuallyApprovesFollowers: actor.manuallyApprovesFollowers === true,
         discoverable: actor.discoverable !== false,
+        ...(typeof actor.indexable === 'boolean' && { indexable: actor.indexable }),
         memorial: actor.memorial === true,
         suspended: actor.suspended === true,
         fields,
-        featuredUrl: asString(actor.featured) || undefined,
-        featuredTagsUrl: asString(actor.featuredTags) || undefined,
+        featuredUrl: apIri(actor.featured),
+        featuredTagsUrl: apIri(actor.featuredTags),
         alsoKnownAs,
+        ...(movedTo && { movedTo }),
         networkAcct: networkIdentity?.federatedUsername,
-        remoteCreatedAt:
-          typeof actor.published === 'string' ? new Date(actor.published) : undefined,
+        remoteCreatedAt: apDate(actor.published),
         // Omitted, not written as `undefined`, when this refresh could not tell:
         // an absent key is what tells the store to keep the value it has.
         ...(followersCount !== undefined && { followersCount }),

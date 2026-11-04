@@ -1,4 +1,8 @@
-import { authSessionCreateSchema, verifyChallengeSchema } from '../auth.schemas';
+import {
+  authSessionCreateSchema,
+  verifyChallengeSchema,
+  workloadServiceTokenSchema,
+} from '../auth.schemas';
 
 describe('public authentication device binding', () => {
   it('strips deviceId from signed-challenge verification input', () => {
@@ -21,5 +25,28 @@ describe('public authentication device binding', () => {
     });
 
     expect(parsed).not.toHaveProperty('deviceId');
+  });
+});
+
+describe('workload protocol retirement boundary', () => {
+  const proof = {
+    provider: 'aws-iam',
+    nonce: 'synthetic-challenge',
+    attestation: { signed: 'opaque' },
+  };
+  it('accepts only explicit protocol 2 without application scopes', () => {
+    expect(workloadServiceTokenSchema.safeParse({ ...proof, protocolVersion: 2 }).success).toBe(
+      true,
+    );
+    for (const protocolVersion of [undefined, 1]) {
+      expect(workloadServiceTokenSchema.safeParse({ ...proof, protocolVersion }).success).toBe(
+        false,
+      );
+    }
+    for (const scopes of [[], ['files:read']]) {
+      expect(
+        workloadServiceTokenSchema.safeParse({ ...proof, protocolVersion: 2, scopes }).success,
+      ).toBe(false);
+    }
   });
 });

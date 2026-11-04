@@ -1,4 +1,5 @@
 const { computeMaxWorkers } = require('./jest.workerCount.cjs');
+const { NOBLE_ESM_PACKAGES } = require('../../scripts/jest-esm-only.cjs');
 
 // Keep this value shared with global setup: every Jest worker owns one isolated
 // Postgres database. `jest.workerCount.cjs` documents the measured stability
@@ -19,6 +20,18 @@ const JSDOM_ESM_PACKAGES = [
   '@csstools/css-color-parser',
   '@csstools/color-helpers',
 ];
+
+/** The ESM-only packages the API's own code loads: `uuid` and the App Attest ASN.1 stack. */
+const API_ESM_PACKAGES = [
+  'uuid',
+  'asn1js',
+  '@peculiar/asn1-schema',
+  '@peculiar/asn1-x509',
+  '@peculiar/utils',
+];
+
+/** Every ESM-only package node_modules holds that the suites load, lowered to CommonJS below. */
+const ESM_ONLY_PACKAGES = [...JSDOM_ESM_PACKAGES, ...NOBLE_ESM_PACKAGES, ...API_ESM_PACKAGES];
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -73,7 +86,9 @@ module.exports = {
     // Same rationale for @oxy.so/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.
+    '^@oxy.so/core/server/aws$': '<rootDir>/../core/src/aws/index.ts',
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
+    '^@oxy.so/core/session$': '<rootDir>/../core/src/session/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
     '^@oxy.so/federation$': '<rootDir>/../federation/src/index.ts',
     '^@oxy.so/federation/node$': '<rootDir>/../federation/src/node/index.ts',
@@ -140,7 +155,7 @@ module.exports = {
         // to `require`. `moduleResolution` has to follow `module` or TypeScript
         // rejects the pair; a single-file transpile resolves nothing either way.
         // This also silences the TS151002 warning every worker printed.
-        tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'node10' },
+        tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'bundler' },
       },
     ],
     // `@kaana.ai/contracts` (Kaana ADR 0002) is published ESM-only. Jest's CJS
@@ -153,35 +168,39 @@ module.exports = {
         tsconfig: {
           isolatedModules: true,
           module: 'commonjs',
-          moduleResolution: 'node10',
+          moduleResolution: 'bundler',
           allowJs: true,
         },
       },
     ],
     // jsdom (the DOM DOMPurify sanitizes SVG uploads in, `utils/svgSanitizer.ts`)
-    // and its dependencies below are published ESM-only; under bun, as the API
-    // runs, `require` loads them natively, but Jest's CJS runtime cannot, so
-    // they are lowered the same way.
-    [`^.+/node_modules/(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
-      'ts-jest',
+    // and its dependencies, `@noble/*` under core and protocol, and the API's
+    // own packages above are published ESM-only; under bun, as the API runs,
+    // `require` loads them natively, but Jest's CJS runtime cannot, so their
+    // module syntax, and only that, is lowered to CommonJS. Babel, not ts-jest:
+    // ts-jest keeps ONE compiler configuration per Jest project, whichever entry
+    // creates it, so these files compiled at this package's ES6 target, whose
+    // class-field rewrite reads `this` before `super()` in jsdom 30's CSS parser
+    // (@csstools).
+    [`^.+/node_modules/(${ESM_ONLY_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
+      'babel-jest',
       {
-        diagnostics: false,
-        tsconfig: {
-          isolatedModules: true,
-          module: 'commonjs',
-          moduleResolution: 'node10',
-          allowJs: true,
-        },
+        babelrc: false,
+        configFile: false,
+        plugins: [
+          '@babel/plugin-transform-export-namespace-from',
+          '@babel/plugin-transform-modules-commonjs',
+        ],
       },
     ],
   },
-  // node_modules stays untransformed except @kaana.ai and jsdom's ESM-only
-  // dependencies, whose builds need the transforms above (bun's isolated linker
+  // node_modules stays untransformed except @kaana.ai and the ESM-only packages
+  // above, whose builds need the transforms above (bun's isolated linker
   // nests a package `@scope/name@x` under `node_modules/.bun/@scope+name@x/`).
   transformIgnorePatterns: [
-    `/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/|\\.bun/(${JSDOM_ESM_PACKAGES.map((name) =>
+    `/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/|\\.bun/(${ESM_ONLY_PACKAGES.map((name) =>
       escapeRegExp(name.replace('/', '+')),
-    ).join('|')})@|(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/)`,
+    ).join('|')})@|(${ESM_ONLY_PACKAGES.map(escapeRegExp).join('|')})/)`,
   ],
   // Balances `--shard=i/N` by measured duration; changes which runner runs a
   // file, never whether it runs. See jest.shardSequencer.cjs.

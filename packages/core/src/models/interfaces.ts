@@ -778,6 +778,9 @@ export interface ServiceLinkedDownloadUrl {
   mime: string;
   size: number;
   sha256: string;
+  /** Current file visibility when the URL was minted. Missing on older API deployments;
+   * callers protecting private-only content must refuse absence, never assume private. */
+  visibility?: FileVisibility;
 }
 
 /**
@@ -1036,6 +1039,31 @@ export interface ServiceUserMediaFile {
   size: number;
   mime: string;
   visibility: FileVisibility;
+}
+
+/** `POST /assets/service/cache`: the file now in the federation media cache. */
+export interface ServiceMediaCacheUpload {
+  file: { id: string };
+}
+
+/** `POST /assets/service/federation`: durable federated media, owned by the federated user. */
+export interface ServiceFederatedMediaUpload {
+  file: ServiceUserMediaFile;
+  /** The owner already held these bytes from this application: the existing file, maybe shared. */
+  deduplicated: boolean;
+}
+
+/**
+ * Oxy's answer for one id of `assets.federatedMedia.delete`: `deleted` (this
+ * call removed it), `not_found` (nothing to delete), `in_use` (kept: another
+ * account holds the same bytes) or `forbidden` (not federated media this
+ * application uploaded; left untouched).
+ */
+export type ServiceFederatedMediaDeleteResult = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
+
+export interface ServiceFederatedMediaDeletion {
+  id: string;
+  result: ServiceFederatedMediaDeleteResult;
 }
 
 /**

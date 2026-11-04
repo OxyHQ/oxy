@@ -31,7 +31,7 @@ interface Answer {
 async function hit(limiter: RequestHandler, times: number): Promise<Answer> {
   const app = express();
   app.use(limiter);
-  app.get('*', (_req, res) => res.json({ ok: true }));
+  app.get('/{*path}', (_req, res) => res.json({ ok: true }));
   return request(app, times);
 }
 
@@ -111,7 +111,7 @@ describe('a limited request', () => {
 
 async function thrown(error: Error): Promise<Answer> {
   const app = express();
-  app.get('*', () => {
+  app.get('/{*path}', () => {
     throw error;
   });
   app.use(errorHandler);
@@ -141,7 +141,7 @@ describe('a RateLimitedError a service throws', () => {
   it('is answered the same from a route asyncHandler wraps', async () => {
     const app = express();
     app.get(
-      '*',
+      '/{*path}',
       asyncHandler(async () => {
         throw new RateLimitedError('Too many codes.', { retryAfterSeconds: 90 });
       }),

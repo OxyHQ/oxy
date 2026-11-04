@@ -7,7 +7,6 @@ import {
   resourceDomainOwnershipResponseSchema,
 } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
-import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import {
   resolveLiveAgencyServicePrincipal,
@@ -43,11 +42,11 @@ async function requireCanonicalClarityBackend(
 ): Promise<void> {
   try {
     const receiver = request.serviceApp;
-    if (receiver?.appId === CLARITY_BACKEND_APPLICATION_ID) {
-      const principal =
-        receiver.authority === 'first_party'
-          ? await resolveLiveAgencyServicePrincipal(receiver)
-          : await resolveLegacyResourceWorkload(receiver);
+    if (
+      receiver?.appId === CLARITY_BACKEND_APPLICATION_ID &&
+      receiver.authority === 'first_party'
+    ) {
+      const principal = await resolveLiveAgencyServicePrincipal(receiver);
       if (principal?.authority === 'first_party') {
         next();
         return;
@@ -72,11 +71,7 @@ router.post(
   '/introspect',
   serviceAuthMiddleware,
   (request: ServiceAuthRequest, response, next) => {
-    if (
-      request.serviceApp?.authority === 'first_party' ||
-      request.serviceApp?.appId === CLARITY_BACKEND_APPLICATION_ID
-    )
-      return next();
+    if (request.serviceApp?.authority === 'first_party') return next();
     response.status(403).json({ error: 'resource_server_identity_required' });
   },
   validate({ body: bodySchema }),
@@ -85,15 +80,9 @@ router.post(
       const token = request.body.token as string;
       const receiver = request.serviceApp;
       if (!receiver) return response.json(inactive());
-      const receiverPrincipal =
-        receiver.authority === 'first_party'
-          ? await resolveLiveAgencyServicePrincipal(receiver)
-          : ((await resolveLegacyResourceWorkload(receiver)) ??
-            (await resolveLiveAgencyServicePrincipal(receiver)));
-      // An old Clarity service key is not a first-party receiver merely because of its app ID.
-      if (!receiverPrincipal)
+      const receiverPrincipal = await resolveLiveAgencyServicePrincipal(receiver);
+      if (receiverPrincipal?.authority !== 'first_party')
         return response.status(403).json({ error: 'resource_server_identity_required' });
-      const modernReceiver = receiver.authority === 'first_party';
       const expectedAudience = `oxy-service:${receiver.appId}` as const;
       const ownService = verifyServiceToken(token, expectedAudience);
       if (ownService.ok && ownService.payload.authority === 'first_party') {
@@ -113,40 +102,13 @@ router.post(
           applicationId: principal.applicationId,
           credentialId: principal.credentialId,
           environment: ownService.payload.environment,
-          tier: 'internal',
           permissions: [],
           expiresAt: new Date((ownService.payload.exp as number) * 1000).toISOString(),
         } satisfies Introspection);
       }
-      // Finite v1 caller bridge. Exact signed audience, live binding and immutable
-      // inventory tuple are required; neither an API key nor registry branding qualifies.
+      // External customer service JWTs may still use the historical oxy-api audience.
       const legacyService = verifyServiceToken(token);
-      if (legacyService.ok && legacyService.payload.environment === receiver.environment) {
-        const legacy = await resolveLegacyResourceWorkload(legacyService.payload);
-        if (legacy && receiverPrincipal.authority === 'first_party') {
-          const base = {
-            active: true as const,
-            kind: 'service' as const,
-            accountId: legacy.ownerAccountId,
-            applicationId: legacy.applicationId,
-            credentialId: legacy.credentialId,
-            environment: legacyService.payload.environment,
-            audience: 'oxy-api',
-            tier: 'internal' as const,
-            permissions: [],
-            expiresAt: new Date((legacyService.payload.exp as number) * 1000).toISOString(),
-          };
-          // Old Clarity validates scopes even for its internal tier. Only this
-          // authenticated v1 receiver sees the old shape during its rolling upgrade.
-          return response.json(
-            modernReceiver
-              ? { ...base, authority: 'first_party' }
-              : { ...base, scopes: [...(legacyService.payload.scopes ?? [])] },
-          );
-        }
-      }
-
-      if (modernReceiver) {
+      {
         const human = await validateForegroundRequesterBearer(token, receiverPrincipal);
         if (human) {
           const operatorId = human.principalAccountId;
@@ -164,7 +126,6 @@ router.post(
             requesterAccountId: human.principalAccountId,
             effectiveAccountId: human.subjectAccountId,
             applicationId: null,
-            tier: 'internal',
             permissions: access.permissions,
             expiresAt: human.expiresAt.toISOString(),
           } satisfies Introspection);

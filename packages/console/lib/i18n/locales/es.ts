@@ -308,6 +308,11 @@ const es: LocaleDict = {
     },
     roles: {
       noPermission: 'No tienes permiso para ver los roles.',
+      heldBy: 'Las tienen',
+      ownPermissionsBody:
+        'Aplicación propia de Oxy: sus permisos y los roles que los tienen se declaran en el código (ADR 0056 de Oxy). Para que alguien la opere, dale ese rol en la organización propietaria.',
+      ownPeopleBody:
+        'Concesiones individuales anteriores. Las aplicaciones propias de Oxy se operan por rol en la organización propietaria; revócalas.',
       holders: 'Titulares',
       person: 'Persona',
       sinceColumn: 'Desde',
@@ -1274,6 +1279,8 @@ const es: LocaleDict = {
       refresh: 'Actualizar',
       meta_one: '{{count}} fuente · {{date}}',
       meta_other: '{{count}} fuentes · {{date}}',
+      sources_one: '{{count}} fuente',
+      sources_other: '{{count}} fuentes',
       noSummary: 'No hay resumen disponible.',
       none: 'Todavía no hay noticias.',
     },

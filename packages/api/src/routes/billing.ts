@@ -33,7 +33,10 @@ import { z } from 'zod';
 import { getDb } from '../config/postgres';
 import { addCredits } from '../db/credits';
 import { billingCreditGrants } from '../db/schema/billingCreditGrants';
-import { billingSubscriptions } from '../db/schema/billingSubscriptions';
+import {
+  BILLING_SUBSCRIPTION_STATUSES,
+  billingSubscriptions,
+} from '../db/schema/billingSubscriptions';
 import {
   billingTransactions,
   creditPurchaseIdempotencyPredicate,
@@ -131,6 +134,20 @@ async function assertProductSourceEvidence(
 
 /** The statuses that count as "the user has a live subscription right now". */
 const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const;
+
+/**
+ * Stripe's subscription status as one this mirror stores. Stripe types the
+ * field as an open enum (a status it adds later still type-checks), and a value
+ * the mirror cannot represent is refused rather than written: the webhook fails,
+ * Stripe retries, and the new status is mapped deliberately.
+ */
+function mirroredSubscriptionStatus(
+  status: Stripe.Subscription.Status,
+): (typeof BILLING_SUBSCRIPTION_STATUSES)[number] {
+  const known = BILLING_SUBSCRIPTION_STATUSES.find((value) => value === status);
+  if (!known) throw new Error(`Stripe subscription status ${status} has no mirror`);
+  return known;
+}
 
 const INVALID_REDIRECT_RESPONSE = {
   error: 'INVALID_REDIRECT_URL',
@@ -286,7 +303,7 @@ router.post(
       const session = await (await getBillingStripe()).checkout.sessions.create(
         {
           customer: customerId,
-          payment_method_types: ['card'],
+          allowed_payment_method_types: ['card'],
           line_items: [
             {
               price_data: {
@@ -676,7 +693,7 @@ router.post(
           environment: namespace.environment,
         },
         providerObservedAt: observed,
-        status: updated.status,
+        status: mirroredSubscriptionStatus(updated.status),
         period: {
           start: new Date(item.current_period_start * 1000).toISOString(),
           end: new Date(item.current_period_end * 1000).toISOString(),
@@ -737,7 +754,7 @@ router.post(
       const session = await (await getBillingStripe()).checkout.sessions.create(
         {
           customer: customerId,
-          payment_method_types: ['card'],
+          allowed_payment_method_types: ['card'],
           line_items: [{ price: plan.stripePriceId, quantity: 1 }],
           mode: 'subscription',
           success_url: successUrl,
@@ -1347,7 +1364,7 @@ async function syncSubscriptionFromProvider(
         ...billingNamespaceSchema.parse({ mode, environment }),
       },
       providerObservedAt: readStartedAt,
-      status: subscription.status,
+      status: mirroredSubscriptionStatus(subscription.status),
       period: {
         start: new Date(subscriptionItem.current_period_start * 1000).toISOString(),
         end: new Date(subscriptionItem.current_period_end * 1000).toISOString(),
@@ -1358,7 +1375,7 @@ async function syncSubscriptionFromProvider(
   const priceId = subscriptionItem.price.id;
   const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId);
   const lifecycle = {
-    status: subscription.status,
+    status: mirroredSubscriptionStatus(subscription.status),
     currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
     currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,

@@ -1,7 +1,7 @@
 import { resolveEconomicTreatment } from '../config/inferenceEconomicPolicy';
 import { canonicalWorkloadSubject } from '../services/workloadIdentityBinding.service';
 import { workloadAttestationHandle } from '../services/workloadAttestation.service';
-import { intersectScopes, workloadBindingScopes } from '../utils/applicationScopes';
+import { intersectScopes } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
@@ -72,7 +72,7 @@ export interface JevWorkloadBindingRow {
   readonly applicationId: string;
   readonly provider: string;
   readonly subject: string;
-  readonly scopes: readonly string[];
+  readonly environment: string | null;
   readonly expiresAt: Date | null;
 }
 
@@ -377,15 +377,13 @@ function validateWorkloadReadback(
     }
   }
 
-  // Authority: the binding's scopes against the application's, through the
-  // one definition the mint and the live ceiling share. A workload row holds
-  // no scopes of its own (its CHECK keeps them empty), so it narrows nothing;
-  // it must exist, be bound and be live, which is checked above.
+  // Own inference authority comes from the live environment-bound workload;
+  // external application/customer scope ceilings do not govern this identity.
   const mentionInvoke =
     mentionApp !== undefined &&
     binding !== undefined &&
     binding.applicationId === mentionApp.id &&
-    workloadBindingScopes(binding.scopes, mentionApp.scopes).includes(INVOKE_SCOPE);
+    binding.environment === 'production';
   if (!mentionInvoke) reasons.add('mention_effective_invoke_missing');
 
   // ---- Mention: the account resolveBillingAccount charges -------------------

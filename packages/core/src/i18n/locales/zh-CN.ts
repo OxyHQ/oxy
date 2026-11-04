@@ -18,6 +18,9 @@ const dict = {
       caption: '使用 Commons 扫码登录',
       renew: '显示新的二维码',
     },
+    device: {
+      codeHint: '请确认手机上显示的是这个代码',
+    },
     errors: {
       rateLimited: '尝试次数过多。请在 {{seconds}} 秒后重试。',
       invalidCredentials: '用户名、邮箱或密码不正确。 如果多个账号使用此邮箱，请用用户名登录。',

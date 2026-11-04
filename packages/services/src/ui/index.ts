@@ -18,15 +18,19 @@
 // Must stay the first runtime import: core reads the platform from it.
 import '../registerPlatform';
 
-// No screen is imported here. `OxyProvider` loads the account screens as their
-// own chunk at startup (`loadScreens`), and a surface opened before that chunk
-// arrives waits for it. A static `screenComponents` import here put all of them
+// No screen is imported here. A surface loads the account screens as their own
+// chunk when first opened. A static `screenComponents` import here put all of them
 // in the first-paint bundle of every app that imports anything from `ui`
 // (Allo: +340 KB gzipped).
+
+// Shared organization form validation does not grant creation authority.
+export { parseOrganizationDraft } from './utils/organizationDraft';
 
 // Components
 export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
+export { OxyDeviceSignIn } from './components/OxyDeviceSignIn';
+export type { OxyDeviceSignInProps } from './components/OxyDeviceSignIn';
 export { default as OxyAuthPrompt } from './components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
 export { LogoIcon } from './components/logo/LogoIcon';

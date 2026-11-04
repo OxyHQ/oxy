@@ -767,43 +767,11 @@ describe('revoke', () => {
 });
 
 describe('service read — GET /by-user/:userId', () => {
-  it('keeps only the finite legacy reader and its live bounded scope during migration', async () => {
-    const legacyModule = await import('../../services/legacyResourceWorkload.service');
-    const principalModule = await import('../../services/agencyServicePrincipal.service');
-    const identity = {
-      applicationId: 'move-app',
-      credentialId: 'cred',
-      ownerAccountId: 'owner',
-      capabilities: [],
-    };
-    const legacy = jest
-      .spyOn(legacyModule, 'resolveLegacyResourceWorkload')
-      .mockResolvedValue({ ...identity, authority: 'first_party' });
-    const live = jest
-      .spyOn(principalModule, 'resolveLiveAgencyServicePrincipal')
-      .mockResolvedValue({ ...identity, authority: 'external', scopes: ['linked-accounts:read'] });
+  it('rejects retired scoped service readers without a verified requester', async () => {
     const user = await newUser();
-    try {
-      expect(
-        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
-      ).toBe(200);
-      live.mockResolvedValue({ ...identity, authority: 'external', scopes: [] });
-      expect(
-        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
-      ).toBe(403);
-      live.mockResolvedValue({
-        ...identity,
-        authority: 'external',
-        scopes: ['linked-accounts:read'],
-      });
-      legacy.mockResolvedValue(null);
-      expect(
-        (await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status,
-      ).toBe(403);
-    } finally {
-      legacy.mockRestore();
-      live.mockRestore();
-    }
+    expect((await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' })).status).toBe(
+      403,
+    );
   });
 
   it('refuses a scope-only caller and requires the matching own requester', async () => {
@@ -1112,7 +1080,7 @@ describe('linked identities through real workload middleware', () => {
       authority: 'external',
       scopes: ['linked-accounts:read'],
     });
-    expect((await read(person.id, {}, legacy)).status).toBe(403);
+    expect((await read(person.id, {}, legacy)).status).toBe(401);
   });
 });
 

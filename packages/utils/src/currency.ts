@@ -420,9 +420,10 @@ export function toMinorUnits(
  * `fromMinorUnits(100_000_000, 'FAIR')` is `1`. Accepts a `bigint` from a
  * ledger; the result is a `number` for display and major-unit arithmetic.
  *
- * Returns `null` for a code with no known storage precision and for a `number`
- * that is not a safe integer — a fractional "minor unit" is a value already
- * read at the wrong scale.
+ * Returns `null` for a code with no known storage precision, for a `number`
+ * that is not a safe integer, or when a `bigint` exceeds the finite number
+ * range after scaling. Large finite bigint results may lose precision; use the
+ * original bigint for exact ledger arithmetic.
  */
 export function fromMinorUnits(minor: number | bigint, currency: string): number | null {
   const digits = currencyStorageDigits(currency);
@@ -434,7 +435,8 @@ export function fromMinorUnits(minor: number | bigint, currency: string): number
     const digitsText = (sign ? -minor : minor).toString().padStart(digits + 1, '0');
     const whole = digitsText.slice(0, digitsText.length - digits);
     const fraction = digitsText.slice(digitsText.length - digits);
-    return Number(`${sign}${whole}${fraction ? `.${fraction}` : ''}`);
+    const amount = Number(`${sign}${whole}${fraction ? `.${fraction}` : ''}`);
+    return Number.isFinite(amount) ? amount : null;
   }
   if (!Number.isSafeInteger(minor)) return null;
   return shiftDecimal(minor, -digits);
@@ -458,7 +460,10 @@ function ratePerBase(code: string, rates: ExchangeRates): number | null {
  * The result is UNROUNDED: round once, where it is stored or shown
  * ({@link toMinorUnits}, {@link formatMoney}), so a cross conversion never
  * rounds twice. Returns `null` — never a fabricated rate of 1 — when either
- * side has no positive finite rate or `amount` is not finite.
+ * side has no positive finite rate, `amount` is not finite, or the calculation
+ * overflows. The last case can occur in an intermediate step even when the
+ * mathematical result would fit in a number; it returns `null` rather than an
+ * infinite amount that a formatter might display as zero.
  */
 export function convertAmount(
   amount: number,
@@ -473,5 +478,6 @@ export function convertAmount(
   const sourcePerBase = ratePerBase(source, rates);
   const targetPerBase = ratePerBase(target, rates);
   if (sourcePerBase === null || targetPerBase === null) return null;
-  return (amount / sourcePerBase) * targetPerBase;
+  const result = (amount / sourcePerBase) * targetPerBase;
+  return Number.isFinite(result) ? result : null;
 }

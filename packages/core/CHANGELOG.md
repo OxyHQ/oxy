@@ -1,5 +1,241 @@
 # Changelog — `@oxy.so/core`
 
+## 7.21.0
+
+### Added
+
+- **`OxyServer.safety.notificationAccessBatch({ items })`**: whether each actor may notify each recipient, for background delivery with the app's service credential and no user token. A block in either direction answers `blocked`; an unavailable account `unavailable`; a supervised party needs reviewed `content` support and contact approval both ways. Requires the reviewed `safety:notification-delivery:v1` capability (ADR 0041). Sent once, never cached.
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.7.0.
+
+## 7.20.0
+
+### Added
+
+- **Application permissions in an MCP tool.** `oxy.appPermissionsFor(context.request, { fresh? })` accepts an MCP tool call — the `extra` an MCP handler receives (`CatalogInvocationContext.request`), whose `authInfo.token` `@oxy.so/mcp` introspected — the same way it accepts a request after `middleware.auth()`. It presents the token under this process's service token to `POST /auth/mcp/oauth/app-permissions`, which Oxy answers from the same resolver as `roles/me`, and returns the same `OxyAppPermissions`: `operatorId` is the person who authorized the connector, whichever account the connection is acting as. Oxy answers only about the application that registered the token's resource; an answer about any application other than this server's (or an explicit `applicationId`) is `APP_PERMISSION_NOT_CONFIGURED`. A refused token (`401 invalid_grant`) is `APP_PERMISSION_SESSION_REQUIRED`; this service's own credential refused, or any other failure, is `APP_PERMISSION_UNAVAILABLE`, never a "no", never cached. Positive answers are cached for `appPermissionsCacheTtlMs`, keyed by a digest of the token. New types `AppPermissionsSource` and `OxyMcpCallerRequest`. Replaces the `*_ADMIN_USER_IDS` allow-lists MCP servers kept because Oxy could not answer for an MCP token.
+
+### Fixed
+
+- **A service call survives a rotated or revoked service token.** `serviceRequest` — every server-namespace call (`assets.mediaCache`, `federatedMedia`, `references`, `metadataByIds`, …) — answered a 401 by throwing, while `createServiceClient` already re-minted and resent. Now a 401 drops the refused cached token, mints a fresh one and sends the request once more (a 401 means it never ran, so this is safe for any method and body). Once only, never after an abort; any other status is unchanged. The same holds for a session-less read an `OxyServer` with `serviceIdentity: 'when-anonymous'` sends with its service token (`HttpService.setAnonymousAuthProvider(provider, onRejected)`). Apps that re-minted by hand can drop it.
+
+## 7.19.1
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.6.0. `appPermissionsFor` and `requireAppPermission` are unchanged; on one of Oxy's own applications the keys they answer are now held by role in the owning organization, declared in Oxy's first-party registry (oxy ADR 0056), and the docs say so.
+
+## 7.19.0
+
+### Added
+
+- **Per-call options for every namespace, at the root.** `oxy.withCallOptions({ timeout, deadline, retry, signal })` returns the client's namespaces (an `OxyServer`'s server namespaces and a `withUser` client's included) with those options on every request they send: `oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public')`, `oxy.withCallOptions({ deadline: 2_500 }).users.lookupMany(ids)`. `timeout` / `deadline` replace the method's and the client's own; `retry: false` sends each request once, and `retry: true` never re-enables a request a method sends once on purpose; `signal` is combined with a method's own. The scope is a view of the same client — session, cache, credentials, service lane — holds nothing and needs no disposal; a call one namespace makes into another keeps the options; `session` is not part of it. Types `CallOptions`, `OxyCallScope`, `OxyCallScopeNamespace`. `ServiceCallOptions` is now `CallOptions` (same fields plus `deadline`).
+- **`safeFetch(url, { validated })`**: the first hop connects to the address of the caller's own `assertSafePublicUrl` check of that URL instead of resolving the name a second time. Only a check `assertSafePublicUrl` returned for exactly that URL is accepted (a `TypeError` otherwise, before any request); every redirect hop is still resolved and checked.
+- **`safeFetch(url, { requireHttps: true })`**: every hop, the first and each redirect, must be https; a plain-http one is refused (`SsrfRejection`) before it is resolved or sent — a redirect through http and back is refused too.
+- **The federation media routes.** `OxyServer.assets.mediaCache.upload(bytes, mime, description)` / `.delete(fileId)` (`/assets/service/cache`) and `.federatedMedia.upload(ownerUserId, bytes, mime, description)` / `.delete(fileIds)` (`/assets/service/federation`, sent 20 at a time; only ids asked and results Oxy defines come back, so an id missing from the answer is unanswered). Uploads are sent once; a Blob from `fs.openAsBlob(path)` streams a file from disk. Types `ServiceMediaCacheUpload`, `ServiceFederatedMediaUpload`, `ServiceFederatedMediaDeletion`, `ServiceFederatedMediaDeleteResult`.
+- `retryAfterSecondsOf(error)`: the wait a 429 names (`details.retryAfterSeconds`, its `Retry-After`), or `undefined`.
+
+## 7.18.0
+
+### Added
+
+- `OxyApplicationAccess.status` (`active`, `suspended`, `pending_review`): Oxy answers a member about a suspended application too, and whether it may act is the receiver's decision — Peable lets only an active application manage contributions.
+
+### Fixed
+
+- `OxyApplicationAccess.official` follows oxy-api's own trust rule (`isTrustedApplication`): `isOfficial`, `isInternal`, or a `first_party` / `internal` / `system` type, all staff-controlled. 7.17.0 read `isOfficial` alone, so Oxy's seeded first-party applications (typed `first_party`, `isOfficial` unset) answered `official: false`. An answer missing `type`, `isInternal` or a known `status` is `ACCESS_UNAVAILABLE`, like any other answer off the contract.
+
+## 7.17.0
+
+### Added
+
+- **Calls as the person behind a request.** `oxy.withUser(req | bearer, (user) => …)` runs the callback with an `OxyUserClient` — every `OxyServices` namespace, bound to that bearer — and disposes it when the callback settles; `oxy.asUser(req | bearer)` returns the client itself (`dispose()` it). It sends exactly that bearer on every call (never refreshed, never dropped for an expired or opaque token, never replaced by the server's service token), caches nothing, rejects after disposal, and throws `OxyAccessError` (`ACCESS_SESSION_REQUIRED`) for a request with no person — anonymous, or a service token. The shared `OxyServer` session is never touched. Replaces hand-built `new OxyServices(); session.setAccessToken(t)` copies.
+- **What the person may do in an account or over an application.** `oxy.accountAccessFor(req, accountId, { fresh? })` → `OxyAccountAccess` (`relationship`, `role`, `source`, effective `permissions`, `has()`), read from `GET /accounts/:id` with the caller's bearer; `oxy.applicationAccessFor(req, applicationId, { fresh? })` → `OxyApplicationAccess` (`ownerAccountId`, `official`, `role`, application `permissions`, `has()`), read from `GET /applications/:id`. Middleware: `oxy.middleware.requireAccountAccess(permission, { param, deny?, respond?, fresh? })` and `requireApplicationAccess(…)` (answers on `req.oxyAccountAccess` / `req.oxyApplicationAccess`). One outcome mapping, `OxyAccessError` + `accessErrorStatus(error, deny = 403)`: 401 → `ACCESS_SESSION_REQUIRED`, 403/404 → `ACCESS_DENIED`, anything else or a malformed answer → `ACCESS_UNAVAILABLE` (503). Positive answers only are cached, per session, for `appPermissionsCacheTtlMs`; `invalidateAppPermissions({ userId })` drops them too. These answer different questions from `appPermissionsFor` (this backend's own operator keys).
+- `OxyServerConfig.expectedAudience`: the service-token audience every `middleware.auth()` / `service()` mount (and so `createOxyAuthMiddleware`, `createOptionalOxyAuth`, `createOxyRateLimit`) accepts when it names none — `oxy-service:<applicationId>` for an Oxy-owned receiver. Unset keeps `oxy-api`.
+- `createOxyOriginCheck(appOrigins)` — the origin predicate `createOxyCors` applies — and `createOxySocketCors({ appOrigins })`, the Socket.IO `{ cors, allowRequest }` that admit the same browsers on polling and on the WebSocket handshake.
+- Capability tickets: `createLiveCapabilityTicketVerifier` and `createCapabilityTicketMiddleware` accept an asynchronous `resolvePublicKey` (`CapabilityTicketKeyResolver`), so `createOxyJwksKeyResolver({ jwksUrl })` is passed as it is and gets the ticket's `kid`; a key set that cannot be read is `unknown_key`. `verifyCapabilityTicket` is unchanged (synchronous).
+- `oxy.assets.references.add` / `remove` take per-call `ServiceCallOptions` (`{ timeout, retry, signal }`), so one `OxyServer` makes a single-shot outbox write and a patient reconciliation side by side.
+- `ApplicationCallerMembership`, the shape `Application.callerMembership` really has on the wire (the field keeps its `AccountMember` type until 8.0, ADR 0054); `AccountNode.callerAccess` (an `AccountAccessGrant`, on single-account reads).
+
+### Fixed
+
+- A client that was never disposed no longer leaks: the module-wide cache sweep holds a cache only while it has entries to expire, and lets go of it once the sweep empties it, so a per-request client is collected after at most its entries' TTL.
+- `safeFetch`'s refusal of a first-party Oxy host (`api.oxy.so`, which resolves to a private address inside the VPC) says so and names `OxyServer` as the way to call it. Untrusted URLs are refused exactly as before.
+
+### Docs
+
+- `service-tokens.mdx`, `api.mdx`, `index.mdx` and the README no longer tell Oxy-owned services to use an api key: they authenticate as their workload (ADR 0026/0049); `serviceAuth` is for third-party customers. New [Building a backend](./docs/backend.mdx): one `OxyServer` per process with `serviceIdentity: 'when-anonymous'`, the middleware set, the three permission questions, user clients, files and outbound HTTP. ADR 0054 proposes the breaking half for 8.0.
+
+## 7.16.0
+
+### Changed
+
+- The optional `express` peer admits Express 5 (`^4.0.0 || ^5.0.0`). `OxyServer`'s middleware and `@oxy.so/core/server` are exercised against Express 5 in this repository's own tests; Express 4 consumers are unaffected.
+
+## 7.15.1
+
+### Changed
+
+- Built with TypeScript 6.0 and checked against `@types/node` 26; the emitted JavaScript and declarations are unchanged. `@types/node` 26 dropped `node:crypto`'s `JsonWebKey`, so `OxyServer` and `middleware` hand the service-signing JWK to `createPublicKey` as it is, without a cast.
+
+## 7.14.1
+
+### Changed
+
+- Depends on `helmet` ^8.3.0, `tldts` ^7.4.19 and `socket.io-client` ^4.8.4 (were ^8.0.0, ^7.4.10 and ^4.8.1). No code change.
+
+## 7.14.0
+
+### Changed
+
+- `@noble/ciphers`, `@noble/hashes` 2 and `@scure/bip39` 2. Keys, signatures, recovery phrases, seeds, AEAD and HKDF output are byte-identical; no export changes. Noble 2 reads `globalThis.crypto` on every call instead of capturing it at evaluation, so the Hermes capture the polyfill order guarded against is gone (the order is kept).
+- Noble 2 and bip39 2 ship ESM only, so the CommonJS build `require`s ES modules: `engines.node` is `^20.19.0 || >=22.12.0`, the Node lines with `require(esm)` (bundlers and the ESM build are unaffected). A consumer running Jest as CommonJS transforms `@noble/*` and `@scure/*` the way this repository's `scripts/jest-esm-only.cjs` does.
+- `@react-native-async-storage/async-storage` peer is `<4.0.0`: 3.x is supported (the default export it ships is the 2.x storage, so existing data reads back), 2.x still is.
+
+## 7.13.1
+
+### Fixed
+
+- A user's by-id path is built in one place (`oxyUserByIdPath`), and `oxyUserByIdCacheKey`, `users.get`, the follow reads and the follow cache sweep all use it: 7.13.0 encoded the read but not the key the identity sweep evicts, so an id that needs encoding stayed cached.
+
+### Removed
+
+- Strings no screen can show: `signInSecurity.password.tooLong` (the field's `maxLength` already bounds it) and `accounts.members.errors.emailRequired` (the invite button is disabled while the field is empty).
+
+## 7.13.0
+
+### Added
+
+- Strings: `usernamePolicy.*` (each username rule, and the field hint), `actionErrors.*` (what a failed save or session action was), `signin.errors.{network,invalidInput,server}`, `signInSecurity.password.tooLong`, `deleteAccount.confirmMismatch`, `domains.errors.invalid` and the email-invitation copy under `accounts.members`.
+
+### Changed
+
+- Every path segment the API clients build from a caller's value is encoded (`auth.checkUsername`, `topics`, `users`, `follows`, `privacy`, `devices`, `session`, `billing`, `apps`): a name like `hash saah` or a slug with `/` reached a different route.
+- The "username rules" help text states the real policy (3–30 characters, letters, numbers, `-` and `_`; case kept, compared without case).
+- Aligns with `@oxy.so/contracts` 6.5.0.
+
+### Removed
+
+- Strings no screen reads any more: `signup.username.required`, `editProfile.items.username.{required,tooShort}`, `accounts.create.username.{tooShort,invalidChars,mustEndInBot}`, `welcomeNew.name.saveFailed`, `accounts.members.errors.{identifierRequired,userNotFound}`, `accounts.members.invite.identifierLabel`, `accounts.members.toasts.{added,addFailed}`.
+
+## 7.12.0
+
+### Added
+
+- `CredentialGeneration`: an opaque, immutable token for one installation of the bearer, owned by the token store and replaced by every write path (setter, refresh, account or actor switch, cross-tab or restored token, clear, provider change), including a repeat of identical bytes. `RequestOptions.expectedCredentialGeneration` pins a write to it, checked on the source client after the auth preflight, after queueing, at header selection, after the response and after the body; a mismatch rejects with `AUTH_SESSION_CHANGED`. Pinned writes have no cache, dedupe or retry and a 401 neither refreshes nor clears the session.
+- `oxy.session.observeHolderEvidence()` and `isHolderEvidenceCurrent()`: server evidence (`POST /session/device/context-evidence-v1`, off by default server-side) honored only if the generation is still current when the answer is committed and the answer agrees with the captured bearer's claims; `sameHolderIdentity`. Unavailable evidence is a named non-answer that never refreshes, clears or signs out. Aligns with `@oxy.so/contracts` 6.4.0 (ADR 0053).
+
+## 7.11.0
+
+### Added
+
+- `OxyServer.applicationAccountTotal()` and `OxyServer.registerApplicationAccounts(ids)`: a first-party deployment's workload registers the accounts it provisioned and reads the eligible registered-account total (snapshot with `exact`, `stale`, `computedAt`). Aligns with `@oxy.so/contracts` 6.3.0.
+
+## 7.10.3
+
+### Changed
+
+- Align the workspace dependency with `@oxy.so/contracts` 6.2.0.
+
+## 7.10.2
+
+### Fixed
+
+- Fence in-flight HTTP work and cached responses when a bearer identifies a different device, even when the session ID stays the same. Legacy bearers without a usable device claim remain compatible; an unobserved device change cannot be inferred from them.
+
+## 7.10.1
+
+### Fixed
+
+- Prevent delayed device-session responses from replacing a newer device projection or reinstalling a bearer from an older revision.
+- In account mode, reject activation responses whose known context, actor or subject contradicts the requested context before planting their bearer or publishing the directory. Legacy and opaque bearer claims remain unverified.
+
+## 7.10.0
+
+### Added
+
+- **The store's installer** beside `oxy.store` (ADR 0053; OxyOS ADR 0030, decision 9):
+  `setStoreInstaller` / `getStoreInstaller`, the `StoreInstaller` a runtime that installs
+  applications registers before the application's code runs, and `StoreInstallerError`. A store
+  asks it where a listing stands on the machine (`status`: *Get*, a progress ring, *Open*,
+  *Update*, *Not available for this computer*), installs, updates, removes and opens by a
+  listing's slug, and reads the account's updates (`updates`: `read`, `check`, `apply`, `applyAll`, `subscribe`). The machine resolves the slug to
+  its package and release from the store's signed metadata and asks the person in a sheet of its
+  own; an error says whether the machine already told the person (`told`). Where no runtime
+  registered one (the web, iOS, Android), `getStoreInstaller()` is null and a store shows what it
+  shows without one.
+
+## 7.9.2
+
+### Changed
+
+- Reduce the size of lazily loaded account translation dictionaries while preserving every dictionary key and translation.
+
+## 7.9.1
+
+### Fixed
+
+- Isolate HTTP cache entries and in-flight requests across session changes, including token-provider switches and anonymous requests. A response from a previous session is no longer delivered to a new one.
+- Preserve cancellation and refresh ownership when a 401 races with a token rotation, account switch or another deduplicated caller.
+
+## 7.9.0
+
+### Added
+
+- **`deviceComparisonCode(authorizeCode)`** in `@oxy.so/core/session`: the short
+  code a person compares between a device with no keyboard and the phone that
+  approves it, `CE7F-B31F` (the first eight characters of the authorize code,
+  upper case, in two groups). The full code still travels in the QR and is the
+  only thing that approves; the server draws it at random, so a look-alike
+  request would take about four billion rate-limited attempts, while thirty-two
+  characters were too many for anyone to compare. `OxyDeviceSignIn`, the
+  `auth.oxy.so/device` page and `codea login` all print it from here.
+
+## 7.8.1
+
+### Removed
+
+- `signin.device.title` and `signin.device.caption` in all 16 locales: no surface
+  draws them since `OxyDeviceSignIn` (services 13.10.0) leaves the heading to its
+  host. `signin.device.codeHint` stays.
+
+## 7.8.0
+
+### Added
+
+- A device sign-in request carries its https approval page. `oxy.auth.commons.start()`
+  returns `approvalUrl` (`https://auth.oxy.so/device?user_code=…`, built by the API
+  from its own `AUTH_WEB_ORIGIN`) next to `qrPayload`, and `AccountDialogController`'s
+  `signIn.approvalUrl` carries it. It is the QR a device with no keyboard shows (a
+  TV, a photo frame): any phone camera opens it, with or without Commons. Only the
+  PUBLIC `authorizeCode` travels in it, never the secret `sessionToken`. New
+  `signin.device.*` copy in all 16 locales.
+
+## 7.5.0
+
+### Added
+
+- `OxyInferenceClient.getGenerationRecordByIdempotencyKey(key, options)` reads
+  authoritative settled usage after a response was lost before its request id.
+  It uses the existing credential-bound API, preserves delegated attribution,
+  and supports financial receipts and internal metered records. Missing or
+  pending records remain errors, never zero-cost results or inference retries.
+
+## 7.4.0
+
+### Changed
+
+- Complete the finite own-workload protocol transition: `serviceToken()` and
+  `serviceTokenFor()` now request scope-free protocol 2, as shared service clients
+  already do. All workload token paths share the recipient cache and invalidate
+  it after a 401. Deploy only after old producers are stopped or migrated and
+  their bounded tokens have drained.
+- Retire the verified legacy-workload introspection projection in service
+  middleware. Current own callers still require live workload, environment,
+  recipient and requester checks. Explicit customer credentials, external service
+  tokens, OAuth/MCP scopes and public SDK signatures retain their contracts.
+
 ## 7.3.0
 
 ### Added

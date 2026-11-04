@@ -55,6 +55,27 @@ export type AccessTokenProvider = () => string | null;
  * — `null` to send it anonymous. See {@link HttpService.setAnonymousAuthProvider}.
  */
 export type AnonymousAuthProvider = () => Promise<string | null>;
+/**
+ * Told that Oxy answered 401 to a bearer an {@link AnonymousAuthProvider}
+ * supplied; `true` when it dropped that bearer, so the request is sent once
+ * more with the provider's next one.
+ */
+export type AnonymousAuthRejectedHandler = (token: string) => boolean;
+
+declare const credentialGenerationBrand: unique symbol;
+/**
+ * An opaque, immutable token for ONE installation of a bearer in a client.
+ *
+ * `TokenStore` swaps it on every write path (setter, refresh, account or actor
+ * switch, cross-tab or restored token, clear), so two installations of the same
+ * bytes (A, B, A) are different generations. It names a local sequence only: it
+ * is not evidence of an account, a scope or authorization.
+ */
+export type CredentialGeneration = { readonly [credentialGenerationBrand]: true };
+
+function newCredentialGeneration(): CredentialGeneration {
+  return Object.freeze({}) as CredentialGeneration;
+}
 
 /** Comparison only fences local async work; it never validates token authority. */
 function sameTokenSession(left: string | null, right: string | null): boolean {
@@ -74,6 +95,26 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     );
   }
   if (!(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
+  const leftBinding = knownTokenContext(left);
+  const rightBinding = knownTokenContext(right);
+  if (
+    (leftBinding.actor && rightBinding.actor && leftBinding.actor !== rightBinding.actor) ||
+    (leftBinding.context && rightBinding.context && leftBinding.context !== rightBinding.context) ||
+    (leftBinding.deviceSession &&
+      rightBinding.deviceSession &&
+      leftBinding.deviceSession !== rightBinding.deviceSession)
+  )
+    return false;
+  // A legacy bearer may omit deviceId; empty or non-string values also carry no
+  // usable device. Two known, different devices are distinct local contexts.
+  if (
+    typeof a.deviceId === 'string' &&
+    a.deviceId.length > 0 &&
+    typeof b.deviceId === 'string' &&
+    b.deviceId.length > 0 &&
+    a.deviceId !== b.deviceId
+  )
+    return false;
   // A refresh may rotate exp/iat/jti while preserving its account and session.
   // Opaque/malformed context fields cannot establish that equivalence.
   return [
@@ -86,6 +127,44 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
     'appId',
     'authMethodId',
   ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
+}
+
+/** Decoded claims only fence local cache/transport; they do not authorize a token. */
+function knownTokenContext(token: string): {
+  actor: string | null;
+  context: string | null;
+  deviceSession: string | null;
+} {
+  const claims = decodeTokenClaims(token);
+  if (!claims || claims.type === 'service')
+    return { actor: null, context: null, deviceSession: null };
+  const actor = claims.act;
+  const actorId = actor && typeof actor === 'object' ? (actor as { sub?: unknown }).sub : undefined;
+  const known = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null);
+  return {
+    actor: known(actorId),
+    context: known(claims.device_context_id),
+    deviceSession: known(claims.device_session_id),
+  };
+}
+
+/** Extract a known device for local ownership checks, never authorization. */
+function knownTokenDeviceId(token: string): string | null {
+  const claims = decodeTokenClaims(token);
+  return claims?.type !== 'service' && typeof claims?.deviceId === 'string' && claims.deviceId
+    ? claims.deviceId
+    : null;
+}
+
+/** Discard an unused body even when a platform's stream shim lacks cancel. */
+function discardResponseBody(response: Response): Promise<void> {
+  try {
+    const body = response.body;
+    if (typeof body?.cancel !== 'function') return Promise.resolve();
+    return Promise.resolve(body.cancel()).catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
 }
 
 /** A trusted platform transport, for example Expo's streaming fetch. */
@@ -132,6 +211,13 @@ interface FormDataLike {
 }
 
 export interface RequestOptions {
+  /**
+   * Bind a write to ONE installation of the source's bearer. The transport
+   * rejects (`AUTH_SESSION_CHANGED`) when the generation was replaced before
+   * dispatch, after queueing, or before the result is returned. Implies no cache,
+   * deduplication or retry, and a 401 neither refreshes nor clears the session.
+   */
+  expectedCredentialGeneration?: CredentialGeneration;
   cache?: boolean;
   cacheTTL?: number;
   deduplicate?: boolean;
@@ -376,9 +462,21 @@ const CACHE_SIZE_WARNING_THROTTLE_MS = 60000;
  */
 class TokenStore {
   private accessToken: string | null = null;
+  private generation: CredentialGeneration = newCredentialGeneration();
 
   setTokens(accessToken: string): void {
+    this.generation = newCredentialGeneration();
     this.accessToken = accessToken;
+  }
+
+  /** The identity of the bearer's current installation, never of its bytes. */
+  getGeneration(): CredentialGeneration {
+    return this.generation;
+  }
+
+  /** Retire the current generation without touching the bearer (provider swaps). */
+  invalidateGeneration(): void {
+    this.generation = newCredentialGeneration();
   }
 
   getAccessToken(): string | null {
@@ -386,6 +484,7 @@ class TokenStore {
   }
 
   clearTokens(): void {
+    this.generation = newCredentialGeneration();
     this.accessToken = null;
   }
 
@@ -421,7 +520,8 @@ function isAbortLike(error: unknown): boolean {
   );
 }
 
-function linkAbort(parent: AbortSignal, child: AbortController): () => void {
+/** @internal Shared with `client/callOptions.ts`; see the note above `isAbortLike`. */
+export function linkAbort(parent: AbortSignal, child: AbortController): () => void {
   if (parent.aborted) {
     child.abort((parent as AbortSignal & { reason?: unknown }).reason);
     return () => {
@@ -510,6 +610,7 @@ export class HttpService {
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private anonymousAuthProvider: AnonymousAuthProvider | null = null;
+  private anonymousAuthRejected: AnonymousAuthRejectedHandler | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
   /**
    * Bumped by every {@link endSession}. A re-mint captures it before its first
@@ -518,6 +619,13 @@ export class HttpService {
    * bearer — and through the token listeners, the account — back.
    */
   private sessionEpoch = 0;
+  private readonly credentialSource: HttpService | null;
+  /** Preserve a known device across legacy rotations which omit the claim. */
+  private sessionDeviceId: string | null = null;
+  /** Preserve known actor and context hints across rotations without those claims. */
+  private sessionActorId: string | null = null;
+  private sessionContextId: string | null = null;
+  private sessionDeviceSessionId: string | null = null;
   /**
    * Set by {@link endSession}, cleared by the next {@link setTokens}. Read by the
    * native Commons-identity re-mint arm: after a sign-out a 401 is the expected
@@ -554,8 +662,9 @@ export class HttpService {
     averageResponseTime: 0,
   };
 
-  constructor(config: OxyConfig) {
+  constructor(config: OxyConfig, credentialSource: HttpService | null = null) {
     this.config = config;
+    this.credentialSource = credentialSource;
     this.baseURL = config.baseURL;
     this.tokenStore = new TokenStore();
 
@@ -695,6 +804,28 @@ export class HttpService {
    * {@link ResponsePayload}, which makes reading the envelope a compile error.
    */
   async request<T = unknown>(config: RequestConfig): Promise<ResponsePayload<T>> {
+    if (config.signal?.aborted) throw createCancelledError('Request cancelled before it was sent');
+    if (config.expectedCredentialGeneration) {
+      // The prototype is deliberately limited to writes; it does not
+      // yet define leases for cached/deduplicated reads or raw response paths.
+      if (
+        !['POST', 'PUT', 'PATCH', 'DELETE'].includes(config.method) ||
+        config.skipAuth ||
+        Object.keys(config.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
+      ) {
+        throw new Error('A credential generation requires an implicitly authenticated write');
+      }
+      (this.credentialSource ?? this).assertCredentialGeneration(
+        config.expectedCredentialGeneration,
+      );
+      config = { ...config, cache: false, deduplicate: false, retry: false };
+    }
+    // The provider can change independently of the last request. Synchronize
+    // before deriving the cache and deduplication identity, including hits.
+    const explicitAuthorization = Object.keys(config.headers ?? {}).some(
+      (key) => key.toLowerCase() === 'authorization',
+    );
+    if (!config.skipAuth && !explicitAuthorization) this.syncAccessTokenFromProvider();
     // Per-call authority is not represented by the instance's session cache
     // key. Never share or retain responses authenticated by explicit headers.
     if (
@@ -725,7 +856,9 @@ export class HttpService {
         valid: true,
       });
     }
-    const key = this.generateCacheKey(config.method, config.url, config.data || config.params);
+    const key =
+      this.generateCacheKey(config.method, config.url, config.data || config.params) +
+      (config.skipAuth ? ' auth=none' : '');
     let lease = this.readLeases.get(key);
     if (!lease) {
       lease = { key, id: ++this.nextReadLeaseId, valid: true, readers: 0 };
@@ -768,6 +901,7 @@ export class HttpService {
     // overrides any per-request `cache:true`: nothing is read from nor written
     // to the response cache. Request deduplication below is unaffected.
     const cache = cacheRequested && !this.cacheDisabled;
+    const cacheSessionEpoch = this.sessionEpoch;
 
     // Generate cache key (optimized for large objects)
     const cacheKey = cache ? lease.key : null;
@@ -795,7 +929,48 @@ export class HttpService {
     // and skip the near-expiry preflight — see RequestOptions.skipAuth. The
     // 401 retry re-enters request() with a fresh config, so it re-resolves
     // this here with the refreshed token.
-    const authHeader = config.skipAuth ? null : await this.getAuthHeader();
+    const explicitAuth = Object.keys(config.headers ?? {}).some(
+      (key) => key.toLowerCase() === 'authorization',
+    );
+    const usesSessionAuth = !config.skipAuth && !explicitAuth;
+    const contextToken = usesSessionAuth ? this.syncAccessTokenFromProvider() : null;
+    const contextEpoch = this.sessionEpoch;
+    const authHeader = usesSessionAuth
+      ? await awaitRequestSignal(this.getAuthHeader(), signal)
+      : null;
+    const assertExpectedCredential = () => {
+      if (config.expectedCredentialGeneration) {
+        (this.credentialSource ?? this).assertCredentialGeneration(
+          config.expectedCredentialGeneration,
+          authHeader,
+        );
+      }
+    };
+    assertExpectedCredential();
+    const isOriginalSession = () => {
+      if (this.sessionEpoch !== contextEpoch) return false;
+      const currentToken = this.syncAccessTokenFromProvider();
+      return this.sessionEpoch === contextEpoch && sameTokenSession(contextToken, currentToken);
+    };
+    const newerRequestToken = () => {
+      if (!contextToken || !authHeader?.startsWith('Bearer ')) return null;
+      const requestToken = authHeader.slice('Bearer '.length);
+      const current = this.syncAccessTokenFromProvider();
+      return current && current !== requestToken && sameTokenSession(requestToken, current)
+        ? current
+        : null;
+    };
+    // The provider can change between cache-key selection and auth preflight.
+    // Refuse to attach a response to a lease belonging to another identity.
+    if (
+      usesSessionAuth &&
+      (!isOriginalSession() ||
+        (lease.key &&
+          (cacheSessionEpoch !== this.sessionEpoch ||
+            lease.key !== this.generateCacheKey(method, url, data || params))))
+    ) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    }
     // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
     // to a second in front of requests.
     const edgeRegionHeader = peekBrowserEdgeRegionHeader();
@@ -820,6 +995,10 @@ export class HttpService {
       if (domain.aborted) {
         throw createCancelledError('Request cancelled');
       }
+      if (usesSessionAuth && !isOriginalSession()) {
+        throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+      }
+      assertExpectedCredential();
 
       /**
        * Whether OUR timer fired, so a timeout can be told apart from a
@@ -828,6 +1007,7 @@ export class HttpService {
        * an abandoned request as a transient failure.
        */
       let timedOut = false;
+      let selfClearedEpoch: number | null = null;
 
       // This attempt's controller carries its own timeout and inherits the
       // call-wide abort domain. Declared OUTSIDE the `try` so the `finally`
@@ -932,6 +1112,9 @@ export class HttpService {
           throw new Error('Requester proofs require a transport that rejects redirects');
         }
 
+        // Header and source generation are checked together in this synchronous
+        // dispatch segment, after the preflight and any queue wait.
+        assertExpectedCredential();
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
               fullUrl,
@@ -955,14 +1138,64 @@ export class HttpService {
         // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
+        try {
+          assertExpectedCredential();
+        } catch (error) {
+          void discardResponseBody(response);
+          throw error;
+        }
+
+        if (usesSessionAuth && !isOriginalSession()) {
+          void discardResponseBody(response);
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
+
         // Handle response
         if (!response.ok) {
+          // A 401 to the bearer the anonymous provider supplied (a backend's
+          // own service token, no user session): once its owner has dropped
+          // it, send the request once more with the provider's next one. A
+          // 401 means the request never ran, so this is safe for any method.
+          if (
+            response.status === 401 &&
+            !contextToken &&
+            usesSessionAuth &&
+            !config.expectedCredentialGeneration &&
+            !config._isAuthRetry &&
+            authHeader?.startsWith('Bearer ') &&
+            this.anonymousAuthRejected?.(authHeader.slice('Bearer '.length))
+          ) {
+            void discardResponseBody(response);
+            if (domain.aborted) throw createCancelledError();
+            // Same reasons as the session retry below: no dedupe (the original
+            // is still in flight under its key), no queue slot (this attempt
+            // holds one).
+            return this.request<T>({
+              ...config,
+              _isAuthRetry: true,
+              retry: false,
+              deduplicate: false,
+              bypassQueue: true,
+              signal: domain,
+            });
+          }
           // On 401, delegate to the installed auth refresh handler and retry
           // once before giving up. HttpService deliberately does not know any
           // session routes; the refresh handler owns session rotation.
-          if (response.status === 401 && !config._isAuthRetry && !config.skipAuth) {
-            const refreshed = await this.refreshAccessToken('response-401');
-            if (refreshed) {
+          if (
+            response.status === 401 &&
+            !config.expectedCredentialGeneration &&
+            !config._isAuthRetry &&
+            usesSessionAuth &&
+            isOriginalSession()
+          ) {
+            let refreshed = newerRequestToken();
+            if (!refreshed) {
+              if (domain.aborted) throw createCancelledError();
+              refreshed = await awaitRequestSignal(this.refreshAccessToken('response-401'), domain);
+            }
+            refreshed ||= newerRequestToken();
+            if (refreshed && isOriginalSession()) {
               // `deduplicate: false` is REQUIRED on the retry. This re-issue runs
               // while the ORIGINAL request is still in-flight under its dedupe
               // key; the refreshed token is
@@ -981,11 +1214,22 @@ export class HttpService {
                 retry: false,
                 deduplicate: false,
                 bypassQueue: true,
+                // The original caller's signal may be aborted while another
+                // deduplicated caller still owns this shared request.
+                signal: domain,
               });
             }
             // Refresh failed or no token — clear tokens
-            this.tokenStore.clearTokens();
-            this.notifyTokenChange();
+            if (isOriginalSession()) {
+              if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
+              this.tokenStore.clearTokens();
+              this.sessionDeviceId = null;
+              this.sessionActorId = null;
+              this.sessionContextId = null;
+              this.sessionDeviceSessionId = null;
+              selfClearedEpoch = this.sessionEpoch;
+              this.notifyTokenChange();
+            }
           }
 
           // Read the error body (may be absent, non-JSON, empty or malformed).
@@ -1079,14 +1323,37 @@ export class HttpService {
           responseData = text || null;
         }
 
+        if (usesSessionAuth && !isOriginalSession()) {
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(true, duration);
         this.config.onRequestEnd?.(url, method, duration, true);
 
         return responseData as T;
       } catch (error: unknown) {
+        assertExpectedCredential();
         const duration = Date.now() - startTime;
         this.updateMetrics(false, duration);
+        // A body reader can reject or finish parsing an error after the viewer
+        // changed. Do not surface that previous viewer's error or callbacks.
+        // An explicit abort/timeout retains its existing classification.
+        const providerToken = selfClearedEpoch !== null ? this.accessTokenProvider?.() : null;
+        const originalClearStillCurrent =
+          selfClearedEpoch !== null &&
+          selfClearedEpoch === this.sessionEpoch &&
+          this.tokenStore.getAccessToken() === null &&
+          (!providerToken || sameTokenSession(contextToken, providerToken));
+        if (
+          usesSessionAuth &&
+          !originalClearStillCurrent &&
+          !isOriginalSession() &&
+          !isAbortLike(error) &&
+          !controller.signal.aborted
+        ) {
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
         this.config.onRequestEnd?.(url, method, duration, false);
         this.config.onRequestError?.(
           url,
@@ -1187,6 +1454,11 @@ export class HttpService {
         disposeCallerLink?.();
       }
     }
+
+    if (usesSessionAuth && !isOriginalSession()) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    }
+    assertExpectedCredential();
 
     // Cache the result if caching is enabled
     if (cache && cacheKey && lease.valid && result) {
@@ -1382,7 +1654,7 @@ export class HttpService {
    * in `clearCacheEntry`.
    */
   private generateCacheKey(method: string, url: string, data?: unknown): string {
-    return `${this.generateBaseCacheKey(method, url, data)}${HttpService.CACHE_IDENTITY_DELIM}${this.computeIdentityTag()}`;
+    return `${this.generateBaseCacheKey(method, url, data)}${HttpService.CACHE_IDENTITY_DELIM}${this.computeIdentityTag()} epoch=${this.sessionEpoch}`;
   }
 
   /**
@@ -1516,6 +1788,7 @@ export class HttpService {
       // on the way out would discard the flag it just set.
       this.lastRefreshWasRateLimited = false;
       const epoch = this.sessionEpoch;
+      const tokenAtStart = this.tokenStore.getAccessToken();
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (epoch !== this.sessionEpoch) {
@@ -1527,6 +1800,12 @@ export class HttpService {
             }
             this.logger.debug('Discarded a token refresh that outlived its session');
             return null;
+          }
+          const installed = this.tokenStore.getAccessToken();
+          if (installed !== tokenAtStart && installed !== newToken) {
+            // Another operation installed a token while this refresh was in
+            // flight. Never overwrite it with this older completion.
+            return installed && sameTokenSession(tokenAtStart, installed) ? installed : null;
           }
           if (!newToken) {
             this.lastRefreshFailureAt = Date.now();
@@ -1865,7 +2144,7 @@ export class HttpService {
       try {
         assertCurrent();
       } catch (error) {
-        await response.body?.cancel();
+        await discardResponseBody(response);
         throw error;
       }
       const replayable =
@@ -1884,17 +2163,17 @@ export class HttpService {
             config.signal,
           );
         } catch (error) {
-          void response.body?.cancel().catch(() => undefined);
+          void discardResponseBody(response);
           throw error;
         }
         try {
           assertCurrent();
         } catch (error) {
-          await response.body?.cancel();
+          await discardResponseBody(response);
           throw error;
         }
         if (refreshed) {
-          await response.body?.cancel();
+          await discardResponseBody(response);
           if (config.signal?.aborted) throw createCancelledError();
           return this.requestResponseAttempt(
             config,
@@ -1971,7 +2250,31 @@ export class HttpService {
   // Token management
   setTokens(accessToken: string): void {
     const current = this.tokenStore.getAccessToken();
-    if (current && !sameTokenSession(current, accessToken)) this.sessionEpoch += 1;
+    const deviceId = knownTokenDeviceId(accessToken);
+    const binding = knownTokenContext(accessToken);
+    const changed =
+      current !== null &&
+      (!sameTokenSession(current, accessToken) ||
+        (this.sessionDeviceId !== null && deviceId !== null && this.sessionDeviceId !== deviceId) ||
+        (this.sessionActorId !== null &&
+          binding.actor !== null &&
+          this.sessionActorId !== binding.actor) ||
+        (this.sessionContextId !== null &&
+          binding.context !== null &&
+          this.sessionContextId !== binding.context) ||
+        (this.sessionDeviceSessionId !== null &&
+          binding.deviceSession !== null &&
+          this.sessionDeviceSessionId !== binding.deviceSession));
+    if (changed) this.sessionEpoch += 1;
+    this.sessionDeviceId = !current || changed ? deviceId : (deviceId ?? this.sessionDeviceId);
+    this.sessionActorId =
+      !current || changed ? binding.actor : (binding.actor ?? this.sessionActorId);
+    this.sessionContextId =
+      !current || changed ? binding.context : (binding.context ?? this.sessionContextId);
+    this.sessionDeviceSessionId =
+      !current || changed
+        ? binding.deviceSession
+        : (binding.deviceSession ?? this.sessionDeviceSessionId);
     this.sessionEnded = false;
     this.tokenStore.setTokens(accessToken);
     this.notifyTokenChange();
@@ -1991,13 +2294,43 @@ export class HttpService {
   }
 
   /**
-   * The current context epoch: account/session switches and bearer removal
-   * invalidate pending work; rotation within the same context preserves it.
+   * The current context epoch: account/session switches, known device changes,
+   * and bearer removal invalidate pending work; same-context rotation preserves it.
    * A re-mint lane that
    * plants tokens itself (the device-secret arm) compares it across its awaits.
    */
   getSessionEpoch(): number {
     return this.sessionEpoch;
+  }
+
+  /** Capture only the local generation; the caller must separately bind authority. */
+  captureCredentialGeneration(): CredentialGeneration | null {
+    // A pull-only provider can change A→B→A between reads without notifying us.
+    if (this.accessTokenProvider) return null;
+    return this.tokenStore.getAccessToken() ? this.tokenStore.getGeneration() : null;
+  }
+
+  isCredentialGenerationCurrent(generation: CredentialGeneration): boolean {
+    return (
+      !this.accessTokenProvider &&
+      this.tokenStore.getAccessToken() !== null &&
+      generation === this.tokenStore.getGeneration()
+    );
+  }
+
+  private assertCredentialGeneration(
+    generation: CredentialGeneration,
+    selectedHeader?: string | null,
+  ): void {
+    const token = this.tokenStore.getAccessToken();
+    if (
+      this.accessTokenProvider ||
+      !token ||
+      generation !== this.tokenStore.getGeneration() ||
+      (selectedHeader !== undefined && selectedHeader !== `Bearer ${token}`)
+    ) {
+      throw new OxyAuthenticationError('The request credential changed', 'AUTH_SESSION_CHANGED');
+    }
   }
 
   /** Whether {@link endSession} ran and no token has been planted since. */
@@ -2010,6 +2343,7 @@ export class HttpService {
   }
 
   setAccessTokenProvider(provider: AccessTokenProvider | null): void {
+    this.tokenStore.invalidateGeneration();
     this.accessTokenProvider = provider;
   }
 
@@ -2019,14 +2353,26 @@ export class HttpService {
    * `OxyConfig.serviceIdentity`). A user session always wins: the provider is
    * consulted only when there is no access token, and never for `skipAuth`
    * requests. `null` removes it.
+   *
+   * `onRejected` hears of a 401 to one of the provider's bearers; when it
+   * drops that bearer (`true`), the request is sent once more with the
+   * provider's next one — a rotated or revoked service token heals itself.
    */
-  setAnonymousAuthProvider(provider: AnonymousAuthProvider | null): void {
+  setAnonymousAuthProvider(
+    provider: AnonymousAuthProvider | null,
+    onRejected?: AnonymousAuthRejectedHandler,
+  ): void {
     this.anonymousAuthProvider = provider;
+    this.anonymousAuthRejected = provider ? (onRejected ?? null) : null;
   }
 
   clearTokens(): void {
     if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
     this.tokenStore.clearTokens();
+    this.sessionDeviceId = null;
+    this.sessionActorId = null;
+    this.sessionContextId = null;
+    this.sessionDeviceSessionId = null;
     // Drop the response cache on logout. The cache is identity-scoped, so a
     // different user could never read these entries, but a logged-out client
     // must not keep the previous session's personalized data resident in
@@ -2099,6 +2445,7 @@ export class HttpService {
    */
   peekCachedGet<T>(url: string, params?: Record<string, unknown>): T | null {
     if (this.cacheDisabled) return null;
+    this.syncAccessTokenFromProvider();
     return this.cache.get(this.generateCacheKey('GET', url, params)) as T | null;
   }
 
@@ -2199,5 +2546,9 @@ export class HttpService {
   __resetTokensForTests(): void {
     this.sessionEnded = false;
     this.tokenStore.clearTokens();
+    this.sessionDeviceId = null;
+    this.sessionActorId = null;
+    this.sessionContextId = null;
+    this.sessionDeviceSessionId = null;
   }
 }

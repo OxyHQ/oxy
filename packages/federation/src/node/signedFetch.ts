@@ -64,8 +64,26 @@ export interface CreateSignedFetchConfig {
   logger?: SignedFetchLogger;
 }
 
+/** Request options for one {@link SignedFetch} call. */
+export interface SignedFetchInit extends RequestInit {
+  /**
+   * Sign this request (and every re-signed redirect hop) with this actor key
+   * instead of the instance actor's — e.g. a local user's `…#main-key`, so a
+   * server that gates a followers-only or direct object on the requesting actor
+   * serves it to a follower or recipient. The signer must hold that key.
+   *
+   * An actor-signed request is never retried unsigned: its answer is the remote's
+   * verdict for that actor, so the response is returned as-is on any status.
+   */
+  keyId?: string;
+}
+
 /** A signed ActivityPub GET, returning the standard WHATWG {@link Response}. */
-export type SignedFetch = (url: string, accept: string, init?: RequestInit) => Promise<Response>;
+export type SignedFetch = (
+  url: string,
+  accept: string,
+  init?: SignedFetchInit,
+) => Promise<Response>;
 
 function requestInitHeaders(init: RequestInit): Record<string, string> {
   if (!init.headers) return {};
@@ -97,18 +115,20 @@ function requestInitHeaders(init: RequestInit): Record<string, string> {
  * `init.redirect === 'manual'`, the redirect `Response` is returned directly so
  * the caller can apply its own stricter redirect policy.
  *
- * Signed for servers that enforce authorized fetch (e.g. Threads). On a 5xx the
- * request is retried unsigned (same SSRF-safe path) as a fallback for public
- * resources.
+ * Signed for servers that enforce authorized fetch (e.g. Threads). An
+ * instance-signed request that gets a 5xx is retried unsigned (same SSRF-safe
+ * path) as a fallback for public resources. `init.keyId` signs as another actor
+ * (see {@link SignedFetchInit.keyId}); such a request is never retried unsigned.
  */
 export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch {
   return async function signedFetch(
     url: string,
     accept: string,
-    init: RequestInit = {},
+    init: SignedFetchInit = {},
   ): Promise<Response> {
     const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
-    const keyId = await config.getInstanceKeyId();
+    const actorSigned = init.keyId !== undefined;
+    const keyId = init.keyId ?? (await config.getInstanceKeyId());
     const extraHeaders = requestInitHeaders(init);
     const manualRedirect = init.redirect === 'manual';
 
@@ -150,6 +170,10 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
     };
 
     const { res, finalUrl } = await fetchFollowingRedirects(url, true);
+
+    // An actor-signed answer is the remote's verdict for THAT actor (a follower or
+    // recipient): an unsigned retry asks a different question, so it never runs.
+    if (actorSigned) return res;
 
     // If the remote server returns a 5xx (e.g. it can't resolve our keyId to
     // verify the signature), retry without the signature as a fallback for public

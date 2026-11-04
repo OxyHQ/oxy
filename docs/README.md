@@ -68,7 +68,7 @@ boundaries remain. Delivery is tracked separately in the
 | [auth/README.md](auth/README.md) | Auth & session entry point: device-first model, sign-in surfaces, the IdP's role |
 | [auth/device-session.md](auth/device-session.md) | DeviceSession API (`/session/device/*`), `session_state` socket sync, multi-account switching, `SessionClient` |
 | [auth/integration-guide.md](auth/integration-guide.md) | "Sign in with Oxy" for third-party apps: Console registration, OAuth 2.0 + PKCE (SPA / server / native), `OxySignInButton`, consent, grant revocation |
-| [auth/application-roles.md](auth/application-roles.md) | Application roles: an app declares its own permissions (`payments.operate`), its owners grant them to people, its backend gates on them with `requireAppPermission` — no operator allow-lists in app environments |
+| [auth/application-roles.md](auth/application-roles.md) | Application roles: an app declares its own permissions (`payments.operate`) and its backend gates on them with `requireAppPermission`; Oxy's own apps declare them in code, held by the owning org's roles (ADR 0056), third-party apps' owners grant them to people — no operator allow-lists in app environments |
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
 | [identity/instance-fetch.md](identity/instance-fetch.md) | Oxy's instance actor signs one ActivityPub GET for a first-party service (`federation:instance-fetch`), so Oxy Move can read authorized-fetch servers without a key |
 | [identity/organization-directory.md](identity/organization-directory.md) | Canonical organization identity, neutral entries, reviewed claims and service ingestion |
@@ -116,7 +116,7 @@ topics and remain authoritative for their areas:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system architecture: identity vs auth, device-first sessions, DB schema
 - [AUTHENTICATION.md](AUTHENTICATION.md) — auth integration guide (Expo, Web, Node, WebSockets)
 - [SESSION-ARCHITECTURE.md](SESSION-ARCHITECTURE.md) — session architecture in depth
-- [SERVICE_TOKENS.md](SERVICE_TOKENS.md) — service-to-service auth (OAuth2 client credentials)
+- [SERVICE_TOKENS.md](SERVICE_TOKENS.md) — own workload identity and external service credentials
 - [INFRASTRUCTURE.md](INFRASTRUCTURE.md) — AWS resources (ECS, ALB, ECR, ElastiCache, RDS PostgreSQL)
 - [DEPLOYMENT.md](DEPLOYMENT.md) — GitHub OIDC, ECS Fargate, env vars, Cloudflare Pages
 - [REDIS.md](REDIS.md) — ElastiCache Valkey: rate limiting, Socket.IO adapter, caching

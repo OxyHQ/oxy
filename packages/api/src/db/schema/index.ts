@@ -22,6 +22,7 @@ export * from './agency';
 export * from './accountMembers';
 export * from './apiKeyUsageEvents';
 export * from './appAffinityEdges';
+export * from './applicationAccountRegistrations';
 export * from './appAffinitySeenEvents';
 export * from './appCategories';
 export * from './appEndorsementEdges';
@@ -220,3 +221,6 @@ export * from './organizationProfiles';
 export * from './supervision';
 export * from './accountInvitations';
 export * from './applicationInvitationEmails';
+
+export * from './accountAcquisition';
+export * from './managedApplicationDeployments';

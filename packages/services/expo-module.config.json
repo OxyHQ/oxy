@@ -1,13 +1,14 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["OxyIdentityModule"]
+    "modules": ["OxyIdentityModule", "OxyAssetFilesModule"]
   },
   "android": {
     "modules": [
       "so.oxy.identity.OxyIdentityModule",
       "so.oxy.devicesession.OxyDeviceSessionModule",
-      "so.oxy.session.OxyBackgroundSessionModule"
+      "so.oxy.session.OxyBackgroundSessionModule",
+      "so.oxy.assets.OxyAssetFilesModule"
     ]
   }
 }

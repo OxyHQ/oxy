@@ -266,11 +266,50 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     },
   };
 
-  return withNativeWind(config, {
+  return withNativeWind(withReactNativeCssSingleInstance(config, projectRoot), {
     input: cssInput,
     inlineRem: 16,
     inlineVariables: false,
   });
+}
+
+/** Keep CSS injection and consumers on one runtime, including NativeWind redirects.
+ * Its ESM and CommonJS builds have separate root-variable registries. NativeWind
+ * injects through require(), so native imports must select the same export.
+ * Preserve react-native conditions: some component adapters require native code.
+ */
+function cssRuntimeContext(context, moduleName, platform, projectRoot) {
+  if (
+    platform === 'web' ||
+    platform == null ||
+    !(moduleName === 'react-native-css' || moduleName.startsWith('react-native-css/'))
+  )
+    return context;
+  const conditions = (values = []) =>
+    values.filter((value) => value !== 'import' && value !== 'source');
+  return {
+    ...context,
+    originModulePath: path.join(projectRoot, 'package.json'),
+    isESMImport: false,
+    unstable_conditionNames: conditions(context.unstable_conditionNames),
+    unstable_conditionsByPlatform: Object.fromEntries(
+      Object.entries(context.unstable_conditionsByPlatform ?? {}).map(([key, values]) => [
+        key,
+        conditions(values),
+      ]),
+    ),
+  };
+}
+
+function withReactNativeCssSingleInstance(config, projectRoot = config.projectRoot) {
+  const parentResolveRequest = config.resolver.resolveRequest;
+  config.resolver.resolveRequest = (context, moduleName, platform) =>
+    (parentResolveRequest ?? context.resolveRequest)(
+      cssRuntimeContext(context, moduleName, platform, projectRoot),
+      moduleName,
+      platform,
+    );
+  return config;
 }
 
 const COMPLETE_REACT_NATIVE = path.join(__dirname, 'react-native.js');
@@ -317,7 +356,12 @@ function withCompleteReactNative(config, projectRoot = config.projectRoot) {
       (moduleName === 'react-native' || moduleName === 'react-native-css/components')
     ) {
       return context.resolveRequest(
-        { ...context, originModulePath: projectOrigin },
+        cssRuntimeContext(
+          { ...context, originModulePath: projectOrigin },
+          moduleName,
+          platform,
+          projectRoot,
+        ),
         moduleName,
         platform,
       );
@@ -412,6 +456,7 @@ module.exports = {
   createOxyMetroConfig: createOxyMetroConfigWithBloom,
   findWorkspaceRoot,
   withBloomSingleInstance,
+  withReactNativeCssSingleInstance,
   withCompleteReactNative,
   withLinkedNativePackagesOnly,
   withFreshWorkspaceBuilds,

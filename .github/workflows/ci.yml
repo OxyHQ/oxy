@@ -851,16 +851,6 @@ jobs:
           bun scripts/test-check-dependency-audit.mjs
           bun scripts/test-zod-audit-paths.mjs
           bun scripts/test-forge-audit-policy.mjs
-      - name: 'Native Expo crypto: sealed fork and compatibility checks'
-        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
-        run: |
-          python3 scripts/verify-native-expo-forks.py
-          PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-verify-native-expo-forks.py
-          node --test scripts/test-native-expo-image-inventory.mjs
-          node --test scripts/test-native-expo-self-reference.cjs
-          bun install --cwd tooling/expo-code-signing-native --frozen-lockfile --minimum-release-age=0 --ignore-scripts
-          bun run --cwd tooling/expo-code-signing-native test
-          node scripts/forge-independent-expo-compat.cjs packages/api
       # INACTIVE skips both steps. A future reviewed source policy needs installed
       # byte inventory and authenticated GETs; this token proves service access,
       # never a human decision. No patch script or dependency hook runs here.
@@ -966,6 +956,21 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' && steps.node.outcome == 'success' }}
         run: bun install --frozen-lockfile --minimum-release-age=0
 
+      # After the install: `verify-native-expo-forks.py` resolves the installed
+      # `expo` / `@expo/cli`. In the no-install phase it found them only when an
+      # earlier step happened to leave a node_modules behind, so a PR that
+      # changed a package.json failed it.
+      - name: 'Native Expo crypto: sealed fork and compatibility checks'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          python3 scripts/verify-native-expo-forks.py
+          PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-verify-native-expo-forks.py
+          node --test scripts/test-native-expo-image-inventory.mjs
+          node --test scripts/test-native-expo-self-reference.cjs
+          bun install --cwd tooling/expo-code-signing-native --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+          bun run --cwd tooling/expo-code-signing-native test
+          node scripts/forge-independent-expo-compat.cjs packages/api
+
       # The API package's one-off checks. They used to run inside `api-test` before
       # the suite; now that the suite is a matrix they would otherwise run once per
       # shard, so they live here and run exactly once, beside the shards rather
@@ -994,6 +999,9 @@ jobs:
       - name: 'API Checks: guard the AGENTS.md budget'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run validate:agents-md
+      - name: 'Translation keys (ADR 0055)'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run validate:i18n
 
       # Formatting and lint for the whole repository, from the root biome.jsonc
       # (`bun run lint` locally). Then the Expo apps' remaining ESLint: only
@@ -1423,6 +1431,19 @@ jobs:
         if: ${{ !cancelled() && steps.build-core.outcome == 'success' }}
         run: bun run build
         working-directory: ./packages/services
+      # PR/nightly composition lives in scaffold-smoke. Queue/push must also
+      # exercise the exact tree release-packages will publish, inside this
+      # existing required job rather than another runner or permissive release.
+      - name: 'Core Tests: published product SDK composition'
+        if: ${{ !cancelled() && steps.build-services.outcome == 'success' && github.event_name != 'pull_request' }}
+        run: |
+          bun run --cwd packages/mcp build
+          mkdir -p "$RUNNER_TEMP/product-sdk-tarballs"
+          for package in contracts protocol telemetry core services mcp; do
+            bun pm pack --ignore-scripts --cwd "packages/$package" --destination "$RUNNER_TEMP/product-sdk-tarballs"
+          done
+          node packages/core/scripts/test-product-sdk-composition.mjs "$RUNNER_TEMP/product-sdk-tarballs" "$RUNNER_TEMP/product-sdk-composition"
+
       - name: 'Services Tests: enforce services web bundle budget'
         if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
         run: bun run build && bun run check:bundle-budget
@@ -1559,6 +1580,7 @@ jobs:
           :oxy-identity-host:compileDebugKotlin
           :oxy-identity-host:testDebugUnitTest
           :oxy-so-services:compileDebugKotlin
+          :oxy-so-services:testDebugUnitTest
       - name: The merged manifest declares no shared UID and hosts both providers
         working-directory: ./packages/commons/android
         run: |

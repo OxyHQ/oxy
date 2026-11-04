@@ -90,8 +90,17 @@ export class MediaPrivacyService {
         return { allowed: true, isPublic: true };
       }
 
-      if (file.visibility === 'private' && !viewerUserId) {
-        return { allowed: false, reason: 'authentication_required' };
+      // Private is a property of these bytes, not the owner's social profile.
+      // A follow or caller-supplied entity context never grants
+      // access to somebody else's library. Supervised media is always private
+      // and retains its separately verified, live guardian-approved audience.
+      // Exact application grants are checked
+      // separately by the service routes (ADR 0021/0043).
+      if (file.visibility === 'private' && !supervised?.allowed) {
+        return {
+          allowed: false,
+          reason: viewerUserId ? 'private_file' : 'authentication_required',
+        };
       }
 
       const groups = await getEquivalentUserGroups(
@@ -112,24 +121,6 @@ export class MediaPrivacyService {
         const isRestricted = await this.isUserRestricted(ownerId, viewerUserId, groups, useCache);
         if (isRestricted) {
           return { allowed: false, reason: 'restricted' };
-        }
-      }
-
-      if (file.visibility !== 'public' && file.visibility !== 'unlisted' && ownerId) {
-        const [owner] = await getDb()
-          .select({ isPrivateAccount: users.privacyIsPrivateAccount })
-          .from(users)
-          .where(eq(users.id, ownerId))
-          .limit(1);
-
-        if (owner?.isPrivateAccount && !supervised?.allowed) {
-          if (!viewerUserId) {
-            return { allowed: false, reason: 'private_account' };
-          }
-
-          if (!(await this.isFollowing(viewerUserId, ownerId, groups))) {
-            return { allowed: false, reason: 'not_following_private_account' };
-          }
         }
       }
 

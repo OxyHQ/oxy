@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-19.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -80,6 +80,13 @@ export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e6
 export const MENTION_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 /**
+ * Astro's application (the browser; no backend), pinned. Its one-shot features
+ * reach `kaana.ai/v1` with the signed-in person's own Oxy session, on the
+ * `product_session` lane (ADR 0050).
+ */
+export const ASTRO_INFERENCE_CONSUMER_APPLICATION_ID = 'c08f19e22ae6e86eb1d50361';
+
+/**
  * The one route Clarity's search embeddings run on: `qwen/qwen3-embedding-8b`
  * served by OpenRouter (zero data retention), as Kaana's publisher minted it.
  */
@@ -97,6 +104,12 @@ export interface InternalMeteredCapacity {
   readonly maxRequestsPerUtcDay: number;
   /** Default remains all application traffic; a reviewed feature may own a separate budget. */
   readonly scope?: 'relationship';
+  /**
+   * Requests admitted per UTC day for ONE person, counted on the same rows by
+   * their attributed user. Only a `product_session` relationship sets it: the
+   * person is the one the session proves, so the bound is theirs.
+   */
+  readonly maxRequestsPerUserPerUtcDay?: number;
 }
 
 /**
@@ -248,6 +261,26 @@ export interface InternalMeteredTextPilot {
   readonly deployments: readonly InternalMeteredPilotDeployment[];
 }
 
+/**
+ * The pilot's terms for a completion that CARRIES IMAGES (Oxy ADR 0051, Kaana
+ * ADR 0007). Read only with the text terms: the request's text still answers to
+ * their controlled-input and output ceilings, with each image's bytes left out
+ * of the controlled input. Each image is bounded apart, at its line's declared
+ * `imageInput.maxInputTokensPerImage`, which every quote adds per image.
+ *
+ * A request with images signs only these routes (none of the text tuples), and
+ * a pilot without these terms refuses images (`unsupported_modality`,
+ * `pilot-image-input`).
+ */
+export interface InternalMeteredImageInputPilot {
+  /** Image parts one request may carry; one more is `invalid_request` (`pilot-image-count`). */
+  readonly maxImages: number;
+  /** Exact USD tariff quote ceiling for one request with images, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+  /** The only routes a request with images may sign, including failovers. */
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
 /** The same keys, all absent: a pilot with no text terms. */
 type NoTextPilot = { readonly [Key in keyof InternalMeteredTextPilot]?: never };
 
@@ -256,7 +289,13 @@ type NoTextPilot = { readonly [Key in keyof InternalMeteredTextPilot]?: never };
  * admits no half), and the terms of each other operation, each absent unless
  * that operation is admitted.
  */
-export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
+export type InternalMeteredPilot = (
+  | (InternalMeteredTextPilot & {
+      /** Absent: every request carrying an image is outside the pilot and refused. */
+      readonly imageInput?: InternalMeteredImageInputPilot;
+    })
+  | (NoTextPilot & { readonly imageInput?: never })
+) & {
   /** Absent: only the exact {@link deployments} above are ever admitted. */
   readonly promotionalCredit?: InternalMeteredPromotionalCredit;
   /** Absent: every speech request is outside the pilot and refused. */
@@ -294,10 +333,13 @@ export interface InternalMeteredRelationship {
   readonly environments: readonly InferenceEnvironment[];
   /**
    * The lane the caller must have authenticated on. `service_token` is the
-   * workload/service credential lane a product backend uses; a customer-mintable
-   * machine key or a human product session never qualifies.
+   * workload/service credential lane a product backend uses. `product_session`
+   * is a person's own session for an application named by the session ROW
+   * (ADR 0050); it is admitted only under a relationship that names it, its
+   * operations and a per-person bound. A customer-mintable machine key never
+   * qualifies.
    */
-  readonly lane: 'service_token';
+  readonly lane: 'service_token' | 'product_session';
   /**
    * The operations it covers, in the grant API's vocabulary. Absent: every
    * operation. Present, the relationship applies only to a grant naming one of
@@ -314,6 +356,13 @@ export interface InternalMeteredRelationship {
   readonly consumerApplicationClass?: 'first_party';
   readonly capacity: InternalMeteredCapacity;
   readonly pilot?: InternalMeteredPilot;
+  /**
+   * `public_client_id`: a SHARED device session (ADR 0029, no application on
+   * its row) is attributed to this application when it is presented with the
+   * application's registered public client id (ADR 0050, option b). Only a `product_session` relationship with a per-person bound
+   * may say so; absent, only an application-bound session row names it.
+   */
+  readonly sharedSessionAttribution?: 'public_client_id';
 }
 
 /**
@@ -377,6 +426,52 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         fallbackLevel: 'xhigh',
         maxPricePerRequestUsd: '1.00',
       },
+      // Approved by Nate on 2026-10-28, as proposed (Oxy ADR 0051): Alia sees
+      // images (a tab screenshot from Astro's agent, scanned PDF pages). One
+      // exact route per level Alia offers: instant, medium, and high (which
+      // `xhigh` shares); `auto` climbs to medium for any non-text input. All three are OpenRouter routes, sold
+      // `platform_internal` in Kaana's `configs/deployment-commercial.json`,
+      // sent with zero data retention. Per-image bounds are the lines'
+      // declared `imageInput` (Kaana ADR 0007): GPT-5.4 nano 7,374 tokens
+      // (low detail's 6,144-patch budget x 1.2, plus one for billing
+      // rounding; developers.openai.com/api/docs/guides/images-vision), Claude
+      // Haiku 4.5 1,568 (standard tier) and Claude Sonnet 5 4,784 (Claude 4.7
+      // and later; platform.claude.com/docs/en/build-with-claude/vision).
+      //
+      // List prices (OpenRouter GET /api/v1/models, 2026-10-28), in / out per
+      // 1M tokens, and the full request: 126,976 controlled input plus 16
+      // images at the bound plus 2,048 output:
+      //   gpt-5.4-nano      $0.20 / $1.25   244,960 in, $0.0516  admitted
+      //   claude-haiku-4.5  $1.00 / $5.00   152,064 in, $0.1623  over: at the
+      //                     full text input it admits 8 images ($0.1498)
+      //   claude-sonnet-5   $2.00 / $10.00  203,520 in, $0.4275  over: admitted
+      //                     while the request quotes at most $0.15 (a 16 KB turn
+      //                     with two screenshots quotes about $0.08)
+      // The quote is the request's own size, so a typical Alia turn (about
+      // 16 KB with one screenshot) fits all three. One 1024x768 screenshot is
+      // 922 tokens on nano ($0.00018), 1,036 on Haiku ($0.0010) and on Sonnet
+      // ($0.0021); at most $0.0015, $0.0016 and $0.0096 an image.
+      imageInput: {
+        maxImages: 16,
+        maxPricePerRequestUsd: '0.15',
+        deployments: [
+          {
+            deploymentId: 'dep_openrouter_openai_gpt_5_4_nano_observed_2026_09_01',
+            modelReference: 'openai/gpt-5.4-nano@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+          {
+            deploymentId: 'dep_openrouter_anthropic_claude_haiku_4_5_observed_2026_09_01',
+            modelReference: 'anthropic/claude-haiku-4.5@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+          {
+            deploymentId: 'dep_openrouter_anthropic_claude_sonnet_5_observed_2026_09_01',
+            modelReference: 'anthropic/claude-sonnet-5@observed-2026-09-01',
+            provider: 'openrouter',
+          },
+        ],
+      },
       // Approved by Nate on 2026-10-15: Alia's speech synthesis, refused since
       // the pilot began (2026-10-03, #1557) because the pilot had no speech
       // terms. Up to the 15,000 characters Kaana's xAI translation serves, on
@@ -402,8 +497,15 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // USD 0.25 a minute admits the one reviewed realtime voice line (xAI's
       // Voice Agent, $0.08/min audio in + $0.08 out + $0.08 session, held all
       // three: $0.24) and no token-priced realtime line.
+      //
+      // Approved by Nate on 2026-10-28 (Kaana ADR 0006, Alia ADR 0024):
+      // dictation as a streaming transcription session, word by word, on
+      // xAI's streaming speech-to-text at $0.20 an hour. Its line quotes a
+      // session minute at $0.005 (the file transcription's $0.10/h audio plus
+      // the stream's $0.20/h session time, both held), far under the same
+      // ceiling; one dictation is one grant instead of one per phrase.
       realtime: {
-        sessionKinds: ['conversation'],
+        sessionKinds: ['conversation', 'transcription'],
         maxPricePerMinuteUsd: '0.25',
       },
       // Alia's dictation clip is capped at 5 minutes (ADR 0017 §7). USD 0.05
@@ -521,6 +623,51 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         maxInputTokens: 32_000,
         maxOutputTokens: 8_192,
         maxPricePerRequestUsd: '0.035',
+      },
+    },
+  },
+  {
+    relationshipId: 'astro-kaana-session',
+    consumerApplicationId: ASTRO_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'astro',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'product_session',
+    // ADR 0050 option b; the owner's approval of 2026-10-27 was relayed to
+    // this change and is confirmed on its review. Astro's
+    // one-shot features (name a tab group and pick its emoji, shorten a pinned
+    // tab's title, propose a download's filename, summarise a YouTube
+    // transcript): one small `responses` request each, no conversation.
+    operations: ['responses'],
+    consumerApplicationClass: 'first_party',
+    // Astro signs in on the shared device session, which names no
+    // application; it presents its public client id beside it (ADR 0050 b).
+    sharedSessionAttribution: 'public_client_id',
+    // Astro has no measured traffic yet. 200 a person a day is several times
+    // a heavy day of tab groups, pins and downloads; 10,000 a day for the
+    // application bounds the whole day at USD 40 even if every request quoted
+    // the ceiling. 16 in flight covers a burst of group names. Each refuses
+    // with a 429 and never asks for a top-up; Console may change the
+    // application's two, the per-person bound is this file's.
+    capacity: {
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 10_000,
+      maxRequestsPerUserPerUtcDay: 200,
+      scope: 'relationship',
+    },
+    pilot: {
+      // The video summary sends a transcript trimmed to about 24,000
+      // characters (about 6,000 estimated tokens plus its instructions) and
+      // asks for about 400 tokens; a group name, a pinned title and a filename
+      // send under 1,000 and ask for at most 64. So 8,000 input and 512 output.
+      // The dearest `instant` lines Kaana lists (2026-10-19: USD 0.30 in /
+      // 2.50 out per 1M) quote USD 0.00368 at the full 8,000 + 512; USD 0.004
+      // admits every instant line at that size.
+      levelText: {
+        levels: ['instant'],
+        maxInputTokens: 8_000,
+        maxOutputTokens: 512,
+        maxPricePerRequestUsd: '0.004',
       },
     },
   },

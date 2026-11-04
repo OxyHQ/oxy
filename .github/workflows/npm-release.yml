@@ -37,7 +37,8 @@ name: npm release
 #   publish  environment `npm`, `id-token: write`, and none of the
 #            repository's code: it checks the trusted bytes against their
 #            sums and publishes them in dependency order. A version already on
-#            the registry (a re-run) is skipped, not republished. npm exchanges
+#            the registry with identical SHA-512 bytes is skipped; a different
+#            tarball at that version fails. npm exchanges
 #            this job's OIDC token for a one-use publish credential.
 #   tag      `contents: write`, nothing else. Tags the released commit
 #            `<name>@<version>` (annotated) for each package it published — the
@@ -249,9 +250,11 @@ jobs:
           while read -r package; do
             name="$(jq -r .name <<<"$package")"
             version="$(jq -r .version <<<"$package")"
-            # 0: on the registry, 1: not yet, anything else: it cannot say.
-            if node "$RELEASE_PACKAGE" published "$name" "$version"; then
-              echo "::notice::$name@$version is on the registry already; not published again"
+            tarball="$PWD/$(jq -r .tarball <<<"$package")"
+            # Fresh read immediately before publish: 0 identical bytes, 1 absent.
+            # Different bytes or registry failures must stop the release.
+            if node "$RELEASE_PACKAGE" publish-status "$name" "$version" "$tarball"; then
+              echo "::notice::$name@$version has identical registry bytes; not published again"
               continue
             elif [ $? -ne 1 ]; then
               exit 1
@@ -259,7 +262,7 @@ jobs:
             # An absolute path: npm reads a bare `dir/<file>.tgz` as the GitHub
             # shorthand `user/repo` and tries to clone it (Kaana's 5.0.0
             # release failed exactly so).
-            npm publish "$PWD/$(jq -r .tarball <<<"$package")" \
+            npm publish "$tarball" \
               --provenance --access public --tag "$(jq -r .tag <<<"$package")"
             echo "$package" >> "$RUNNER_TEMP/published.jsonl"
           done < release.jsonl

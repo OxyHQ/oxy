@@ -203,18 +203,21 @@ describe('the rest of the ladder still holds', () => {
 
     expect(await service.checkMediaAccess(file, viewerId)).toEqual({
       allowed: false,
-      reason: 'not_following_private_account',
+      reason: 'private_file',
     });
   });
 
-  it('serves it once the viewer follows', async () => {
+  it('does not turn a follow into permission to read the owner’s private library', async () => {
     const ownerId = await insertUser({ privacyIsPrivateAccount: true });
     const viewerId = await insertUser();
     // `users.followers[]` is deleted; `user_follows` is the single authority.
     await getDb().insert(userFollows).values({ followerId: viewerId, followedId: ownerId });
     const file = await insertFile({ ownerUserId: ownerId, visibility: 'private' });
 
-    expect(await service.checkMediaAccess(file, viewerId)).toEqual({ allowed: true });
+    expect(await service.checkMediaAccess(file, viewerId)).toEqual({
+      allowed: false,
+      reason: 'private_file',
+    });
   });
 
   it('gates a followers-only entity on the follow edge, not on the id format', async () => {

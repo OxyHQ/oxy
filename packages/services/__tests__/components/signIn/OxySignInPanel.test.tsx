@@ -20,6 +20,7 @@ const IDLE_SIGN_IN: SignInFlowState = {
   phase: 'idle',
   authorizeCode: null,
   qrPayload: null,
+  approvalUrl: null,
   expiresAt: null,
   error: null,
   failure: null,
@@ -638,6 +639,30 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
   // card from `md`: crossing the breakpoint remounts the screen inside. The
   // person must stay on their step — the e2e found them back at "Sign in" with
   // their emailed code already spent.
+  it('takes no spaces in the identifier: neither a username nor an email holds one', async () => {
+    renderPanel();
+    type('signin-identifier', ' ada lovelace@example.com ');
+    expect((screen.getByTestId('signin-identifier') as HTMLInputElement).value).toBe(
+      'adalovelace@example.com',
+    );
+    press('signin-identifier-continue');
+    await screen.findByTestId('signin-code');
+    expect(oxyServices.auth.email.start).toHaveBeenCalledWith('adalovelace@example.com');
+  });
+
+  it('never sends a partly typed authenticator code', async () => {
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail('ada');
+    type('signin-code', '123456');
+    await screen.findByTestId('signin-second-factor');
+
+    type('signin-second-factor', '123');
+    press('signin-second-factor-continue');
+    expect(alertText()).toBe("That code isn't right. Try the current one.");
+    expect(oxyServices.auth.completeSecondFactor).not.toHaveBeenCalled();
+  });
+
   it('keeps "Two-step verification" and its challenge across a remount', async () => {
     oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     const first = renderPanel({ host: 'dialog' });

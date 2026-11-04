@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "operatorBase": "1e1da6487be8c4dbe1d4dbf42e480d12cf4112d2",
+  "sourceReceipts": [
+    {
+      "name": "console-browser-1792994813422.json",
+      "sha256": "515d53d988ad0998ffd24dce641e43a06e2a9ada40fee20bea1346e95efb1a56",
+      "observation": {
+        "observedAt": "2026-10-26T06:06:36.889Z",
+        "origin": "https://console.oxy.so",
+        "identities": [
+          "01a176ba-f02b-790f-b9a1-64aa4430106b",
+          "01a176ba-f23e-74df-b330-5e16ed0d8bc0"
+        ],
+        "checks": [
+          "dialog-A-claimed-session",
+          "authenticated-settings-rendered",
+          "dialog-B-independent-account",
+          "switch-back-A-no-B-dashboard",
+          "sign-out-A-retains-B",
+          "sign-out-B-and-reload-remain-anonymous",
+          "zero-cookies"
+        ],
+        "success": true,
+        "finishedAt": "2026-10-26T06:06:53.422Z"
+      }
+    },
+    {
+      "name": "alia-ownership-1792995023375.json",
+      "sha256": "33e951c03e032f5a67034e216b29e9986865e5fabea006b37f43a22ac1be20fa",
+      "observation": {
+        "observedAt": "2026-10-26T06:10:21.373Z",
+        "conversationId": "fc9444be-99ce-4a77-a283-dfeac25d5792",
+        "accounts": [
+          {
+            "slot": "a",
+            "accountId": "01a176ba-f02b-790f-b9a1-64aa4430106b",
+            "status": 200,
+            "messageCount": 2,
+            "toolInvocationCount": 0
+          },
+          {
+            "slot": "b",
+            "accountId": "01a176ba-f23e-74df-b330-5e16ed0d8bc0",
+            "status": 404
+          }
+        ],
+        "success": true
+      }
+    },
+    {
+      "name": "alia-cancel-receipt.json",
+      "sha256": "fd75f10534de0b3530f5574750f59555cd69127d14590840ce306465f3c4a349",
+      "observation": {
+        "startedAt": "2026-10-26T06:04:12.448Z",
+        "accountId": "01a176ba-f02b-790f-b9a1-64aa4430106b",
+        "conversationId": "fc9444be-99ce-4a77-a283-dfeac25d5792",
+        "kind": "API cancellation through public Core linked transport; not a UI stop test",
+        "maxTokens": 64,
+        "model": "instant",
+        "requests": 1,
+        "toolCalls": 0,
+        "contentFrames": 1,
+        "httpStatus": 200,
+        "requestId": "chatcmpl-91be4489-48a0-4ce4-be45-8717677cbcad",
+        "cancelReason": "first-content",
+        "cancelledAt": "2026-10-26T06:04:15.224Z",
+        "nextReadRejected": true,
+        "abortErrorName": "AbortError",
+        "finishedAt": "2026-10-26T06:04:15.226Z"
+      }
+    },
+    {
+      "name": "alia-cancel-256-receipt.json",
+      "sha256": "ad664ef2f2ebf915986c1b5b961a8c102bf3822a3517cac2bd6df8013047e74c",
+      "observation": {
+        "startedAt": "2026-10-26T06:13:36.255Z",
+        "accountId": "01a176ba-f02b-790f-b9a1-64aa4430106b",
+        "conversationId": "fc9444be-99ce-4a77-a283-dfeac25d5792",
+        "kind": "API cancellation through public Core linked transport; not a UI stop test",
+        "maxTokens": 256,
+        "model": "instant",
+        "requests": 1,
+        "toolCalls": 0,
+        "contentFrames": 1,
+        "headersAt": "2026-10-26T06:13:37.538Z",
+        "contentEncoding": null,
+        "contentType": "text/event-stream",
+        "httpStatus": 200,
+        "transportChunks": [
+          {
+            "at": "2026-10-26T06:13:37.538Z",
+            "bytes": 14
+          },
+          {
+            "at": "2026-10-26T06:13:38.152Z",
+            "bytes": 201
+          },
+          {
+            "at": "2026-10-26T06:13:40.355Z",
+            "bytes": 63
+          },
+          {
+            "at": "2026-10-26T06:13:40.367Z",
+            "bytes": 66
+          },
+          {
+            "at": "2026-10-26T06:13:40.409Z",
+            "bytes": 68
+          },
+          {
+            "at": "2026-10-26T06:13:40.440Z",
+            "bytes": 62
+          },
+          {
+            "at": "2026-10-26T06:13:40.471Z",
+            "bytes": 69
+          },
+          {
+            "at": "2026-10-26T06:13:40.507Z",
+            "bytes": 66
+          },
+          {
+            "at": "2026-10-26T06:13:40.548Z",
+            "bytes": 62
+          },
+          {
+            "at": "2026-10-26T06:13:40.576Z",
+            "bytes": 62
+          },
+          {
+            "at": "2026-10-26T06:13:40.611Z",
+            "bytes": 62
+          },
+          {
+            "at": "2026-10-26T06:13:40.650Z",
+            "bytes": 64
+          },
+          {
+            "at": "2026-10-26T06:13:40.704Z",
+            "bytes": 69
+          },
+          {
+            "at": "2026-10-26T06:13:40.738Z",
+            "bytes": 65
+          },
+          {
+            "at": "2026-10-26T06:13:40.760Z",
+            "bytes": 62
+          },
+          {
+            "at": "2026-10-26T06:13:41.030Z",
+            "bytes": 193
+          },
+          {
+            "at": "2026-10-26T06:13:41.084Z",
+            "bytes": 275
+          }
+        ],
+        "requestId": "chatcmpl-7b88353f-5078-4c74-a5be-996327080419",
+        "cancelReason": "first-content",
+        "cancelledAt": "2026-10-26T06:13:41.084Z",
+        "nextReadRejected": true,
+        "abortErrorName": "AbortError",
+        "finishedAt": "2026-10-26T06:13:41.085Z"
+      }
+    },
+    {
+      "name": "native-receipt.json",
+      "sha256": "f0d56d873a7dac8534dbe093da54a9131fdb6f5f4846e3f9601b77601fa20fa6",
+      "observation": {
+        "observedAt": "2026-10-26T06:13:52.624319+00:00",
+        "qaUserId": 10,
+        "ownerUserUntouched": 0,
+        "package": "earth.mention.app",
+        "source": "7587a6af619fa6c02d6b650bdf0ded8cb9746a07",
+        "installedApkSha256": "2151138f4583752c4506b2e0a2d5c033d6c94ed86a7399ba918c244da3ab8e97",
+        "qaAccountId": "01a176ba-f02b-790f-b9a1-64aa4430106b",
+        "profileHandleMatches": true,
+        "coldStartRetainedSession": true,
+        "screenshotSha256": "4a05771e6d04e1d9667088771253400e040b9ad1e01444701cc279367564b444",
+        "commonsVersion": "1.4.0",
+        "commonsCode": 5,
+        "commonsSourceUnknown": true,
+        "commonsOnboardingReportedOffline": true,
+        "commonsPublicFingerprintNotObserved": true
+      }
+    }
+  ],
+  "writes": {
+    "dedicatedAccounts": 2,
+    "generationRequests": 3,
+    "publishedPosts": 0,
+    "fundingOrRoutingChanges": 0
+  },
+  "remaining": [
+    "Alia affinity cookies reproduced; remediation separately assigned",
+    "Explicit UI Stop contract must be reconciled with intentional background completion; no upstream cancellation pass claimed",
+    "Installed Commons source unknown and onboarding reported offline; current Mention broker login passed",
+    "QA artifacts/profile/account cleanup pending server readback"
+  ],
+  "android": {
+    "beforeUsers": [
+      0
+    ],
+    "createdQaUser": 10,
+    "restoredForegroundUser": 0,
+    "ownerDataAccessed": false
+  },
+  "cancellationObservation": {
+    "clientAbortAt": "2026-10-26T06:13:41.084Z",
+    "aliaRequestId": "chatcmpl-7b88353f-5078-4c74-a5be-996327080419",
+    "kaanaRequestId": "7f76ebcd-61bc-4a32-aee8-e806f7b37dac",
+    "providerOutcome": "completed",
+    "providerCompletedAt": "2026-10-26T06:13:49.705170863Z",
+    "aliaSettledAt": "2026-10-26T06:13:49.778Z",
+    "completionTokens": 240,
+    "creditsCharged": 4,
+    "sourceReceipts": [
+      {
+        "name": "alia-third-db/readback.json",
+        "sha256": "ec5fbb06d96e6ca5a974df7597b39b3f7139f9a6cfab32f043af85c97324be5b"
+      },
+      {
+        "name": "kaana-log-correlation.json",
+        "sha256": "a5488c0eeca9e99029f6ce9f173fbca23fce503143cf28e55d05a6727be8cd3f"
+      }
+    ],
+    "interpretation": "HTTP disconnect did not stop provider work; server intentionally supports background completion. The SDK UI Stop currently only aborts transport, so an explicit cancellation contract requires review."
+  }
+}

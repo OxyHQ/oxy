@@ -188,6 +188,32 @@ describe('password, second factor and sign-up', () => {
     ).rejects.toThrow();
   });
 
+  it('forwards guest language and first campaign alongside device proof at signup', async () => {
+    makeRequest.mockResolvedValueOnce(SESSION);
+    const acquisition = {
+      languages: ['es-ES'],
+      campaignAttribution: { utmSource: 'newsletter', fbclid: 'click-id' },
+    };
+    await oxy.auth.signUp({
+      username: 'ada',
+      email: 'ada@example.com',
+      emailTicket: TOKEN,
+      ...acquisition,
+    });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/signup',
+      {
+        username: 'ada',
+        email: 'ada@example.com',
+        emailTicket: TOKEN,
+        device: DEVICE,
+        ...acquisition,
+      },
+      PRE_SESSION,
+    );
+  });
+
   it('signs up with the confirmed email', async () => {
     makeRequest.mockResolvedValueOnce(SESSION);
     await oxy.auth.signUp({ username: 'ada', email: 'ada@example.com', emailTicket: TOKEN });

@@ -270,6 +270,20 @@ paths are escaped and block only their descendants. `extraNodeModules`,
 `extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
 defaults without replacing them.
 
+#### Native CSS runtime identity (5.2.1+)
+
+Native bundles resolve `react-native-css` runtime imports and stylesheet injection
+through the app's CommonJS export condition. The package's ESM and CommonJS builds
+own separate root-variable registries; loading both can leave variable-based
+utilities such as `text-white` without their registered color. The resolver runs
+below NativeWind so redirected component imports share the same runtime, while
+preserving native component export conditions. Web resolution is unchanged.
+
+When validating a packed dependency on Android, force Metro to regenerate the
+release bundle: Gradle can otherwise reuse its previous bundle despite a changed
+package install. Inspect the regenerated source map for a single CSS runtime
+before comparing device behavior.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`

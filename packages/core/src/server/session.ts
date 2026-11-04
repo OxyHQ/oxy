@@ -16,10 +16,11 @@
  * bearer) — never the raw token — for {@link SESSION_VALIDATION_CACHE_TTL_MS}
  * (30 s) by default, and never past the token's own `exp`.
  *
- * THE SECURITY CONTRACT: the cache never keeps a revoked session alive. Oxy
- * announces every session it ends on its service-event feed
- * (`./serviceEvents.ts`; `@oxy.so/contracts` `sessionRevocation.ts`), and the
- * cache is used ONLY while that feed is live:
+ * Oxy announces ended sessions on its service-event feed (`./serviceEvents.ts`;
+ * `@oxy.so/contracts` `sessionRevocation.ts`), and the cache is used ONLY while
+ * that feed is live. Feed health alone cannot prove that every event was
+ * delivered. Routes requiring a fresh session-row read can opt in to
+ * `liveSession`; see `ServerSessionValidateOptions` for its scope.
  *
  * - no feed (this process has no service token: no credential and no attested
  *   workload, as in a test or a local checkout), a feed not yet connected, a
@@ -46,12 +47,14 @@ import { createHash } from 'node:crypto';
 import {
   type OxySessionRevocationEvent,
   type SupervisedAction,
+  accountActorChainSchema,
   safetySessionInputSchema,
   safetySessionValidationSchema,
 } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { OxyContext } from '../client/context';
 import { SessionApi, type SessionValidateOptions, type SessionValidation } from '../api/session';
+import { OxyApiError } from '../OxyServices.errors';
 import type { User } from '../models/interfaces';
 import { normalizeUserIdentity } from '../utils/userIdentity';
 
@@ -61,6 +64,17 @@ export const SESSION_VALIDATION_CACHE_TTL_MS = 30_000;
 const SESSION_VALIDATION_CACHE_MAX = 5_000;
 
 export interface ServerSessionValidateOptions extends SessionValidateOptions {
+  /**
+   * Require a session-row read on a PostgreSQL writer. Old servers and
+   * unavailable authority fail closed with 503. The read only reflects commits
+   * visible to its database snapshot; requests already authorized can finish.
+   * This does not make account, grant or supervision data fresh. An unconfirmed
+   * user, grant or policy negative returns 503 rather than invalidating a
+   * session. Expiry is checked against the consumer's clock; skew can cause
+   * unavailability. Each validation reaches Oxy and its activity bookkeeping;
+   * assess database and Redis load before enabling it on a route.
+   */
+  liveSession?: boolean;
   /**
    * A reviewed route category. Oxy then validates the bearer through this
    * service's live `safety:<action>:v1` authority, the only lane a supervised
@@ -121,7 +135,27 @@ export class ServerSessionApi extends SessionApi {
     sessionId: string,
     options: ServerSessionValidateOptions = {},
   ): Promise<SessionValidation> {
-    const { supervisedAction, fresh, ...rest } = options;
+    const { supervisedAction, fresh, liveSession, ...rest } = options;
+    if (liveSession) {
+      if (supervisedAction)
+        throw new OxyApiError('Live supervised session authority is unavailable', {
+          status: 503,
+          code: 'SESSION_AUTHORITY_UNAVAILABLE',
+        });
+      try {
+        const result = await this.validateRequest(sessionId, { ...rest, liveSession: true });
+        const actor = accountActorChainSchema.safeParse(result.actor);
+        if (!actor.success || actor.data.effectiveAccountId !== result.user.id)
+          throw new OxyApiError('Invalid live session authority response', {
+            status: 503,
+            code: 'SESSION_AUTHORITY_UNAVAILABLE',
+          });
+        return result;
+      } catch (error) {
+        if ((error as { status?: unknown } | null)?.status === 401) this.refuse(sessionId);
+        throw error;
+      }
+    }
     if (supervisedAction) return this.validateSupervised(sessionId, supervisedAction, rest);
     if (!rest.accessToken || rest.deviceFingerprint || this.validationTtlMs <= 0) {
       return super.validate(sessionId, rest);

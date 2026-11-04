@@ -6,6 +6,7 @@
  */
 
 import { INBOX_APPLICATION_ID } from '../config/inboxInference';
+import type { NamedRouteParams } from '../types/routeParams';
 import type { Request, Response } from 'express';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
@@ -231,7 +232,7 @@ async function resolveReplyThreading(
   return { inReplyTo, references: chain, parentRowId: parent.id };
 }
 
-interface AuthRequest extends Request {
+interface AuthRequest extends Request<NamedRouteParams> {
   user?: { id: string };
 }
 

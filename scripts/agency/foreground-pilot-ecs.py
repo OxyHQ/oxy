@@ -29,7 +29,6 @@ digest = base.digest
 SOURCE_PATHS = [
     'packages/api/src/scripts/foregroundPilotConfiguration.ts',
     'packages/api/src/scripts/foregroundPilotExecutor.ts',
-    'packages/api/src/scripts/foregroundPilotHttps.ts',
     'packages/api/src/scripts/seedOxyApplicationsSpecs.ts',
     'packages/api/src/scripts/seedOxyApplicationsPlan.ts',
     'packages/api/src/capabilities/oxy-profile.catalog.ts',
@@ -38,9 +37,7 @@ SOURCE_PATHS = [
     'scripts/agency/oxy-profile-registrar-preflight-ecs.py',
     'scripts/agency/foreground-pilot-ecs.py',
 ]
-PHASES = {'configuration-intent', 'configuration-confirmed', 'credential-intent',
-          'credential-confirmed', 'mint-intent', 'mint-confirmed', 'register-intent',
-          'register-confirmed', 'cleanup-confirmed'}
+PHASES = set()
 
 
 cleanup_running = False
@@ -111,6 +108,7 @@ def configure_profile(definition):
 
 
 def build_definition(plan):
+    require(plan['operation'] == 'retire', 'I05 provisioning and rollback are retired')
     payload = base64.urlsafe_b64encode(json.dumps(plan['configuration'], separators=(',', ':')).encode()).decode().rstrip('=')
     live = plan['live']
     return {'family': 'oxy-i05-foreground-configuration', 'executionRoleArn': live['executionRoleArn'],
@@ -133,7 +131,7 @@ def validate_plan(plan):
                          'sourceHead', 'sourceSha256', 'configuration', 'configurationSha256', 'live',
                          'taskDefinitionSha256'}, 'Unexpected/missing plan fields')
     require(plan['schemaVersion'] == 1 and plan['kind'] == 'i05-foreground-dispatch'
-            and plan['operation'] in ('execute', 'rollback', 'retire'), 'Invalid plan kind/operation')
+            and plan['operation'] == 'retire', 'Invalid plan kind/operation')
     require(re.fullmatch('[a-f0-9]{32}', plan['nonce']) is not None
             and plan['nonce'] == plan['configuration']['nonce'], 'Operation nonce mismatch')
     require(re.fullmatch('[a-f0-9]{40}', plan['sourceHead']) is not None, 'Source pin missing')
@@ -247,17 +245,9 @@ def execute(plan, directory):
         require(len(task['containers']) == 1 and task['containers'][0].get('imageDigest') == plan['live']['image'].split('@')[1], 'Task image differs')
         operations = collect_confirmed_operations(plan, launched[0])
         private_json(directory / 'operations.json', operations)
-        authority_cleanup_confirmed = any(row.get('phase') == 'cleanup-confirmed' for row in operations)
-        if plan['operation'] in ('retire', 'rollback'):
-            authority_cleanup_confirmed = any(row.get('status') == 'confirmed' for row in operations)
+        authority_cleanup_confirmed = any(row.get('status') == 'confirmed' for row in operations)
         require(task['containers'][0].get('exitCode') == 0, 'Foreground task failed; SQL reconciliation required')
         require(sum(row.get('status') == 'confirmed' for row in operations) == 1, 'Final operation acknowledgement absent/ambiguous')
-        if plan['operation'] == 'execute':
-            require([row['phase'] for row in operations if 'phase' in row] == [
-                'configuration-intent', 'configuration-confirmed', 'credential-intent', 'credential-confirmed',
-                'mint-intent', 'mint-confirmed', 'register-intent', 'register-confirmed', 'cleanup-confirmed'],
-                'Operation acknowledgement order/census differs')
-        if plan['operation'] == 'execute': require(authority_cleanup_confirmed, 'Credential retirement acknowledgement absent')
         private_json(directory / 'receipt.json', {'planSha256': digest(plan), 'taskArn': launched[0],
             'taskDefinitionArn': registered, 'image': plan['live']['image'], 'operation': plan['operation'],
             'operationsSha256': digest(operations), 'authorityCleanupConfirmed': authority_cleanup_confirmed})
@@ -285,7 +275,7 @@ def execute(plan, directory):
                         '--query', 'taskDefinition.status') == 'INACTIVE', 'Definition INACTIVE readback missing')
             except Exception: failures.append('definition_cleanup_unconfirmed')
         if acknowledgement_unknown: failures.append('ack_unknown_requires_intent_reconciliation')
-        if dispatch_attempted and plan['operation'] in ('execute', 'retire') and not authority_cleanup_confirmed:
+        if dispatch_attempted and plan['operation'] == 'retire' and not authority_cleanup_confirmed:
             failures.append('authority_retirement_unconfirmed_requires_sql_reconciliation')
         private_json(directory / 'cleanup.json', {'failures': failures, 'taskArns': launched,
             'definitionArn': registered, 'authorityCleanupConfirmed': authority_cleanup_confirmed,
@@ -298,7 +288,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--plan', required=True); parser.add_argument('--execute', action='store_true')
     parser.add_argument('--output'); parser.add_argument('--configuration'); parser.add_argument('--definition')
-    parser.add_argument('--operation', choices=('execute', 'rollback', 'retire'), default='execute')
+    parser.add_argument('--operation', choices=('retire',), default='retire')
     args = parser.parse_args()
     outside_source(args.plan)
     if args.execute:

@@ -24,6 +24,8 @@ import {
   messageAccessInputSchema,
   messagingSessionsInputSchema,
   messagingSessionsResponseSchema,
+  notificationAccessBatchInputSchema,
+  notificationAccessBatchResponseSchema,
   profileAccessBatchInputSchema,
   profileAccessBatchResponseSchema,
   profileAccessDecisionSchema,
@@ -46,6 +48,7 @@ import {
   type MessageAccessBatchInput,
   type MessageAccessInput,
   type MessagingSessionsInput,
+  type NotificationAccessBatchInput,
   type ProfileAccessBatchInput,
   type ProfileAccessInput,
   type PublicationPoliciesInput,
@@ -113,6 +116,20 @@ export class ServerSafetyApi extends SafetyApi {
   async deliveryAccessBatch(input: DeliveryAccessBatchInput) {
     return messageAccessBatchResponseSchema.parse(
       await this.service('delivery-access-batch', deliveryAccessBatchInputSchema.parse(input)),
+    );
+  }
+
+  /**
+   * Whether each actor may notify each recipient — blocks either way,
+   * availability and supervised contact approval — for background delivery
+   * with no human proof. Reviewed `safety:notification-delivery:v1` authority.
+   */
+  async notificationAccessBatch(input: NotificationAccessBatchInput) {
+    return notificationAccessBatchResponseSchema.parse(
+      await this.service(
+        'notification-access-batch',
+        notificationAccessBatchInputSchema.parse(input),
+      ),
     );
   }
 

@@ -63,6 +63,7 @@ jest.mock('../../src/ui/hooks/queryClient', () => ({
 }));
 
 import OxyProvider from '../../src/ui/components/OxyProvider';
+import * as screenRoutes from '../../src/ui/navigation/routes';
 
 let observedClient: QueryClient | null = null;
 
@@ -78,6 +79,18 @@ beforeEach(() => {
 });
 
 describe('OxyProvider — one QueryClient', () => {
+  it('does not load account screens before a surface is opened', async () => {
+    const loadScreens = jest.spyOn(screenRoutes, 'loadScreens').mockResolvedValue();
+    const { findByTestId } = render(
+      <OxyProvider baseURL="https://api.oxy.so" queryClient={new QueryClient()}>
+        <ClientProbe />
+      </OxyProvider>,
+    );
+    await findByTestId('probe');
+    expect(loadScreens).not.toHaveBeenCalled();
+    loadScreens.mockRestore();
+  });
+
   it('uses a supplied QueryClient as THE client and creates none of its own', async () => {
     const supplied = new QueryClient();
 

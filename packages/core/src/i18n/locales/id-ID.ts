@@ -18,6 +18,9 @@ const dict = {
       caption: 'Pindai dengan Commons untuk masuk',
       renew: 'Tampilkan kode baru',
     },
+    device: {
+      codeHint: 'Pastikan ponsel Anda menampilkan kode ini',
+    },
     errors: {
       rateLimited: 'Terlalu banyak percobaan. Coba lagi dalam {{seconds}} dtk.',
       invalidCredentials:

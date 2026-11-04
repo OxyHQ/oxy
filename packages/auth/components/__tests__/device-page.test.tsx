@@ -234,8 +234,9 @@ describe('DevicePage', () => {
     const { container, unmount } = renderPage();
     await flush();
 
-    // The code is shown so it can be checked against the device's own.
-    expect(byTestId(container, 'device-code')?.textContent).toBe(CODE);
+    // The comparison code is shown so it can be checked against the device's
+    // own: the first eight characters, grouped, never the whole handle.
+    expect(byTestId(container, 'device-code')?.textContent).toBe('0123-4567');
     // A CLI sends no Origin, so the unverified alarm wording applies.
     expect(container.textContent).toMatch(/couldn't verify where this request came from/i);
 
@@ -286,7 +287,10 @@ describe('DevicePage', () => {
 
     click(byTestId(container, 'consent-allow'));
     await flush();
-    expect(byTestId(container, 'consent-error')?.textContent).toBe('Request already used');
+    // The page's words, never the server's English `message`.
+    expect(byTestId(container, 'consent-error')?.textContent).toBe(
+      'Could not complete sign-in. Start it again on your device.',
+    );
     expect(container.textContent).not.toMatch(/you're signed in/i);
 
     click(byTestId(container, 'consent-allow'));

@@ -69,10 +69,14 @@ import {
   type ChainHeadResponse,
   type LogPageResponse,
 } from '@oxy.so/contracts';
+import { normalizeDomainName } from '@oxy.so/contracts/client';
 import { getDb } from '../config/postgres';
 import { domainVerifications } from '../db/schema/domainVerifications';
 import { users } from '../db/schema/users';
-import { userVerifiedDomains, VERIFIED_DOMAIN_METHODS } from '../db/schema/userVerifiedDomains';
+import {
+  userVerifiedDomains,
+  type VERIFIED_DOMAIN_METHODS,
+} from '../db/schema/userVerifiedDomains';
 import userCache from '../utils/userCache';
 import {
   verifyAndStoreRecord,
@@ -139,17 +143,6 @@ const MAX_WELL_KNOWN_BYTES = 1024;
 /** Deadline for the proof's headers, and again for its body (≤ 1 KiB). */
 const WELL_KNOWN_TIMEOUT_MS = 5_000;
 
-// RFC 1035 hostname: 1+ dot-separated labels of letters/digits/hyphens (no
-// leading/trailing hyphen), at least one dot, total length bounded.
-const DOMAIN_PATTERN = /^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
-
-function normalizeDomain(raw: string): string | null {
-  const domain = raw.trim().toLowerCase();
-  if (domain.length === 0 || domain.length > 253) return null;
-  if (!DOMAIN_PATTERN.test(domain)) return null;
-  return domain;
-}
-
 /**
  * `lower(<domain column>) = $1` — the spelling that matches the expression
  * unique indexes both domain tables are built on
@@ -158,7 +151,7 @@ function normalizeDomain(raw: string): string | null {
  *
  * A plain `domain = $1` is correct-looking, case-sensitive, and would not use
  * either index. Postgres has no column-level lower-casing;
- * {@link normalizeDomain} already lower-cased the bound parameter, so this makes
+ * {@link normalizeDomainName} already lower-cased the bound parameter, so this makes
  * the STORED side agree too.
  */
 function domainMatches(column: PgColumn, domain: string): SQL {
@@ -267,7 +260,7 @@ router.post(
  */
 router.get(
   '/records/:userId/chain/head',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
@@ -291,7 +284,7 @@ router.get(
 router.get(
   '/log/:userId',
   nodeLogLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
     let sinceSeq = -1;
@@ -332,7 +325,7 @@ router.get(
 router.get(
   '/head/:userId',
   nodeHeadLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
@@ -347,7 +340,7 @@ router.get(
 /** GET /identity/records/:userId/:type — the latest published record (public). */
 router.get(
   '/records/:userId/:type',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId, type } = req.params;
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');
@@ -365,7 +358,7 @@ router.get(
 /** GET /identity/records/:userId/:type/verify — re-verify the latest record (public). */
 router.get(
   '/records/:userId/:type/verify',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId, type } = req.params;
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');
@@ -416,7 +409,7 @@ router.post(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const domain = normalizeDomain(req.body.domain);
+    const domain = normalizeDomainName(req.body.domain);
     if (!domain) {
       throw new BadRequestError('Invalid domain');
     }
@@ -504,7 +497,7 @@ router.post(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const domain = normalizeDomain(req.params.domain);
+    const domain = normalizeDomainName(req.params.domain);
     if (!domain) {
       throw new BadRequestError('Invalid domain');
     }
@@ -596,7 +589,7 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const domain = normalizeDomain(req.params.domain);
+    const domain = normalizeDomainName(req.params.domain);
     if (!domain) {
       throw new BadRequestError('Invalid domain');
     }

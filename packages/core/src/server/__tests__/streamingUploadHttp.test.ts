@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { close as closeFile, createReadStream, open, read } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -23,6 +23,34 @@ async function close(server: Server): Promise<void> {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
+async function withinDeadline<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Upload fixture did not close within 2s')), 2000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function waitForClose(stream: Readable | ServerResponse): Promise<void> {
+  if (stream.closed) return;
+  let onClose!: () => void;
+  const closed = new Promise<void>((resolve) => {
+    onClose = resolve;
+    stream.once('close', onClose);
+  });
+  try {
+    await withinDeadline(closed);
+  } finally {
+    stream.off('close', onClose);
+  }
+}
+
 it('reopens a file once after 401, preserves bytes/context, and never retries ambiguous failures', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'oxy-stream-'));
   const path = join(directory, 'upload.bin');
@@ -38,7 +66,7 @@ it('reopens a file once after 401, preserves bytes/context, and never retries am
     proof: string;
   }> = [];
   const exchanges: Array<{ protocolVersion: number; audience: string }> = [];
-  let firstClosed = false;
+  let firstResponse: ServerResponse | undefined;
   let first401 = true;
   const server = createServer(async (req, res) => {
     if (req.url?.endsWith('/challenge')) return res.end('{"nonce":"fixture"}');
@@ -87,9 +115,7 @@ it('reopens a file once after 401, preserves bytes/context, and never retries am
     expect(req.headers['content-length']).toBe(String(bytes.length));
     if (req.url === '/upload' && first401) {
       first401 = false;
-      res.on('close', () => {
-        firstClosed = true;
-      });
+      firstResponse = res;
       res.writeHead(401);
       res.write('expired'); // Core must cancel this body rather than wait for an EOF.
       return;
@@ -117,10 +143,28 @@ it('reopens a file once after 401, preserves bytes/context, and never retries am
   });
   let opened = 0;
   const streams: ReturnType<typeof createReadStream>[] = [];
+  let eofGate: { reached: () => void; release: Promise<void> } | undefined;
   const bodyFactory = () => {
     expect(exchanges.length).toBeGreaterThan(0);
     opened++;
-    const file = createReadStream(path, { highWaterMark: 16 * 1024 });
+    const file = createReadStream(path, {
+      highWaterMark: 16 * 1024,
+      fs: {
+        open,
+        close: closeFile,
+        read(fd, buffer, offset, length, position, callback) {
+          read(fd, buffer, offset, length, position, (error, bytesRead, result) => {
+            // Content-Length lets the receiver finish before the final local EOF
+            // callback. Hold that real callback to reproduce the CI ordering.
+            const gate = !error && bytesRead === 0 ? eofGate : undefined;
+            if (gate) {
+              gate.reached();
+              void gate.release.then(() => callback(error, bytesRead, result));
+            } else callback(error, bytesRead, result);
+          });
+        },
+      },
+    });
     streams.push(file);
     return Readable.toWeb(file) as ReadableStream<Uint8Array>;
   };
@@ -142,8 +186,9 @@ it('reopens a file once after 401, preserves bytes/context, and never retries am
     expect(opened).toBe(2);
     expect(requests).toHaveLength(2);
     expect(requests[0].token).not.toBe(requests[1].token);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(firstClosed).toBe(true);
+    expect(firstResponse).toBeDefined();
+    if (!firstResponse) throw new Error('Missing first 401 response');
+    await waitForClose(firstResponse);
     for (const entry of requests)
       expect(entry).toMatchObject({
         hash: expectedHash,
@@ -166,13 +211,34 @@ it('reopens a file once after 401, preserves bytes/context, and never retries am
     const before = opened;
     expect((await client.fetchReplayable('/always401', init)).status).toBe(401);
     expect(opened).toBe(before + 2);
+    await Promise.all(streams.map(waitForClose));
     for (const path of ['/drop', '/redirect']) {
       const before = opened;
-      await expect(client.fetchReplayable(path, init)).rejects.toBeDefined();
-      expect(opened).toBe(before + 1);
+      let reached!: () => void;
+      let release!: () => void;
+      const eofReached = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      eofGate = {
+        reached,
+        release: new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      };
+      try {
+        await expect(client.fetchReplayable(path, init)).rejects.toBeDefined();
+        expect(opened).toBe(before + 1);
+        await withinDeadline(eofReached);
+        // Fetch rejection is not the file descriptor's close barrier.
+        expect(streams[before].closed).toBe(false);
+      } finally {
+        release();
+        eofGate = undefined;
+      }
+      await waitForClose(streams[before]);
     }
     expect(requests.some(({ path }) => path === '/wrong')).toBe(false);
-    expect(streams.every((stream) => stream.destroyed)).toBe(true);
+    expect(streams.every((stream) => stream.destroyed && stream.closed)).toBe(true);
   } finally {
     client.dispose();
     oxy.dispose();
@@ -345,7 +411,7 @@ it('aborts an in-flight file upload and closes its stream without reopening it',
     await expect(
       client.fetchReplayable('/upload', { method: 'POST', bodyFactory, signal: controller.signal }),
     ).rejects.toBeDefined();
-    await streamClosed;
+    await withinDeadline(streamClosed);
     expect(stream?.destroyed).toBe(true);
     expect(bodyFactory).toHaveBeenCalledTimes(1);
     expect(uploadAttempts).toBe(1);

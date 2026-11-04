@@ -410,7 +410,13 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
         properties[key] = zodToOpenApi(value);
         if (!['optional', 'default', 'prefault'].includes(value._zod.def.type)) required.push(key);
       }
-      return { type: 'object', properties, ...(required.length ? { required } : {}) };
+      const catchall = def.catchall as ZodTypeAny | undefined;
+      return {
+        type: 'object',
+        properties,
+        ...(required.length ? { required } : {}),
+        ...(catchall?._zod.def.type === 'never' ? { additionalProperties: false } : {}),
+      };
     }
     case 'record':
       return { type: 'object', additionalProperties: zodToOpenApi(def.valueType as ZodTypeAny) };
@@ -802,7 +808,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|ownAssetAuth|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|ownAssetAuth|emailCapabilityAuth|serviceAuthMiddleware|holderContextEvidenceBudget|requireFirstPartyInferenceCaller|optionalAuthMiddleware|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1491,7 +1497,7 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   const paramsSchema = validate?.params ? resolveRouteSchema(route, validate.params) : undefined;
   const paramsOpenApi = paramsSchema ? zodToOpenApi(paramsSchema) : undefined;
   const paramsProps = (paramsOpenApi?.properties ?? {}) as Record<string, Record<string, unknown>>;
-  const paramsRequired = new Set<string>(((paramsOpenApi?.required ?? []) as string[]) ?? []);
+  const paramsRequired = new Set<string>((paramsOpenApi?.required ?? []) as string[]);
 
   for (const name of pathParamNames) {
     const schema = paramsProps[name] ?? { type: 'string' };
@@ -1508,7 +1514,7 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   if (querySchema) {
     const queryOpenApi = zodToOpenApi(querySchema);
     const queryProps = (queryOpenApi.properties ?? {}) as Record<string, Record<string, unknown>>;
-    const queryRequired = new Set<string>(((queryOpenApi.required ?? []) as string[]) ?? []);
+    const queryRequired = new Set<string>((queryOpenApi.required ?? []) as string[]);
     for (const [name, schema] of Object.entries(queryProps)) {
       parameters.push({
         name,
@@ -1632,7 +1638,10 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     );
   // `ownAssetAuth` (routes/assets.ts) is `authMiddleware` that also lets a
   // supervised account's session act on its own files: the same bearer.
-  const isAuth = middlewares.includes('authMiddleware') || middlewares.includes('ownAssetAuth');
+  const isAuth =
+    middlewares.includes('authMiddleware') ||
+    middlewares.includes('ownAssetAuth') ||
+    middlewares.includes('holderContextEvidenceBudget');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isEdgeCredential) {
     security.push({ machineCredentialAuth: [] });

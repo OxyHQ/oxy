@@ -1,3 +1,4 @@
+import { managedApplicationDeployments } from './managedApplicationDeployments';
 import {
   supervisionPurchaseApprovals,
   supervisionAudit,
@@ -154,6 +155,15 @@ const PRICE_VERSION_LABEL_REASON =
   'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: managedApplicationDeployments,
+    column: managedApplicationDeployments.publicClientId,
+    reason:
+      'Immutable public client identifier issued when the managed deployment was registered. ' +
+      'It must survive credential rotation or deletion so registration retries detect drift ' +
+      'and cannot recreate revoked access. The application_id foreign key anchors ownership; ' +
+      'the registrar checks the live application credential before accepting every retry.',
+  },
   {
     table: applicationRecognition,
     column: applicationRecognition.iosTeamId,

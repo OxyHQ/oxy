@@ -1,5 +1,5 @@
 import { utf16MinLength } from '@oxy.so/contracts';
-import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
+import type { NamedRouteParams } from '../types/routeParams';
 import {
   assertExternalDocumentUpload,
   assertExternalDocumentContinuation,
@@ -191,7 +191,7 @@ import { resolveVideoHlsReadiness } from '../utils/videoHlsReadiness';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
-interface AuthenticatedRequest extends express.Request {
+interface AuthenticatedRequest extends express.Request<NamedRouteParams> {
   user?: {
     _id: string;
     [key: string]: any;
@@ -229,7 +229,7 @@ const singleMultipartFile: express.RequestHandler = (req, res, next) => {
   });
 };
 /** Reviewed own-file operations: authentication still proves the original bearer. */
-const ownAssetAuth: express.RequestHandler = (req, res, next) => {
+const ownAssetAuth: express.RequestHandler<NamedRouteParams> = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
@@ -302,6 +302,24 @@ async function sessionOwnsFile(req: AuthenticatedRequest, file: FileRecord): Pro
   if (!file.ownerUserId || !req.user?._id) return false;
   if (file.ownerUserId === req.user._id.toString()) return true;
   return file.ownerUserId === (await resolveOperatorId(req));
+}
+
+/** Preserve the verified human owner's library while acting as a managed account.
+ * Scoped media tokens already carry their authorized viewer and cannot assert an operator.
+ */
+async function mediaViewerForFile(
+  req: AuthenticatedRequest,
+  file: FileRecord,
+  viewerId: string | undefined,
+): Promise<string | undefined> {
+  if (
+    viewerId &&
+    req.user?._id?.toString() === viewerId &&
+    file.ownerUserId &&
+    (await sessionOwnsFile(req, file))
+  )
+    return file.ownerUserId;
+  return viewerId;
 }
 
 /**
@@ -3592,9 +3610,7 @@ router.post(
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner =
-      req.serviceApp?.authority === 'first_party' ||
-      Boolean(req.serviceApp && (await resolveLegacyResourceWorkload(req.serviceApp)));
+    const revealOwner = req.serviceApp?.authority === 'first_party';
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
@@ -3822,6 +3838,7 @@ router.post(
           mime: file.mime,
           size: file.size,
           sha256: file.sha256,
+          visibility: file.visibility,
         })),
     );
 
@@ -4242,7 +4259,7 @@ router.get(
   streamObjectAddressLimiter,
   validate({ params: streamObjectParams }),
   streamObjectSessionLimiter,
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     // The URL is the credential: any origin may play it, and no cookie or
     // bearer is ever involved.
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -4674,7 +4691,7 @@ router.get(
     if (!isOwner && file.visibility === 'private') {
       throw new NotFoundError('File not found');
     }
-    if (!(await assetService.canUserAccessFile(file, user._id)))
+    if (!isOwner && !(await assetService.canUserAccessFile(file, user._id)))
       throw new ForbiddenError('Access denied');
     const operatorId = isOwner ? null : await resolveOperatorId(req);
     const visibleLinks = isOwner
@@ -4794,7 +4811,8 @@ router.get(
     // renderable URL. `authMiddleware` proves identity; this proves authorization
     // for THIS asset (ownership, follow/block, entity context) — so we never mint
     // a media token for an asset the caller can't access.
-    if (!(await assetService.canUserAccessFile(file, user._id))) {
+    const viewerId = await mediaViewerForFile(req, file, user._id);
+    if (!(await assetService.canUserAccessFile(file, viewerId))) {
       logger.warn('Access denied to asset URL', {
         fileId,
         userId: user._id,
@@ -4820,7 +4838,9 @@ router.get(
       });
     }
     const mediaToken =
-      cdnUrl || file.visibility === 'public' ? undefined : signMediaToken(fileId, user._id);
+      cdnUrl || file.visibility === 'public' || !viewerId
+        ? undefined
+        : signMediaToken(fileId, viewerId);
     const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
 
     logger.debug('File URL generated', {
@@ -4922,7 +4942,7 @@ router.get(
     // the viewer from the scoped `?mt=` media token (bound to this file id) when no
     // session user is present, so owners can render their own private media. Access
     // is still gated by canUserAccessFile.
-    const userId = getMediaViewerUserId(req);
+    let userId = getMediaViewerUserId(req);
     const { id: fileId } = req.params;
     const { variant } = req.query;
     const variantType = singleQueryValue(variant);
@@ -4953,6 +4973,7 @@ router.get(
     }
 
     const context = parseMediaAccessContext(req.query.context);
+    userId = await mediaViewerForFile(req, file, userId);
 
     if (!(await assetService.canUserAccessFile(file, userId, context))) {
       logger.warn('Access denied to file', { fileId, userId, visibility: file.visibility });
@@ -5166,7 +5187,7 @@ router.get(
     // Resolve viewer from the scoped `?mt=` media token for direct-download links
     // that cannot carry an Authorization header or cookie (owners downloading
     // their own private files). Access is still gated by canUserAccessFile below.
-    const userId = getMediaViewerUserId(req);
+    let userId = getMediaViewerUserId(req);
     const { id: fileId } = req.params;
     const { variant, expiresIn } = req.query;
 
@@ -5176,7 +5197,8 @@ router.get(
       throw new NotFoundError('File not found');
     }
 
-    // Check access permissions
+    // Check access permissions using only the server-verified session operator.
+    userId = await mediaViewerForFile(req, file, userId);
     if (!(await assetService.canUserAccessFile(file, userId))) {
       logger.warn('Access denied to file download', {
         fileId,
@@ -5491,7 +5513,15 @@ router.post(
           return;
         }
 
-        if (!(await assetService.canUserAccessFile(file, user?._id, context, supervisionPolicy))) {
+        const viewerId = await mediaViewerForFile(req, file, user?._id);
+        if (
+          !(await assetService.canUserAccessFile(
+            file,
+            viewerId,
+            context,
+            viewerId === user?._id ? supervisionPolicy : undefined,
+          ))
+        ) {
           results[fileId] = { allowed: false, error: 'Access denied' };
           return;
         }
@@ -5517,9 +5547,9 @@ router.post(
           });
         }
         const mediaToken =
-          cdnUrl || file.visibility === 'public' || !user?._id
+          cdnUrl || file.visibility === 'public' || !viewerId
             ? undefined
-            : signMediaToken(fileId, user._id);
+            : signMediaToken(fileId, viewerId);
         const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variant, mediaToken);
         results[fileId] = {
           allowed: true,

@@ -144,7 +144,7 @@ router.get(
   '/apps',
   readLimiter,
   validate({ query: storeListingsQuery }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { category, limit, offset } = req.query as unknown as {
       category?: string;
       limit: number;
@@ -160,7 +160,7 @@ router.get(
   '/apps/:slug',
   readLimiter,
   validate({ params: storeSlugParams }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const listing = await getPublishedListing(req.params.slug);
     // The same answer for "no such app" and "not published": whether a draft
     // exists is not something an unauthenticated caller gets to learn.
@@ -174,7 +174,7 @@ router.get(
   '/apps/:slug/reviews',
   readLimiter,
   validate({ params: storeSlugParams, query: storeReviewsQuery }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { limit, offset, sort } = req.query as unknown as {
       limit: number;
       offset: number;

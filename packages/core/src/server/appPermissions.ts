@@ -2,10 +2,13 @@
  * Application roles, from the application's side: which of THIS application's
  * declared permissions does the person behind a request hold?
  *
- * Oxy decides who holds an app's operator powers (`docs/auth/application-roles.md`).
- * An app declares its keys (`payments.operate`, …) in the Console, its owners
- * grant them to people, and its backend asks — so no app keeps a
- * `*_OPERATOR_OXY_USER_IDS` allow-list in its environment.
+ * Oxy decides who holds an app's operator powers (`docs/auth/application-roles.md`),
+ * and the backend asks — so no app keeps a `*_OPERATOR_OXY_USER_IDS` allow-list
+ * in its environment. One of Oxy's own applications declares its keys
+ * (`payments.operate`, …) in Oxy's first-party registry, each held by roles of
+ * the owning organization (ADR 0056); a third-party app declares them in the
+ * Console and its owners grant them to people. The answer has the same shape
+ * either way.
  *
  * ```ts
  * const oxy = new OxyServer({ baseURL: 'https://api.oxy.so', applicationId: process.env.OXY_APPLICATION_ID });
@@ -31,6 +34,23 @@
  * `X-Oxy-User-Id`, is refused — an operator power is exercised by a person in
  * a session, never through delegation.
  *
+ * ## An MCP tool call
+ *
+ * An MCP request carries no session: its bearer is an access token Oxy issued
+ * for this app's MCP resource, which `@oxy.so/mcp`'s transport introspected
+ * live before the tool ran. Pass the call's `extra` (`context.request` in a
+ * catalog handler or `authorize`) the same way:
+ *
+ * ```ts
+ * const held = await oxy.appPermissionsFor(context.request, { fresh: true });
+ * ```
+ *
+ * The SDK presents that token, with THIS process's service token, to
+ * `POST /auth/mcp/oauth/app-permissions`. Oxy answers only for a token whose
+ * resource this application registered, only about this application, and for
+ * the person who authorized the token — whichever account the connection is
+ * acting as. Same answer type, cache, `fresh` and errors as a session.
+ *
  * ## Caching, and how soon a revocation lands
  *
  * Answers are cached per (application, session, user) for
@@ -44,13 +64,21 @@
  * Node only; reachable solely from `@oxy.so/core/server`.
  */
 
+import { createHash } from 'node:crypto';
 import { applicationRolesMeSchema, isApplicationPermissionKey } from '@oxy.so/contracts';
 import { logger } from '../logger';
+import {
+  authorityErrorBody,
+  CallerAuthorityCache,
+  errorStatus,
+  permissionSet,
+  isBearerToken,
+  readCallerSession,
+  type OxyCallerRequest,
+} from './callerAuthority';
 
 /** Default cache lifetime of one answer. */
 export const APP_PERMISSIONS_CACHE_TTL_MS = 30_000;
-/** Entries kept per server; the oldest goes first. */
-const APP_PERMISSIONS_CACHE_MAX = 1000;
 
 /** What a refused request is answered with. */
 export type OxyAppPermissionDenyStatus = 403 | 404;
@@ -58,7 +86,8 @@ export type OxyAppPermissionDenyStatus = 403 | 404;
 /**
  * - `APP_PERMISSION_DENIED` — a person in a session, without the permission.
  * - `APP_PERMISSION_SESSION_REQUIRED` — no user session on the request: anonymous,
- *   or authenticated by a service token (delegated or not).
+ *   or authenticated by a service token (delegated or not); for an MCP call, no
+ *   access token, or one Oxy refused (revoked, expired, another app's resource).
  * - `APP_PERMISSION_UNAVAILABLE` — Oxy could not be asked or gave no usable
  *   answer. Fails closed; answered 503.
  * - `APP_PERMISSION_NOT_CONFIGURED` — this server knows no application id, or
@@ -98,6 +127,8 @@ export interface OxyAppPermissions {
    * The HUMAN Oxy resolved from the session — record THIS as the actor in an
    * audit log. It differs from `req.userId` when a person acts as an
    * organization (the session speaks as the org; the operator is the person).
+   * For an MCP call it is the person who authorized the token, which may differ
+   * from the account the connection is acting as.
    */
   readonly operatorId: string;
   /** The held keys, sorted. */
@@ -108,7 +139,11 @@ export interface OxyAppPermissions {
 export interface AppPermissionsOptions {
   /** Skip the cache and ask Oxy (the answer still refreshes the cache). Use on writes. */
   fresh?: boolean;
-  /** Ask about another application than the server's configured one. */
+  /**
+   * Ask about another application than the server's configured one. Not for an
+   * MCP call: Oxy answers it only about the application that registered the
+   * token's resource, and any other id is `APP_PERMISSION_NOT_CONFIGURED`.
+   */
   applicationId?: string;
 }
 
@@ -130,12 +165,24 @@ export interface RequireAppPermissionOptions extends AppPermissionsOptions {
 }
 
 /** The request fields the resolver reads — all set by `middleware.auth()`. */
-export interface AppPermissionsRequest {
-  userId?: string | null;
-  sessionId?: string | null;
-  accessToken?: string;
-  serviceApp?: unknown;
+export interface AppPermissionsRequest extends OxyCallerRequest {
   oxyAppPermissions?: OxyAppPermissions;
+}
+
+/**
+ * An MCP tool call: the `extra` (`RequestHandlerExtra`) an MCP handler receives,
+ * whose `authInfo` `@oxy.so/mcp`'s transport set after Oxy introspected the
+ * access token live. `CatalogInvocationContext.request` is one.
+ */
+export interface OxyMcpCallerRequest {
+  readonly authInfo?: { readonly token: string };
+}
+
+/** What `appPermissionsFor` reads: a request after `middleware.auth()`, or an MCP tool call. */
+export type AppPermissionsSource = AppPermissionsRequest | OxyMcpCallerRequest;
+
+function isMcpCallerRequest(source: AppPermissionsSource): source is OxyMcpCallerRequest {
+  return (source as OxyMcpCallerRequest).authInfo !== undefined;
 }
 
 /** The status the middleware answers an error with, under `deny`. */
@@ -156,22 +203,7 @@ export function appPermissionErrorStatus(
 }
 
 /** The response body for a status: the API error envelope (`docs/api-conventions.md`). */
-export function appPermissionErrorBody(status: number): {
-  error: { code: string; message: string };
-} {
-  switch (status) {
-    case 401:
-      return { error: { code: 'unauthorized', message: 'Authentication required' } };
-    case 403:
-      return { error: { code: 'forbidden', message: 'Not permitted' } };
-    case 404:
-      return { error: { code: 'not_found', message: 'Not found' } };
-    case 503:
-      return { error: { code: 'service_unavailable', message: 'Temporarily unavailable' } };
-    default:
-      return { error: { code: 'internal_error', message: 'Internal error' } };
-  }
-}
+export const appPermissionErrorBody = authorityErrorBody;
 
 /** Throws at MOUNT time on a key that could never be held — a typo is a deploy error. */
 export function assertApplicationPermissionKey(permission: unknown): asserts permission is string {
@@ -187,34 +219,21 @@ function heldPermissions(
   operatorId: string,
   permissions: readonly string[],
 ): OxyAppPermissions {
-  const sorted = Object.freeze([...new Set(permissions)].sort());
-  const set = new Set(sorted);
-  return Object.freeze({
-    applicationId,
-    operatorId,
-    permissions: sorted,
-    has: (permission: string) => set.has(permission),
-  });
-}
-
-interface CacheEntry {
-  value: OxyAppPermissions;
-  startedAt: number;
-  expiresAt: number;
+  return Object.freeze({ applicationId, operatorId, ...permissionSet(permissions) });
 }
 
 /** What the resolver needs from the server it belongs to. */
 export interface AppPermissionsHost {
   /** `GET /applications/:appId/roles/me` with this bearer, uncached. Rejects with the API error. */
   fetchRolesMe(applicationId: string, accessToken: string): Promise<unknown>;
+  /**
+   * `POST /auth/mcp/oauth/app-permissions` with this MCP access token, as this
+   * server's service, uncached. Rejects with the API error.
+   */
+  fetchMcpAppPermissions(mcpAccessToken: string): Promise<unknown>;
   /** The configured application id, or the one this server's service token names. */
   defaultApplicationId(): Promise<string | null>;
   readonly ttlMs: number;
-}
-
-function errorStatus(error: unknown): number | undefined {
-  const status = (error as { status?: unknown } | null)?.status;
-  return typeof status === 'number' ? status : undefined;
 }
 
 /**
@@ -222,37 +241,78 @@ function errorStatus(error: unknown): number | undefined {
  * `middleware.requireAppPermission`. One per server.
  */
 export class OxyAppPermissionsResolver {
-  private readonly cache = new Map<string, CacheEntry>();
-  private readonly pending = new Map<string, Promise<OxyAppPermissions>>();
+  private readonly cache: CallerAuthorityCache<OxyAppPermissions>;
 
-  constructor(private readonly host: AppPermissionsHost) {}
+  constructor(private readonly host: AppPermissionsHost) {
+    this.cache = new CallerAuthorityCache<OxyAppPermissions>(
+      host.ttlMs,
+      (value, userId) => value.operatorId === userId,
+    );
+  }
 
   /**
-   * What the person behind `req` holds. Throws {@link OxyAppPermissionError};
+   * What the person behind `source` holds. Throws {@link OxyAppPermissionError};
    * never answers "nothing held" for a failure.
    */
   async resolve(
-    req: AppPermissionsRequest,
+    source: AppPermissionsSource,
     options: AppPermissionsOptions = {},
   ): Promise<OxyAppPermissions> {
-    if (req.serviceApp) {
+    if (isMcpCallerRequest(source)) return this.resolveMcp(source, options);
+
+    const caller = readCallerSession(source);
+    if (!caller.ok) {
       throw new OxyAppPermissionError(
         'APP_PERMISSION_SESSION_REQUIRED',
-        'Application permissions are held by a person in a session; this request is authenticated by a service token',
-      );
-    }
-    const userId = typeof req.userId === 'string' && req.userId.length > 0 ? req.userId : null;
-    const sessionId =
-      typeof req.sessionId === 'string' && req.sessionId.length > 0 ? req.sessionId : null;
-    const accessToken =
-      typeof req.accessToken === 'string' && req.accessToken.length > 0 ? req.accessToken : null;
-    if (!userId || !sessionId || !accessToken) {
-      throw new OxyAppPermissionError(
-        'APP_PERMISSION_SESSION_REQUIRED',
-        'No verified user session on this request; mount middleware.auth() first',
+        caller.reason === 'service'
+          ? 'Application permissions are held by a person in a session; this request is authenticated by a service token'
+          : 'No verified user session on this request; mount middleware.auth() first',
       );
     }
 
+    const appId = await this.applicationIdFor(options);
+    return this.cache.read([appId], caller.session, options.fresh === true, () =>
+      this.lookup(appId, caller.session.accessToken),
+    );
+  }
+
+  /**
+   * Forget cached answers: every one, or those about one person (matched as
+   * either the session's user or the resolved operator).
+   */
+  invalidate(filter: { userId?: string } = {}): void {
+    this.cache.invalidate(filter);
+  }
+
+  /**
+   * An MCP call: Oxy names the application (the one that registered the token's
+   * resource) and the person (who authorized the token); the answer is refused
+   * unless the application is the one this server expects.
+   */
+  private async resolveMcp(
+    source: OxyMcpCallerRequest,
+    options: AppPermissionsOptions,
+  ): Promise<OxyAppPermissions> {
+    const token = source.authInfo?.token;
+    if (typeof token !== 'string' || !isBearerToken(token)) {
+      throw new OxyAppPermissionError(
+        'APP_PERMISSION_SESSION_REQUIRED',
+        'No verified MCP access token on this call',
+      );
+    }
+    const appId = await this.applicationIdFor(options);
+    // The person is known only once Oxy answers; the token's digest keys the
+    // entry, so the bearer itself is never held as a cache key.
+    const cacheKey = {
+      sessionId: `mcp:${createHash('sha256').update(token).digest('base64url')}`,
+      userId: null,
+    };
+    return this.cache.read([appId], cacheKey, options.fresh === true, () =>
+      this.lookupMcp(appId, token),
+    );
+  }
+
+  private async applicationIdFor(options: AppPermissionsOptions): Promise<string> {
     let applicationId = options.applicationId ?? null;
     if (!applicationId) {
       try {
@@ -271,61 +331,69 @@ export class OxyAppPermissionsResolver {
         'No application id: set OxyServerConfig.applicationId, configure service auth, or pass { applicationId }',
       );
     }
+    return applicationId;
+  }
 
-    const key = JSON.stringify([applicationId, sessionId, userId]);
-    const ttl = this.host.ttlMs;
-    if (options.fresh !== true && ttl > 0) {
-      const cached = this.cache.get(key);
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.value;
-      }
-      const inFlight = this.pending.get(key);
-      if (inFlight) return inFlight;
-    }
-
-    const startedAt = Date.now();
-    const lookup = this.lookup(applicationId, accessToken).then((value) => {
-      if (ttl > 0) this.remember(key, value, startedAt, ttl);
-      return value;
-    });
-    if (options.fresh === true || ttl <= 0) return lookup;
-
-    this.pending.set(key, lookup);
+  private async lookupMcp(
+    applicationId: string,
+    mcpAccessToken: string,
+  ): Promise<OxyAppPermissions> {
+    let answer: unknown;
     try {
-      return await lookup;
-    } finally {
-      if (this.pending.get(key) === lookup) this.pending.delete(key);
-    }
-  }
-
-  /**
-   * Forget cached answers: every one, or those about one person (matched as
-   * either the session's user or the resolved operator).
-   */
-  invalidate(filter: { userId?: string } = {}): void {
-    if (!filter.userId) {
-      this.cache.clear();
-      return;
-    }
-    for (const [key, entry] of this.cache) {
-      const [, , userId] = JSON.parse(key) as [string, string, string];
-      if (userId === filter.userId || entry.value.operatorId === filter.userId) {
-        this.cache.delete(key);
+      answer = await this.host.fetchMcpAppPermissions(mcpAccessToken);
+    } catch (error) {
+      const status = errorStatus(error);
+      if (status === 401 && (error as { code?: unknown }).code === 'invalid_grant') {
+        throw new OxyAppPermissionError(
+          'APP_PERMISSION_SESSION_REQUIRED',
+          'Oxy refused the MCP access token while resolving application permissions',
+          { cause: error },
+        );
       }
+      if (status === 403) {
+        throw new OxyAppPermissionError(
+          'APP_PERMISSION_DENIED',
+          'Oxy refused this application’s permissions for the MCP access token',
+          { cause: error },
+        );
+      }
+      // Anything else — this service's own credential refused (401
+      // `invalid_client`), an Oxy without the route, a 5xx, a timeout — is not
+      // an answer about the person.
+      logger.warn('[oxy.appPermissions] Could not resolve application permissions for MCP', {
+        component: 'auth',
+        method: 'appPermissions',
+        applicationId,
+        status,
+      });
+      throw new OxyAppPermissionError(
+        'APP_PERMISSION_UNAVAILABLE',
+        'Could not resolve application permissions from Oxy',
+        { cause: error },
+      );
     }
-  }
 
-  private remember(key: string, value: OxyAppPermissions, startedAt: number, ttl: number): void {
-    // A slower, OLDER read must not overwrite a newer one — the newer one may
-    // be the fresh read that saw a revocation.
-    const existing = this.cache.get(key);
-    if (existing && existing.startedAt > startedAt) return;
-    this.cache.delete(key);
-    this.cache.set(key, { value, startedAt, expiresAt: startedAt + ttl });
-    if (this.cache.size > APP_PERMISSIONS_CACHE_MAX) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest !== undefined) this.cache.delete(oldest);
+    const parsed = applicationRolesMeSchema.safeParse(answer);
+    if (!parsed.success) {
+      throw new OxyAppPermissionError(
+        'APP_PERMISSION_UNAVAILABLE',
+        'Oxy answered with a malformed permission set',
+      );
     }
+    if (parsed.data.applicationId !== applicationId) {
+      // Oxy answers about the application behind this server's service token;
+      // a different one means the configured id names another application.
+      logger.error(
+        `[oxy.appPermissions] Oxy answered for application ${parsed.data.applicationId}, not ${applicationId}; check OxyServerConfig.applicationId`,
+        undefined,
+        { component: 'auth', method: 'appPermissions' },
+      );
+      throw new OxyAppPermissionError(
+        'APP_PERMISSION_NOT_CONFIGURED',
+        'An MCP access token answers only for the application behind this server’s service token',
+      );
+    }
+    return heldPermissions(applicationId, parsed.data.userId, parsed.data.permissions);
   }
 
   private async lookup(applicationId: string, accessToken: string): Promise<OxyAppPermissions> {

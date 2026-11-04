@@ -18,8 +18,7 @@
  *    validating on the other tasks for up to five minutes — and emits it to the
  *    service sockets connected to THIS task (`namespace.local`: every task
  *    relays to its own sockets, so nothing is delivered twice).
- * 3. DELIVER. The `/service-events` namespace admits only live first-party workloads (or the finite
- *    inventoried legacy workload cohort). It revalidates before every delivery
+ * 3. DELIVER. The `/service-events` namespace admits only live first-party workloads. It revalidates before every delivery
  *    and heartbeat and closes each socket when its token expires.
  *
  * LIVENESS. A consumer caches only while it sees heartbeats, so a task sends one
@@ -45,7 +44,6 @@ import type { Namespace, Socket } from 'socket.io';
 import { getRedisClient } from '../config/redis';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
-import { resolveLegacyResourceWorkload } from '../services/legacyResourceWorkload.service';
 import { logger } from './logger';
 import sessionCache from './sessionCache';
 
@@ -127,10 +125,7 @@ export async function authorizeServiceSocket(
   }
   try {
     const live = await resolveLiveServiceTokenAuthority(payload);
-    if (
-      !live ||
-      (payload.authority !== 'first_party' && !(await resolveLegacyResourceWorkload(payload)))
-    ) {
+    if (!live || payload.authority !== 'first_party') {
       return { ok: false, reason: OXY_SERVICE_EVENTS_FORBIDDEN };
     }
   } catch {

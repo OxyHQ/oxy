@@ -134,3 +134,5 @@ export function resolvePageNumber(raw: unknown): number {
 export function offsetForPage(rawPage: unknown, limit: number): number {
   return (resolvePageNumber(rawPage) - 1) * limit;
 }
+
+export { nextUnvisitedCursor } from './cursor.js';

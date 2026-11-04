@@ -30,7 +30,7 @@ const tokenWith = (aud: string, scopes: string[] = defaultScopes, nonce = '') =>
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-  requestLegacyWorkloadServiceToken: jest.fn(
+  requestWorkloadServiceToken: jest.fn(
     async (options: { audience?: string; scopes?: string[] }) => ({
       token: tokenWith(options.audience ?? 'oxy-api', options.scopes),
       expiresIn: 300,
@@ -39,9 +39,9 @@ jest.mock('../workloadIdentity', () => ({
   ),
 }));
 
-import { requestLegacyWorkloadServiceToken } from '../workloadIdentity';
+import { requestWorkloadServiceToken } from '../workloadIdentity';
 
-const attestations = requestLegacyWorkloadServiceToken as unknown as jest.Mock;
+const attestations = requestWorkloadServiceToken as unknown as jest.Mock;
 
 function credentialClient() {
   const oxy = new OxyServer({

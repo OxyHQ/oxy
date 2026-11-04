@@ -21,7 +21,7 @@ import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
 
@@ -37,7 +37,9 @@ jest.mock('../../utils/logger', () => ({
 import { deviceDirectorySchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { applications } from '../../db/schema/applications';
 import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -48,6 +50,7 @@ import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import deviceSessionService, { electReplacementContext } from '../deviceSession.service';
 import sessionService from '../session.service';
+import * as supervisionPolicy from '../supervisionPolicy.service';
 
 /** A minimal Express request carrying only what `extractDeviceInfo` reads. */
 function request(): Request {
@@ -716,7 +719,8 @@ describe('POST /session/device/activate — concurrency', () => {
       ),
     );
 
-    expect(results.every((result) => result.ok)).toBe(true);
+    expect(results.every((result) => result.ok || result.reason === 'superseded')).toBe(true);
+    expect(results.some((result) => result.ok)).toBe(true);
     // Three distinct transitions: no lost update, and no revision reused.
     expect((await storedDevice(device)).revision).toBe(before + 3);
     const stored = await storedDevice(device);
@@ -1061,6 +1065,674 @@ describe('removal — one context and one principal are different operations', (
     });
     return { reached, release, restore: () => spy.mockRestore() };
   }
+
+  it('holder context token binds the active actor, subject, session and credential', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    const device = await storedDevice(shared.device);
+    expect(minted).toMatchObject({
+      deviceId: shared.device,
+      deviceSessionId: device.id,
+      revision: device.revision,
+      contextId: shared.viaAlice,
+      actorId: shared.alice,
+      accountId: shared.org,
+      sessionId: shared.aliceOrgSession,
+    });
+    const claims = validateAccessToken(minted?.accessToken ?? '');
+    expect(claims.valid).toBe(true);
+    expect(claims.payload).toMatchObject({
+      device_session_id: device.id,
+      device_context_id: shared.viaAlice,
+      act: { sub: shared.alice },
+      sub: shared.org,
+      sid: shared.aliceOrgSession,
+    });
+    expect(minted?.expiresAt).toBe(new Date((claims.payload?.exp ?? 0) * 1000).toISOString());
+    expect(await deviceSessionService.resolveHolderContextToken(shared.device, 'wrong')).toBeNull();
+  });
+
+  it('holder context token remains unavailable at first login until the personal session is bound', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected a holder credential');
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toBeNull();
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    expect(minted).toMatchObject({
+      deviceId: device,
+      actorId: person,
+      accountId: person,
+      sessionId,
+    });
+    const claims = validateAccessToken(minted?.accessToken ?? '');
+    expect(claims.valid).toBe(true);
+    expect(claims.payload).toMatchObject({ sub: person, sid: sessionId, act: { sub: person } });
+  });
+
+  it('observes only the installed personal bearer on the active holder context', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    if (!minted) throw new Error('Expected personal bound bearer');
+    const evidence = await deviceSessionService.resolveHolderContextEvidence(
+      device,
+      holder,
+      minted.accessToken,
+    );
+    expect(evidence).toMatchObject({
+      status: 'ok',
+      evidence: {
+        actorId: person,
+        accountId: person,
+        sessionId,
+        contextId: minted.contextId,
+        deviceSessionId: minted.deviceSessionId,
+        revision: minted.revision,
+      },
+    });
+    expect(JSON.stringify(evidence)).not.toContain(minted.accessToken);
+    expect(JSON.stringify(evidence)).not.toContain(holder);
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        device,
+        `${holder}-wrong`,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'binding_unavailable' });
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(device, holder, 'not-a-bearer'),
+    ).toEqual({ status: 'invalid_bearer' });
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        `${device}-other`,
+        holder,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'binding_unavailable' });
+
+    const other = await account();
+    const otherSession = await signIn(device, other);
+    expect(await deviceSessionService.bindSessionToContext(device, otherSession)).toBe(true);
+    const directory = await deviceSessionService.getDirectory(device);
+    const otherContext = directory.principals
+      .find((principal) => principal.userId === other)
+      ?.contexts.find((context) => context.accountId === other);
+    if (!otherContext) throw new Error('Expected other personal context');
+    expect(
+      (await deviceSessionService.activateContext(device, otherContext.id, request())).ok,
+    ).toBe(true);
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(device, holder, minted.accessToken),
+    ).toEqual({ status: 'binding_unavailable' });
+  });
+
+  it('does not attest a delegated context even with the real holder and session bearer', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    if (!minted) throw new Error('Expected delegated bearer');
+    expect(
+      await deviceSessionService.resolveHolderContextEvidence(
+        shared.device,
+        holder,
+        minted.accessToken,
+      ),
+    ).toEqual({ status: 'unsupported_bearer' });
+  });
+
+  it('fails closed when supervision policy cannot be evaluated for evidence', async () => {
+    const device = newDeviceId();
+    const person = await account();
+    const sessionId = await signIn(device, person);
+    expect(await deviceSessionService.bindSessionToContext(device, sessionId)).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected holder credential');
+    const minted = await deviceSessionService.resolveHolderContextToken(device, holder);
+    if (!minted) throw new Error('Expected personal bearer');
+    const policy = jest
+      .spyOn(supervisionPolicy, 'supervisionValidAfter')
+      .mockResolvedValue([new Date()]);
+    try {
+      await expect(
+        deviceSessionService.resolveHolderContextEvidence(device, holder, minted.accessToken),
+      ).rejects.toThrow('Session authority unavailable');
+    } finally {
+      policy.mockRestore();
+    }
+  });
+
+  it('holder context token rejects a different actor and A to B to A during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok,
+      ).toBe(true);
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaAlice, request())).ok,
+      ).toBe(true);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a revoked holder during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const device = await storedDevice(shared.device);
+      await getDb()
+        .delete(deviceCredentials)
+        .where(eq(deviceCredentials.deviceSessionId, device.id));
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects an evicted holder even if a new holder is issued', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const device = await storedDevice(shared.device);
+      await getDb()
+        .delete(deviceCredentials)
+        .where(eq(deviceCredentials.deviceSessionId, device.id));
+      const replacement = await deviceSessionService.issueDeviceSecret(shared.device);
+      if (!replacement) throw new Error('Expected replacement holder');
+      barrier.release();
+      expect(await pending).toBeNull();
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, replacement),
+      ).toMatchObject({
+        actorId: shared.alice,
+        contextId: shared.viaAlice,
+      });
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a session deactivated during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      await sessionService.deactivateSession(shared.aliceOrgSession);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects delegation revoked while the token is being resolved', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      await getDb()
+        .update(accountMembers)
+        .set({ status: 'removed' })
+        .where(
+          and(
+            eq(accountMembers.accountId, shared.org),
+            eq(accountMembers.memberUserId, shared.alice),
+          ),
+        );
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects token rotation during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const [row] = await getDb()
+        .select({ refreshToken: sessions.refreshToken })
+        .from(sessions)
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      expect(await sessionService.refreshTokens(row.refreshToken)).not.toBeNull();
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token bounds its expiry by the current session expiry', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const shortExpiry = new Date(Date.now() + 60_000);
+      await getDb()
+        .update(sessions)
+        .set({ expiresAt: shortExpiry })
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      barrier.release();
+      const minted = await pending;
+      expect(minted?.expiresAt).toBe(shortExpiry.toISOString());
+      expect(
+        (validateAccessToken(minted?.accessToken ?? '').payload?.exp ?? 0) * 1000,
+      ).toBeGreaterThan(shortExpiry.getTime());
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects principal sign-out during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const [principal] = await getDb()
+        .select({ sessionId: devicePrincipals.personalSessionId })
+        .from(devicePrincipals)
+        .where(eq(devicePrincipals.userId, shared.alice));
+      if (!principal.sessionId) throw new Error('Expected personal session');
+      await sessionService.deactivateSession(principal.sessionId);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('holder context token rejects a principal session migrated to another device', async () => {
+    const person = await account();
+    const org = await organization(person);
+    const stableDeviceKey = `holder-context-${randomUUID()}`;
+    const original = await sessionService.createSession(person, request(), { stableDeviceKey });
+    const device = original.deviceId;
+    await deviceSessionService.addAccount(device, {
+      accountId: person,
+      sessionId: original.sessionId,
+    });
+    const context = contextFor(await deviceSessionService.getDirectory(device), person, org)?.id;
+    if (!context) throw new Error('Expected delegated context');
+    expect((await deviceSessionService.activateContext(device, context, request())).ok).toBe(true);
+    const holder = await deviceSessionService.issueDeviceSecret(device);
+    if (!holder) throw new Error('Expected a holder credential');
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toMatchObject({
+      actorId: person,
+    });
+    const migrated = await sessionService.createSession(person, request(), {
+      stableDeviceKey,
+      deviceId: newDeviceId(),
+    });
+    expect(migrated.sessionId).toBe(original.sessionId);
+    expect(await deviceSessionService.resolveHolderContextToken(device, holder)).toBeNull();
+  });
+
+  it('holder context token rejects a signed token for the other actor', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const wrong = await sessionService.getAccessToken(shared.nateOrgSession);
+    if (!wrong) throw new Error('Expected the other actor session');
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce(wrong);
+    try {
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('holder context token rejects an invalid token returned by the mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce({
+      accessToken: 'invalid-fixture',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    try {
+      expect(
+        await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+      ).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('holder context token accepts a correctly bound client and granted scopes', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const [application] = await getDb()
+      .insert(applications)
+      .values({ name: 'Holder context test', ownerAccountId: shared.alice, type: 'first_party' })
+      .returning({ id: applications.id });
+    await getDb()
+      .update(sessions)
+      .set({
+        applicationId: application.id,
+        clientId: 'holder-test-client',
+        scopes: ['profile:read'],
+      })
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    sessionCache.clear();
+    const minted = await deviceSessionService.resolveHolderContextToken(shared.device, holder);
+    expect(minted).toMatchObject({ contextId: shared.viaAlice, actorId: shared.alice });
+    expect(validateAccessToken(minted?.accessToken ?? '').payload).toMatchObject({
+      azp: 'holder-test-client',
+      scope: 'profile:read',
+    });
+  });
+
+  it.each([
+    ['issuer', { iss: 'wrong-issuer' }],
+    ['audience', { aud: ['wrong-audience'] }],
+    ['client', { azp: 'wrong-client' }],
+    ['malformed client', { azp: 42 }],
+    ['scope', { scope: 'ungranted:scope' }],
+    ['malformed scope', { scope: 42 }],
+    ['missing expiry', { exp: undefined }],
+    ['malformed expiry', { exp: 'later' }],
+  ])(
+    'holder context token rejects a correctly signed token with invalid %s',
+    async (_name, patch) => {
+      const shared = await sharedOrganization();
+      const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+      if (!holder) throw new Error('Expected a holder credential');
+      const original = await sessionService.getAccessToken(shared.aliceOrgSession);
+      if (!original) throw new Error('Expected a live active session');
+      const claims = validateAccessToken(original.accessToken).payload;
+      if (!claims) throw new Error('Expected signed token claims');
+      const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+      const input = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ ...claims, ...patch })}`;
+      const signature = createHmac('sha256', process.env.ACCESS_TOKEN_SECRET as string)
+        .update(input)
+        .digest('base64url');
+      const forged = `${input}.${signature}`;
+      await getDb()
+        .update(sessions)
+        .set({ accessToken: forged })
+        .where(eq(sessions.sessionId, shared.aliceOrgSession));
+      const spy = jest.spyOn(sessionService, 'getAccessToken').mockResolvedValueOnce({
+        accessToken: forged,
+        expiresAt: original.expiresAt,
+      });
+      try {
+        expect(
+          await deviceSessionService.resolveHolderContextToken(shared.device, holder),
+        ).toBeNull();
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it('holder context token reports missing session binding without re-creating it', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    await getDb()
+      .update(sessions)
+      .set({ deviceContextId: null })
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    expect(await deviceSessionService.resolveHolderContextToken(shared.device, holder)).toBeNull();
+    const [row] = await getDb()
+      .select({ deviceContextId: sessions.deviceContextId })
+      .from(sessions)
+      .where(eq(sessions.sessionId, shared.aliceOrgSession));
+    expect(row.deviceContextId).toBeNull();
+  });
+
+  it('holder context token rejects replacement of its device row during mint', async () => {
+    const shared = await sharedOrganization();
+    const holder = await deviceSessionService.issueDeviceSecret(shared.device);
+    if (!holder) throw new Error('Expected a holder credential');
+    const barrier = pauseMint(shared.aliceOrgSession);
+    try {
+      const pending = deviceSessionService.resolveHolderContextToken(shared.device, holder);
+      await barrier.reached;
+      const previous = await storedDevice(shared.device);
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, previous.id));
+      await signIn(shared.device, shared.nate);
+      expect((await storedDevice(shared.device)).id).not.toBe(previous.id);
+      barrier.release();
+      expect(await pending).toBeNull();
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('rejects an activation superseded before its directory is read', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let first = true;
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        if (first) {
+          first = false;
+          reached();
+          await blocked;
+        }
+        return original(device);
+      });
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await waiting;
+      const current = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaAlice,
+        request(),
+      );
+      expect(current.ok).toBe(true);
+      release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+  });
+
+  it('rejects an activation superseded while its token is being resolved', async () => {
+    const shared = await sharedOrganization();
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await barrier.reached;
+      const current = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaAlice,
+        request(),
+      );
+      expect(current.ok).toBe(true);
+      barrier.release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
+
+  it('never returns a re-created device as the state of an older activation', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const waiting = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let first = true;
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        if (first) {
+          first = false;
+          reached();
+          await blocked;
+        }
+        return original(device);
+      });
+    try {
+      const previousDevice = await storedDevice(shared.device);
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await waiting;
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, previousDevice.id));
+      const replacement = await account();
+      await signIn(shared.device, replacement);
+      expect((await storedDevice(shared.device)).id).not.toBe(previousDevice.id);
+      release();
+      const result = await pending;
+      expect(result).toMatchObject({ ok: false, reason: 'superseded', state: null });
+      expect(result).not.toHaveProperty('activeToken');
+    } finally {
+      release();
+      spy.mockRestore();
+    }
+  });
+
+  it('returns superseded if the device disappears between directory and state reads', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockImplementation(async (device) => {
+        const directory = await original(device);
+        const row = await storedDevice(device);
+        await getDb().delete(deviceSessions).where(eq(deviceSessions.id, row.id));
+        return directory;
+      });
+    try {
+      const result = await deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      expect(result).toMatchObject({ ok: false, reason: 'superseded', state: null });
+      expect(result).not.toHaveProperty('activeToken');
+      expect(await storedDevice(shared.device)).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('preserves an unrelated directory failure while the device still exists', async () => {
+    const shared = await sharedOrganization();
+    const spy = jest
+      .spyOn(deviceSessionService, 'getDirectory')
+      .mockRejectedValue(new Error('directory unavailable'));
+    try {
+      await expect(
+        deviceSessionService.activateContext(shared.device, shared.viaNate, request()),
+      ).rejects.toThrow('directory unavailable');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('rejects a superseded activation after the active context returns to its original value', async () => {
+    const shared = await sharedOrganization();
+    const barrier = pauseMint(shared.nateOrgSession);
+    try {
+      const pending = deviceSessionService.activateContext(
+        shared.device,
+        shared.viaNate,
+        request(),
+      );
+      await barrier.reached;
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaAlice, request())).ok,
+      ).toBe(true);
+      expect(
+        (await deviceSessionService.activateContext(shared.device, shared.viaNate, request())).ok,
+      ).toBe(true);
+      barrier.release();
+      const superseded = await pending;
+      expect(superseded).toMatchObject({ ok: false, reason: 'superseded' });
+      expect(superseded).not.toHaveProperty('activeToken');
+    } finally {
+      barrier.release();
+      barrier.restore();
+    }
+  });
 
   it('#1544 refuses an active mint when another context becomes active during its await', async () => {
     const shared = await sharedOrganization();

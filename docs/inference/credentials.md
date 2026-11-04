@@ -1,57 +1,36 @@
 # Credentials: what authenticates what
 
-Three credential lanes exist. They look similar in Console and are not
-interchangeable, so the first thing to establish is which one you hold.
+Own Oxy products and external integrations have different authority. The
+[platform contract](../auth/first-party-platform-access.md) and ADR 0049 govern
+this distinction; an official app name never upgrades a customer credential.
 
-| Lane | The string you send | Who may hold it | Accepted by |
-|---|---|---|---|
-| **Native service token** | a short-lived JWT you exchange for | platform-trusted first-party/internal applications | every service-authenticated Oxy route, including the inference edge |
-| **Machine API key** | `oxy_sk_…`, sent verbatim as a bearer | any application, self-serve | the inference edge — see below |
-| **OAuth client id** | `oxy_dk_…` | any application | nothing. It is an identifier, never a secret |
+| Lane | Authentication | Authority |
+|---|---|---|
+| Own backend | Temporary workload credentials, live registered binding and short-lived service token | Scope-less first-party service; account, resource, environment and business rules still apply |
+| Own signed-in app | Shared Oxy session | The actual requester and effective account; no app consent |
+| External machine key | `oxy_sk_…` bearer | Live credential/app ceilings, explicit scopes and billing limits |
+| External service credential | Public client id plus secret exchanged for a service token | External authority, even under an official application |
+| Public OAuth client id | `oxy_dk_…` identifier | No bearer authority by itself |
 
-Status of the whole picture: [status.md](./status.md).
+Status and deployed evidence: [status.md](./status.md) and the
+[migration ledger](../architecture/first-party-integration-migration.md).
 
----
+## 1. Own workload and external service tokens
 
-## 1. Native Oxy service tokens
+Own services construct `OxyServer` with the shared temporary AWS credential
+provider and consume the product SDK factory or `createServiceClient`. They do
+not provision app scopes or fall back to an API key. The issuer verifies the
+active workload binding, application and environment; the recipient verifies
+its exact audience and live authority. Personal resource operations additionally
+carry shared requester proof (session, task or derived context), never an
+unverified account header. Inference billing attribution is a distinct contract.
 
-`clientId + clientSecret → short-lived signed service token`. This is the one
-machine lane that authenticates against live routes today.
+External client credentials remain a separate service-token lane with bounded
+scopes and live revocation. They cannot become own authority through branding.
 
-```typescript
-import { OxyServer } from '@oxy.so/core/server';
-
-const oxy = new OxyServer({
-  baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'the-secret-shown-once' },
-});
-
-// Cached and refreshed for you; 1-hour lifetime.
-const token = await oxy.serviceToken();
-
-// Or, acting on behalf of an end user (attribution only — never the payer):
-await oxy.serviceRequest('POST', '/notifications', body, { actAs: userId });
-```
-
-Requirements, all enforced server-side:
-
-- The credential's `type` must be `service`.
-- The owning `Application` must be `status: 'active'` **and platform-trusted**
-  (`type: 'internal'`, or official). A self-service third-party application
-  cannot mint a service token, so this lane is not a route an external developer
-  can take.
-- Rotation keeps the superseded credential usable for a fixed seven-day grace
-  window; revocation is immediate.
-
-**`docs/SERVICE_TOKENS.md` is the authoritative page** for the flow, the claim
-set, the middleware and the signing-key model. It is not summarised here,
-because a second copy of a claim list is a second thing to keep correct.
-
-What a verified service token proves was widened by
-[#989](https://github.com/OxyHQ/oxy/pull/989) (workstream 2.2): `appId`,
-`appName`, `credentialId`, `ownerAccountId` and `environment` are now all
-REQUIRED at both verifiers, so a verifier can name the financially responsible
-account without a database lookup — see [attribution.md](./attribution.md).
+See [the SDK examples](./sdk.md), [service tokens](../SERVICE_TOKENS.md), and
+[attribution](./attribution.md) for the wire and payer contracts. Neither a valid
+token nor a readable catalogue proves that a generation has executed.
 
 ---
 
@@ -213,9 +192,11 @@ Full detail on the two-lane credential model:
 
 ---
 
-## Which scopes to ask for
+## External inference scopes
 
-The inference family (`packages/api/src/utils/applicationScopes.ts`):
+These scopes apply to external credentials, not own workloads or shared own
+sessions. Domain staff/operator checks remain independent. The inference family
+(`packages/api/src/utils/applicationScopes.ts`):
 
 | Scope | Grants | Self-grantable? | Checked where |
 |---|---|---|---|

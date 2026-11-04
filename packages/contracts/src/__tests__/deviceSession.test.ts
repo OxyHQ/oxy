@@ -4,6 +4,7 @@ import {
   deviceSessionSyncSchema,
   deviceTokenMintRequestSchema,
   deviceTokenMintResponseSchema,
+  deviceContextTokenV1RequestSchema,
   deviceBackgroundCredentialResponseSchema,
   deviceBackgroundTokenRequestSchema,
   deviceBackgroundTokenResponseSchema,
@@ -11,6 +12,24 @@ import {
   SESSION_ACCOUNTS_CHANGED_EVENT,
   safeParseContract,
 } from '../index';
+import { deviceContextTokenV1RequestCheck } from '../client';
+
+describe('deviceContextTokenV1RequestSchema', () => {
+  it('accepts an account-mode holder proof', () => {
+    const request = { deviceId: 'd1', deviceSecret: 'secret' };
+    expect(deviceContextTokenV1RequestSchema.safeParse(request).success).toBe(true);
+    expect(deviceContextTokenV1RequestCheck(request, []).ok).toBe(true);
+  });
+
+  it.each([undefined, null, '', 3, 'account-1'])(
+    'rejects an explicit accountId of %p instead of silently stripping it',
+    (accountId) => {
+      const request = { deviceId: 'd1', deviceSecret: 'secret', accountId };
+      expect(deviceContextTokenV1RequestSchema.safeParse(request).success).toBe(false);
+      expect(deviceContextTokenV1RequestCheck(request, []).ok).toBe(false);
+    },
+  );
+});
 
 describe('deviceSessionStateSchema', () => {
   const account = { accountId: 'a1', sessionId: 's1', authuser: 0 };

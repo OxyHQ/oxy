@@ -40,7 +40,7 @@ jest.mock('../../utils/socket', () => ({
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../middleware/security', () => ({
   idpServiceLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
-  sessionHeaderValidationLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  sessionHeaderValidationBudget: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
@@ -62,10 +62,12 @@ import {
 import { OxyServer } from '@oxy.so/core/server';
 import { Server } from 'socket.io';
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import { sessions } from '../../db/schema/sessions';
+import { accountMembers } from '../../db/schema/accountMembers';
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { users } from '../../db/schema/users';
 import {
   applications,
@@ -74,7 +76,7 @@ import {
 } from '../../db/schema';
 import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.service';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
-import { LEGACY_WORKLOAD_BINDINGS } from '../../config/legacyWorkloadTransition';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { verifyServiceToken } from '../../middleware/serviceToken';
@@ -398,7 +400,7 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     expect(await listen(serviceToken({ legacy: true })).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
   });
 
-  it('temporarily admits only an exact live inventoried legacy workload', async () => {
+  it('refuses v1 even for an exact live historical cohort workload', async () => {
     const tuple = LEGACY_WORKLOAD_BINDINGS[0];
     await getDb().insert(applications).values({
       id: tuple.applicationId,
@@ -409,7 +411,7 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     });
     await getDb()
       .insert(applicationWorkloadIdentities)
-      .values({ ...tuple, environment: 'development', scopes: [] });
+      .values({ ...tuple, environment: 'development' });
     await ensureWorkloadAttributionIdentity({
       bindingId: tuple.id,
       applicationId: tuple.applicationId,
@@ -420,12 +422,6 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
       appId: tuple.applicationId,
       credentialId: workloadAttestationHandle(tuple.subject),
     });
-    const heard = listen(token);
-    await eventually(() => heard.heartbeats > 0, 'legacy cohort heartbeat');
-    await getDb()
-      .update(applicationWorkloadIdentities)
-      .set({ expiresAt: new Date(0) })
-      .where(eq(applicationWorkloadIdentities.id, tuple.id));
     expect(await listen(token).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
   });
 
@@ -480,14 +476,83 @@ describe('a backend stops trusting a revoked session at once', () => {
       200,
     );
     await eventually(
-      () => heard.revoked.some((event) => event.userId === owner && !event.sessionId),
-      'the account-wide announcement',
+      () =>
+        heard.revoked.some(
+          (event) => event.userId === owner && event.sessionId === other.sessionId,
+        ),
+      'the revoked-session announcement',
     );
+    expect(heard.revoked.some((event) => event.userId === owner && !event.sessionId)).toBe(false);
     const before = validations();
     await expect(
       oxy.session.validate(other.sessionId, { accessToken: other.bearer }),
     ).rejects.toBeDefined();
     expect(validations()).toBe(before + 1);
+  });
+
+  it('delivers actor-scoped revocations without invalidating another actor', async () => {
+    const owner = await account();
+    const editor = await account();
+    const [org] = await insertAccountFixtures(
+      {
+        username: `u-${randomUUID().slice(0, 12)}`,
+        kind: 'organization',
+        parentAccountId: owner,
+        rootAccountId: owner,
+      },
+      { id: users.id },
+    );
+    await getDb().execute(
+      sql`insert into user_ancestors (user_id, depth, ancestor_id) values (${org.id}, 0, ${owner})`,
+    );
+    await getDb()
+      .insert(accountMembers)
+      .values([
+        { accountId: org.id, memberUserId: owner, role: 'owner', status: 'active' },
+        { accountId: org.id, memberUserId: editor, role: 'editor', status: 'active' },
+      ]);
+    const mint = (actor: string) =>
+      sessionService.createSession(org.id, { headers: { 'user-agent': 'jest' } } as never, {
+        deviceId: `fixture-${randomUUID()}`,
+        operatedByUserId: actor,
+      });
+    const current = await mint(editor);
+    const other = await mint(editor);
+    const preserved = await mint(owner);
+    const personal = await signIn(owner);
+    const heard = listen(serviceToken());
+    await eventually(() => heard.socket.connected, 'feed connection');
+    const { oxy, validations } = await backend();
+    await cached(oxy, personal.sessionId, personal.bearer);
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    await oxy.session.validate(other.sessionId, { accessToken: other.accessToken });
+    const applied = jest.spyOn(oxy.session, 'applyRevocation');
+
+    expect(
+      await call('POST', `/session/logout-all/${current.sessionId}`, current.accessToken),
+    ).toBe(200);
+    await eventually(
+      () => heard.revoked.some((event) => event.sessionId === other.sessionId),
+      'actor-scoped announcement',
+    );
+    await eventually(
+      () => applied.mock.calls.some(([event]) => event.sessionId === other.sessionId),
+      'backend revocation',
+    );
+    expect(
+      heard.revoked.some(
+        (event) =>
+          event.userId === org.id && (!event.sessionId || event.sessionId === preserved.sessionId),
+      ),
+    ).toBe(false);
+    const before = validations();
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    // Delegated validations intentionally ask Oxy every time.
+    expect(validations()).toBe(before + 1);
+    await expect(
+      oxy.session.validate(other.sessionId, { accessToken: other.accessToken }),
+    ).rejects.toBeDefined();
+    expect(validations()).toBe(before + 2);
   });
 
   it('device removal', async () => {

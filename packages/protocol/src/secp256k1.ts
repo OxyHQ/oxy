@@ -144,10 +144,13 @@ export function signSecp256k1Digest(
   digestHex: string,
   options: Secp256k1SignatureOptions = {},
 ): string {
+  // The input is already a digest: `prehash: false` keeps noble from hashing it again.
   const signature = secp256k1.sign(parseDigest(digestHex), parsePrivateKey(privateKeyHex), {
+    prehash: false,
     lowS: options.lowS ?? false,
+    format: 'der',
   });
-  return signature.toHex('der');
+  return bytesToHex(signature);
 }
 
 /** Verify a DER-encoded ECDSA signature, accepting historical high-S signatures. */
@@ -163,6 +166,7 @@ export function verifySecp256k1Digest(
   // Parse once up front so malformed or non-DER input is rejected explicitly.
   secp256k1.Signature.fromBytes(signature, 'der');
   return secp256k1.verify(signature, digest, publicKey, {
+    prehash: false,
     format: 'der',
     lowS: false,
   });

@@ -32,7 +32,7 @@ const PROJECTIONS = {
       extra: ['xmin::text AS row_revision'],
     },
     application_workload_identities: {
-      columns: ['id', 'application_id', 'provider', 'subject', 'scopes', 'expires_at'],
+      columns: ['id', 'application_id', 'provider', 'subject', 'environment', 'expires_at'],
       where: `application_id IN (${selectedAppIds})`,
       extra: ['xmin::text AS row_revision'],
       dependsOn: 'applications',

@@ -1,3 +1,5 @@
+import { hasKnownSubjectMismatch, useKnownBearerSubject } from '../hooks/useKnownBearerSubject';
+import { installNativeAssetFiles } from '../utils/nativeAssetFiles';
 import {
   startNativeOAuthSignIn,
   type StartNativeOAuthSignInOptions,
@@ -9,7 +11,15 @@ import {
   setIsolatedOAuthSession,
 } from './isolatedOAuthSession';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
@@ -62,6 +72,7 @@ import {
 import { createTokenLossRecovery, TOKEN_RECOVERY_BACKOFF_MS } from '../session/tokenLossRecovery';
 import { createCachedBootStore, type CachedBootStore } from '../session/cachedBoot';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
+import { useEntryLink } from '../hooks/useEntryLink';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useAuthOperations, clearPersistedAuthSafe } from './hooks/useAuthOperations';
@@ -153,6 +164,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   sessionMode = 'account',
   webAuthMode = 'popup',
   backgroundSession = false,
+  legacyLanguageKeys,
+  captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
   onAuthStateChange,
@@ -179,6 +192,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     }
   }
   const oxyServices = oxyServicesRef.current;
+  // Child passive effects may upload immediately on mount. Configure transport
+  // during commit, before those effects, without mutating the client in render.
+  useLayoutEffect(() => installNativeAssetFiles(oxyServices), [oxyServices]);
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
@@ -324,6 +340,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     authResolved,
   } = snapshot;
   const isAuthenticated = user !== null;
+  const bearerSubject = useKnownBearerSubject(oxyServices);
+  const subjectMismatch = hasKnownSubjectMismatch(user?.id, bearerSubject);
   const error = snapshot.error?.message ?? null;
 
   const [initialized, setInitialized] = useState(false);
@@ -415,8 +433,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .catch((err) => {
         // Nothing persisted can be restored; the account cache still has to
         // become ready, or RequireOxyAuth would wait forever.
-        accountQueryPersistence.setStorage(createMemoryStorage());
+        const memoryStorage = createMemoryStorage();
+        accountQueryPersistence.setStorage(memoryStorage);
         if (mounted) {
+          setStorage(memoryStorage);
           logger('Failed to initialize storage', err);
           onError?.({
             message: 'Failed to initialize storage',
@@ -430,8 +450,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
   }, [accountQueryPersistence, logger, onError, platformStorage, runtime, storageReady]);
 
+  const entryLink = useEntryLink({
+    storage,
+    storageKey: `${storageKeyPrefix}_campaign_attribution`,
+    captureCampaign: captureCampaignAttribution,
+    onError: logger,
+  });
   const {
     currentLanguage,
+    isLanguageReady,
     languages: currentLanguages,
     metadata: currentLanguageMetadata,
     languageName: currentLanguageName,
@@ -441,6 +468,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   } = useLanguageManagement({
     storage,
     languageKey: storageKeys.language,
+    entryUrl: entryLink.url,
+    entryLinkReady: entryLink.ready,
+    legacyLanguageKeys,
     user,
     onError,
     logger,
@@ -1717,9 +1747,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   );
   subjectChangeRef.current = handleSubjectChange;
 
-  const canUsePrivateApi = authResolved && isAuthenticated && tokenReady && hasAccessToken;
+  // An undecodable bearer keeps the existing compatibility behavior. A known
+  // different subject is never ready while the account projection catches up.
+  const canUsePrivateApi =
+    authResolved && isAuthenticated && tokenReady && hasAccessToken && !subjectMismatch;
   const isPrivateApiPending =
-    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken));
+    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken || subjectMismatch));
 
   // Keep the native background credential in step with this session, so native
   // background code (a widget worker) can authenticate with no JS runtime. Inert
@@ -1751,6 +1784,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady: isLanguageReady && entryLink.campaignReady,
+      campaignAttribution: entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,
@@ -1808,6 +1843,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady,
+      entryLink.campaignReady,
+      entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,

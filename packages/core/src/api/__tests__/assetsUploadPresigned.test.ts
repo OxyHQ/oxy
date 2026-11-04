@@ -14,10 +14,9 @@
  *   - the boundary: a file AT the cap is one multipart request, one byte over
  *     is not; an SVG of any size stays on the API path (only it sanitizes);
  *   - the answer: every field `/assets/upload` returns is mapped, none invented;
- *   - React Native: a descriptor without a `size` is read into a NATIVE Blob
- *     through RN's XMLHttpRequest (Expo's `fetch` would copy it into the JS
- *     heap), hashed through `FileReader` (RN's Blob has no `arrayBuffer`), PUT
- *     through XMLHttpRequest, and its native bytes released afterwards.
+ *   - React Native: metadata and bounded file ranges come from the SDK adapter,
+ *     never a whole-file Blob allocation. Known-small descriptors remain native
+ *     FormData; missing/unreadable adapters cannot fall back to oversized bodies.
  */
 
 import { createHash } from 'node:crypto';
@@ -124,6 +123,7 @@ function installXhr(blobFor: (uri: string) => unknown, sent: SentXhr[], order: s
   class FakeXhr {
     upload: { onprogress?: (event: { loaded: number }) => void } = {};
     onload?: () => void;
+    onloadend?: () => void;
     onerror?: () => void;
     onabort?: () => void;
     ontimeout?: () => void;
@@ -154,6 +154,7 @@ function installXhr(blobFor: (uri: string) => unknown, sent: SentXhr[], order: s
         this.responseURL = this.record.url ?? '';
       }
       this.onload?.();
+      this.onloadend?.();
     }
   }
   Reflect.set(globalThis, 'XMLHttpRequest', FakeXhr);
@@ -304,6 +305,7 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       class RefusingXhr {
         upload = {};
         onload?: () => void;
+        onloadend?: () => void;
         status = 500;
         responseURL = '';
         open(_method: string, url: string) {
@@ -312,6 +314,7 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
         setRequestHeader() {}
         send() {
           this.onload?.();
+          this.onloadend?.();
         }
       }
       Reflect.set(globalThis, 'XMLHttpRequest', RefusingXhr);
@@ -331,47 +334,134 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       Reflect.set(globalThis, 'FileReader', NativeFileReader);
     });
 
-    it('reads a size-less descriptor natively, hashes it via FileReader, PUTs its parts, releases it', async () => {
+    it('still hashes an explicitly supplied native Blob through bounded FileReader slices', async () => {
       const bytes = bytesOf(OVER);
       const native = new NativeBlob(bytes);
-      const fetchMock = jest.fn();
-      globalThis.fetch = fetchMock as unknown as typeof fetch;
       const { oxy, request, order } = stubApi(() => openSession(OVER));
       const sent: SentXhr[] = [];
-      installXhr(() => native, sent, order);
-
-      const result = await oxy.assets.upload(
-        { uri: 'file:///data/clip.mp4', type: 'video/mp4', name: 'clip.mp4' },
-        { visibility: 'public', metadata: { source: 'camera' } },
+      installXhr(
+        () => {
+          throw new Error('Unexpected file materialization');
+        },
+        sent,
+        order,
       );
-
-      // Never Expo's fetch, which would copy the video into the JS heap.
-      expect(fetchMock).not.toHaveBeenCalled();
+      const result = await oxy.assets.uploadLarge(native as unknown as Blob, {
+        mime: 'video/mp4',
+        name: 'clip.mp4',
+      });
       expect(order).toEqual([
-        'GET file:///data/clip.mp4',
         '/assets/uploads',
         ...PUTS,
         '/assets/uploads/up-1/complete',
         '/assets/asset-1',
       ]);
-      // The digest is the file's real SHA-256, read across 8 MiB chunks.
+      expect(request.mock.calls[0][2]).toMatchObject({ sha256: sha256Hex(bytes), size: OVER });
+      expect(result.file.id).toBe('asset-1');
+      expect(native.closed).toBe(false); // Explicit Blob inputs remain caller-owned.
+    });
+
+    it('uses the installed file adapter for a large native descriptor without creating a Blob', async () => {
+      const bytes = bytesOf(OVER);
+      const { oxy, request } = stubApi(() => openSession(OVER));
+      const readRange = jest.fn(async (start: number, end: number) => bytes.slice(start, end));
+      const putPart = jest.fn(
+        async ({
+          start,
+          end,
+          onProgress,
+        }: {
+          start: number;
+          end: number;
+          onProgress: (loaded: number) => void;
+        }) => {
+          onProgress(end - start);
+          return { ok: true as const };
+        },
+      );
+      const stale = oxy.assets.installFileAdapter(async () => {
+        throw new Error('stale adapter');
+      });
+      const adapter = jest.fn(async () => ({ size: OVER, readRange, putPart }));
+      oxy.assets.installFileAdapter(adapter);
+      stale();
+      class ForbiddenBlobRead {
+        constructor() {
+          throw new Error('Whole-file Blob allocation');
+        }
+      }
+      Reflect.set(globalThis, 'XMLHttpRequest', ForbiddenBlobRead);
+      const progress = jest.fn();
+      const result = await oxy.assets.upload(
+        { uri: 'file:///data/large.mp4', type: 'video/mp4' },
+        { visibility: 'private', onStageProgress: progress },
+      );
+      expect(adapter).toHaveBeenCalledWith('file:///data/large.mp4');
+      expect(readRange.mock.calls.every(([start, end]) => end - start <= 8 * 1024 * 1024)).toBe(
+        true,
+      );
+      expect(readRange.mock.calls.reduce((total, [start, end]) => total + end - start, 0)).toBe(
+        OVER,
+      );
+      expect(putPart.mock.calls.reduce((total, [part]) => total + part.end - part.start, 0)).toBe(
+        OVER,
+      );
       expect(request.mock.calls[0][2]).toMatchObject({
         sha256: sha256Hex(bytes),
         size: OVER,
-        mime: 'video/mp4',
+        visibility: 'private',
       });
-      // Each part is a slice of the NATIVE Blob, sent by RN's XMLHttpRequest.
-      const puts = sent.filter((entry) => entry.method === 'PUT');
-      expect(puts.every((put) => put.body instanceof NativeBlob)).toBe(true);
-      expect(puts.reduce((total, put) => total + (put.body as NativeBlob).size, 0)).toBe(OVER);
+      expect(progress).toHaveBeenCalledWith({ phase: 'hash', loaded: OVER, total: OVER });
       expect(result).toEqual({ file: uploadedShape });
-      expect(native.closed).toBe(true);
     });
 
-    it('a size-less descriptor that turns out small goes multipart as-is, its read released', async () => {
-      const native = new NativeBlob(bytesOf(1024), 'image/jpeg');
+    it('uses a native digest without transporting hash bytes through JavaScript', async () => {
+      const { oxy, request } = stubApi(() => openSession(OVER));
+      const digest = 'ab'.repeat(32);
+      const readRange = jest.fn();
+      const hash = jest.fn(async (progress?: (loaded: number) => void) => {
+        progress?.(OVER);
+        return digest;
+      });
+      oxy.assets.installFileAdapter(async () => ({
+        size: OVER,
+        hash,
+        readRange,
+        putPart: async () => ({ ok: true as const }),
+      }));
+      const result = await oxy.assets.upload({ uri: 'file:///large.mp4', type: 'video/mp4' });
+      expect(hash).toHaveBeenCalledTimes(1);
+      expect(readRange).not.toHaveBeenCalled();
+      expect(request.mock.calls[0][2]).toMatchObject({ sha256: digest, size: OVER });
+      expect(result).toEqual({ file: uploadedShape });
+    });
+
+    it('keeps the new installation when the same adapter function is installed twice', async () => {
+      const { oxy } = stubApi(() => openSession(OVER));
+      const adapter = jest.fn(async () => ({
+        size: OVER,
+        hash: async () => 'ab'.repeat(32),
+        readRange: jest.fn(),
+        putPart: async () => ({ ok: true as const }),
+      }));
+      const disposeFirst = oxy.assets.installFileAdapter(adapter);
+      const disposeSecond = oxy.assets.installFileAdapter(adapter);
+      disposeFirst();
+      const descriptor = { uri: 'file:///large.mp4', type: 'video/mp4' };
+      await expect(oxy.assets.upload(descriptor)).resolves.toEqual({ file: uploadedShape });
+      expect(adapter).toHaveBeenCalledTimes(1);
+      disposeSecond();
+      await expect(oxy.assets.upload(descriptor)).rejects.toThrow(/adapter/i);
+      expect(adapter).toHaveBeenCalledTimes(1);
+    });
+
+    it('native metadata proves an unknown-size file small before streaming multipart', async () => {
       const { oxy, order } = stubApi(() => openSession(OVER));
-      installXhr(() => native, [], order);
+      oxy.assets.installFileAdapter(async () => ({
+        size: 1024,
+        readRange: jest.fn(),
+        putPart: jest.fn(),
+      }));
       const appended: unknown[] = [];
       jest.spyOn(FormData.prototype, 'append').mockImplementation((name, value) => {
         if (name === 'file') appended.push(value);
@@ -380,32 +470,36 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
 
       await oxy.assets.upload(descriptor);
 
-      expect(order).toEqual(['GET file:///data/photo.jpg', '/assets/upload']);
+      expect(order).toEqual(['/assets/upload']);
       expect(appended).toEqual([descriptor]);
-      expect(native.closed).toBe(true);
     });
 
-    it('a uri only RN’s FormData can open still uploads multipart, as before', async () => {
-      const { oxy, order } = stubApi(() => openSession(OVER));
-      class UnreadableXhr {
-        onerror?: () => void;
-        open() {}
-        send() {
-          order.push('GET (refused)');
-          this.onerror?.();
+    it.each([undefined, OVER])(
+      'requires an adapter before allocating an unknown/large native file (%s)',
+      async (size) => {
+        const { oxy, request } = stubApi(() => openSession(OVER));
+        class ForbiddenRead {
+          constructor() {
+            throw new Error('Whole-file allocation');
+          }
         }
-      }
-      Reflect.set(globalThis, 'XMLHttpRequest', UnreadableXhr);
-      const appended: unknown[] = [];
-      jest.spyOn(FormData.prototype, 'append').mockImplementation((name, value) => {
-        if (name === 'file') appended.push(value);
+        Reflect.set(globalThis, 'XMLHttpRequest', ForbiddenRead);
+        await expect(
+          oxy.assets.upload({ uri: 'file:///data/clip.mp4', type: 'video/mp4', size }),
+        ).rejects.toThrow('require a file adapter');
+        expect(request).not.toHaveBeenCalled();
+      },
+    );
+
+    it('does not fall back to multipart if native metadata cannot be read', async () => {
+      const { oxy, request } = stubApi(() => openSession(OVER));
+      oxy.assets.installFileAdapter(async () => {
+        throw new Error('File unavailable');
       });
-      const descriptor = { uri: 'ph://library/asset', type: 'image/heic', name: 'photo.heic' };
-
-      await oxy.assets.upload(descriptor);
-
-      expect(order).toEqual(['GET (refused)', '/assets/upload']);
-      expect(appended).toEqual([descriptor]);
+      await expect(
+        oxy.assets.upload({ uri: 'file:///data/missing.mp4', type: 'video/mp4' }),
+      ).rejects.toThrow('File unavailable');
+      expect(request).not.toHaveBeenCalled();
     });
 
     it('a descriptor whose size says small is never read in JS at all', async () => {
@@ -429,16 +523,18 @@ describe('oxy.assets.upload — a file over the multipart cap', () => {
       expect(order).toEqual(['/assets/upload']);
     });
 
-    it('an empty file is refused before any request, its read released', async () => {
-      const native = new NativeBlob(new Uint8Array(0));
-      const { oxy, request, order } = stubApi(() => openSession(OVER));
-      installXhr(() => native, [], order);
+    it('empty native metadata is refused before any request', async () => {
+      const { oxy, request } = stubApi(() => openSession(OVER));
+      oxy.assets.installFileAdapter(async () => ({
+        size: 0,
+        readRange: jest.fn(),
+        putPart: jest.fn(),
+      }));
 
       await expect(
         oxy.assets.upload({ uri: 'file:///data/empty.mp4', type: 'video/mp4' }),
-      ).rejects.toThrow('Cannot upload an empty file');
+      ).rejects.toThrow('Cannot upload an empty or invalid file');
       expect(request).not.toHaveBeenCalled();
-      expect(native.closed).toBe(true);
     });
   });
 });

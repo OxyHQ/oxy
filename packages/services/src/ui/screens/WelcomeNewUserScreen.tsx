@@ -4,16 +4,21 @@ import { View, StyleSheet, Platform, Animated } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import Ionicons from '../icons/Ionicons';
-import { toast } from '@oxy.so/bloom/toast';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { H1, Text } from '@oxy.so/bloom/typography';
-import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useUpdateProfile } from '../hooks/mutations/useAccountMutations';
-import { getNormalizedUserHandle, type User } from '@oxy.so/core';
+import {
+  accountNameInvalidKey,
+  accountNameMaxLength,
+  getNormalizedUserHandle,
+  isValidAccountName,
+  type User,
+} from '@oxy.so/core';
 
 const GAP = 12;
 const INNER_GAP = 8;
@@ -54,6 +59,8 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
   const [firstName, setFirstName] = useState(() => (currentUser?.name?.first ?? '').trim());
   const [lastName, setLastName] = useState(() => (currentUser?.name?.last ?? '').trim());
   const [savingName, setSavingName] = useState(false);
+  const [nameInvalid, setNameInvalid] = useState(false);
+  const nameKind = currentUser?.kind;
 
   // Derived, not mirrored: `openAvatarPicker` writes through the shared avatar
   // path, which updates the active account — including CLEARING it when the
@@ -193,20 +200,22 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
   const submitName = useCallback(async () => {
     const f = firstName.trim();
     if (!f) return;
+    // The name policy `PUT /users/me` holds the account's kind to, checked
+    // before sending so the refusal names the rule, inline.
+    if (!isValidAccountName(f, nameKind) || !isValidAccountName(lastName, nameKind)) {
+      setNameInvalid(true);
+      return;
+    }
     setSavingName(true);
     try {
       await updateProfileMutation.mutateAsync({ name: { first: f, last: lastName.trim() } });
       animateToStepCallback(currentStep + 1);
-    } catch (e: unknown) {
-      toast.error(
-        (e instanceof Error ? e.message : null) ||
-          t('welcomeNew.name.saveFailed') ||
-          'Could not save your name',
-      );
+    } catch {
+      // `useUpdateProfile` already told the person why, in their language.
     } finally {
       setSavingName(false);
     }
-  }, [firstName, lastName, updateProfileMutation, animateToStepCallback, currentStep, t]);
+  }, [firstName, lastName, nameKind, updateProfileMutation, animateToStepCallback, currentStep]);
   /**
    * Onboarding uses the SAME avatar flow as everywhere else — the ChangeAvatar
    * surface (source list → crop → upload). It used to run its own
@@ -360,28 +369,41 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
           {step.showNameForm && (
             <View style={[styles.nameForm, styles.sectionSpacing]}>
               <View style={styles.nameField}>
-                <TextField>
+                <TextField isInvalid={nameInvalid}>
                   <TextFieldInput
                     floatingLabel
                     label={t('welcomeNew.name.firstLabel') || 'First name'}
                     value={firstName}
-                    onChangeText={setFirstName}
+                    onChangeText={(value) => {
+                      setFirstName(value);
+                      setNameInvalid(false);
+                    }}
+                    maxLength={accountNameMaxLength(nameKind)}
                     autoFocus
                     autoCapitalize="words"
                   />
                 </TextField>
               </View>
               <View style={styles.nameField}>
-                <TextField>
+                <TextField isInvalid={nameInvalid}>
                   <TextFieldInput
                     floatingLabel
                     label={t('welcomeNew.name.lastLabel') || 'Last name'}
                     value={lastName}
-                    onChangeText={setLastName}
+                    onChangeText={(value) => {
+                      setLastName(value);
+                      setNameInvalid(false);
+                    }}
+                    maxLength={accountNameMaxLength(nameKind)}
                     autoCapitalize="words"
                   />
                 </TextField>
               </View>
+              {nameInvalid ? (
+                <TextFieldHint invalid>
+                  {t(`editProfile.items.displayName.${accountNameInvalidKey(nameKind)}`)}
+                </TextFieldHint>
+              ) : null}
             </View>
           )}
           {step.showAvatar && (

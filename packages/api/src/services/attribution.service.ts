@@ -444,7 +444,7 @@ export type ServiceTokenPrincipalResolution =
  * | usable | {@link isCredentialUsable} — status and rotation grace | live binding: present, unexpired, still naming this application |
  * | application | `active` | `active` AND trusted first-party |
  * | owner | — | active, no closure fence |
- * | scopes | `intersectScopes(credential, application)` | `workloadBindingScopes(binding, application)` |
+ * | scopes | `intersectScopes(credential, application)` | scope-free live workload identity |
  *
  * The attested column is not the weaker one. Deleting a binding is how a
  * compromised workload is cut off, and it takes effect on the very next call
@@ -467,6 +467,7 @@ export async function resolveServiceTokenPrincipal(
   payload: ServiceTokenPayload,
 ): Promise<ServiceTokenPrincipalResolution> {
   if (isWorkloadAttestationHandle(payload.credentialId)) {
+    if (payload.authority !== 'first_party') return { status: 'unknown-workload' };
     const binding = await resolveLiveAgencyWorkloadByHandle(payload.appId, payload.credentialId);
     if (
       binding === null ||
@@ -484,12 +485,7 @@ export async function resolveServiceTokenPrincipal(
         applicationId: binding.applicationId,
         ownerAccountId: binding.ownerAccountId,
         environment: binding.environment,
-        ...(payload.authority === 'first_party'
-          ? { authority: 'first_party' as const }
-          : {
-              authority: 'external' as const,
-              scopes: intersectScopes(payload.scopes ?? [], binding.scopes),
-            }),
+        authority: 'first_party',
       },
     };
   }

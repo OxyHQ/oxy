@@ -3,7 +3,9 @@ import {
   registerCacheForCleanup,
   unregisterCacheFromCleanup,
   stopAllCleanupIntervals,
+  sweptCacheCount,
 } from '../cache';
+import { HttpService } from '../../HttpService';
 
 afterEach(() => {
   stopAllCleanupIntervals();
@@ -62,6 +64,37 @@ test('unregister and stop preserve entries but prevent writes restarting automat
   expect(jest.getTimerCount()).toBe(0);
   expect(a.get('a')).toBe('value');
 });
+test('the sweep holds a registered cache only while it has entries to expire', () => {
+  jest.useFakeTimers();
+  const cache = new TTLCache<string>(10);
+  registerCacheForCleanup(cache);
+  expect(sweptCacheCount()).toBe(0);
+  cache.set('a', 'value');
+  expect(sweptCacheCount()).toBe(1);
+  jest.advanceTimersByTime(60_000);
+  // Expired by the sweep: nothing global references the cache any more.
+  expect(cache.size()).toBe(0);
+  expect(sweptCacheCount()).toBe(0);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test('a client nobody disposed is released by the sweep once its entries expire', () => {
+  jest.useFakeTimers();
+  // One per request, never disposed: the leak this registry used to have.
+  const clients = Array.from(
+    { length: 50 },
+    () => new HttpService({ baseURL: 'https://api.oxy.so', cacheTTL: 10 }),
+  );
+  expect(sweptCacheCount()).toBe(0);
+  for (const [index, client] of clients.entries()) {
+    (client as unknown as { cache: TTLCache<unknown> }).cache.set(`GET:/r/${index}`, { ok: true });
+  }
+  expect(sweptCacheCount()).toBe(50);
+  jest.advanceTimersByTime(60_000);
+  expect(sweptCacheCount()).toBe(0);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
 test('server barrel imports and client construction start no background timers', () => {
   jest.useFakeTimers();
   jest.isolateModules(() => {
