@@ -95,8 +95,7 @@ The census excluded `node_modules`, `dist` and worktrees.
 
 | Caller | Endpoint | Effect |
 |---|---|---|
-| Mention `services/mtn/PostMaterializer.ts:227` | by-sha256 | Unchanged: it still gets the oldest row. It maps `sha256 -> id` into post media, so it should pass the record author's `ownerUserId` once core is released. |
-| Mention `services/mtn/mtnNodeBlobMirror.ts:121` | by-sha256 | Unchanged. It treats "any owner has it" as "already mirrored". With `ownerUserId` it would upload the author's own row instead, and the bytes would still be stored once. |
+| ~~Mention `services/mtn/PostMaterializer.ts`, `services/mtn/mtnNodeBlobMirror.ts`~~ | by-sha256 | Removed with Mention nodes and the MTN record chain (OxyHQ/Mention#1805); no by-sha256 caller remains in Mention. |
 | Mention `mediaCache/cacheWorker.ts:376`, `mediaCache/oxyMediaStore.ts:403`, `connectors/*` | `/service/federation` | A different owner's bytes now return `200` with a new row instead of a `409`. The cache worker currently retries a 409 indefinitely, so this fixes that loop. |
 | Mention `cacheWorker.ts:216`, `gifLibraryService.ts:472`, eviction and purge scripts | `/service/cache`, `DELETE /service/cache/:id` | Unchanged. The cache namespace still keeps one row per hash, so two cache entries with the same bytes share an id. |
 | Mention `utils/oxyHelpers.ts:195`, Move `utils/oxyHelpers.ts:64` | `/service/user-media` | Another user's bytes now give the caller its own row instead of a `409`. |
