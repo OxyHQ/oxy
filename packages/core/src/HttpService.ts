@@ -514,7 +514,8 @@ function isAbortLike(error: unknown): boolean {
   );
 }
 
-function linkAbort(parent: AbortSignal, child: AbortController): () => void {
+/** @internal Shared with `client/callOptions.ts`; see the note above `isAbortLike`. */
+export function linkAbort(parent: AbortSignal, child: AbortController): () => void {
   if (parent.aborted) {
     child.abort((parent as AbortSignal & { reason?: unknown }).reason);
     return () => {

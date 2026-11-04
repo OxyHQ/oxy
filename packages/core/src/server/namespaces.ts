@@ -35,6 +35,7 @@ import {
   type AccountAccessVerdict,
 } from '@oxy.so/contracts';
 import type { RequestOptions } from '../HttpService';
+import { type CallOptions, sendWithCallOptions } from '../client/callOptions';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
   ApplicationFile,
@@ -65,6 +66,10 @@ import type {
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
   ServiceUserMediaImport,
+  ServiceMediaCacheUpload,
+  ServiceFederatedMediaUpload,
+  ServiceFederatedMediaDeletion,
+  ServiceFederatedMediaDeleteResult,
 } from '../models/interfaces';
 import { bindRequesterLane, type RequesterProof } from './requesterContext';
 import { AssetsApi } from '../api/assets';
@@ -82,7 +87,7 @@ import {
   waitForImport,
 } from './assetJobs';
 import { NotificationsApi } from '../api/notifications';
-import { OxyApiError } from '../OxyServices.errors';
+import { OxyApiError, retryAfterSecondsOf } from '../OxyServices.errors';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
 import {
   AgencyApi,
@@ -109,6 +114,14 @@ const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
 const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
 /** Server-side cap of `POST`/`DELETE /assets/service/references`. */
 const SERVICE_REFERENCES_CHUNK_SIZE = 100;
+/** Server-side cap of `POST /assets/service/federation/delete`. */
+const SERVICE_FEDERATED_DELETE_CHUNK_SIZE = 20;
+const FEDERATED_DELETE_RESULTS: ReadonlySet<unknown> = new Set<ServiceFederatedMediaDeleteResult>([
+  'deleted',
+  'not_found',
+  'in_use',
+  'forbidden',
+]);
 /** Server-side cap of `POST /assets/service/app/import/batch`. */
 const SERVICE_IMPORT_BATCH_SIZE = 50;
 /** An import fetches a remote source (up to 60 s server-side): a longer per-attempt timeout. */
@@ -141,30 +154,14 @@ const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
 /** The bytes of a streamed service upload: sent as the whole request body. */
 export type ServiceUploadBody = Uint8Array | ArrayBuffer | Blob;
 
-/** What `uploadAppFile` and `uploadUserMedia` may say about the bytes besides their type. */
 /**
- * Per-call transport options for a service call, overriding the server's
- * `requestTimeout` / `enableRetry` for that one call — so one `OxyServer` can
- * make a short, single-shot write and a patient read side by side.
+ * Per-call transport options for a service call — the {@link CallOptions}
+ * `withCallOptions` takes, accepted directly by the methods an outbox calls
+ * (`references.add` / `remove`).
  */
-export interface ServiceCallOptions {
-  /** Abort the call. */
-  signal?: AbortSignal;
-  /** Per-attempt timeout in ms. */
-  timeout?: number;
-  /** `false` sends the call once; a transient failure is the caller's to retry (an outbox). */
-  retry?: boolean;
-}
+export type ServiceCallOptions = CallOptions;
 
-/** The `RequestOptions` half of {@link ServiceCallOptions}, only the fields that were set. */
-function serviceCallRequestOptions(options: ServiceCallOptions): RequestOptions {
-  return {
-    ...(options.signal ? { signal: options.signal } : {}),
-    ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
-    ...(options.retry !== undefined ? { retry: options.retry } : {}),
-  };
-}
-
+/** What `uploadAppFile` and `uploadUserMedia` may say about the bytes besides their type. */
 export interface ServiceUploadDescription {
   /**
    * Stored as the file's original name. Sent as a header, so only printable
@@ -367,6 +364,107 @@ export class ServerAssetsApi extends AssetsApi {
   };
 
   /**
+   * The federation media cache (`/assets/service/cache`): copies of remote
+   * media this application serves from Oxy's CDN instead of the remote host,
+   * in a reserved namespace that only holds what may be evicted. Every file
+   * is public by construction (`https://cloud.oxy.so/<id>`, `publicUrl`).
+   *
+   * - `upload` (`files:write`): the bytes as the whole body — a Blob from
+   *   `fs.openAsBlob(path)` streams a file from disk; image, video or audio
+   *   only (415), at most Oxy's cache size (413). Sent once.
+   * - `delete` (`federation:write`): evict one cache object. 404 when it is
+   *   gone, 403 for anything outside the cache namespace — a service token can
+   *   never delete media a person owns.
+   *
+   * A refusal for this application's media-write budget is a 429 whose
+   * `retryAfterSeconds` ({@link retryAfterSecondsOf}) says when to write again.
+   */
+  readonly mediaCache = {
+    upload: (
+      bytes: ServiceUploadBody,
+      mime: string,
+      options: ServiceUploadDescription = {},
+    ): Promise<ServiceMediaCacheUpload> =>
+      lane(this.ctx).request<ServiceMediaCacheUpload>('POST', '/assets/service/cache', bytes, {
+        headers: uploadHeaders(mime, options),
+        cache: false,
+        retry: false,
+        ...(options.signal ? { signal: options.signal } : {}),
+        ...(options.timeout ? { timeout: options.timeout } : {}),
+      }),
+    delete: async (fileId: string): Promise<void> => {
+      await lane(this.ctx).request<unknown>(
+        'DELETE',
+        `/assets/service/cache/${encodeURIComponent(fileId)}`,
+        undefined,
+        { cache: false },
+      );
+    },
+  };
+
+  /**
+   * Durable federated media (`/assets/service/federation`): a remote post's
+   * media re-hosted as a normal public file owned by the federated Oxy user
+   * it came from — outside the cache namespace, so a stored post may
+   * reference it for good.
+   *
+   * - `upload` (`files:write`): `ownerUserId` must be an existing federated
+   *   user (403). Idempotent per (owner, application, bytes): the existing
+   *   file with `deduplicated: true`, which other posts may share — check
+   *   your own references before deleting it. Bytes another owner or
+   *   application holds are a 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE`. Sent once.
+   * - `delete` (`files:write` + `federation:write`): one answer per distinct
+   *   id, in order, sent 20 at a time — only federated media this application
+   *   uploaded is ever deleted (`forbidden` otherwise), and bytes another
+   *   account holds are kept (`in_use`). Every step is idempotent, so a failed
+   *   call is retried whole.
+   *
+   * Budget refusals are 429s, as for {@link mediaCache}.
+   */
+  readonly federatedMedia = {
+    upload: async (
+      ownerUserId: string,
+      bytes: ServiceUploadBody,
+      mime: string,
+      options: ServiceUploadDescription = {},
+    ): Promise<ServiceFederatedMediaUpload> => {
+      const res = await lane(this.ctx).request<ServiceFederatedMediaUpload>(
+        'POST',
+        '/assets/service/federation',
+        bytes,
+        {
+          headers: { ...uploadHeaders(mime, options), 'x-owner-user-id': ownerUserId },
+          cache: false,
+          retry: false,
+          ...(options.signal ? { signal: options.signal } : {}),
+          ...(options.timeout ? { timeout: options.timeout } : {}),
+        },
+      );
+      return { file: res.file, deduplicated: res.deduplicated === true };
+    },
+    delete: async (fileIds: string[]): Promise<ServiceFederatedMediaDeletion[]> => {
+      const results: ServiceFederatedMediaDeletion[] = [];
+      for (const part of chunk(uniqueIds(fileIds), SERVICE_FEDERATED_DELETE_CHUNK_SIZE)) {
+        const res = await lane(this.ctx).request<{ results: ServiceFederatedMediaDeletion[] }>(
+          'POST',
+          '/assets/service/federation/delete',
+          { ids: part },
+          { cache: false },
+        );
+        const asked = new Set(part);
+        for (const entry of Array.isArray(res?.results) ? res.results : []) {
+          // An id not asked, or a result this build does not know, is no
+          // answer: the caller sees the id unanswered and retries it.
+          if (asked.has(entry?.id) && FEDERATED_DELETE_RESULTS.has(entry?.result)) {
+            results.push({ id: entry.id, result: entry.result });
+          }
+        }
+      }
+      return results;
+    },
+  };
+
+  /**
    * Per-play, revocable streaming access (ADR 0043 stage 4c). A play session
    * is ONE file's HLS ladder (a video's, or an audio file's audio-only one)
    * for a short time, optionally for one end user: `masterUrl` is what the
@@ -553,11 +651,13 @@ export class ServerAssetsApi extends AssetsApi {
       const chunk = references
         .slice(start, start + SERVICE_REFERENCES_CHUNK_SIZE)
         .map(({ fileId, entityType, entityId }) => ({ fileId, entityType, entityId }));
-      const res = await lane(this.ctx).request<{ results: ServiceFileReferenceResult[] }>(
-        method,
-        '/assets/service/references',
-        { references: chunk },
-        { ...serviceCallRequestOptions(options), cache: false },
+      const res = await sendWithCallOptions({ cache: false }, options, (requestOptions) =>
+        lane(this.ctx).request<{ results: ServiceFileReferenceResult[] }>(
+          method,
+          '/assets/service/references',
+          { references: chunk },
+          requestOptions,
+        ),
       );
       results.push(...res.results);
     }
@@ -1666,25 +1766,10 @@ async function waitingOutRateLimits<T>(send: () => Promise<T>): Promise<T> {
 
 /** How long to wait after a refusal: what Oxy said, else the doubling fallback; capped. */
 function rateLimitWaitMs(error: unknown, refusals: number): number {
-  const said = retryAfterSeconds(error);
+  const said = retryAfterSecondsOf(error);
   const wait =
     said !== undefined ? said * 1000 : SERVICE_RECONCILE_RATE_LIMIT_FALLBACK_MS * 2 ** refusals;
   return Math.min(wait, SERVICE_RECONCILE_RATE_LIMIT_MAX_WAIT_MS);
-}
-
-/** `details.retryAfterSeconds` of a refusal (`RateLimitedError` on the server), if any. */
-function retryAfterSeconds(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const candidates = [
-    (error as { details?: { retryAfterSeconds?: unknown } }).details,
-    (error as { response?: { data?: { details?: { retryAfterSeconds?: unknown } } } }).response
-      ?.data?.details,
-  ];
-  for (const details of candidates) {
-    const seconds = details?.retryAfterSeconds;
-    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) return seconds;
-  }
-  return undefined;
 }
 
 async function waitForCommit(

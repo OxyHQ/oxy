@@ -7,7 +7,6 @@ import { bindRequesterLane, type RequesterProof } from './requesterContext';
 /** Oxy namespaces bound to one verified requester, without sharing mutable auth state. */
 export class OxyRequesterClient extends OxyServices {
   private readonly requesterLane: ServiceLane;
-  private requesterAssets?: ServerAssetsApi;
   constructor(baseURL: string, cloudURL: string, original: ServiceLane, proof: RequesterProof) {
     super({ baseURL, cloudURL });
     this.requesterLane = bindRequesterLane(original, proof);
@@ -22,7 +21,6 @@ export class OxyRequesterClient extends OxyServices {
     return this.requesterLane.request(method, url, data, options);
   }
   override get assets(): ServerAssetsApi {
-    if (!this.requesterAssets) this.requesterAssets = new ServerAssetsApi(this.context);
-    return this.requesterAssets;
+    return this.namespace('assets', (context) => new ServerAssetsApi(context));
   }
 }

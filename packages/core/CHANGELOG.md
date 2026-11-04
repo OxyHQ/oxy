@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.19.0
+
+### Added
+
+- **Per-call options for every namespace, at the root.** `oxy.withCallOptions({ timeout, deadline, retry, signal })` returns the client's namespaces (an `OxyServer`'s server namespaces and a `withUser` client's included) with those options on every request they send: `oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public')`, `oxy.withCallOptions({ deadline: 2_500 }).users.lookupMany(ids)`. `timeout` / `deadline` replace the method's and the client's own; `retry: false` sends each request once, and `retry: true` never re-enables a request a method sends once on purpose; `signal` is combined with a method's own. The scope is a view of the same client — session, cache, credentials, service lane — holds nothing and needs no disposal; a call one namespace makes into another keeps the options; `session` is not part of it. Types `CallOptions`, `OxyCallScope`, `OxyCallScopeNamespace`. `ServiceCallOptions` is now `CallOptions` (same fields plus `deadline`).
+- **`safeFetch(url, { validated })`**: the first hop connects to the address of the caller's own `assertSafePublicUrl` check of that URL instead of resolving the name a second time. Only a check `assertSafePublicUrl` returned for exactly that URL is accepted (a `TypeError` otherwise, before any request); every redirect hop is still resolved and checked.
+- **`safeFetch(url, { requireHttps: true })`**: every hop, the first and each redirect, must be https; a plain-http one is refused (`SsrfRejection`) before it is resolved or sent — a redirect through http and back is refused too.
+- **The federation media routes.** `OxyServer.assets.mediaCache.upload(bytes, mime, description)` / `.delete(fileId)` (`/assets/service/cache`) and `.federatedMedia.upload(ownerUserId, bytes, mime, description)` / `.delete(fileIds)` (`/assets/service/federation`, sent 20 at a time; only ids asked and results Oxy defines come back, so an id missing from the answer is unanswered). Uploads are sent once; a Blob from `fs.openAsBlob(path)` streams a file from disk. Types `ServiceMediaCacheUpload`, `ServiceFederatedMediaUpload`, `ServiceFederatedMediaDeletion`, `ServiceFederatedMediaDeleteResult`.
+- `retryAfterSecondsOf(error)`: the wait a 429 names (`details.retryAfterSeconds`, its `Retry-After`), or `undefined`.
+
 ## 7.18.0
 
 ### Added
