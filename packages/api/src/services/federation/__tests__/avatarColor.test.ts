@@ -2,7 +2,9 @@ import sharp from 'sharp';
 import { avatarSeedColor } from '../avatarColor';
 
 const solid = (background: string) =>
-  sharp({ create: { width: 32, height: 32, channels: 3, background } }).png().toBuffer();
+  sharp({ create: { width: 32, height: 32, channels: 3, background } })
+    .png()
+    .toBuffer();
 
 describe('avatarSeedColor', () => {
   it("returns a coloured picture's seed as #rrggbb, and null for one with no colour", async () => {
