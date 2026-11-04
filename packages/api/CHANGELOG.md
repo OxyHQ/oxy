@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added (an MCP resource server asks which of its own permissions the person holds)
+
+`POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)
+answers `roles/me`'s contract, `{ applicationId, userId, permissions }`, for the
+person behind a live MCP access token. `roles/me` needs a session and an MCP
+request has none, so a website could only decide who gets its admin MCP tools
+from an `OXY_ADMIN_USER_IDS` allow-list. The proof is introspection's: the token
+must be for a resource the calling application registered (`401 invalid_grant`
+otherwise), the application is that one — there is no parameter to name
+another — and the person is the token's `sub`, whichever member account the
+connection is acting as. Grants are read live; `Cache-Control: no-store`. No new
+scope. `OxyServer.appPermissionsFor(context.request)` (`@oxy.so/core`) reads it.
+
 ### Changed (Oxy's own applications hold operator keys by role — ADR 0056)
 
 A first-party application declares its operator keys in the first-party registry

@@ -1,4 +1,9 @@
-import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import {
+  type ApplicationRolesMe,
+  urlCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -43,6 +48,7 @@ import {
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
+import { permissionsHeldBy } from '../services/applicationRoles.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
 
@@ -100,6 +106,18 @@ const introspectionLimiter = rateLimit({
  */
 const viewerGraphLimiter = rateLimit({
   prefix: 'rl:auth:mcp:viewer-graph:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+/**
+ * The application-permissions read is asked on the same cadence as the viewer
+ * graph — at most once per served request, usually from the SDK's short cache —
+ * so it gets the same per-application budget.
+ */
+const appPermissionsLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:app-permissions:',
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
   keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
@@ -711,6 +729,53 @@ router.post(
         action: body.action,
         changed: 'created' in result ? result.created : result.removed,
       });
+    } catch (error) {
+      sendMcpOAuthError(response, error);
+    }
+  },
+);
+
+/**
+ * Which of the CALLING application's declared permissions (application roles,
+ * `docs/auth/application-roles.md`) the person behind an MCP access token holds.
+ *
+ * `GET /applications/:appId/roles/me` answers this for a person in a session.
+ * An MCP request carries no session — the connector's token is bound to the
+ * resource and must never be forwarded as one — so the resource server presents
+ * the token HERE, as it does for the viewer graph:
+ *
+ *   - the token is live, unrevoked, and for a resource THIS service credential's
+ *     application registered; a token for another app's resource is refused;
+ *   - the application is the one that registered the token's resource, which is
+ *     the caller's own. There is no application parameter, so a service can
+ *     never read another application's grants;
+ *   - the person is the one who authorized the token (its `sub`), whichever
+ *     member account the connection is acting as — as `roles/me` answers for the
+ *     operator, never the account a session speaks as. A linked account lends
+ *     the connection its data, never its approver's operator powers;
+ *   - grants are read live. Revoking the grant, the token or the role ends it on
+ *     the next call.
+ *
+ * The body is `roles/me`'s own contract, so the SDK reads both one way.
+ */
+router.post(
+  '/app-permissions',
+  serviceAuthMiddleware,
+  appPermissionsLimiter,
+  async (request: ServiceAuthRequest, response) => {
+    try {
+      const body = connectionTokenSchema.parse(request.body);
+      const caller = await connectionCallerGrant(request, body.token);
+      // `resolveLiveMcpAccessToken` refused the token unless this equals the
+      // calling service's own application.
+      const applicationId = caller.descriptor.registeredByApplicationId;
+      const answer: ApplicationRolesMe = {
+        applicationId,
+        userId: caller.grant.principalUserId,
+        permissions: await permissionsHeldBy(applicationId, caller.grant.principalUserId),
+      };
+      response.set('cache-control', 'no-store');
+      response.json(answer);
     } catch (error) {
       sendMcpOAuthError(response, error);
     }

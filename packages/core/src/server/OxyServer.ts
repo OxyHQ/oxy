@@ -94,7 +94,7 @@ import {
   APP_PERMISSIONS_CACHE_TTL_MS,
   OxyAppPermissionsResolver,
   type AppPermissionsOptions,
-  type AppPermissionsRequest,
+  type AppPermissionsSource,
   type OxyAppPermissions,
 } from './appPermissions';
 import {
@@ -381,6 +381,7 @@ export class OxyServer extends OxyServices {
       ttlMs: ttl,
       defaultApplicationId: () => this.defaultApplicationId(),
       fetchRolesMe: (applicationId, accessToken) => this.fetchRolesMe(applicationId, accessToken),
+      fetchMcpAppPermissions: (mcpAccessToken) => this.fetchMcpAppPermissions(mcpAccessToken),
     });
     this.callerAccess = new OxyCallerAccessResolver({
       ttlMs: ttl,
@@ -906,6 +907,12 @@ export class OxyServer extends OxyServices {
    * must have passed `middleware.auth()`: the answer is read from Oxy with the
    * request's own verified bearer, for the human operator of its session.
    *
+   * An MCP tool call is asked the same way: pass its `extra`
+   * (`CatalogInvocationContext.request`), whose `authInfo.token` is the access
+   * token `@oxy.so/mcp` introspected. Oxy answers, for the person who
+   * authorized that token, only about the application that registered its
+   * resource — this server's own (`APP_PERMISSION_NOT_CONFIGURED` otherwise).
+   *
    * Cached per session for `appPermissionsCacheTtlMs` (30 s); pass
    * `{ fresh: true }` before a write. Throws `OxyAppPermissionError` — no
    * session (`APP_PERMISSION_SESSION_REQUIRED`, also for any service-token
@@ -914,7 +921,7 @@ export class OxyServer extends OxyServices {
    * "nothing held" for a failure.
    */
   appPermissionsFor(
-    req: AppPermissionsRequest,
+    req: AppPermissionsSource,
     options: AppPermissionsOptions = {},
   ): Promise<OxyAppPermissions> {
     return this.appPermissions.resolve(req, options);
@@ -1044,6 +1051,15 @@ export class OxyServer extends OxyServices {
       `/applications/${encodeURIComponent(applicationId)}/roles/me`,
       undefined,
       { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+  }
+
+  private fetchMcpAppPermissions(mcpAccessToken: string): Promise<unknown> {
+    return this.serviceRequest<unknown>(
+      'POST',
+      '/auth/mcp/oauth/app-permissions',
+      { token: mcpAccessToken },
+      { cache: false, deduplicate: false, retry: false },
     );
   }
 

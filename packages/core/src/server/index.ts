@@ -97,6 +97,8 @@ export {
 } from './appPermissions';
 export type {
   AppPermissionsOptions,
+  AppPermissionsSource,
+  OxyMcpCallerRequest,
   OxyAppPermissionDenyStatus,
   OxyAppPermissionErrorCode,
   OxyAppPermissions,

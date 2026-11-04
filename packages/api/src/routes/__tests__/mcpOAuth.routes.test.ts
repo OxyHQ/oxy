@@ -53,6 +53,10 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../../db/schema/agency';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import {
+  applicationRoleGrants,
+  applicationRolePermissions,
+} from '../../db/schema/applicationRoles';
 import { blocks } from '../../db/schema/blocks';
 import { mcpOauthGrants } from '../../db/schema/mcpOAuth';
 import { userFollows } from '../../db/schema/userFollows';
@@ -509,6 +513,165 @@ describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
       .send({ token: 'not-a-token' });
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ error: 'invalid_grant' });
+  });
+});
+
+describe('POST /auth/mcp/oauth/app-permissions', () => {
+  /** Declare `key` on `applicationId` and grant it to `userId`; returns the grant id. */
+  async function grantRole(applicationId: string, userId: string, key: string): Promise<string> {
+    const [permission] = await getDb()
+      .insert(applicationRolePermissions)
+      .values({ applicationId, key, description: `Test permission ${key}` })
+      .returning({ id: applicationRolePermissions.id });
+    const [grant] = await getDb()
+      .insert(applicationRoleGrants)
+      .values({ permissionId: permission.id, userId })
+      .returning({ id: applicationRoleGrants.id });
+    return grant.id;
+  }
+
+  async function declareRole(applicationId: string, key: string): Promise<void> {
+    await getDb()
+      .insert(applicationRolePermissions)
+      .values({ applicationId, key, description: `Test permission ${key}` });
+  }
+
+  function appPermissions(token: string) {
+    return request(app)
+      .post('/auth/mcp/oauth/app-permissions')
+      .set('authorization', 'Bearer service-token')
+      .send({ token });
+  }
+
+  it("answers the token's person with the calling application's live grants only", async () => {
+    const input = await fixture();
+    const personId = principalUserId;
+    const owningApplicationId = serviceApplicationId;
+    const owningCredentialId = serviceCredentialId;
+    const grantId = await grantRole(owningApplicationId, personId, 'site.content.manage');
+    await declareRole(owningApplicationId, 'site.billing.manage');
+    const accessToken = await issueAccessToken(input);
+
+    // Another application's grant to the same person is never part of the answer.
+    await fixture();
+    await grantRole(serviceApplicationId, personId, 'other.content.manage');
+    serviceApplicationId = owningApplicationId;
+    serviceCredentialId = owningCredentialId;
+    principalUserId = personId;
+
+    const held = await appPermissions(accessToken);
+    expect(held.status).toBe(200);
+    expect(held.headers['cache-control']).toBe('no-store');
+    expect(held.body).toEqual({
+      applicationId: owningApplicationId,
+      userId: personId,
+      permissions: ['site.content.manage'],
+    });
+
+    // A revoked role grant is gone on the very next call.
+    await getDb()
+      .update(applicationRoleGrants)
+      .set({ revokedAt: new Date(), revokedByUserId: personId })
+      .where(eq(applicationRoleGrants.id, grantId));
+    const revoked = await appPermissions(accessToken);
+    expect(revoked.status).toBe(200);
+    expect(revoked.body).toEqual({
+      applicationId: owningApplicationId,
+      userId: personId,
+      permissions: [],
+    });
+  });
+
+  it("refuses another application's service, a revoked grant and a non-token", async () => {
+    const input = await fixture();
+    const personId = principalUserId;
+    const owningApplicationId = serviceApplicationId;
+    const owningCredentialId = serviceCredentialId;
+    await grantRole(owningApplicationId, personId, 'site.content.manage');
+    const accessToken = await issueAccessToken(input);
+
+    // The token's resource belongs to the fixture's application: another
+    // application's credential learns nothing about its grants.
+    await fixture();
+    const foreign = await appPermissions(accessToken);
+    expect(foreign.status).toBe(401);
+    expect(foreign.body).toMatchObject({ error: 'invalid_grant' });
+    expect(foreign.body).not.toHaveProperty('permissions');
+    serviceApplicationId = owningApplicationId;
+    serviceCredentialId = owningCredentialId;
+    principalUserId = personId;
+
+    const garbage = await appPermissions('not-a-token');
+    expect(garbage.status).toBe(401);
+    expect(garbage.body).toMatchObject({ error: 'invalid_grant' });
+
+    await getDb()
+      .update(mcpOauthGrants)
+      .set({ revokedAt: new Date() })
+      .where(eq(mcpOauthGrants.effectiveAccountId, personId));
+    const revoked = await appPermissions(accessToken);
+    expect(revoked.status).toBe(401);
+    expect(revoked.body).toMatchObject({ error: 'invalid_grant' });
+    expect(revoked.body).not.toHaveProperty('permissions');
+  });
+
+  it("answers for the token's person while the connection acts as a linked account", async () => {
+    const input = await fixture();
+    const personId = principalUserId;
+    const personSessionId = approvingSessionId;
+    const owningApplicationId = serviceApplicationId;
+    await grantRole(owningApplicationId, personId, 'site.content.manage');
+    const accessToken = await issueAccessToken(input);
+
+    // Somebody else, holding a different key, links their own account.
+    const [other] = await getDb()
+      .insert(users)
+      .values({ username: `mcp-linked-${randomUUID()}`, nameDisplay: 'Linked', color: 'teal' })
+      .returning({ id: users.id });
+    await grantRole(owningApplicationId, other.id, 'site.billing.manage');
+    const intent = await request(app)
+      .post('/auth/mcp/oauth/connections/link-intent')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken });
+    expect(intent.status).toBe(200);
+    const secret = new URL(intent.body.link_url as string).searchParams.get('intent');
+    principalUserId = other.id;
+    approvingSessionId = randomUUID();
+    await getDb()
+      .insert(sessions)
+      .values({
+        sessionId: approvingSessionId,
+        userId: other.id,
+        deviceId: randomUUID(),
+        deviceType: 'web',
+        platform: 'web',
+        accessToken: randomUUID(),
+        refreshToken: randomUUID(),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+    const approved = await request(app)
+      .post('/auth/mcp/oauth/connections/link/approve')
+      .set('authorization', 'Bearer user-session')
+      .send({ intent: secret });
+    expect(approved.status).toBe(200);
+    principalUserId = personId;
+    approvingSessionId = personSessionId;
+
+    const switched = await request(app)
+      .post('/auth/mcp/oauth/connections/active')
+      .set('authorization', 'Bearer service-token')
+      .send({ token: accessToken, account_id: other.id });
+    expect(switched.status).toBe(200);
+    expect(switched.body.connection.active_account_id).toBe(other.id);
+
+    // The linked account lends its data, never its approver's operator keys.
+    const held = await appPermissions(accessToken);
+    expect(held.status).toBe(200);
+    expect(held.body).toEqual({
+      applicationId: owningApplicationId,
+      userId: personId,
+      permissions: ['site.content.manage'],
+    });
   });
 });
 

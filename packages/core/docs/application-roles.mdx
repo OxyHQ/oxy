@@ -110,6 +110,45 @@ It throws `OxyAppPermissionError` with `code`:
 
 It never answers "holds nothing" for a failure.
 
+## In an MCP tool
+
+An MCP request carries no session — its bearer is an access token Oxy issued
+for your MCP resource. Pass the tool call's `extra` instead of an Express
+request: `@oxy.so/mcp`'s transport has already introspected its token live and
+left it on `authInfo`.
+
+```ts
+import { createCatalogMcpHttpService } from '@oxy.so/mcp';
+
+createCatalogMcpHttpService({
+  // …
+  async authorize(_input, context) {
+    if (context.tool.effect !== 'read') {
+      const held = await oxy.appPermissionsFor(context.request, { fresh: true });
+      if (!held.has('website.content.manage')) {
+        return { allowed: false, reason: 'Only website admins may do that' };
+      }
+    }
+    return { allowed: true, effectiveAccountId: context.principal.activeAccountId };
+  },
+});
+```
+
+The SDK presents the token, with your backend's service token, to Oxy
+(`POST /auth/mcp/oauth/app-permissions`). Same answer, cache, `fresh` and errors
+as a session, with three differences:
+
+- `operatorId` is the person who authorized the connector. A connection that
+  holds several accounts is acting as one of them (`principal.activeAccountId`);
+  that account's data is what the tool serves, but the operator powers are the
+  connector owner's own, never those of whoever linked another account.
+- Oxy answers only about the application that registered the token's MCP
+  resource — yours. There is no `applicationId` to choose; an answer about any
+  application other than this server's is `APP_PERMISSION_NOT_CONFIGURED`.
+- A token Oxy refuses (revoked, expired, another application's resource) is
+  `APP_PERMISSION_SESSION_REQUIRED`; Oxy refusing your backend's own service
+  credential is `APP_PERMISSION_UNAVAILABLE`, never a "no".
+
 ## How fast a revocation takes effect
 
 Oxy reads grants and roles live. This SDK reuses one answer per session for

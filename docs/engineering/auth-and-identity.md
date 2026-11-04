@@ -359,6 +359,13 @@ The flow, from inside an assistant:
    approved at consent. A federated target is refused (409): the resource
    server follows it over its own protocol.
 
+7. `POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)
+   answers `{ applicationId, userId, permissions }` — `roles/me`'s contract —
+   for the token's `sub` (the person who authorized the connector, not the
+   active account) and the application that registered the token's resource,
+   which must be the caller's. `@oxy.so/core` reads it through
+   `oxy.appPermissionsFor(context.request)` (`docs/auth/application-roles.md`).
+
 Revocation needs no special path: a member revokes its own grant, `revokeGrant`
 retires its memberships, and a selection that is no longer usable falls back to
 the origin account on the next introspection.
