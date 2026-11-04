@@ -102,6 +102,22 @@ async function resolveWith(replies: {
   return { upserts, bridged };
 }
 
+describe('fetchRemoteActor — search opt-in and moves', () => {
+  it('stores indexable and movedTo when the actor states them, and omits them when not', async () => {
+    const moved = await resolveWith({
+      actor: actorDocument({ indexable: true, movedTo: 'https://new.example/users/bob' }),
+    });
+    expect(moved.upserts[0]).toMatchObject({
+      indexable: true,
+      movedTo: 'https://new.example/users/bob',
+    });
+
+    const silent = await resolveWith({ actor: actorDocument({ movedTo: 'not a url' }) });
+    expect(silent.upserts[0]).not.toHaveProperty('indexable');
+    expect(silent.upserts[0]).not.toHaveProperty('movedTo');
+  });
+});
+
 describe('fetchRemoteActor — remote collection counts', () => {
   it('stores reported totals, and a real 0 stays 0', async () => {
     const { upserts } = await resolveWith({

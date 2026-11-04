@@ -1,5 +1,25 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.13.0
+
+An atproto account whose handle does not verify is named by its DID, the same
+way by every Oxy app, instead of each app deciding what Bluesky's
+`handle.invalid` placeholder means.
+
+### Added
+
+- `UNRESOLVED_ATPROTO_HANDLE` (`handle.invalid`) and `isUnresolvedAtprotoHandle`:
+  the AppView's error string for a failed handle verification, which every
+  affected account shares and so never identifies anybody.
+- `atprotoIdentityHandle(handle, did)`: the handle an atproto account is keyed
+  on, which is its DID when the handle is the sentinel.
+- `blueskyHandleFromUsername`: the inverse of `blueskyUsernameFromHandle`.
+- `FederatedActorUpsert.indexable`: Mastodon's opt-in to search engines, set
+  only when the actor states it (absent means it did not, which Mastodon reads
+  as "no"), so an app can keep opted-out accounts out of search engines.
+- `FederatedActorUpsert.movedTo`: the account an actor moved to, read on every
+  refresh rather than only learned from an inbound `Move`.
+
 ## 2.12.0
 
 ### Changed
