@@ -24,6 +24,7 @@
  * old account (it now resolves to the target) and reattribute its content.
  */
 
+import { apIri } from '@oxy.so/federation';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
@@ -88,14 +89,6 @@ export interface FederationMoveOutcome {
   followersMoved: number;
   alreadyFollowing: number;
   skippedBlocked: number;
-}
-
-function referenceUri(value: unknown): string | undefined {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string') {
-    return (value as { id: string }).id;
-  }
-  return undefined;
 }
 
 /** `https://<host>/ap/users/<username>` on a host this Move may name, or null. */
@@ -222,7 +215,7 @@ export async function applyFederationMove(
       'old_actor_unreachable',
       'the moving actor could not be fetched',
     );
-  if (referenceUri(oldActor.movedTo) !== request.targetActorUri) {
+  if (apIri(oldActor.movedTo) !== request.targetActorUri) {
     throw new FederationMoveRefused(
       'moved_to_mismatch',
       "the moving actor's movedTo does not name the target",
