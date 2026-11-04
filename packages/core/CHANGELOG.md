@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.21.0
+
+### Added
+
+- **`OxyServer.safety.notificationAccessBatch({ items })`**: whether each actor may notify each recipient, for background delivery with the app's service credential and no user token. A block in either direction answers `blocked`; an unavailable account `unavailable`; a supervised party needs reviewed `content` support and contact approval both ways. Requires the reviewed `safety:notification-delivery:v1` capability (ADR 0041). Sent once, never cached.
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.7.0.
+
 ## 7.20.0
 
 ### Added

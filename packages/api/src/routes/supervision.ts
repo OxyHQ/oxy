@@ -39,6 +39,8 @@ import {
   messageAccessInputSchema,
   messageAccessBatchResponseSchema,
   deliveryAccessBatchInputSchema,
+  notificationAccessBatchInputSchema,
+  notificationAccessBatchResponseSchema,
   contactAccessInputSchema,
   contactAccessResponseSchema,
   contentAccessInputSchema,
@@ -552,6 +554,35 @@ router.post(
       );
     res.json(
       messageAccessBatchResponseSchema.parse(await policy.decideMessagesBatch(input.items, live)),
+    );
+  }),
+);
+/**
+ * Decide whether each actor may notify each recipient — blocks in either
+ * direction, availability, supervised contact approval — for background
+ * delivery with no human proof. Discloses one decision per resource, nothing else.
+ * @requestBody notificationAccessBatchInputSchema
+ * @response 200 notificationAccessBatchResponseSchema Per-resource decisions.
+ * @response 401 safetyErrorSchema Consumer required.
+ * @response 403 safetyErrorSchema Consumer refused.
+ * @response 422 safetyErrorSchema Invalid batch.
+ * @response 503 safetyErrorSchema Authority unavailable.
+ */
+router.post(
+  '/service/notification-access-batch',
+  handler(async (req, res) => {
+    const input = notificationAccessBatchInputSchema.parse(req.body);
+    const live = await principal(req);
+    if (!policy.consumerSupports(live, 'notification-delivery'))
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'Reviewed notification delivery authority is required',
+      );
+    res.json(
+      notificationAccessBatchResponseSchema.parse(
+        await policy.decideNotificationsBatch(input.items, live),
+      ),
     );
   }),
 );

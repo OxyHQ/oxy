@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.7.0
+
+### Added
+
+- `notificationAccessBatchInputSchema` / `notificationAccessBatchResponseSchema` (types `NotificationAccessInput`, `NotificationAccessBatchInput`): up to 100 unique `{ resourceId, actorAccountId, recipientAccountId }` items for `POST /safety/service/notification-access-batch`, one decision per resource.
+
 ## 6.6.0
 
 ### Added
