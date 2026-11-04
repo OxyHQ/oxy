@@ -166,9 +166,9 @@ the final `DROP INDEX`, which queues them behind any long-running query on
    `--max-batches`, and `--after=<lastLinkId>` to resume). Keep the JSONL
    output: it is the `(sourceFileId, ownerUserId) -> fileId` mapping the
    consuming apps need.
-5. **Consumers switch their stored ids** using that mapping, and Mention passes
-   `ownerUserId` to by-sha256. Both need a release of `@oxy.so/core`, which this
-   change does not publish.
+5. **Consumers switch their stored ids** using that mapping. That needs a
+   release of `@oxy.so/core`, which this change does not publish. (Mention no
+   longer calls by-sha256, so it has nothing to pass `ownerUserId` to.)
 6. **Repoint links per application** with
    `--apply=repoint-links --app=<name>`, and only for an app that now stores the
    new ids. Until then, the foreign link on the original is what keeps
