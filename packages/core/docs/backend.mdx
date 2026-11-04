@@ -30,6 +30,9 @@ export const oxy = new OxyServer({
   through the infrastructure (ADR 0026/0049). Never `serviceAuth`, an
   `OXY_API_KEY`, a client secret or a hand-made `POST /auth/service-token`.
   See [service tokens](./service-tokens.mdx).
+- **Service tokens are the client's to keep.** It mints, caches and renews
+  them, and a call Oxy answers 401 (a rotated key, a revoked credential) is
+  sent once more with a fresh token. Never mint, cache or replay one yourself.
 - **`serviceIdentity: 'when-anonymous'`** sends session-less reads with the
   service token: anonymous traffic is charged to the shared NAT address and
   slowed past 100 requests per 15 minutes.

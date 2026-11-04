@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.19.1
+
+### Fixed
+
+- **A service call survives a rotated or revoked service token.** `serviceRequest` — every server-namespace call (`assets.mediaCache`, `federatedMedia`, `references`, `metadataByIds`, …) — answered a 401 by throwing, while `createServiceClient` already re-minted and resent. Now a 401 drops the refused cached token, mints a fresh one and sends the request once more (a 401 means it never ran, so this is safe for any method and body). Once only, never after an abort; any other status is unchanged. Apps that re-minted by hand can drop it.
+
 ## 7.19.0
 
 ### Added

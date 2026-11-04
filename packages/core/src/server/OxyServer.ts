@@ -66,7 +66,7 @@ import { OxyServices, type OxyConfig } from '../OxyServices';
 import { HttpService } from '../HttpService';
 import { createAuthenticatedFetch } from '../authenticatedFetch';
 import { awaitRequestSignal } from '../utils/requestSignal';
-import { createCancelledError } from '../utils/errorUtils';
+import { createCancelledError, extractErrorStatus } from '../utils/errorUtils';
 import type { HttpMethod, ServiceLane } from '../client/context';
 import type { RequestOptions, ResponsePayload } from '../HttpService';
 import { logger } from '../logger';
@@ -873,8 +873,7 @@ export class OxyServer extends OxyServices {
       serviceTokenScopes,
       ...rest
     } = options;
-    const token = await this.platformServiceToken({ scopes: serviceTokenScopes });
-    const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
+    const merged: Record<string, string> = { ...headers };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     if (
       [requesterToken, taskId, capabilityTicket, requesterContext].filter(
@@ -886,16 +885,52 @@ export class OxyServer extends OxyServices {
     if (taskId) merged['X-Oxy-Task-Id'] = taskId;
     if (capabilityTicket) merged['X-Oxy-Capability-Ticket'] = capabilityTicket;
     if (requesterContext) merged['X-Oxy-Requester-Context'] = requesterContext;
-    return this.request<T>(method, target.href, data, {
-      cache: false,
-      ...rest,
-      ...([requesterToken, taskId, capabilityTicket, requesterContext].some(
-        (proof) => proof !== undefined,
-      )
-        ? { cache: false, deduplicate: false, retry: false }
-        : {}),
-      headers: merged,
-    });
+    const send = (token: string) =>
+      this.request<T>(method, target.href, data, {
+        cache: false,
+        ...rest,
+        ...([requesterToken, taskId, capabilityTicket, requesterContext].some(
+          (proof) => proof !== undefined,
+        )
+          ? { cache: false, deduplicate: false, retry: false }
+          : {}),
+        headers: { ...merged, Authorization: `Bearer ${token}` },
+      });
+    const token = await this.platformServiceToken({ scopes: serviceTokenScopes });
+    try {
+      return await send(token);
+    } catch (error) {
+      // A 401 refused the request before it ran, so sending it again is safe
+      // whatever its method. A cached token Oxy no longer accepts (keys
+      // rotated, credential revoked) is dropped and the request sent once
+      // more with a freshly minted one: once, never after an abort, and only
+      // when the refused token was this server's cached one.
+      if (
+        extractErrorStatus(error) !== 401 ||
+        rest.signal?.aborted ||
+        !this.forgetServiceToken(token)
+      ) {
+        throw error;
+      }
+      const fresh = await this.platformServiceToken({ scopes: serviceTokenScopes });
+      if (fresh === token) throw error;
+      return send(fresh);
+    }
+  }
+
+  /**
+   * Drop every cached entry that holds `token` (and is not minting): `true`
+   * when one did, so the next mint asks Oxy again.
+   */
+  private forgetServiceToken(token: string): boolean {
+    let forgot = false;
+    for (const [cacheKey, entry] of this.serviceTokens) {
+      if (entry.token === token && !entry.pending) {
+        this.serviceTokens.delete(cacheKey);
+        forgot = true;
+      }
+    }
+    return forgot;
   }
 
   // ── Application roles ────────────────────────────────────────────────────
