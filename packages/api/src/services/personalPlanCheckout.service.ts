@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { uuidv7 } from '@oxy.so/db';
-import type { BillingTaxQuote } from '@peable.to/sdk';
 import { and, eq, gt, inArray } from 'drizzle-orm';
 import {
   personalPlanCheckoutRequestSchema,
@@ -28,19 +27,19 @@ import {
   type ProductBillingCatalogue,
 } from './productBillingCatalogue.service';
 
-/** Immutable SDK authority selected once for one checkout intent. */
+/** The provider binding frozen once for one checkout intent: who sells, who
+ * pays (the provider customer) and where the payer returns. Tax and totals are
+ * the provider's, computed when it prices the order. */
 export interface PersonalCheckoutSnapshot {
   applicationId: string;
   merchantId: string;
   subjectAccountId: string;
-  planId: string;
   customerId: string;
   offerId: string;
   offerVersion: number;
   priceId: string;
   mode: string;
   environment: string;
-  taxQuote: BillingTaxQuote;
   returnUrl: string;
 }
 export interface PersonalCheckoutInput {
@@ -58,7 +57,6 @@ export interface PersonalCheckoutInput {
   interval: 'month' | 'year';
   trial: 'none';
   snapshot?: PersonalCheckoutSnapshot;
-  renewalSubscriptionId?: string;
 }
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
@@ -102,7 +100,6 @@ export async function startPersonalPlanCheckout(
     now?: Date;
     /** Selected by the dedicated authenticated product route, never provider metadata. */
     productId?: string;
-    renewalSourceId?: string;
   } = {},
 ): Promise<PersonalPlanCheckoutResult> {
   const request = personalPlanCheckoutRequestSchema.parse(raw);
@@ -141,8 +138,6 @@ export async function startPersonalPlanCheckout(
     );
   if (prior && (prior.offerId !== request.offerId || prior.offerVersion !== request.offerVersion))
     throw new ConflictError('Checkout idempotency key was reused for another selection');
-  if (prior && prior.renewalSourceId !== (dependencies.renewalSourceId ?? null))
-    throw new ConflictError('Checkout renewal source differs');
   if (prior && prior.offerKind !== (dependencies.productId ? 'individual' : 'bundle'))
     throw new ConflictError('Checkout kind differs from original selection');
   // A prior intent owns its frozen selection even after the catalogue changes.
@@ -200,7 +195,6 @@ export async function startPersonalPlanCheckout(
     JSON.stringify({
       offerId: request.offerId,
       offerVersion: request.offerVersion,
-      renewalSourceId: dependencies.renewalSourceId ?? null,
       providerAccountRef: price.providerAccountId,
       priceId: price.priceId,
       amountMinorUnits: price.amountMinorUnits,
@@ -278,8 +272,7 @@ export async function startPersonalPlanCheckout(
           ]),
         ),
       );
-    if (held && held.id !== dependencies.renewalSourceId)
-      throw new ConflictError('A personal bundle subscription already exists');
+    if (held) throw new ConflictError('A personal bundle subscription already exists');
     const [created] = await tx
       .insert(personalPlanCheckoutIntents)
       .values({
@@ -301,7 +294,6 @@ export async function startPersonalPlanCheckout(
         priceValidFrom: new Date(price.validFrom),
         priceValidUntil: price.validUntil === null ? null : new Date(price.validUntil),
         state: 'reserved',
-        renewalSourceId: dependencies.renewalSourceId ?? null,
       })
       .returning();
     return created;
@@ -315,34 +307,13 @@ export async function startPersonalPlanCheckout(
 export function personalCheckoutSnapshotFromIntent(
   intent: typeof personalPlanCheckoutIntents.$inferSelect,
 ): PersonalCheckoutSnapshot | undefined {
-  if (!intent.taxQuoteRef) return undefined;
-  if (
-    !intent.applicationRef ||
-    !intent.customerRef ||
-    !intent.planRef ||
-    !intent.returnUrl ||
-    !intent.taxQuoteCurrency ||
-    intent.taxQuoteNetMinorUnits === null ||
-    intent.taxQuoteTaxMinorUnits === null ||
-    !intent.taxQuoteSellerRef ||
-    !intent.taxQuoteInvoiceIssuerRef ||
-    !intent.taxQuoteTaxRemitterRef ||
-    !intent.taxQuoteTaxServiceRef ||
-    !intent.taxQuoteCountry ||
-    !intent.taxQuoteCoverageEvidenceRef ||
-    !intent.taxQuoteTaxRateEvidenceRef ||
-    !intent.taxQuoteCustomerLocationEvidenceRef ||
-    !intent.taxQuoteQuotedAt ||
-    !intent.taxQuoteExpiresAt ||
-    !intent.taxQuoteSignatureKeyRef ||
-    !intent.taxQuoteSignatureValue
-  )
+  if (!intent.customerRef) return undefined;
+  if (!intent.applicationRef || !intent.returnUrl)
     throw new ConflictError('Stored checkout authority is incomplete');
   return {
     applicationId: intent.applicationRef,
     merchantId: intent.providerAccountRef,
     subjectAccountId: intent.subjectAccountId,
-    planId: intent.planRef,
     customerId: intent.customerRef,
     offerId: intent.offerId,
     offerVersion: intent.offerVersion,
@@ -350,80 +321,11 @@ export function personalCheckoutSnapshotFromIntent(
     mode: intent.mode,
     environment: intent.environment,
     returnUrl: intent.returnUrl,
-    taxQuote: {
-      schema_version: 3,
-      source: {
-        merchant_id: intent.providerAccountRef,
-        app_id: intent.applicationRef,
-        store_id: intent.subjectAccountId,
-        plan_id: intent.planRef,
-        mode: billingNamespaceSchema.parse({ mode: intent.mode, environment: intent.environment })
-          .mode,
-        environment: z.enum(['development', 'staging', 'production']).parse(intent.environment),
-      },
-      quote: {
-        id: intent.taxQuoteRef,
-        currency: intent.taxQuoteCurrency,
-        gross_minor_units: String(intent.amountMinorUnits),
-        net_minor_units: intent.taxQuoteNetMinorUnits.toString(),
-        tax_minor_units: intent.taxQuoteTaxMinorUnits.toString(),
-        tax_treatment: 'inclusive',
-        seller_id: intent.taxQuoteSellerRef,
-        invoice_issuer_id: intent.taxQuoteInvoiceIssuerRef,
-        tax_remitter_id: intent.taxQuoteTaxRemitterRef,
-        tax_service_ref: intent.taxQuoteTaxServiceRef,
-        country: intent.taxQuoteCountry,
-        coverage_evidence_id: intent.taxQuoteCoverageEvidenceRef,
-        tax_rate_evidence_id: intent.taxQuoteTaxRateEvidenceRef,
-        customer_location_evidence_id: intent.taxQuoteCustomerLocationEvidenceRef,
-        quoted_at: signedUnixSeconds(intent.taxQuoteQuotedAt),
-        expires_at: signedUnixSeconds(intent.taxQuoteExpiresAt),
-      },
-      signature: {
-        algorithm: 'Ed25519',
-        key_id: intent.taxQuoteSignatureKeyRef,
-        value: intent.taxQuoteSignatureValue,
-      },
-    },
-  };
-}
-/** A signed Peable instant is whole Unix seconds (ADR 0014), so the stored
- * timestamptz restores it exactly; anything finer was never a signed value. */
-function signedUnixSeconds(instant: Date): number {
-  const milliseconds = instant.getTime();
-  if (!Number.isSafeInteger(milliseconds) || milliseconds % 1000 !== 0)
-    throw new ConflictError('Stored checkout authority is not a signed instant');
-  return milliseconds / 1000;
-}
-/** Typed columns hold the signed quote; its instants are exact whole seconds. */
-export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapshot) {
-  const quote = snapshot.taxQuote.quote;
-  return {
-    returnUrl: snapshot.returnUrl,
-    taxQuoteRef: quote.id,
-    taxQuoteCurrency: quote.currency,
-    taxQuoteNetMinorUnits: BigInt(quote.net_minor_units),
-    taxQuoteTaxMinorUnits: BigInt(quote.tax_minor_units),
-    taxQuoteSellerRef: quote.seller_id,
-    taxQuoteInvoiceIssuerRef: quote.invoice_issuer_id,
-    taxQuoteTaxRemitterRef: quote.tax_remitter_id,
-    taxQuoteTaxServiceRef: quote.tax_service_ref,
-    taxQuoteCountry: quote.country,
-    taxQuoteCoverageEvidenceRef: quote.coverage_evidence_id,
-    taxQuoteTaxRateEvidenceRef: quote.tax_rate_evidence_id,
-    taxQuoteCustomerLocationEvidenceRef: quote.customer_location_evidence_id,
-    taxQuoteQuotedAt: new Date(quote.quoted_at * 1000),
-    taxQuoteExpiresAt: new Date(quote.expires_at * 1000),
-    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.key_id,
-    taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
   };
 }
 function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheckoutInput) {
-  const source = snapshot.taxQuote?.source;
-  const quote = snapshot.taxQuote?.quote;
   if (
     !snapshot.applicationId ||
-    !snapshot.planId ||
     !snapshot.customerId ||
     !snapshot.returnUrl ||
     new URL(snapshot.returnUrl).protocol !== 'https:' ||
@@ -433,22 +335,7 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     snapshot.offerVersion !== input.offerVersion ||
     snapshot.priceId !== input.priceId ||
     snapshot.mode !== input.mode ||
-    snapshot.environment !== input.environment ||
-    source?.merchant_id !== snapshot.merchantId ||
-    source.app_id !== snapshot.applicationId ||
-    source.store_id !== snapshot.subjectAccountId ||
-    source.plan_id !== snapshot.planId ||
-    source.mode !== snapshot.mode ||
-    source.environment !== snapshot.environment ||
-    snapshot.taxQuote.schema_version !== 3 ||
-    snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
-    quote?.gross_minor_units !== String(input.amountMinorUnits) ||
-    quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
-    quote.tax_treatment !== 'inclusive' ||
-    !Number.isSafeInteger(quote.quoted_at) ||
-    !Number.isSafeInteger(quote.expires_at) ||
-    quote.quoted_at < 0 ||
-    quote.expires_at <= quote.quoted_at
+    snapshot.environment !== input.environment
   )
     throw new ConflictError('Prepared checkout authority differs');
 }
@@ -525,28 +412,10 @@ export async function resumePersonalPlanCheckout(
     interval: intent.billingInterval,
     trial: 'none',
   };
-  if (intent.renewalSourceId) {
-    const [source] = await getDb()
-      .select()
-      .from(accessSubscriptionSources)
-      .where(
-        and(
-          eq(accessSubscriptionSources.id, intent.renewalSourceId),
-          eq(accessSubscriptionSources.payerAccountId, intent.subjectAccountId),
-          eq(accessSubscriptionSources.beneficiaryAccountId, intent.subjectAccountId),
-          eq(accessSubscriptionSources.provider, 'peable'),
-          eq(accessSubscriptionSources.providerAccountRef, intent.providerAccountRef),
-          eq(accessSubscriptionSources.mode, intent.mode),
-          eq(accessSubscriptionSources.environment, intent.environment),
-        ),
-      );
-    if (!source) throw new ConflictError('Renewal source unavailable');
-    input.renewalSubscriptionId = source.providerSubscriptionId;
-  }
   let snapshot = personalCheckoutSnapshotFromIntent(intent);
   if (!snapshot && dependencies.provider.prepare) {
-    // Preparation can race. Only the first stored authority wins; losing quotes
-    // are never dispatched and never replace the winner after timeout/restart.
+    // Preparation can race. Only the first stored binding wins; a losing one is
+    // never dispatched and never replaces the winner after timeout/restart.
     const prepared = await dependencies.provider.prepare(input);
     assertSnapshot(prepared, input);
     await getDb().transaction(async (tx) => {
@@ -567,14 +436,13 @@ export async function resumePersonalPlanCheckout(
         .where(eq(personalPlanCheckoutIntents.id, intentId))
         .for('update');
       if (!current || current.state === 'closed') throw new ConflictError('Checkout closed');
-      if (!current.taxQuoteRef && current.state !== 'fulfilled')
+      if (!current.customerRef && current.state !== 'fulfilled')
         await tx
           .update(personalPlanCheckoutIntents)
           .set({
             applicationRef: prepared.applicationId,
             customerRef: prepared.customerId,
-            planRef: prepared.planId,
-            ...personalCheckoutSnapshotColumns(prepared),
+            returnUrl: prepared.returnUrl,
           })
           .where(eq(personalPlanCheckoutIntents.id, intentId));
     });
@@ -585,11 +453,7 @@ export async function resumePersonalPlanCheckout(
   }
   if (!snapshot && dependencies.provider.kind !== 'synthetic')
     throw new ConflictError('Checkout authority is unavailable');
-  if (snapshot) {
-    assertSnapshot(snapshot, input);
-    if (snapshot.taxQuote.quote.expires_at * 1000 <= clock().getTime())
-      return { state: 'pending', intentId };
-  }
+  if (snapshot) assertSnapshot(snapshot, input);
   // Recheck closure before dispatch; no remote work runs under an account lock.
   const beforeDispatch = await getDb().transaction(async (tx) => {
     const [account] = await tx

@@ -4,7 +4,7 @@ let mockActionCounter = 0;
 jest.mock('expo-crypto', () => ({ randomUUID: () => `action_${++mockActionCounter}` }));
 const mockCancel = jest.fn();
 const mockCheckout = jest.fn();
-const mockRenew = jest.fn();
+const mockPortal = jest.fn();
 const mockClearCheckoutKey = jest.fn();
 let mockAuthenticatedCall = (run: () => unknown) => run();
 const mockOpenURL = jest.fn();
@@ -24,7 +24,7 @@ const mockSource = {
   period: { end: '2026-11-05T00:00:00.000Z' },
   cancelAtPeriodEnd: false,
   canCancel: true,
-  canRenew: false,
+  canManage: false,
   offers: [],
 };
 jest.mock('react-native', () => ({
@@ -78,7 +78,7 @@ jest.mock('@oxy.so/services', () => ({
       billing: {
         cancelProductSubscriptionWithStatus: mockCancel,
         startPersonalPlanCheckout: mockCheckout,
-        renewProductSubscription: mockRenew,
+        openProductSubscriptionPortal: mockPortal,
       },
     },
   }),
@@ -90,8 +90,8 @@ jest.mock('@oxy.so/services', () => ({
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
 beforeEach(() => {
   mockSource.status = 'active';
-  mockSource.canRenew = false;
-  mockRenew.mockReset();
+  mockSource.canManage = false;
+  mockPortal.mockReset();
   mockClearCheckoutKey.mockReset();
   mockCheckoutKey.mockReset().mockResolvedValue('stable-checkout-key');
   mockAuthenticatedCall = (run) => run();
@@ -251,90 +251,116 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
-it.each(['purchase', 'renew'])(
-  'fences a %s after key lookup, auth refresh, and response across account switches',
-  async (action) => {
-    for (const stage of ['key', 'auth', 'response']) {
-      mockPurchase = 'available';
-      mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
-      mockSource.canRenew = true;
-      mockUser = { id: 'first' };
-      const pending = deferred<unknown>();
-      const sdk = action === 'purchase' ? mockCheckout : mockRenew;
-      sdk
-        .mockReset()
-        .mockResolvedValue({ state: 'pending', checkoutUrl: 'https://checkout.peable.to/c/old' });
-      mockOpenURL.mockClear();
-      mockCheckoutKey.mockReset().mockResolvedValue('stable-checkout-key');
-      mockAuthenticatedCall = (run) => run();
-      if (stage === 'key') mockCheckoutKey.mockReturnValueOnce(pending.promise);
-      if (stage === 'auth')
-        mockAuthenticatedCall = async (run) => {
-          await pending.promise;
-          return run();
-        };
-      if (stage === 'response') sdk.mockReturnValueOnce(pending.promise);
-      const view = render(<PersonalPlansCard />);
-      fireEvent.click(
-        screen.getByText(`payments.one.${action === 'purchase' ? 'checkout' : 'renew'}`),
-      );
-      await act(async () => {
-        await Promise.resolve();
-      });
-      mockUser = { id: 'second' };
-      view.rerender(<PersonalPlansCard />);
-      await act(async () =>
-        pending.resolve(
-          stage === 'key'
-            ? 'stable-checkout-key'
-            : { state: 'pending', checkoutUrl: 'https://checkout.peable.to/c/old' },
-        ),
-      );
-      expect(sdk).toHaveBeenCalledTimes(stage === 'response' ? 1 : 0);
-      expect(mockOpenURL).not.toHaveBeenCalled();
-      expect(mockClearCheckoutKey).not.toHaveBeenCalled();
-      view.unmount();
-    }
-  },
-);
-it.each(['purchase', 'renew'])(
-  'preserves %s recovery state when a response arrives after unmount',
-  async (action) => {
+it('fences a purchase after key lookup, auth refresh, and response across account switches', async () => {
+  for (const stage of ['key', 'auth', 'response']) {
     mockPurchase = 'available';
     mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
-    mockSource.canRenew = true;
-    const pending = deferred<{ state: string }>();
-    const sdk = action === 'purchase' ? mockCheckout : mockRenew;
-    sdk.mockReturnValue(pending.promise);
+    mockUser = { id: 'first' };
+    const pending = deferred<unknown>();
+    mockCheckout
+      .mockReset()
+      .mockResolvedValue({ state: 'pending', checkoutUrl: 'https://checkout.peable.to/c/old' });
+    mockOpenURL.mockClear();
+    mockCheckoutKey.mockReset().mockResolvedValue('stable-checkout-key');
+    mockAuthenticatedCall = (run) => run();
+    if (stage === 'key') mockCheckoutKey.mockReturnValueOnce(pending.promise);
+    if (stage === 'auth')
+      mockAuthenticatedCall = async (run) => {
+        await pending.promise;
+        return run();
+      };
+    if (stage === 'response') mockCheckout.mockReturnValueOnce(pending.promise);
     const view = render(<PersonalPlansCard />);
-    fireEvent.click(
-      screen.getByText(`payments.one.${action === 'purchase' ? 'checkout' : 'renew'}`),
+    fireEvent.click(screen.getByText('payments.one.checkout'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    mockUser = { id: 'second' };
+    view.rerender(<PersonalPlansCard />);
+    await act(async () =>
+      pending.resolve(
+        stage === 'key'
+          ? 'stable-checkout-key'
+          : { state: 'pending', checkoutUrl: 'https://checkout.peable.to/c/old' },
+      ),
     );
-    await waitFor(() => expect(sdk).toHaveBeenCalledTimes(1));
+    expect(mockCheckout).toHaveBeenCalledTimes(stage === 'response' ? 1 : 0);
+    expect(mockOpenURL).not.toHaveBeenCalled();
+    expect(mockClearCheckoutKey).not.toHaveBeenCalled();
     view.unmount();
-    await act(async () => pending.resolve({ state: 'fulfilled' }));
-    expect(mockClearCheckoutKey).not.toHaveBeenCalled();
-    expect(mockRefetch).not.toHaveBeenCalled();
+  }
+});
+it('opens the named source portal for the signed-in account only', async () => {
+  mockSource.canManage = true;
+  mockPortal.mockResolvedValue({ url: 'https://checkout.peable.to/portal/token' });
+  render(<PersonalPlansCard />);
+  fireEvent.click(screen.getByText('payments.one.manage'));
+  await waitFor(() =>
+    expect(mockOpenURL).toHaveBeenCalledWith('https://checkout.peable.to/portal/token'),
+  );
+  expect(mockPortal).toHaveBeenCalledWith({
+    expectedSubjectAccountId: 'first',
+    sourceId: 'source-one',
+  });
+});
+it('never opens a portal answered after the account switched', async () => {
+  for (const stage of ['auth', 'response']) {
+    mockSource.canManage = true;
+    mockUser = { id: 'first' };
+    const pending = deferred<unknown>();
+    mockPortal.mockReset().mockResolvedValue({ url: 'https://checkout.peable.to/portal/old' });
+    mockOpenURL.mockClear();
+    mockAuthenticatedCall = (run) => run();
+    if (stage === 'auth')
+      mockAuthenticatedCall = async (run) => {
+        await pending.promise;
+        return run();
+      };
+    if (stage === 'response') mockPortal.mockReturnValueOnce(pending.promise);
+    const view = render(<PersonalPlansCard />);
+    fireEvent.click(screen.getByText('payments.one.manage'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    mockUser = { id: 'second' };
+    view.rerender(<PersonalPlansCard />);
+    await act(async () => pending.resolve({ url: 'https://checkout.peable.to/portal/old' }));
+    expect(mockPortal).toHaveBeenCalledTimes(stage === 'response' ? 1 : 0);
     expect(mockOpenURL).not.toHaveBeenCalled();
-  },
-);
-it.each(['purchase', 'renew'])(
-  'keeps the %s retry key and shows a safe review path for uncertain funds',
-  async (action) => {
-    mockPurchase = 'available';
-    mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
-    mockSource.canRenew = true;
-    (action === 'purchase' ? mockCheckout : mockRenew).mockRejectedValue(
-      new Error('PAYMENT_REVIEW_REQUIRED'),
-    );
-    render(<PersonalPlansCard />);
-    fireEvent.click(
-      screen.getByText(`payments.one.${action === 'purchase' ? 'checkout' : 'renew'}`),
-    );
-    expect(await screen.findByText('payments.one.paymentReview')).toBeTruthy();
-    expect(mockClearCheckoutKey).not.toHaveBeenCalled();
-    expect(mockOpenURL).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText('payments.one.reviewPayment'));
-    expect(mockOpenURL).toHaveBeenCalledWith('https://peable.to');
-  },
-);
+    view.unmount();
+  }
+});
+it('hides the portal for a source it cannot manage and reports a portal failure', async () => {
+  render(<PersonalPlansCard />);
+  expect(screen.queryByText('payments.one.manage')).toBeNull();
+  mockSource.canManage = true;
+  mockPortal.mockRejectedValue(new Error('PORTAL_UNAVAILABLE'));
+  render(<PersonalPlansCard />);
+  fireEvent.click(screen.getByText('payments.one.manage'));
+  expect(await screen.findByText('payments.one.manageFailed')).toBeTruthy();
+  expect(mockOpenURL).not.toHaveBeenCalled();
+});
+it('preserves purchase recovery state when a response arrives after unmount', async () => {
+  mockPurchase = 'available';
+  mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
+  const pending = deferred<{ state: string }>();
+  mockCheckout.mockReturnValue(pending.promise);
+  const view = render(<PersonalPlansCard />);
+  fireEvent.click(screen.getByText('payments.one.checkout'));
+  await waitFor(() => expect(mockCheckout).toHaveBeenCalledTimes(1));
+  view.unmount();
+  await act(async () => pending.resolve({ state: 'fulfilled' }));
+  expect(mockClearCheckoutKey).not.toHaveBeenCalled();
+  expect(mockRefetch).not.toHaveBeenCalled();
+  expect(mockOpenURL).not.toHaveBeenCalled();
+});
+it('keeps the purchase retry key when the checkout cannot be confirmed', async () => {
+  mockPurchase = 'available';
+  mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
+  mockCheckout.mockRejectedValue(new Error('CHECKOUT_NOT_CONFIGURED'));
+  render(<PersonalPlansCard />);
+  fireEvent.click(screen.getByText('payments.one.checkout'));
+  expect(await screen.findByText('payments.one.checkoutFailed')).toBeTruthy();
+  expect(mockClearCheckoutKey).not.toHaveBeenCalled();
+  expect(mockOpenURL).not.toHaveBeenCalled();
+});

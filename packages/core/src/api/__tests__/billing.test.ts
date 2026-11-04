@@ -192,7 +192,7 @@ it('forwards one explicit cancellation action identity without regenerating it o
   expect(request.mock.calls[2][2]).toMatchObject({ actionId: 'action_002' });
 });
 
-it('sends individual checkout and manual renewal through the central SDK with exact account/idempotency fences', async () => {
+it('sends individual checkout and the portal through the central SDK with exact account/idempotency fences', async () => {
   const { oxy, request } = stubbedClient('me');
   request.mockResolvedValue({
     state: 'pending',
@@ -210,16 +210,17 @@ it('sends individual checkout and manual renewal through the central SDK with ex
   expect(request).toHaveBeenLastCalledWith('POST', '/billing/checkout/product-plan', input, {
     cache: false,
   });
-  const renewal = {
-    expectedSubjectAccountId: 'me',
-    sourceId: 'source',
-    idempotencyKey: 'renew_key',
-  };
-  await oxy.billing.renewProductSubscription(renewal);
+  request.mockResolvedValue({ url: 'https://checkout.peable.to/portal/token' });
+  const portal = { expectedSubjectAccountId: 'me', sourceId: 'source' };
+  expect(await oxy.billing.openProductSubscriptionPortal(portal)).toEqual({
+    url: 'https://checkout.peable.to/portal/token',
+  });
   expect(request).toHaveBeenLastCalledWith(
     'POST',
-    '/billing/product-subscriptions/renew',
-    renewal,
-    { cache: false },
+    '/billing/product-subscriptions/portal',
+    portal,
+    {
+      cache: false,
+    },
   );
 });

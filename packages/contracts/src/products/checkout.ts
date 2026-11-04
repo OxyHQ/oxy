@@ -53,13 +53,20 @@ export const productPlanCheckoutRequestSchema = personalPlanCheckoutRequestSchem
   .strict();
 export type ProductPlanCheckoutRequest = z.infer<typeof productPlanCheckoutRequestSchema>;
 
-export const productSubscriptionRenewalRequestSchema = z
+/** Open the payment provider's customer portal for one named source the caller pays for. */
+export const productSubscriptionPortalRequestSchema = z
   .object({
     expectedSubjectAccountId: oxyAccountIdSchema,
     sourceId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
-    idempotencyKey: personalPlanCheckoutRequestSchema.shape.idempotencyKey,
   })
   .strict();
-export type ProductSubscriptionRenewalRequest = z.infer<
-  typeof productSubscriptionRenewalRequestSchema
+export type ProductSubscriptionPortalRequest = z.infer<
+  typeof productSubscriptionPortalRequestSchema
+>;
+/** A short-lived portal URL; it opens the provider's page and grants nothing. */
+export const productSubscriptionPortalResponseSchema = z
+  .object({ url: z.string().check(urlCheck()).startsWith('https://') })
+  .strict();
+export type ProductSubscriptionPortalResponse = z.infer<
+  typeof productSubscriptionPortalResponseSchema
 >;

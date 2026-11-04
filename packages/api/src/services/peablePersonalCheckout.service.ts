@@ -1,45 +1,23 @@
-import {
-  integerCheck,
-  safeNumberCheck,
-  urlCheck,
-  utf16MaxLength,
-  utf16MinLength,
-} from '@oxy.so/contracts';
+import { integerCheck, safeNumberCheck, urlCheck, utf16MinLength } from '@oxy.so/contracts';
 import { createHash } from 'node:crypto';
-import { PeableError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
-import { ApiError } from '../utils/error';
+import type { Peable } from '@peable.to/sdk';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
-import { peableInstantToIso, peableUnixSecondsSchema } from './peablePersonalBilling.service';
+import {
+  peableAmountSchema,
+  peableInstantToIso,
+  peableReference,
+} from './peablePersonalBilling.service';
 import type {
   PersonalCheckoutProvider,
   PersonalCheckoutSnapshot,
 } from './personalPlanCheckout.service';
-
-/** The SDK classifies HTTP errors and preserves the gateway's machine code.
- * A review response is not an outage, expiry, or authorization to pay again. */
-function checkoutFailure(error: unknown): never {
-  if (
-    error instanceof PeableError &&
-    error.statusCode === 409 &&
-    error.code === 'reconciliation_required'
-  )
-    throw new ApiError(
-      409,
-      'Payment needs review in Peable before another payment',
-      'PAYMENT_REVIEW_REQUIRED',
-    );
-  throw error;
-}
 
 export const peablePersonalCheckoutConfigurationSchema = z
   .object({
     merchantId: z.string().check(utf16MinLength(1)),
     applicationId: z.string().check(utf16MinLength(1)),
     namespace: billingNamespaceSchema,
-    sellerId: z.string().check(utf16MinLength(1)),
-    invoiceIssuerId: z.string().check(utf16MinLength(1)),
-    taxRemitterId: z.string().check(utf16MinLength(1)),
     returnUrl: z
       .string()
       .check(urlCheck())
@@ -50,8 +28,7 @@ export const peablePersonalCheckoutConfigurationSchema = z
           .object({
             offerId: z.string().check(utf16MinLength(1)),
             offerVersion: z.number().check(integerCheck()).positive(),
-            priceId: z.string().check(utf16MinLength(1)),
-            planId: z.string().check(utf16MinLength(1)),
+            priceId: z.string().regex(/^price_[A-Za-z0-9_]+$/),
             amountMinorUnits: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
             currency: z.literal('USD'),
             interval: z.enum(['month', 'year']),
@@ -63,22 +40,26 @@ export const peablePersonalCheckoutConfigurationSchema = z
   })
   .strict();
 
-/** Explicit deployment opt-in; all customer, fiscal and price bindings still verify. */
+/** The Oxy account a native customer belongs to — written once at creation and
+ * the only key Oxy ever looks a customer up by. */
+export const PEABLE_CUSTOMER_ACCOUNT_KEY = 'oxy_account_id';
+const accountIdForQuery = z.string().regex(/^[A-Za-z0-9_-]{1,160}$/);
+
+type CheckoutClient = Pick<Peable, 'merchants' | 'customers' | 'prices' | 'checkout'>;
+
+/** Explicit deployment opt-in. Orbit prices the order (Peable Tax, fail closed)
+ * and its own checkout collects the payment; Oxy only freezes the approved
+ * selection and checks that Orbit priced exactly that. */
 export function createPeablePersonalCheckoutProvider(
-  client: Pick<Peable, 'merchants' | 'billing'>,
+  client: CheckoutClient,
   rawConfiguration: z.input<typeof peablePersonalCheckoutConfigurationSchema>,
   clock: () => Date = () => new Date(),
-  dependencies?: {
-    purchasesEnabled?: boolean;
-    resolveCustomerLocationEvidence(subjectAccountId: string): Promise<{
-      customerLocationEvidenceId: string;
-    }>;
-  },
+  dependencies: { purchasesEnabled?: boolean } = {},
 ): PersonalCheckoutProvider {
   const configuration = peablePersonalCheckoutConfigurationSchema.parse(rawConfiguration);
   const assertEnabled = () => {
-    if (process.env.NODE_ENV !== 'test' && dependencies?.purchasesEnabled !== true)
-      throw new Error('Peable final purchase authority is unconfigured');
+    if (process.env.NODE_ENV !== 'test' && dependencies.purchasesEnabled !== true)
+      throw new Error('Peable purchases are disabled');
   };
   const select = (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
     const selection = configuration.offers.filter(
@@ -100,114 +81,107 @@ export function createPeablePersonalCheckoutProvider(
       throw new Error('Peable checkout selection differs');
     return selection[0];
   };
-  const validateQuote = (
-    quote: BillingTaxQuote,
-    subjectAccountId: string,
-    planId: string,
-    amountMinorUnits: number,
-  ) => {
-    const now = clock().getTime();
+  const assertMerchant = async () => {
+    const merchant = await client.merchants.retrieve();
     if (
-      quote.schema_version !== 3 ||
-      quote.source.merchant_id !== configuration.merchantId ||
-      quote.source.app_id !== configuration.applicationId ||
-      quote.source.store_id !== subjectAccountId ||
-      quote.source.plan_id !== planId ||
-      quote.source.mode !== configuration.namespace.mode ||
-      quote.source.environment !== configuration.namespace.environment ||
-      quote.quote.currency !== 'USD' ||
-      quote.quote.gross_minor_units !== String(amountMinorUnits) ||
-      quote.quote.tax_treatment !== 'inclusive' ||
-      !/^(0|[1-9][0-9]*)$/.test(quote.quote.net_minor_units) ||
-      !/^(0|[1-9][0-9]*)$/.test(quote.quote.tax_minor_units) ||
-      BigInt(quote.quote.net_minor_units) + BigInt(quote.quote.tax_minor_units) !==
-        BigInt(amountMinorUnits) ||
-      quote.quote.seller_id !== configuration.sellerId ||
-      quote.quote.invoice_issuer_id !== configuration.invoiceIssuerId ||
-      quote.quote.tax_remitter_id !== configuration.taxRemitterId ||
-      !peableUnixSecondsSchema.safeParse(quote.quote.quoted_at).success ||
-      quote.quote.quoted_at * 1000 > now ||
-      !peableUnixSecondsSchema.safeParse(quote.quote.expires_at).success ||
-      quote.quote.expires_at * 1000 <= now
+      merchant.id !== configuration.merchantId ||
+      merchant.oxy_app_id !== configuration.applicationId ||
+      merchant.environment !== configuration.namespace.environment
     )
-      throw new Error('Peable checkout tax quote differs or expired');
+      throw new Error('Peable checkout credential owner differs');
   };
+  const livemode = configuration.namespace.mode === 'live';
+  /** The stored price must still be exactly the approved offer: an Orbit price
+   * never changes what it charges, so this pins the amount, cadence and tax
+   * treatment Oxy publishes to the row checkout will charge. */
+  const assertPrice = async (offer: (typeof configuration.offers)[number]) => {
+    const price = await client.prices.retrieve(offer.priceId);
+    if (
+      price.id !== offer.priceId ||
+      !price.active ||
+      price.livemode !== livemode ||
+      price.type !== 'recurring' ||
+      price.billing_scheme !== 'per_unit' ||
+      price.unit_amount !== String(offer.amountMinorUnits) ||
+      price.currency.toUpperCase() !== offer.currency ||
+      price.recurring?.interval !== offer.interval ||
+      price.recurring.interval_count !== 1 ||
+      price.recurring.usage_type !== 'licensed' ||
+      price.tax_behavior !== 'inclusive'
+    )
+      throw new Error('Peable price differs from the approved offer');
+  };
+  /** One native customer per Oxy account and merchant namespace, found by its
+   * account key. The Idempotency-Key only covers a crash inside its 24-hour
+   * replay window; after that, the search finds the customer it created. */
+  const ensureCustomer = async (subjectAccountId: string) => {
+    const account = accountIdForQuery.parse(subjectAccountId);
+    const found = await client.customers.search({
+      query: `metadata['${PEABLE_CUSTOMER_ACCOUNT_KEY}']:'${account}'`,
+      limit: 2,
+    });
+    const matches = found.data.filter(
+      (customer) =>
+        customer.metadata[PEABLE_CUSTOMER_ACCOUNT_KEY] === account &&
+        customer.livemode === livemode,
+    );
+    if (matches.length > 1 || found.has_more)
+      throw new Error('Peable customer mapping is ambiguous');
+    if (matches[0]) return matches[0].id;
+    const key = createHash('sha256')
+      .update(JSON.stringify([configuration.merchantId, configuration.namespace, account]))
+      .digest('hex');
+    const created = await client.customers.create(
+      { metadata: { [PEABLE_CUSTOMER_ACCOUNT_KEY]: account } },
+      { idempotencyKey: `oxy-personal-customer:${key}` },
+    );
+    if (created.metadata[PEABLE_CUSTOMER_ACCOUNT_KEY] !== account || created.livemode !== livemode)
+      throw new Error('Peable customer mapping differs');
+    return created.id;
+  };
+  const sessionSchema = z.object({
+    id: z.string().regex(/^cs_[A-Za-z0-9_]+$/),
+    url: z
+      .string()
+      .check(urlCheck())
+      .refine((value) => new URL(value).protocol === 'https:'),
+    expires_at: z.number(),
+  });
   return {
     kind: 'peable',
     async validateExistingCheckout(snapshot, sessionId) {
-      const merchant = await client.merchants.retrieve();
+      await assertMerchant();
       if (
-        merchant.id !== configuration.merchantId ||
-        merchant.oxy_app_id !== configuration.applicationId ||
-        merchant.environment !== configuration.namespace.environment ||
         snapshot.merchantId !== configuration.merchantId ||
         snapshot.applicationId !== configuration.applicationId ||
         snapshot.mode !== configuration.namespace.mode ||
         snapshot.environment !== configuration.namespace.environment
       )
         throw new Error('Peable checkout credential owner differs');
-      const session = await client.billing.retrieveCheckout(sessionId).catch(checkoutFailure);
+      const session = await client.checkout.sessions.retrieve(sessionId);
       if (
         session.id !== sessionId ||
-        session.store_id !== snapshot.subjectAccountId ||
-        session.plan_id !== snapshot.planId ||
-        session.provider_customer_id !== snapshot.customerId ||
-        session.provider_price_id !== snapshot.priceId
+        session.mode !== 'subscription' ||
+        peableReference(session.customer) !== snapshot.customerId
       )
-        throw new Error('Peable checkout observation binding differs');
+        throw new Error('Peable checkout session binding differs');
     },
     async prepare(input) {
       assertEnabled();
       const offer = select(input);
-      if (!dependencies) throw new Error('Peable trusted customer location is unconfigured');
-      const merchant = await client.merchants.retrieve();
-      if (
-        merchant.id !== configuration.merchantId ||
-        merchant.oxy_app_id !== configuration.applicationId ||
-        merchant.environment !== configuration.namespace.environment
-      )
-        throw new Error('Peable checkout credential owner differs');
-      const customerKey = createHash('sha256')
-        .update(
-          JSON.stringify([
-            configuration.merchantId,
-            configuration.applicationId,
-            configuration.namespace,
-            input.subjectAccountId,
-          ]),
-        )
-        .digest('hex');
-      const customer = await client.billing.ensureCustomer(
-        {
-          store_id: input.subjectAccountId,
-          store_name: input.subjectAccountId,
-        },
-        { idempotencyKey: `oxy-one-customer:${customerKey}` },
-      );
-      if (!customer.provider_customer_id) throw new Error('Peable checkout customer unavailable');
-      const location = await dependencies.resolveCustomerLocationEvidence(input.subjectAccountId);
-      if (!location.customerLocationEvidenceId)
-        throw new Error('Peable trusted customer location unavailable');
-      const quote = await client.billing.createTaxQuote({
-        store_id: input.subjectAccountId,
-        plan_id: offer.planId,
-        customer_location_evidence_id: location.customerLocationEvidenceId,
-      });
-      validateQuote(quote, input.subjectAccountId, offer.planId, offer.amountMinorUnits);
-      if (quote.quote.customer_location_evidence_id !== location.customerLocationEvidenceId)
-        throw new Error('Peable checkout customer location differs');
+      await assertMerchant();
+      await assertPrice(offer);
+      const customerId = await ensureCustomer(input.subjectAccountId);
       const snapshot: PersonalCheckoutSnapshot = {
         applicationId: configuration.applicationId,
         merchantId: configuration.merchantId,
         subjectAccountId: input.subjectAccountId,
-        planId: offer.planId,
-        customerId: customer.provider_customer_id,
+        customerId,
         offerId: input.offerId,
         offerVersion: input.offerVersion,
         priceId: input.priceId,
-        mode: quote.source.mode,
-        environment: quote.source.environment,
-        taxQuote: structuredClone(quote),
+        mode: configuration.namespace.mode,
+        environment: configuration.namespace.environment,
         returnUrl: configuration.returnUrl,
       };
       return snapshot;
@@ -221,13 +195,12 @@ export function createPeablePersonalCheckoutProvider(
         snapshot.applicationId !== configuration.applicationId ||
         snapshot.merchantId !== configuration.merchantId ||
         snapshot.subjectAccountId !== input.subjectAccountId ||
-        snapshot.planId !== offer.planId ||
         snapshot.offerId !== input.offerId ||
         snapshot.offerVersion !== input.offerVersion ||
         snapshot.priceId !== input.priceId ||
         snapshot.mode !== input.mode ||
         snapshot.environment !== input.environment ||
-        !snapshot.customerId ||
+        !/^cus_[A-Za-z0-9_]+$/.test(snapshot.customerId) ||
         !z
           .string()
           .check(urlCheck())
@@ -236,44 +209,34 @@ export function createPeablePersonalCheckoutProvider(
         input.idempotencyKey !== `personal-checkout:${input.intentId}`
       )
         throw new Error('Peable persisted checkout snapshot differs');
-      validateQuote(
-        snapshot.taxQuote,
-        input.subjectAccountId,
-        snapshot.planId,
-        offer.amountMinorUnits,
+      const session = await client.checkout.sessions.create(
+        {
+          mode: 'subscription',
+          customer: snapshot.customerId,
+          line_items: [{ price: snapshot.priceId, quantity: 1 }],
+          automatic_tax: { enabled: true },
+          success_url: snapshot.returnUrl,
+          cancel_url: snapshot.returnUrl,
+          client_reference_id: input.intentId,
+          metadata: {
+            oxy_checkout_intent: input.intentId,
+            [PEABLE_CUSTOMER_ACCOUNT_KEY]: input.subjectAccountId,
+          },
+        },
+        { idempotencyKey: input.idempotencyKey },
       );
-      const checkoutInput = {
-        provider_customer_id: snapshot.customerId,
-        provider_price_id: snapshot.priceId,
-        trial_days: 0,
-        return_url: snapshot.returnUrl,
-        store_id: snapshot.subjectAccountId,
-        plan_id: snapshot.planId,
-        tax_quote: structuredClone(snapshot.taxQuote),
-      };
-      const session = await (input.renewalSubscriptionId
-        ? client.billing.renewSubscription(input.renewalSubscriptionId, checkoutInput, {
-            idempotencyKey: input.idempotencyKey,
-          })
-        : client.billing.createCheckoutSession(checkoutInput, {
-            idempotencyKey: input.idempotencyKey,
-          })
-      ).catch(checkoutFailure);
-      const parsed = z
-        .object({
-          id: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
-          url: z
-            .string()
-            .check(urlCheck())
-            .refine((value) => new URL(value).protocol === 'https:'),
-          expires_at: peableUnixSecondsSchema,
-        })
-        .parse(session);
+      const parsed = sessionSchema.parse(session);
+      // Orbit priced the order; it must ask for exactly the approved price.
       if (
-        parsed.expires_at * 1000 <= clock().getTime() ||
-        parsed.expires_at > snapshot.taxQuote.quote.expires_at
+        session.mode !== 'subscription' ||
+        peableReference(session.customer) !== snapshot.customerId ||
+        session.client_reference_id !== input.intentId ||
+        peableAmountSchema.parse(session.amount_total) !== String(offer.amountMinorUnits) ||
+        session.currency.toUpperCase() !== offer.currency
       )
-        throw new Error('Peable checkout session expired or exceeds quote');
+        throw new Error('Peable checkout session differs from the approved offer');
+      if (parsed.expires_at * 1000 <= clock().getTime())
+        throw new Error('Peable checkout session expired');
       return {
         sessionId: parsed.id,
         checkoutUrl: parsed.url,

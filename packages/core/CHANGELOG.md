@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 7.22.0
+
+### Added
+
+- **`oxy.billing.openProductSubscriptionPortal({ expectedSubjectAccountId, sourceId })`**: a short-lived URL to the payment provider's customer portal for one named product subscription the caller pays for (payment methods, invoices, paying an open renewal). Sent once, never cached.
+
+### Removed
+
+- `oxy.billing.renewProductSubscription`: the manual FairCoin renewal of Peable's retired Stripe-Billing proxy. No production subscription ever used it and no published consumer called it; a native subscription renews itself.
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.9.0.
+
 ## 7.21.1
 
 ### Changed

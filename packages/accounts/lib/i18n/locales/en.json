@@ -389,12 +389,11 @@
       "failed": "Cancellation could not be confirmed. Refresh before trying again.",
       "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected.",
       "checkout": "Continue to payment",
-      "renew": "Pay the next period with FairCoin",
+      "manage": "Manage subscription",
+      "manageFailed": "The subscription portal could not be opened. Try again.",
       "checkoutComplete": "Payment confirmed. Your access is refreshed.",
       "checkoutClosed": "This checkout is closed. If funds were sent, check its status before requesting another payment.",
-      "checkoutFailed": "Checkout could not be confirmed. Retry to recover the same payment; if funds were sent, check its status before paying again.",
-      "paymentReview": "Payment needs review in Peable. Do not send funds again.",
-      "reviewPayment": "Review payment in Peable"
+      "checkoutFailed": "Checkout could not be confirmed. Retry to recover the same payment; if funds were sent, check its status before paying again."
     },
     "title": "Payments & subscriptions",
     "subtitle": "Manage your payment methods, subscriptions, and wallets.",

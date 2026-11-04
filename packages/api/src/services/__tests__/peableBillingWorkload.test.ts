@@ -46,20 +46,16 @@ it.each(['OXY_ONE_PEABLE_PUBLIC_KEY', 'OXY_ONE_PEABLE_SECRET'])(
     expect(mockProvider).not.toHaveBeenCalled();
   },
 );
-it('uses the reviewed profile and pinned keys without selecting an application by configuration', () => {
+it('uses the reviewed profile without selecting an application by configuration', () => {
   process.env.OXY_PEABLE_BILLING_AWS_PROFILE = 'reviewed-billing';
   process.env.OXY_API_URL = 'https://identity.example.test/';
-  const keys = {
-    invoiceAuthorityKeys: { invoice: 'public' },
-    taxQuoteAuthorityKeys: { tax: 'public' },
-  };
-  const owned = createPeableBillingClient(keys);
+  const owned = createPeableBillingClient();
   expect(mockProvider).toHaveBeenCalledWith({ profile: 'reviewed-billing' });
   expect(mockOxyServer).toHaveBeenCalledWith({
     baseURL: 'https://identity.example.test',
     workloadCredentials: mockCredentials,
   });
-  expect(mockPeable).toHaveBeenCalledWith({ oxy: mockOxy, ...keys });
+  expect(mockPeable).toHaveBeenCalledWith({ oxy: mockOxy });
   expect(mockCredentials).not.toHaveBeenCalled();
   owned.dispose();
   owned.dispose();
@@ -68,7 +64,7 @@ it('uses the reviewed profile and pinned keys without selecting an application b
 });
 it('does not dispose a host owned by explicit deployment composition', () => {
   const host = { createServiceClient: jest.fn(), dispose: jest.fn() };
-  const owned = createPeableBillingClient({}, host);
+  const owned = createPeableBillingClient(host);
   expect(mockProvider).not.toHaveBeenCalled();
   expect(mockPeable).toHaveBeenCalledWith({ oxy: host });
   owned.dispose();
@@ -90,7 +86,7 @@ it.each(['id', 'oxy_app_id', 'environment'])(
       [field]: 'other',
     });
     const host = { createServiceClient: jest.fn() };
-    const owned = createPeableBillingClient({}, host);
+    const owned = createPeableBillingClient(host);
     await expect(assertPeableBillingMerchant(owned.client, cfg)).rejects.toThrow(
       'workload owner differs',
     );
@@ -107,7 +103,7 @@ it('accepts only the complete reviewed merchant/application/environment binding'
     oxy_app_id: cfg.applicationId,
     environment: 'production',
   });
-  const owned = createPeableBillingClient({}, { createServiceClient: jest.fn() });
+  const owned = createPeableBillingClient({ createServiceClient: jest.fn() });
   await expect(assertPeableBillingMerchant(owned.client, cfg)).resolves.toBeUndefined();
 });
 it('disposes its host if SDK construction fails', () => {

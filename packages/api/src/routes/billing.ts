@@ -1,12 +1,14 @@
 import { utf16MinLength } from '@oxy.so/contracts';
 import {
-  productSubscriptionRenewalRequestSchema,
+  productSubscriptionPortalRequestSchema,
+  productSubscriptionPortalResponseSchema,
   productPlanCheckoutRequestSchema,
   productPlanCatalogueSchema,
 } from '@oxy.so/contracts';
 import {
   cancelStoredPeablePersonalSource,
   loadPeablePersonalManagement,
+  openPeablePersonalPortal,
 } from '../services/peablePersonalManagement.service';
 import {
   assertPersistedBillingNamespace,
@@ -368,25 +370,30 @@ router.post(
   },
 );
 
+/** Open the payment provider's customer portal for one named source.
+ * Payment methods, invoices and the plan itself, under the provider's own rules.
+ * @response 200 productSubscriptionPortalResponseSchema A short-lived portal URL.
+ */
 router.post(
-  '/product-subscriptions/renew',
+  '/product-subscriptions/portal',
   authMiddleware,
-  validate({ body: productSubscriptionRenewalRequestSchema }),
+  validate({ body: productSubscriptionPortalRequestSchema }),
   async (req: AuthRequest, res: Response) => {
     const subject = req.user?._id?.toString();
-    const input = productSubscriptionRenewalRequestSchema.parse(req.body);
+    const input = productSubscriptionPortalRequestSchema.parse(req.body);
     res.set('Cache-Control', 'no-store');
     if (!subject || subject !== input.expectedSubjectAccountId)
       return res.status(403).json({ error: 'SUBJECT_CHANGED' });
-    const runtime = getPeablePersonalRuntime();
-    if (!runtime?.checkoutProvider)
-      return res.json({ state: 'unconfigured', reason: 'provider_unconfigured' });
     try {
-      return res.json(await runtime.renew(subject, input.sourceId, input.idempotencyKey));
+      return res.json(
+        productSubscriptionPortalResponseSchema.parse(
+          await openPeablePersonalPortal(subject, input.sourceId),
+        ),
+      );
     } catch (error) {
       if (error instanceof ApiError)
         return res.status(error.statusCode).json({ error: error.code });
-      return res.status(409).json({ error: 'RENEWAL_UNAVAILABLE' });
+      return res.status(503).json({ error: 'PORTAL_UNAVAILABLE' });
     }
   },
 );
@@ -521,16 +528,14 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           status: source.status,
           period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
           cancelAtPeriodEnd: source.cancelAtPeriodEnd,
-          canRenew:
+          canManage:
             source.provider === 'peable' &&
-            source.providerSubscriptionId.startsWith('sub_fair') &&
             source.payerAccountId === userId &&
             source.beneficiaryAccountId === userId &&
-            !source.cancelAtPeriodEnd &&
-            ['active', 'past_due', 'unpaid'].includes(source.status) &&
-            source.periodEnd.getTime() - now <= 7 * 86_400_000 &&
-            !!getPeablePersonalRuntime()?.checkoutProvider &&
-            source.providerAccountRef === getPeablePersonalRuntime()?.configuration.merchantId,
+            !!peableManagement &&
+            source.providerAccountRef === peableManagement.configuration.merchantId &&
+            source.mode === namespace.mode &&
+            source.environment === namespace.environment,
           canCancel:
             source.payerAccountId === userId &&
             (source.provider === 'stripe' ||
