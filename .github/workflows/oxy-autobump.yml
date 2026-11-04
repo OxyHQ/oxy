@@ -1,0 +1,176 @@
+name: Oxy autobump
+
+# Keeps a repository on the newest release of the Oxy packages it consumes
+# (`@oxy.so/bloom`, `services`, `core`, `contracts`, `protocol`, `app-preset`,
+# `bloom-editor`), called by each repository's own thin
+# `.github/workflows/oxy-autobump.yml` on a daily cron (OxyHQ/oxy calls
+# nothing: it publishes these packages). Dependabot cannot do this alone: it
+# does not read a Bun workspace's root `catalog` or `overrides`, which is where
+# the Oxy pins live.
+#
+# A run asks npm for each package's newest version, rewrites every pin in the
+# workspace manifests (`.github/scripts/oxy-autobump.mjs`, from THIS workflow's
+# own commit, never the caller's), regenerates `bun.lock` with the repository's
+# own Bun, force-pushes ONE branch (`autobump/oxy-packages`), opens or updates
+# ONE pull request, starts the caller's CI on that branch and turns on
+# auto-merge. GitHub merges it (or, with `merge_queue`, enqueues it) only once
+# the required checks are green; a red bump stays open for a person.
+#
+# No credential beyond the run's GITHUB_TOKEN. A push or a pull request made
+# with that token starts no `push`/`pull_request` workflow (GitHub's rule), so
+# the CI run comes from `workflow_dispatch`, which is exempt: the caller's CI
+# workflow must declare `workflow_dispatch`. The caller needs "Allow GitHub
+# Actions to create and approve pull requests" and "Allow auto-merge" on.
+#
+# Caller:
+#   permissions: { contents: write, pull-requests: write, actions: write }
+#   uses: OxyHQ/oxy/.github/workflows/oxy-autobump.yml@main
+#   with: { merge_queue: true }   # only for repositories with a merge queue
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        description: Space-separated npm packages to keep on their newest release
+        type: string
+        default: "@oxy.so/bloom @oxy.so/bloom-editor @oxy.so/services @oxy.so/core @oxy.so/contracts @oxy.so/protocol @oxy.so/app-preset"
+      ci_workflow:
+        description: The caller's CI workflow file; must have workflow_dispatch
+        type: string
+        default: ci.yml
+      merge_queue:
+        description: The repository merges through a merge queue (auto-merge enqueues, no merge method)
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: oxy-autobump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: autobump/oxy-packages
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: autobump-tools
+          sparse-checkout: .github/scripts/oxy-autobump.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Newest release of every watched package
+        id: bump
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        run: node autobump-tools/.github/scripts/oxy-autobump.mjs --packages "$PACKAGES"
+
+      # The Bun the repository's own CI gate uses: CI's BUN_VERSION first (the
+      # lockfile gate runs it), then `packageManager`, then `.bun-version`.
+      - name: Bun version
+        id: bunver
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+        run: |
+          v=$(grep -hoE "BUN_VERSION: *['\"]?[0-9][0-9.]*" ".github/workflows/$CI_WORKFLOW" 2>/dev/null | head -1 | grep -oE '[0-9][0-9.]*$' || true)
+          [ -n "$v" ] || v=$(jq -r '(.packageManager // "") | select(startswith("bun@")) | sub("bun@";"") | sub("\\+.*";"")' package.json)
+          [ -n "$v" ] || v=$(cat .bun-version 2>/dev/null || true)
+          echo "version=${v:-latest}" >> "$GITHUB_OUTPUT"
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.bump.outputs.changed == 'true'
+        with:
+          bun-version: ${{ steps.bunver.outputs.version }}
+
+      # A version published minutes ago can be "not found" through a stale
+      # manifest cache or a registry mirror that has not caught up: clear the
+      # cache and retry before giving up.
+      - name: Regenerate bun.lock
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          for attempt in 1 2 3 4; do
+            bun pm cache rm >/dev/null 2>&1 || true
+            if bun install --lockfile-only --ignore-scripts; then exit 0; fi
+            echo "::warning::bun install failed (attempt $attempt), retrying"
+            sleep 45
+          done
+          exit 1
+
+      - name: Commit and push the branch
+        id: push
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -u
+          git commit -q -m "chore(deps): newest Oxy packages" -m "Opened by the shared Oxy autobump workflow."
+          # Same tree as the branch already holds: nothing new to test.
+          git fetch -q origin "$BRANCH" 2>/dev/null || true
+          if git rev-parse -q --verify "origin/$BRANCH" >/dev/null \
+            && [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "origin/$BRANCH^{tree}")" ] \
+            && [ "$(git rev-parse origin/$BRANCH~1 2>/dev/null)" = "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            git push --force origin "$BRANCH"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update the pull request
+        id: pr
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          SUMMARY_FILE: ${{ steps.bump.outputs.summary_file }}
+        run: |
+          body="$(cat "$SUMMARY_FILE")
+
+          Opened daily by OxyHQ/oxy \`oxy-autobump.yml\`; auto-merges once the required checks are green.
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            number=$(gh pr create --head "$BRANCH" --base "$DEFAULT_BRANCH" \
+              --title "chore(deps): newest Oxy packages" --body "$body" | grep -oE '[0-9]+$')
+          else
+            # `gh pr edit` fails on repositories with Projects (classic).
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/$number" -f body="$body" >/dev/null
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Start CI on the branch
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+        run: gh workflow run "$CI_WORKFLOW" --ref "$BRANCH"
+
+      # Never `--delete-branch` on a merge-queue repository: it closes the pull
+      # request unmerged. `--auto` waits for the required checks.
+      - name: Merge when green
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+          MERGE_QUEUE: ${{ inputs.merge_queue }}
+        run: |
+          if [ "$MERGE_QUEUE" = "true" ]; then
+            gh pr merge "$NUMBER" --auto
+          else
+            gh pr merge "$NUMBER" --auto --squash
+          fi
