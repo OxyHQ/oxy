@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/federation`
 
+## 3.1.0
+
+- `sendFollow(…, { durable: true })` hands the Follow to the delivery queue
+  before it resolves: the actor's inbox is resolved first (fetched when not
+  cached; it throws when there is none), and the job is queued, so a caller that
+  exits right after — a one-shot script — never loses the Follow. Without the
+  option nothing changes: the request never waits on the remote, and delivery
+  runs in the background.
+
 ## 3.0.0
 
 A remote profile is fetched once per sync. Oxy's `/federation/identities/resolve`

@@ -330,11 +330,18 @@ export interface DeliveryService {
     senderUsername: string,
     options?: { extraInboxes?: string[] },
   ): Promise<void>;
-  /** Send a Follow activity to a remote actor (records the outbound follow, delivers/queues). */
+  /**
+   * Send a Follow activity to a remote actor (records the outbound follow, delivers/queues).
+   * By default the delivery runs in the background, so a request never waits on
+   * the remote. `durable` hands it to the delivery queue BEFORE resolving
+   * (resolving the actor's inbox first, and throwing when it has none), for a
+   * caller that may exit right after — a one-shot script.
+   */
   sendFollow(
     localOxyUserId: string,
     localUsername: string,
     remoteActorUri: string,
+    options?: { durable?: boolean },
   ): Promise<{ success: boolean; pending: boolean }>;
   /**
    * Remove the local follow and attempt Undo delivery. True means the local
@@ -619,6 +626,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     localOxyUserId: string,
     localUsername: string,
     remoteActorUri: string,
+    options: { durable?: boolean } = {},
   ): Promise<{ success: boolean; pending: boolean }> {
     if (!config.federationEnabled) return { success: false, pending: false };
     if (isBlockedUrl(remoteActorUri)) {
@@ -648,6 +656,24 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
 
     // Refuse before committing an outbound follow or reporting success.
     await authorizeDelivery(activity, localOxyUserId);
+
+    if (options.durable) {
+      // The caller may exit as soon as this resolves, so nothing is left to the
+      // background: the inbox is resolved now, and the Follow is in the delivery
+      // queue (whose worker retries it) before the follow is reported.
+      const actor =
+        cached?.sharedInboxUrl || cached?.inboxUrl
+          ? cached
+          : await config.actorRefresh.fetchRemoteActor(remoteActorUri);
+      const inbox = actor?.sharedInboxUrl ?? actor?.inboxUrl;
+      if (!inbox || isBlockedUrl(inbox)) {
+        throw new Error(`No inbox to deliver the Follow to ${remoteActorUri}`);
+      }
+      await config.follows.upsertOutboundPending(localOxyUserId, canonicalUri, activityId);
+      await queueDelivery(activity, inbox, localOxyUserId);
+      return { success: true, pending: actor?.manuallyApprovesFollowers ?? false };
+    }
+
     // A refused follow must not start remote actor discovery either.
     config.actorRefresh.refreshActorInBackground(remoteActorUri, cached ?? undefined);
     await config.follows.upsertOutboundPending(localOxyUserId, canonicalUri, activityId);
