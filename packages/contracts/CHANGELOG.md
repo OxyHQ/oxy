@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.6.0
+
+### Added
+
+- `applicationPermissionSchema.heldByAccountRoles`: the owning account's roles whose members hold a key (ADR 0056). Set on a first-party application's keys, which are declared in code; empty for a key held through per-person grants.
+- `APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode` (`FIRST_PARTY_ROLES_IN_CODE`, 409): a Console declaration or grant on one of Oxy's own applications.
+
 ## 6.5.0
 
 ### Added

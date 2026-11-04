@@ -181,7 +181,7 @@
   "dependencies": {
     "@noble/ciphers": "^2.4.0",
     "@noble/hashes": "^2.4.0",
-    "@oxy.so/contracts": "workspace:6.5.0",
+    "@oxy.so/contracts": "workspace:6.6.0",
     "@oxy.so/protocol": "workspace:^",
     "@oxy.so/telemetry": "workspace:^",
     "@scure/bip39": "^2.4.0",

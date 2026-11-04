@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Changed (Oxy's own applications hold operator keys by role — ADR 0056)
+
+A first-party application declares its operator keys in the first-party registry
+(`operatorPermissions` in `src/scripts/seedOxyApplicationsSpecs.ts`), each naming
+the owning account's roles that hold it, and `seed-oxy-applications.ts` applies
+it: new keys declared, keys whose roles changed retired and declared again, keys
+missing from code retired, every per-person grant on the application revoked.
+`GET /applications/:appId/roles/me` (`permissionsHeldBy`) answers live grants
+plus the keys the person's effective role over the owning account holds.
+`PUT /roles/permissions` and `POST /roles/grants` on an application whose type is
+not `third_party` answer `409 FIRST_PARTY_ROLES_IN_CODE`; third-party
+applications are unchanged. `GET /roles/permissions` items carry
+`heldByAccountRoles`. Migration `0228` adds
+`application_role_permissions.held_by_account_roles` (pre-deploy, additive).
+GoWay, CrowdSource, the website, Syra, Mercaria and Homiio declare their keys,
+held by the owning organization's owners and admins.
+
 ### Changed (Oxy One billing speaks `@peable.to/sdk` 1.0)
 
 The personal billing services call Peable through SDK 1.0's generated methods

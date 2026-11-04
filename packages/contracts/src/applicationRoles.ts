@@ -69,6 +69,11 @@ export const APPLICATION_ROLE_ERROR_CODES = {
   alreadyRevoked: 'ALREADY_REVOKED',
   /** 403: the bearer's session belongs to a DIFFERENT application. */
   sessionApplicationMismatch: 'SESSION_APPLICATION_MISMATCH',
+  /**
+   * 409: the application is one of Oxy's own. Its operator keys and the roles
+   * holding them are declared in code (ADR 0056), never in the Console.
+   */
+  firstPartyRolesInCode: 'FIRST_PARTY_ROLES_IN_CODE',
 } as const;
 
 export type ApplicationRoleErrorCode =
@@ -153,6 +158,12 @@ export const declareApplicationPermissionsRequestSchema = z
 export const applicationPermissionSchema = z.object({
   key: applicationPermissionKeySchema,
   description: z.string(),
+  /**
+   * The owning account's roles whose members hold this key (ADR 0056). Set only
+   * on a first-party application's keys, which are declared in code; empty for
+   * a key held through per-person grants.
+   */
+  heldByAccountRoles: z.array(z.string()),
   declaredAt: isoTimestamp,
   declaredByUserId: id.nullable(),
   retiredAt: isoTimestamp.nullable(),

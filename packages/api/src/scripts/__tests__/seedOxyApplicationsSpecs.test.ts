@@ -37,6 +37,12 @@ import {
   type ApplicationScope,
 } from '../../utils/applicationScopes';
 import { isTrustedApplication } from '../../utils/trustedApplication';
+import { isAccountRole } from '../../utils/accountRoles';
+import {
+  APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+  APPLICATION_PERMISSIONS_MAX_DECLARED,
+  isApplicationPermissionKey,
+} from '@oxy.so/contracts';
 import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
@@ -973,4 +979,56 @@ it('registers the native Authenticator client without backend or external app pe
   expect(spec.scopes).toEqual([]);
   expect(spec.capabilities ?? []).toEqual([]);
   expect(spec.type).toBe('first_party');
+});
+
+describe('operator permissions (ADR 0056)', () => {
+  const declaring = SEED_APPS.filter((spec) => (spec.operatorPermissions ?? []).length > 0);
+
+  it('every key is a valid application key, unique per application, described within bounds, held by the owner', () => {
+    for (const spec of declaring) {
+      const keys = (spec.operatorPermissions ?? []).map((permission) => permission.key);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const permission of spec.operatorPermissions ?? []) {
+        expect(isApplicationPermissionKey(permission.key)).toBe(true);
+        expect(permission.description.trim().length).toBeGreaterThan(0);
+        expect(permission.description.length).toBeLessThanOrEqual(
+          APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+        );
+        expect(permission.heldBy).toContain('owner');
+        expect(permission.heldBy.every((role) => isAccountRole(role))).toBe(true);
+        expect(new Set(permission.heldBy).size).toBe(permission.heldBy.length);
+      }
+      expect(keys.length).toBeLessThanOrEqual(APPLICATION_PERMISSIONS_MAX_DECLARED);
+    }
+  });
+
+  it('declares exactly the keys each application’s backend checks', () => {
+    const byApp = Object.fromEntries(
+      declaring.map((spec) => [
+        spec.name,
+        (spec.operatorPermissions ?? []).map((permission) => permission.key).sort(),
+      ]),
+    );
+    expect(byApp).toEqual({
+      CrowdSource: [
+        'trust_safety.appeals',
+        'trust_safety.evidence',
+        'trust_safety.policy',
+        'trust_safety.security',
+      ],
+      GoWay: ['capture.pilot', 'moderation.operate'],
+      Homiio: ['homiio.scraper.operate'],
+      Mercaria: [
+        'analytics.operate',
+        'catalog.operate',
+        'guest.operate',
+        'payments.operate',
+        'procurement.operate',
+        'referrals.operate',
+        'retail.operate',
+      ],
+      'Oxy Website': ['website.content.manage'],
+      Syra: ['compliance.review'],
+    });
+  });
 });
