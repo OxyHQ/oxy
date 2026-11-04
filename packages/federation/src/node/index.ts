@@ -20,6 +20,7 @@
 export {
   createSignedFetch,
   type SignedFetch,
+  type SignedFetchInit,
   type CreateSignedFetchConfig,
   type SingleHopFetch,
   type SingleHopFetchInit,
