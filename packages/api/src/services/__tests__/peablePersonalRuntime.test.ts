@@ -23,6 +23,7 @@ import {
   initializePeablePersonalRuntime,
   peablePersonalRuntimeConfigurationSchema,
   recoverPeablePersonalSources,
+  startPeablePersonalRuntime,
   stopPeablePersonalRuntime,
 } from '../peablePersonalRuntime.service';
 import { startPersonalPlanCheckout } from '../personalPlanCheckout.service';
@@ -408,6 +409,63 @@ it('defers a failing source, continues the others and retries after the scan wra
     );
   } finally {
     warning.mockRestore();
+    process.env = previous;
+  }
+});
+
+it('never fails the boot when Peable is unreachable: purchases stay off and the start retries', async () => {
+  const t = await fixture({ recoveryEnabled: false });
+  const directory = await mkdtemp(join(tmpdir(), 'one-start-'));
+  directories.push(directory);
+  const path = join(directory, 'runtime.json');
+  await writeFile(path, JSON.stringify(t.configuration));
+  const previous = { ...process.env };
+  process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED = 'true';
+  process.env.OXY_ONE_PEABLE_RUNTIME_FILE = path;
+  process.env.OXY_ONE_PEABLE_WEBHOOK_SECRET = SECRET;
+  const error = jest.spyOn(logger, 'error').mockImplementation(() => {});
+  const retrieve = jest
+    .spyOn(t.peable.client.merchants, 'retrieve')
+    .mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+  try {
+    await expect(
+      startPeablePersonalRuntime({
+        retryMilliseconds: 20,
+        dependencies: { client: t.peable.client },
+      }),
+    ).resolves.toBeUndefined();
+    expect(getPeablePersonalRuntime()).toBeUndefined();
+    expect(error).toHaveBeenCalledWith(
+      'Peable personal runtime failed to start; purchases unavailable, retrying',
+      expect.objectContaining({ error: 'connect ECONNREFUSED', retryMilliseconds: 20 }),
+    );
+    const deadline = Date.now() + 5_000;
+    while (!getPeablePersonalRuntime() && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(getPeablePersonalRuntime()?.checkoutProvider).toBeDefined();
+    expect(retrieve).toHaveBeenCalledTimes(2);
+  } finally {
+    error.mockRestore();
+    retrieve.mockRestore();
+    process.env = previous;
+  }
+});
+
+it('stops a pending start retry with the runtime', async () => {
+  const previous = { ...process.env };
+  process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED = 'true';
+  process.env.OXY_ONE_PEABLE_RUNTIME_FILE = '/nonexistent/runtime.json';
+  process.env.OXY_PEABLE_BILLING_AWS_PROFILE = 'reviewed-billing';
+  const error = jest.spyOn(logger, 'error').mockImplementation(() => {});
+  try {
+    await startPeablePersonalRuntime({ retryMilliseconds: 20 });
+    expect(error).toHaveBeenCalledTimes(1);
+    await stopPeablePersonalRuntime();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(getPeablePersonalRuntime()).toBeUndefined();
+  } finally {
+    error.mockRestore();
     process.env = previous;
   }
 });

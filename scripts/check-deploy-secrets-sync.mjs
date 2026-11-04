@@ -130,6 +130,9 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
     // The Oxy Updates manifest-signing key. Without it every manifest answers
     // 503 and every publish is refused (services/updates/signing.service.ts).
     ['UPDATES_CODE_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY'],
+    // Peable's webhook signing secret for the personal-plan runtime. Without it
+    // the runtime refuses to start with events on, and purchases go dark.
+    ['OXY_ONE_PEABLE_WEBHOOK_SECRET', '/oxy/oxy-api/OXY_ONE_PEABLE_WEBHOOK_SECRET'],
   ].map(([name, path]) => [name, `${SSM_ARN_PREFIX}${path}`]),
 );
 

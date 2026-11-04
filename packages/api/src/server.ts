@@ -46,7 +46,7 @@ import productCatalogueRoutes from './routes/productCatalogue';
 import productAccessRoutes from './routes/productAccess';
 import peableEventRoutes from './routes/peableEvents';
 import {
-  initializePeablePersonalRuntime,
+  startPeablePersonalRuntime,
   stopPeablePersonalRuntime,
 } from './services/peablePersonalRuntime.service';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
@@ -1340,7 +1340,8 @@ export async function bootstrap(
   // the server. This prevents queries from executing before the database is
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
-  await initializePeablePersonalRuntime();
+  // Never fails the boot: purchases stay unavailable and it retries (see there).
+  await startPeablePersonalRuntime();
 
   // Repair legacy empty allowlists first, then publish one complete registry
   // snapshot. Startup fails closed if that authoritative read is unavailable.
