@@ -222,7 +222,7 @@ import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
 import { refreshOriginRegistry } from './config/dynamicOriginRegistry';
 import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirectUris';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { getRedisClient, closeRedis } from './config/redis';
+import { getRedisClient, closeRedis, duplicateRedisSubscriber } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
 import { startAuthorityCacheInvalidationSubscriber } from './utils/authorityCache';
 import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
@@ -450,7 +450,7 @@ let fileCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null
 let authorityCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 if (redis) {
   const pubClient = redis.duplicate();
-  const subClient = redis.duplicate();
+  const subClient = duplicateRedisSubscriber(redis);
   io.adapter(createAdapter(pubClient, subClient));
   logger.info('Socket.IO Redis adapter enabled');
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);

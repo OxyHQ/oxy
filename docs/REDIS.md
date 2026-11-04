@@ -61,9 +61,16 @@ export async function closeRedis(): Promise<void> {
 - `/health` answers `200 "degraded"` while the client reconnects (every task sees the same outage;
   replacing them would not help) and `503` with `redis: "ended"` if this task's client has ended,
   which only a new task fixes.
-- A command sent while the client reconnects waits in ioredis's offline queue until
-  `maxRetriesPerRequest` (3) reconnect attempts have failed. Consumers on a request path gate on
-  `status === 'ready'` (`sessionCache.ts`, `userCache.ts`, the limiters) so they do not wait.
+- Every command on the shared client is rejected after `REDIS_COMMAND_TIMEOUT_MS` (1 s), counted
+  from the moment it is sent: queued while the client (re)connects, then awaiting its reply. Every
+  caller falls back on a rejection (caches read the database, the lockout counts in memory, the
+  infrastructure registry keeps its local view, the workload mint answers 503
+  `challenge_store_unavailable`). Without it a command waited in ioredis's offline queue until
+  `maxRetriesPerRequest` reconnect attempts had failed, up to a minute, for the whole outage.
+  `enableOfflineQueue: false` was not used: it also rejects what is sent before the first connect.
+- Subscribers take `duplicateRedisSubscriber(redis)`: the same connection settings without the
+  command timeout, and `autoResubscribe`, so ioredis subscribes them again after a reconnect.
+  BullMQ builds its own connections (`queue/connection.ts`, `maxRetriesPerRequest: null`).
 
 ### Authenticated account cache (`packages/api/src/utils/userCache.ts`)
 

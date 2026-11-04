@@ -62,7 +62,10 @@ class FakeRedis extends EventEmitter {
 
 const broker = new Broker();
 const mockPublisher = new FakeRedis(broker);
-jest.mock('../../config/redis', () => ({ getRedisClient: () => mockPublisher }));
+jest.mock('../../config/redis', () => ({
+  ...jest.requireActual('../../config/redis'),
+  getRedisClient: () => mockPublisher,
+}));
 
 import sessionCache from '../sessionCache';
 import { publishSessionRevocation, startServiceEvents } from '../serviceEvents';

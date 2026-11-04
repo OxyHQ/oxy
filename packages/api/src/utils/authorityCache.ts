@@ -34,7 +34,7 @@
  */
 
 import type Redis from 'ioredis';
-import { getRedisClient } from '../config/redis';
+import { duplicateRedisSubscriber, getRedisClient } from '../config/redis';
 import { logger } from './logger';
 
 export const DEFAULT_AUTHORITY_CACHE_TTL_MS = 5_000;
@@ -150,11 +150,11 @@ export function createAuthorityCache<V>(
   return cache;
 }
 
-/** Drop the keys other tasks invalidate. Uses its own `duplicate()` connection. */
+/** Drop the keys other tasks invalidate. Uses its own subscriber connection (`duplicateRedisSubscriber`). */
 export function startAuthorityCacheInvalidationSubscriber(redis: Redis): {
   stop: () => Promise<void>;
 } {
-  const subscriber = redis.duplicate();
+  const subscriber = duplicateRedisSubscriber(redis);
   subscriber.on('message', (channel, raw) => {
     if (channel !== AUTHORITY_INVALIDATION_CHANNEL) return;
     try {

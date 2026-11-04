@@ -53,6 +53,7 @@ const bus = new FakeBus();
 const mockRedis: { current: FakeRedis | null } = { current: null };
 
 jest.mock('../../config/redis', () => ({
+  ...jest.requireActual('../../config/redis'),
   getRedisClient: () => mockRedis.current,
 }));
 

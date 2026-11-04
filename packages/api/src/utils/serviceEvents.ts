@@ -41,7 +41,7 @@ import {
 } from '@oxy.so/contracts';
 import type Redis from 'ioredis';
 import type { Namespace, Socket } from 'socket.io';
-import { getRedisClient } from '../config/redis';
+import { duplicateRedisSubscriber, getRedisClient } from '../config/redis';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import { logger } from './logger';
@@ -209,7 +209,7 @@ export function startServiceEvents(
   let subscriber: Redis | null = null;
   const nonce = randomUUID();
   if (redis) {
-    subscriber = redis.duplicate();
+    subscriber = duplicateRedisSubscriber(redis);
     subscriber.on('message', (channel: string, raw: string) => {
       if (channel === SERVICE_EVENTS_PROBE_CHANNEL) {
         if (raw !== nonce) return;

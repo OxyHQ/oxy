@@ -123,6 +123,9 @@ class SessionCache {
     const redis = getRedisClient();
     if (redis && redis.status === 'ready') {
       const stream = redis.scanStream({ match: 'session:*', count: 100 });
+      // A SCAN that fails (timed out, connection lost) ends the sweep; unheard,
+      // the stream's 'error' event would throw and take the process down.
+      stream.on('error', () => undefined);
       stream.on('data', async (keys: string[]) => {
         for (const key of keys) {
           try {

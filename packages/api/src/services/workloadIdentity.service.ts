@@ -87,8 +87,29 @@ export async function issueWorkloadChallenge(): Promise<{ nonce: string; expires
     );
   }
   const nonce = crypto.randomBytes(32).toString('base64url');
-  await redis.set(`${CHALLENGE_PREFIX}${nonce}`, '1', 'EX', CHALLENGE_TTL_SECONDS);
+  try {
+    await redis.set(`${CHALLENGE_PREFIX}${nonce}`, '1', 'EX', CHALLENGE_TTL_SECONDS);
+  } catch (error) {
+    throw challengeStoreUnavailable(error);
+  }
   return { nonce, expiresIn: CHALLENGE_TTL_SECONDS };
+}
+
+/**
+ * The challenge store did not answer (Valkey down, or slower than the shared
+ * client's command timeout). There is no fallback: a challenge only one task
+ * remembers would be refused by every other task. So the caller is told to try
+ * again, with a 503 it can tell apart from a refusal, instead of a 500.
+ */
+function challengeStoreUnavailable(error: unknown): WorkloadIdentityError {
+  logger.error('[WorkloadIdentity] challenge store unavailable', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  return new WorkloadIdentityError(
+    503,
+    'challenge_store_unavailable',
+    'Workload identity is temporarily unavailable.',
+  );
 }
 
 /**
@@ -106,7 +127,12 @@ async function spendChallenge(nonce: string): Promise<boolean> {
     logger.error('[WorkloadIdentity] no challenge store on this task; refusing the exchange');
     return false;
   }
-  const spent = await redis.getdel(`${CHALLENGE_PREFIX}${nonce}`);
+  let spent: string | null;
+  try {
+    spent = await redis.getdel(`${CHALLENGE_PREFIX}${nonce}`);
+  } catch (error) {
+    throw challengeStoreUnavailable(error);
+  }
   return spent !== null;
 }
 
