@@ -1338,7 +1338,8 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     preferredUsername: string,
     extra?: Record<string, unknown>,
   ) {
-    mockSafeFetch.mockResolvedValue(
+    // A fresh stream per request: a body is read once.
+    mockSafeFetch.mockImplementation(async () =>
       makeSafeFetchResult(
         200,
         { 'content-type': 'application/activity+json' },

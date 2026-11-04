@@ -13,13 +13,13 @@ import {
 } from './federation/resolutionFailure';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
+import { Readable } from 'node:stream';
 import { and, eq } from 'drizzle-orm';
 import {
   atprotoIdentityHandle,
   blueskyHandleFromUsername,
   blueskyUsernameFromHandle,
   BSKY_NETWORK_DOMAIN,
-  signRequest,
   canonicalFederationHost,
   createUrlBuilders,
   federatedUsernameFromUpstreamUrl,
@@ -28,7 +28,14 @@ import {
   isActivityPubMediaType,
   localActorTypeForAccountKind,
 } from '@oxy.so/federation';
-import { createTcoLinkExpander } from '@oxy.so/federation/node';
+import {
+  createSignedFetcher,
+  createTcoLinkExpander,
+  readBoundedResponseJson,
+  type SignedFetchLogger,
+  type SignedFetchResult,
+  type SingleHopFetch,
+} from '@oxy.so/federation/node';
 import {
   readResponseBody,
   readResponseJson,
@@ -42,7 +49,7 @@ import {
   findKeyPair,
   getInstanceKeyPair,
   getUserKeyPair,
-  type KeyPairDoc,
+  signWithKeyId,
 } from './federation/actorKeys';
 import { type ACCOUNT_KINDS, users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
@@ -419,86 +426,142 @@ interface WebFingerResolution {
 const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
 const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
 
-/**
- * Fetch a URL with HTTP Signature authentication.
- * Required by servers that enforce authorized fetch (e.g., Threads).
- *
- * Follows redirects manually (bounded) and re-signs each hop — an HTTP
- * signature is bound to the `(request-target)` / `host` of one specific URL.
- * `safeFetch` cannot do this when it follows redirects internally.
- */
-const SIGNED_FETCH_MAX_REDIRECTS = 3;
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+/** Thrown by the single-hop transport when {@link safeFederationFetch} refused or failed the request. */
+class FederationTransportUnavailable extends Error {
+  constructor() {
+    super('Federation transport unavailable');
+    this.name = 'FederationTransportUnavailable';
+  }
+}
 
+/** Statuses whose WHATWG `Response` must have a null body; a 3xx body is never read either. */
+const NULL_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
+
+/**
+ * The single-hop transport the shared signed fetch runs over: one request
+ * through {@link safeFederationFetch} (https-only, SSRF guard, DNS pinning and
+ * its logs), never following a redirect, answered as a WHATWG `Response` whose
+ * body streams the socket.
+ */
+const fetchFederationSingleHop: SingleHopFetch = async (url, init) => {
+  const result = await safeFederationFetch(url, {
+    headers: init.headers,
+    timeoutMs: init.headersTimeoutMs ?? FEDERATION_FETCH_TIMEOUT_MS,
+    maxRedirects: 0,
+  });
+  if (!result) throw new FederationTransportUnavailable();
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(result.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(name, item);
+    } else if (value !== undefined) {
+      headers.append(name, String(value));
+    }
+  }
+  const nullBody =
+    (result.status >= 300 && result.status < 400) || NULL_BODY_STATUSES.has(result.status);
+  if (nullBody) result.response.destroy();
+  return new Response(
+    nullBody ? null : (Readable.toWeb(result.response) as ReadableStream<Uint8Array>),
+    { status: result.status, headers },
+  );
+};
+
+/** Oxy's own log lines for a signed fetch, naming the URL only through {@link safeActorSelector}. */
+const signedFetchLogger: SignedFetchLogger = {
+  info: (_message, detail) =>
+    detail &&
+    logger.info(
+      `[Federation] signedFetch got ${detail.status} for ${safeActorSelector(detail.url) ?? '[invalid selector]'}, retrying unsigned`,
+    ),
+  warn: (_message, detail) =>
+    detail &&
+    logger.warn(
+      `[Federation] signedFetch got ${detail.status} for ${safeActorSelector(detail.url) ?? '[invalid selector]'} — remote rejected our HTTP signature`,
+    ),
+};
+
+/** Signs as the instance actor; `signWithKeyId` never mints, so a vanished key fails the request. */
+async function signWithInstanceKey(keyId: string, signingString: string): Promise<string> {
+  const signature = await signWithKeyId(keyId, signingString);
+  if (signature === null) throw new Error('Instance signing key unavailable');
+  return signature;
+}
+
+/**
+ * An instance-signed ActivityPub GET over the shared `@oxy.so/federation/node`
+ * engine, which re-signs every redirect hop and retries a 5xx unsigned from the
+ * URL that answered.
+ */
+const createInstanceSignedFetcher = (getInstanceKeyId: () => Promise<string>) =>
+  createSignedFetcher({
+    sign: signWithInstanceKey,
+    getInstanceKeyId,
+    fetchSingleHop: fetchFederationSingleHop,
+    userAgent: USER_AGENT,
+    logger: signedFetchLogger,
+  });
+
+/** Signs with the instance key, minting its pair on first use. */
+const mintingSignedFetcher = createInstanceSignedFetcher(ensureInstanceKeyId);
+/**
+ * Signs with the instance key only when it already exists (the caller checks
+ * first) and never mints it. Still instance-signed, so a 5xx is retried
+ * unsigned — which passing an explicit `init.keyId` would turn off.
+ */
+const readonlySignedFetcher = createInstanceSignedFetcher(async () =>
+  composeInstanceKeyId(AP_DOMAIN),
+);
+
+/**
+ * Fetch an ActivityPub document with HTTP Signature authentication — required by
+ * servers that enforce authorized fetch (e.g. Threads). `null` when the
+ * transport refused or failed a hop, as {@link safeFederationFetch} answers;
+ * any HTTP status is returned. The caller owns `response.body`: read it or
+ * cancel it.
+ */
 async function signedFetch(
   url: string,
   accept: string,
-  existingKey?: KeyPairDoc,
-): Promise<SafeFetchResult | null> {
-  const keyPair = existingKey ?? (await getInstanceKeyPair(AP_DOMAIN));
-  const signWithInstanceKey = async (_keyId: string, signingString: string): Promise<string> => {
-    const signer = crypto.createSign('sha256');
-    signer.update(signingString);
-    signer.end();
-    return signer.sign(keyPair.privateKeyPem, 'base64');
-  };
-
-  const fetchFollowingRedirects = async (
-    initialUrl: string,
-    signed: boolean,
-  ): Promise<SafeFetchResult | null> => {
-    let currentUrl = initialUrl;
-    for (let hop = 0; hop <= SIGNED_FETCH_MAX_REDIRECTS; hop++) {
-      const sigHeaders = signed
-        ? await signRequest(signWithInstanceKey, keyPair.keyId, 'GET', currentUrl)
-        : {};
-      const res = await safeFederationFetch(currentUrl, {
-        headers: {
-          Accept: accept,
-          'User-Agent': USER_AGENT,
-          ...sigHeaders,
-        },
-        timeoutMs: FEDERATION_FETCH_TIMEOUT_MS,
-        maxRedirects: 0,
-      });
-      if (!res) return null;
-      if (!REDIRECT_STATUS_CODES.has(res.status)) {
-        return res;
-      }
-      const location = res.headers.location;
-      if (hop === SIGNED_FETCH_MAX_REDIRECTS || !location) {
-        return res;
-      }
-      res.response.destroy();
-      try {
-        currentUrl = new URL(location, currentUrl).toString();
-      } catch {
-        return null;
-      }
+  options: { readonlySigningKey?: boolean } = {},
+): Promise<SignedFetchResult | null> {
+  const fetcher = options.readonlySigningKey ? readonlySignedFetcher : mintingSignedFetcher;
+  try {
+    return await fetcher(url, accept);
+  } catch (err) {
+    if (err instanceof FederationTransportUnavailable) return null;
+    // A redirect whose `Location` names no URL ends the fetch like a refused hop;
+    // a malformed request URL still throws, as signing it always did.
+    if (
+      err instanceof TypeError &&
+      (err as { code?: unknown }).code === 'ERR_INVALID_URL' &&
+      URL.canParse(url)
+    ) {
+      return null;
     }
+    throw err;
+  }
+}
+
+/** Release a response body that will not be read. */
+function discardBody(response: Response): void {
+  void response.body?.cancel().catch(() => {});
+}
+
+/**
+ * A federation JSON object from a signed fetch's `Response`, or `null` when it
+ * is over {@link FEDERATION_MAX_JSON_BYTES}, not a JSON object, or not complete
+ * within {@link FEDERATION_JSON_BODY_TIMEOUT_MS}.
+ */
+async function readSignedFetchJson(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    return await readBoundedResponseJson(response, {
+      maxBytes: FEDERATION_MAX_JSON_BYTES,
+      timeoutMs: FEDERATION_JSON_BODY_TIMEOUT_MS,
+    });
+  } catch {
     return null;
-  };
-
-  const res = await fetchFollowingRedirects(url, true);
-  if (!res) return null;
-
-  // Remote 5xx with a signature often means the server could not verify our keyId;
-  // retry unsigned for public resources (same fallback as @oxy.so/federation/node).
-  if (res.status >= 500) {
-    logger.info(
-      `[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'}, retrying unsigned`,
-    );
-    res.response.destroy();
-    return fetchFollowingRedirects(url, false);
   }
-
-  if (res.status === 401 || res.status === 403) {
-    logger.warn(
-      `[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'} — remote rejected our HTTP signature`,
-    );
-  }
-
-  return res;
 }
 
 /**
@@ -534,6 +597,12 @@ function federatedProfile(profile: ExternalActorProfile) {
  * `endpoints.sharedInbox` — is derived from ONE `domain` argument so the actor
  * shape can never drift across a split set of hosts. Reducing the two actor
  * functions to this one builder is what guarantees a self-consistent actor.
+ *
+ * Not `@oxy.so/federation`'s `createLocalActorBuilder`: that one also emits
+ * `featured` (and a Group's `moderators`) collection URLs Oxy does not serve,
+ * plus `discoverable` / `manuallyApprovesFollowers`, and Oxy's documents must
+ * stay byte-identical. The shared pieces are reused instead: `createUrlBuilders`,
+ * `normalizeAlsoKnownAs` and `localActorTypeForAccountKind`.
  */
 function buildActor(opts: BuildActorOptions): Record<string, unknown> {
   const { domain, username, publicKeyPem, keyId, name, summary, avatar, kind } = opts;
@@ -1007,11 +1076,11 @@ class FederationService {
   async fetchActorDocument(actorUri: string): Promise<Record<string, unknown> | null> {
     try {
       const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
-      if (!res || res.status < 200 || res.status >= 300) {
-        res?.response.destroy();
+      if (!res || res.response.status < 200 || res.response.status >= 300) {
+        if (res) discardBody(res.response);
         return null;
       }
-      const actor = await readFederationJson<Record<string, unknown>>(res.response);
+      const actor = await readSignedFetchJson(res.response);
       return actor?.id === actorUri ? actor : null;
     } catch {
       return null;
@@ -1025,49 +1094,62 @@ class FederationService {
     options: { readonlySigningKey?: boolean } = {},
   ): Promise<ActorProfileResult<ExternalActorProfile>> {
     try {
-      const existingKey = options.readonlySigningKey
-        ? await findKeyPair(composeInstanceKeyId(AP_DOMAIN))
-        : undefined;
-      if (options.readonlySigningKey && !existingKey)
+      // Read-only callers never mint the instance key: without one, nothing is fetched.
+      if (options.readonlySigningKey && !(await findKeyPair(composeInstanceKeyId(AP_DOMAIN))))
         return resolutionFailure('actor_fetch', 'signing_key_unavailable', { actorUri });
-      let res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
-      if (res?.status === 404 && TRANSIENT_NOT_FOUND_HOSTS.has(new URL(actorUri).hostname)) {
+      const fetchOptions = { readonlySigningKey: options.readonlySigningKey };
+      let res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], fetchOptions);
+      if (
+        res?.response.status === 404 &&
+        TRANSIENT_NOT_FOUND_HOSTS.has(new URL(actorUri).hostname)
+      ) {
         for (const delayMs of TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS) {
-          res.response.destroy();
+          discardBody(res.response);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
-          res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
-          if (res?.status !== 404) break;
+          res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], fetchOptions);
+          if (res?.response.status !== 404) break;
         }
       }
-      if (!res || res.status < 200 || res.status >= 300) {
-        res?.response.destroy();
+      if (!res || res.response.status < 200 || res.response.status >= 300) {
+        if (res) discardBody(res.response);
         return resolutionFailure(
           'actor_fetch',
           res ? 'http_status' : 'transport_unavailable',
           { actorUri },
-          res?.status,
+          res?.response.status,
         );
       }
-      const actor = await readFederationJson<Record<string, unknown>>(res.response);
+      const { response, finalUrl } = res;
+      const actor = await readSignedFetchJson(response);
       if (!actor)
-        return resolutionFailure('actor_document', 'unreadable_document', { actorUri }, res.status);
+        return resolutionFailure(
+          'actor_document',
+          'unreadable_document',
+          { actorUri },
+          response.status,
+        );
       if (typeof actor.id !== 'string' || !actor.inbox)
         return resolutionFailure(
           'actor_document',
           'missing_actor_fields',
           { actorUri },
-          res.status,
+          response.status,
         );
       // The fetch's final URL, rather than a caller assertion, binds the actor.
-      if (actor.id !== actorUri && actor.id !== res.finalUrl)
-        return resolutionFailure('actor_document', 'actor_id_mismatch', { actorUri }, res.status);
+      if (actor.id !== actorUri && actor.id !== finalUrl)
+        return resolutionFailure(
+          'actor_document',
+          'actor_id_mismatch',
+          { actorUri },
+          response.status,
+        );
       const profile = deriveExternalActorProfile(actor, actor.id, acctHint);
       if (!profile)
         return resolutionFailure(
           'identity_policy',
           'identity_policy_rejected',
           { actorUri },
-          res.status,
+          response.status,
         );
       profile.bio = await expandTcoLinks(profile.bio);
       const actorHost = canonicalFederationHost(new URL(actor.id).hostname);
