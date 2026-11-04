@@ -163,6 +163,19 @@ Consequences:
 What makes a tarball safe from `workspace:`/`catalog:` literals is that **bun** cut it: `inspect`
 refuses any that survives, and services' `verify-package.mjs` re-asserts it from its own pack.
 
+### Keeping consumers on the newest release
+
+`.github/workflows/oxy-autobump.yml` (`workflow_call`) keeps an app on the newest
+`@oxy.so/bloom`, `bloom-editor`, `services`, `core`, `contracts`, `protocol` and
+`app-preset`. Dependabot cannot: it does not read a Bun workspace's root `catalog` or
+`overrides`. A daily run asks npm, rewrites every pin (`.github/scripts/oxy-autobump.mjs`,
+formatting untouched, never a downgrade, `peerDependencies` and the repo's own packages
+skipped), regenerates `bun.lock` with the repo's Bun, force-pushes one branch
+`autobump/oxy-packages`, updates one PR, dispatches the caller's CI on it (a GITHUB_TOKEN
+push starts no `pull_request` run, so the caller's CI needs `workflow_dispatch`) and enables
+auto-merge. A red bump stays open. The caller is a ~15-line `oxy-autobump.yml` with a
+staggered cron; `merge_queue: true` for Mention, oxy and Bloom.
+
 ## Import Conventions
 
 ```typescript
