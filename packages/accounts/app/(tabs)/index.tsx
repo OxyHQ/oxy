@@ -15,7 +15,7 @@ import {
 import { formatDate } from '@/utils/date-utils';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useBiometricSettings } from '@/hooks/useBiometricSettings';
 import { QuickActionsSection } from '@/components/quick-actions-section';
 import { AccountInfoGrid } from '@/components/account-info-grid';
@@ -73,7 +73,7 @@ export default function HomeScreen() {
   const accountCreatedDate = useMemo(() => formatDate(user?.createdAt), [user?.createdAt]);
   const avatarUrl = useAvatarUrl(user);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const handlers = useHomeHandlers();
   const { handleAvatarPress, handleDevices, handleMenu, handleSearch } = handlers;

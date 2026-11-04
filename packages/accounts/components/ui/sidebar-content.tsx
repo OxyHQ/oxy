@@ -6,7 +6,7 @@ import { useColors } from '@/hooks/useColors';
 import { useTheme } from '@oxy.so/bloom/theme';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '@/utils/color-utils';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import type { MaterialCommunityIconName } from '@/types/icons';
 import { useTranslation } from '@/lib/i18n';
 import { ProfileButton } from '@oxy.so/services';
@@ -104,7 +104,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const pathname = usePathname();
   const { t } = useTranslation();
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const handleNavigate = (path: MenuPath) => {
     router.push(path);
