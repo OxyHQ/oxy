@@ -17,7 +17,7 @@ import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { useOxy, useUserDevices } from '@oxy.so/services';
 import { alert, toast } from '@oxy.so/bloom';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import { getDeviceIcon, getDeviceDisplayName, type DeviceRecord } from '@/utils/device-utils';
 
@@ -47,7 +47,7 @@ export default function DevicesScreen() {
     await refetch();
   }, [refetch]);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const formatRelativeTime = useRelativeTime();
 
   // Handle device removal
