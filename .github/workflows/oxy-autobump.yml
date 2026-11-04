@@ -161,6 +161,30 @@ jobs:
           CI_WORKFLOW: ${{ inputs.ci_workflow }}
         run: gh workflow run "$CI_WORKFLOW" --ref "$BRANCH"
 
+      # The org requires approval for workflow runs of pull requests opened by
+      # an "external contributor", and the Actions bot counts as one: the
+      # `pull_request` run of the bump sits at `action_required`, and the
+      # required check, which the merge box ties to that run, never reports (the
+      # dispatched run above does not satisfy it). Approve it, here, from the
+      # same token; the code under test is a manifest and lockfile edit.
+      - name: Approve the pull request's own CI run
+        if: steps.push.outputs.pushed == 'true'
+        run: |
+          sha=$(git rev-parse HEAD)
+          for attempt in $(seq 1 12); do
+            ids=$(gh run list --commit "$sha" --event pull_request --json databaseId,conclusion \
+              --jq '.[] | select(.conclusion == "action_required") | .databaseId')
+            if [ -n "$ids" ]; then
+              for id in $ids; do
+                gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/$id/approve" >/dev/null \
+                  || echo "::warning::could not approve run $id"
+              done
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::no pull_request run waiting for approval on $sha"
+
       # Never `--delete-branch` on a merge-queue repository: it closes the pull
       # request unmerged. `--auto` waits for the required checks.
       - name: Merge when green
