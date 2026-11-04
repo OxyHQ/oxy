@@ -76,6 +76,7 @@ import {
   ATPROTO_DID_RE,
   ATPROTO_HANDLE_RE,
   domainFromHandle,
+  lacksRoutedTransport,
   missIsInconclusive,
   normalizeFediverseHandle,
   TRANSIENT_NOT_FOUND_HOSTS,
@@ -629,9 +630,20 @@ class FederationService {
         );
     }
     if (isOwnFederationDomain(domain)) return null;
+    return (await this.discoverThroughRoutedTransport(handle)) ?? graphFallback();
+  }
+
+  /**
+   * First discovery of `handle` (a normalized `local@network` account) through
+   * the transport Oxy routes its network through
+   * ({@link transportHandleForExternalAccount}), or null when that transport does
+   * not answer for exactly this account.
+   */
+  private async discoverThroughRoutedTransport(handle: string) {
+    const at = handle.lastIndexOf('@');
     // Bluesky speaks no WebFinger: its handle resolves to a DID, and the profile
     // fetched by that DID must name this same account back.
-    if (domain === BSKY_NETWORK_DOMAIN) {
+    if (handle.slice(at + 1) === BSKY_NETWORK_DOMAIN) {
       // An account whose handle does not verify is already named by its DID.
       const local = handle.slice(0, at);
       const atprotoDid = ATPROTO_DID_RE.test(local)
@@ -645,12 +657,49 @@ class FederationService {
     // publish the reviewed per-account assertion before the identity is accepted.
     const transport = transportHandleForExternalAccount(handle);
     const webfinger = await this.resolveWebFingerResource(transport);
-    if (!webfinger) return graphFallback();
+    if (!webfinger) return null;
     const verifiedAcct = await this.verifiedAccountForResolution(transport, webfinger);
     const result = await this.resolveExternalActorIdentity(webfinger.actorUri, verifiedAcct);
     if (!result || (transport !== handle && result.externalIdentity.canonicalAcct !== handle))
-      return graphFallback();
+      return null;
     return result;
+  }
+
+  /**
+   * Register the routed transport of an account first registered through
+   * another one, in the background: an X account seen only through mastox.eu
+   * gets its bird.makeup actor, a Bluesky account seen only through Bridgy Fed
+   * its native DID. An app that reads every transport of an identity
+   * (`externalIdentities`) can then reach the one whose posts carry the
+   * network's own post id. Once per account per refresh interval, under the
+   * same storm guard as the other background work; NEVER awaits and NEVER
+   * throws. A discovery that fails is simply tried again on a later
+   * registration.
+   */
+  private scheduleRoutedTransportDiscovery(profile: ExternalActorProfile): void {
+    if (profile.protocol === INSTAGRAM_GRAPH_PROTOCOL) return;
+    if (!lacksRoutedTransport(profile.username, [profile])) return;
+    const key = `routed-transport:${profile.username}`;
+    if (!claimRefreshSlot(key)) return;
+    void (async () => {
+      const actors = await getDb()
+        .select({
+          transportAcct: externalIdentityActors.transportAcct,
+          protocol: externalIdentityActors.protocol,
+        })
+        .from(externalIdentityActors)
+        .where(eq(externalIdentityActors.canonicalAcct, profile.username));
+      if (lacksRoutedTransport(profile.username, actors))
+        await this.discoverThroughRoutedTransport(profile.username);
+    })()
+      .catch((err) => {
+        logger.warn(
+          `Routed transport discovery failed for ${profile.username}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      })
+      .finally(() => {
+        releaseRefreshSlot(key);
+      });
   }
 
   /** Business Discovery for one `<username>@instagram.com`; null when disabled or not discoverable. */
@@ -780,6 +829,7 @@ class FederationService {
       evidenceLinks: profile.evidenceLinks,
       profile: federatedProfile(profile),
     });
+    this.scheduleRoutedTransportDiscovery(profile);
     // First-party badge proofs bind bridge actors; a Graph source is admitted by
     // the registry's pinned graph-id check and never records or revokes them.
     const identityCheck =

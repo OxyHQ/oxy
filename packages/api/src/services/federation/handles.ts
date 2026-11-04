@@ -3,6 +3,8 @@
  * handles, and the bridge transports an external account is reached through.
  */
 
+import { BSKY_NETWORK_DOMAIN } from '@oxy.so/federation';
+
 const FEDIVERSE_HANDLE_REGEX = /^@?[\w.-]+@[\w.-]+\.\w+$/;
 
 /**
@@ -51,18 +53,44 @@ export const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
 export const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
 
 /**
+ * The bridge Oxy reaches each bridged network through. Its posts carry the
+ * network's own post id (a tweet id, an Instagram shortcode), which is what lets
+ * an app store each upstream post once whichever transport delivered it; another
+ * bridge of the same network (mastox.eu for X) may also be registered, but is
+ * never the one an account is routed through.
+ */
+const ROUTED_BRIDGES: Readonly<Record<string, string>> = {
+  'x.com': 'bird.makeup',
+  'instagram.com': 'kilogram.makeup',
+};
+
+/**
  * The acct an external account is reached through: X via bird.makeup,
  * Instagram via kilogram.makeup, anything else as itself.
  */
 export function transportHandleForExternalAccount(handle: string): string {
   const at = handle.lastIndexOf('@');
-  const local = handle.slice(0, at);
-  const domain = handle.slice(at + 1);
-  return domain === 'x.com'
-    ? `${local}@bird.makeup`
-    : domain === 'instagram.com'
-      ? `${local}@kilogram.makeup`
-      : handle;
+  const bridge = ROUTED_BRIDGES[handle.slice(at + 1)];
+  return bridge ? `${handle.slice(0, at)}@${bridge}` : handle;
+}
+
+/**
+ * Whether `canonicalAcct`'s registered transports (`actors`) lack the one Oxy
+ * routes its network through. False for a network that routes through nothing
+ * but the account itself.
+ *
+ * Bluesky's routed transport is the account itself, read natively over atproto:
+ * an account known only through Bridgy Fed lacks it.
+ */
+export function lacksRoutedTransport(
+  canonicalAcct: string,
+  actors: ReadonlyArray<{ transportAcct: string; protocol: string }>,
+): boolean {
+  const domain = domainFromHandle(canonicalAcct);
+  if (domain === BSKY_NETWORK_DOMAIN) return !actors.some((actor) => actor.protocol === 'atproto');
+  if (!domain || !Object.hasOwn(ROUTED_BRIDGES, domain)) return false;
+  const routed = transportHandleForExternalAccount(canonicalAcct);
+  return !actors.some((actor) => actor.transportAcct === routed);
 }
 
 /**

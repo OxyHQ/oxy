@@ -34,7 +34,16 @@ accepts up to 100 IDs, account handles, or actor URIs without remote discovery.
 The shared request/response schemas live in `@oxy.so/contracts`.
 
 `external_identities` owns canonical network accounts; `external_identity_actors`
-retains every transport URI and protocol. A split-domain account (`alice@example`,
+retains every transport URI and protocol. Every transport of an account is in
+`externalIdentities` (same `canonicalAcct`, one entry per `actorUri`); an app that
+subscribes to a person subscribes to all of them. Each bridged network has one
+routed transport (`transportHandleForExternalAccount`: X through bird.makeup,
+Instagram through kilogram.makeup, Bluesky natively over atproto), the one whose
+posts carry the network's own post id. An account first registered through
+another transport (mastox.eu, Bridgy Fed) gets its routed transport discovered
+in the background, at most once per account per five minutes per process
+(`scheduleRoutedTransportDiscovery`); a failed discovery is retried on a later
+registration. A split-domain account (`alice@example`,
 its actor on `social.example`) is relabelled only once the account host's
 WebFinger names that actor, and keeps the actor-host handle as its transport, as
 a bridge does. Physical redirects retain old user
