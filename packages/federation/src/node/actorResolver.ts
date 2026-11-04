@@ -148,12 +148,19 @@ export interface FederatedActorUpsert {
   type: string;
   manuallyApprovesFollowers: boolean;
   discoverable: boolean;
+  /**
+   * Mastodon's opt-in to search engines and full-text search (`indexable`).
+   * Absent when the actor does not say, which Mastodon reads as "no".
+   */
+  indexable?: boolean;
   memorial: boolean;
   suspended: boolean;
   fields: FederatedActorField[];
   featuredUrl?: string;
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
+  /** The account this actor moved to (`movedTo`), when it advertises one. */
+  movedTo?: string;
   /**
    * The `<handle>@<network-domain>` identity this actor was re-labelled onto, when
    * it came from a bridge; absent for the ordinary actor whose identity is simply
@@ -598,6 +605,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const alsoKnownAs = Array.isArray(actor.alsoKnownAs)
         ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
         : undefined;
+      // A move target is an actor URL; anything else is not one.
+      const movedToValue = asString(actor.movedTo);
+      const movedTo = movedToValue && /^https?:\/\//.test(movedToValue) ? movedToValue : undefined;
 
       // The IDENTITY the actor is stored under in Oxy, which is not necessarily the
       // host it was fetched from — see `DeriveNetworkIdentity`. Everything below
@@ -647,12 +657,14 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         type: asString(actor.type) || 'Person',
         manuallyApprovesFollowers: actor.manuallyApprovesFollowers === true,
         discoverable: actor.discoverable !== false,
+        ...(typeof actor.indexable === 'boolean' && { indexable: actor.indexable }),
         memorial: actor.memorial === true,
         suspended: actor.suspended === true,
         fields,
         featuredUrl: asString(actor.featured) || undefined,
         featuredTagsUrl: asString(actor.featuredTags) || undefined,
         alsoKnownAs,
+        ...(movedTo && { movedTo }),
         networkAcct: networkIdentity?.federatedUsername,
         remoteCreatedAt:
           typeof actor.published === 'string' ? new Date(actor.published) : undefined,
