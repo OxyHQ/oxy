@@ -24,6 +24,7 @@ import {
   authRateLimiter,
   userRateLimiter,
   federationServiceLimiter,
+  cdnResolverLimiter,
   bruteForceProtection,
   securityHeaders,
 } from './middleware/security';
@@ -854,9 +855,11 @@ app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
 app.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use('/assets', assetRoutes);
-// Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
-// auth — serves ONLY public CDN-backed assets via 302; 404 otherwise.
-app.use('/cdn', cdnRoutes);
+// Public by-id resolver behind cloud.oxy.so/<id> (ADR 0047). No auth — serves
+// ONLY public CDN-backed assets via 302; 404 otherwise. Skipped by rl:general
+// and slowDown (`isCdnResolverPath`), so its own per-visitor limiter MUST stay
+// on this mount.
+app.use('/cdn', cdnResolverLimiter, cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
 // auth — devices fetch it with only expo-updates headers — so it is mounted
 // here with its own limiter. The admin router (bearer/service-token

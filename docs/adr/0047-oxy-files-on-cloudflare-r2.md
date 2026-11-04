@@ -61,7 +61,10 @@ in Oxy Files and is not moved.
    Objects up to 500 MB are kept in the Cache API, which answers ranges from
    the cached copy. A resolver 302 is kept in the Cache API with oxy-api's own
    Cache-Control (an hour): `fetch`'s edge cache would stamp the zone's
-   four-hour Browser Cache TTL over it.
+   four-hour Browser Cache TTL over it. The resolve names the visitor with
+   Cloudflare's same-zone `x-real-ip` (`workers/cloud/src/visitor.ts`), so
+   oxy-api budgets it per visitor on its own `rl:cdn:` limiter (2026-11-04:
+   unnamed, every resolve was one client and the general budget ran dry).
 6. **Purge replaces invalidation.** A deleted public object's URL is purged by
    URL (`services/cdnPurge.ts`, 100 per request); a file id's resolver answers
    by the Cache-Tag `file:<id>` the Worker gives every variant. Both are

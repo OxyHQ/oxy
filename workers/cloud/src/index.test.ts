@@ -111,6 +111,7 @@ function harness(
   const { cache, entries } = fakeCache();
   const pending: Promise<unknown>[] = [];
   const fetched: string[] = [];
+  const sent: Headers[] = [];
   const env: Env = {
     FILES: bucket,
     WEBSITE_LEGACY: website.bucket,
@@ -119,9 +120,10 @@ function harness(
   const deps: Deps = {
     cache,
     waitUntil: (promise) => pending.push(promise),
-    fetch: async (input: string) => {
+    fetch: async (input: string, init?: RequestInit) => {
       const url = String(input);
       fetched.push(url);
+      sent.push(new Headers(init?.headers));
       return upstream ? upstream(url) : new Response('{"error":"NOT_FOUND"}', { status: 404 });
     },
   };
@@ -130,7 +132,7 @@ function harness(
     await Promise.all(pending);
     return response;
   };
-  return { get, reads, entries, fetched, env, deps, pending };
+  return { get, reads, entries, fetched, sent, env, deps, pending };
 }
 
 describe('routing: the CloudFront behaviors, in order', () => {
@@ -402,6 +404,29 @@ describe('the by-id resolver', () => {
     expect(stored?.headers.get('cache-tag')).toBe(resolverCacheTag('/abc'));
     const hit = await get('/abc?variant=thumb');
     expect(hit.headers.get('cache-tag')).toBeNull();
+  });
+
+  it("names the visitor to oxy-api through Cloudflare's x-real-ip, never X-Forwarded-For", async () => {
+    const { get, sent } = harness({}, redirect);
+    await get('/abc?variant=w96', { headers: { 'cf-connecting-ip': '203.0.113.7' } });
+    expect(sent[0]?.get('x-real-ip')).toBe('203.0.113.7');
+    expect(sent[0]?.has('x-forwarded-for')).toBe(false);
+  });
+
+  it('hands a refusal on uncached, with when to ask again', async () => {
+    const { get, entries } = harness(
+      {},
+      () =>
+        new Response('{"error":"RATE_LIMITED"}', {
+          status: 429,
+          headers: { 'retry-after': '120', 'content-type': 'application/json' },
+        }),
+    );
+    const response = await get('/abc?variant=w96');
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('120');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(entries.size).toBe(0);
   });
 
   it('never keeps a 404, so a file published a moment later resolves at once', async () => {
