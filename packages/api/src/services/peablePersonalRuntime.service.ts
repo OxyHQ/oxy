@@ -308,16 +308,20 @@ export function createPeablePersonalRuntime(
       if (!intent.providerSessionId) {
         const frozen = personalCheckoutSnapshotFromIntent(intent);
         if (frozen && client.billing.retrieveCheckoutOperation) {
-          const input = {
-            idempotency_key: `personal-checkout:${intent.id}`,
+          const idempotencyKey = `personal-checkout:${intent.id}`;
+          const identity = {
             provider_customer_id: frozen.customerId,
             provider_price_id: frozen.priceId,
             store_id: frozen.subjectAccountId,
             plan_id: frozen.planId,
           };
-          const recovered = await client.billing.retrieveCheckoutOperation(input);
+          const recovered = await client.billing.retrieveCheckoutOperation(
+            idempotencyKey,
+            identity,
+          );
           const expected = {
-            ...input,
+            idempotency_key: idempotencyKey,
+            ...identity,
             tax_quote_id: frozen.taxQuote.quote.id,
             merchant_id: frozen.merchantId,
             app_id: frozen.applicationId,

@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.4] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 1.0.0 (was 0.20.0). `@peable.to/sdk/display` is unchanged in 1.0, so `useDisplayPrice` behaves as before; an app that also depends on the 1.0 SDK now installs one copy instead of two.
+
 ## [14.3.3] - 2026-11-03
 
 ### Changed

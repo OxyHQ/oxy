@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed (Oxy One billing speaks `@peable.to/sdk` 1.0)
+
+The personal billing services call Peable through SDK 1.0's generated methods
+(`(…pathParams, params?, options?)`): `billing.cancelAtPeriodEnd(id, {}, { idempotencyKey })`
+and `billing.retrieveCheckoutOperation(idempotencyKey, identity)`, with the
+recovered source still compared field by field against the frozen checkout. An
+observation is the SDK's verified `WebhookEvent`: `constructEvent` already
+checks the signature, the timestamp window and the `billing.observation.updated`
+payload, so the local re-parse — strict about an envelope that had gained
+`livemode`, `api_version` and `request`, and therefore refusing every real
+delivery — is gone. The unused `createPeablePersonalBilling` wrapper is removed.
+The SDK now retries network failures, 5xx and 429 twice under the same
+`Idempotency-Key` and bounds each attempt at 80 s.
+
 ### Added (`GET /accounts/:id` says what the caller may do: `callerAccess`)
 
 `GET /accounts/:id` — and the `PATCH` and `move` answers that return the same

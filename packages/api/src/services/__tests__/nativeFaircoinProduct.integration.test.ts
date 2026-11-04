@@ -305,6 +305,7 @@ const annual = process.env.PEABLE_NATIVE_ANNUAL_FIXTURE === '1';
         );
         await client.billing.cancelAtPeriodEnd(
           must(checkout.subscription).provider_subscription_id,
+          {},
           { idempotencyKey: 'cancel_individual' },
         );
         await runtime.recover(sourceIds[1]);
