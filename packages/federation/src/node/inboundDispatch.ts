@@ -6,8 +6,8 @@
  * because those are identical across every Oxy app: they bridge a federated follow
  * edge into the Oxy graph (via the identity adapter), record the AP-side follow
  * row (via the store adapter), and send the Accept back (via the delivery
- * service). Every CONTENT verb (Create / Announce / Like / Delete / Update, and a
- * non-follow Undo) is handed to the app-registered
+ * service). Every CONTENT verb (Create / Announce / Like / Delete / Update /
+ * Add / Remove, and a non-follow Undo) is handed to the app-registered
  * {@link InboundDispatcherConfig.onContentActivity} callback, where the app's own
  * post/engagement handlers live. The consent gate + notification side effects are
  * injected so the engine holds no app knowledge.
@@ -186,7 +186,9 @@ export interface InboundDispatcherConfig {
   onOutboundFollowAccepted?(actorUri: string): Promise<void>;
   /**
    * Handle a CONTENT activity the engine does not own — Create / Announce / Like /
-   * Delete / Update, and a non-follow Undo. The app's post/engagement handlers.
+   * Delete / Update / Add / Remove, and a non-follow Undo. The app's
+   * post/engagement handlers; `Add`/`Remove` carry collection changes such as a
+   * Mastodon pin (the status added to or removed from the actor's `featured`).
    */
   onContentActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void>;
   /**
@@ -499,12 +501,15 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
       case 'Reject':
         await handleReject(activity, verifiedActorUri);
         break;
-      // Content verbs — the app owns these (posts, engagement, actor profile edits).
+      // Content verbs — the app owns these (posts, engagement, actor profile
+      // edits, and collection changes such as pinned posts).
       case 'Create':
       case 'Delete':
       case 'Like':
       case 'Announce':
       case 'Update':
+      case 'Add':
+      case 'Remove':
         await config.onContentActivity(activity, verifiedActorUri);
         break;
       case 'Move': {

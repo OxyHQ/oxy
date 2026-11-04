@@ -109,7 +109,7 @@ export {
  * Inbound ActivityPub dispatch — the untrusted-activity validator + switch, the
  * follow-protocol handlers (Follow / Accept / Undo(Follow) / Reject) over the
  * identity + store adapters, and the `onContentActivity` seam every content verb
- * (Create / Announce / Like / Delete / Update, non-follow Undo) is handed to.
+ * (Create / Announce / Like / Delete / Update / Add / Remove, non-follow Undo) is handed to.
  */
 export {
   createInboundDispatcher,
