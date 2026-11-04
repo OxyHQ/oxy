@@ -312,7 +312,7 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
     expect(first.status).toBe(200);
     expect(((await first.json()) as { data: unknown }).data).toBeNull();
     expect(discovery).toHaveBeenCalledTimes(1);
-    expect(discovery).toHaveBeenCalledWith(uri);
+    expect(discovery).toHaveBeenCalledWith(uri, undefined);
     await discovery.mock.results[0].value;
 
     const second = await getPath(path);
