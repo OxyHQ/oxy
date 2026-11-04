@@ -16,11 +16,12 @@
 
 - **Application permissions in an MCP tool.** `oxy.appPermissionsFor(context.request, { fresh? })` accepts an MCP tool call — the `extra` an MCP handler receives (`CatalogInvocationContext.request`), whose `authInfo.token` `@oxy.so/mcp` introspected — the same way it accepts a request after `middleware.auth()`. It presents the token under this process's service token to `POST /auth/mcp/oauth/app-permissions`, which Oxy answers from the same resolver as `roles/me`, and returns the same `OxyAppPermissions`: `operatorId` is the person who authorized the connector, whichever account the connection is acting as. Oxy answers only about the application that registered the token's resource; an answer about any application other than this server's (or an explicit `applicationId`) is `APP_PERMISSION_NOT_CONFIGURED`. A refused token (`401 invalid_grant`) is `APP_PERMISSION_SESSION_REQUIRED`; this service's own credential refused, or any other failure, is `APP_PERMISSION_UNAVAILABLE`, never a "no", never cached. Positive answers are cached for `appPermissionsCacheTtlMs`, keyed by a digest of the token. New types `AppPermissionsSource` and `OxyMcpCallerRequest`. Replaces the `*_ADMIN_USER_IDS` allow-lists MCP servers kept because Oxy could not answer for an MCP token.
 
-## 7.19.1
-
 ### Fixed
 
 - **A service call survives a rotated or revoked service token.** `serviceRequest` — every server-namespace call (`assets.mediaCache`, `federatedMedia`, `references`, `metadataByIds`, …) — answered a 401 by throwing, while `createServiceClient` already re-minted and resent. Now a 401 drops the refused cached token, mints a fresh one and sends the request once more (a 401 means it never ran, so this is safe for any method and body). Once only, never after an abort; any other status is unchanged. The same holds for a session-less read an `OxyServer` with `serviceIdentity: 'when-anonymous'` sends with its service token (`HttpService.setAnonymousAuthProvider(provider, onRejected)`). Apps that re-minted by hand can drop it.
+
+## 7.19.1
+
 ### Changed
 
 - Depends on `@oxy.so/contracts` 6.6.0. `appPermissionsFor` and `requireAppPermission` are unchanged; on one of Oxy's own applications the keys they answer are now held by role in the owning organization, declared in Oxy's first-party registry (oxy ADR 0056), and the docs say so.
