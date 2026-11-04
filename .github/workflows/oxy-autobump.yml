@@ -130,13 +130,23 @@ jobs:
             && [ "$(git rev-parse origin/$BRANCH~1 2>/dev/null)" = "$(git rev-parse "origin/$DEFAULT_BRANCH")" ]; then
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           else
-            git push --force origin "$BRANCH"
-            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            # A branch whose PR sits in the merge queue cannot be updated; it is
+            # about to merge, and the next run bumps on top of it.
+            if out=$(git push --force origin "$BRANCH" 2>&1); then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+            elif echo "$out" | grep -q "added to a merge queue"; then
+              echo "::notice::$BRANCH is in the merge queue; the next run bumps on top of it"
+              echo "pushed=false" >> "$GITHUB_OUTPUT"
+              echo "queued=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$out"
+              exit 1
+            fi
           fi
 
       - name: Open or update the pull request
         id: pr
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.bump.outputs.changed == 'true' && steps.push.outputs.queued != 'true'
         env:
           SUMMARY_FILE: ${{ steps.bump.outputs.summary_file }}
         run: |
@@ -188,7 +198,7 @@ jobs:
       # Never `--delete-branch` on a merge-queue repository: it closes the pull
       # request unmerged. `--auto` waits for the required checks.
       - name: Merge when green
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.bump.outputs.changed == 'true' && steps.push.outputs.queued != 'true'
         env:
           NUMBER: ${{ steps.pr.outputs.number }}
           MERGE_QUEUE: ${{ inputs.merge_queue }}
