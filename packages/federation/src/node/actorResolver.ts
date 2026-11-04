@@ -19,7 +19,7 @@
  * document.
  */
 
-import { canonicalFederationHost, isSameFederationHost } from '../apUri';
+import { apIri, canonicalFederationHost, isSameFederationHost } from '../apUri';
 import {
   readProxyDeclarations,
   type DeriveNetworkIdentity,
@@ -507,7 +507,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       const actor = await readBoundedJson(res, ACTOR_BODY_MAX_BYTES);
       const actorId = asString(actor.id);
-      const actorInbox = asString(actor.inbox);
+      const actorInbox = apIri(actor.inbox);
       if (!actorId || !actorInbox) {
         this.config.logger.info(
           `[FedSync] fetchRemoteActor missing fields for ${currentUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${String(actor.type)} keys=${Object.keys(actor).join(',')}`,
@@ -564,9 +564,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       // Fetch collection counts (followers, following, posts) in parallel
       const [followersCount, followingCount, postsCount] = await Promise.all([
-        this.fetchCollectionCount(asString(actor.followers)),
-        this.fetchCollectionCount(asString(actor.following)),
-        this.fetchCollectionCount(asString(actor.outbox)),
+        this.fetchCollectionCount(apIri(actor.followers)),
+        this.fetchCollectionCount(apIri(actor.following)),
+        this.fetchCollectionCount(apIri(actor.outbox)),
       ]);
 
       // Extract profile fields (PropertyValue attachments). Sanitize BEFORE
@@ -606,7 +606,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
         : undefined;
       // A move target is an actor URL; anything else is not one.
-      const movedToValue = asString(actor.movedTo);
+      const movedToValue = apIri(actor.movedTo);
       const movedTo = movedToValue && /^https?:\/\//.test(movedToValue) ? movedToValue : undefined;
 
       // The IDENTITY the actor is stored under in Oxy, which is not necessarily the
@@ -648,10 +648,10 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         avatarUrl,
         headerUrl,
         inboxUrl: actorInbox,
-        outboxUrl: asString(actor.outbox) || undefined,
-        sharedInboxUrl: asString(actorEndpoints?.sharedInbox) || undefined,
-        followersUrl: asString(actor.followers) || undefined,
-        followingUrl: asString(actor.following) || undefined,
+        outboxUrl: apIri(actor.outbox),
+        sharedInboxUrl: apIri(actorEndpoints?.sharedInbox),
+        followersUrl: apIri(actor.followers),
+        followingUrl: apIri(actor.following),
         publicKeyPem: asString(actorPublicKey?.publicKeyPem) || undefined,
         publicKeyId: asString(actorPublicKey?.id) || undefined,
         type: asString(actor.type) || 'Person',
@@ -661,8 +661,8 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         memorial: actor.memorial === true,
         suspended: actor.suspended === true,
         fields,
-        featuredUrl: asString(actor.featured) || undefined,
-        featuredTagsUrl: asString(actor.featuredTags) || undefined,
+        featuredUrl: apIri(actor.featured),
+        featuredTagsUrl: apIri(actor.featuredTags),
         alsoKnownAs,
         ...(movedTo && { movedTo }),
         networkAcct: networkIdentity?.federatedUsername,
