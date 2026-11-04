@@ -45,6 +45,7 @@ import {
   type PublicUserView,
 } from '../utils/publicUserProjection';
 import {
+  discoverableUserPredicate,
   eligibleUserPredicate,
   visibleOrganizationIdentityPredicate,
   FEDERATED_RECOMMENDATION_MAX_AGE_MS,
@@ -1472,6 +1473,69 @@ export async function buildRecommendations(
 
   return result;
 }
+
+/**
+ * GET /profiles/newest
+ *
+ * The newest people on Oxy, in sign-up order (most recent first): local,
+ * personal accounts that are public, discoverable and not flagged sensitive.
+ * Unlike recommendations there is no profile-quality gate — a fresh account
+ * has not filled in its profile yet, and showing it is the point.
+ *
+ * The page's ids are chosen first and hydrated (with their follow counts)
+ * second, so the correlated counts run for the page alone.
+ *
+ * @query {number} limit - Number of results (max 100, default 10)
+ * @query {number} offset - Pagination offset (default 0)
+ * @returns {UserProfile[]} The page of profiles, newest first
+ */
+router.get(
+  '/newest',
+  validatePagination,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { limit, offset } = req.query as PaginationQuery;
+    const parsedLimit = limit
+      ? Math.min(Number.parseInt(limit, 10), PAGINATION.MAX_LIMIT)
+      : PAGINATION.DEFAULT_LIMIT;
+    const parsedOffset = offset ? Number.parseInt(offset, 10) : 0;
+
+    const db = getDb();
+    const page = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.type, 'local'),
+          eq(users.kind, 'personal'),
+          eq(users.privacyIsPrivateAccount, false),
+          eq(users.isSensitive, false),
+          sql`nullif(btrim(${users.username}), '') is not null`,
+          discoverableUserPredicate(),
+        ),
+      )
+      .orderBy(sql`${users.createdAt} desc`, sql`${users.id} desc`)
+      .offset(parsedOffset)
+      .limit(parsedLimit);
+
+    if (page.length === 0) {
+      sendSuccess(res, []);
+      return;
+    }
+
+    const ids = page.map((row) => row.id);
+    const rows = await db
+      .select({ ...recommendationColumns, ...publicUserFollowCounts })
+      .from(users)
+      .where(inArray(users.id, ids));
+    const byId = new Map(rows.map((row) => [row._id, row]));
+    const profiles = ids
+      .map((id) => byId.get(id))
+      .filter((row): row is (typeof rows)[number] => row !== undefined)
+      .map(formatProfileResult);
+
+    sendSuccess(res, profiles);
+  }),
+);
 
 /**
  * GET /profiles/recommendations

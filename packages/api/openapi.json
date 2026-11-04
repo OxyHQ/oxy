@@ -55356,6 +55356,35 @@
         "operationId": "patchPrivacyIdPrivacy"
       }
     },
+    "/profiles/newest": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "The newest people on Oxy, in sign-up order (most recent first): local,",
+        "description": "personal accounts that are public, discoverable and not flagged sensitive.\nUnlike recommendations there is no profile-quality gate — a fresh account\nhas not filled in its profile yet, and showing it is the point.\n\nThe page's ids are chosen first and hydrated (with their follow counts)\nsecond, so the correlated counts run for the page alone.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/profiles.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getProfilesNewest"
+      }
+    },
     "/profiles/recommendations": {
       "get": {
         "tags": [
