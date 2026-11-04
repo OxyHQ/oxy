@@ -143,6 +143,7 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "validate:agents-md": "bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs",
+    "validate:i18n": "node packages/doctor/src/i18n-cli.mjs --ci",
     "clean": "turbo run clean",
     "protocol:build": "bun run --filter @oxy.so/protocol build",
     "federation:build": "bun run --filter @oxy.so/federation build",

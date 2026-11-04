@@ -999,6 +999,9 @@ jobs:
       - name: 'API Checks: guard the AGENTS.md budget'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run validate:agents-md
+      - name: 'Translation keys (ADR 0055)'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run validate:i18n
 
       # Formatting and lint for the whole repository, from the root biome.jsonc
       # (`bun run lint` locally). Then the Expo apps' remaining ESLint: only
