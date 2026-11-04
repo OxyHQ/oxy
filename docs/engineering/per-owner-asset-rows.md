@@ -95,8 +95,7 @@ The census excluded `node_modules`, `dist` and worktrees.
 
 | Caller | Endpoint | Effect |
 |---|---|---|
-| Mention `services/mtn/PostMaterializer.ts:227` | by-sha256 | Unchanged: it still gets the oldest row. It maps `sha256 -> id` into post media, so it should pass the record author's `ownerUserId` once core is released. |
-| Mention `services/mtn/mtnNodeBlobMirror.ts:121` | by-sha256 | Unchanged. It treats "any owner has it" as "already mirrored". With `ownerUserId` it would upload the author's own row instead, and the bytes would still be stored once. |
+| ~~Mention `services/mtn/PostMaterializer.ts`, `services/mtn/mtnNodeBlobMirror.ts`~~ | by-sha256 | Removed with Mention nodes and the MTN record chain (OxyHQ/Mention#1805); no by-sha256 caller remains in Mention. |
 | Mention `mediaCache/cacheWorker.ts:376`, `mediaCache/oxyMediaStore.ts:403`, `connectors/*` | `/service/federation` | A different owner's bytes now return `200` with a new row instead of a `409`. The cache worker currently retries a 409 indefinitely, so this fixes that loop. |
 | Mention `cacheWorker.ts:216`, `gifLibraryService.ts:472`, eviction and purge scripts | `/service/cache`, `DELETE /service/cache/:id` | Unchanged. The cache namespace still keeps one row per hash, so two cache entries with the same bytes share an id. |
 | Mention `utils/oxyHelpers.ts:195`, Move `utils/oxyHelpers.ts:64` | `/service/user-media` | Another user's bytes now give the caller its own row instead of a `409`. |
@@ -167,9 +166,9 @@ the final `DROP INDEX`, which queues them behind any long-running query on
    `--max-batches`, and `--after=<lastLinkId>` to resume). Keep the JSONL
    output: it is the `(sourceFileId, ownerUserId) -> fileId` mapping the
    consuming apps need.
-5. **Consumers switch their stored ids** using that mapping, and Mention passes
-   `ownerUserId` to by-sha256. Both need a release of `@oxy.so/core`, which this
-   change does not publish.
+5. **Consumers switch their stored ids** using that mapping. That needs a
+   release of `@oxy.so/core`, which this change does not publish. (Mention no
+   longer calls by-sha256, so it has nothing to pass `ownerUserId` to.)
 6. **Repoint links per application** with
    `--apply=repoint-links --app=<name>`, and only for an app that now stores the
    new ids. Until then, the foreign link on the original is what keeps
