@@ -1597,6 +1597,20 @@
       "when": 1793767654911,
       "tag": "0228_first_party_operator_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1793820747379,
+      "tag": "0229_personal_checkout_native_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1793820766617,
+      "tag": "0230_drop_personal_checkout_quote_and_renewal",
+      "breakpoints": true
     }
   ]
 }

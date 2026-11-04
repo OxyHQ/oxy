@@ -1,11 +1,6 @@
 import { OxyServer } from '@oxy.so/core/server';
 import { createAwsWorkloadCredentialProvider } from '@oxy.so/core/server/aws';
-import {
-  peableForOxyService,
-  type Peable,
-  type PeableOxyHost,
-  type PeableWorkloadConfig,
-} from '@peable.to/sdk';
+import { peableForOxyService, type Peable, type PeableOxyHost } from '@peable.to/sdk';
 
 export function assertPeableBillingWorkloadConfiguration(
   injectedAuthority = false,
@@ -25,10 +20,10 @@ export function assertPeableBillingWorkloadConfiguration(
 /** This profile must attest the reviewed billing application, never the ambient
  * oxy-api/Inbox application. The merchant readback below proves that binding.
  * Injected hosts remain owned by deployment composition, not this client. */
-export function createPeableBillingClient(
-  keys: Pick<PeableWorkloadConfig, 'invoiceAuthorityKeys' | 'taxQuoteAuthorityKeys'> = {},
-  injectedOxy?: PeableOxyHost,
-): { client: Peable; dispose(): void } {
+export function createPeableBillingClient(injectedOxy?: PeableOxyHost): {
+  client: Peable;
+  dispose(): void;
+} {
   const profile = assertPeableBillingWorkloadConfiguration(!!injectedOxy);
   const ownedOxy = injectedOxy
     ? undefined
@@ -39,7 +34,7 @@ export function createPeableBillingClient(
   const oxy = injectedOxy ?? ownedOxy;
   if (!oxy) throw new Error('Peable billing workload unavailable');
   try {
-    const client = peableForOxyService({ oxy, ...keys });
+    const client = peableForOxyService({ oxy });
     let disposed = false;
     return {
       client,

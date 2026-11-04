@@ -35,12 +35,11 @@
   "engineeringWork": [
     "Establish deliberate central product billing workload authority without repointing existing Inbox role, then register seller merchant under it",
     "Replace central personal runtime legacy credential config with shared workload authentication",
-    "Create two canonical Peable provider prices with exact599/month and5750/year USD",
+    "Create the Orbit catalog rows with `scripts/sync-peable-catalogue.ts` (dry run, then --apply): products, features mention:plus and mention:mono_theme, prices exactly 599/month and 5750/year USD, tax inclusive",
     "Register explicit Mention Plus entitlement offers after feature semantics review; do not equate mono_theme with all Plus features",
     "Configure merchant tax settings and obtain owner dashboard approval; no automatic invented registrations",
-    "Configure signed Peable Tax/renewal webhook and invoice authority bindings",
-    "Implement trusted payer location evidence collection instead of static per-account runtime map",
-    "Mount catalogue and runtime JSON using infra secret_files pattern; enable only after validated binding/approval"
+    "Register the Peable webhook endpoint for POST /billing/peable/events (PEABLE_PERSONAL_EVENT_TYPES) and store its whsec_ as OXY_ONE_PEABLE_WEBHOOK_SECRET",
+        "Mount catalogue and runtime JSON using infra secret_files pattern; enable only after validated binding/approval"
   ],
   "liveEvidence": {
     "centralCatalogue": "unconfigured",

@@ -22,7 +22,8 @@ const configuration = {
   merchantId: 'merch_reviewed',
   applicationId: 'app_reviewed',
   namespace: { mode: 'live', environment: 'production' },
-  offers: [{ offerId: 'plus', offerVersion: 1, planId: 'plan', providerPriceId: 'price' }],
+  offers: [{ offerId: 'plus', offerVersion: 1, providerPriceId: 'price_reviewed' }],
+  portalReturnUrl: 'https://accounts.oxy.so/payments',
 };
 beforeEach(async () => {
   jest.clearAllMocks();

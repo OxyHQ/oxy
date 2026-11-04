@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.9.0
+
+### Added
+
+- `productSubscriptionPortalRequestSchema` / `productSubscriptionPortalResponseSchema` (types `ProductSubscriptionPortalRequest`, `ProductSubscriptionPortalResponse`) and their client checks: open the payment provider's customer portal for one named source (`POST /billing/product-subscriptions/portal`).
+- `productSubscriptionSummarySchema.canManage`: whether the signed-in payer can open that portal for the source.
+
+### Removed
+
+- `productSubscriptionRenewalRequestSchema` (`ProductSubscriptionRenewalRequest`, `productSubscriptionRenewalRequestCheck`) and `canRenew`. They served only the manual FairCoin renewal of Peable's retired Stripe-Billing proxy, which never had a production subscription; a native subscription renews itself, and an open renewal invoice is paid in the portal. Released as a minor because no published consumer called them (only Oxy's own Accounts app, updated in the same change).
+
 ## 6.8.0
 
 ### Added

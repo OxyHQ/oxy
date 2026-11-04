@@ -1,4 +1,4 @@
-import { randomUUID, generateKeyPairSync, sign } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessGrants, personalPlanCheckoutIntents } from '../../db/schema';
@@ -18,7 +18,7 @@ import {
 } from '../personalPlanCheckout.service';
 import { recordProductProviderPeriod } from '../productProviderEvidence.service';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
-import { Peable, PeableInvalidRequestError } from '@peable.to/sdk';
+import { nativePeable } from '../__fixtures__/nativePeable';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
@@ -87,107 +87,41 @@ it('keeps HTTP-equivalent provider absence and empty offers unconfigured; grants
       .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer)),
   ).toHaveLength(0);
 });
-it('reserves and replays the SDK transport without granting from a hosted session', async () => {
+it('reserves and replays the native checkout without granting from a hosted session', async () => {
   const test = await fixture();
-  test.catalogue.prices[0].amountMinorUnits = 2999;
   const merchant = { id: 'merch_synthetic', oxy_app_id: 'app_fixture', environment: 'production' };
-  const ensureCustomer = jest.fn(async () => ({ provider_customer_id: 'cus_fixture' }));
-  const createCheckoutSession = jest.fn(async () => ({
-    id: 'cs_fixture',
-    url: 'https://checkout.example.invalid/fixture',
-    expires_at: Date.parse('2099-01-01T00:00:00.000Z') / 1000,
-  }));
-  const retrieveCheckout = jest.fn(async () => ({
-    id: 'cs_fixture',
-    store_id: test.payer,
-    plan_id: 'one_monthly',
-    provider_customer_id: 'cus_fixture',
-    provider_price_id: 'price_synthetic',
-    status: 'open',
-    subscription: null,
-    initial_invoice_id: null,
-  }));
-  const client = {
-    merchants: { retrieve: async () => merchant },
-    billing: {
-      retrieveCheckout,
-      ensureCustomer,
-      createCheckoutSession,
-      createTaxQuote: async () => {
-        const snapshot = authority(
-          {
-            intentId: 'fixture',
-            idempotencyKey: 'fixture',
-            subjectAccountId: test.payer,
-            offerId: test.request.offerId,
-            offerVersion: 1,
-            priceId: 'price_synthetic',
-            amountMinorUnits: 2999,
-            currency: 'USD',
-            providerAccountRef: merchant.id,
-            mode: 'live',
-            environment: 'production',
-            interval: 'month',
-            trial: 'none',
-          },
-          'quote_transport',
-        );
-        snapshot.taxQuote.source.plan_id = 'one_monthly';
-        snapshot.taxQuote.quote.seller_id = 'seller_fixture';
-        snapshot.taxQuote.quote.invoice_issuer_id = 'issuer_fixture';
-        snapshot.taxQuote.quote.tax_remitter_id = 'remitter_fixture';
-        snapshot.taxQuote.quote.customer_location_evidence_id = 'location_fixture';
-        return snapshot.taxQuote;
+  const peable = nativePeable({ merchant, livemode: true });
+  const price = peable.price({ unitAmount: 2999, interval: 'month' });
+  test.catalogue.prices[0].priceId = price.id;
+  const provider = createPeablePersonalCheckoutProvider(peable.client, {
+    merchantId: merchant.id,
+    applicationId: merchant.oxy_app_id,
+    namespace: { mode: 'live', environment: 'production' },
+    returnUrl: 'https://accounts.example.invalid/payments',
+    offers: [
+      {
+        offerId: test.request.offerId,
+        offerVersion: 1,
+        priceId: price.id,
+        amountMinorUnits: 2999,
+        currency: 'USD',
+        interval: 'month',
+        trial: 'none',
       },
-    },
-  } as unknown as Pick<Peable, 'merchants' | 'billing'>;
-  const provider = createPeablePersonalCheckoutProvider(
-    client,
-    {
-      merchantId: merchant.id,
-      applicationId: merchant.oxy_app_id,
-      sellerId: 'seller_fixture',
-      invoiceIssuerId: 'issuer_fixture',
-      taxRemitterId: 'remitter_fixture',
-      namespace: { mode: 'live', environment: 'production' },
-      returnUrl: 'https://accounts.example.invalid/payments',
-      offers: [
-        {
-          offerId: test.request.offerId,
-          offerVersion: 1,
-          priceId: 'price_synthetic',
-          planId: 'one_monthly',
-          amountMinorUnits: 2999,
-          currency: 'USD',
-          interval: 'month',
-          trial: 'none',
-        },
-      ],
-    },
-    undefined,
-    {
-      resolveCustomerLocationEvidence: async () => ({
-        customerLocationEvidenceId: 'location_fixture',
-      }),
-    },
-  );
+    ],
+  });
+  const createSession = jest.spyOn(peable.client.checkout.sessions, 'create');
+  const retrieveSession = jest.spyOn(peable.client.checkout.sessions, 'retrieve');
   const dependencies = { catalogue: test.catalogue, provider };
   const first = await startPersonalPlanCheckout(test.payer, test.request, dependencies);
   expect(first.state).toBe('pending');
   expect(await startPersonalPlanCheckout(test.payer, test.request, dependencies)).toEqual(first);
-  expect(createCheckoutSession).toHaveBeenCalledTimes(1);
-  retrieveCheckout.mockRejectedValueOnce(
-    new PeableInvalidRequestError('The billing state must be reconciled before this can proceed.', {
-      statusCode: 409,
-      code: 'reconciliation_required',
-    }),
+  expect(createSession).toHaveBeenCalledTimes(1);
+  // A saved URL is exposed only after the session is re-read for its customer.
+  retrieveSession.mockRejectedValueOnce(new Error('Peable unavailable'));
+  await expect(startPersonalPlanCheckout(test.payer, test.request, dependencies)).rejects.toThrow(
+    'Peable unavailable',
   );
-  await expect(
-    startPersonalPlanCheckout(test.payer, test.request, dependencies),
-  ).rejects.toMatchObject({
-    statusCode: 409,
-    code: 'PAYMENT_REVIEW_REQUIRED',
-  });
   const held = await getDb()
     .select()
     .from(personalPlanCheckoutIntents)
@@ -201,7 +135,7 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
       dependencies,
     ),
   ).rejects.toThrow('already pending');
-  expect(createCheckoutSession).toHaveBeenCalledTimes(1);
+  expect(createSession).toHaveBeenCalledTimes(1);
   expect(
     await getDb()
       .select()
@@ -471,46 +405,15 @@ function authority(
     returnUrl: 'https://example.invalid/return',
     merchantId: input.providerAccountRef,
     subjectAccountId: input.subjectAccountId,
-    planId: 'plan_fixture',
-    customerId: 'cus_fixture',
+    customerId: `cus_${id}`,
     offerId: input.offerId,
     offerVersion: input.offerVersion,
     priceId: input.priceId,
     mode: input.mode,
     environment: input.environment,
-    taxQuote: {
-      schema_version: 3,
-      source: {
-        merchant_id: input.providerAccountRef,
-        app_id: 'app_fixture',
-        store_id: input.subjectAccountId,
-        plan_id: 'plan_fixture',
-        mode: 'live',
-        environment: 'production',
-      },
-      quote: {
-        id,
-        currency: input.currency,
-        gross_minor_units: String(input.amountMinorUnits),
-        net_minor_units: String(input.amountMinorUnits),
-        tax_minor_units: '0',
-        tax_treatment: 'inclusive',
-        seller_id: 'synthetic',
-        invoice_issuer_id: 'synthetic',
-        tax_remitter_id: 'synthetic',
-        tax_service_ref: 'synthetic',
-        country: 'US',
-        coverage_evidence_id: 'synthetic',
-        tax_rate_evidence_id: 'synthetic',
-        customer_location_evidence_id: 'synthetic',
-        quoted_at: Date.parse('2026-01-01T00:00:00.000Z') / 1000,
-        expires_at: Date.parse('2099-01-01T00:00:00.000Z') / 1000,
-      },
-      signature: { algorithm: 'Ed25519', key_id: 'synthetic', value: 'synthetic' },
-    },
   };
 }
-it('freezes the winning prepared quote before concurrent dispatch and restart after lost response', async () => {
+it('freezes the winning prepared binding before concurrent dispatch and restart after lost response', async () => {
   const f = await fixture();
   let release!: () => void;
   const both = new Promise<void>((resolve) => {
@@ -518,7 +421,7 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
   });
   let preparations = 0;
   const prepare = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
-    const selected = authority(input, `quote_${++preparations}`);
+    const selected = authority(input, `winner${++preparations}`);
     if (preparations === 2) release();
     await both;
     return selected;
@@ -529,9 +432,9 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
       .select()
       .from(personalPlanCheckoutIntents)
       .where(eq(personalPlanCheckoutIntents.id, input.intentId));
-    if (!stored.taxQuoteRef || !input.snapshot) throw new Error('Missing stored authority');
-    expect(personalCheckoutSnapshotFromIntent(stored)?.taxQuote).toEqual(input.snapshot.taxQuote);
-    dispatched.push(input.snapshot.taxQuote.quote.id);
+    if (!stored.customerRef || !input.snapshot) throw new Error('Missing stored authority');
+    expect(personalCheckoutSnapshotFromIntent(stored)).toEqual(input.snapshot);
+    dispatched.push(input.snapshot.customerId);
     throw new Error('response lost');
   });
   const provider: PersonalCheckoutProvider = { kind: 'synthetic', prepare, create };
@@ -549,7 +452,7 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
   const replayCreate = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
     expect(input.idempotencyKey).toBe(`personal-checkout:${stored.id}`);
     if (!input.snapshot) throw new Error('Missing replay snapshot');
-    expect(input.snapshot.taxQuote.quote.id).toBe(dispatched[0]);
+    expect(input.snapshot.customerId).toBe(dispatched[0]);
     return {
       sessionId: 'cs_recovered',
       checkoutUrl: 'https://checkout.invalid/recovered',
@@ -564,24 +467,13 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
     ).state,
   ).toBe('pending');
   expect(prepare).toHaveBeenCalledTimes(2);
-  expect(
-    await resumePersonalPlanCheckout(stored.id, {
-      provider,
-      now: new Date('2100-01-01T00:00:00.000Z'),
-    }),
-  ).toEqual({ state: 'pending', intentId: stored.id });
-  const [expired] = await getDb()
-    .select()
-    .from(personalPlanCheckoutIntents)
-    .where(eq(personalPlanCheckoutIntents.id, stored.id));
-  expect(expired.state).toBe('pending');
 });
-it('does not recalculate or release a reserved quote that expired after a lost response', async () => {
+it('replays the frozen binding with the same replay key after a lost response', async () => {
   const f = await fixture();
   const prepare = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) =>
     authority(input, 'frozen'),
   );
-  const create = jest.fn(async () => {
+  const create = jest.fn(async (_input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
     throw new Error('lost');
   });
   const provider: PersonalCheckoutProvider = { kind: 'synthetic', prepare, create };
@@ -592,14 +484,11 @@ it('does not recalculate or release a reserved quote that expired after a lost r
     .select()
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
-  expect(
-    await resumePersonalPlanCheckout(intent.id, {
-      provider,
-      now: new Date('2100-01-01T00:00:00.000Z'),
-    }),
-  ).toEqual({ state: 'pending', intentId: intent.id });
+  await expect(resumePersonalPlanCheckout(intent.id, { provider })).rejects.toThrow('lost');
   expect(prepare).toHaveBeenCalledTimes(1);
-  expect(create).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1][0].idempotencyKey).toBe(create.mock.calls[0][0].idempotencyKey);
+  expect(create.mock.calls[1][0].snapshot).toEqual(create.mock.calls[0][0].snapshot);
 });
 
 it('rejects prepared authority for another subject without storing or dispatching it', async () => {
@@ -618,125 +507,33 @@ it('rejects prepared authority for another subject without storing or dispatchin
     .select()
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
-  expect(intent.taxQuoteRef).toBeNull();
+  expect(intent.customerRef).toBeNull();
   expect(intent.state).toBe('reserved');
 });
 
-it('round-trips every typed signed quote field and exact Unix-second instants through PostgreSQL and official SDK verification', async () => {
+it('round-trips the frozen binding through PostgreSQL and refuses a partial one', async () => {
   const f = await fixture();
-  const keys = generateKeyPairSync('ed25519');
-  const publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
   let prepared: PersonalCheckoutSnapshot | undefined;
-  function canonical(value: unknown): string {
-    if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-    if (value !== null && typeof value === 'object') {
-      const object = value as Record<string, unknown>;
-      return `{${Object.keys(object)
-        .sort()
-        .map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`)
-        .join(',')}}`;
-    }
-    return JSON.stringify(value);
-  }
   const provider: PersonalCheckoutProvider = {
     kind: 'synthetic',
     async prepare(input) {
-      const snapshot = authority(input, 'signed_quote_roundtrip');
-      snapshot.taxQuote.quote.currency = 'USD';
-      snapshot.taxQuote.quote.quoted_at = Date.parse('2026-01-01T00:00:07Z') / 1000;
-      snapshot.taxQuote.quote.expires_at = Date.parse('2099-01-01T00:00:59Z') / 1000;
-      snapshot.taxQuote.signature.key_id = 'fixture';
-      snapshot.taxQuote.signature.value = sign(
-        null,
-        Buffer.from(
-          canonical({
-            schema_version: snapshot.taxQuote.schema_version,
-            source: snapshot.taxQuote.source,
-            quote: snapshot.taxQuote.quote,
-          }),
-        ),
-        keys.privateKey,
-      ).toString('base64url');
-      prepared = snapshot;
-      return snapshot;
+      prepared = authority(input, 'roundtrip');
+      return prepared;
     },
-    async create() {
-      throw new Error('synthetic lost response');
-    },
+    create: f.provider.create,
   };
-  await expect(
-    startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
-  ).rejects.toThrow('lost response');
+  await startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider });
   const [stored] = await getDb()
     .select()
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
-  const reconstructed = personalCheckoutSnapshotFromIntent(stored);
-  expect(reconstructed).toEqual(prepared);
-  // A signed instant is whole seconds: a sub-second stored value was never signed.
-  expect(() =>
-    personalCheckoutSnapshotFromIntent({
-      ...stored,
-      taxQuoteExpiresAt: new Date(Date.parse('2099-01-01T00:00:59.001Z')),
-    }),
-  ).toThrow('not a signed instant');
+  expect(personalCheckoutSnapshotFromIntent(stored)).toEqual(prepared);
   await expect(
     getDb()
       .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteExpiresAt: stored.taxQuoteQuotedAt })
+      .set({ returnUrl: null })
       .where(eq(personalPlanCheckoutIntents.id, stored.id)),
   ).rejects.toThrow();
-  await expect(
-    getDb()
-      .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteNetMinorUnits: BigInt(stored.amountMinorUnits) + 1n })
-      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
-  ).rejects.toThrow();
-  await expect(
-    getDb()
-      .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteCountry: 'USA' })
-      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
-  ).rejects.toThrow();
-
-  expect(stored.taxQuoteQuotedAt).toBeInstanceOf(Date);
-  expect(stored.taxQuoteExpiresAt).toBeInstanceOf(Date);
-  const transport = jest.spyOn(globalThis, 'fetch').mockImplementation(
-    async () =>
-      new Response(JSON.stringify(reconstructed?.taxQuote), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-  );
-  try {
-    const sdk = new Peable({
-      baseURL: 'https://fixture.example.invalid',
-      tokenProvider: { getToken: async () => 'synthetic', invalidate: () => {} },
-      taxQuoteAuthorityKeys: { fixture: publicKey },
-    });
-    const params = {
-      store_id: f.payer,
-      plan_id: 'plan_fixture',
-      customer_location_evidence_id: 'synthetic',
-    };
-    expect(await sdk.billing.createTaxQuote(params)).toEqual(prepared?.taxQuote);
-    // A stored instant moved by one whole second no longer carries the signature.
-    if (!stored.taxQuoteExpiresAt) throw new Error('Missing stored expiry');
-    const shifted = personalCheckoutSnapshotFromIntent({
-      ...stored,
-      taxQuoteExpiresAt: new Date(stored.taxQuoteExpiresAt.getTime() + 1000),
-    });
-    transport.mockImplementation(
-      async () =>
-        new Response(JSON.stringify(shifted?.taxQuote), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-    );
-    await expect(sdk.billing.createTaxQuote(params)).rejects.toThrow();
-  } finally {
-    transport.mockRestore();
-  }
 });
 
 it('reserves only the explicitly published individual product and keeps its price and origin', async () => {

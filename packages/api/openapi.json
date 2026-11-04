@@ -18879,7 +18879,7 @@
                           "canCancel": {
                             "type": "boolean"
                           },
-                          "canRenew": {
+                          "canManage": {
                             "type": "boolean"
                           },
                           "offers": {
@@ -19158,17 +19158,34 @@
         "operationId": "postBillingProductSubscriptionsCancel"
       }
     },
-    "/billing/product-subscriptions/renew": {
+    "/billing/product-subscriptions/portal": {
       "post": {
         "tags": [
           "Billing"
         ],
-        "summary": "POST /billing/product-subscriptions/renew",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "summary": "Open the payment provider's customer portal for one named source.",
+        "description": "Payment methods, invoices and the plan itself, under the provider's own rules.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/billing.ts`, naming a Zod schema the file imports."
+            "description": "A short-lived portal URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           },
           "400": {
             "description": "Validation failed",
@@ -19222,25 +19239,18 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 160
-                  },
-                  "idempotencyKey": {
-                    "type": "string",
-                    "pattern": "^[a-zA-Z0-9_-]+$",
-                    "minLength": 8,
-                    "maxLength": 160
                   }
                 },
                 "required": [
                   "expectedSubjectAccountId",
-                  "sourceId",
-                  "idempotencyKey"
+                  "sourceId"
                 ],
                 "additionalProperties": false
               }
             }
           }
         },
-        "operationId": "postBillingProductSubscriptionsRenew"
+        "operationId": "postBillingProductSubscriptionsPortal"
       }
     },
     "/billing/subscription": {

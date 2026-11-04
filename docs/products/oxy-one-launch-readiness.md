@@ -1,5 +1,39 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## Native Orbit billing (as built, 2026-11-04)
+
+**This section supersedes every proxy-era description below** (signed tax quotes,
+invoice authority, `billing.observation.updated`, checkout-operation recovery,
+the FX-quoted FairCoin renewal rail and `/billing/peable/observations/:sourceId`).
+Peable retired its Stripe-Billing proxy (`/v1/billing/*`); Oxy's personal-plan
+runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
+
+- **Catalog**: each published plan with an approved price is an Orbit product, a
+  recurring tax-inclusive price at exactly that amount and cadence (lookup key
+  `<offerId>_v<version>`) and one entitlement feature per benefit
+  (`<productId>:<key>`, shared by every plan granting it, so One-includes-Plus is
+  one feature). `scripts/sync-peable-catalogue.ts` creates them idempotently
+  (dry run by default) and prints the catalogue `prices[]` / runtime `offers[]`
+  binding; it has not been run against production.
+- **Checkout**: a Checkout Session in `subscription` mode for the account's native
+  customer (`metadata.oxy_account_id`), `client_reference_id` = the intent. Orbit
+  prices and taxes the order (Peable Tax, fail closed); Oxy refuses a session whose
+  `amount_total` is not the approved price. The payer pays on Peable's own checkout.
+- **Evidence**: paid periods come from authoritative reads of the native invoice
+  (one subscription line, approved price, quantity one, totals that add up, paid)
+  and subscription; refunds from the invoice payment's `amount_refunded`. Peable
+  webhooks (`POST /billing/peable/events`, `PEABLE_PERSONAL_EVENT_TYPES`, verified
+  with `OXY_ONE_PEABLE_WEBHOOK_SECRET`) only say which object to re-read.
+- **Management**: cancellation is `subscriptions.update(cancel_at_period_end)`;
+  everything else (payment methods, invoices, paying an open renewal) is Peable's
+  customer portal, opened by `POST /billing/product-subscriptions/portal`.
+- **Access** remains Oxy's product-access ledger (ADR 0033): grants, quota
+  windows, refunds fences, closure fences and ancestor inheritance are not
+  expressible as Peable active entitlements, which are flat per-customer lookup
+  keys. The Orbit features mirror the same benefits so Peable's answer agrees.
+- **Still off**: `OXY_ONE_PEABLE_RUNTIME_ENABLED` is unset in production, the
+  deployed catalogue binds no price and `purchasesEnabled` stays false.
+
 ## Operating company transition (2026-10-20)
 
 Oxy Platforms, Inc. is the intended operating company and prospective Oxy One

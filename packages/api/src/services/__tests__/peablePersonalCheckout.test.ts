@@ -1,380 +1,185 @@
-import { PeableInvalidRequestError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
+import type { PersonalCheckoutInput } from '../personalPlanCheckout.service';
+import { nativePeable } from '../__fixtures__/nativePeable';
 
-const now = new Date('2026-10-07T00:00:00.000Z');
-/** Peable instants are integer Unix seconds (ADR 0014). */
-const nowSeconds = now.getTime() / 1000;
-const configuration = {
-  merchantId: 'merch_fixture',
-  applicationId: 'app_fixture',
-  sellerId: 'seller_fixture',
-  invoiceIssuerId: 'issuer_fixture',
-  taxRemitterId: 'remitter_fixture',
-  namespace: { mode: 'test' as const, environment: 'staging' as const },
-  returnUrl: 'https://accounts.example.invalid/payments',
-  offers: [
-    {
-      offerId: 'one',
-      offerVersion: 1,
-      priceId: 'price_fixture',
-      planId: 'one_monthly',
-      amountMinorUnits: 2999 as const,
-      currency: 'USD' as const,
-      interval: 'month' as const,
-      trial: 'none' as const,
-    },
-  ],
-};
-const input = {
-  intentId: 'intent_fixture',
-  idempotencyKey: 'personal-checkout:intent_fixture',
-  subjectAccountId: 'account_fixture',
-  offerId: 'one',
-  offerVersion: 1,
-  priceId: 'price_fixture',
-  amountMinorUnits: 2999,
-  currency: 'usd',
-  providerAccountRef: 'merch_fixture',
-  mode: 'test',
-  environment: 'staging',
-  interval: 'month' as const,
-  trial: 'none' as const,
-};
-const quote: BillingTaxQuote = {
-  schema_version: 3,
-  source: {
-    merchant_id: 'merch_fixture',
-    app_id: 'app_fixture',
-    store_id: 'account_fixture',
-    plan_id: 'one_monthly',
-    mode: 'test',
-    environment: 'staging',
+const merchant = { id: 'merch_fixture', oxy_app_id: 'app_fixture', environment: 'production' };
+
+function fixture(
+  priceInput: Parameters<ReturnType<typeof nativePeable>['price']>[0] = {
+    unitAmount: 599,
+    interval: 'month',
   },
-  quote: {
-    id: 'quote_fixture',
-    currency: 'USD',
-    gross_minor_units: '2999',
-    net_minor_units: '2499',
-    tax_minor_units: '500',
-    tax_treatment: 'inclusive',
-    seller_id: 'seller_fixture',
-    invoice_issuer_id: 'issuer_fixture',
-    tax_remitter_id: 'remitter_fixture',
-    tax_service_ref: 'tax_fixture',
-    country: 'RO',
-    coverage_evidence_id: 'coverage_fixture',
-    tax_rate_evidence_id: 'rate_fixture',
-    customer_location_evidence_id: 'location_fixture',
-    quoted_at: nowSeconds,
-    expires_at: nowSeconds + 7200,
-  },
-  signature: { algorithm: 'Ed25519', key_id: 'key_fixture', value: 'fixture' },
-};
-function fixture() {
-  const retrieve = jest.fn(async () => ({
-    id: 'merch_fixture',
-    oxy_app_id: 'app_fixture',
-    environment: 'staging',
-  }));
-  const ensureCustomer = jest.fn(async () => ({ provider_customer_id: 'cus_fixture' }));
-  const createTaxQuote = jest.fn(async () => structuredClone(quote));
-  const createCheckoutSession = jest.fn(async () => ({
-    id: 'cs_fixture',
-    url: 'https://checkout.example.invalid/fixture',
-    expires_at: nowSeconds + 3600,
-  }));
-  const retrieveCheckout = jest.fn(async () => ({
-    id: 'cs_fixture',
-    store_id: input.subjectAccountId,
-    plan_id: 'one_monthly',
-    provider_customer_id: 'cus_fixture',
-    provider_price_id: input.priceId,
-    status: 'open',
-    subscription: null,
-    initial_invoice_id: null,
-  }));
-  const resolveCustomerLocationEvidence = jest.fn(async () => ({
-    customerLocationEvidenceId: 'location_fixture',
-  }));
-  const client = {
-    merchants: { retrieve },
-    billing: { ensureCustomer, createTaxQuote, createCheckoutSession, retrieveCheckout },
-  } as unknown as Pick<Peable, 'merchants' | 'billing'>;
-  const provider = createPeablePersonalCheckoutProvider(client, configuration, () => now, {
-    resolveCustomerLocationEvidence,
-  });
-  return {
-    retrieve,
-    ensureCustomer,
-    createTaxQuote,
-    createCheckoutSession,
-    retrieveCheckout,
-    resolveCustomerLocationEvidence,
-    provider,
+) {
+  const peable = nativePeable({ merchant, livemode: true });
+  const price = peable.price(priceInput);
+  const configuration = {
+    merchantId: merchant.id,
+    applicationId: merchant.oxy_app_id,
+    namespace: { mode: 'live' as const, environment: 'production' as const },
+    returnUrl: 'https://accounts.oxy.so/payments',
+    offers: [
+      {
+        offerId: 'mention_plus_monthly',
+        offerVersion: 1,
+        priceId: price.id,
+        amountMinorUnits: 599,
+        currency: 'USD' as const,
+        interval: 'month' as const,
+        trial: 'none' as const,
+      },
+    ],
   };
+  const provider = createPeablePersonalCheckoutProvider(peable.client, configuration);
+  const input: PersonalCheckoutInput = {
+    intentId: 'intent_1',
+    idempotencyKey: 'personal-checkout:intent_1',
+    subjectAccountId: 'account_1',
+    offerId: 'mention_plus_monthly',
+    offerVersion: 1,
+    priceId: price.id,
+    amountMinorUnits: 599,
+    currency: 'usd',
+    providerAccountRef: merchant.id,
+    mode: 'live',
+    environment: 'production',
+    interval: 'month',
+    trial: 'none',
+  };
+  return { peable, price, provider, input, configuration };
 }
-it('prepares trusted customer and quote then replays only the frozen checkout snapshot', async () => {
-  const test = fixture();
-  const snapshot = await test.provider.prepare?.(input);
-  expect(snapshot?.taxQuote).toEqual(quote);
-  expect(test.resolveCustomerLocationEvidence).toHaveBeenCalledWith(input.subjectAccountId);
-  expect(test.createTaxQuote).toHaveBeenCalledWith({
-    store_id: input.subjectAccountId,
-    plan_id: 'one_monthly',
-    customer_location_evidence_id: 'location_fixture',
+
+it('prepares one native customer per account and replays only the frozen binding', async () => {
+  const f = fixture();
+  const create = jest.spyOn(f.peable.client.customers, 'create');
+  const prepare = f.provider.prepare;
+  if (!prepare) throw new Error('prepare missing');
+  const snapshot = await prepare(f.input);
+  expect(snapshot).toMatchObject({
+    merchantId: merchant.id,
+    applicationId: merchant.oxy_app_id,
+    subjectAccountId: 'account_1',
+    priceId: f.price.id,
+    returnUrl: 'https://accounts.oxy.so/payments',
   });
-  const frozen = { ...input, snapshot };
-  expect(await test.provider.create(frozen)).toEqual({
-    sessionId: 'cs_fixture',
-    checkoutUrl: 'https://checkout.example.invalid/fixture',
-    expiresAt: '2026-10-07T01:00:00.000Z',
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(create.mock.calls[0][0]).toEqual({ metadata: { oxy_account_id: 'account_1' } });
+  // A second preparation finds the customer by its account key, not a new one.
+  expect((await prepare({ ...f.input, intentId: 'intent_2' })).customerId).toBe(
+    snapshot.customerId,
+  );
+  expect(create).toHaveBeenCalledTimes(1);
+
+  const sessionCreate = jest.spyOn(f.peable.client.checkout.sessions, 'create');
+  const session = await f.provider.create({ ...f.input, snapshot });
+  expect(session.checkoutUrl).toMatch(/^https:\/\/checkout\.peable\.to\//);
+  expect(sessionCreate.mock.calls[0][0]).toEqual({
+    mode: 'subscription',
+    customer: snapshot.customerId,
+    line_items: [{ price: f.price.id, quantity: 1 }],
+    automatic_tax: { enabled: true },
+    success_url: 'https://accounts.oxy.so/payments',
+    cancel_url: 'https://accounts.oxy.so/payments',
+    client_reference_id: 'intent_1',
+    metadata: { oxy_checkout_intent: 'intent_1', oxy_account_id: 'account_1' },
   });
-  await test.provider.create(frozen);
-  expect(test.ensureCustomer).toHaveBeenCalledTimes(1);
-  expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
-  expect(test.createCheckoutSession.mock.calls[0]).toEqual(
-    test.createCheckoutSession.mock.calls[1],
-  );
-  expect(test.createCheckoutSession).toHaveBeenCalledWith(
-    {
-      provider_customer_id: 'cus_fixture',
-      provider_price_id: input.priceId,
-      trial_days: 0,
-      return_url: configuration.returnUrl,
-      store_id: input.subjectAccountId,
-      plan_id: 'one_monthly',
-      tax_quote: quote,
-    },
-    { idempotencyKey: input.idempotencyKey },
-  );
+  expect(sessionCreate.mock.calls[0][1]).toEqual({ idempotencyKey: 'personal-checkout:intent_1' });
+  expect(await f.provider.create({ ...f.input, snapshot })).toEqual(session);
 });
+
 it.each([
-  { amountMinorUnits: 1 },
-  { currency: 'EUR' },
-  { providerAccountRef: 'another' },
-  { offerVersion: 2 },
-  { mode: 'live' },
-  { environment: 'production' },
-])('rejects changed trusted binding before remote effects %p', async (changed) => {
-  const test = fixture();
-  await expect(test.provider.prepare?.({ ...input, ...changed })).rejects.toThrow(
+  ['amount', { unitAmount: 699, interval: 'month' as const }],
+  ['cadence', { unitAmount: 599, interval: 'year' as const }],
+  [
+    'tax treatment',
+    { unitAmount: 599, interval: 'month' as const, taxBehavior: 'exclusive' as const },
+  ],
+  ['currency', { unitAmount: 599, interval: 'month' as const, currency: 'EUR' }],
+  ['activity', { unitAmount: 599, interval: 'month' as const, active: false }],
+])('refuses a stored price whose %s differs from the approved offer', async (_name, price) => {
+  const f = fixture(price);
+  const create = jest.spyOn(f.peable.client.customers, 'create');
+  await expect(f.provider.prepare?.(f.input)).rejects.toThrow('differs from the approved offer');
+  expect(create).not.toHaveBeenCalled();
+});
+
+it('rejects wrong credentials before any customer effect', async () => {
+  const f = fixture();
+  const create = jest.spyOn(f.peable.client.customers, 'create');
+  jest
+    .spyOn(f.peable.client.merchants, 'retrieve')
+    .mockResolvedValue({ ...merchant, oxy_app_id: 'other' } as never);
+  await expect(f.provider.prepare?.(f.input)).rejects.toThrow('credential owner differs');
+  expect(create).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['offer', { offerId: 'other' }],
+  ['price', { priceId: 'price_other' }],
+  ['amount', { amountMinorUnits: 1 }],
+  ['namespace', { mode: 'test' }],
+  ['merchant', { providerAccountRef: 'merch_other' }],
+])('refuses a %s selection that is not the approved offer', async (_name, change) => {
+  const f = fixture();
+  await expect(f.provider.prepare?.({ ...f.input, ...change })).rejects.toThrow(
     'selection differs',
   );
-  expect(test.retrieve).not.toHaveBeenCalled();
-  expect(test.ensureCustomer).not.toHaveBeenCalled();
 });
-it('rejects wrong credentials before customer effects', async () => {
-  const test = fixture();
-  test.retrieve.mockResolvedValue({
-    id: 'other',
-    oxy_app_id: 'app_fixture',
-    environment: 'staging',
-  });
-  await expect(test.provider.prepare?.(input)).rejects.toThrow('credential owner');
-  expect(test.ensureCustomer).not.toHaveBeenCalled();
+
+it('rejects a missing or foreign snapshot and an altered replay key', async () => {
+  const f = fixture();
+  const snapshot = await f.provider.prepare?.(f.input);
+  if (!snapshot) throw new Error('snapshot missing');
+  const sessionCreate = jest.spyOn(f.peable.client.checkout.sessions, 'create');
+  for (const input of [
+    f.input,
+    { ...f.input, snapshot: { ...snapshot, subjectAccountId: 'other' } },
+    { ...f.input, snapshot: { ...snapshot, customerId: 'not-a-customer' } },
+    { ...f.input, snapshot, idempotencyKey: 'personal-checkout:other' },
+  ])
+    await expect(f.provider.create(input)).rejects.toThrow('snapshot differs');
+  expect(sessionCreate).not.toHaveBeenCalled();
 });
-it.each([
-  'seller_id',
-  'invoice_issuer_id',
-  'tax_remitter_id',
-  'currency',
-  'customer_location_evidence_id',
-] as const)('rejects quote substitution of %s', async (field) => {
-  const test = fixture();
-  const changed = structuredClone(quote);
-  changed.quote[field] = 'other';
-  test.createTaxQuote.mockResolvedValue(changed);
-  await expect(test.provider.prepare?.(input)).rejects.toThrow();
-  expect(test.createCheckoutSession).not.toHaveBeenCalled();
+
+it('refuses a session Orbit priced differently from the approved offer', async () => {
+  const f = fixture();
+  const snapshot = await f.provider.prepare?.(f.input);
+  if (!snapshot) throw new Error('snapshot missing');
+  const real = f.peable.client.checkout.sessions.create.bind(f.peable.client.checkout.sessions);
+  jest
+    .spyOn(f.peable.client.checkout.sessions, 'create')
+    .mockImplementationOnce(async (...args) => ({ ...(await real(...args)), amount_total: '600' }));
+  await expect(f.provider.create({ ...f.input, snapshot })).rejects.toThrow(
+    'differs from the approved offer',
+  );
 });
-it('rejects missing snapshot, foreign subject, stale quote and an altered replay key', async () => {
-  const test = fixture();
-  await expect(test.provider.create(input)).rejects.toThrow('snapshot differs');
-  const snapshot = await test.provider.prepare?.(input);
-  await expect(
-    test.provider.create({ ...input, snapshot, subjectAccountId: 'other' }),
-  ).rejects.toThrow('snapshot differs');
-  await expect(
-    test.provider.create({ ...input, snapshot, idempotencyKey: 'other' }),
-  ).rejects.toThrow('snapshot differs');
-  if (!snapshot) throw new Error('Fixture snapshot missing');
-  snapshot.taxQuote.quote.expires_at = nowSeconds;
-  await expect(test.provider.create({ ...input, snapshot })).rejects.toThrow('expired');
-  expect(test.createCheckoutSession).not.toHaveBeenCalled();
-});
-it('keeps production purchase closed before every remote effect', async () => {
-  const test = fixture();
+
+it('keeps purchases closed outside tests until the deployment enables them', async () => {
+  const f = fixture();
   const previous = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   try {
-    await expect(test.provider.prepare?.(input)).rejects.toThrow('authority is unconfigured');
-    await expect(test.provider.create(input)).rejects.toThrow('authority is unconfigured');
+    const closed = createPeablePersonalCheckoutProvider(f.peable.client, f.configuration);
+    const retrieve = jest.spyOn(f.peable.client.merchants, 'retrieve');
+    await expect(closed.prepare?.(f.input)).rejects.toThrow('purchases are disabled');
+    await expect(closed.create(f.input)).rejects.toThrow('purchases are disabled');
+    expect(retrieve).not.toHaveBeenCalled();
   } finally {
     process.env.NODE_ENV = previous;
   }
-  expect(test.retrieve).not.toHaveBeenCalled();
 });
-it.each([
-  { expires_at: nowSeconds },
-  { expires_at: nowSeconds + 10_800 },
-  { expires_at: nowSeconds + 3600.5 },
-  { expires_at: new Date((nowSeconds + 3600) * 1000).toISOString() },
-  { url: 'http://checkout.example.invalid/fixture' },
-])('rejects unsafe or expired checkout %p', async (change) => {
-  const test = fixture();
-  const snapshot = await test.provider.prepare?.(input);
-  test.createCheckoutSession.mockResolvedValue({
-    id: 'cs_fixture',
-    url: 'https://checkout.example.invalid/fixture',
-    expires_at: nowSeconds + 3600,
-    ...change,
-  });
-  await expect(test.provider.create({ ...input, snapshot })).rejects.toThrow();
-});
-it.each([
-  { schema_version: 2 },
-  { source: { ...quote.source, store_id: 'foreign' } },
-  { source: { ...quote.source, environment: 'production' as const } },
-  { quote: { ...quote.quote, gross_minor_units: '3000' } },
-  { quote: { ...quote.quote, net_minor_units: '2498' } },
-  { quote: { ...quote.quote, tax_treatment: 'exclusive' as const } },
-  { quote: { ...quote.quote, quoted_at: nowSeconds + 1 } },
-  { quote: { ...quote.quote, expires_at: nowSeconds + 7200.5 } },
-])('rejects foreign or invalid signed quote context %p', async (change) => {
-  const test = fixture();
-  test.createTaxQuote.mockResolvedValue({ ...structuredClone(quote), ...change });
-  await expect(test.provider.prepare?.(input)).rejects.toThrow('tax quote');
-  expect(test.createCheckoutSession).not.toHaveBeenCalled();
-});
-it('detaches the approved configuration and the returned SDK authority', async () => {
-  const test = fixture();
-  test.createTaxQuote.mockResolvedValue(quote);
-  const snapshot = await test.provider.prepare?.(input);
-  if (!snapshot) throw new Error('Fixture snapshot missing');
-  snapshot.taxQuote.quote.currency = 'EUR';
-  expect(quote.quote.currency).toBe('USD');
-  await expect(test.provider.create({ ...input, snapshot })).rejects.toThrow('tax quote');
-});
-it('refuses a missing trusted location dependency before remote effects', async () => {
-  const test = fixture();
-  const client = {
-    merchants: { retrieve: test.retrieve },
-    billing: {
-      ensureCustomer: test.ensureCustomer,
-      createTaxQuote: test.createTaxQuote,
-      createCheckoutSession: test.createCheckoutSession,
-    },
-  } as unknown as Pick<Peable, 'merchants' | 'billing'>;
-  const provider = createPeablePersonalCheckoutProvider(client, configuration, () => now);
-  await expect(provider.prepare?.(input)).rejects.toThrow('location is unconfigured');
-  expect(test.retrieve).not.toHaveBeenCalled();
-});
-it('records the pending new issuer and renewal choices without fiscal activation', () => {
-  const proposed = JSON.parse(
-    readFileSync(
-      resolve(__dirname, '../../../config/drafts/oxy-one-commercial-decisions.json'),
-      'utf8',
+
+it('validates a saved session against its customer before exposing its URL', async () => {
+  const f = fixture();
+  const snapshot = await f.provider.prepare?.(f.input);
+  if (!snapshot) throw new Error('snapshot missing');
+  const session = await f.provider.create({ ...f.input, snapshot });
+  await expect(
+    f.provider.validateExistingCheckout?.(snapshot, session.sessionId),
+  ).resolves.toBeUndefined();
+  await expect(
+    f.provider.validateExistingCheckout?.(
+      { ...snapshot, customerId: 'cus_other' },
+      session.sessionId,
     ),
-  );
-  expect(proposed.commercialActivation).toBe(false);
-  expect(proposed.saleCountryObjective).toBe('worldwide');
-  expect(proposed.enabledSaleCountries).toEqual([]);
-  expect(proposed.invoiceIssuer).toMatchObject({
-    legalName: 'Oxy Platforms, Inc.',
-    approved: false,
-    issuerBrandApproved: true,
-    taxIdentifier: null,
-    registrationJurisdiction: 'US-DE',
-    legalNameStatus: 'incorporation_pending',
-    entityType: 'C Corporation',
-    taxIdentifierStatus: 'pending_new_entity_verification',
-    issuerIdentityRef: null,
-  });
-  expect(proposed.faircoinRenewal).toEqual({
-    customerChoices: ['manual_monthly', 'automatic_revocable'],
-    mandatesEnabled: false,
-    automaticRequirements: [
-      'express_consent',
-      'amount_limit',
-      'periodicity_limit',
-      'verifiable_revocation',
-    ],
-  });
-  expect(proposed.unresolved).toEqual(
-    expect.arrayContaining([
-      'seller_id_and_invoice_issuer_id',
-      'tax_remitter_registrations_and_sale_countries',
-      'authoritative_tax_and_customer_location_service',
-      'renewal_failure_grace',
-      'partial_refund_entitlement_policy',
-    ]),
-  );
-});
-
-it('replays the frozen return URL after provider restart with changed configuration', async () => {
-  const test = fixture();
-  const snapshot = await test.provider.prepare?.(input);
-  const client = {
-    merchants: { retrieve: test.retrieve },
-    billing: {
-      ensureCustomer: test.ensureCustomer,
-      createTaxQuote: test.createTaxQuote,
-      createCheckoutSession: test.createCheckoutSession,
-    },
-  } as unknown as Pick<Peable, 'merchants' | 'billing'>;
-  const restarted = createPeablePersonalCheckoutProvider(
-    client,
-    { ...configuration, returnUrl: 'https://new.example.invalid/return' },
-    () => now,
-  );
-  await restarted.create({ ...input, snapshot });
-  expect(test.createCheckoutSession).toHaveBeenCalledWith(
-    expect.objectContaining({ return_url: configuration.returnUrl }),
-    { idempotencyKey: input.idempotencyKey },
-  );
-  expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
-});
-
-it('maps authoritative review failures for creation and saved URLs without granting or repricing', async () => {
-  const f = fixture();
-  const snapshot = await f.provider.prepare?.(input);
-  if (!snapshot) throw new Error('Missing snapshot');
-  const error = new PeableInvalidRequestError(
-    'The billing state must be reconciled before this can proceed.',
-    { statusCode: 409, code: 'reconciliation_required', requestId: 'req_fixture' },
-  );
-  f.createCheckoutSession.mockRejectedValueOnce(error);
-  await expect(f.provider.create({ ...input, snapshot })).rejects.toMatchObject({
-    statusCode: 409,
-    code: 'PAYMENT_REVIEW_REQUIRED',
-  });
-  f.retrieveCheckout.mockRejectedValueOnce(error);
-  await expect(f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture')).rejects.toMatchObject(
-    {
-      statusCode: 409,
-      code: 'PAYMENT_REVIEW_REQUIRED',
-    },
-  );
-  await f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture');
-  f.retrieveCheckout.mockResolvedValueOnce({
-    ...(await f.retrieveCheckout()),
-    store_id: 'foreign',
-  });
-  await expect(f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture')).rejects.toThrow(
-    'binding differs',
-  );
-  expect(f.createTaxQuote).toHaveBeenCalledTimes(1);
-});
-it('passes any other Peable conflict through instead of reporting a payment review', async () => {
-  const f = fixture();
-  const snapshot = await f.provider.prepare?.(input);
-  if (!snapshot) throw new Error('Missing snapshot');
-  const conflict = new PeableInvalidRequestError(
-    'The billing state must be reconciled before this can proceed.',
-    { statusCode: 409, code: 'idempotency_conflict' },
-  );
-  f.createCheckoutSession.mockRejectedValueOnce(conflict);
-  await expect(f.provider.create({ ...input, snapshot })).rejects.toBe(conflict);
+  ).rejects.toThrow('binding differs');
 });

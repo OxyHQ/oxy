@@ -1011,10 +1011,16 @@ const PAIRS: Pair[] = [
     ],
   },
   {
-    name: 'productSubscriptionRenewalRequest',
-    check: client.productSubscriptionRenewalRequestCheck,
-    schema: contracts.productSubscriptionRenewalRequestSchema,
-    samples: [{ expectedSubjectAccountId: 'acc', sourceId: 's', idempotencyKey: 'key_1234' }],
+    name: 'productSubscriptionPortalRequest',
+    check: client.productSubscriptionPortalRequestCheck,
+    schema: contracts.productSubscriptionPortalRequestSchema,
+    samples: [{ expectedSubjectAccountId: 'acc', sourceId: 's' }],
+  },
+  {
+    name: 'productSubscriptionPortalResponse',
+    check: client.productSubscriptionPortalResponseCheck,
+    schema: contracts.productSubscriptionPortalResponseSchema,
+    samples: [{ url: 'https://checkout.peable.to/portal/x' }],
   },
   {
     name: 'personalPlanCheckoutResult',

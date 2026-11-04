@@ -44,7 +44,7 @@ import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
 import productAccessRoutes from './routes/productAccess';
-import peablePersonalObservationRoutes from './routes/peablePersonalObservations';
+import peableEventRoutes from './routes/peableEvents';
 import {
   initializePeablePersonalRuntime,
   stopPeablePersonalRuntime,
@@ -345,7 +345,7 @@ function isEmailInboundWebhookRequest(req: express.Request): boolean {
 // Body parsing middleware - IMPORTANT: Add this before any routes
 // Stripe webhook needs raw body for signature verification (must be before express.json)
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
-app.use('/billing/peable/observations', express.raw({ type: 'application/json', limit: '1mb' }));
+app.use('/billing/peable/events', express.raw({ type: 'application/json', limit: '1mb' }));
 // Kaana's settlements are verified against Kaana's signature over their exact
 // bytes (Kaana ADR 0002), so the body must reach the route unparsed.
 app.use(
@@ -1001,7 +1001,7 @@ app.use('/credits', userRateLimiter, creditsRoutes);
 // API-credit product, and these are the account-scoped INFERENCE money surface.
 app.use('/billing/accounts', accountBillingRoutes);
 app.use('/billing/cost-centers', costCenterRoutes);
-app.use('/billing/peable/observations', peablePersonalObservationRoutes);
+app.use('/billing/peable/events', peableEventRoutes);
 app.use('/billing', billingRoutes);
 // The canonical model catalogue (issue #972, ADR 0008). The mount path is
 // unchanged because Console still calls `GET /models/stats`; what it serves is

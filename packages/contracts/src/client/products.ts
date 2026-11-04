@@ -17,7 +17,8 @@ import type {
   PersonalPlanCheckoutRequest,
   PersonalPlanCheckoutResult,
   ProductPlanCheckoutRequest,
-  ProductSubscriptionRenewalRequest,
+  ProductSubscriptionPortalRequest,
+  ProductSubscriptionPortalResponse,
 } from '../products/checkout';
 import type { PersonalPlanCatalogue, ProductPlanCatalogue } from '../products/plans';
 import {
@@ -180,12 +181,12 @@ export const productPlanCheckoutRequestCheck = exact<ProductPlanCheckoutRequest>
   strictObject({ ...checkoutRequestShape, productId: identifier }),
 );
 
-export const productSubscriptionRenewalRequestCheck = exact<ProductSubscriptionRenewalRequest>()(
-  strictObject({
-    expectedSubjectAccountId: oxyAccountId,
-    sourceId: identifier,
-    idempotencyKey: actionKey,
-  }),
+export const productSubscriptionPortalRequestCheck = exact<ProductSubscriptionPortalRequest>()(
+  strictObject({ expectedSubjectAccountId: oxyAccountId, sourceId: identifier }),
+);
+
+export const productSubscriptionPortalResponseCheck = exact<ProductSubscriptionPortalResponse>()(
+  strictObject({ url: string(url, startsWith('https://')) }),
 );
 
 export const personalPlanCheckoutResultCheck = exact<PersonalPlanCheckoutResult>()(
@@ -224,7 +225,7 @@ export const productSubscriptionsResponseCheck = exact<ProductSubscriptionsRespo
         period: billingPeriod,
         cancelAtPeriodEnd: boolean,
         canCancel: boolean,
-        canRenew: optional(boolean),
+        canManage: optional(boolean),
         offers: array(
           strictObject({
             segmentId: identifier,

@@ -17,7 +17,8 @@ import type {
   ProductPlanCatalogue,
   ProductPlanCheckoutRequest,
   ProductSubscriptionCancellationResult,
-  ProductSubscriptionRenewalRequest,
+  ProductSubscriptionPortalRequest,
+  ProductSubscriptionPortalResponse,
   ProductSubscriptionSummary,
   SubjectProductAccess,
   SubjectProductAccessQuery,
@@ -32,7 +33,8 @@ import {
   productPlanCatalogueCheck,
   productPlanCheckoutRequestCheck,
   productSubscriptionCancellationResultCheck,
-  productSubscriptionRenewalRequestCheck,
+  productSubscriptionPortalRequestCheck,
+  productSubscriptionPortalResponseCheck,
   productSubscriptionsResponseCheck,
   subjectProductAccessCheck,
   subjectProductAccessQueryCheck,
@@ -136,15 +138,16 @@ export interface WalletTransactionsPage {
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
 
-  async renewProductSubscription(
-    request: ProductSubscriptionRenewalRequest,
-  ): Promise<PersonalPlanCheckoutResult> {
+  /** The payment provider's customer portal for one named source the caller pays for. */
+  async openProductSubscriptionPortal(
+    request: ProductSubscriptionPortalRequest,
+  ): Promise<ProductSubscriptionPortalResponse> {
     return parseContract(
-      personalPlanCheckoutResultCheck,
+      productSubscriptionPortalResponseCheck,
       await this.ctx.request<unknown>(
         'POST',
-        '/billing/product-subscriptions/renew',
-        parseContract(productSubscriptionRenewalRequestCheck, request),
+        '/billing/product-subscriptions/portal',
+        parseContract(productSubscriptionPortalRequestCheck, request),
         { cache: false },
       ),
     );
