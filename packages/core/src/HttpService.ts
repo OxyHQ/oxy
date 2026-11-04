@@ -55,6 +55,12 @@ export type AccessTokenProvider = () => string | null;
  * — `null` to send it anonymous. See {@link HttpService.setAnonymousAuthProvider}.
  */
 export type AnonymousAuthProvider = () => Promise<string | null>;
+/**
+ * Told that Oxy answered 401 to a bearer an {@link AnonymousAuthProvider}
+ * supplied; `true` when it dropped that bearer, so the request is sent once
+ * more with the provider's next one.
+ */
+export type AnonymousAuthRejectedHandler = (token: string) => boolean;
 
 declare const credentialGenerationBrand: unique symbol;
 /**
@@ -604,6 +610,7 @@ export class HttpService {
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private anonymousAuthProvider: AnonymousAuthProvider | null = null;
+  private anonymousAuthRejected: AnonymousAuthRejectedHandler | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
   /**
    * Bumped by every {@link endSession}. A re-mint captures it before its first
@@ -1145,6 +1152,33 @@ export class HttpService {
 
         // Handle response
         if (!response.ok) {
+          // A 401 to the bearer the anonymous provider supplied (a backend's
+          // own service token, no user session): once its owner has dropped
+          // it, send the request once more with the provider's next one. A
+          // 401 means the request never ran, so this is safe for any method.
+          if (
+            response.status === 401 &&
+            !contextToken &&
+            usesSessionAuth &&
+            !config.expectedCredentialGeneration &&
+            !config._isAuthRetry &&
+            authHeader?.startsWith('Bearer ') &&
+            this.anonymousAuthRejected?.(authHeader.slice('Bearer '.length))
+          ) {
+            void discardResponseBody(response);
+            if (domain.aborted) throw createCancelledError();
+            // Same reasons as the session retry below: no dedupe (the original
+            // is still in flight under its key), no queue slot (this attempt
+            // holds one).
+            return this.request<T>({
+              ...config,
+              _isAuthRetry: true,
+              retry: false,
+              deduplicate: false,
+              bypassQueue: true,
+              signal: domain,
+            });
+          }
           // On 401, delegate to the installed auth refresh handler and retry
           // once before giving up. HttpService deliberately does not know any
           // session routes; the refresh handler owns session rotation.
@@ -2319,9 +2353,17 @@ export class HttpService {
    * `OxyConfig.serviceIdentity`). A user session always wins: the provider is
    * consulted only when there is no access token, and never for `skipAuth`
    * requests. `null` removes it.
+   *
+   * `onRejected` hears of a 401 to one of the provider's bearers; when it
+   * drops that bearer (`true`), the request is sent once more with the
+   * provider's next one — a rotated or revoked service token heals itself.
    */
-  setAnonymousAuthProvider(provider: AnonymousAuthProvider | null): void {
+  setAnonymousAuthProvider(
+    provider: AnonymousAuthProvider | null,
+    onRejected?: AnonymousAuthRejectedHandler,
+  ): void {
     this.anonymousAuthProvider = provider;
+    this.anonymousAuthRejected = provider ? (onRejected ?? null) : null;
   }
 
   clearTokens(): void {

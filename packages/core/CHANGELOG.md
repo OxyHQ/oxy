@@ -2,6 +2,9 @@
 
 ## 7.19.1
 
+### Fixed
+
+- **A service call survives a rotated or revoked service token.** `serviceRequest` — every server-namespace call (`assets.mediaCache`, `federatedMedia`, `references`, `metadataByIds`, …) — answered a 401 by throwing, while `createServiceClient` already re-minted and resent. Now a 401 drops the refused cached token, mints a fresh one and sends the request once more (a 401 means it never ran, so this is safe for any method and body). Once only, never after an abort; any other status is unchanged. The same holds for a session-less read an `OxyServer` with `serviceIdentity: 'when-anonymous'` sends with its service token (`HttpService.setAnonymousAuthProvider(provider, onRejected)`). Apps that re-minted by hand can drop it.
 ### Changed
 
 - Depends on `@oxy.so/contracts` 6.6.0. `appPermissionsFor` and `requireAppPermission` are unchanged; on one of Oxy's own applications the keys they answer are now held by role in the owning organization, declared in Oxy's first-party registry (oxy ADR 0056), and the docs say so.
