@@ -69,7 +69,7 @@ import {
   type DeletedApplicationContent,
 } from './applicationDeletion.service';
 import { logger } from '../utils/logger';
-import { ApiError, ForbiddenError } from '../utils/error';
+import { ApiError, ForbiddenError, NotFoundError } from '../utils/error';
 import type {
   AssetInitResponse,
   AssetCompleteRequest,
@@ -633,7 +633,7 @@ export class AssetService {
   ): Promise<FileVariantRecord> {
     const fileObj = file ?? (await this.getFile(fileId));
     if (!fileObj) {
-      throw new Error('File not found');
+      throw new NotFoundError('File not found');
     }
 
     const existing = fileObj.variants.find((v) => v.type === variantType && v.readyAt);
@@ -666,7 +666,7 @@ export class AssetService {
         // not generate a missing rendition here: ensureVariant is also reached
         // from unauthenticated public media routes, where transcoding on demand
         // would let arbitrary callers consume unbounded FFmpeg CPU and memory.
-        throw new Error(`Video rendition ${variantType} is not available`);
+        throw new NotFoundError(`Video rendition ${variantType} is not available`);
       }
       // A SIZE name (`thumb`, `w320`, …) asked of a video means "an image of
       // this asset at that size", which for a video is a render of its poster
@@ -683,10 +683,10 @@ export class AssetService {
       // the upload pipeline's queued job only (ADR 0043 stage 4c). Never here:
       // public routes reach this, and an on-demand encode would let any caller
       // spend FFmpeg CPU. A size name has no meaning for audio either.
-      throw new Error(`Audio rendition ${variantType} is not available`);
+      throw new NotFoundError(`Audio rendition ${variantType} is not available`);
     }
 
-    throw new Error(`Variant ${variantType} not supported for mime ${fileObj.mime}`);
+    throw new NotFoundError(`Variant ${variantType} not supported for mime ${fileObj.mime}`);
   }
 
   /**

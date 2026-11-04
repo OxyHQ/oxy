@@ -13,6 +13,26 @@ let pingInterval: ReturnType<typeof setInterval> | null = null;
 let closing = false;
 
 /**
+ * How long ioredis waits before its next reconnect attempt: a backoff that
+ * grows 200 ms per attempt and stays at 5 s, FOREVER.
+ *
+ * It used to answer `null` after 20 attempts (about 42 s), which tells ioredis
+ * to stop reconnecting for good: the client ends, every later command fails
+ * with "Connection is closed", and nothing but a new task brings it back. So a
+ * Valkey outage a little longer than that outlived itself on every task, until
+ * a deploy, while `/health` kept answering 200. A down Valkey costs one
+ * connection attempt per task every 5 s; giving up costs the cache, the
+ * subscribers and the queues until someone notices.
+ *
+ * Shared by every ioredis client the API builds: this one, its `duplicate()`
+ * subscribers (which inherit it), and the BullMQ connections
+ * (`queue/connection.ts`).
+ */
+export function redisRetryStrategy(times: number): number {
+  return Math.min(times * 200, 5000);
+}
+
+/**
  * Get a shared Redis/Valkey client.
  * Returns null when REDIS_URL is not set — all consumers
  * should gracefully fall back to in-memory stores.
@@ -31,10 +51,7 @@ export function getRedisClient(): Redis | null {
       keepAlive: 10000,
       tls: url.startsWith('rediss://') ? {} : undefined,
 
-      retryStrategy(times: number) {
-        if (times > 20) return null;
-        return Math.min(times * 200, 5000);
-      },
+      retryStrategy: redisRetryStrategy,
 
       reconnectOnError(err: Error) {
         return err.message.includes('READONLY');

@@ -42,6 +42,16 @@ export interface Env {
  */
 export const EDGE_CACHE_MAX_BYTES = 500 * 1024 * 1024;
 
+/**
+ * How long a resolve may take before the visitor is answered 504. Without a
+ * bound, a stalled oxy-api held every image request open until Cloudflare gave
+ * up on the Worker. It stays above the slowest legitimate resolve: a size asked
+ * of an image or video for the first time is rendered on the spot (a video's
+ * poster decode alone may take 30 s, `POSTER_FFMPEG_TIMEOUT_MS` in the API). A
+ * render cut off here still finishes in the API, so the retry is served from it.
+ */
+export const RESOLVE_TIMEOUT_MS = 40_000;
+
 /** Keys this isolate is already filling in the background, so a burst of ranges fills once. */
 const backgroundFills = new Set<string>();
 
@@ -289,11 +299,26 @@ export async function serveResolver(
   const target = new URL(`/cdn${url.pathname}`, env.API_ORIGIN);
   if (variant !== null) target.searchParams.set('variant', variant);
   if (revision !== null) target.searchParams.set('revision', revision);
-  const upstream = await deps.fetch(target.toString(), {
-    method: 'GET',
-    redirect: 'manual',
-    headers: visitorHeaders(request),
-  });
+  let upstream: Response;
+  try {
+    upstream = await deps.fetch(target.toString(), {
+      method: 'GET',
+      redirect: 'manual',
+      headers: visitorHeaders(request),
+      signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Too slow (504) or unreachable (502): about this moment, not the file, so
+    // never kept, like a refusal or an outage below.
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    return finalize(
+      new Response(null, {
+        status: timedOut ? 504 : 502,
+        headers: { 'cache-control': 'no-store' },
+      }),
+      null,
+    );
+  }
   const headers = new Headers();
   for (const name of ['location', 'cache-control', 'content-type']) {
     const value = upstream.headers.get(name);

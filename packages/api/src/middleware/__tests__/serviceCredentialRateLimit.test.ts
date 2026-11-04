@@ -15,7 +15,9 @@
  *  (b) `rl:general` no longer charges such a request, and
  *      `serviceCredentialLimiter` does, under its own ceiling;
  *  (c) two applications have SEPARATE budgets, and browser traffic keeps the
- *      per-IP protection untouched.
+ *      per-IP protection untouched;
+ *  (d) within one application, each workload surface has its own budget, so a
+ *      federation fan-out cannot starve its reads, auth or key lookups.
  */
 
 // This file needs the REAL jsonwebtoken (the global jest.setup.cjs mocks it) so
@@ -33,6 +35,7 @@ process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
 
 import {
   authRateLimiter,
+  federationServiceLimiter,
   rateLimiter,
   serviceCredentialLimiter,
   userRateLimiter,
@@ -244,6 +247,52 @@ describe('the two global budgets, mounted as server.ts mounts them', () => {
     expect(Number(second.headers['ratelimit-remaining'])).toBe(
       Number(first.headers['ratelimit-remaining']) - 1,
     );
+  });
+});
+
+describe("one application's workload surfaces have separate budgets", () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(rateLimiter);
+    app.use(serviceCredentialLimiter);
+    app.use('/federation', federationServiceLimiter);
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
+    server = await new Promise<http.Server>((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('charges reads, auth, signing and key lookups each to their own budget, per application', async () => {
+    const remaining = async (method: string, path: string, appId: string) =>
+      (
+        await request(server, {
+          method,
+          path,
+          authorization: `Bearer ${serviceToken({ appId })}`,
+        })
+      ).headers['ratelimit-remaining'];
+
+    // Signing twice draws its own budget down twice ...
+    const signed = await remaining('POST', '/federation/sign', 'app-surfaces');
+    expect(await remaining('POST', '/federation/sign', 'app-surfaces')).toBe(
+      String(Number(signed) - 1),
+    );
+    // ... and nothing else of that application's, nor another application's
+    // signing behind the same address.
+    for (const [method, path] of [
+      ['GET', '/federation/public-key/alice'],
+      ['GET', '/users/some-user-id'],
+      ['POST', '/auth/mcp/oauth/introspect'],
+    ]) {
+      expect(await remaining(method, path, 'app-surfaces')).toBe(signed);
+    }
+    expect(await remaining('POST', '/federation/sign', 'app-surfaces-other')).toBe(signed);
   });
 });
 

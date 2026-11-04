@@ -8,7 +8,7 @@ The Oxy API uses **AWS ElastiCache (Valkey)** — cluster `oxy-valkey` in `eu-we
 |---------|---------------|------------|
 | Rate limiting | In-memory (resets on restart, per-instance) | Shared across instances, survives restarts |
 | Socket.IO | Single-instance only | Cross-instance broadcast via pub/sub |
-| Health check | Reports `"not configured"` | Reports `"connected"` / `"disconnected"` |
+| Health check | Reports `"not configured"` | Reports `"connected"` / `"disconnected"`; `503` once the client has ended |
 
 ## Configuration
 
@@ -47,6 +47,24 @@ export async function closeRedis(): Promise<void> {
 }
 ```
 
+### When Valkey is down
+
+- The client never stops reconnecting (`redisRetryStrategy`: +200 ms per attempt, capped at 5 s).
+  Its `duplicate()` subscribers inherit it and the BullMQ connections (`queue/connection.ts`) use
+  it. It used to give up after 20 attempts (about 42 s), after which every command failed with
+  "Connection is closed" until a deploy.
+- Every limiter admits requests uncounted while the connection is not `ready`, and passes a store
+  error from a connected client (`passOnStoreError`) instead of answering 500 — except the live
+  session-authority and holder-evidence budgets, which fail closed with 503
+  (`failClosedOnStoreError`, `runAuthorityBudget`). The in-memory `bruteForceProtection` slow-down
+  never touches Valkey.
+- `/health` answers `200 "degraded"` while the client reconnects (every task sees the same outage;
+  replacing them would not help) and `503` with `redis: "ended"` if this task's client has ended,
+  which only a new task fixes.
+- A command sent while the client reconnects waits in ioredis's offline queue until
+  `maxRetriesPerRequest` (3) reconnect attempts have failed. Consumers on a request path gate on
+  `status === 'ready'` (`sessionCache.ts`, `userCache.ts`, the limiters) so they do not wait.
+
 ### Authenticated account cache (`packages/api/src/utils/userCache.ts`)
 
 A local miss returns immediately so the session service can read PostgreSQL; Redis
@@ -66,6 +84,8 @@ Every HTTP limiter — the global budgets in `security.ts` and every route's own
 `rateLimit({ prefix, windowMs, max, … })` from `middleware/rateLimiter.ts`, the only module that
 imports `express-rate-limit` (`rateLimiterRefusal.test.ts` enforces it). It uses a `RedisStore`
 under the limiter's unique `prefix` when Redis is configured, and the in-memory store otherwise.
+A limiter fails open when that store cannot count (see "When Valkey is down" above;
+`rateLimiterStoreOutage.test.ts`).
 
 A refused request is answered the same way by every limiter: `429`, `Retry-After` until the
 caller's window resets, and the API error `{ "error": "RATE_LIMITED", "message", "details":
