@@ -20313,6 +20313,9 @@
           },
           "404": {
             "description": "No public CDN-backed asset for this id."
+          },
+          "503": {
+            "description": "The asset could not be resolved right now (storage or database unavailable). Not cacheable; retry after `Retry-After` seconds.\n"
           }
         },
         "operationId": "getCdnId"

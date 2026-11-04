@@ -222,7 +222,7 @@ import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
 import { refreshOriginRegistry } from './config/dynamicOriginRegistry';
 import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirectUris';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { getRedisClient, closeRedis } from './config/redis';
+import { getRedisClient, closeRedis, duplicateRedisSubscriber } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
 import { startAuthorityCacheInvalidationSubscriber } from './utils/authorityCache';
 import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
@@ -450,7 +450,7 @@ let fileCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null
 let authorityCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 if (redis) {
   const pubClient = redis.duplicate();
-  const subClient = redis.duplicate();
+  const subClient = duplicateRedisSubscriber(redis);
   io.adapter(createAdapter(pubClient, subClient));
   logger.info('Socket.IO Redis adapter enabled');
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
@@ -704,8 +704,9 @@ app.get('/', async (_req, res) => {
 // Health check endpoint
 //
 // This is the ALB target-group check: a 503 here drains the task out of the
-// load balancer, so its meaning must stay exactly what it was — the DATABASE
-// being unusable is the only condition that returns 503.
+// load balancer, so it answers 503 only for what replacing the task can fix:
+// the DATABASE being unusable, or this task's Redis client having ended for
+// good (an outage of Valkey itself is "degraded", see below).
 //
 // The probe is a real `select 1` round trip, NOT the existence of a connection
 // object: a driver-side "connected" flag can report a healthy database while
@@ -728,15 +729,22 @@ app.get('/health', async (_req, res) => {
         : 'disconnected'
       : 'not configured';
 
-    // Only the database being down is truly unhealthy (503).
-    // Redis is used for caching/sockets — brief reconnections are "degraded" not "down".
+    // A Valkey that is down or reconnecting is "degraded", not "down": every
+    // task sees the same outage, every limiter admits requests uncounted
+    // meanwhile (`rateLimiter.ts`), and the client reconnects on its own
+    // (`redisRetryStrategy`), so replacing tasks would only add a rolling
+    // restart to it. A client that has ENDED is different: it never reconnects,
+    // so this task stays without its cache, subscribers and queues until it is
+    // replaced. Answering 503 for that is what lets the orchestrator do it.
     const isRedisDown = redisClient && redisClient.status !== 'ready';
+    const isRedisEnded = redisClient?.status === 'end';
+    const isHealthy = isDatabaseUp && !isRedisEnded;
 
-    res.status(isDatabaseUp ? 200 : 503).json({
-      status: isDatabaseUp ? (isRedisDown ? 'degraded' : 'operational') : 'down',
+    res.status(isHealthy ? 200 : 503).json({
+      status: isHealthy ? (isRedisDown ? 'degraded' : 'operational') : 'down',
       timestamp: new Date().toISOString(),
       database: isDatabaseUp ? 'connected' : 'disconnected',
-      redis: redisStatus,
+      redis: isRedisEnded ? 'ended' : redisStatus,
     });
   } catch (error) {
     logger.error('Health check error:', error);

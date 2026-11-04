@@ -58,19 +58,51 @@ interface RateLimitOptions {
    * `RATE_LIMITED` error with {@link RateLimitOptions.message}.
    */
   handler?: (req: Request, res: Response) => void;
+  /**
+   * What happens when the shared store (Redis/Valkey) cannot count a request.
+   *
+   * Absent: the request is admitted UNCOUNTED. A limiter bounds abuse; it is
+   * not something a request needs in order to be served, so a cache outage must
+   * not become an API outage. Before, every limiter rethrew the store's error
+   * (express-rate-limit's `passOnStoreError` defaults to false), and with a
+   * limiter on nearly every route a Valkey outage answered 500 almost
+   * everywhere. Sign-in guessing keeps its own ceiling meanwhile: the per-account
+   * lockout falls back to memory (`loginLockout.service.ts`).
+   *
+   * `true`: the store's error goes to `next(error)` and the CALLER answers.
+   * Only for a budget that rations a scarce authority and already answers 503
+   * when it cannot count (`runAuthorityBudget` in `security.ts`).
+   */
+  failClosedOnStoreError?: boolean;
 }
 
 const DEFAULT_MESSAGE = 'Too many requests, please try again later.';
 
-function makeStore(prefix: string) {
+/**
+ * The shared store for one limiter, or `null` without `REDIS_URL` (each task
+ * then counts in its own memory).
+ *
+ * `storeDown` answers whether the connection can take a command right now. A
+ * command sent while ioredis is reconnecting waits in its offline queue until a
+ * few reconnect attempts have failed (tens of seconds), so a fail-open limiter
+ * does not send one: it admits the request uncounted at once instead of making
+ * every request wait out the outage. This is the same `status === 'ready'` gate
+ * every other cache consumer applies (`sessionCache.ts`, `userCache.ts`).
+ *
+ * `rate-limit-redis` must stay >= 6.0.2: earlier versions kept the rejected
+ * script load of a store built while Valkey was down, so that limiter never
+ * counted again until the task restarted.
+ */
+function makeStore(prefix: string): { store: RedisStore; storeDown: () => boolean } | null {
   const redis = getRedisClient();
-  if (!redis) return {};
+  if (!redis) return null;
   return {
     store: new RedisStore({
       prefix,
       sendCommand: (...args: string[]) =>
         redis.call(args[0], ...args.slice(1)) as Promise<RedisReply>,
     }),
+    storeDown: () => redis.status !== 'ready',
   };
 }
 
@@ -106,8 +138,15 @@ export function rateLimit(options: RateLimitOptions) {
         }),
         options.errorFormat,
       ));
+  const shared = makeStore(options.prefix);
+  const failOpen = !options.failClosedOnStoreError;
+  const storeDown = shared && failOpen ? shared.storeDown : () => false;
+  const skip = options.skip;
   return expressRateLimit({
-    ...makeStore(options.prefix),
+    ...(shared ? { store: shared.store } : {}),
+    // An error from a connected store (a timeout, a failover mid-command) admits
+    // the request uncounted too, unless this budget fails closed.
+    passOnStoreError: failOpen,
     windowMs: options.windowMs,
     max: options.max,
     handler: (req: Request, res: Response) => {
@@ -117,7 +156,7 @@ export function rateLimit(options: RateLimitOptions) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,
-    ...(options.skip ? { skip: options.skip } : {}),
+    skip: (req: Request) => storeDown() || (skip?.(req) ?? false),
     // hashedIpKey already buckets IPv6 to /56 before HMAC (see ipKey.ts); the v8
     // static source scan false-positives on req.ip and spams ERR_ERL_KEY_GEN_IPV6.
     validate: { keyGeneratorIpFallback: false },

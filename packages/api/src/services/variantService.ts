@@ -47,6 +47,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { variantStorageRoot, videoStorageRoots } from '../utils/variant-storage-roots';
 import { getCdnInvalidationQueue } from './cdnInvalidation';
+import { NotFoundError } from '../utils/error';
 import {
   hasCurrentVideoRenditions,
   videoDisplayDimensions,
@@ -2243,10 +2244,10 @@ export class VariantService {
     // Map variantType to config
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
-      throw new Error(`Unsupported image variant: ${variantType}`);
+      throw new NotFoundError(`Unsupported image variant: ${variantType}`);
     }
     if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) {
-      throw new Error(`Image too large for renditions: ${file.size} bytes`);
+      throw new NotFoundError(`Image too large for renditions: ${file.size} bytes`);
     }
 
     const { source } = await renderableImageSource(
@@ -2285,7 +2286,7 @@ export class VariantService {
 
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
-      throw new Error(`Unsupported video image variant: ${variantType}`);
+      throw new NotFoundError(`Unsupported video image variant: ${variantType}`);
     }
 
     const poster = await this.ensureVideoPoster(file);

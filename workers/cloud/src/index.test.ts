@@ -102,7 +102,7 @@ function fakeCache() {
 
 function harness(
   objects: Record<string, Stored>,
-  upstream?: (url: string) => Response,
+  upstream?: (url: string, init?: RequestInit) => Response,
   websiteObjects: Record<string, Stored> = {},
   beforeFullRead?: () => Promise<void>,
 ) {
@@ -124,7 +124,9 @@ function harness(
       const url = String(input);
       fetched.push(url);
       sent.push(new Headers(init?.headers));
-      return upstream ? upstream(url) : new Response('{"error":"NOT_FOUND"}', { status: 404 });
+      return upstream
+        ? upstream(url, init)
+        : new Response('{"error":"NOT_FOUND"}', { status: 404 });
     },
   };
   const get = async (path: string, init?: RequestInit) => {
@@ -425,6 +427,17 @@ describe('the by-id resolver', () => {
     const response = await get('/abc?variant=w96');
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toBe('120');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(entries.size).toBe(0);
+  });
+
+  it('bounds the resolve, answering a timeout with an uncached 504', async () => {
+    const { get, entries } = harness({}, (_url, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    const response = await get('/abc?variant=w96');
+    expect(response.status).toBe(504);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(entries.size).toBe(0);
   });

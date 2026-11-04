@@ -369,36 +369,107 @@ function subjectOrIpKey(req: Request): string {
  * one app's burst is bounded without touching any other app, and a per-IP pool
  * shared by unrelated services stops existing.
  *
+ * Within an application, each workload surface has its own budget
+ * ({@link ServiceWorkloadSurface}), so one kind of traffic cannot starve another.
+ *
  * MOUNT-ORDER INVARIANT: `rl:general` and `slowDown` skip these requests, so
  * `serviceCredentialLimiter` MUST stay mounted globally, immediately alongside
- * them in server.ts — it is the only ceiling this traffic has left. The
- * route-level service limiters (`federationServiceLimiter`,
- * `assetServiceLookupLimiter`, …) remain the tighter, per-surface budgets on top
- * of it; each has its own Redis prefix, so nothing double-counts.
+ * them in server.ts, and `federationServiceLimiter` on the `/federation` mount:
+ * between them they are the only ceiling this traffic has left. The other
+ * route-level service limiters (`assetServiceLookupLimiter`, …) remain tighter
+ * budgets on top; each has its own Redis prefix, so nothing double-counts.
  */
 export function isFirstPartyServiceRequest(req: Request): boolean {
   return servicePrincipal(req) !== undefined;
 }
 
 /**
- * Per-CREDENTIAL budget for everything a service token does, keyed by `appId`.
+ * The workload surfaces a service application's traffic is budgeted by, one
+ * budget per application per surface.
  *
- * The ceiling is sized like the federation one (which fans a whole app's
- * outbound delivery through one credential): 60000/15min ≈ 66 req/s sustained
- * per app, comfortably above what a relying backend generates at present while
- * still bounding a runaway loop or a compromised credential — and now it bounds
- * it to the app that owns it, instead of to everyone sharing its egress IP.
+ * One application's calls are not one workload. Mention's backend, for one,
+ * reaches Oxy with the same `appId` for signed-out reads, outbound ActivityPub
+ * signing, the actor key lookups remote servers trigger when they verify those
+ * signatures, and its MCP server's token introspection. With ONE budget per
+ * application, a delivery fan-out spent what profile reads and MCP sign-in
+ * needed, and starving the key lookups failed the very deliveries it was
+ * signing. A surface here is a class of work that fails independently:
+ *
+ *   - `federation-signing` — `/federation/*` writes: signing on an actor's
+ *     behalf and mirroring the graph (follows, moves, deletions, purges). Paced
+ *     by the application's outbox: backfills and delivery fan-outs.
+ *   - `federation-lookup` — `/federation/public-key/*` and
+ *     `/federation/identities/*`: read-only, paced by REMOTE servers fetching
+ *     actors and by identity resolution, not by the outbox.
+ *   - `auth` — `/auth/*`: token introspection and the other auth calls a
+ *     backend makes per client request; when it fails, every signed-in or MCP
+ *     call the application serves fails with it.
+ *   - `api` — everything else: reads and writes on behalf of users or of an
+ *     anonymous visitor.
+ *
+ * A new surface belongs here only when its traffic is paced by something other
+ * than an existing one's, and it can starve or be starved by it.
+ */
+export type ServiceWorkloadSurface = 'federation-signing' | 'federation-lookup' | 'auth' | 'api';
+
+/** Which {@link ServiceWorkloadSurface} a request path belongs to, `/api` prefix or not. */
+export function serviceWorkloadSurface(path: string): ServiceWorkloadSurface {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  if (isFederationServiceToServicePath(stripped)) {
+    return stripped.startsWith('/federation/public-key/') ||
+      stripped.startsWith('/federation/identities/')
+      ? 'federation-lookup'
+      : 'federation-signing';
+  }
+  if (stripped.startsWith('/auth/')) return 'auth';
+  return 'api';
+}
+
+/**
+ * The budget key of a service request, `<appId>:<surface>`; the hashed address
+ * for anything that is not a verified service credential.
  *
  * Keyed by `appId`, NOT by credential id: rotating a credential must not hand
- * the same application a second budget.
+ * the same application a second budget. The full path is `baseUrl + path`, so
+ * the answer is the same whether the limiter is mounted globally or on a router.
+ */
+function serviceBudgetKey(req: Request): string {
+  const service = servicePrincipal(req);
+  if (!service) return hashedIpKey(req);
+  return `${service.appId}:${requestSurface(req)}`;
+}
+
+function requestSurface(req: Request): ServiceWorkloadSurface {
+  return serviceWorkloadSurface(`${req.baseUrl}${req.path}`);
+}
+
+/**
+ * Per-APPLICATION, per-SURFACE budget for what a service token does, keyed by
+ * {@link serviceBudgetKey}.
+ *
+ * Each surface gets the ceiling the whole application used to share: 60000 /
+ * 15 min ≈ 66 req/s sustained, sized like the federation signing budget (a
+ * whole application's outbound delivery through one credential). A runaway
+ * loop or a compromised credential is still bounded, and bounded to the
+ * application that owns it and to the surface it is flooding; the
+ * application's ceiling across all of its surfaces is the sum.
+ *
+ * The federation surfaces are budgeted at the `/federation` mount instead
+ * ({@link federationServiceLimiter}, same key, same ceiling), because that
+ * limiter must also run BEFORE `serviceAuthMiddleware` to bound unauthenticated
+ * floods. Skipping them here keeps every service request on exactly one budget.
  */
 const serviceCredentialLimiter = rateLimit({
   prefix: 'rl:service:credential:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many requests for this service credential, please slow down.',
-  keyGenerator: (req: Request) => servicePrincipal(req)?.appId ?? hashedIpKey(req),
-  skip: (req: Request) => !isFirstPartyServiceRequest(req),
+  keyGenerator: serviceBudgetKey,
+  skip: (req: Request) => {
+    if (!isFirstPartyServiceRequest(req)) return true;
+    const surface = requestSurface(req);
+    return surface === 'federation-signing' || surface === 'federation-lookup';
+  },
 });
 
 // General rate limiting middleware (exclude file uploads). The previous
@@ -431,13 +502,21 @@ const rateLimiter = rateLimit({
 
 // Dedicated high-ceiling limiter for the federation sign-on-behalf surface
 // (see isFederationServiceToServicePath: /federation/*). Because those paths are
-// skipped by rl:general, this is their SOLE per-IP budget. Mounted at the
-// `/federation` router in server.ts so it also bounds unauthenticated floods
-// (it runs before serviceAuthMiddleware).
+// skipped by rl:general and by serviceCredentialLimiter, this is their SOLE
+// budget. Mounted at the `/federation` router in server.ts so it also bounds
+// unauthenticated floods (it runs before serviceAuthMiddleware).
+//
+// Keyed like serviceCredentialLimiter (`serviceBudgetKey`): a verified service
+// credential is charged to `<appId>:federation-signing` or
+// `<appId>:federation-lookup`, anything else to its hashed address. It was
+// keyed by address alone, and every application in the cluster leaves through
+// one NAT egress, so one application's backfill 429'd every other
+// application's signing; and within one application, an outbox fan-out spent
+// the budget the key lookups that verify its own signatures needed.
 //
 // The ceiling is deliberately high: a relying app's outbox backfill / delivery
-// fan-out signs tens of thousands of requests through ONE NAT egress IP. Sizing
-// for the empirical worst case — a sustained ~25 req/s backfill (a 12k-post
+// fan-out signs tens of thousands of requests in a burst. Sizing for the
+// empirical worst case — a sustained ~25 req/s backfill (a 12k-post
 // reconciliation) plus concurrent live delivery — needs well above the general
 // 1000/15min: 60000/15min ≈ 66 req/s sustained is ~2.6x that peak, with room
 // for live traffic, while still bounding a runaway loop or a compromised
@@ -449,7 +528,7 @@ const federationServiceLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many federation signing requests, please slow down.',
-  keyGenerator: hashedIpKey,
+  keyGenerator: serviceBudgetKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
 
@@ -528,18 +607,21 @@ const liveSubjectLimiter = rateLimit({
   windowMs: 60_000,
   max: liveSubjectMax ?? 1,
   keyGenerator: subjectOrIpKey,
+  failClosedOnStoreError: true,
 });
 const liveAddressLimiter = rateLimit({
   prefix: 'rl:session:live:ip:',
   windowMs: 60_000,
   max: liveAddressMax ?? 1,
   keyGenerator: hashedIpKey,
+  failClosedOnStoreError: true,
 });
 const liveGlobalLimiter = rateLimit({
   prefix: 'rl:session:live:global:',
   windowMs: 60_000,
   max: liveGlobalMax ?? 1,
   keyGenerator: () => 'all',
+  failClosedOnStoreError: true,
 });
 
 // Holder evidence shares no quota with live server-side authorization. It is
@@ -560,18 +642,21 @@ const holderEvidenceLimiters =
           windowMs: 60_000,
           max: holderEvidenceSubjectMax,
           keyGenerator: subjectOrIpKey,
+          failClosedOnStoreError: true,
         }),
         address: rateLimit({
           prefix: 'rl:session:holder-evidence:ip:',
           windowMs: 60_000,
           max: holderEvidenceAddressMax,
           keyGenerator: hashedIpKey,
+          failClosedOnStoreError: true,
         }),
         global: rateLimit({
           prefix: 'rl:session:holder-evidence:global:',
           windowMs: 60_000,
           max: holderEvidenceGlobalMax,
           keyGenerator: () => 'all',
+          failClosedOnStoreError: true,
         }),
       }
     : null;

@@ -2,6 +2,7 @@ import { infrastructureLocation } from '@oxy.so/telemetry/collector';
 import { randomUUID } from 'node:crypto';
 import type { Namespace } from 'socket.io';
 import { getRedisClient } from '../config/redis';
+import { logger } from '../utils/logger';
 
 export interface InfrastructureMember {
   instanceId: string;
@@ -70,15 +71,56 @@ export async function observeInfrastructure(
   const redis = getRedisClient();
   if (removed) {
     localMembers.delete(key);
-    if (redis) await redis.hdel(REGISTRY_KEY, key);
+    if (redis) await redis.hdel(REGISTRY_KEY, key).catch(registryUnavailable);
   } else {
     const value = { member, seenAt: Date.now() };
     localMembers.set(key, value);
-    if (redis) await redis.hset(REGISTRY_KEY, key, JSON.stringify(value));
+    if (redis)
+      await redis.hset(REGISTRY_KEY, key, JSON.stringify(value)).catch(registryUnavailable);
   }
   // A write that overlaps a read must trigger a fresh read after it.
   if (refreshing) await refreshing;
   await refreshInfrastructure();
+}
+
+/**
+ * The registry is a live view, never a dependency: when Valkey does not answer,
+ * this task keeps showing what it last read plus what it observed itself, and
+ * heartbeats, the dashboard and shutdown carry on.
+ */
+function registryUnavailable(error: unknown): void {
+  logger.warn('Platform infrastructure registry unavailable', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+/** Replace the local view with the fleet's registry; `false` when Valkey did not answer. */
+async function readSharedRegistry(
+  redis: NonNullable<ReturnType<typeof getRedisClient>>,
+  now: number,
+): Promise<boolean> {
+  try {
+    const entries = await redis.hgetall(REGISTRY_KEY);
+    localMembers.clear();
+    for (const [key, encoded] of Object.entries(entries)) {
+      const value = JSON.parse(encoded) as { member: InfrastructureMember; seenAt: number };
+      if (now - value.seenAt < MEMBER_TTL_MS) localMembers.set(key, value);
+      else {
+        // Delete only the expired value we read; a concurrent heartbeat wins.
+        await redis.eval(
+          'if redis.call("HGET", KEYS[1], ARGV[1]) == ARGV[2] then return redis.call("HDEL", KEYS[1], ARGV[1]) end return 0',
+          1,
+          REGISTRY_KEY,
+          key,
+          encoded,
+        );
+      }
+    }
+    return true;
+  } catch (error) {
+    registryUnavailable(error);
+    return false;
+  }
 }
 
 export function refreshInfrastructure(): Promise<typeof snapshot> {
@@ -86,24 +128,7 @@ export function refreshInfrastructure(): Promise<typeof snapshot> {
   refreshing = (async () => {
     const now = Date.now();
     const redis = getRedisClient();
-    if (redis) {
-      const entries = await redis.hgetall(REGISTRY_KEY);
-      localMembers.clear();
-      for (const [key, encoded] of Object.entries(entries)) {
-        const value = JSON.parse(encoded) as { member: InfrastructureMember; seenAt: number };
-        if (now - value.seenAt < MEMBER_TTL_MS) localMembers.set(key, value);
-        else {
-          // Delete only the expired value we read; a concurrent heartbeat wins.
-          await redis.eval(
-            'if redis.call("HGET", KEYS[1], ARGV[1]) == ARGV[2] then return redis.call("HDEL", KEYS[1], ARGV[1]) end return 0',
-            1,
-            REGISTRY_KEY,
-            key,
-            encoded,
-          );
-        }
-      }
-    } else {
+    if (!redis || !(await readSharedRegistry(redis, now))) {
       for (const [key, value] of localMembers)
         if (now - value.seenAt >= MEMBER_TTL_MS) localMembers.delete(key);
     }
@@ -162,7 +187,7 @@ export async function stopPlatformInfrastructure(): Promise<void> {
   await ownHeartbeat;
   const redis = getRedisClient();
   localMembers.delete(`oxy-api:${instanceId}`);
-  if (redis) await redis.hdel(REGISTRY_KEY, `oxy-api:${instanceId}`);
+  if (redis) await redis.hdel(REGISTRY_KEY, `oxy-api:${instanceId}`).catch(registryUnavailable);
   if (refreshing) await refreshing;
   await refreshInfrastructure();
   namespace = null;

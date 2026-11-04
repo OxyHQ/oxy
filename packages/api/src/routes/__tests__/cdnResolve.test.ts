@@ -13,7 +13,8 @@
  *   3. A non-active file resolves to 404 before any CDN probe.
  *   4. A missing/unknown id resolves to 404.
  *   5. A public file with no CDN-reachable copy (probe returns null) → 404.
- *   6. A throwing CDN probe degrades to 404, never 500.
+ *   6. A throwing CDN probe is a 503 the client retries, never cached, unless
+ *      it says the rendition cannot exist (`NotFoundError`): that is a 404.
  *
  * The asset service singleton, validate middleware, and logger are stubbed at
  * the module boundary so the router runs over real `node:http` round-trips with
@@ -52,6 +53,7 @@ jest.mock('../../utils/logger', () => ({
 
 import cdnRouter from '../cdn';
 import { errorHandler } from '../../middleware/errorHandler';
+import { NotFoundError } from '../../utils/error';
 
 interface RawResponse {
   status: number;
@@ -394,18 +396,25 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
     expect(res.location).toBeUndefined();
   });
 
-  it('404s (never 500s) when the CDN probe throws', async () => {
+  it('answers a transient probe failure with an uncacheable 503, and an impossible rendition with 404', async () => {
     mockGetFile.mockResolvedValue({
       _id: PROBE_THROWS_FILE_ID,
       status: 'active',
       visibility: 'public',
       storageKey: 'public/content/2026/03/ee/x.png',
     });
-    mockGetPublicCdnUrl.mockRejectedValue(new Error('S3 head failed'));
+    mockGetPublicCdnUrl.mockRejectedValueOnce(new Error('S3 head failed'));
 
-    const res = await requestNoFollow(server, `/cdn/${PROBE_THROWS_FILE_ID}`);
+    const transient = await requestNoFollow(server, `/cdn/${PROBE_THROWS_FILE_ID}`);
 
-    expect(res.status).toBe(404);
-    expect(res.location).toBeUndefined();
+    expect(transient.status).toBe(503);
+    expect(transient.cacheControl).toBe('no-store');
+    expect(transient.location).toBeUndefined();
+
+    mockGetPublicCdnUrl.mockRejectedValueOnce(new NotFoundError('Unsupported image variant: w7'));
+
+    const impossible = await requestNoFollow(server, `/cdn/${PROBE_THROWS_FILE_ID}?variant=w7`);
+
+    expect(impossible.status).toBe(404);
   });
 });

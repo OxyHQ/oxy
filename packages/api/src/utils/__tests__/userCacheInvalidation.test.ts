@@ -23,6 +23,7 @@ jest.mock('../logger', () => ({
 let redisHandle: unknown = null;
 jest.mock('../../config/redis', () => ({
   __esModule: true,
+  ...jest.requireActual('../../config/redis'),
   getRedisClient: () => redisHandle,
 }));
 
