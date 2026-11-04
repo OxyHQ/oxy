@@ -1,5 +1,38 @@
 # Changelog: `@oxy.so/federation`
 
+## 3.0.0
+
+A remote profile is fetched once per sync. Oxy's `/federation/identities/resolve`
+fetches and verifies the source and now returns the document it verified, so an
+app reads the actor from that answer instead of fetching it a second time. The
+connector contract loses the identity members nothing called.
+
+### Breaking
+
+- `NetworkConnector` no longer has `resolve`, `mapIdentity` or `receive`, and
+  `ReceiveContext` is gone. Identity belongs to Oxy (`/federation/identities/resolve`);
+  inbound activities reach the protocol's own inbox handler. Delete the methods
+  from your connectors.
+
+### Added
+
+- `ActorResolverConfig.fetchActorDocument`: where actor documents come from
+  (default: the signed GET). Its `source` result is handed to
+  `FederatedActorStore.upsertActor(uri, update, source)`, so the store reuses
+  what the fetcher learned (Oxy's verified identity) instead of asking again.
+  The resolver and store are generic over that `TSource`.
+- `createSignedFetcher`: `createSignedFetch` that also answers with the URL the
+  response came from after redirects (`SignedFetchResult.finalUrl`).
+- `SignedFetchLogger` lines carry a `{ status, url }` detail, so a sink can log
+  the URL in its own redacted form.
+- `readBoundedResponseText` / `readBoundedResponseJson` (and the body error
+  classes): the one bounded, deadlined `Response` body reader, exported.
+
+### Fixed
+
+- A signed fetch releases the body of every redirect hop and of a 5xx answer
+  it retries unsigned.
+
 ## 2.17.0
 
 A field a server sends in a different, equally valid JSON-LD shape is read

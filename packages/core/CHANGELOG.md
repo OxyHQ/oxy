@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.21.1
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.8.0, so an app on contracts 6.8.0 keeps one copy.
+
 ## 7.21.0
 
 ### Added

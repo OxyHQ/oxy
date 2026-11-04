@@ -21,7 +21,14 @@ name, biography, avatar, and canonical handle claims are never persisted.
 The response includes the public `user`, the actor-specific `externalIdentity`,
 all currently verified `externalIdentities`, and `redirectedUserIds` for older
 references. `sourceUserId` stays anchored to the source account; `userId` is the
-current canonical person. Public profile resolution and legacy
+current canonical person. When the request fetched the source (an `actorUri`
+resolve always does), the response also carries `sourceDocument`: the
+ActivityPub actor or atproto `getProfile` view Oxy verified, bound to
+`externalIdentity.actorUri`. A caller reads the fields Oxy does not keep (banner,
+counts, profile fields, flags, inbox, keys) from it rather than fetching the
+source again; Mention's actor resolver reads every actor this way, so a profile
+sync fetches the actor once. A failed resolve is a 404 whose `details.sourceStatus`
+is the source's own HTTP refusal (410: the actor is gone). Public profile resolution and legacy
 `PUT /users/resolve` use the same authority. `POST /federation/identities/lookup`
 accepts up to 100 IDs, account handles, or actor URIs without remote discovery.
 The shared request/response schemas live in `@oxy.so/contracts`.

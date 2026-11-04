@@ -42,8 +42,32 @@ export const resolveExternalIdentityResponseSchema = z
     externalIdentity: externalIdentityReferenceSchema.extend({ userId: z.string() }),
     externalIdentities: z.array(externalIdentityReferenceSchema),
     redirectedUserIds: z.array(z.string()),
+    /**
+     * The source document Oxy fetched and verified for THIS answer: the
+     * ActivityPub actor (`id` is `externalIdentity.actorUri`) or the atproto
+     * `app.bsky.actor.getProfile` view (`did` is it). Present only when this
+     * request fetched the source — an `actorUri` resolve always does — and
+     * absent when the answer came from the registry. It is what the source
+     * said, bound to the actor by Oxy's verification, so a caller reads the
+     * fields Oxy does not keep (banner, counts, profile fields, flags, inbox and
+     * keys) from it instead of fetching the source again. Untrusted text: Oxy's
+     * own profile (`user`) is the normalized name, bio and avatar.
+     */
+    sourceDocument: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((value, context) => {
+    const document = value.sourceDocument;
+    if (
+      document &&
+      (value.externalIdentity.protocol === 'atproto' ? document.did : document.id) !==
+        value.externalIdentity.actorUri
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['sourceDocument'],
+        message: 'Source document does not name the resolved actor',
+      });
+    }
     if (value.externalIdentity.userId !== value.user.id) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

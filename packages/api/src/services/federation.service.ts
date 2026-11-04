@@ -379,6 +379,20 @@ export async function ensureInstanceKeyId(): Promise<string> {
   return (await getInstanceKeyPair(AP_DOMAIN)).keyId;
 }
 
+/** A source profile fetched now, with the document it was derived from. */
+interface SourceObservation {
+  profile: ExternalActorProfile;
+  document?: Record<string, unknown>;
+}
+
+/**
+ * Filled by a resolve whose source answered an HTTP error: the status it
+ * answered, so a caller can tell a gone actor (410) from one that is not there.
+ */
+export interface SourceFailure {
+  sourceStatus?: number;
+}
+
 /** One source actor of an external identity, as the registry stores it. */
 interface StoredExternalSource {
   canonicalAcct: string;
@@ -1083,13 +1097,23 @@ class FederationService {
           profile.domain = candidateHost;
         }
       }
-      return { ok: true, profile };
+      return { ok: true, profile, document: actor };
     } catch {
       return resolutionFailure('actor_fetch', 'unexpected_failure', { actorUri });
     }
   }
 
+  /** The verified profile of a Bluesky account by its DID, or null. */
   async fetchAtprotoProfile(did: string): Promise<ExternalActorProfile | null> {
+    return (await this.fetchAtprotoSource(did))?.profile ?? null;
+  }
+
+  /**
+   * One `app.bsky.actor.getProfile` read of a DID: the identity profile Oxy
+   * derives from it, and the profile view itself (counts, banner, creation date
+   * and labels, which Oxy does not keep and returns to the resolve caller).
+   */
+  private async fetchAtprotoSource(did: string): Promise<SourceObservation | null> {
     if (!ATPROTO_DID_RE.test(did)) return null;
     const response = await safeFetch(
       `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`,
@@ -1113,16 +1137,19 @@ class FederationService {
     // An unverified handle is Bluesky's shared `handle.invalid`: name it by its DID.
     const handle = atprotoIdentityHandle(profile.handle, did).toLowerCase();
     return {
-      actorUri: did,
-      protocol: 'atproto',
-      domain: BSKY_NETWORK_DOMAIN,
-      username: `${blueskyUsernameFromHandle(handle)}@${BSKY_NETWORK_DOMAIN}`,
-      transportAcct: handle,
-      stableId: did,
-      evidenceLinks: [],
-      displayName: typeof profile.displayName === 'string' ? profile.displayName : handle,
-      bio: sanitizePlainText(typeof profile.description === 'string' ? profile.description : ''),
-      avatarUrl: typeof profile.avatar === 'string' ? profile.avatar : undefined,
+      profile: {
+        actorUri: did,
+        protocol: 'atproto',
+        domain: BSKY_NETWORK_DOMAIN,
+        username: `${blueskyUsernameFromHandle(handle)}@${BSKY_NETWORK_DOMAIN}`,
+        transportAcct: handle,
+        stableId: did,
+        evidenceLinks: [],
+        displayName: typeof profile.displayName === 'string' ? profile.displayName : handle,
+        bio: sanitizePlainText(typeof profile.description === 'string' ? profile.description : ''),
+        avatarUrl: typeof profile.avatar === 'string' ? profile.avatar : undefined,
+      },
+      document: profile,
     };
   }
 
@@ -1358,17 +1385,21 @@ class FederationService {
     return { ...outcome, sourceOwnerVerified };
   }
 
-  async resolveExternalIdentity(input: {
-    actorUri?: string;
-    handle?: string;
-    transportAcct?: string;
-    protocol?: string;
-  }) {
+  async resolveExternalIdentity(
+    input: {
+      actorUri?: string;
+      handle?: string;
+      transportAcct?: string;
+      protocol?: string;
+    },
+    failure?: SourceFailure,
+  ) {
     if (input.actorUri)
-      return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct);
+      return this.resolveExternalActorIdentity(input.actorUri, input.transportAcct, { failure });
     // A DID is already an atproto actor id.
     const did = input.handle?.trim();
-    if (did && ATPROTO_DID_RE.test(did)) return this.resolveExternalActorIdentity(did);
+    if (did && ATPROTO_DID_RE.test(did))
+      return this.resolveExternalActorIdentity(did, undefined, { failure });
     const handle = input.handle ? this.normalizeExternalHandle(input.handle) : null;
     if (!handle) return null;
     const at = handle.lastIndexOf('@');
@@ -1479,11 +1510,16 @@ class FederationService {
     return this.persistResolvedProfile(lookup.profile, opts);
   }
 
-  /** The single persistence path used by public discovery and every connector. */
+  /**
+   * The single persistence path used by public discovery and every connector.
+   * It always fetches the source, and its answer carries the document fetched
+   * (`sourceDocument`), so a caller never fetches the same source again. When
+   * the source answers an HTTP error, `opts.failure.sourceStatus` says which.
+   */
   async resolveExternalActorIdentity(
     actorUri: string,
     transportAcct?: string,
-    opts: { forceAvatarRefresh?: boolean } = {},
+    opts: { forceAvatarRefresh?: boolean; failure?: SourceFailure } = {},
   ) {
     // Not a URL: dispatched before any URL parsing, and never through the
     // proof-revoking unavailable path below.
@@ -1497,14 +1533,27 @@ class FederationService {
       }
     }
     const startedAt = new Date();
-    const profile = actorUri.startsWith('did:')
-      ? await this.fetchAtprotoProfile(actorUri)
-      : await this.fetchActorProfile(actorUri, transportAcct);
-    if (!profile) {
+    const observed = actorUri.startsWith('did:')
+      ? await this.fetchAtprotoSource(actorUri)
+      : await this.fetchActorSource(actorUri, transportAcct, opts.failure);
+    if (!observed) {
       await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', startedAt);
       return null;
     }
-    return this.persistResolvedProfile(profile, opts);
+    return this.persistResolvedProfile(observed.profile, opts, observed.document);
+  }
+
+  /** {@link fetchActorProfileResult} as an observation, reporting an HTTP refusal into `failure`. */
+  private async fetchActorSource(
+    actorUri: string,
+    transportAcct: string | undefined,
+    failure: SourceFailure | undefined,
+  ): Promise<SourceObservation | null> {
+    const result = await this.fetchActorProfileResult(actorUri, transportAcct);
+    if (result.ok) return { profile: result.profile, document: result.document };
+    if (failure && result.failure.reason === 'http_status')
+      failure.sourceStatus = result.failure.httpStatus;
+    return null;
   }
 
   /**
@@ -1520,6 +1569,7 @@ class FederationService {
   private async persistResolvedProfile(
     profile: ExternalActorProfile,
     opts: { forceAvatarRefresh?: boolean },
+    sourceDocument?: Record<string, unknown>,
   ) {
     if (isOwnFederationDomain(profile.domain)) return null;
     const result = await registerExternalIdentity({
@@ -1587,6 +1637,7 @@ class FederationService {
       },
       result.userId,
       identityProof,
+      sourceDocument,
     );
   }
 
@@ -1631,6 +1682,7 @@ class FederationService {
     source: StoredExternalSource,
     fallbackSourceUserId: string,
     identityProof?: { state: string; reason?: string },
+    sourceDocument?: Record<string, unknown>,
   ) {
     const [externalIdentities, redirectedUserIds] = await Promise.all([
       getExternalIdentitiesForUser(canonicalUserId),
@@ -1645,6 +1697,7 @@ class FederationService {
       externalIdentities,
       redirectedUserIds,
       identityProof,
+      ...(sourceDocument ? { sourceDocument } : {}),
     };
   }
 

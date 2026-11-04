@@ -45,6 +45,20 @@ describe('external identity boundary', () => {
     expect(resolveExternalIdentityResponseSchema.parse(response)).toEqual(response);
   });
 
+  it('keeps a source document only when it names the resolved actor', () => {
+    const sourceDocument = { id: source.actorUri, inbox: `${source.actorUri}/inbox` };
+    expect(resolveExternalIdentityResponseSchema.parse({ ...response, sourceDocument })).toEqual({
+      ...response,
+      sourceDocument,
+    });
+    expect(
+      resolveExternalIdentityResponseSchema.safeParse({
+        ...response,
+        sourceDocument: { id: 'https://elsewhere.example/users/mallory' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects a successful-looking response without a usable canonical profile id', () => {
     expect(
       resolveExternalIdentityResponseSchema.safeParse({
