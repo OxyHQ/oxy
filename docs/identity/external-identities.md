@@ -9,7 +9,10 @@ normalize profile biographies, or decide person equivalence.
 
 `POST /federation/identities/resolve` requires a service token with
 `federation:write` and exactly one `actorUri` or `handle`. A handle can be a
-supported network profile URL. Oxy fetches the source with its signed,
+supported network profile URL. A handle Oxy already holds is answered from the
+registry with no remote fetch, its source re-verified in the background once
+the stored verification is a day old; an `actorUri`, an unknown handle, an
+Instagram account or a never-verified legacy row is fetched. Oxy fetches the source with its signed,
 DNS-pinned HTTPS client and applies the reviewed policy in
 `packages/api/src/config/federationBridgePolicy.ts`. Native atproto identities
 are verified against the DID returned by the Bluesky appview. Caller-provided
@@ -188,7 +191,8 @@ verification timestamp as epoch. An unverified legacy bridge actor is never
 returned before Oxy has verified its source, and a public read never performs
 that verification: it schedules it in the background and answers "not found"
 until it lands. A handle whose discovery just failed is not rediscovered by
-profile lookups for five minutes.
+profile lookups for five minutes, unless it failed through a bridge whose 404 is
+intermittent (bird.makeup): that failure says nothing about the account.
 
 Run the Oxy reconciliation from the API package using the deployment's ordinary
 database and signing configuration:

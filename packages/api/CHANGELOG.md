@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed (a known external account resolves without asking its source again)
+
+`POST /federation/identities/resolve` re-fetched the source actor on every call,
+even for a handle Oxy already held, and answered 404 whenever that fetch failed.
+bird.makeup answers 404 for a freshly mirrored account on most requests, so an X
+account Oxy had just created (`elctrixr@x.com`, 2026-11-04) was "not found" by
+Mention's search on most later tries, each taking 1–4 s. A known handle is now
+answered from the registry, as profile reads already were, and its source is
+re-verified in the background once a day old. An `actorUri`, an unknown handle, an
+Instagram account (its Meta proof is decided at fetch time) and a never-verified
+legacy row still fetch. A failed discovery through bird.makeup is no longer
+remembered as an unresolvable handle: that 404 says nothing about the account, and
+remembering it made the profile page answer "not found" for five minutes.
+
 ### Added (an MCP resource server asks which of its own permissions the person holds)
 
 `POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)

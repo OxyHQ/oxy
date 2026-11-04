@@ -803,6 +803,66 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     }
   });
 
+  it('serves a just-discovered bridged account on every handle form, without asking the bridge again', async () => {
+    actorCounter += 1;
+    const local = `elctrix${actorCounter}`;
+    const actorUri = `https://bird.makeup/users/${local}`;
+    webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: `${local}@bird.makeup` });
+    actorSpy.mockResolvedValue({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@bird.makeup`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Rita',
+      bio: '',
+    });
+
+    const discovered = await federationService.resolveExternalIdentity({
+      handle: `@${local.toUpperCase()}@X.com`,
+    });
+    expect(discovered?.externalIdentity).toMatchObject({
+      canonicalAcct: `${local}@x.com`,
+      actorUri,
+    });
+
+    // bird.makeup now answers 404, as it does for most requests to a fresh mirror.
+    webfingerSpy.mockResolvedValue(null);
+    actorSpy.mockResolvedValue(null);
+    webfingerSpy.mockClear();
+    actorSpy.mockClear();
+    for (const handle of [`@${local}@x.com`, `${local.toUpperCase()}@x.com`]) {
+      const resolved = await federationService.resolveExternalIdentity({ handle });
+      expect(resolved?.user.id).toBe(discovered?.user.id);
+    }
+    expect(webfingerSpy).not.toHaveBeenCalled();
+    expect(actorSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not remember a failed discovery through a bridge whose 404 is intermittent', async () => {
+    actorCounter += 1;
+    const local = `flaky${actorCounter}`;
+    const actorUri = `https://bird.makeup/users/${local}`;
+    webfingerSpy.mockResolvedValueOnce(null);
+    expect(await federationService.resolveAndUpsert(`${local}@x.com`)).toBeNull();
+
+    webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: `${local}@bird.makeup` });
+    actorSpy.mockResolvedValue({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@bird.makeup`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Flaky',
+      bio: '',
+    });
+    expect((await federationService.resolveAndUpsert(`${local}@x.com`))?.username).toBe(
+      `${local}@x.com`,
+    );
+  });
+
   it('never consults the failed-discovery cache for a handle it already stores', async () => {
     const fx = nextFixture();
     webfingerSpy.mockResolvedValue(null);

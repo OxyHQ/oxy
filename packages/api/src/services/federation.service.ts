@@ -379,6 +379,15 @@ export async function ensureInstanceKeyId(): Promise<string> {
   return (await getInstanceKeyPair(AP_DOMAIN)).keyId;
 }
 
+/** One source actor of an external identity, as the registry stores it. */
+interface StoredExternalSource {
+  canonicalAcct: string;
+  network: string;
+  protocol: string;
+  actorUri: string;
+  transportAcct: string;
+}
+
 interface WebFingerResolution {
   actorUri: string;
   subjectAcct?: string;
@@ -389,7 +398,9 @@ interface WebFingerResolution {
  * bird.makeup the same actor alternates 200/404 within seconds (measured
  * 2026-09-28 against cosmic_yolo_bot, t3chfalcon, melonfur_rim, leixida_sccl),
  * so one 404 there is not evidence the mirror is gone. It is retried before it
- * counts; a mirror that is really gone still fails, only later.
+ * counts; a mirror that is really gone still fails, only later. For the same
+ * reason a failed discovery through such a host is never remembered as an
+ * unresolvable handle (`missIsInconclusive`).
  */
 const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
 const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
@@ -1170,6 +1181,16 @@ class FederationService {
     return !actor || actor.verifiedAt.getTime() === 0;
   }
 
+  /**
+   * Whether a failed discovery of this handle says nothing about whether the
+   * account exists: its source is a host whose 404 is intermittent
+   * ({@link TRANSIENT_NOT_FOUND_HOSTS}).
+   */
+  private missIsInconclusive(handle: string): boolean {
+    const transportHost = domainFromHandle(this.transportHandleForExternalAccount(handle));
+    return transportHost !== null && TRANSIENT_NOT_FOUND_HOSTS.has(transportHost);
+  }
+
   private transportHandleForExternalAccount(handle: string): string {
     const at = handle.lastIndexOf('@');
     const local = handle.slice(0, at);
@@ -1372,8 +1393,9 @@ class FederationService {
         (instagram ? undefined : identities[0]);
       if (source)
         return (
-          (await this.resolveExternalActorIdentity(source.actorUri, source.transportAcct)) ??
-          graphFallback()
+          (instagram
+            ? await this.resolveExternalActorIdentity(source.actorUri, source.transportAcct)
+            : await this.storedExternalIdentity(userId, source)) ?? graphFallback()
         );
     }
     if (isOwnFederationDomain(domain)) return null;
@@ -1553,24 +1575,73 @@ class FederationService {
         );
       }
     }
-    const [externalIdentities, redirectedUserIds] = await Promise.all([
-      getExternalIdentitiesForUser(canonicalUserId),
-      getCanonicalUserRedirects(canonicalUserId),
-    ]);
-    const sourceUserId =
-      externalIdentities.find((identity) => identity.actorUri === profile.actorUri)?.sourceUserId ??
-      result.userId;
-    return {
-      user: { ...userService.formatUserResponse(user), externalIdentities, redirectedUserIds },
-      externalIdentity: {
+    return this.identityResponse(
+      user,
+      canonicalUserId,
+      {
         canonicalAcct: profile.username,
         network: profile.domain,
         protocol: profile.protocol,
         actorUri: profile.actorUri,
         transportAcct: profile.transportAcct,
-        userId: canonicalUserId,
-        sourceUserId,
       },
+      result.userId,
+      identityProof,
+    );
+  }
+
+  /**
+   * A handle the registry already holds, answered from what was verified when it
+   * was stored: no remote fetch on the request path. A resolve used to re-fetch
+   * the source on every call, so a known account vanished whenever its source
+   * answered badly — bird.makeup answers 404 for a freshly mirrored account on
+   * most requests (measured 2026-11-04: elctrixr 3 of 10, while long-mirrored
+   * accounts answer 10 of 10) — and every search-as-you-type probe waited on it.
+   *
+   * A stored row is kept current the way a profile read keeps it current: once
+   * its verification is older than {@link STALE_MS} the source is re-verified in
+   * the background. A source that has never been verified (a backfilled bridge
+   * row, epoch `updated_at`) has not had first discovery yet, so it is verified
+   * here, inline, exactly as an unknown handle would be. An archived (gone)
+   * account resolves to nothing, as a fetch of it would.
+   */
+  private async storedExternalIdentity(
+    userId: string,
+    source: StoredExternalSource & { sourceUserId: string },
+  ) {
+    const [actor] = await getDb()
+      .select({ verifiedAt: externalIdentityActors.updatedAt })
+      .from(externalIdentityActors)
+      .where(eq(externalIdentityActors.actorUri, source.actorUri))
+      .limit(1);
+    const verifiedAt = actor?.verifiedAt.getTime() ?? 0;
+    if (verifiedAt === 0)
+      return this.resolveExternalActorIdentity(source.actorUri, source.transportAcct);
+    if (Date.now() - verifiedAt >= STALE_MS)
+      this.scheduleSourceVerification(source.actorUri, source.transportAcct);
+    const user = await userService.readAccountDocument(userId);
+    if (!user || user.accountStatus === 'archived') return null;
+    return this.identityResponse(user, userId, source, source.sourceUserId);
+  }
+
+  /** The resolve answer for one verified source of a canonical person. */
+  private async identityResponse(
+    user: AccountDocument,
+    canonicalUserId: string,
+    source: StoredExternalSource,
+    fallbackSourceUserId: string,
+    identityProof?: { state: string; reason?: string },
+  ) {
+    const [externalIdentities, redirectedUserIds] = await Promise.all([
+      getExternalIdentitiesForUser(canonicalUserId),
+      getCanonicalUserRedirects(canonicalUserId),
+    ]);
+    const sourceUserId =
+      externalIdentities.find((identity) => identity.actorUri === source.actorUri)?.sourceUserId ??
+      fallbackSourceUserId;
+    return {
+      user: { ...userService.formatUserResponse(user), externalIdentities, redirectedUserIds },
+      externalIdentity: { ...source, userId: canonicalUserId, sourceUserId },
       externalIdentities,
       redirectedUserIds,
       identityProof,
@@ -1994,11 +2065,14 @@ class FederationService {
     }
     // Discovering an unknown handle is the one remote round trip a lookup has to
     // wait for: there is nothing stored to serve instead. A handle that just
-    // failed it is not retried by every lookup that follows.
+    // failed it is not retried by every lookup that follows — unless the failure
+    // came from a source whose "not found" is no evidence of absence: remembering
+    // that answered "not found" for an account that exists, for five minutes, to
+    // every profile view and search (elctrixr@x.com, 2026-11-04).
     if (await unresolvableHandles.has(cleaned)) return null;
     const resolved = await this.resolveExternalIdentity({ handle: cleaned });
     if (!resolved) {
-      await unresolvableHandles.remember(cleaned);
+      if (!this.missIsInconclusive(cleaned)) await unresolvableHandles.remember(cleaned);
       return null;
     }
     return userService.readAccountDocument(resolved.externalIdentity.userId);
@@ -2015,22 +2089,23 @@ class FederationService {
    */
   async deferUnverifiedBridgeActor(actorUri: string): Promise<boolean> {
     if (!(await this.needsBridgeCanonicalization(actorUri))) return false;
-    this.scheduleBridgeCanonicalization(actorUri);
+    this.scheduleSourceVerification(actorUri);
     return true;
   }
 
   /**
-   * Fire-and-forget first discovery of a legacy bridge actor, under the same
-   * per-actor storm guard as {@link scheduleBackgroundRefresh} (the two share
-   * it, so a refresh and a canonicalization of one actor never overlap). NEVER
-   * awaits and NEVER throws.
+   * Fire-and-forget verification of one source actor: the first discovery of a
+   * legacy bridge actor, or the re-verification of a stale stored one. Runs
+   * under the same per-actor storm guard as {@link scheduleBackgroundRefresh}
+   * (the two share it, so a refresh and a verification of one actor never
+   * overlap). NEVER awaits and NEVER throws.
    */
-  private scheduleBridgeCanonicalization(actorUri: string): void {
+  private scheduleSourceVerification(actorUri: string, transportAcct?: string): void {
     if (!claimRefreshSlot(actorUri)) return;
-    void this.resolveExternalActorIdentity(actorUri)
+    void this.resolveExternalActorIdentity(actorUri, transportAcct)
       .catch((err) => {
         logger.warn(
-          `Background bridge canonicalization failed for ${actorUri}: ${err instanceof Error ? err.message : String(err)}`,
+          `Background source verification failed for ${actorUri}: ${err instanceof Error ? err.message : String(err)}`,
         );
       })
       .finally(() => {
