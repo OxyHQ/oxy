@@ -45,7 +45,10 @@ Three were not, and no document said which way was right:
    segment that mirrors a data value keeps that value verbatim, so a lookup
    needs no mapping table: `status.picked_up`, `region.us-east-1`,
    `currency.EUR`. Plural forms keep i18next's suffixes
-   (`count_one` / `count_other`). A segment never contains spaces, punctuation
+   (`count_one` / `count_other`); an i18n-js catalog nests them instead
+   (`count.one` / `count.other`). Either way a translation carries the
+   categories its own language selects (`few`, `many`) even when English has
+   no such form. A segment never contains spaces, punctuation
    or a dot.
 3. **The first segment is a namespace.** In a single-file catalog
    (`locales/en.json`) every top-level entry is a namespace object. A
