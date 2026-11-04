@@ -454,7 +454,7 @@ export function createPeablePersonalRuntime(
               ),
               tax_rate_evidence_id: z.literal(snapshot.taxQuote.quote.tax_rate_evidence_id),
               currency: z.literal('USD'),
-              gross_minor_units: z.literal(intent.amountMinorUnits),
+              gross_minor_units: z.literal(String(intent.amountMinorUnits)),
               net_minor_units: z.literal(snapshot.taxQuote.quote.net_minor_units),
               tax_minor_units: z.literal(snapshot.taxQuote.quote.tax_minor_units),
               tax_treatment: z.literal('inclusive'),

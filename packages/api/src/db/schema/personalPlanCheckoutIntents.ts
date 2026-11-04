@@ -52,8 +52,9 @@ export const personalPlanCheckoutIntents = pgTable(
     customerRef: text(),
     taxQuoteRef: text(),
     taxQuoteCurrency: text(),
-    taxQuoteNetMinorUnits: bigint({ mode: 'number' }),
-    taxQuoteTaxMinorUnits: bigint({ mode: 'number' }),
+    // Exact: a signed quote's base-unit strings round-trip through bigint, never a float.
+    taxQuoteNetMinorUnits: bigint({ mode: 'bigint' }),
+    taxQuoteTaxMinorUnits: bigint({ mode: 'bigint' }),
     taxQuoteSellerRef: text(),
     taxQuoteInvoiceIssuerRef: text(),
     taxQuoteTaxRemitterRef: text(),

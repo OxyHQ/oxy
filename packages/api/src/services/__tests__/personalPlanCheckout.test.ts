@@ -479,7 +479,7 @@ function authority(
     mode: input.mode,
     environment: input.environment,
     taxQuote: {
-      schema_version: 2,
+      schema_version: 3,
       source: {
         merchant_id: input.providerAccountRef,
         app_id: 'app_fixture',
@@ -491,9 +491,9 @@ function authority(
       quote: {
         id,
         currency: input.currency,
-        gross_minor_units: input.amountMinorUnits,
-        net_minor_units: input.amountMinorUnits,
-        tax_minor_units: 0,
+        gross_minor_units: String(input.amountMinorUnits),
+        net_minor_units: String(input.amountMinorUnits),
+        tax_minor_units: '0',
         tax_treatment: 'inclusive',
         seller_id: 'synthetic',
         invoice_issuer_id: 'synthetic',
@@ -689,7 +689,7 @@ it('round-trips every typed signed quote field and exact Unix-second instants th
   await expect(
     getDb()
       .update(personalPlanCheckoutIntents)
-      .set({ taxQuoteNetMinorUnits: stored.amountMinorUnits + 1 })
+      .set({ taxQuoteNetMinorUnits: BigInt(stored.amountMinorUnits) + 1n })
       .where(eq(personalPlanCheckoutIntents.id, stored.id)),
   ).rejects.toThrow();
   await expect(

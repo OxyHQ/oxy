@@ -351,7 +351,7 @@ export function personalCheckoutSnapshotFromIntent(
     environment: intent.environment,
     returnUrl: intent.returnUrl,
     taxQuote: {
-      schema_version: 2,
+      schema_version: 3,
       source: {
         merchant_id: intent.providerAccountRef,
         app_id: intent.applicationRef,
@@ -364,9 +364,9 @@ export function personalCheckoutSnapshotFromIntent(
       quote: {
         id: intent.taxQuoteRef,
         currency: intent.taxQuoteCurrency,
-        gross_minor_units: intent.amountMinorUnits,
-        net_minor_units: intent.taxQuoteNetMinorUnits,
-        tax_minor_units: intent.taxQuoteTaxMinorUnits,
+        gross_minor_units: String(intent.amountMinorUnits),
+        net_minor_units: intent.taxQuoteNetMinorUnits.toString(),
+        tax_minor_units: intent.taxQuoteTaxMinorUnits.toString(),
         tax_treatment: 'inclusive',
         seller_id: intent.taxQuoteSellerRef,
         invoice_issuer_id: intent.taxQuoteInvoiceIssuerRef,
@@ -402,8 +402,8 @@ export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapsh
     returnUrl: snapshot.returnUrl,
     taxQuoteRef: quote.id,
     taxQuoteCurrency: quote.currency,
-    taxQuoteNetMinorUnits: quote.net_minor_units,
-    taxQuoteTaxMinorUnits: quote.tax_minor_units,
+    taxQuoteNetMinorUnits: BigInt(quote.net_minor_units),
+    taxQuoteTaxMinorUnits: BigInt(quote.tax_minor_units),
     taxQuoteSellerRef: quote.seller_id,
     taxQuoteInvoiceIssuerRef: quote.invoice_issuer_id,
     taxQuoteTaxRemitterRef: quote.tax_remitter_id,
@@ -440,9 +440,9 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     source.plan_id !== snapshot.planId ||
     source.mode !== snapshot.mode ||
     source.environment !== snapshot.environment ||
-    snapshot.taxQuote.schema_version !== 2 ||
+    snapshot.taxQuote.schema_version !== 3 ||
     snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
-    quote?.gross_minor_units !== input.amountMinorUnits ||
+    quote?.gross_minor_units !== String(input.amountMinorUnits) ||
     quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
     quote.tax_treatment !== 'inclusive' ||
     !Number.isSafeInteger(quote.quoted_at) ||
