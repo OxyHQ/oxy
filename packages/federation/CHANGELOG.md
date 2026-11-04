@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.14.0
+
+An `Add` or `Remove` reaches the app instead of being dropped, so a Mastodon
+pin or unpin (the status added to or removed from the actor's `featured`
+collection) can be applied as it happens.
+
+### Changed
+
+- `createInboundDispatcher` hands `Add` and `Remove` to `onContentActivity`,
+  alongside Create / Announce / Like / Delete / Update. An app whose handler
+  does not know them ignores them, as it ignored them before.
+
 ## 2.13.0
 
 An atproto account whose handle does not verify is named by its DID, the same
