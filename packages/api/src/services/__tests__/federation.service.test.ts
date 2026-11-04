@@ -208,6 +208,7 @@ async function storedUser(userId: string) {
       bio: users.bio,
       description: users.description,
       avatar: users.avatar,
+      color: users.color,
       actorUri: users.federationActorUri,
       domain: users.federationDomain,
       lastResolvedAt: users.federationLastResolvedAt,
@@ -331,7 +332,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
     avatarSpy = jest
       .spyOn(federationService, 'downloadAndStoreAvatar')
-      .mockResolvedValue({ fileId: 'new-file-id', notModified: false });
+      .mockResolvedValue({ fileId: 'new-file-id', notModified: false, color: '#ee4b16' });
   });
 
   afterEach(() => {
@@ -617,6 +618,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'bio',
       description: 'bio',
       avatar: 'new-file-id',
+      // A federated account wears its avatar's colour.
+      color: '#ee4b16',
       unavailableAt: null,
       unavailableReason: null,
     });
