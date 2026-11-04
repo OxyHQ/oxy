@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.19.1
+
+### Changed
+
+- Depends on `@oxy.so/contracts` 6.6.0. `appPermissionsFor` and `requireAppPermission` are unchanged; on one of Oxy's own applications the keys they answer are now held by role in the owning organization, declared in Oxy's first-party registry (oxy ADR 0056), and the docs say so.
+
 ## 7.19.0
 
 ### Added

@@ -97,6 +97,7 @@ import {
 import {
   declarePermissions,
   grantPermission,
+  isOwnApplicationType,
   listGrants,
   listPermissions,
   permissionsHeldBy,
@@ -727,6 +728,22 @@ function requireAppPermission(permission: ApplicationPermission) {
     }
     next();
   });
+}
+
+/**
+ * Refuse a Console write to the vocabulary or the grants of one of Oxy's own
+ * applications: its operator keys and the roles holding them are declared in
+ * code (ADR 0056). Runs after the `roles:manage` gate, so a caller who could not
+ * manage the roles anyway is still told that first.
+ */
+function refuseOwnApplicationRoleWrite(application: { type: string }): void {
+  if (isOwnApplicationType(application.type)) {
+    throw new ApiError(
+      409,
+      "This is one of Oxy's own applications: its operator permissions and the roles holding them are declared in code (ADR 0056), not granted in the Console",
+      APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode,
+    );
+  }
 }
 
 // ============================================================================
@@ -2023,7 +2040,8 @@ router.delete(
  *
  * The one roles read open to every signed-in person, about themselves only:
  * no membership of the owning account is needed, because the answer is the
- * caller's own grants. The person is the operator (`resolveOperatorId`), so
+ * caller's own grants plus, on one of Oxy's own applications, the keys their
+ * role in the owning account holds (ADR 0056). The person is the operator (`resolveOperatorId`), so
  * someone acting as their organization is answered for themselves.
  *
  * A bearer whose session belongs to ONE application (a third-party OAuth
@@ -2090,7 +2108,9 @@ router.get(
 /**
  * Declare the application's WHOLE permission vocabulary. New keys are added,
  * kept keys take the new description, missing keys are retired and every live
- * grant of them is revoked, in one transaction. Idempotent.
+ * grant of them is revoked, in one transaction. Idempotent. One of Oxy's own
+ * applications declares its keys in code instead (ADR 0056): `409
+ * FIRST_PARTY_ROLES_IN_CODE`.
  *
  * @response 200 declareApplicationPermissionsResponseSchema The live vocabulary and what changed.
  */
@@ -2104,6 +2124,7 @@ router.put(
     if (!access) {
       throw new NotFoundError('Application not found');
     }
+    refuseOwnApplicationRoleWrite(requireApplication(req));
     const result: z.infer<typeof declareApplicationPermissionsResponseSchema> =
       await declarePermissions({
         applicationId: requireApplication(req).id,
@@ -2144,7 +2165,9 @@ router.get(
 /**
  * Grant a declared key to a person (by `userId` or `username`). A grant to
  * yourself is refused unless the application is owned by your own personal
- * account (`SELF_GRANT_FORBIDDEN`).
+ * account (`SELF_GRANT_FORBIDDEN`). One of Oxy's own applications has no
+ * per-person grants — its keys are held by role (ADR 0056): `409
+ * FIRST_PARTY_ROLES_IN_CODE`.
  *
  * @response 201 applicationRoleGrantSchema The new grant.
  */
@@ -2159,6 +2182,7 @@ router.post(
       throw new NotFoundError('Application not found');
     }
     const application = requireApplication(req);
+    refuseOwnApplicationRoleWrite(application);
     const grant: z.infer<typeof applicationRoleGrantSchema> = await grantPermission({
       application: { id: application.id, ownerAccountId: application.ownerAccountId },
       actorId: access.operatorId,

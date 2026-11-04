@@ -82,7 +82,9 @@ the optional-user mount.
 | What may this person do to **application A**, through the account that owns it (`app:read`, `app:update`, `webhooks:update`, `billing:manage`)? | `oxy.applicationAccessFor(req, applicationId)` | `oxy.middleware.requireApplicationAccess('app:read', { param: 'appId' })` |
 
 They are not substitutes: the operator keys are ones your application
-declares and grants ([application roles](./application-roles.mdx)); account
+declares and Oxy decides who holds ([application roles](./application-roles.mdx):
+granted per person on a third-party app, held by organization role on one of
+Oxy's own); account
 and application access are the person's membership in Oxy's account graph.
 Each reads Oxy with the request's own verified bearer, so a person acting as
 their organization is answered for themselves.

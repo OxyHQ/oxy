@@ -2,10 +2,13 @@
  * Application roles, from the application's side: which of THIS application's
  * declared permissions does the person behind a request hold?
  *
- * Oxy decides who holds an app's operator powers (`docs/auth/application-roles.md`).
- * An app declares its keys (`payments.operate`, …) in the Console, its owners
- * grant them to people, and its backend asks — so no app keeps a
- * `*_OPERATOR_OXY_USER_IDS` allow-list in its environment.
+ * Oxy decides who holds an app's operator powers (`docs/auth/application-roles.md`),
+ * and the backend asks — so no app keeps a `*_OPERATOR_OXY_USER_IDS` allow-list
+ * in its environment. One of Oxy's own applications declares its keys
+ * (`payments.operate`, …) in Oxy's first-party registry, each held by roles of
+ * the owning organization (ADR 0056); a third-party app declares them in the
+ * Console and its owners grant them to people. The answer has the same shape
+ * either way.
  *
  * ```ts
  * const oxy = new OxyServer({ baseURL: 'https://api.oxy.so', applicationId: process.env.OXY_APPLICATION_ID });

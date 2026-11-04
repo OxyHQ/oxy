@@ -6753,7 +6753,7 @@
           "Developer"
         ],
         "summary": "Grant a declared key to a person (by `userId` or `username`). A grant to",
-        "description": "yourself is refused unless the application is owned by your own personal\naccount (`SELF_GRANT_FORBIDDEN`).",
+        "description": "yourself is refused unless the application is owned by your own personal\naccount (`SELF_GRANT_FORBIDDEN`). One of Oxy's own applications has no\nper-person grants — its keys are held by role (ADR 0056): `409\nFIRST_PARTY_ROLES_IN_CODE`.",
         "parameters": [
           {
             "name": "appId",
@@ -7132,7 +7132,7 @@
           "Developer"
         ],
         "summary": "The application permissions the HUMAN behind this bearer holds.",
-        "description": "The one roles read open to every signed-in person, about themselves only:\nno membership of the owning account is needed, because the answer is the\ncaller's own grants. The person is the operator (`resolveOperatorId`), so\nsomeone acting as their organization is answered for themselves.\n\nA bearer whose session belongs to ONE application (a third-party OAuth\nsession) may ask only about that application; the shared first-party session\nmay ask about any. Never cached: a revocation is visible to the next read.",
+        "description": "The one roles read open to every signed-in person, about themselves only:\nno membership of the owning account is needed, because the answer is the\ncaller's own grants plus, on one of Oxy's own applications, the keys their\nrole in the owning account holds (ADR 0056). The person is the operator (`resolveOperatorId`), so\nsomeone acting as their organization is answered for themselves.\n\nA bearer whose session belongs to ONE application (a third-party OAuth\nsession) may ask only about that application; the shared first-party session\nmay ask about any. Never cached: a revocation is visible to the next read.",
         "parameters": [
           {
             "name": "appId",
@@ -7280,6 +7280,12 @@
                           "description": {
                             "type": "string"
                           },
+                          "heldByAccountRoles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "declaredAt": {
                             "type": "string",
                             "minLength": 1
@@ -7311,6 +7317,7 @@
                         "required": [
                           "key",
                           "description",
+                          "heldByAccountRoles",
                           "declaredAt",
                           "declaredByUserId",
                           "retiredAt",
@@ -7379,7 +7386,7 @@
           "Developer"
         ],
         "summary": "Declare the application's WHOLE permission vocabulary. New keys are added,",
-        "description": "kept keys take the new description, missing keys are retired and every live\ngrant of them is revoked, in one transaction. Idempotent.",
+        "description": "kept keys take the new description, missing keys are retired and every live\ngrant of them is revoked, in one transaction. Idempotent. One of Oxy's own\napplications declares its keys in code instead (ADR 0056): `409\nFIRST_PARTY_ROLES_IN_CODE`.",
         "parameters": [
           {
             "name": "appId",
@@ -7412,6 +7419,12 @@
                           "description": {
                             "type": "string"
                           },
+                          "heldByAccountRoles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "declaredAt": {
                             "type": "string",
                             "minLength": 1
@@ -7443,6 +7456,7 @@
                         "required": [
                           "key",
                           "description",
+                          "heldByAccountRoles",
                           "declaredAt",
                           "declaredByUserId",
                           "retiredAt",

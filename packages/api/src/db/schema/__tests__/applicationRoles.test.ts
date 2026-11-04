@@ -209,6 +209,39 @@ describe('application_role_permissions', () => {
       .where(eq(applicationRolePermissions.id, permissionId));
     expect(row?.retiredByUserId).toBeNull();
   });
+
+  it('takes only account roles as holders (ADR 0056), and holders are identity', async () => {
+    const { applicationId, permissionId } = await seedFixture();
+    await expect(
+      getDb()
+        .insert(applicationRolePermissions)
+        .values({
+          applicationId,
+          key: 'moderation.operate',
+          description: 'x',
+          heldByAccountRoles: ['owner', 'moderator'],
+        }),
+    ).rejects.toThrow();
+    // Control: account roles only.
+    await getDb()
+      .insert(applicationRolePermissions)
+      .values({
+        applicationId,
+        key: 'moderation.operate',
+        description: 'x',
+        heldByAccountRoles: ['owner', 'admin'],
+      });
+
+    // A key's holders never change in place: that would silently hand its power
+    // to a different set of people. A change is a retirement and a new row.
+    await expectRefused(
+      getDb()
+        .update(applicationRolePermissions)
+        .set({ heldByAccountRoles: ['owner', 'admin', 'viewer'] })
+        .where(eq(applicationRolePermissions.id, permissionId)),
+      APPLICATION_ROLE_PERMISSION_IMMUTABLE_MESSAGE,
+    );
+  });
 });
 
 describe('application_role_grants', () => {
