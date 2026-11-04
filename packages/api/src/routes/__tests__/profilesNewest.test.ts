@@ -27,7 +27,7 @@ function newest(): Promise<Array<Record<string, unknown>>> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { method: 'GET', host: '127.0.0.1', port: address.port, path: '/profiles/newest?limit=100' },
+      { method: 'GET', host: '127.0.0.1', port: address.port, path: '/profiles/newest?limit=10' },
       (res) => {
         let raw = '';
         res.on('data', (chunk) => {
@@ -41,15 +41,19 @@ function newest(): Promise<Array<Record<string, unknown>>> {
   });
 }
 
+/**
+ * Accounts are dated days AHEAD so they outrank every row the other suites in
+ * this database create "now", and the first page is guaranteed to reach them.
+ */
 async function account(
-  minutesAgo: number,
+  daysAhead: number,
   fields: Partial<typeof users.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
     .values({
       username: `new${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-      createdAt: new Date(Date.now() - minutesAgo * 60_000),
+      createdAt: new Date(Date.now() + daysAhead * 86_400_000),
       ...fields,
     })
     .returning({ id: users.id });
@@ -74,13 +78,13 @@ afterAll(async () => {
 });
 
 it('lists public local people newest first, without the accounts it must not show', async () => {
-  const older = await account(3);
-  const newer = await account(1);
+  const older = await account(1);
+  const newer = await account(2);
   const hidden = [
-    await account(0, { privacyIsPrivateAccount: true }),
-    await account(0, { accountStatus: 'archived' }),
-    await account(0, { kind: 'community' }),
-    await account(0, { type: 'federated' }),
+    await account(3, { privacyIsPrivateAccount: true }),
+    await account(3, { accountStatus: 'archived' }),
+    await account(3, { kind: 'community' }),
+    await account(3, { type: 'federated' }),
   ];
 
   const ids = (await newest()).map((row) => row.id);
