@@ -552,65 +552,47 @@ export class OxyServer extends OxyServices {
 
   // ── Server-side namespaces ───────────────────────────────────────────────
 
-  private _serverAccounts?: ServerAccountsApi;
-  private _serverAssets?: ServerAssetsApi;
-  private _serverNotifications?: ServerNotificationsApi;
-  private _serverLinkedAccounts?: ServerLinkedAccountsApi;
-  private _serverAgency?: ServerAgencyApi;
-  private _serverApps?: ServerAppsApi;
-  private _serverReputation?: ServerReputationApi;
-  private _serverSafety?: ServerSafetyApi;
-  private _serverSession?: ServerSessionApi;
-
   /** The account graph, plus the service-only `accessFor` membership verdict. */
   override get accounts(): ServerAccountsApi {
-    if (!this._serverAccounts) this._serverAccounts = new ServerAccountsApi(this.context);
-    return this._serverAccounts;
+    return this.namespace('accounts', (context) => new ServerAccountsApi(context));
   }
   /** Files, plus the service-only metadata and linked-URL lookups. */
   override get assets(): ServerAssetsApi {
-    if (!this._serverAssets) this._serverAssets = new ServerAssetsApi(this.context);
-    return this._serverAssets;
+    return this.namespace('assets', (context) => new ServerAssetsApi(context));
   }
   /** The inbox and push tokens, plus `create`. */
   override get notifications(): ServerNotificationsApi {
-    if (!this._serverNotifications)
-      this._serverNotifications = new ServerNotificationsApi(this.context);
-    return this._serverNotifications;
+    return this.namespace('notifications', (context) => new ServerNotificationsApi(context));
   }
   /** Linked external accounts, plus `forUser`. */
   override get linkedAccounts(): ServerLinkedAccountsApi {
-    if (!this._serverLinkedAccounts)
-      this._serverLinkedAccounts = new ServerLinkedAccountsApi(this.context);
-    return this._serverLinkedAccounts;
+    return this.namespace('linkedAccounts', (context) => new ServerLinkedAccountsApi(context));
   }
   /** Delegated capabilities, with the service-only authority calls. */
   override get agency(): ServerAgencyApi {
-    if (!this._serverAgency) this._serverAgency = new ServerAgencyApi(this.context);
-    return this._serverAgency;
+    return this.namespace('agency', (context) => new ServerAgencyApi(context));
   }
   /** Application management, plus the receiver-bound Alia machine-key lookup. */
   override get apps(): ServerAppsApi {
-    if (!this._serverApps) this._serverApps = new ServerAppsApi(this.context);
-    return this._serverApps;
+    return this.namespace('apps', (context) => new ServerAppsApi(context));
   }
   /** Reputation reads, plus `award`. */
   override get reputation(): ServerReputationApi {
-    if (!this._serverReputation) this._serverReputation = new ServerReputationApi(this.context);
-    return this._serverReputation;
+    return this.namespace('reputation', (context) => new ServerReputationApi(context));
   }
   /** Policy reads, plus the consumer-service decision lanes (ADR 0041). */
   override get safety(): ServerSafetyApi {
-    if (!this._serverSafety) this._serverSafety = new ServerSafetyApi(this.context);
-    return this._serverSafety;
+    return this.namespace('safety', (context) => new ServerSafetyApi(context));
   }
   /** Session state, plus validation through a reviewed supervised action. */
   override get session(): ServerSessionApi {
-    if (!this._serverSession)
-      this._serverSession = new ServerSessionApi(this.context, this.sessionValidationTtlMs, () =>
-        this.revocationFeedEpoch(),
-      );
-    return this._serverSession;
+    return this.namespace(
+      'session',
+      (context) =>
+        new ServerSessionApi(context, this.sessionValidationTtlMs, () =>
+          this.revocationFeedEpoch(),
+        ),
+    );
   }
 
   /** Close the revocation feed along with the HTTP client. */

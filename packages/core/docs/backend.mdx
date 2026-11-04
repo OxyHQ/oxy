@@ -36,8 +36,9 @@ export const oxy = new OxyServer({
 - **One per process.** Another Oxy product is reached through
   `oxy.createServiceClient({ baseURL, audience })` or its `*ForOxyService(oxy)`
   SDK, never a second `OxyServer`. A different timeout for one call is a
-  per-call option (`oxy.assets.references.add(refs, { retry: false, timeout: 5000 })`),
-  not another client.
+  call scope (`oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public')`,
+  also on a `withUser` client; `{ timeout, deadline, retry, signal }`), not
+  another client and not a hand-rolled `Promise.race`.
 
 ## Incoming requests
 
@@ -136,7 +137,9 @@ durable work keeps only a `taskId` from `oxy.agency.createTask(…)`.
 Everything is on `oxy.assets`: uploads (`uploadAppFile`, `uploadAppFileLarge`,
 `uploadUserMedia`, `importAppFile`), reads (`metadataByIds`,
 `linkedDownloadUrls`, `publicUrl`), usage (`references.add` / `remove` /
-`reconcile`), and `withRequester` for a person's private file. Receive file
+`reconcile`), re-hosted remote media (`mediaCache.upload` / `delete`,
+`federatedMedia.upload` / `delete`; a 429's wait is `retryAfterSecondsOf(error)`),
+and `withRequester` for a person's private file. Receive file
 events with `verifyFileEventSignature`, mounted before the body parser. A
 person may attach a file only if `metadataByIds` says it is theirs and
 `active`. No raw HTTP to `/assets` or `cloud.oxy.so`.
@@ -149,7 +152,12 @@ person may attach a file only if `metadataByIds` says it is theirs and
   which `safeFetch` refuses by design (its refusal says so).
 - **Untrusted or caller-influenced URLs** (customer webhooks, unfurls,
   federation, media proxies): `safeFetch`, then `readResponseBody` /
-  `readResponseJson` for a capped, deadline-bound body.
+  `readResponseJson` for a capped, deadline-bound body. A URL you already
+  checked with `assertSafePublicUrl` (before caching or queueing it) goes in
+  as `safeFetch(url, { validated: check })`, not a second fetcher; a chain
+  that must never go out in the clear takes `{ requireHttps: true }`, which
+  refuses every non-https hop, redirects included. Single hops (signed
+  fetches that re-sign each redirect) use `redirect: 'manual'`.
 - **Fixed trusted hosts** (an Oxy-minted download URL, a fixed third-party
   API): plain `fetch` with `AbortSignal.timeout` and a byte cap
   (`readResponseBody`).

@@ -31,13 +31,20 @@ import './crypto/polyfill';
 // API client
 // ---------------------------------------------------------------------------
 export { OxyServices, OXY_API_URL, OXY_CLOUD_URL } from './OxyServices';
-export type { OxyConfig, LinkedHttpClient } from './OxyServices';
+export type {
+  OxyConfig,
+  LinkedHttpClient,
+  OxyCallScope,
+  OxyCallScopeNamespace,
+} from './OxyServices';
+export type { CallOptions } from './client/callOptions';
 export {
   OxyApiError,
   OxyAuthenticationError,
   OxyAuthenticationTimeoutError,
   AssetUrlResolutionError,
   ServiceAssetMetadataError,
+  retryAfterSecondsOf,
 } from './OxyServices.errors';
 export type { HttpMethod } from './client/context';
 export type {
@@ -407,6 +414,10 @@ export type {
   ServiceReferenceInventoryItem,
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
+  ServiceMediaCacheUpload,
+  ServiceFederatedMediaUpload,
+  ServiceFederatedMediaDeleteResult,
+  ServiceFederatedMediaDeletion,
   FileImportOutcome,
   FileImportSource,
   FileImportOptions,
