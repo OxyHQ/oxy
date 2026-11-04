@@ -62,9 +62,11 @@ it('schedules existing period with stable replay key and never extends it', asyn
     (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1'))
       .cancel_at_period_end,
   ).toBe(true);
-  expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith('sub_test', {
-    idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/),
-  });
+  expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith(
+    'sub_test',
+    {},
+    { idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/) },
+  );
   f.retrieveSubscription.mockResolvedValue(subscription);
   f.cancelAtPeriodEnd.mockResolvedValue({
     ...subscription,

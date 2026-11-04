@@ -2,6 +2,7 @@ import * as providerEvidence from '../productProviderEvidence.service';
 import { reconcileProductAccessFinancialState } from '../productAccessPersistence.service';
 import { accessSubscriptionSources, accessProviderRefunds } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import { PEABLE_API_VERSION, type WebhookEvent } from '@peable.to/sdk';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessGrants } from '../../db/schema';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
@@ -314,16 +315,20 @@ it('subscription wake observation time is captured before an awaited source look
       object: 'event',
       type: 'billing.observation.updated',
       created: unix(f.now),
+      livemode: true,
+      api_version: PEABLE_API_VERSION,
       data: {
         object: {
           object: 'billing_observation',
+          livemode: true,
           resource_kind: 'subscription',
           resource_id: context.subscriptionId,
           revision: 1,
           observed_at: unix(f.now),
         },
       },
-    };
+      request: { id: null, idempotency_key: null },
+    } satisfies WebhookEvent;
     const old = handlePeablePersonalObservation(
       authority,
       context,

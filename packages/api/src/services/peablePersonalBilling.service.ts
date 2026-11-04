@@ -1,12 +1,8 @@
 import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
-import { Peable, type PeableConfig } from '@peable.to/sdk';
+import type { Peable } from '@peable.to/sdk';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
-/** Peable is the payment platform; downstream card processing is not an Oxy provider. */
-export function createPeablePersonalBilling(config: PeableConfig): Peable {
-  return new Peable(config);
-}
 export const PEABLE_ONE_READINESS = Object.freeze({
   platform: 'peable',
   primaryMethod: 'faircoin',
@@ -133,11 +129,15 @@ export async function cancelOwnedPeableSubscription(
   const current = check(await client.billing.retrieveSubscription(owned.providerSubscriptionId));
   if (current.cancel_at_period_end) return current;
   const updated = check(
-    await client.billing.cancelAtPeriodEnd(owned.providerSubscriptionId, {
-      idempotencyKey: `oxy-one-cancel:${createHash('sha256')
-        .update(JSON.stringify([accountId, owned.providerSubscriptionId, actionId]))
-        .digest('hex')}`,
-    }),
+    await client.billing.cancelAtPeriodEnd(
+      owned.providerSubscriptionId,
+      {},
+      {
+        idempotencyKey: `oxy-one-cancel:${createHash('sha256')
+          .update(JSON.stringify([accountId, owned.providerSubscriptionId, actionId]))
+          .digest('hex')}`,
+      },
+    ),
   );
   if (
     !updated.cancel_at_period_end ||

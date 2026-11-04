@@ -150,7 +150,9 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           retrievePaidInvoice: (...args: any[]) => rpc('retrievePaidInvoice', args),
           retrieveInvoiceState: (...args: any[]) => rpc('retrieveInvoiceState', args),
           retrieveSubscription: (...args: any[]) => rpc('retrieveSubscription', args),
-          cancelAtPeriodEnd: (...args: any[]) => rpc('cancelAtPeriodEnd', args),
+          // The fixture's line is `[id, options]`; the 1.0 call is `(id, params, options)`.
+          cancelAtPeriodEnd: (id: string, _params: unknown, options: unknown) =>
+            rpc('cancelAtPeriodEnd', [id, options]),
         },
       } as unknown as PeableEvidenceAuthority['client'];
       let authorityStart = start,
