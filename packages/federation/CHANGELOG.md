@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.15.0
+
+A signed fetch can sign as a given actor instead of the instance, so an app can
+read a followers-only or direct object the way its local follower or recipient
+would see it (Mastodon serves those only to an actor it authorizes).
+
+### Added
+
+- `SignedFetchInit` (exported from `@oxy.so/federation/node`): `RequestInit`
+  plus an optional `keyId`. `signedFetch(url, accept, { keyId })` signs the
+  request and every re-signed redirect hop with that key instead of
+  `getInstanceKeyId()`; the injected signer must hold it.
+
+### Changed
+
+- An actor-signed request is never retried unsigned: its response, whatever the
+  status, is returned as-is. Instance-signed requests keep the unsigned retry on
+  a 5xx, and none is retried unsigned on a 401/403.
+
 ## 2.14.0
 
 An `Add` or `Remove` reaches the app instead of being dropped, so a Mastodon
