@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -97,7 +98,10 @@ function AccountRowContent({
       <View
         style={[
           styles.roleBadge,
-          { backgroundColor: `${badgeColor}20`, borderColor: `${badgeColor}40` },
+          {
+            backgroundColor: withAlpha(badgeColor, 0.125),
+            borderColor: withAlpha(badgeColor, 0.25),
+          },
         ]}
       >
         <Text style={[styles.roleBadgeText, { color: badgeColor }]}>{role}</Text>

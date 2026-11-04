@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Item } from '@oxy.so/bloom/item';
 import { AppIcon, Icons, type IconName } from '@/constants/icons';
@@ -25,7 +25,8 @@ interface ListRowProps {
 }
 
 /**
- * One comfortable list row: Bloom's `Item` with this app's slots filled in.
+ * One comfortable list row: Bloom's `Item` with this app's slots filled in,
+ * its title and subtitle shown whole.
  *
  * `Item` owns the height, press feedback, disabled treatment, title/subtitle
  * column and announced role. This wrapper keeps what is Commons' own: the
@@ -72,6 +73,11 @@ export function ListRow({
       leading={icon ? <AppIcon name={icon} size="md" fill={glyphColor} /> : undefined}
       title={title}
       subtitle={subtitle}
+      // Whole, never cut: in Commons a row explains an identity, a key or a
+      // node, and in Spanish the default clamps ended sentences mid-word
+      // ("incluso cuando ...", Pixel 8a). See `settings-list-item.tsx`.
+      titleNumberOfLines={0}
+      subtitleNumberOfLines={0}
       trailing={tail}
       onPress={
         onPress

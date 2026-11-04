@@ -3,10 +3,10 @@ import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
-import { Screen, StackHeader } from '@/components/ui';
+import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 

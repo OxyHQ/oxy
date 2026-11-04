@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
@@ -9,8 +10,15 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, StackHeader, SessionGate, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import {
+  Screen,
+  StackHeader,
+  SessionGate,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+  SettingsListItem,
+} from '@/components/ui';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useTranslation } from '@/lib/i18n';
@@ -123,7 +131,7 @@ export default function PersonhoodScreen() {
 
             {/* Progress to the θ threshold */}
             <View style={styles.progressBlock}>
-              <View style={[styles.track, { backgroundColor: `${fillColor}1F` }]}>
+              <View style={[styles.track, { backgroundColor: withAlpha(fillColor, 0.12) }]}>
                 <View
                   style={[styles.fill, { width: `${scorePct}%`, backgroundColor: fillColor }]}
                 />
@@ -158,13 +166,15 @@ export default function PersonhoodScreen() {
             icon={<Icons.community size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.vouches')}
             description={t('civic.personhood.signals.vouchesDesc')}
-            value={t('civic.personhood.signals.vouchesCount', { count: status.vouchCount })}
+            // The count alone: the title names it, and a counted noun took half the
+            // row and cut the title off ("Confirmaciones en …").
+            value={String(status.vouchCount)}
           />
           <SettingsListItem
             icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.realLife')}
             description={t('civic.personhood.signals.realLifeDesc')}
-            value={t('civic.personhood.signals.realLifeCount', { count: status.realLifeCount })}
+            value={String(status.realLifeCount)}
           />
           <SettingsListItem
             icon={<Icons.personhood size="md" fill={colors.text} />}
