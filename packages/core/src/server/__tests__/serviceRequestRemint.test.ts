@@ -2,7 +2,8 @@
  * `serviceRequest` on a 401: Oxy refused the cached service token (keys
  * rotated, credential revoked) before the request ran, so the server drops it,
  * mints a fresh one and sends the request once more — every caller of the
- * service lane gets this, not only `createServiceClient`. Exercised against a
+ * service lane gets this — and a session-less read sent with the service token
+ * (`serviceIdentity: 'when-anonymous'`) — not only `createServiceClient`. Exercised against a
  * real HTTP server, so the bearer each attempt carried is what is asserted.
  */
 jest.mock('../workloadIdentity', () => ({
@@ -39,7 +40,7 @@ async function startOxy(answer: (seen: Seen, index: number) => number): Promise<
     res.writeHead(status, { 'content-type': 'application/json' });
     res.end(
       status === 200
-        ? JSON.stringify({ data: { ok: true } })
+        ? JSON.stringify({ data: { ok: true, id: 'u1', username: 'ada' } })
         : JSON.stringify({ error: 'UNAUTHORIZED', message: 'Invalid service token' }),
     );
   });
@@ -74,7 +75,7 @@ it('drops a refused cached token and sends the request once more with a fresh on
   try {
     await expect(
       oxy.serviceRequest('POST', '/assets/service/references', { references: [1] }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toMatchObject({ ok: true });
 
     expect(oxy_.seen.map((s) => s.authorization)).toEqual([`Bearer ${STALE}`, `Bearer ${FRESH}`]);
     // The same body went the second time: a 401 means the request never ran.
@@ -123,6 +124,34 @@ it('reaches every service-lane namespace call', async () => {
   try {
     await oxy.assets.mediaCache.delete('cache-1');
     expect(oxy_.seen.map((s) => s.authorization)).toEqual([`Bearer ${STALE}`, `Bearer ${FRESH}`]);
+  } finally {
+    oxy.dispose();
+    await close(oxy_.server);
+  }
+});
+
+it('heals a session-less read sent with the service token (serviceIdentity: when-anonymous)', async () => {
+  const oxy_ = await startOxy((seen) => (seen.authorization === `Bearer ${STALE}` ? 401 : 200));
+  const oxy = new OxyServer({ baseURL: oxy_.url, serviceIdentity: 'when-anonymous' });
+  try {
+    await expect(
+      oxy.withCallOptions({ retry: false }).users.byUsername('ada', { cache: false }),
+    ).resolves.toBeDefined();
+    expect(oxy_.seen.map((s) => s.authorization)).toEqual([`Bearer ${STALE}`, `Bearer ${FRESH}`]);
+  } finally {
+    oxy.dispose();
+    await close(oxy_.server);
+  }
+});
+
+it('a session-less read that is refused twice is the caller’s', async () => {
+  const oxy_ = await startOxy(() => 401);
+  const oxy = new OxyServer({ baseURL: oxy_.url, serviceIdentity: 'when-anonymous' });
+  try {
+    await expect(oxy.users.byUsername('ada', { cache: false })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(oxy_.seen).toHaveLength(2);
   } finally {
     oxy.dispose();
     await close(oxy_.server);

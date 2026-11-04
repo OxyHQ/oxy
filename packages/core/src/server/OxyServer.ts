@@ -365,7 +365,10 @@ export class OxyServer extends OxyServices {
     };
     this.context.service = serviceLane;
     if (config.serviceIdentity === 'when-anonymous') {
-      this.http.setAnonymousAuthProvider(() => this.serviceTokenForAnonymousRequest());
+      this.http.setAnonymousAuthProvider(
+        () => this.serviceTokenForAnonymousRequest(),
+        (token) => this.forgetServiceToken(token),
+      );
     }
     const ttl = config.appPermissionsCacheTtlMs ?? APP_PERMISSIONS_CACHE_TTL_MS;
     if (!Number.isFinite(ttl) || ttl < 0) {
