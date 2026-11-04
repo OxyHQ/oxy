@@ -1,5 +1,24 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.16.0
+
+An actor that embeds a collection or endpoint instead of linking it keeps it.
+JSON-LD lets a server send `"followers": { "id": "…/followers", "totalItems": 9 }`
+where Mastodon sends the IRI string; the resolver read only the string, so such
+an actor was stored with no followers URL (and its followers-only posts could
+not be told from direct messages), no outbox, featured collection or shared inbox.
+
+### Added
+
+- `apIri(value)`: the IRI a JSON-LD node reference names, the string itself or
+  an embedded object's `id`.
+
+### Fixed
+
+- `createActorResolver` reads `inbox`, `outbox`, `followers`, `following`,
+  `featured`, `featuredTags`, `endpoints.sharedInbox` and `movedTo` through
+  `apIri`, and counts an embedded collection by fetching its `id`.
+
 ## 2.15.0
 
 A signed fetch can sign as a given actor instead of the instance, so an app can

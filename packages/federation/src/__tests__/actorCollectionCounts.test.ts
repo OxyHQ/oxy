@@ -118,6 +118,35 @@ describe('fetchRemoteActor — search opt-in and moves', () => {
   });
 });
 
+describe('fetchRemoteActor — embedded node references', () => {
+  it('reads an embedded collection or endpoint by its id, as it reads a linked one', async () => {
+    const embed = (id: string) => ({ id, type: 'OrderedCollection', totalItems: 9 });
+    const { upserts } = await resolveWith({
+      actor: actorDocument({
+        inbox: { id: 'https://remote.example/users/bob/inbox' },
+        followers: embed(FOLLOWERS),
+        following: embed(FOLLOWING),
+        outbox: embed(OUTBOX),
+        featured: embed('https://remote.example/users/bob/featured'),
+        featuredTags: embed('https://remote.example/users/bob/tags'),
+        endpoints: { sharedInbox: { id: 'https://remote.example/inbox' } },
+      }),
+      followers: collection(12),
+    });
+
+    expect(upserts[0]).toMatchObject({
+      inboxUrl: 'https://remote.example/users/bob/inbox',
+      followersUrl: FOLLOWERS,
+      followingUrl: FOLLOWING,
+      outboxUrl: OUTBOX,
+      featuredUrl: 'https://remote.example/users/bob/featured',
+      featuredTagsUrl: 'https://remote.example/users/bob/tags',
+      sharedInboxUrl: 'https://remote.example/inbox',
+      followersCount: 12,
+    });
+  });
+});
+
 describe('fetchRemoteActor — remote collection counts', () => {
   it('stores reported totals, and a real 0 stays 0', async () => {
     const { upserts } = await resolveWith({

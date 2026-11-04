@@ -110,6 +110,7 @@ export {
   canonicalFederationHost,
   isSameFederationHost,
   extractActorUriFromActivityId,
+  apIri,
   createDomainPolicy,
   type DomainPolicy,
   type DomainPolicyConfig,
