@@ -18,7 +18,7 @@ export const SAFETY_CONSUMERS = {
     ownerKind: 'organization',
     type: 'first_party',
     roles: ['oxy-mention-task', 'oxy-mention-mcp-task'],
-    candidateActions: ['profile', 'content', 'content-publication'],
+    candidateActions: ['profile', 'content', 'content-publication', 'notification-delivery'],
   },
   allo: {
     applicationId: '6a2f851751b784a86fd0e92b',

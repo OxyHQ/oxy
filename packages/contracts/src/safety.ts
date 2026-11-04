@@ -221,6 +221,30 @@ export const deliveryAccessBatchInputSchema = messageBatch(deliveryAccessInputSc
 export const messageAccessBatchResponseSchema = contentAccessBatchResponseSchema;
 export type MessageAccessBatchInput = z.infer<typeof messageAccessBatchInputSchema>;
 export type DeliveryAccessBatchInput = z.infer<typeof deliveryAccessBatchInputSchema>;
+/**
+ * May `actorAccountId`'s activity notify `recipientAccountId`? A reviewed
+ * background consumer asks before a socket emit or push, with no human proof:
+ * the decision covers blocks in either direction, availability and supervised
+ * contact approval, and discloses nothing else.
+ */
+export const notificationAccessInputSchema = z
+  .object({ resourceId, actorAccountId: accountId, recipientAccountId: accountId })
+  .strict();
+export const notificationAccessBatchInputSchema = z
+  .object({
+    items: z
+      .array(notificationAccessInputSchema)
+      .min(1)
+      .max(100)
+      .refine(
+        (items) => new Set(items.map((item) => item.resourceId)).size === items.length,
+        'Resource IDs must be unique',
+      ),
+  })
+  .strict();
+export const notificationAccessBatchResponseSchema = contentAccessBatchResponseSchema;
+export type NotificationAccessInput = z.infer<typeof notificationAccessInputSchema>;
+export type NotificationAccessBatchInput = z.infer<typeof notificationAccessBatchInputSchema>;
 /** Live socket-recipient proof; a request ID correlates the result and never identifies an account. */
 export const messagingSessionsInputSchema = z
   .object({
