@@ -47,6 +47,28 @@ Require normal tests and typecheck before merging; never use `latest` ranges or
 mutate dependencies during application startup or CI. Renovate proposes
 changes; Doctor detects drift and duplicate installations.
 
+## Translation keys
+
+Every translation catalog follows one key convention (oxy
+`docs/adr/0055-translation-keys.md`): nested objects of identifier segments
+(`compose.toolbar.addImage`), the first segment a namespace, never the English
+text and never a flat dotted string, and English as the source.
+
+```bash
+bunx oxy-doctor-i18n --ci            # every locales/ directory with an en catalog
+bunx oxy-doctor-i18n --root=packages/frontend --json
+```
+
+It finds `locales/<lang>.json` (single file) and `locales/<lang>/<namespace>.json`
+(per namespace) catalogs. **Errors** (`--ci` exits 1): a key segment that is
+text (`text-key`), a dotted key stored flat (`flat-key`), a top-level string in
+a single-file catalog (`top-level-string`), a leaf that is neither a string
+nor a list of strings (`non-string`), a translation key the source lacks
+(`stray-key`), a string where the source has a namespace or the reverse
+(`shape-mismatch`). **Warnings**: a missing translation (`missing-translation`,
+rendered in English) and a placeholder set that differs from the source
+(`placeholder-mismatch`).
+
 ## Expo Android device-session autolinking
 
 After a complete frozen install, run the separate check against the Expo app
