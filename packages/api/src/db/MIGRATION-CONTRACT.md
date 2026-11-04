@@ -171,8 +171,14 @@ baseline and hot tables):
 ## Renumbering a migration after another one lands first
 
 Two open PRs that each add the next migration collide on the number when the first
-merges. Renumber the second from a tree that is **already rebased and rebuilt**,
-or its snapshots describe the wrong schema and CI fails at `API Build`:
+merges. `oxy-db-rebase-migrations --onto=origin/main --generate="<drizzle-kit generate>"`
+(`@oxy.so/db` ≥ 1.5.0) does steps 1 and 3 after a `git merge origin/main`: it
+renumbers the branch's migrations, makes each `when` newer than the one before,
+chains the snapshots and regenerates the last one, keeping the hand-written SQL and
+saying whether drizzle-kit's matches. The rebuild (2), stepwise snapshots (4) and the
+proof (6) still apply, and `oxy-db-check-migration-locks` fails a PR that skipped this.
+By hand, renumber from a tree that is **already rebased and rebuilt**, or its
+snapshots describe the wrong schema and CI fails at `API Build`:
 
 1. Rebase onto `origin/main` first. Resolve the journal by taking main's
    `meta/_journal.json`; delete your `NNNN_*.sql` and `meta/NNNN_snapshot.json`.

@@ -70,3 +70,10 @@ export {
   type CheckMigrationLocksOptions,
   type CheckMigrationLocksResult,
 } from './lockGate';
+export { migrationJournalProblems, migrationNumber, snapshotFileFor } from './journalGate';
+export {
+  type RebaseMigrationsOptions,
+  type RebaseMigrationsResult,
+  type RebasedMigration,
+  rebaseMigrations,
+} from './rebaseMigrations';
