@@ -321,3 +321,55 @@ describe('fetchRemoteActor — bounded remote bodies', () => {
     expect(oversized.pulls()).toBeLessThan(15);
   });
 });
+
+describe('fetchRemoteActor — an injected actor document source', () => {
+  it('reads the actor once from the source, hands its context to the store, and fetches only collections', async () => {
+    const signedFetchCalls: string[] = [];
+    const upserts: Array<{ uri: string; source: unknown }> = [];
+    const document = {
+      id: ALLOWED_ACTOR,
+      type: 'Person',
+      preferredUsername: 'bob',
+      inbox: `${ALLOWED_ACTOR}/inbox`,
+      followers: `${ALLOWED_ACTOR}/followers`,
+    };
+    const resolver = createActorResolver<TestActor, { verifiedBy: string }>({
+      federationEnabled: true,
+      signedFetch: async (url) => {
+        signedFetchCalls.push(url);
+        return new Response(JSON.stringify({ totalItems: 3 }), { status: 200 });
+      },
+      fetchActorDocument: async (uri) =>
+        uri === ALLOWED_ACTOR
+          ? { status: 200, document, source: { verifiedBy: 'authority' } }
+          : { status: 404 },
+      fetchWebFinger: async () => null,
+      isBlockedDomain: () => false,
+      normalizeFederatedAcct: (acct) => acct,
+      domainFromAcct: (acct) => acct.split('@')[1],
+      store: {
+        findActorByUri: async () => null,
+        upsertActor: async (uri, update, source) => {
+          upserts.push({ uri, source });
+          expect(update.followersCount).toBe(3);
+          return { uri };
+        },
+        findActorByPublicKeyId: async () => null,
+        setActorOxyUserId: async () => {},
+        tombstoneActor: async () => null,
+      },
+      identity: { resolveExternalUser: async () => null, reportActorGone: async () => 'archived' },
+      text: {
+        inlineField: (value) => (typeof value === 'string' ? value : ''),
+        inlineDisplayName: (raw) => raw,
+        sanitizeFieldValue: (html) => html,
+        htmlToPlainText: (html) => html,
+      },
+      logger: { info: () => {}, warn: () => {} },
+    });
+
+    await expect(resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toEqual({ uri: ALLOWED_ACTOR });
+    expect(upserts).toEqual([{ uri: ALLOWED_ACTOR, source: { verifiedBy: 'authority' } }]);
+    expect(signedFetchCalls).toEqual([`${ALLOWED_ACTOR}/followers`]);
+  });
+});

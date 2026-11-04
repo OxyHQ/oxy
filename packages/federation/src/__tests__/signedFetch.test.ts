@@ -1,4 +1,4 @@
-import { createSignedFetch, type SingleHopFetchInit } from '../node/signedFetch';
+import { createSignedFetcher, type SingleHopFetchInit } from '../node/signedFetch';
 
 const INSTANCE_KEY = 'https://app.example/actor#main-key';
 const ALICE_KEY = 'https://app.example/ap/users/alice#main-key';
@@ -6,7 +6,7 @@ const ALICE_KEY = 'https://app.example/ap/users/alice#main-key';
 /** A signed fetch over a scripted transport, recording each hop's URL and signing keyId. */
 function rig(responses: Response[]) {
   const hops: Array<{ url: string; keyId: string | null }> = [];
-  const signedFetch = createSignedFetch({
+  const fetcher = createSignedFetcher({
     sign: async () => 'sig',
     getInstanceKeyId: async () => INSTANCE_KEY,
     fetchSingleHop: async (url: string, init: SingleHopFetchInit) => {
@@ -17,7 +17,9 @@ function rig(responses: Response[]) {
     },
     userAgent: 'test',
   });
-  return { signedFetch, hops };
+  const signedFetch = async (...args: Parameters<typeof fetcher>) =>
+    (await fetcher(...args)).response;
+  return { signedFetch, fetcher, hops };
 }
 
 it('signs as the instance and retries a 5xx unsigned', async () => {
@@ -56,4 +58,25 @@ it('signs every hop as the given actor and never retries an actor-signed request
   );
   expect(res.status).toBe(503);
   expect(failing.hops).toHaveLength(1);
+});
+
+it('retries a redirected 5xx unsigned from where the redirect landed, and reports that URL', async () => {
+  const { fetcher, hops } = rig([
+    new Response(null, { status: 302, headers: { location: '/users/bob' } }),
+    new Response(null, { status: 502 }),
+    new Response('{}'),
+  ]);
+
+  const { response, finalUrl } = await fetcher(
+    'https://remote.example/@bob',
+    'application/activity+json',
+  );
+
+  expect(response.status).toBe(200);
+  expect(finalUrl).toBe('https://remote.example/users/bob');
+  expect(hops).toEqual([
+    { url: 'https://remote.example/@bob', keyId: INSTANCE_KEY },
+    { url: 'https://remote.example/users/bob', keyId: INSTANCE_KEY },
+    { url: 'https://remote.example/users/bob', keyId: null },
+  ]);
 });

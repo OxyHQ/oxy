@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.8.0
+
+### Added
+
+- `resolveExternalIdentityResponseSchema.sourceDocument`: the source document Oxy fetched and verified for this answer (the ActivityPub actor, or the atproto `getProfile` view), present only when the request fetched the source and required to name `externalIdentity.actorUri`. A caller reads banner, counts, profile fields, flags, inbox and keys from it instead of fetching the source a second time.
+
 ## 6.7.0
 
 ### Added

@@ -265,16 +265,19 @@ describe('registration never persists the source picture URL', () => {
     const actorUri = `https://mastodon.social/users/${local}`;
     const picture = `https://files.mastodon.social/${local}.png`;
     route({ [picture]: image });
-    jest.spyOn(federationService, 'fetchActorProfile').mockResolvedValue({
-      actorUri,
-      transportAcct: acct,
-      protocol: 'activitypub',
-      evidenceLinks: [],
-      domain: 'mastodon.social',
-      username: acct,
-      displayName: 'New',
-      avatarUrl: picture,
-      bio: '',
+    jest.spyOn(federationService, 'fetchActorProfileResult').mockResolvedValue({
+      ok: true,
+      profile: {
+        actorUri,
+        transportAcct: acct,
+        protocol: 'activitypub',
+        evidenceLinks: [],
+        domain: 'mastodon.social',
+        username: acct,
+        displayName: 'New',
+        avatarUrl: picture,
+        bio: '',
+      },
     });
 
     const result = await federationService.resolveExternalActorIdentity(actorUri);
@@ -290,16 +293,19 @@ describe('registration never persists the source picture URL', () => {
     const acct = `${local}@mastodon.social`;
     const actorUri = `https://mastodon.social/users/${local}`;
     route({});
-    jest.spyOn(federationService, 'fetchActorProfile').mockResolvedValue({
-      actorUri,
-      transportAcct: acct,
-      protocol: 'activitypub',
-      evidenceLinks: [],
-      domain: 'mastodon.social',
-      username: acct,
-      displayName: 'Expired',
-      avatarUrl: EXPIRED_FBCDN,
-      bio: '',
+    jest.spyOn(federationService, 'fetchActorProfileResult').mockResolvedValue({
+      ok: true,
+      profile: {
+        actorUri,
+        transportAcct: acct,
+        protocol: 'activitypub',
+        evidenceLinks: [],
+        domain: 'mastodon.social',
+        username: acct,
+        displayName: 'Expired',
+        avatarUrl: EXPIRED_FBCDN,
+        bio: '',
+      },
     });
 
     const result = await federationService.resolveExternalActorIdentity(actorUri);

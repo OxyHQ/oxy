@@ -177,9 +177,8 @@ export type NetworkId = 'activitypub' | 'atproto' | 'instagram-graph';
 
 /**
  * A remote actor normalized into a network-neutral shape. Built by a connector
- * from its protocol's profile representation, and consumed by the identity
- * bridge ({@link NetworkConnector.mapIdentity}) to resolve/mint the federated
- * Oxy user the actor maps to.
+ * from its protocol's profile representation; `oxyUserId` carries the Oxy user
+ * the identity authority resolved it to.
  */
 export interface NormalizedExternalActor {
   network: NetworkId;
@@ -437,16 +436,12 @@ export type LocalNetworkEvent<TContent = unknown> =
       targetActorUri: string;
     };
 
-/** Context passed alongside an inbound payload to {@link NetworkConnector.receive}. */
-export interface ReceiveContext {
-  /** The remote actor URI/DID whose signature was already verified by the transport. */
-  verifiedActorUri: string;
-}
-
 /**
  * The common contract every external network speaks behind. A connector owns all
  * protocol specifics; the registry and the app's content core only ever see this
- * surface.
+ * surface. Identity is not part of it: the identity authority (Oxy) resolves
+ * and verifies every external account, and inbound payloads reach the protocol's
+ * own inbox handler, never a connector-generic `receive`.
  *
  * Generic over the app's post-content type `TContent`, which flows through
  * {@link NetworkConnector.deliver} on `post.create` / `post.update` events.
@@ -458,16 +453,10 @@ export interface NetworkConnector<TContent = unknown> {
   readonly enabled: boolean;
   /** True when `subject` (a handle / URI / DID) belongs to this network. */
   matches(subject: string): boolean;
-  /** Resolve a handle to a normalized actor (webfinger for AP, handle→DID for atproto). */
-  resolve(handle: string): Promise<NormalizedExternalActor | null>;
   /** Fetch + normalize an actor profile by its protocol id. */
   fetchProfile(externalId: string): Promise<NormalizedExternalActor | null>;
   /** Backfill + normalize an actor's recent posts. */
   fetchPosts(externalId: string, opts?: FetchPostsOptions): Promise<FetchPostsResult>;
   /** Deliver a local domain event outbound (federate to followers / write a record). */
   deliver(event: LocalNetworkEvent<TContent>): Promise<void>;
-  /** Process an inbound payload (already actor-verified by the transport). */
-  receive(payload: unknown, ctx: ReceiveContext): Promise<void>;
-  /** Resolve/mint the Oxy user this external actor maps to; null when unresolvable. */
-  mapIdentity(actor: NormalizedExternalActor): Promise<string | null>;
 }

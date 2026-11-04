@@ -44,7 +44,9 @@ it.each([
     expect(await inspectReconciliationChanges(incoming, source.username)).toBe(changed);
     // Only remote actor fetching is stubbed. Apply uses the actual Oxy resolver,
     // source-bound registry transaction and public-user readback in PostgreSQL.
-    jest.spyOn(federationService, 'fetchActorProfile').mockResolvedValue(incoming);
+    jest
+      .spyOn(federationService, 'fetchActorProfileResult')
+      .mockResolvedValue({ ok: true, profile: incoming });
     const applied = await federationService.resolveExternalActorIdentity(source.actorUri);
     expect(applied?.user.id).toBe(registered.userId);
     const [stored] = await getDb()

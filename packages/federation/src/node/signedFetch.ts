@@ -44,10 +44,18 @@ export interface SingleHopFetchInit {
  */
 export type SingleHopFetch = (url: string, init: SingleHopFetchInit) => Promise<Response>;
 
+/** What a {@link SignedFetchLogger} line is about, for a sink that formats its own. */
+export interface SignedFetchLogDetail {
+  /** The status that prompted the line. */
+  status: number;
+  /** The URL the answer came from (after redirects). */
+  url: string;
+}
+
 /** Non-fatal diagnostics sink for signed fetches. */
 export interface SignedFetchLogger {
-  info(message: string): void;
-  warn(message: string): void;
+  info(message: string, detail?: SignedFetchLogDetail): void;
+  warn(message: string, detail?: SignedFetchLogDetail): void;
 }
 
 /** Adapters + config a {@link SignedFetch} is built from. */
@@ -85,6 +93,24 @@ export type SignedFetch = (
   init?: SignedFetchInit,
 ) => Promise<Response>;
 
+/** A {@link SignedFetch} answer with the URL it came from, after redirects. */
+export interface SignedFetchResult {
+  response: Response;
+  /** The URL that answered: the request URL, or the last redirect hop followed. */
+  finalUrl: string;
+}
+
+/**
+ * A signed ActivityPub GET that also reports the URL that answered — for a
+ * caller that binds a document to where it was served from (an actor whose `id`
+ * may name the redirect target rather than the URL asked for).
+ */
+export type SignedFetcher = (
+  url: string,
+  accept: string,
+  init?: SignedFetchInit,
+) => Promise<SignedFetchResult>;
+
 function requestInitHeaders(init: RequestInit): Record<string, string> {
   if (!init.headers) return {};
   if (init.headers instanceof Headers) {
@@ -121,11 +147,17 @@ function requestInitHeaders(init: RequestInit): Record<string, string> {
  * (see {@link SignedFetchInit.keyId}); such a request is never retried unsigned.
  */
 export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch {
+  const fetcher = createSignedFetcher(config);
+  return async (url, accept, init) => (await fetcher(url, accept, init)).response;
+}
+
+/** {@link createSignedFetch}, answering with the final URL as well ({@link SignedFetcher}). */
+export function createSignedFetcher(config: CreateSignedFetchConfig): SignedFetcher {
   return async function signedFetch(
     url: string,
     accept: string,
     init: SignedFetchInit = {},
-  ): Promise<Response> {
+  ): Promise<SignedFetchResult> {
     const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
     const actorSigned = init.keyId !== undefined;
     const keyId = init.keyId ?? (await config.getInstanceKeyId());
@@ -164,6 +196,7 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
         if (hop === SIGNED_FETCH_MAX_REDIRECTS || !location) {
           return { res, finalUrl: currentUrl };
         }
+        await res.body?.cancel().catch(() => {});
         currentUrl = new URL(location, currentUrl).toString();
       }
       throw new Error('redirect loop exhausted');
@@ -173,7 +206,7 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
 
     // An actor-signed answer is the remote's verdict for THAT actor (a follower or
     // recipient): an unsigned retry asks a different question, so it never runs.
-    if (actorSigned) return res;
+    if (actorSigned) return { response: res, finalUrl };
 
     // If the remote server returns a 5xx (e.g. it can't resolve our keyId to
     // verify the signature), retry without the signature as a fallback for public
@@ -182,8 +215,12 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
     if (res.status >= 500) {
       config.logger?.info(
         `[FedSync] signedFetch got ${res.status} for ${finalUrl}, retrying unsigned`,
+        { status: res.status, url: finalUrl },
       );
-      return fetchFollowingRedirects(finalUrl, false).then(({ res: unsignedRes }) => unsignedRes);
+      // The failed signed answer's body is never read; release its stream.
+      await res.body?.cancel().catch(() => {});
+      const unsigned = await fetchFollowingRedirects(finalUrl, false);
+      return { response: unsigned.res, finalUrl: unsigned.finalUrl };
     }
 
     // A 401/403 on a signed request means the remote rejected OUR signature (e.g.
@@ -195,9 +232,10 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
     if (res.status === 401 || res.status === 403) {
       config.logger?.warn(
         `[FedSync] signedFetch got ${res.status} ${res.statusText} for ${url} — remote rejected our HTTP signature (check instance key pair / service token); returning the failed response so no posts are imported from this source`,
+        { status: res.status, url: finalUrl },
       );
     }
 
-    return res;
+    return { response: res, finalUrl };
   };
 }

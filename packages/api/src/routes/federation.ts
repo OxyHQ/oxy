@@ -32,7 +32,12 @@ import { users } from '../db/schema/users';
 import { isPermanentlyGoneActor } from '../utils/profileQuery';
 import userCache from '../utils/userCache';
 import credentialDomainCache from '../utils/credentialDomainCache';
-import { getUserPublicKey, signWithKeyId, federationService } from '../services/federation.service';
+import {
+  getUserPublicKey,
+  signWithKeyId,
+  federationService,
+  type SourceFailure,
+} from '../services/federation.service';
 import {
   getEquivalentUserIds,
   getExternalIdentitiesForUser,
@@ -139,13 +144,18 @@ router.post(
         'protocol instagram-graph requires an instagram.com handle or an instagram-graph:<igUserId> actorUri',
       );
     }
-    const result = await federationService.resolveExternalIdentity({
-      actorUri,
-      handle,
-      transportAcct,
-      protocol,
-    });
-    if (!result) throw new NotFoundError('External actor could not be verified');
+    const failure: SourceFailure = {};
+    const result = await federationService.resolveExternalIdentity(
+      { actorUri, handle, transportAcct, protocol },
+      failure,
+    );
+    // The source's own HTTP refusal rides along, so a caller can tombstone a
+    // gone (410) actor without fetching it to find out.
+    if (!result)
+      throw new NotFoundError(
+        'External actor could not be verified',
+        failure.sourceStatus !== undefined ? { sourceStatus: failure.sourceStatus } : undefined,
+      );
     sendSuccess(res, resolveExternalIdentityResponseSchema.parse(result));
   }),
 );

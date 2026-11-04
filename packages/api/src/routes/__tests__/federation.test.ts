@@ -553,15 +553,21 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     ]);
 
     // Past the scope gate the route asks the identity authority; "not
-    // verifiable" is its 404, which proves the request got through.
-    mockResolveExternalIdentity.mockResolvedValueOnce(null);
+    // verifiable" is its 404, which proves the request got through. A source
+    // that answered 410 says so, so the caller can tombstone without a fetch.
+    mockResolveExternalIdentity.mockImplementationOnce(
+      async (_input: unknown, failure?: { sourceStatus?: number }) => {
+        if (failure) failure.sourceStatus = 410;
+        return null;
+      },
+    );
     const resolve = await requestJson('POST', '/federation/identities/resolve', resolveBody);
     expect(resolve.status).toBe(404);
-    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({
-      actorUri: resolveBody.actorUri,
-      handle: undefined,
-      transportAcct: undefined,
-    });
+    expect(resolve.body.details).toEqual({ sourceStatus: 410 });
+    expect(mockResolveExternalIdentity).toHaveBeenCalledWith(
+      { actorUri: resolveBody.actorUri, handle: undefined, transportAcct: undefined },
+      expect.any(Object),
+    );
   });
 
   it('refuses a files:write-only token on both routes', async () => {
@@ -632,13 +638,16 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
       const res = await requestJson('POST', '/federation/identities/resolve', body);
       expect(res.status).toBe(404);
       expect(mockResolveExternalIdentity).toHaveBeenCalledTimes(1);
-      expect(mockResolveExternalIdentity).toHaveBeenCalledWith({
-        actorUri: undefined,
-        handle: undefined,
-        transportAcct: undefined,
-        protocol: undefined,
-        ...body,
-      });
+      expect(mockResolveExternalIdentity).toHaveBeenCalledWith(
+        {
+          actorUri: undefined,
+          handle: undefined,
+          transportAcct: undefined,
+          protocol: undefined,
+          ...body,
+        },
+        expect.any(Object),
+      );
     },
   );
 

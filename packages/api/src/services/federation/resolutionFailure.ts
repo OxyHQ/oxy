@@ -26,7 +26,12 @@ export interface ResolutionFailure {
   httpStatus?: number;
 }
 export type ActorProfileResult<T> =
-  | { ok: true; profile: T }
+  | {
+      ok: true;
+      profile: T;
+      /** The source document the profile was derived from, as fetched. */
+      document?: Record<string, unknown>;
+    }
   | { ok: false; failure: ResolutionFailure };
 
 /** Public selectors only: never retain URL credentials, queries, or fragments. */

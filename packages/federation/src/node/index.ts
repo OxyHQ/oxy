@@ -19,13 +19,29 @@
 
 export {
   createSignedFetch,
+  createSignedFetcher,
   type SignedFetch,
+  type SignedFetcher,
+  type SignedFetchResult,
+  type SignedFetchLogDetail,
   type SignedFetchInit,
   type CreateSignedFetchConfig,
   type SingleHopFetch,
   type SingleHopFetchInit,
   type SignedFetchLogger,
 } from './signedFetch';
+
+/**
+ * Bounded, deadlined reads of a remote `Response` body (the one reader behind
+ * every federation document read).
+ */
+export {
+  readBoundedResponseJson,
+  readBoundedResponseText,
+  ResponseBodyTooLargeError,
+  ResponseBodyTimeoutError,
+  type ResponseBodyLimits,
+} from './boundedBody';
 
 /**
  * X's `t.co` wrapper unwrapped into the link the author posted, over the same
@@ -62,6 +78,8 @@ export {
 export {
   createActorResolver,
   ActorResolver,
+  type ActorDocumentFetch,
+  type ActorDocumentFetchResult,
   type ActorResolverConfig,
   type ActorResolverIdentity,
   type ActorResolverLogger,

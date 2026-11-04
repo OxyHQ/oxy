@@ -320,7 +320,8 @@ afterAll(async () => {
 
 describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
   let webfingerSpy: jest.SpyInstance;
-  let actorSpy: jest.SpyInstance;
+  let actorSpy: jest.Mock;
+  let actorResultSpy: jest.SpyInstance;
   let avatarSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -329,7 +330,25 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     mockAcquireAvatarOriginLease.mockResolvedValue(0);
     mockRecordAvatarOriginRateLimit.mockResolvedValue(30_000);
     webfingerSpy = jest.spyOn(federationService, 'resolveWebFingerResource');
-    actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
+    // The resolve path reads the source through `fetchActorProfileResult`; the
+    // tests script the profile it yields (null: the source refused).
+    actorSpy = jest.fn();
+    actorResultSpy = jest
+      .spyOn(federationService, 'fetchActorProfileResult')
+      .mockImplementation(async (...args: [string, string?]) => {
+        const fetched = await actorSpy(...args);
+        return fetched
+          ? { ok: true as const, profile: fetched }
+          : {
+              ok: false as const,
+              failure: {
+                operation: 'resolve_external_identity' as const,
+                phase: 'actor_fetch' as const,
+                reason: 'http_status' as const,
+                httpStatus: 404,
+              },
+            };
+      });
     avatarSpy = jest
       .spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: 'new-file-id', notModified: false, color: '#ee4b16' });
@@ -337,7 +356,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
 
   afterEach(() => {
     webfingerSpy.mockRestore();
-    actorSpy.mockRestore();
+    actorResultSpy.mockRestore();
     avatarSpy.mockRestore();
   });
 
@@ -1353,6 +1372,20 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
 
     expect(profile?.username).toBe('alice@mastodon.social');
     expect(profile?.domain).toBe('mastodon.social');
+  });
+
+  it('returns the document it verified beside the profile, for the resolve answer', async () => {
+    const actorUri = 'https://mastodon.social/users/carol';
+    serveActor(actorUri, 'carol', { image: { type: 'Image', url: 'https://cdn.example/b.png' } });
+
+    expect(await federationService.fetchActorProfileResult(actorUri)).toMatchObject({
+      ok: true,
+      document: {
+        id: actorUri,
+        inbox: `${actorUri}/inbox`,
+        image: { url: 'https://cdn.example/b.png' },
+      },
+    });
   });
 
   it('derives a bridge identity from the actor Official assertion', async () => {
