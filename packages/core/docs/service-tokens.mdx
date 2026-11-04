@@ -143,5 +143,7 @@ minute.
 - Act as a person for a human-facing action. Use the person's own session
   (`withUser`) or their requester proof (`withRequester`).
 - Hold an application's operator powers: `appPermissionsFor` and
-  `requireAppPermission` refuse service-token requests.
+  `requireAppPermission` refuse service-token requests. (An MCP tool call is
+  different: the service token only proves your backend to Oxy, and the answer
+  is about the person behind the call's MCP access token.)
 - Skip rate limits: it is charged to its own application instead of an IP.

@@ -43,6 +43,17 @@ export interface OxyCallerSession {
 }
 
 /**
+ * Whose answer a cache entry is: the session (or other credential) it was read
+ * with, and the person, when known before asking. A caller whose person only
+ * Oxy's answer names (an MCP access token) passes `userId: null`; the reader's
+ * `isAbout` still matches the answer for {@link CallerAuthorityCache.invalidate}.
+ */
+export interface OxyCallerCacheKey {
+  readonly sessionId: string;
+  readonly userId: string | null;
+}
+
+/**
  * The person behind `req`, or why there is none: `service` for a request
  * authenticated by a service token (delegated or not — its bearer is the
  * service's, never the person's), `missing` when `middleware.auth()` resolved
@@ -175,7 +186,7 @@ export function accessFailure(error: unknown, what: string): OxyAccessError {
 
 interface CacheEntry<T> {
   value: T;
-  userId: string;
+  userId: string | null;
   startedAt: number;
   expiresAt: number;
 }
@@ -204,7 +215,7 @@ export class CallerAuthorityCache<T> {
 
   async read(
     resourceKey: readonly string[],
-    session: OxyCallerSession,
+    session: OxyCallerCacheKey,
     fresh: boolean,
     lookup: () => Promise<T>,
   ): Promise<T> {
@@ -244,7 +255,13 @@ export class CallerAuthorityCache<T> {
     }
   }
 
-  private remember(key: string, userId: string, value: T, startedAt: number, ttl: number): void {
+  private remember(
+    key: string,
+    userId: string | null,
+    value: T,
+    startedAt: number,
+    ttl: number,
+  ): void {
     const existing = this.entries.get(key);
     if (existing && existing.startedAt > startedAt) return;
     this.entries.delete(key);

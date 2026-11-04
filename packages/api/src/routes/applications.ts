@@ -100,7 +100,7 @@ import {
   isOwnApplicationType,
   listGrants,
   listPermissions,
-  permissionsHeldBy,
+  resolveApplicationPermissions,
   revokeGrant,
 } from '../services/applicationRoles.service';
 import {
@@ -2063,22 +2063,11 @@ router.get(
         APPLICATION_ROLE_ERROR_CODES.sessionApplicationMismatch,
       );
     }
-    const operatorId = await resolveOperatorId(req);
-
-    const [application] = await getDb()
-      .select({ id: applications.id })
-      .from(applications)
-      .where(and(eq(applications.id, appId), ne(applications.status, 'deleted')))
-      .limit(1);
-    if (!application) {
+    const body: z.infer<typeof applicationRolesMeSchema> | null =
+      await resolveApplicationPermissions(appId, await resolveOperatorId(req));
+    if (!body) {
       throw new NotFoundError('Application not found');
     }
-
-    const body: z.infer<typeof applicationRolesMeSchema> = {
-      applicationId: application.id,
-      userId: operatorId,
-      permissions: await permissionsHeldBy(application.id, operatorId),
-    };
     res.setHeader('Cache-Control', 'no-store');
     res.json(body);
   }),

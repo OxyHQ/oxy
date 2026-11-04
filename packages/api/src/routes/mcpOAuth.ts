@@ -43,6 +43,7 @@ import {
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
+import { resolveApplicationPermissions } from '../services/applicationRoles.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
 
@@ -100,6 +101,18 @@ const introspectionLimiter = rateLimit({
  */
 const viewerGraphLimiter = rateLimit({
   prefix: 'rl:auth:mcp:viewer-graph:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
+/**
+ * The application-permissions read is asked on the same cadence as the viewer
+ * graph — at most once per served request, usually from the SDK's short cache —
+ * so it gets the same per-application budget.
+ */
+const appPermissionsLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:app-permissions:',
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
   keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
@@ -711,6 +724,57 @@ router.post(
         action: body.action,
         changed: 'created' in result ? result.created : result.removed,
       });
+    } catch (error) {
+      sendMcpOAuthError(response, error);
+    }
+  },
+);
+
+/**
+ * Which of the CALLING application's declared permissions (application roles,
+ * `docs/auth/application-roles.md`) the person behind an MCP access token holds.
+ *
+ * `GET /applications/:appId/roles/me` answers this for a person in a session.
+ * An MCP request carries no session — the connector's token is bound to the
+ * resource and must never be forwarded as one — so the resource server presents
+ * the token HERE, as it does for the viewer graph:
+ *
+ *   - the token is live, unrevoked, and for a resource THIS service credential's
+ *     application registered; a token for another app's resource is refused;
+ *   - the application is the one that registered the token's resource, which is
+ *     the caller's own. There is no application parameter, so a service can
+ *     never read another application's grants;
+ *   - the person is the one who authorized the token (its `sub`), whichever
+ *     member account the connection is acting as — as `roles/me` answers for the
+ *     operator, never the account a session speaks as. A linked account lends
+ *     the connection its data, never its approver's operator powers;
+ *   - grants are read live. Revoking the grant, the token or the role ends it on
+ *     the next call.
+ *
+ * The answer is `roles/me`'s, from the same resolver
+ * (`resolveApplicationPermissions`), so the two can never disagree about what
+ * a person holds and the SDK reads both one way.
+ */
+router.post(
+  '/app-permissions',
+  serviceAuthMiddleware,
+  appPermissionsLimiter,
+  async (request: ServiceAuthRequest, response) => {
+    try {
+      const body = connectionTokenSchema.parse(request.body);
+      const caller = await connectionCallerGrant(request, body.token);
+      // `resolveLiveMcpAccessToken` refused the token unless the resource's
+      // application is the calling service's own. What the person holds is
+      // `roles/me`'s own resolver: this route only establishes who and which.
+      const answer = await resolveApplicationPermissions(
+        caller.descriptor.registeredByApplicationId,
+        caller.grant.principalUserId,
+      );
+      if (!answer) {
+        throw new McpOAuthError('invalid_client', 'The resource application is not live', 401);
+      }
+      response.set('cache-control', 'no-store');
+      response.json(answer);
     } catch (error) {
       sendMcpOAuthError(response, error);
     }
