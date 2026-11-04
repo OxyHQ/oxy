@@ -33,6 +33,7 @@ import {
   type AccountKind,
 } from '@oxy.so/contracts';
 import type { AccountRelationship } from '../api/accounts';
+import type { ApplicationStatus, ApplicationType } from '../api/apps';
 import {
   accessFailure,
   CallerAuthorityCache,
@@ -63,8 +64,20 @@ export interface OxyApplicationAccess {
   readonly applicationId: string;
   /** The account that owns the application; the access derives from the caller's membership there. */
   readonly ownerAccountId: string;
-  /** Whether the application is an official Oxy application. */
+  /**
+   * Whether the application is one of Oxy's own: `isOfficial`, `isInternal`,
+   * or typed `first_party` / `internal` / `system` — the rule oxy-api applies
+   * to every trust decision (`isTrustedApplication`). All of those fields are
+   * staff-controlled; a self-service `third_party` application is never
+   * official, whatever its owner sets.
+   */
   readonly official: boolean;
+  /**
+   * The application's lifecycle status. A `suspended` or `pending_review`
+   * application is still answered (its members may read it); whether it may
+   * act is the caller's decision.
+   */
+  readonly status: ApplicationStatus;
   /** Informational; gate on `permissions` / `has`, never on the role name. */
   readonly role: string;
   /** The application permissions (`app:read`, `app:update`, `webhooks:update`, …), sorted. */
@@ -117,6 +130,19 @@ function stringArray(value: unknown): string[] | null {
 }
 
 const RELATIONSHIPS: readonly AccountRelationship[] = ['self', 'owner', 'member'];
+const APPLICATION_TYPES: readonly ApplicationType[] = [
+  'first_party',
+  'third_party',
+  'internal',
+  'system',
+];
+const OFFICIAL_TYPES: readonly ApplicationType[] = ['first_party', 'internal', 'system'];
+/** `deleted` is absent on purpose: Oxy answers a deleted application 404. */
+const APPLICATION_STATUSES: readonly ApplicationStatus[] = [
+  'active',
+  'suspended',
+  'pending_review',
+];
 
 /** `GET /accounts/:id` → the caller's effective access, or `null` for a malformed answer. */
 export function parseAccountAccess(accountId: string, answer: unknown): OxyAccountAccess | null {
@@ -144,12 +170,17 @@ export function parseApplicationAccess(
   const application = record(answer);
   if (!application || application._id !== applicationId) return null;
   const ownerAccountId = application.ownerAccountId;
+  const type = application.type as ApplicationType;
+  const status = application.status as ApplicationStatus;
   const membership = record(application.callerMembership);
   const permissions = stringArray(membership?.permissions);
   if (
     typeof ownerAccountId !== 'string' ||
     ownerAccountId === '' ||
     typeof application.isOfficial !== 'boolean' ||
+    typeof application.isInternal !== 'boolean' ||
+    !APPLICATION_TYPES.includes(type) ||
+    !APPLICATION_STATUSES.includes(status) ||
     !membership ||
     typeof membership.role !== 'string' ||
     membership.role === '' ||
@@ -161,7 +192,8 @@ export function parseApplicationAccess(
   return Object.freeze({
     applicationId,
     ownerAccountId,
-    official: application.isOfficial,
+    official: application.isOfficial || application.isInternal || OFFICIAL_TYPES.includes(type),
+    status,
     role: membership.role,
     ...permissionSet(permissions),
   });

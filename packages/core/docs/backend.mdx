@@ -90,7 +90,7 @@ their organization is answered for themselves.
 // A Console-style dashboard over a developer's application:
 const access = await oxy.applicationAccessFor(req, applicationId, { fresh: true });
 if (!access.has('webhooks:update')) throw new OxyAccessError('ACCESS_DENIED', 'Missing webhooks:update');
-// access.ownerAccountId, access.official, access.role, access.permissions
+// access.ownerAccountId, access.official (Oxy's own application), access.status, access.role, access.permissions
 ```
 
 Every outcome is typed (`OxyAccessError.code`) and mapped one way:
