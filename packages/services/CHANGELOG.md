@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.5] - 2026-11-04
+
+### Fixed
+
+- `@peable.to/sdk` 1.0.2 (was 1.0.0). 1.0.0's checkout UI entry imported the `@peable.to/shared-types` barrel, which carries the Node-only webhook signer (`node:crypto`), so a React Native app bundling the checkout UI (Mention's Plus checkout) failed to build its native bundle. 1.0.2's browser entries import only the module they read; the API is unchanged.
+
 ## [14.3.4] - 2026-11-04
 
 ### Changed
