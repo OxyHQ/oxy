@@ -882,6 +882,48 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     );
   });
 
+  it('registers the routed bridge of an account first seen through another bridge', async () => {
+    actorCounter += 1;
+    const local = `twobridges${actorCounter}`;
+    const other = `https://mastox.eu/users/${local}`;
+    const routed = `https://bird.makeup/users/${local}`;
+    const profileOf = (actorUri: string, host: string) => ({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@${host}`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Two Bridges',
+      bio: '',
+    });
+    webfingerSpy.mockImplementation(async (acct: string) =>
+      acct === `${local}@bird.makeup` ? { actorUri: routed, subjectAcct: acct } : null,
+    );
+    actorSpy.mockImplementation(async (actorUri: string) =>
+      actorUri === other
+        ? profileOf(other, 'mastox.eu')
+        : actorUri === routed
+          ? profileOf(routed, 'bird.makeup')
+          : null,
+    );
+
+    await federationService.resolveExternalIdentity({ actorUri: other });
+
+    const transports = async () =>
+      (
+        await getDb()
+          .select({ actorUri: externalIdentityActors.actorUri })
+          .from(externalIdentityActors)
+          .where(eq(externalIdentityActors.canonicalAcct, `${local}@x.com`))
+      )
+        .map((row) => row.actorUri)
+        .sort();
+    for (let attempt = 0; attempt < 50 && (await transports()).length < 2; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await transports()).toEqual([routed, other].sort());
+  });
+
   it('never consults the failed-discovery cache for a handle it already stores', async () => {
     const fx = nextFixture();
     webfingerSpy.mockResolvedValue(null);
