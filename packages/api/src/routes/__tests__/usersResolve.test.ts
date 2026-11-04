@@ -131,8 +131,7 @@ function resolveUser(payload: unknown, path = '/users/resolve'): Promise<JsonRes
 /** A `safeFetch` result carrying a WebFinger JRD body. */
 function webFingerResult(status: number, body: unknown) {
   const buffer = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
-  const response = Readable.from([buffer]) as Readable & { destroy: jest.Mock };
-  response.destroy = jest.fn();
+  const response = Readable.from([buffer]);
   return {
     status,
     headers: { 'content-type': 'application/jrd+json' },

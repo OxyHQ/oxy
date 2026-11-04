@@ -129,6 +129,14 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     "A REMOTE fediverse handle (`user@domain`) — another server's namespace. 73,146 of the ~73,189 rows in `users` are remote actors stored in that form, and not one of them is a name claimed here.",
   ],
   [
+    'packages/api/src/services/federation/handles.ts',
+    "REMOTE fediverse handles (`user@domain`) and Bluesky handles (DNS names), split out of `federation.service.ts`: other networks' namespaces, never a name claimed here.",
+  ],
+  [
+    'packages/api/src/services/federation/atproto.ts',
+    "The handle a Bluesky AppView reports for a DID (a DNS name); the AT Protocol's namespace, never local Oxy username validation.",
+  ],
+  [
     'packages/federation/src/__tests__/actorResolverNetworkIdentity.test.ts',
     "Rewrites bare `@handle` mentions in REMOTE post text to their origin server; the handles are other servers'.",
   ],

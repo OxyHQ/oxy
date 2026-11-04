@@ -4,59 +4,35 @@
  * Resolves fediverse (ActivityPub) handles to Oxy user profiles.
  * Handles WebFinger discovery, actor profile fetching, avatar download, and user upsert.
  * Signs outgoing requests with HTTP Signatures for servers that enforce authorized fetch.
+ *
+ * The methods that call one another (and that tests spy on) live on
+ * {@link FederationService}; the module-level pieces live under `./federation/`:
+ * `transport` (SSRF-safe and signed fetches), `localActor` (Oxy's own actor
+ * documents), `avatarDownload` (picture mirroring), `externalIdentity` and
+ * `atproto` (resolve shapes and Bluesky sources), `handles`, `ownDomain` and
+ * `refreshThrottle`. Everything this module exported before is re-exported here.
  */
 
+import { eq } from 'drizzle-orm';
 import {
-  resolutionFailure,
-  safeActorSelector,
-  type ActorProfileResult,
-} from './federation/resolutionFailure';
-import crypto from 'crypto';
-import type { IncomingMessage } from 'http';
-import { and, eq } from 'drizzle-orm';
-import {
-  atprotoIdentityHandle,
   blueskyHandleFromUsername,
   blueskyUsernameFromHandle,
   BSKY_NETWORK_DOMAIN,
-  signRequest,
   canonicalFederationHost,
-  createUrlBuilders,
   federatedUsernameFromUpstreamUrl,
-  INSTANCE_ACTOR_USERNAME,
-  normalizeAlsoKnownAs,
   isActivityPubMediaType,
-  localActorTypeForAccountKind,
 } from '@oxy.so/federation';
-import { createTcoLinkExpander } from '@oxy.so/federation/node';
-import {
-  readResponseBody,
-  readResponseJson,
-  safeFetch,
-  SsrfRejection,
-  type SafeFetchResult,
-} from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
-import {
-  composeInstanceKeyId,
-  findKeyPair,
-  getInstanceKeyPair,
-  getUserKeyPair,
-  type KeyPairDoc,
-} from './federation/actorKeys';
-import { type ACCOUNT_KINDS, users } from '../db/schema/users';
+import { users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
-import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';
 import { userService, type AccountDocument } from './user.service';
-import { AssetService } from './assetService';
-import { s3Service } from './s3ServiceSingleton';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { isAvatarFileId, persistFederatedAvatar } from '../utils/federatedAvatar';
-import { composeDisplayName } from '../utils/displayName';
 import { cleanAccountName } from '../utils/displayNameSanitize';
-import { sanitizePlainText } from '../utils/sanitize';
+import { composeInstanceKeyId, findKeyPair } from './federation/actorKeys';
+import { resolutionFailure, type ActorProfileResult } from './federation/resolutionFailure';
 import {
   deriveExternalActorProfile,
   externalProfileKind,
@@ -81,785 +57,76 @@ import {
 } from './federation/metaIdentityProofRegistry.service';
 import {
   getExternalIdentitiesForUser,
-  getCanonicalUserRedirects,
   lookupExternalIdentity,
   registerExternalIdentity,
   resolveCanonicalUserId,
 } from './externalIdentityRegistry.service';
-import { normalizeAvatarImage } from './federation/avatarImage';
-import { avatarSeedColor } from './federation/avatarColor';
+import { AP_DOMAIN, isOwnFederationDomain } from './federation/ownDomain';
 import {
-  acquireAvatarOriginLease,
-  clearAvatarOriginFailures,
-  recordAvatarOriginRateLimit,
-} from './federation/avatarFetchBackpressure';
+  AP_ACCEPT_TYPES,
+  discardBody,
+  expandTcoLinks,
+  FEDERATION_FETCH_TIMEOUT_MS,
+  readFederationJson,
+  readSignedFetchJson,
+  safeFederationFetch,
+  signedFetch,
+} from './federation/transport';
+import {
+  ATPROTO_DID_RE,
+  ATPROTO_HANDLE_RE,
+  domainFromHandle,
+  missIsInconclusive,
+  normalizeFediverseHandle,
+  TRANSIENT_NOT_FOUND_HOSTS,
+  TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS,
+  transportHandleForExternalAccount,
+} from './federation/handles';
+import { claimRefreshSlot, releaseRefreshSlot, STALE_MS } from './federation/refreshThrottle';
+import {
+  AVATAR_REFRESH_MIN_INTERVAL_MS,
+  type AvatarDownloadResult,
+  claimAvatarRefreshSlot,
+  FEDERATION_SYSTEM_USER,
+  fetchAndStoreAvatar,
+  freshInstagramGraphAvatarUrl,
+  releaseAvatarRefreshSlot,
+  storedAvatarExists,
+  storedAvatarFileId,
+} from './federation/avatarDownload';
+import type { AccountKind } from './federation/localActor';
+import {
+  federatedProfile,
+  identityResponse,
+  type SourceFailure,
+  type SourceObservation,
+  type StoredExternalSource,
+  type WebFingerResolution,
+} from './federation/externalIdentity';
+import { fetchAtprotoSource, resolveAtprotoHandle } from './federation/atproto';
 
-/** The `users.kind` closed value set, derived from the column itself. */
-type AccountKind = (typeof ACCOUNT_KINDS)[number];
-
-const AP_ACCEPT_TYPES = [
-  'application/activity+json',
-  'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
-];
-
-const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
-const USER_AGENT = 'OxyHQ/1.0 (ActivityPub)';
-
-/**
- * Oxy's OWN federation apex domain(s). The fediverse treats `oxy.so` as a
- * remote ActivityPub origin, but it is in fact our own apex: a handle like
- * `nate@oxy.so` denotes the LOCAL user `nate`, NOT a remote actor. Resolving
- * such a handle must never WebFinger our own apex nor mint a `type:'federated'`
- * shadow row — that duplicates the real local user and shadows it in search.
- *
- * The set is the configured {@link AP_DOMAIN} plus any extra aliases supplied
- * via the optional comma-separated `FEDERATION_OWN_DOMAINS` env (e.g. a legacy
- * apex). Entries are trimmed, lowercased, and de-duplicated.
- *
- * This is the SINGLE source of truth for the own-domain set; consumers
- * (`routes/users.ts`, the dedupe script) import {@link isOwnFederationDomain}
- * or {@link OWN_FEDERATION_DOMAINS} from here rather than copying the constant.
- */
-export const OWN_FEDERATION_DOMAINS: ReadonlySet<string> = new Set(
-  [AP_DOMAIN, ...(process.env.FEDERATION_OWN_DOMAINS ?? '').split(',')]
-    .map((domain) => canonicalFederationHost(domain))
-    .filter((domain) => domain.length > 0),
-);
-
-/**
- * True when `domain` is one of Oxy's own federation domains (case-insensitive).
- * Strips a leading `www.` so `www.oxy.so` matches the apex entry.
- * Callers short-circuit resolution for own-domain handles (return null / reject
- * 400) so they never mint a `type:'federated'` shadow row.
- */
-export function isOwnFederationDomain(domain: string): boolean {
-  return OWN_FEDERATION_DOMAINS.has(canonicalFederationHost(domain));
-}
-
-/**
- * A cached federated record older than this is considered stale and triggers a
- * background refresh on the next resolve. The cached record is still returned
- * immediately — the refresh runs fire-and-forget. Bluesky-style: fast now,
- * eventually fresh.
- */
-const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-/**
- * Minimum gap between background refresh attempts for the same actor. Guards
- * against refresh storms when many requests hit a stale record at once (each
- * request would otherwise schedule its own background fetch).
- */
-const REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
-/**
- * Minimum gap between forced avatar re-downloads for the same user. Even when a
- * caller passes `refresh: true` to PUT /users/resolve, we skip re-downloading
- * the avatar if it was fetched within this window. The persisted
- * `federation.lastAvatarFetchedAt` is the authority across restarts; the
- * in-memory {@link _lastAvatarAttemptAt} map coalesces bursts within a process.
- * 5 minutes matches {@link REFRESH_MIN_INTERVAL_MS} — a single avatar can't
- * meaningfully change faster than the actor record it belongs to.
- */
-const AVATAR_REFRESH_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
-const FEDIVERSE_HANDLE_REGEX = /^@?[\w.-]+@[\w.-]+\.\w+$/;
-
-/** Time-to-first-byte deadline for federation control-plane fetches (webfinger/actor). */
-const FEDERATION_FETCH_TIMEOUT_MS = 10_000;
-/** Time-to-first-byte deadline for avatar/media downloads. */
-const FEDERATION_AVATAR_FETCH_TIMEOUT_MS = 15_000;
-/**
- * Whole-body deadlines once the headers are in. Each equals its fetch's
- * deadline, which the fetch's `AbortSignal` already holds from the request's
- * start: a JSON document is at most 2 MiB (≥ 200 KiB/s), an avatar at most
- * 25 MiB, and the actor documents and avatars peers serve are KBs to a few MB.
- */
-const FEDERATION_JSON_BODY_TIMEOUT_MS = 10_000;
-const FEDERATION_AVATAR_BODY_TIMEOUT_MS = 15_000;
-/** Largest avatar STORED as-is (the historical 5MB limit); larger ones are re-encoded. */
-const FEDERATION_MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-/** Largest avatar DOWNLOADED at all: animated 6–8 MB WebP/GIF avatars are common. */
-const FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES = 25 * 1024 * 1024;
-/** Longest a fetch waits for its origin's request gap before it is deferred. */
-const AVATAR_ORIGIN_MAX_WAIT_MS = 30_000;
-/**
- * Hard cap on a federation JSON document (WebFinger JRD / ActivityPub actor).
- * Generous for legitimate actor objects, but bounds a hostile peer streaming an
- * unbounded body to exhaust memory.
- */
-const FEDERATION_MAX_JSON_BYTES = 2 * 1024 * 1024;
-
-/**
- * SSRF-safe federation fetch. All outbound federation traffic is funnelled here
- * so it inherits {@link safeFetch}'s DNS-pinned, redirect-revalidating,
- * private/metadata-IP denylisting protection (closing the DNS-rebind TOCTOU).
- * Restricted to https only — federation never legitimately targets http.
- *
- * Returns the validated, non-redirect {@link SafeFetchResult}, or `null` when the
- * URL is not https, is rejected by the SSRF guard, or the request fails. The
- * caller OWNS the returned `response` stream — read it with
- * {@link readFederationJson} or `readResponseBody`, which cap its bytes and
- * time.
- */
-async function safeFederationFetch(
-  rawUrl: string,
-  options: { headers?: Record<string, string>; timeoutMs?: number; maxRedirects?: number } = {},
-): Promise<SafeFetchResult | null> {
-  let protocol: string;
-  try {
-    protocol = new URL(rawUrl).protocol;
-  } catch {
-    logger.warn('Federation URL rejected', { reason: 'malformed' });
-    return null;
-  }
-  if (protocol !== 'https:') {
-    logger.warn('Federation URL rejected', { reason: 'non_https' });
-    return null;
-  }
-
-  try {
-    return await safeFetch(rawUrl, {
-      method: 'GET',
-      headers: options.headers,
-      headersTimeoutMs: options.timeoutMs ?? FEDERATION_FETCH_TIMEOUT_MS,
-      signal: AbortSignal.timeout(options.timeoutMs ?? FEDERATION_FETCH_TIMEOUT_MS),
-      maxRedirects: options.maxRedirects,
-    });
-  } catch (err) {
-    if (err instanceof SsrfRejection) {
-      logger.warn('Federation URL rejected', {
-        reason: 'ssrf_rejected',
-        actorUri: safeActorSelector(rawUrl),
-      });
-      return null;
-    }
-    logger.warn('Federation fetch failed', {
-      reason: 'transport_unavailable',
-      actorUri: safeActorSelector(rawUrl),
-    });
-    return null;
-  }
-}
-
-/**
- * A bridged X account's bio carries X's `t.co` wrapper for every link; this
- * puts back the link the author posted. One SSRF-safe hop, never followed on.
- */
-const expandTcoLinks = createTcoLinkExpander({
-  userAgent: USER_AGENT,
-  fetchSingleHop: async (url, init) => {
-    const res = await safeFetch(url, {
-      headers: init.headers,
-      signal: init.signal,
-      headersTimeoutMs: init.headersTimeoutMs,
-      redirect: 'manual',
-    });
-    res.response.destroy();
-    const { location } = res.headers;
-    return new Response(null, {
-      status: res.status,
-      headers: typeof location === 'string' ? { location } : {},
-    });
-  },
-});
-
-/**
- * A federation JSON document (WebFinger JRD, actor, profile), or `null` when it
- * is over {@link FEDERATION_MAX_JSON_BYTES}, not JSON, or not complete within
- * {@link FEDERATION_JSON_BODY_TIMEOUT_MS}.
- */
-async function readFederationJson<T>(response: IncomingMessage): Promise<T | null> {
-  const result = await readResponseJson<T>(response, {
-    maxBytes: FEDERATION_MAX_JSON_BYTES,
-    timeoutMs: FEDERATION_JSON_BODY_TIMEOUT_MS,
-  });
-  return result.kind === 'ok' ? result.value : null;
-}
-
-// System user ID for federated avatar ownership
-const FEDERATION_SYSTEM_USER = '__federation__';
-
-function normalizeFediverseHandle(handle: string): string | null {
-  const cleaned = handle
-    .trim()
-    .replace(/^acct:/i, '')
-    .replace(/^@/, '');
-  const atIndex = cleaned.indexOf('@');
-  if (atIndex <= 0 || atIndex === cleaned.length - 1) return null;
-
-  const localPart = cleaned.substring(0, atIndex).toLowerCase();
-  const domain = cleaned.substring(atIndex + 1).toLowerCase();
-  if (!localPart || !domain) return null;
-
-  return `${localPart}@${domain}`;
-}
-
-const ATPROTO_DID_RE = /^did:(plc|web):[^\s/?#]+$/;
-/** An atproto handle is a DNS name: at least two labels and an alphabetic TLD. */
-const ATPROTO_HANDLE_RE = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
-
-function domainFromHandle(handle: string): string | null {
-  const atIndex = handle.indexOf('@');
-  if (atIndex === -1 || atIndex === handle.length - 1) return null;
-  return handle.substring(atIndex + 1).toLowerCase();
-}
-
-/**
- * Actor URIs (or, when no actorUri is known yet, lowercased handles) currently
- * mid-refresh. Prevents two concurrent background refreshes of the same actor.
- */
-const _refreshInFlight = new Set<string>();
-
-/**
- * Last time a background refresh was *attempted* for a given key, used with
- * {@link REFRESH_MIN_INTERVAL_MS} to throttle repeated attempts.
- */
-const _lastRefreshAttemptAt = new Map<string, number>();
-
-/**
- * Take the background-work slot for `key`: false while a job for it is in
- * flight or one was attempted within {@link REFRESH_MIN_INTERVAL_MS}. The
- * caller deletes `key` from {@link _refreshInFlight} when its job settles.
- */
-function claimRefreshSlot(key: string): boolean {
-  if (_refreshInFlight.has(key)) return false;
-  const lastAttempt = _lastRefreshAttemptAt.get(key);
-  if (lastAttempt !== undefined && Date.now() - lastAttempt < REFRESH_MIN_INTERVAL_MS) {
-    return false;
-  }
-  _refreshInFlight.add(key);
-  _lastRefreshAttemptAt.set(key, Date.now());
-  return true;
-}
-
-/**
- * User ids whose avatar is currently mid-download via
- * {@link FederationService.scheduleAvatarRefresh}. Prevents two concurrent
- * background avatar downloads for the same user (e.g. a burst of PUT
- * /users/resolve calls).
- */
-const _avatarRefreshInFlight = new Set<string>();
-
-/**
- * Last time an avatar download was *attempted* for a given user id, used with
- * {@link AVATAR_REFRESH_MIN_INTERVAL_MS} to coalesce in-process bursts. The
- * persisted `federation.lastAvatarFetchedAt` remains the cross-restart authority.
- */
-const _lastAvatarAttemptAt = new Map<string, number>();
-
-/**
- * Check if a string looks like a fediverse handle (@user@domain or user@domain).
- */
-export function isFediverseHandle(query: string): boolean {
-  return FEDIVERSE_HANDLE_REGEX.test(query.trim());
-}
-
-// ============================================================
-// HTTP Signature Signing
-// ============================================================
-//
+export { isOwnFederationDomain, OWN_FEDERATION_DOMAINS } from './federation/ownDomain';
+export { isFediverseHandle } from './federation/handles';
 // Key custody, and the rule that a user key belongs to one account lifetime,
 // live in `./federation/actorKeys`. Re-exported here for the routes.
-
 export {
   getPublicKeyForKeyId,
   getUserKeyPair,
   getUserPublicKey,
   signWithKeyId,
 } from './federation/actorKeys';
-
-/**
- * The keyId of Oxy's own instance actor (`https://<AP_DOMAIN>/ap/users/instance`),
- * minting its key pair if this database has none yet — the actor route mints it
- * the same way on first read. Used by `POST /federation/instance-fetch/sign`,
- * which then signs through `signWithKeyId`, so the private key stays in
- * `actorKeys`.
- */
-export async function ensureInstanceKeyId(): Promise<string> {
-  return (await getInstanceKeyPair(AP_DOMAIN)).keyId;
-}
-
-/** A source profile fetched now, with the document it was derived from. */
-interface SourceObservation {
-  profile: ExternalActorProfile;
-  document?: Record<string, unknown>;
-}
-
-/**
- * Filled by a resolve whose source answered an HTTP error: the status it
- * answered, so a caller can tell a gone actor (410) from one that is not there.
- */
-export interface SourceFailure {
-  sourceStatus?: number;
-}
-
-/** One source actor of an external identity, as the registry stores it. */
-interface StoredExternalSource {
-  canonicalAcct: string;
-  network: string;
-  protocol: string;
-  actorUri: string;
-  transportAcct: string;
-}
-
-interface WebFingerResolution {
-  actorUri: string;
-  subjectAcct?: string;
-}
-
-/**
- * Bridges whose actor endpoint answers 404 intermittently for live mirrors. On
- * bird.makeup the same actor alternates 200/404 within seconds (measured
- * 2026-09-28 against cosmic_yolo_bot, t3chfalcon, melonfur_rim, leixida_sccl),
- * so one 404 there is not evidence the mirror is gone. It is retried before it
- * counts; a mirror that is really gone still fails, only later. For the same
- * reason a failed discovery through such a host is never remembered as an
- * unresolvable handle (`missIsInconclusive`).
- */
-const TRANSIENT_NOT_FOUND_HOSTS = new Set(['bird.makeup']);
-const TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS = [500, 1_500];
-
-/**
- * Fetch a URL with HTTP Signature authentication.
- * Required by servers that enforce authorized fetch (e.g., Threads).
- *
- * Follows redirects manually (bounded) and re-signs each hop — an HTTP
- * signature is bound to the `(request-target)` / `host` of one specific URL.
- * `safeFetch` cannot do this when it follows redirects internally.
- */
-const SIGNED_FETCH_MAX_REDIRECTS = 3;
-const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
-
-async function signedFetch(
-  url: string,
-  accept: string,
-  existingKey?: KeyPairDoc,
-): Promise<SafeFetchResult | null> {
-  const keyPair = existingKey ?? (await getInstanceKeyPair(AP_DOMAIN));
-  const signWithInstanceKey = async (_keyId: string, signingString: string): Promise<string> => {
-    const signer = crypto.createSign('sha256');
-    signer.update(signingString);
-    signer.end();
-    return signer.sign(keyPair.privateKeyPem, 'base64');
-  };
-
-  const fetchFollowingRedirects = async (
-    initialUrl: string,
-    signed: boolean,
-  ): Promise<SafeFetchResult | null> => {
-    let currentUrl = initialUrl;
-    for (let hop = 0; hop <= SIGNED_FETCH_MAX_REDIRECTS; hop++) {
-      const sigHeaders = signed
-        ? await signRequest(signWithInstanceKey, keyPair.keyId, 'GET', currentUrl)
-        : {};
-      const res = await safeFederationFetch(currentUrl, {
-        headers: {
-          Accept: accept,
-          'User-Agent': USER_AGENT,
-          ...sigHeaders,
-        },
-        timeoutMs: FEDERATION_FETCH_TIMEOUT_MS,
-        maxRedirects: 0,
-      });
-      if (!res) return null;
-      if (!REDIRECT_STATUS_CODES.has(res.status)) {
-        return res;
-      }
-      const location = res.headers.location;
-      if (hop === SIGNED_FETCH_MAX_REDIRECTS || !location) {
-        return res;
-      }
-      res.response.destroy();
-      try {
-        currentUrl = new URL(location, currentUrl).toString();
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  };
-
-  const res = await fetchFollowingRedirects(url, true);
-  if (!res) return null;
-
-  // Remote 5xx with a signature often means the server could not verify our keyId;
-  // retry unsigned for public resources (same fallback as @oxy.so/federation/node).
-  if (res.status >= 500) {
-    logger.info(
-      `[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'}, retrying unsigned`,
-    );
-    res.response.destroy();
-    return fetchFollowingRedirects(url, false);
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    logger.warn(
-      `[Federation] signedFetch got ${res.status} for ${safeActorSelector(url) ?? '[invalid selector]'} — remote rejected our HTTP signature`,
-    );
-  }
-
-  return res;
-}
-
-/**
- * Inputs to {@link buildActor}. When `username` is null the actor is the
- * instance (`Application`) actor; otherwise it is a per-user (`Person`) actor.
- */
-interface BuildActorOptions {
-  domain: string;
-  username: string | null;
-  publicKeyPem: string;
-  keyId: string;
-  name: string;
-  summary?: string;
-  avatar?: string;
-  /** Account graph kind → ActivityPub actor type (per-user actors only). */
-  kind?: AccountKind;
-  /** The account's verified aliases (per-user actors only); emitted when non-empty. */
-  alsoKnownAs?: readonly string[];
-}
-
-/**
- * The text a source profile hands the identity registry: the name UNCLEANED
- * (the registry cleans it by kind) and the kind the source declares.
- */
-function federatedProfile(profile: ExternalActorProfile) {
-  return { displayName: profile.displayName, bio: profile.bio, kind: externalProfileKind(profile) };
-}
-
-/**
- * Single canonical builder for both the instance and per-user ActivityPub
- * actor documents. Every host-bearing field — `id`, `publicKey.id`,
- * `publicKey.owner`, `inbox`, `outbox`, `followers`, `following`, `url`, and
- * `endpoints.sharedInbox` — is derived from ONE `domain` argument so the actor
- * shape can never drift across a split set of hosts. Reducing the two actor
- * functions to this one builder is what guarantees a self-consistent actor.
- */
-function buildActor(opts: BuildActorOptions): Record<string, unknown> {
-  const { domain, username, publicKeyPem, keyId, name, summary, avatar, kind } = opts;
-  const aliases = normalizeAlsoKnownAs(opts.alsoKnownAs);
-  const base = `https://${domain}/ap`;
-
-  // The one builder the WebFinger `self` link also uses: Mastodon compares the
-  // two byte for byte before it trusts a signed fetch.
-  const actorUrlFor = createUrlBuilders(domain).actor;
-
-  if (username === null) {
-    const actorUrl = actorUrlFor(INSTANCE_ACTOR_USERNAME);
-    return {
-      '@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
-      id: actorUrl,
-      type: 'Application',
-      preferredUsername: INSTANCE_ACTOR_USERNAME,
-      name,
-      summary: summary ?? '',
-      url: `https://${domain}`,
-      inbox: `${actorUrl}/inbox`,
-      outbox: `${actorUrl}/outbox`,
-      endpoints: { sharedInbox: `${base}/inbox` },
-      publicKey: {
-        id: keyId,
-        owner: actorUrl,
-        publicKeyPem,
-      },
-    };
-  }
-
-  const actorUrl = actorUrlFor(username);
-  return {
-    // The alias term is declared only when an alias is emitted, so an actor
-    // without aliases keeps exactly the context it always had.
-    '@context':
-      aliases.length > 0
-        ? [
-            'https://www.w3.org/ns/activitystreams',
-            'https://w3id.org/security/v1',
-            { alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' } },
-          ]
-        : ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
-    id: actorUrl,
-    type: localActorTypeForAccountKind(kind),
-    preferredUsername: username,
-    name,
-    summary: summary ?? '',
-    url: `https://${domain}/@${username}`,
-    inbox: `${actorUrl}/inbox`,
-    outbox: `${actorUrl}/outbox`,
-    followers: `${actorUrl}/followers`,
-    following: `${actorUrl}/following`,
-    endpoints: { sharedInbox: `${base}/inbox` },
-    icon: avatar
-      ? {
-          type: 'Image',
-          mediaType: 'image/png',
-          url: avatar,
-        }
-      : undefined,
-    publicKey: {
-      id: keyId,
-      owner: actorUrl,
-      publicKeyPem,
-    },
-    ...(aliases.length > 0 ? { alsoKnownAs: aliases } : {}),
-  };
-}
-
-/**
- * Returns the instance actor JSON-LD document for HTTP Signature key
- * verification. Self-consistent on the given `domain` (defaults to Oxy's own
- * federation domain {@link AP_DOMAIN}).
- */
-export async function getInstanceActor(
-  domain: string = AP_DOMAIN,
-): Promise<Record<string, unknown>> {
-  const keyPair = await getInstanceKeyPair(domain);
-  return buildActor({
-    domain,
-    username: null,
-    publicKeyPem: keyPair.publicKeyPem,
-    keyId: keyPair.keyId,
-    name: domain,
-  });
-}
-
-/**
- * Resolve a local user's avatar to a publicly-fetchable absolute URL for the
- * federated actor document's `icon`.
- *
- * - Already-absolute URLs (e.g. a remote avatar mirrored verbatim) pass through.
- * - A stored Oxy file id resolves to the public CDN URL of its `thumb` variant
- *   via the asset service, so remote servers fetch from `cloud.oxy.so` — never a
- *   raw S3 URL and never the previous broken `/files/<id>/variant/thumb` scheme.
- * - Anything that cannot be resolved publicly (missing/private avatar) is
- *   omitted rather than advertising an unreachable URL.
- */
-/**
- * The stored avatar READ AS A FILE ID, or `undefined` when it is not one.
- *
- * A federated `users.avatar` is an Oxy Cloud file id or NULL. Rows written
- * before the registry stopped seeding the source picture URL (and some older
- * local rows) can still hold a remote URL, which is NOT a file id — and
- * the download path treats this argument as one: it DELETES what it names when a
- * new image replaces it.
- *
- * EXPORTED, and module-level rather than a method, because the readers are not
- * all in this file: `routes/users.ts` reads the column too. A private helper
- * would have left that one deriving the rule by hand, which is exactly how it is
- * written today and exactly the failure this is meant to end.
- */
-export function storedAvatarFileId(avatar: string | null | undefined): string | undefined {
-  return isAvatarFileId(avatar) ? avatar : undefined;
-}
-
-/** Meta's CDN hosts, whose picture URLs are signed and carry their own expiry. */
-const META_SIGNED_CDN_HOST = /(^|\.)(fbcdn\.net|cdninstagram\.com)$/i;
-
-/**
- * Whether a Meta CDN picture URL is past the expiry it is signed with.
- *
- * Instagram/Facebook CDN URLs carry `oe=<hex unix seconds>`; after that instant
- * the CDN answers 403 (URL signature expired). A bridge that caches a profile
- * keeps serving such a URL long after it died — kilogram served one for
- * ibaillanos@instagram.com with `oe=6869EA02`, i.e. 2025-07-06. Fetching it can
- * only fail, so it is classified as a permanent failure without a request.
- */
-export function isExpiredSignedAvatarUrl(url: string, now: number = Date.now()): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (!META_SIGNED_CDN_HOST.test(parsed.hostname)) return false;
-  const oe = parsed.searchParams.get('oe');
-  if (!oe || !/^[0-9a-f]{1,12}$/i.test(oe)) return false;
-  return Number.parseInt(oe, 16) * 1000 <= now;
-}
-
-/**
- * Why a mirror attempt produced no file. `permanent`: this URL will not yield an
- * image however often it is retried (4xx, expired signature, not an image, over
- * the cap). `transient`: worth retrying later (transport, 5xx, 429, backpressure).
- */
-export type AvatarMirrorFailure = 'transient' | 'permanent';
-
-/** Why a mirror produced no file — tallied by the repair and retry passes. */
-export type AvatarFailureReason =
-  | 'not_https'
-  | 'expired_signature'
-  | 'origin_cooldown'
-  | 'transport'
-  | 'rate_limited'
-  | 'http_4xx'
-  | 'http_5xx'
-  | 'not_modified_without_file'
-  | 'too_large'
-  | 'empty_body'
-  | 'not_an_image'
-  | 'undecodable'
-  | 'upload_failed'
-  | 'unexpected'
-  | 'source_unavailable'
-  | 'graph_refused';
-
-export interface AvatarDownloadResult {
-  fileId: string | null;
-  etag?: string;
-  lastModified?: string;
-  notModified: boolean;
-  failure?: AvatarMirrorFailure;
-  reason?: AvatarFailureReason;
-  httpStatus?: number;
-  /** Which picture was mirrored when the result carries a new file id. */
-  source?: 'remote' | 'instagram_graph';
-  /** The mirrored picture's seed colour (`#rrggbb`), when it has one. */
-  color?: string;
-}
-
-function avatarFailure(
-  failure: AvatarMirrorFailure,
-  reason: AvatarFailureReason,
-  httpStatus?: number,
-): AvatarDownloadResult {
-  return {
-    fileId: null,
-    notModified: false,
-    failure,
-    reason,
-    ...(httpStatus !== undefined ? { httpStatus } : {}),
-  };
-}
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
-async function resolveActorAvatarUrl(avatar: unknown): Promise<string | undefined> {
-  if (typeof avatar !== 'string' || avatar.length === 0) {
-    return undefined;
-  }
-  if (avatar.startsWith('http')) {
-    return avatar;
-  }
-
-  try {
-    const assetService = getAssetService();
-    const file = await assetService.getFile(avatar);
-    if (!file) {
-      return undefined;
-    }
-    const cdnUrl = await assetService.getPublicCdnUrl(file, 'thumb');
-    return cdnUrl ?? undefined;
-  } catch (error) {
-    logger.warn('Failed to resolve federated actor avatar URL', {
-      avatar,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
-  }
-}
-
-/**
- * The account fields an actor document is built from.
- *
- * A STRUCTURAL type rather than the whole account document: this is the entire
- * input to {@link buildActor}, so declaring it here is what lets `tsc` reject a
- * caller that hands over a row missing `kind` or `avatar` — which a
- * `Record<string, unknown>` parameter would have accepted silently.
- */
-export interface ActorSourceUser {
-  username?: string | null;
-  name?: { first?: string | null; last?: string | null } | null;
-  avatar?: string | null;
-  bio?: string | null;
-  description?: string | null;
-  kind?: AccountKind | null;
-  /** Verified aliases (`aliasesForUser`), published as the actor's `alsoKnownAs`. */
-  alsoKnownAs?: readonly string[] | null;
-}
-
-/**
- * Returns a per-user actor JSON-LD document, self-consistent on `domain`
- * (defaults to Oxy's own federation domain {@link AP_DOMAIN}).
- *
- * The `name` field is the canonical composed display name (identity contract),
- * composed here via the shared {@link composeDisplayName} rules — the model
- * virtual it used to be read from does not exist on a row.
- */
-export async function getUserActor(
-  user: ActorSourceUser,
-  domain: string = AP_DOMAIN,
-): Promise<Record<string, unknown> | null> {
-  if (!user?.username) return null;
-  // Canonicalize before key lookup and actor URL assembly so `id`/`publicKey.owner`
-  // always match `publicKey.id` (getUserKeyPair lowercases internally).
-  const username = user.username.split('@')[0].trim().toLowerCase();
-  // Null when no account holds the handle: a key is never minted ahead of its owner.
-  const keyPair = await getUserKeyPair(username, domain);
-  if (!keyPair) return null;
-
-  // An ActivityPub actor's `name` field requires a non-empty string. The API no
-  // longer synthesizes a display name, so fall back to the handle (`username` is
-  // guaranteed here — `getUserActor` returns null above when it is absent).
-  const displayName = composeDisplayName({ name: user.name }) ?? username;
-
-  const avatar = await resolveActorAvatarUrl(user.avatar);
-
-  return buildActor({
-    domain,
-    username,
-    publicKeyPem: keyPair.publicKeyPem,
-    keyId: keyPair.keyId,
-    name: displayName,
-    summary: user.bio ?? user.description ?? '',
-    avatar,
-    // A row's `kind` is NOT NULL, but `ActorSourceUser` accepts null so a
-    // caller reading through a nullable projection needs no laundering of its
-    // own. `undefined` is what `actorTypeForKind` reads as "default to Person".
-    kind: user.kind ?? undefined,
-    alsoKnownAs: user.alsoKnownAs ?? undefined,
-  });
-}
-
-// ============================================================
-// Asset Service (lazy init)
-// ============================================================
-
-let _assetService: AssetService | null = null;
-
-/**
- * The asset service federation uses for stored avatars, on the process's one
- * object store (`s3ServiceSingleton`), created on first use.
- */
-function getAssetService(): AssetService {
-  if (!_assetService) {
-    _assetService = new AssetService(s3Service);
-  }
-  return _assetService;
-}
-
-// ============================================================
-// Federation Service
-// ============================================================
+export { ensureInstanceKeyId } from './federation/transport';
+export type { SourceFailure } from './federation/externalIdentity';
+export { getInstanceActor, getUserActor, type ActorSourceUser } from './federation/localActor';
+export {
+  isExpiredSignedAvatarUrl,
+  storedAvatarFileId,
+  type AvatarDownloadResult,
+  type AvatarFailureReason,
+  type AvatarMirrorFailure,
+} from './federation/avatarDownload';
 
 class FederationService {
-  private async storedAvatarExists(fileId: unknown): Promise<boolean> {
-    const stored = storedAvatarFileId(typeof fileId === 'string' ? fileId : undefined);
-    if (stored === undefined) {
-      return false;
-    }
-
-    try {
-      return await getAssetService().fileContentExists(stored);
-    } catch (err) {
-      logger.warn(
-        `Failed checking stored federated avatar ${fileId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return false;
-    }
-  }
-
   /**
    * Resolve a WebFinger acct to an ActivityPub actor URI.
    * @param acct - e.g. "alice@mastodon.social" or "@alice@mastodon.social"
@@ -1007,11 +274,11 @@ class FederationService {
   async fetchActorDocument(actorUri: string): Promise<Record<string, unknown> | null> {
     try {
       const res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0]);
-      if (!res || res.status < 200 || res.status >= 300) {
-        res?.response.destroy();
+      if (!res || res.response.status < 200 || res.response.status >= 300) {
+        if (res) discardBody(res.response);
         return null;
       }
-      const actor = await readFederationJson<Record<string, unknown>>(res.response);
+      const actor = await readSignedFetchJson(res.response);
       return actor?.id === actorUri ? actor : null;
     } catch {
       return null;
@@ -1025,49 +292,62 @@ class FederationService {
     options: { readonlySigningKey?: boolean } = {},
   ): Promise<ActorProfileResult<ExternalActorProfile>> {
     try {
-      const existingKey = options.readonlySigningKey
-        ? await findKeyPair(composeInstanceKeyId(AP_DOMAIN))
-        : undefined;
-      if (options.readonlySigningKey && !existingKey)
+      // Read-only callers never mint the instance key: without one, nothing is fetched.
+      if (options.readonlySigningKey && !(await findKeyPair(composeInstanceKeyId(AP_DOMAIN))))
         return resolutionFailure('actor_fetch', 'signing_key_unavailable', { actorUri });
-      let res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
-      if (res?.status === 404 && TRANSIENT_NOT_FOUND_HOSTS.has(new URL(actorUri).hostname)) {
+      const fetchOptions = { readonlySigningKey: options.readonlySigningKey };
+      let res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], fetchOptions);
+      if (
+        res?.response.status === 404 &&
+        TRANSIENT_NOT_FOUND_HOSTS.has(new URL(actorUri).hostname)
+      ) {
         for (const delayMs of TRANSIENT_NOT_FOUND_RETRY_DELAYS_MS) {
-          res.response.destroy();
+          discardBody(res.response);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
-          res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], existingKey ?? undefined);
-          if (res?.status !== 404) break;
+          res = await signedFetch(actorUri, AP_ACCEPT_TYPES[0], fetchOptions);
+          if (res?.response.status !== 404) break;
         }
       }
-      if (!res || res.status < 200 || res.status >= 300) {
-        res?.response.destroy();
+      if (!res || res.response.status < 200 || res.response.status >= 300) {
+        if (res) discardBody(res.response);
         return resolutionFailure(
           'actor_fetch',
           res ? 'http_status' : 'transport_unavailable',
           { actorUri },
-          res?.status,
+          res?.response.status,
         );
       }
-      const actor = await readFederationJson<Record<string, unknown>>(res.response);
+      const { response, finalUrl } = res;
+      const actor = await readSignedFetchJson(response);
       if (!actor)
-        return resolutionFailure('actor_document', 'unreadable_document', { actorUri }, res.status);
+        return resolutionFailure(
+          'actor_document',
+          'unreadable_document',
+          { actorUri },
+          response.status,
+        );
       if (typeof actor.id !== 'string' || !actor.inbox)
         return resolutionFailure(
           'actor_document',
           'missing_actor_fields',
           { actorUri },
-          res.status,
+          response.status,
         );
       // The fetch's final URL, rather than a caller assertion, binds the actor.
-      if (actor.id !== actorUri && actor.id !== res.finalUrl)
-        return resolutionFailure('actor_document', 'actor_id_mismatch', { actorUri }, res.status);
+      if (actor.id !== actorUri && actor.id !== finalUrl)
+        return resolutionFailure(
+          'actor_document',
+          'actor_id_mismatch',
+          { actorUri },
+          response.status,
+        );
       const profile = deriveExternalActorProfile(actor, actor.id, acctHint);
       if (!profile)
         return resolutionFailure(
           'identity_policy',
           'identity_policy_rejected',
           { actorUri },
-          res.status,
+          response.status,
         );
       profile.bio = await expandTcoLinks(profile.bio);
       const actorHost = canonicalFederationHost(new URL(actor.id).hostname);
@@ -1105,52 +385,7 @@ class FederationService {
 
   /** The verified profile of a Bluesky account by its DID, or null. */
   async fetchAtprotoProfile(did: string): Promise<ExternalActorProfile | null> {
-    return (await this.fetchAtprotoSource(did))?.profile ?? null;
-  }
-
-  /**
-   * One `app.bsky.actor.getProfile` read of a DID: the identity profile Oxy
-   * derives from it, and the profile view itself (counts, banner, creation date
-   * and labels, which Oxy does not keep and returns to the resolve caller).
-   */
-  private async fetchAtprotoSource(did: string): Promise<SourceObservation | null> {
-    if (!ATPROTO_DID_RE.test(did)) return null;
-    const response = await safeFetch(
-      `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`,
-      {
-        headers: { Accept: 'application/json' },
-        headersTimeoutMs: 10_000,
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-    if (response.status < 200 || response.status >= 300) {
-      response.response.destroy();
-      return null;
-    }
-    const profile = await readFederationJson<Record<string, unknown>>(response.response);
-    if (
-      profile?.did !== did ||
-      typeof profile.handle !== 'string' ||
-      !/^[a-z0-9.-]+$/i.test(profile.handle)
-    )
-      return null;
-    // An unverified handle is Bluesky's shared `handle.invalid`: name it by its DID.
-    const handle = atprotoIdentityHandle(profile.handle, did).toLowerCase();
-    return {
-      profile: {
-        actorUri: did,
-        protocol: 'atproto',
-        domain: BSKY_NETWORK_DOMAIN,
-        username: `${blueskyUsernameFromHandle(handle)}@${BSKY_NETWORK_DOMAIN}`,
-        transportAcct: handle,
-        stableId: did,
-        evidenceLinks: [],
-        displayName: typeof profile.displayName === 'string' ? profile.displayName : handle,
-        bio: sanitizePlainText(typeof profile.description === 'string' ? profile.description : ''),
-        avatarUrl: typeof profile.avatar === 'string' ? profile.avatar : undefined,
-      },
-      document: profile,
-    };
+    return (await fetchAtprotoSource(did))?.profile ?? null;
   }
 
   normalizeExternalHandle(value: string): string | null {
@@ -1174,21 +409,6 @@ class FederationService {
     return normalizeFediverseHandle(value);
   }
 
-  /** The DID a Bluesky handle names, or null when the AppView cannot resolve it. */
-  private async resolveAtprotoHandle(handle: string): Promise<string | null> {
-    const response = await safeFederationFetch(
-      `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
-      { headers: { Accept: 'application/json' } },
-    );
-    if (!response) return null;
-    if (response.status < 200 || response.status >= 300) {
-      response.response.destroy();
-      return null;
-    }
-    const body = await readFederationJson<Record<string, unknown>>(response.response);
-    return typeof body?.did === 'string' && ATPROTO_DID_RE.test(body.did) ? body.did : null;
-  }
-
   async needsBridgeCanonicalization(actorUri: string): Promise<boolean> {
     let host: string;
     try {
@@ -1206,27 +426,6 @@ class FederationService {
       .where(eq(externalIdentityActors.actorUri, actorUri))
       .limit(1);
     return !actor || actor.verifiedAt.getTime() === 0;
-  }
-
-  /**
-   * Whether a failed discovery of this handle says nothing about whether the
-   * account exists: its source is a host whose 404 is intermittent
-   * ({@link TRANSIENT_NOT_FOUND_HOSTS}).
-   */
-  private missIsInconclusive(handle: string): boolean {
-    const transportHost = domainFromHandle(this.transportHandleForExternalAccount(handle));
-    return transportHost !== null && TRANSIENT_NOT_FOUND_HOSTS.has(transportHost);
-  }
-
-  private transportHandleForExternalAccount(handle: string): string {
-    const at = handle.lastIndexOf('@');
-    const local = handle.slice(0, at);
-    const domain = handle.slice(at + 1);
-    return domain === 'x.com'
-      ? `${local}@bird.makeup`
-      : domain === 'instagram.com'
-        ? `${local}@kilogram.makeup`
-        : handle;
   }
 
   /** First-party badges are an additional proof; they never rewrite legacy ownership. */
@@ -1308,7 +507,7 @@ class FederationService {
       return refuse('threads_actor_binding_missing');
     let instagram = source.domain === 'instagram.com' ? source : null;
     if (!instagram) {
-      const transport = this.transportHandleForExternalAccount(pair.instagram.canonicalAcct);
+      const transport = transportHandleForExternalAccount(pair.instagram.canonicalAcct);
       const discovered = await this.resolveWebFingerResource(transport);
       if (discovered?.subjectAcct) {
         const verified = await this.verifiedAccountForResolution(transport, discovered);
@@ -1437,14 +636,14 @@ class FederationService {
       const local = handle.slice(0, at);
       const atprotoDid = ATPROTO_DID_RE.test(local)
         ? local
-        : await this.resolveAtprotoHandle(blueskyHandleFromUsername(local));
+        : await resolveAtprotoHandle(blueskyHandleFromUsername(local));
       if (!atprotoDid) return null;
       const result = await this.resolveExternalActorIdentity(atprotoDid);
       return result?.externalIdentity.canonicalAcct === handle ? result : null;
     }
     // Reverse transport routing is also Oxy policy. The fetched actor must still
     // publish the reviewed per-account assertion before the identity is accepted.
-    const transport = this.transportHandleForExternalAccount(handle);
+    const transport = transportHandleForExternalAccount(handle);
     const webfinger = await this.resolveWebFingerResource(transport);
     if (!webfinger) return graphFallback();
     const verifiedAcct = await this.verifiedAccountForResolution(transport, webfinger);
@@ -1534,7 +733,7 @@ class FederationService {
     }
     const startedAt = new Date();
     const observed = actorUri.startsWith('did:')
-      ? await this.fetchAtprotoSource(actorUri)
+      ? await fetchAtprotoSource(actorUri)
       : await this.fetchActorSource(actorUri, transportAcct, opts.failure);
     if (!observed) {
       await revokeMetaIdentityProof(actorUri, 'source_actor_unavailable', startedAt);
@@ -1625,7 +824,7 @@ class FederationService {
         );
       }
     }
-    return this.identityResponse(
+    return identityResponse(
       user,
       canonicalUserId,
       {
@@ -1672,51 +871,12 @@ class FederationService {
       this.scheduleSourceVerification(source.actorUri, source.transportAcct);
     const user = await userService.readAccountDocument(userId);
     if (!user || user.accountStatus === 'archived') return null;
-    return this.identityResponse(user, userId, source, source.sourceUserId);
-  }
-
-  /** The resolve answer for one verified source of a canonical person. */
-  private async identityResponse(
-    user: AccountDocument,
-    canonicalUserId: string,
-    source: StoredExternalSource,
-    fallbackSourceUserId: string,
-    identityProof?: { state: string; reason?: string },
-    sourceDocument?: Record<string, unknown>,
-  ) {
-    const [externalIdentities, redirectedUserIds] = await Promise.all([
-      getExternalIdentitiesForUser(canonicalUserId),
-      getCanonicalUserRedirects(canonicalUserId),
-    ]);
-    const sourceUserId =
-      externalIdentities.find((identity) => identity.actorUri === source.actorUri)?.sourceUserId ??
-      fallbackSourceUserId;
-    return {
-      user: { ...userService.formatUserResponse(user), externalIdentities, redirectedUserIds },
-      externalIdentity: { ...source, userId: canonicalUserId, sourceUserId },
-      externalIdentities,
-      redirectedUserIds,
-      identityProof,
-      ...(sourceDocument ? { sourceDocument } : {}),
-    };
+    return identityResponse(user, userId, source, source.sourceUserId);
   }
 
   /**
-   * Download a remote avatar image, upload it to Oxy Cloud, and return the file
-   * ID along with the validators the host advertised.
-   *
-   * Conditional requests: when `conditional.etag` / `conditional.lastModified`
-   * are supplied (from a previous fetch), they are replayed as `If-None-Match` /
-   * `If-Modified-Since`. A `304 Not Modified` response means the stored file is
-   * still current — we skip the download+upload round-trip entirely and signal
-   * `notModified: true` so the caller can still advance its throttle clock.
-   *
-   * If the user already has an avatar file, the old one is deleted before the
-   * new upload (only when we actually downloaded a new image).
-   *
-   * @param avatarUrl              - Remote avatar URL to fetch.
-   * @param existingAvatarFileId   - Current stored file id (deleted on replace).
-   * @param conditional            - Stored validators to replay as conditional headers.
+   * Download a remote avatar image into Oxy Cloud ({@link fetchAndStoreAvatar}).
+   * A method so the mirror path and its callers reach it through the service.
    */
   async downloadAndStoreAvatar(
     avatarUrl: string,
@@ -1724,240 +884,7 @@ class FederationService {
     conditional?: { etag?: string; lastModified?: string },
     ownerUserId = FEDERATION_SYSTEM_USER,
   ): Promise<AvatarDownloadResult> {
-    if (!avatarUrl.startsWith('https://')) {
-      // safeFederationFetch refuses anything else; no retry changes the scheme.
-      logger.warn('Federated avatar skipped: not an https URL');
-      return avatarFailure('permanent', 'not_https');
-    }
-    if (isExpiredSignedAvatarUrl(avatarUrl)) {
-      logger.warn('Federated avatar skipped: signed CDN URL has expired', {
-        origin: new URL(avatarUrl).origin,
-      });
-      return avatarFailure('permanent', 'expired_signature');
-    }
-    try {
-      // WAIT for the per-origin request gap instead of treating it as a failure:
-      // a refused gap used to be reported as a transient failure, and a bulk pass
-      // over a shared CDN lost every avatar but one per gap. Only a long cooldown
-      // (a recorded 429) defers the fetch.
-      const deadline = Date.now() + AVATAR_ORIGIN_MAX_WAIT_MS;
-      for (;;) {
-        const waitMs = await acquireAvatarOriginLease(avatarUrl);
-        if (waitMs <= 0) break;
-        if (waitMs > AVATAR_ORIGIN_MAX_WAIT_MS || Date.now() + waitMs > deadline) {
-          logger.info('Federated avatar fetch deferred by origin backpressure', {
-            origin: new URL(avatarUrl).origin,
-            retryAfterMs: waitMs,
-          });
-          return avatarFailure('transient', 'origin_cooldown');
-        }
-        await sleep(waitMs + Math.floor(Math.random() * 250));
-      }
-
-      return await this.downloadAndStoreAvatarWithLease(
-        avatarUrl,
-        existingAvatarFileId,
-        conditional,
-        ownerUserId,
-      );
-    } catch (err) {
-      logger.warn(`Failed to download/store federated avatar: ${err}`);
-      return avatarFailure('transient', 'unexpected');
-    }
-  }
-
-  private async downloadAndStoreAvatarWithLease(
-    avatarUrl: string,
-    existingAvatarFileId?: string,
-    conditional?: { etag?: string; lastModified?: string },
-    ownerUserId = FEDERATION_SYSTEM_USER,
-  ): Promise<AvatarDownloadResult> {
-    try {
-      const requestHeaders: Record<string, string> = {
-        'User-Agent': USER_AGENT,
-        Accept: 'image/*,*/*;q=0.8',
-      };
-      if (conditional?.etag) {
-        requestHeaders['If-None-Match'] = conditional.etag;
-      }
-      if (conditional?.lastModified) {
-        requestHeaders['If-Modified-Since'] = conditional.lastModified;
-      }
-
-      const res = await safeFederationFetch(avatarUrl, {
-        headers: requestHeaders,
-        timeoutMs: FEDERATION_AVATAR_FETCH_TIMEOUT_MS,
-      });
-      if (!res) {
-        return avatarFailure('transient', 'transport');
-      }
-
-      const headerValue = (name: string): string | undefined => {
-        const value = res.headers[name];
-        return Array.isArray(value) ? value[0] : value || undefined;
-      };
-
-      if (res.status === 429) {
-        res.response.destroy();
-        const retryAfterMs = await recordAvatarOriginRateLimit(
-          avatarUrl,
-          headerValue('retry-after'),
-        );
-        logger.warn('Federated avatar origin rate limited the download', {
-          origin: new URL(avatarUrl).origin,
-          retryAfterMs,
-        });
-        return avatarFailure('transient', 'rate_limited', 429);
-      }
-
-      // 304: the host confirms the remote bytes are unchanged. This only means
-      // our local copy is usable if the referenced asset still exists in S3.
-      // If the DB record points to a missing object, retry without validators
-      // so the remote sends the body and we can repair the stored file id.
-      if (res.status === 304) {
-        res.response.destroy();
-        await clearAvatarOriginFailures(avatarUrl);
-        if (await this.storedAvatarExists(existingAvatarFileId)) {
-          return {
-            fileId: null,
-            etag: conditional?.etag,
-            lastModified: conditional?.lastModified,
-            notModified: true,
-          };
-        }
-
-        logger.warn(
-          `Remote avatar returned 304 but stored file is missing for ${avatarUrl}; retrying full download`,
-        );
-        if (conditional?.etag || conditional?.lastModified) {
-          return this.downloadAndStoreAvatarWithLease(
-            avatarUrl,
-            existingAvatarFileId,
-            undefined,
-            ownerUserId,
-          );
-        }
-
-        return {
-          ...avatarFailure('transient', 'not_modified_without_file', 304),
-          etag: conditional?.etag,
-          lastModified: conditional?.lastModified,
-        };
-      }
-
-      if (res.status < 200 || res.status >= 300) {
-        res.response.destroy();
-        logger.warn(`Avatar download failed: HTTP ${res.status} for ${avatarUrl}`);
-        // A 4xx (403 for an expired signature, 404/410 for a replaced picture)
-        // answers the same next time; 408, 5xx and anything else may not.
-        const permanent = res.status >= 400 && res.status < 500 && res.status !== 408;
-        return avatarFailure(
-          permanent ? 'permanent' : 'transient',
-          permanent ? 'http_4xx' : 'http_5xx',
-          res.status,
-        );
-      }
-
-      await clearAvatarOriginFailures(avatarUrl);
-
-      const etag = headerValue('etag');
-      const lastModified = headerValue('last-modified');
-      const declaredType = (headerValue('content-type') || '').split(';')[0].trim().toLowerCase();
-
-      // The Content-Type is NOT a gate: hosts serve real pictures as
-      // `text/plain`, `binary/octet-stream` or `text/html`. The bytes decide
-      // (`normalizeAvatarImage`). The download is bounded by a hard cap well
-      // above the stored cap, so an oversized avatar can be re-encoded instead
-      // of dropped.
-      const advertisedLength = headerValue('content-length');
-      if (
-        advertisedLength !== undefined &&
-        Number(advertisedLength) > FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES
-      ) {
-        res.response.destroy();
-        logger.warn(
-          `Avatar download skipped: content-length ${advertisedLength} exceeds cap for ${avatarUrl}`,
-        );
-        return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
-      }
-
-      const body = await readResponseBody(res.response, {
-        maxBytes: FEDERATION_MAX_AVATAR_DOWNLOAD_BYTES,
-        timeoutMs: FEDERATION_AVATAR_BODY_TIMEOUT_MS,
-      });
-      if (body.kind === 'too_large') {
-        return { ...avatarFailure('permanent', 'too_large'), etag, lastModified };
-      }
-      // A body that stalled or broke off says nothing about the picture.
-      if (body.kind !== 'ok') {
-        return { ...avatarFailure('transient', 'transport'), etag, lastModified };
-      }
-      const buffer = body.body;
-      if (buffer.length === 0) {
-        return { ...avatarFailure('transient', 'empty_body'), etag, lastModified };
-      }
-
-      const image = await normalizeAvatarImage(buffer, FEDERATION_MAX_AVATAR_BYTES);
-      if (!image.ok) {
-        logger.warn('Avatar download skipped: bytes are not a usable image', {
-          reason: image.reason,
-          declaredType: declaredType || 'none',
-          origin: new URL(avatarUrl).origin,
-        });
-        return { ...avatarFailure('permanent', image.reason), etag, lastModified };
-      }
-
-      const assetService = getAssetService();
-
-      const extMap: Record<string, string> = {
-        'image/png': 'png',
-        'image/jpeg': 'jpg',
-        'image/webp': 'webp',
-        'image/gif': 'gif',
-        'image/avif': 'avif',
-      };
-      const ext = extMap[image.mime] || 'img';
-      const filename = `federated-avatar-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-
-      let file: { id: string };
-      try {
-        file = await assetService.uploadFileDirect(
-          ownerUserId,
-          image.buffer,
-          image.mime,
-          filename,
-          'public',
-          {
-            source: 'federation',
-            role: 'avatar',
-            remoteUrl: avatarUrl,
-            ...(image.reencoded ? { reencoded: true, originalBytes: buffer.length } : {}),
-          },
-        );
-      } catch (err) {
-        logger.warn(`Failed to store federated avatar: ${err}`);
-        return avatarFailure('transient', 'upload_failed');
-      }
-
-      const fileId = file.id;
-
-      // Delete the replaced avatar only after the new durable file is present.
-      // If dedupe returned the same file, keep it.
-      const priorFileId = storedAvatarFileId(existingAvatarFileId);
-      if (priorFileId !== undefined && priorFileId !== fileId) {
-        try {
-          await assetService.deleteFile(priorFileId, true);
-        } catch {
-          // Old file may already be gone — not critical
-        }
-      }
-
-      const color = (await avatarSeedColor(image.buffer)) ?? undefined;
-      return { fileId, etag, lastModified, notModified: false, source: 'remote', color };
-    } catch (err) {
-      logger.warn(`Failed to download/store federated avatar: ${err}`);
-      return avatarFailure('transient', 'transport');
-    }
+    return fetchAndStoreAvatar(avatarUrl, existingAvatarFileId, conditional, ownerUserId);
   }
 
   /**
@@ -1985,7 +912,7 @@ class FederationService {
       userId,
     );
     if (stored.fileId || stored.notModified || stored.failure !== 'permanent') return stored;
-    const graphAvatarUrl = await this.freshInstagramGraphAvatarUrl(userId, avatarUrl);
+    const graphAvatarUrl = await freshInstagramGraphAvatarUrl(userId, avatarUrl);
     if (!graphAvatarUrl) return stored;
     const fallback = await this.downloadAndStoreAvatar(
       graphAvatarUrl,
@@ -2002,71 +929,6 @@ class FederationService {
     return { fileId: fallback.fileId, notModified: false, source: 'instagram_graph' };
   }
 
-  /**
-   * A fresh Business Discovery picture URL for an instagram.com federated user,
-   * or null. The Graph account must still be the one the user's handle names:
-   * an IG User id already bound to another account, or contradicting the
-   * identity's pinned first-party owner, is refused rather than shown.
-   */
-  private async freshInstagramGraphAvatarUrl(
-    userId: string,
-    failedUrl: string,
-  ): Promise<string | null> {
-    if (!isInstagramGraphConfigured()) return null;
-    const [user] = await getDb()
-      .select({ username: users.username, domain: users.federationDomain })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-    if (user?.domain !== INSTAGRAM_NETWORK_DOMAIN) return null;
-    const username = instagramUsernameFromAcct(user.username ?? '');
-    if (!username) return null;
-    const lookup = await fetchInstagramGraphProfile(username);
-    if (!lookup.ok) return null;
-    const graphAvatarUrl = lookup.profile.avatarUrl;
-    if (!graphAvatarUrl || graphAvatarUrl === failedUrl) return null;
-    const acct = lookup.profile.username;
-    const [bound] = await getDb()
-      .select({ canonicalAcct: externalIdentityActors.canonicalAcct })
-      .from(externalIdentityActors)
-      .where(eq(externalIdentityActors.actorUri, lookup.profile.actorUri))
-      .limit(1);
-    const pins = await getDb()
-      .select({ instagramGraphId: externalIdentityInstagramPins.instagramGraphId })
-      .from(externalIdentityInstagramPins)
-      .where(
-        and(
-          eq(externalIdentityInstagramPins.canonicalAcct, acct),
-          eq(externalIdentityInstagramPins.state, 'pinned'),
-        ),
-      );
-    if (
-      (bound && bound.canonicalAcct !== acct) ||
-      (pins.length > 0 && !pins.some((pin) => pin.instagramGraphId === lookup.igUserId))
-    ) {
-      logger.warn('Instagram Graph avatar refused', {
-        operation: 'instagram_graph_avatar',
-        reason: 'graph_id_not_this_account',
-        username,
-      });
-      return null;
-    }
-    return graphAvatarUrl;
-  }
-
-  /**
-   * Full pipeline: resolve a fediverse handle to an Oxy user.
-   *
-   * Fast + eventually-fresh (Bluesky-style):
-   * 1. If a cached federated user exists, RETURN IT IMMEDIATELY — never block
-   *    on remote I/O when we already have a row. If that row is stale (older
-   *    than {@link STALE_MS}) or still has a raw-URL avatar that needs
-   *    downloading, kick off a fire-and-forget background refresh that replaces
-   *    avatar/name/bio in place, but still return the cached record now.
-   * 2. If NO cached row exists, do the first-time blocking fetch:
-   *    WebFinger → fetch actor profile (HTTP Signature) → download avatar →
-   *    upsert as type=federated → return.
-   */
   /**
    * Hand back a cached federated row without blocking on remote I/O. Schedules a
    * background refresh when the record is stale or its avatar still needs work.
@@ -2089,7 +951,7 @@ class FederationService {
       existing.avatar.length > 0 &&
       !isAvatarFileId(existing.avatar);
     const avatarFileMissing =
-      !isStale && !avatarNeedsDownload ? !(await this.storedAvatarExists(existing.avatar)) : false;
+      !isStale && !avatarNeedsDownload ? !(await storedAvatarExists(existing.avatar)) : false;
 
     if (isStale || avatarNeedsDownload || avatarFileMissing) {
       this.scheduleBackgroundRefresh(existing, handleForRefresh);
@@ -2098,6 +960,19 @@ class FederationService {
     return existing;
   }
 
+  /**
+   * Full pipeline: resolve a fediverse handle to an Oxy user.
+   *
+   * Fast + eventually-fresh (Bluesky-style):
+   * 1. If a cached federated user exists, RETURN IT IMMEDIATELY — never block
+   *    on remote I/O when we already have a row. If that row is stale (older
+   *    than {@link STALE_MS}) or still has a raw-URL avatar that needs
+   *    downloading, kick off a fire-and-forget background refresh that replaces
+   *    avatar/name/bio in place, but still return the cached record now.
+   * 2. If NO cached row exists, do the first-time blocking fetch:
+   *    WebFinger → fetch actor profile (HTTP Signature) → download avatar →
+   *    upsert as type=federated → return.
+   */
   async resolveAndUpsert(handle: string): Promise<AccountDocument | null> {
     const cleaned = this.normalizeExternalHandle(handle);
     if (!cleaned) return null;
@@ -2125,7 +1000,7 @@ class FederationService {
     if (await unresolvableHandles.has(cleaned)) return null;
     const resolved = await this.resolveExternalIdentity({ handle: cleaned });
     if (!resolved) {
-      if (!this.missIsInconclusive(cleaned)) await unresolvableHandles.remember(cleaned);
+      if (!missIsInconclusive(cleaned)) await unresolvableHandles.remember(cleaned);
       return null;
     }
     return userService.readAccountDocument(resolved.externalIdentity.userId);
@@ -2162,19 +1037,18 @@ class FederationService {
         );
       })
       .finally(() => {
-        _refreshInFlight.delete(actorUri);
+        releaseRefreshSlot(actorUri);
       });
   }
 
   /**
    * Fire-and-forget scheduler for {@link refreshFederatedUser}.
    *
-   * Storm guard: a given actor is refreshed at most once concurrently
-   * ({@link _refreshInFlight}) and at most once per {@link REFRESH_MIN_INTERVAL_MS}
-   * ({@link _lastRefreshAttemptAt}). The refresh key is the actor URI when known,
-   * otherwise the lowercased handle. This method NEVER awaits and NEVER throws —
-   * a rejected refresh is caught and logged so it can't surface as an unhandled
-   * rejection or crash the process.
+   * Storm guard ({@link claimRefreshSlot}): a given actor is refreshed at most
+   * once concurrently and at most once per refresh interval. The refresh key is
+   * the actor URI when known, otherwise the lowercased handle. This method NEVER
+   * awaits and NEVER throws — a rejected refresh is caught and logged so it can't
+   * surface as an unhandled rejection or crash the process.
    */
   private scheduleBackgroundRefresh(existing: AccountDocument, handle: string): void {
     if (existing.accountStatus === 'archived') {
@@ -2192,7 +1066,7 @@ class FederationService {
         );
       })
       .finally(() => {
-        _refreshInFlight.delete(key);
+        releaseRefreshSlot(key);
       });
   }
 
@@ -2202,10 +1076,9 @@ class FederationService {
    * returns immediately; this replaces the user's `avatar` file id once the
    * download completes and invalidates the user cache.
    *
-   * Throttle: at most one download per user concurrently
-   * ({@link _avatarRefreshInFlight}) and at most one per
-   * {@link AVATAR_REFRESH_MIN_INTERVAL_MS} per process
-   * ({@link _lastAvatarAttemptAt}). The persisted
+   * Throttle ({@link claimAvatarRefreshSlot}): at most one download per user
+   * concurrently and at most one per {@link AVATAR_REFRESH_MIN_INTERVAL_MS} per
+   * process. The persisted
    * `federation.lastAvatarFetchedAt`, re-read inside {@link downloadAvatarForUser},
    * is the cross-restart authority. This method NEVER awaits and NEVER throws —
    * a rejection is caught and logged so it can't surface as an unhandled
@@ -2224,15 +1097,7 @@ class FederationService {
     existingAvatarFileId: string | undefined,
     opts: { force: boolean },
   ): void {
-    if (_avatarRefreshInFlight.has(userId)) return;
-
-    const lastAttempt = _lastAvatarAttemptAt.get(userId);
-    if (lastAttempt !== undefined && Date.now() - lastAttempt < AVATAR_REFRESH_MIN_INTERVAL_MS) {
-      return;
-    }
-
-    _avatarRefreshInFlight.add(userId);
-    _lastAvatarAttemptAt.set(userId, Date.now());
+    if (!claimAvatarRefreshSlot(userId)) return;
 
     void this.downloadAvatarForUser(userId, remoteAvatarUrl, existingAvatarFileId, opts)
       .catch((err) => {
@@ -2241,7 +1106,7 @@ class FederationService {
         );
       })
       .finally(() => {
-        _avatarRefreshInFlight.delete(userId);
+        releaseAvatarRefreshSlot(userId);
       });
   }
 
