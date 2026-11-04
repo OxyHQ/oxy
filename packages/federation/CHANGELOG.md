@@ -1,5 +1,41 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.17.0
+
+A field a server sends in a different, equally valid JSON-LD shape is read
+instead of silently dropped. JSON-LD compaction turns a one-element array into
+the value itself (GoToSocial sends a single `tag`, `attachment` or
+`alsoKnownAs`), a reference may be a `Link` naming its target by `href`, an icon
+may be a list of images (PeerTube 6+) or an `Image` whose `url` is a `Link`, a
+media type may carry its parameters in any spelling, and a date may use any ISO
+8601 offset spelling (`+0000`, `+00`). Readers that assumed one shape lost the
+others with no log line: an actor's only alias (so a Move was refused), its only
+profile field, an icon list.
+
+### Added
+
+- `apList(value)`: a one-or-many property as a list.
+- `apIriList(value)`: every IRI a one-or-many reference property names.
+- `apImageUrl(value)`: the first http(s) URL of an `icon` / `image` value, in
+  every shape.
+- `apMediaTypeBase(value)` and `isActivityPubMediaType(value)`: compare a media
+  type by its base, whatever its parameters.
+- `apDate(value)`: a date in any ISO 8601 offset spelling, without relying on
+  the engine's own `Date` parser; `undefined` when it names none.
+
+### Changed
+
+- `apIri(value)` also reads a `Link`'s `href` when the object has no `id`.
+- `ActorResolverConfig.firstStringUrl` is optional and defaults to `apImageUrl`.
+
+### Fixed
+
+- `createActorResolver` reads `alsoKnownAs` and the profile-field `attachment`
+  as one value or a list, and parses `published` / `verifiedAt` with `apDate`,
+  so an unparseable date is absent instead of an invalid `Date`.
+- `readProxyDeclarations` reads a single `proxyOf` declaration.
+- The inbox router and the inbound dispatcher read references through `apIri`.
+
 ## 2.16.0
 
 An actor that embeds a collection or endpoint instead of linking it keeps it.

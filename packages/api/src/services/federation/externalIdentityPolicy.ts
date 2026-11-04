@@ -2,6 +2,9 @@ import type { AccountKind } from '@oxy.so/contracts';
 import {
   type ActorKindSignals,
   accountKindForActor,
+  apImageUrl,
+  apIriList,
+  apList,
   canonicalFederationHost,
   readProxyDeclarations,
 } from '@oxy.so/federation';
@@ -76,15 +79,13 @@ export function deriveExternalActorProfile(
   // Transport hints are routing hints, never identity assertions. Even a hint
   // on the correct host cannot rename Bob's actor to Alice.
   const transport = `${local}@${host}`;
-  const fields = Array.isArray(actor.attachment)
-    ? actor.attachment.filter(
-        (entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object',
-      )
-    : [];
+  // One profile field or alias is sent as the value itself (JSON-LD compaction),
+  // a list as a list; both are the actor's statement.
+  const fields = apList(actor.attachment).filter(
+    (entry): entry is Record<string, unknown> => typeof entry === 'object' && !Array.isArray(entry),
+  );
   const links = fields.flatMap((field) => identityLinks(field.value));
-  const aliases = Array.isArray(actor.alsoKnownAs)
-    ? actor.alsoKnownAs.filter((value): value is string => typeof value === 'string')
-    : [];
+  const aliases = apIriList(actor.alsoKnownAs);
   const bio = sanitizePlainText(
     typeof actor.summary === 'string' ? actor.summary.replace(/<br\s*\/?\s*>|<\/p>/gi, '\n') : '',
   );
@@ -147,10 +148,6 @@ export function deriveExternalActorProfile(
   // Cross-network equivalence consumes explicit source claims only. A trusted
   // Instagram bridge may reproduce the author's links; its Official assertion
   // names Instagram itself and cannot alone establish an Instagram/Threads pair.
-  const icon =
-    actor.icon && typeof actor.icon === 'object'
-      ? (actor.icon as Record<string, unknown>)
-      : undefined;
   return {
     actorUri,
     domain,
@@ -159,7 +156,8 @@ export function deriveExternalActorProfile(
     protocol: 'activitypub',
     displayName: typeof actor.name === 'string' ? decodeHtmlEntities(actor.name) : local,
     actor: { type: actor.type, postingRestrictedToMods: actor.postingRestrictedToMods },
-    avatarUrl: typeof icon?.url === 'string' ? icon.url : undefined,
+    // A URL string, an Image (url string, Link or list) or a list of Images.
+    avatarUrl: apImageUrl(actor.icon),
     bio: normalizeExternalBio(normalizedBio, domain, host),
     evidenceLinks: [
       ...new Set([...links, ...aliases.filter((value) => value.startsWith('https://'))]),

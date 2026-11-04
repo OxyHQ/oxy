@@ -23,6 +23,7 @@
  * `handleReject`.
  */
 
+import { apIri } from '../apValue';
 import { normalizeActorUsername } from '../urls';
 
 /**
@@ -226,11 +227,11 @@ function parseInboundMove(
 ): { ok: true; move: InboundMove } | { ok: false; reason: string } {
   const activityId = typeof activity.id === 'string' ? activity.id : undefined;
   if (!activityId) return { ok: false, reason: 'missing id' };
-  const actor = objectTargetUri(activity.actor);
+  const actor = apIri(activity.actor);
   if (actor !== verifiedActorUri) return { ok: false, reason: 'actor is not the signer' };
-  const object = objectTargetUri(activity.object);
+  const object = apIri(activity.object);
   if (object !== verifiedActorUri) return { ok: false, reason: 'object is not the moving actor' };
-  const target = objectTargetUri(activity.target);
+  const target = apIri(activity.target);
   if (!target) return { ok: false, reason: 'missing target' };
   try {
     if (new URL(target).protocol !== 'https:') return { ok: false, reason: 'target is not https' };
@@ -261,15 +262,6 @@ function actorUriHost(actorUri: string): string | null {
 }
 
 /** Read the `object`'s referenced actor/target uri (a string, or an embedded `{ id }`). */
-function objectTargetUri(object: unknown): string | undefined {
-  if (typeof object === 'string') return object;
-  if (object && typeof object === 'object') {
-    const id = (object as { id?: unknown }).id;
-    if (typeof id === 'string') return id;
-  }
-  return undefined;
-}
-
 /** Build the inbound-activity dispatcher from an app's adapters + content handlers. */
 export function createInboundDispatcher(config: InboundDispatcherConfig): InboundDispatcher {
   const { logger } = config;
@@ -278,7 +270,7 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
     activity: Record<string, unknown>,
     actorUri: string,
   ): Promise<void> {
-    const targetActorUri = objectTargetUri(activity.object);
+    const targetActorUri = apIri(activity.object);
     if (!targetActorUri) return;
 
     // Extract username from our actor URL
@@ -356,7 +348,7 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
     object: Record<string, unknown>,
     actorUri: string,
   ): Promise<void> {
-    const targetActorUri = objectTargetUri(object.object);
+    const targetActorUri = apIri(object.object);
     const match = targetActorUri?.match(/\/ap\/users\/([^/]+)$/);
     let localUserId: string | undefined;
     if (match) {

@@ -175,6 +175,23 @@ describe('Oxy external identity policy', () => {
     ).toBeNull();
   });
 
+  it('reads a single profile field, a single alias and an icon list', () => {
+    const profile = deriveExternalActorProfile(
+      {
+        ...actor,
+        attachment: actor.attachment[0],
+        alsoKnownAs: 'https://old.example/users/jordievole',
+        icon: [{ type: 'Image', url: { type: 'Link', href: 'https://bird.makeup/a.png' } }],
+      },
+      actorUri,
+    );
+    expect(profile).toMatchObject({
+      username: 'jordievole@x.com',
+      avatarUrl: 'https://bird.makeup/a.png',
+    });
+    expect(profile?.evidenceLinks).toContain('https://old.example/users/jordievole');
+  });
+
   it('reads explicit rel=me claims, never ordinary links', () => {
     expect(
       identityLinks(

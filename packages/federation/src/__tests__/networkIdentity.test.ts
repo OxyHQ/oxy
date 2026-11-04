@@ -517,9 +517,11 @@ describe('FEP-fffd proxyOf', () => {
       ).toEqual([]);
     });
 
-    it('reads a missing or non-array proxyOf as none', () => {
+    it('reads a missing proxyOf as none and a single declaration as one', () => {
       expect(readProxyDeclarations(undefined)).toEqual([]);
-      expect(readProxyDeclarations({ protocol: 'p', proxied: 'q' })).toEqual([]);
+      expect(readProxyDeclarations({ protocol: 'p', proxied: 'q' })).toEqual([
+        { protocol: 'p', proxied: 'q', authoritative: false },
+      ]);
     });
   });
 

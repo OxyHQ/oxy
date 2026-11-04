@@ -73,21 +73,6 @@ export function isSameFederationHost(a: string, b: string): boolean {
 }
 
 /**
- * The IRI a JSON-LD node reference names: the string itself, or the `id` of an
- * embedded object. ActivityStreams lets a server embed a referenced node (an
- * actor's `followers` collection with its `totalItems`, an `endpoints` value)
- * instead of linking it, and both mean the same node. Anything else names none.
- */
-export function apIri(value: unknown): string | undefined {
-  if (typeof value === 'string') return value || undefined;
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const id = (value as { id?: unknown }).id;
-    return typeof id === 'string' && id ? id : undefined;
-  }
-  return undefined;
-}
-
-/**
  * Given an ActivityPub activity/object ID (URL), extract the actor URI by
  * trimming everything from the first recognised post-path segment onward.
  *

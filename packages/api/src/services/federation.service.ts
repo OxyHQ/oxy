@@ -25,6 +25,7 @@ import {
   federatedUsernameFromUpstreamUrl,
   INSTANCE_ACTOR_USERNAME,
   normalizeAlsoKnownAs,
+  isActivityPubMediaType,
   localActorTypeForAccountKind,
 } from '@oxy.so/federation';
 import { createTcoLinkExpander } from '@oxy.so/federation/node';
@@ -884,9 +885,7 @@ class FederationService {
         return null;
       }
 
-      const link = data.links?.find(
-        (l) => l.rel === 'self' && l.type && AP_ACCEPT_TYPES.includes(l.type),
-      );
+      const link = data.links?.find((l) => l.rel === 'self' && isActivityPubMediaType(l.type));
       if (!link?.href) {
         resolutionFailure(
           'webfinger_document',

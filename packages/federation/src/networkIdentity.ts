@@ -48,6 +48,7 @@
  *   means neither can be edited into the other by accident.
  */
 
+import { apList } from './apValue';
 import { canonicalFederationHost } from './apUri';
 
 /**
@@ -217,9 +218,8 @@ export interface ProxyDeclaration {
  * copy of it", and only the former could ever justify moving an identity.
  */
 export function readProxyDeclarations(value: unknown): ProxyDeclaration[] {
-  if (!Array.isArray(value)) return [];
   const declarations: ProxyDeclaration[] = [];
-  for (const raw of value) {
+  for (const raw of apList(value)) {
     if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const entry = raw as Record<string, unknown>;
     const protocol = typeof entry.protocol === 'string' ? entry.protocol.trim() : '';
