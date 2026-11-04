@@ -18,12 +18,12 @@
 
 import { useEffect } from 'react';
 
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import { DeviceMotion, type DeviceMotionMeasurement } from 'expo-sensors';
 import {
   SensorType,
   useAnimatedSensor,
   useFrameCallback,
-  useReducedMotion,
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -66,7 +66,7 @@ export const useDeviceTilt = (): DeviceTilt => {
   const originRoll = useSharedValue(0);
   const hasOrigin = useSharedValue(false);
 
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
   const sensor = useAnimatedSensor(SensorType.ROTATION, {
     interval: 16,
     adjustToInterfaceOrientation: true,
