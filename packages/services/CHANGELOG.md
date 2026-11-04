@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.3.6] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 2.0.0 (was 1.0.2). 2.0 changes only Peable Tax and billing amounts on the wire (base-unit strings, signed documents at `schema_version: 3`); `@peable.to/sdk/display` is byte-identical to 1.0.2's, so `useDisplayPrice` behaves as before, and an app on the 2.0 SDK installs one copy instead of two.
+
 ## [14.3.5] - 2026-11-04
 
 ### Fixed
