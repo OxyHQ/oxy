@@ -16,6 +16,7 @@
 
 import { createPublicKey, verify as verifySignature, type KeyObject } from 'node:crypto';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 /** The only issuer accepted. Compared exactly. */
 export const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
@@ -133,9 +134,9 @@ export function createGithubActionsJwksResolver(
   options: GithubActionsJwksResolverOptions = {},
 ): (keyId: string) => Promise<KeyObject | undefined> {
   const jwksUrl = options.jwksUrl ?? GITHUB_ACTIONS_JWKS_URL;
-  // Read `globalThis.fetch` per call, not at construction, so the process-wide
-  // resolver uses whatever `fetch` the runtime has when a request arrives.
-  const fetchImpl: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  // Traced (Bun's fetch is invisible to the undici instrumentation), and read
+  // per call, so the process-wide resolver uses the runtime's current fetch.
+  const fetchImpl: typeof fetch = options.fetch ?? ((input, init) => tracedFetch(input, init));
   const clock = options.clock ?? Date.now;
   let keys = new Map<string, KeyObject>();
   let expiresAt = 0;

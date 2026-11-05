@@ -42,6 +42,7 @@ import {
   UnauthorizedError,
 } from '../utils/error';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 import { resolveApplicationIdFromClientId } from '../utils/resolveApplicationFromClientId';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import { isOwnApplicationType } from './applicationRoles.service';
@@ -280,7 +281,7 @@ const GITHUB_API_TIMEOUT_MS = 5_000;
  */
 export async function resolvePublicGithubRepository(
   repository: string,
-  fetchImpl: typeof fetch = (input, init) => globalThis.fetch(input, init),
+  fetchImpl: typeof fetch = (input, init) => tracedFetch(input, init),
 ): Promise<{ repository: string; repositoryId: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
