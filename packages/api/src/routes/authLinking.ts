@@ -48,6 +48,7 @@ import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
 import { buildAuthMethodEntries } from '../utils/authMethodEntries.js';
 import { linkRootToAccount } from '../services/identityLink.service.js';
+import { organizationKeyEverUsed } from '../services/organizationKeyHistory.js';
 import { ApiError } from '../utils/error.js';
 import {
   IDENTITY_ERROR_CODES,
@@ -59,6 +60,11 @@ import {
 } from '@oxy.so/contracts';
 
 const router = Router();
+
+/** A key operation on a non-personal account (ADR 0061: an organization's key has its own route). */
+function notPersonal(): ApiError {
+  return new ApiError(403, 'Only a personal account has a root', IDENTITY_ERROR_CODES.notPersonal);
+}
 
 /**
  * `where lower(btrim(public_key)) = lower(btrim($1))` — the spelling that both
@@ -224,10 +230,14 @@ router.post(
     // Bind the challenge to the authoritative user row (not the JWT/cache
     // snapshot) so mint + complete always agree on the account's current key.
     const [account] = await getDb()
-      .select({ publicKey: users.publicKey })
+      .select({ publicKey: users.publicKey, kind: users.kind })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
+    // A personal root only: an organization's key is replaced by its owners
+    // through `/accounts/:id/identity-key` (ADR 0061 D7), never by whoever
+    // holds it while acting as the organization.
+    if (account && account.kind !== 'personal') throw notPersonal();
     const oldPublicKey = account?.publicKey;
     if (!oldPublicKey) {
       throw new BadRequestError('No identity key is linked to this account — nothing to rotate.');
@@ -302,13 +312,14 @@ router.post(
 
     // Load the authoritative account row (for the server-derived old key).
     const [account] = await db
-      .select({ publicKey: users.publicKey })
+      .select({ publicKey: users.publicKey, kind: users.kind })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
     if (!account) {
       throw new BadRequestError('User not found');
     }
+    if (account.kind !== 'personal') throw notPersonal();
 
     // 1. oldPublicKey is derived from the USER ROW — never client-supplied.
     const oldPublicKey = account.publicKey;
@@ -373,6 +384,10 @@ router.post(
       .where(publicKeyMatches(canonicalNewPublicKey))
       .limit(1);
     if (conflict && conflict.id !== userId) {
+      throw new ConflictError('This identity is already linked to another account');
+    }
+    // A key that was ever an organization's is never anyone else's (ADR 0061 D2).
+    if (await organizationKeyEverUsed(db, canonicalNewPublicKey)) {
       throw new ConflictError('This identity is already linked to another account');
     }
 

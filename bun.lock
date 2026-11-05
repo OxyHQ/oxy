@@ -477,7 +477,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "6.10.0",
+      "version": "6.11.0",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -490,7 +490,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.23.2",
+      "version": "7.24.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/hashes": "^2.4.0",

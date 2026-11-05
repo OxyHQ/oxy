@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.11.0
+
+### Added
+
+- An organization's identity key (ADR 0061), its DID `#key-1` and the key Peable derives its FairCoin receive addresses from: `organizationKeyChallengeRequestSchema`, `organizationKeyChallengeSchema`, `organizationKeyApplyRequestSchema`, `organizationIdentityKeyStateSchema` (types `OrganizationKeyChallengeRequest`, `OrganizationKeyChallenge`, `OrganizationKeyApplyRequest`, `OrganizationIdentityKeyState`) and their client checks, for `GET /accounts/:id/identity-key`, `POST /accounts/:id/identity-key/challenge` and `POST /accounts/:id/identity-key`.
+- `ORGANIZATION_KEY_OPERATIONS` (`create`, `replace`), `ORGANIZATION_KEY_PROOF_ACTIONS`, `ORGANIZATION_KEY_ERROR_CODES`, and `organizationKeyPayload` / `organizationKeyProofClaims`, which build the payload every signature binds and the claims one signer signs, for client and server alike.
+- `IDENTITY_PROOF_ACTIONS.organizationKeyCreate` / `organizationKeyReplace` (`organization_key_create`, `organization_key_replace`). `POST /identity/proof-challenge` still mints only `link_identity`.
+
 ## 6.10.0
 
 ### Added

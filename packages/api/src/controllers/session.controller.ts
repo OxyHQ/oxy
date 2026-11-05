@@ -318,12 +318,14 @@ export class SessionController {
       }
 
       // Check if user exists (optional - can allow challenges for unregistered keys)
+      // Only a personal account signs in with its key; an organization's key
+      // (ADR 0061 D2) is answered like a key nobody holds.
       const [user] = await db
-        .select({ id: users.id })
+        .select({ id: users.id, kind: users.kind })
         .from(users)
         .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
         .limit(1);
-      if (!user) {
+      if (!user || user.kind !== 'personal') {
         return res.status(404).json({ message: 'User not found. Please register first.' });
       }
 
@@ -427,7 +429,8 @@ export class SessionController {
         .from(users)
         .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
         .limit(1);
-      if (!user) {
+      // An organization's key signs nobody in (ADR 0061 D2).
+      if (!user || user.kind !== 'personal') {
         return res.status(404).json({ message: 'User not found' });
       }
 

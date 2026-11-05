@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.24.0
+
+### Added
+
+- **`oxy.accounts.identityKey`**: an organization's identity key (ADR 0061), its DID `#key-1` and Peable wallet key. `get(accountId)` answers the key (`publicKey: null` for an organization without one: show its owners "Set up the organization's Peable wallet") and its history, to owners and admins only (403 `ORGANIZATION_KEY_FORBIDDEN` otherwise). `link(accountId, { operation, key, previousKey? })` is Commons' whole ceremony, NATIVE-ONLY: the device's personal root, the new organization key and (optionally) the current one sign one challenge. `requestChallenge` and `apply` are its two halves. Requires `@oxy.so/contracts` 6.11.0.
+
 ## 7.23.2
 
 ### Changed

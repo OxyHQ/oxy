@@ -18,13 +18,26 @@ import type { AccountAccessGrant, OrganizationType } from '@oxy.so/contracts';
  * no per-request "acting-as" header. Identity is carried by the session/token,
  * so a switch propagates through reload and cross-domain exactly like a login.
  */
-import type { AgentKeyOperation, AgentKeyOperationProof } from '@oxy.so/contracts';
+import type {
+  AgentKeyOperation,
+  AgentKeyOperationProof,
+  OrganizationIdentityKeyState,
+  OrganizationKeyApplyRequest,
+  OrganizationKeyChallenge,
+  OrganizationKeyChallengeRequest,
+  OrganizationKeyOperation,
+} from '@oxy.so/contracts';
 import {
   agentKeyListResponseCheck,
   agentKeyOperationChallengeCheck,
   agentKeyOperationCheck,
   agentKeyOperationResultCheck,
   executeAgentKeyOperationCheck,
+  organizationIdentityKeyStateCheck,
+  organizationKeyApplyRequestCheck,
+  organizationKeyChallengeCheck,
+  organizationKeyChallengeRequestCheck,
+  organizationKeyProofClaims,
   parseContract,
 } from '@oxy.so/contracts/client';
 import type { User } from '../models/interfaces';
@@ -457,6 +470,124 @@ export class AccountAgentKeysApi {
   }
 }
 
+/** A secp256k1 key pair held on this device: lowercase hex, the public key uncompressed. */
+export interface OrganizationKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
+/**
+ * `oxy.accounts.identityKey` — an organization's identity key (ADR 0061): its
+ * DID `#key-1`, the key Peable derives its FairCoin receive addresses from.
+ * Only the organization's owners and admins may read or change it; the key is
+ * created and held in Commons and never signs anybody in.
+ *
+ * `get` answers `publicKey: null` for an organization that has no key yet (its
+ * DID lists no `#key-1`): that is when a client shows its owners "Set up the
+ * organization's Peable wallet". A 403 (`ORGANIZATION_KEY_FORBIDDEN`) means the
+ * signed-in person is not an owner or admin of a claimed, active organization.
+ */
+export class AccountIdentityKeyApi {
+  constructor(private readonly ctx: OxyContext) {}
+
+  /** The organization's key (`null` without one) and every key it has had, oldest first. */
+  async get(accountId: string): Promise<OrganizationIdentityKeyState> {
+    return parseContract(
+      organizationIdentityKeyStateCheck,
+      await this.ctx.request<unknown>(
+        'GET',
+        `/accounts/${enc(accountId)}/identity-key`,
+        undefined,
+        { cache: false },
+      ),
+    );
+  }
+
+  /** A one-use challenge for one change, with the claims every signer signs. */
+  async requestChallenge(
+    accountId: string,
+    request: OrganizationKeyChallengeRequest,
+  ): Promise<OrganizationKeyChallenge> {
+    return parseContract(
+      organizationKeyChallengeCheck,
+      await this.ctx.request<unknown>(
+        'POST',
+        `/accounts/${enc(accountId)}/identity-key/challenge`,
+        parseContract(organizationKeyChallengeRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
+
+  /** Apply a change with its signatures (see {@link link} for the whole ceremony). */
+  async apply(
+    accountId: string,
+    request: OrganizationKeyApplyRequest,
+  ): Promise<OrganizationIdentityKeyState> {
+    return parseContract(
+      organizationIdentityKeyStateCheck,
+      await this.ctx.request<unknown>(
+        'POST',
+        `/accounts/${enc(accountId)}/identity-key`,
+        parseContract(organizationKeyApplyRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
+
+  /**
+   * Commons' whole ceremony. NATIVE-ONLY: the actor is THIS device's personal
+   * root (`KeyManager`), which must be the signed-in person's. `key` is the
+   * organization key the device generated (`create`, or `replace` with a new
+   * one); `previousKey` is the current organization key when the device holds
+   * it, so the replacement is recorded as proven by it.
+   */
+  async link(
+    accountId: string,
+    input: {
+      operation: OrganizationKeyOperation;
+      key: OrganizationKeyPair;
+      previousKey?: OrganizationKeyPair;
+    },
+  ): Promise<OrganizationIdentityKeyState> {
+    const { KeyManager, signIdentityProof } = await import('../crypto/index');
+    const [rootPrivateKey, rootPublicKey] = await Promise.all([
+      KeyManager.getPrivateKey(),
+      KeyManager.getPublicKey(),
+    ]);
+    if (!rootPrivateKey || !rootPublicKey) {
+      throw new Error('No identity on this device to sign with');
+    }
+    const challenge = await this.requestChallenge(accountId, {
+      operation: input.operation,
+      publicKey: input.key.publicKey,
+    });
+    const root = rootPublicKey.trim().toLowerCase();
+    if (challenge.actorPublicKey !== root) {
+      throw new Error("This device's identity is not the signed-in account's");
+    }
+    const sign = async (signer: OrganizationKeyPair, publicKey: string) =>
+      (
+        await signIdentityProof(
+          { privateKey: signer.privateKey, publicKey },
+          organizationKeyProofClaims(challenge, publicKey),
+        )
+      ).signature;
+    const previousPublicKey = challenge.previousPublicKey;
+    return this.apply(accountId, {
+      operation: input.operation,
+      publicKey: challenge.publicKey,
+      challenge: challenge.challenge,
+      expiresAt: challenge.expiresAt,
+      actorSignature: await sign({ privateKey: rootPrivateKey, publicKey: root }, root),
+      keySignature: await sign(input.key, challenge.publicKey),
+      ...(input.previousKey && previousPublicKey
+        ? { previousKeySignature: await sign(input.previousKey, previousPublicKey) }
+        : {}),
+    });
+  }
+}
+
 export interface AccountInvitation {
   id: string;
   accountId: string;
@@ -540,11 +671,14 @@ export class AccountsApi {
   readonly members: AccountMembersApi;
   readonly invitations: AccountInvitationsApi;
   readonly agentKeys: AccountAgentKeysApi;
+  /** An organization's identity key: its DID `#key-1` and Peable wallet key (ADR 0061). */
+  readonly identityKey: AccountIdentityKeyApi;
 
   constructor(private readonly ctx: OxyContext) {
     this.members = new AccountMembersApi(ctx);
     this.invitations = new AccountInvitationsApi(ctx);
     this.agentKeys = new AccountAgentKeysApi(ctx);
+    this.identityKey = new AccountIdentityKeyApi(ctx);
   }
 
   /**

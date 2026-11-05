@@ -23,7 +23,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { normalizeLocale } from '@oxy.so/core';
-import type { CampaignAttribution } from '@oxy.so/contracts';
+import { IDENTITY_ERROR_CODES, type CampaignAttribution } from '@oxy.so/contracts';
 import { accountAcquisition } from '../db/schema/accountAcquisition';
 import { usernameSchemaForAccountKind, type CreateOrganization } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -36,8 +36,9 @@ import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { userAncestors } from '../db/schema/userAncestors';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users, type AccountKind } from '../db/schema/users';
-import { BadRequestError, ConflictError } from '../utils/error';
+import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
+import { organizationKeyEverUsed } from './organizationKeyHistory';
 import { untrustedNameColumns } from '../utils/displayNameSanitize';
 import { normalizeUsername } from '../utils/username';
 import type { AccountRow } from './account.service';
@@ -313,6 +314,14 @@ export async function createPersonalAccount(
   credential: PersonalCredential,
   acquisition?: { languages?: string[]; campaignAttribution?: CampaignAttribution },
 ): Promise<AccountRow> {
+  // A key that was ever an organization's is never a person's (ADR 0061 D2).
+  if ('publicKey' in credential && (await organizationKeyEverUsed(tx, credential.publicKey))) {
+    throw new ApiError(
+      409,
+      'This identity is already linked to another account',
+      IDENTITY_ERROR_CODES.rootLinkedElsewhere,
+    );
+  }
   const languages = acquisition?.languages?.map((locale) => {
     const canonical = normalizeLocale(locale);
     if (!canonical) throw new BadRequestError('Unsupported language', { field: 'languages' });

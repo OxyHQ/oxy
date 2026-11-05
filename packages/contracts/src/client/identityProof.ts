@@ -25,6 +25,16 @@ export const IDENTITY_PROOF_ACTIONS = {
    * (ADR 0029 D3).
    */
   link: 'link_identity',
+  /**
+   * Give an organization its first identity key (ADR 0061 D4). Signed by the
+   * acting owner's or admin's own root and by the new key.
+   */
+  organizationKeyCreate: 'organization_key_create',
+  /**
+   * Replace an organization's identity key (ADR 0061 D7). Signed by the actor's
+   * root and the new key, and by the current key when the device holds it.
+   */
+  organizationKeyReplace: 'organization_key_replace',
 } as const;
 
 export type IdentityProofAction =

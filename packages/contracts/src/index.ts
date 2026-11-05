@@ -1607,6 +1607,7 @@ export {
 } from './capabilityBindings';
 
 export * from './agentKeys';
+export * from './organizationIdentityKey';
 export {
   productSubscriptionSummarySchema,
   productSubscriptionsResponseSchema,

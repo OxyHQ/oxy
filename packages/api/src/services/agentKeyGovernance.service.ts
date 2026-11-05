@@ -10,9 +10,7 @@ import {
   type AgentProofClaims,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
-import { accountMembers } from '../db/schema/accountMembers';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
-import { userAncestors } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { authChallenges } from '../db/schema/authChallenges';
@@ -21,7 +19,7 @@ import { authCodes } from '../db/schema/authCodes';
 import { securityActivities } from '../db/schema/securityActivities';
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { ApiError } from '../utils/error';
-import accountService, { resolveEffectiveMembership } from './account.service';
+import accountService, { readLockedEffectiveMembership } from './account.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { digestIdentityPayload } from './identityProof.service';
 import SignatureService from './signature.service';
@@ -38,29 +36,6 @@ function denied() {
 }
 function invalid() {
   return new ApiError(401, 'Fresh proof is required for this operation', 'INVALID_AGENT_PROOF');
-}
-
-async function readMembership(tx: Transaction, actorId: string, accountId: string) {
-  const ancestors = await tx
-    .select({ ancestorId: userAncestors.ancestorId })
-    .from(userAncestors)
-    .where(eq(userAncestors.userId, accountId))
-    .orderBy(asc(userAncestors.depth))
-    .for('share');
-  const path = ancestors.map((a) => a.ancestorId);
-  const members = await tx
-    .select()
-    .from(accountMembers)
-    .where(
-      and(
-        eq(accountMembers.memberUserId, actorId),
-        eq(accountMembers.status, 'active'),
-        inArray(accountMembers.accountId, [accountId, ...path]),
-      ),
-    )
-    .orderBy(asc(accountMembers.id))
-    .for('update');
-  return resolveEffectiveMembership(members, accountId, path);
 }
 
 async function operationContext(
@@ -140,7 +115,7 @@ async function operationContext(
       .from(users)
       .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
       .where(eq(users.id, session.userId));
-    const acting = await readMembership(tx, actorId, session.userId);
+    const acting = await readLockedEffectiveMembership(tx, actorId, session.userId);
     if (
       !subject ||
       subject.status !== 'active' ||
@@ -182,7 +157,7 @@ async function operationContext(
   if (operation.operation === 'rotate') {
     if (actorId !== targetId || !governorMethodId) throw denied();
   } else if (!retiringOwnKey) {
-    const membership = await readMembership(tx, actorId, targetId);
+    const membership = await readLockedEffectiveMembership(tx, actorId, targetId);
     if (
       !membership ||
       !['owner', 'admin'].includes(membership.row.role) ||

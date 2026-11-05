@@ -219,6 +219,7 @@ export * from './personalPlanCheckoutIntents';
 export * from './storageByteReservations';
 export * from './productProviderRefunds';
 export * from './organizationProfiles';
+export * from './organizationIdentityKeys';
 export * from './supervision';
 export * from './accountInvitations';
 export * from './applicationInvitationEmails';

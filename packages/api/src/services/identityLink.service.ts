@@ -48,6 +48,7 @@ import {
   sha256Hex,
   verifyIdentityProof,
 } from './identityProof.service';
+import { organizationKeyEverUsed } from './organizationKeyHistory';
 import SignatureService from './signature.service';
 import { verifyAccountReauth } from './reauth.service';
 
@@ -138,6 +139,8 @@ export async function linkRootToAccount(
       .where(publicKeyMatches(publicKey))
       .limit(1);
     if (existingUser && existingUser.id !== userId) throw linkedElsewhere();
+    // A key that was ever an organization's is never a person's (ADR 0061 D2).
+    if (await organizationKeyEverUsed(tx, publicKey)) throw linkedElsewhere();
     // Self-custodied from here: the recovery email, and every code sent to it,
     // goes with the custodial way back in (ADR 0029 D3).
     await tx.update(users).set({ publicKey, email: null }).where(eq(users.id, userId));

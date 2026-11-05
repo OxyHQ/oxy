@@ -68,6 +68,7 @@ jest.mock('../../server', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { identityBackups } from '../../db/schema/identityBackups';
 import { sessions } from '../../db/schema/sessions';
@@ -299,6 +300,23 @@ describe('POST /auth/rotate/challenge', () => {
     await getDb().update(users).set({ publicKey: null }).where(eq(users.id, currentUserId));
     const res = await request(server, 'POST', '/auth/rotate/challenge');
     expect(res.status).toBe(400);
+  });
+
+  it("refuses an organization's key: only its owners replace it (ADR 0061 D7)", async () => {
+    const orgKey = generateSecp256k1KeyPair().publicKey;
+    const [org] = await insertAccountFixtures(
+      { kind: 'organization', publicKey: orgKey },
+      { id: users.id },
+    );
+    currentUserId = org.id;
+    const res = await request(server, 'POST', '/auth/rotate/challenge');
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).toContain('IDENTITY_NOT_PERSONAL_ACCOUNT');
+    const stored = await getDb()
+      .select()
+      .from(authChallenges)
+      .where(eq(authChallenges.publicKey, orgKey));
+    expect(stored).toEqual([]);
   });
 });
 
