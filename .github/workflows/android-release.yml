@@ -171,6 +171,11 @@ jobs:
           (cd "$dir" && sha256sum "$name.apk" "$name.aab" > SHA256SUMS)
           echo "ARCHIVE_DIR=$dir" >> "$GITHUB_ENV"
           echo "ARTIFACT_NAME=$name" >> "$GITHUB_ENV"
+          # Keep this app's three newest versions: Play keeps every AAB it was
+          # given and GitHub every APK, so older copies here only fill the disk.
+          find "$OXY_RELEASE_ARCHIVE/$GITHUB_REPOSITORY" -mindepth 1 -maxdepth 1 -type d -name "${TAG_PREFIX}-v*" -printf '%f\n' \
+            | sort -V | head -n -3 \
+            | while read -r old; do rm -rf "${OXY_RELEASE_ARCHIVE:?}/$GITHUB_REPOSITORY/$old"; done
 
       # The AAB goes to Google Play's internal testing track. Google offers no
       # API to create an app, and an app has no package until its first bundle
