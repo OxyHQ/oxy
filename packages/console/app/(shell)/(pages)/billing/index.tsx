@@ -3,7 +3,7 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { BillingScreen } from '@/components/billing/BillingScreen';
 import { toast } from '@oxy.so/bloom/toast';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -84,7 +84,7 @@ export default function BillingOverviewPage() {
   };
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
+    <BillingScreen contentContainerClassName="gap-4 p-4 pb-12">
       {!canRead ? (
         <NoBillingAccess />
       ) : balance.isLoading ? (
@@ -174,6 +174,6 @@ export default function BillingOverviewPage() {
           />
         </>
       )}
-    </ScreenScrollView>
+    </BillingScreen>
   );
 }

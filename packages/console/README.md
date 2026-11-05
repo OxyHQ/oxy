@@ -7,6 +7,11 @@ Expo Router + Bloom, web only (`expo export --platform web`, `output: 'single'`)
 bottom bar and panels (`components/shell/`). Routes are in `app/(shell)/`; add a sidebar section in
 `lib/navigation.ts`.
 
+`BloomProvider` receives the Expo Router scroll adapter. Each Billing and Clarity
+leaf renders its shared `BillingScreen` or `ClarityScreen` recipe so restoration
+belongs to that page, rather than the persistent route-group layout. These
+recipes keep the common header/tabs and use Bloom's single scroll viewport.
+
 ```bash
 bun run dev      # expo start --web, port 8106
 bun run test     # jest (never bare `bun test`)

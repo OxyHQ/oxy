@@ -6,7 +6,7 @@ import {
   AdmonitionText,
 } from '@oxy.so/bloom/admonition';
 import { Dialog } from '@oxy.so/bloom/dialog';
-import { ScreenScrollView } from '@oxy.so/bloom/screen';
+import { BillingScreen } from '@/components/billing/BillingScreen';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -81,7 +81,7 @@ export default function BillingPlansPage() {
   const subscriptionsError = productSubscriptions.error ?? creditSubscriptions.error;
 
   return (
-    <ScreenScrollView contentContainerClassName="gap-4 p-4 pb-12">
+    <BillingScreen contentContainerClassName="gap-4 p-4 pb-12">
       <AdmonitionRoot type="info">
         <AdmonitionRow>
           <AdmonitionIcon />
@@ -180,6 +180,6 @@ export default function BillingPlansPage() {
           },
         ]}
       />
-    </ScreenScrollView>
+    </BillingScreen>
   );
 }
