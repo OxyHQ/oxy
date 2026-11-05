@@ -87,6 +87,85 @@ describe('loadCommonsIdentityBridge (native)', () => {
     await expect(bridge?.signSocialReceive(0, '11'.repeat(32))).resolves.toBeNull();
   });
 
+  test('organization requests go to the organization methods and must echo the account', async () => {
+    const ORG = '0123456789abcdef01234567';
+    const calls: unknown[][] = [];
+    mockNative({
+      describe: async () => ({ v: 2, publicKey: PUBLIC_KEY }),
+      proveIdentity: async () => null,
+      deriveScopedSeed: async () => 'cd'.repeat(32),
+      signSocialReceive: async () => ({ signature: '3045bb', publicKey: `02${'ef'.repeat(32)}` }),
+      describeOrganization: async (accountId: string) => {
+        calls.push(['describeOrganization', accountId]);
+        return { v: 3, publicKey: PUBLIC_KEY, accountId };
+      },
+      deriveOrganizationScopedSeed: async (info: string, accountId: string) => {
+        calls.push(['deriveOrganizationScopedSeed', info, accountId]);
+        return { seed: 'ee'.repeat(32), accountId };
+      },
+      signOrganizationSocialReceive: async (index: number, digest: string, accountId: string) => {
+        calls.push(['signOrganizationSocialReceive', index, digest, accountId]);
+        return { signature: '3046cc', publicKey: `03${'aa'.repeat(32)}`, accountId };
+      },
+    });
+    const bridge = await loadBridge();
+    await expect(bridge?.describe(ORG)).resolves.toEqual({
+      v: 3,
+      publicKey: PUBLIC_KEY,
+      accountId: ORG,
+    });
+    await expect(bridge?.deriveScopedSeed('peable/faircoin/v1', ORG)).resolves.toBe(
+      'ee'.repeat(32),
+    );
+    await expect(bridge?.signSocialReceive(4, '11'.repeat(32), ORG)).resolves.toEqual({
+      signature: '3046cc',
+      publicKey: `03${'aa'.repeat(32)}`,
+    });
+    // The personal path is untouched.
+    await expect(bridge?.describe()).resolves.toEqual({ v: 2, publicKey: PUBLIC_KEY });
+    expect(calls).toEqual([
+      ['describeOrganization', ORG],
+      ['deriveOrganizationScopedSeed', 'peable/faircoin/v1', ORG],
+      ['signOrganizationSocialReceive', 4, '11'.repeat(32), ORG],
+    ]);
+  });
+
+  test('an organization answer without the echo, or for another account, is null', async () => {
+    const ORG = '0123456789abcdef01234567';
+    mockNative({
+      describe: async () => ({ v: 2, publicKey: PUBLIC_KEY }),
+      proveIdentity: async () => null,
+      deriveScopedSeed: async () => 'cd'.repeat(32),
+      signSocialReceive: async () => null,
+      // An old Commons ignored the extra and answered for the personal key.
+      describeOrganization: async () => ({ v: 2, publicKey: PUBLIC_KEY }),
+      deriveOrganizationScopedSeed: async () => ({ seed: 'ee'.repeat(32), accountId: 'other' }),
+      signOrganizationSocialReceive: async () => ({
+        signature: '3046cc',
+        publicKey: `03${'aa'.repeat(32)}`,
+      }),
+    });
+    const bridge = await loadBridge();
+    await expect(bridge?.describe(ORG)).resolves.toBeNull();
+    await expect(bridge?.deriveScopedSeed('peable/faircoin/v1', ORG)).resolves.toBeNull();
+    await expect(bridge?.signSocialReceive(0, '11'.repeat(32), ORG)).resolves.toBeNull();
+  });
+
+  test('a native module without the organization methods answers no organization', async () => {
+    mockNative({
+      describe: async () => ({ v: 2, publicKey: PUBLIC_KEY }),
+      proveIdentity: async () => null,
+      deriveScopedSeed: async () => 'cd'.repeat(32),
+      signSocialReceive: async () => ({ signature: '3045bb', publicKey: `02${'ef'.repeat(32)}` }),
+    });
+    const bridge = await loadBridge();
+    await expect(bridge?.describe('0123456789abcdef01234567')).resolves.toBeNull();
+    await expect(bridge?.deriveScopedSeed('x', '0123456789abcdef01234567')).resolves.toBeNull();
+    await expect(
+      bridge?.signSocialReceive(0, '11'.repeat(32), '0123456789abcdef01234567'),
+    ).resolves.toBeNull();
+  });
+
   test('the web / Node variant never has a bridge', async () => {
     const mod = await import('../platform/crypto');
     await expect(mod.loadCommonsIdentityBridge()).resolves.toBeNull();

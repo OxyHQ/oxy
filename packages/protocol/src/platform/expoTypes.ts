@@ -82,6 +82,12 @@ export interface CommonsIdentityDescription {
   v: number;
   /** The identity's public key, lowercase uncompressed SEC1 hex. */
   publicKey: string;
+  /**
+   * Set only on an answer for an ORGANIZATION key (ADR 0061 D6): the account id
+   * Commons echoed, always equal to the one asked for. An answer without it is
+   * the personal identity and is never taken as an organization's.
+   */
+  accountId?: string;
 }
 
 /**
@@ -119,19 +125,28 @@ export interface CommonsSocialReceiveSignature {
  * path in `@oxy.so/core`'s `KeyManager` owns iOS sharing.
  */
 export interface CommonsIdentityBridge {
-  /** The public key of the identity Commons holds. */
-  describe(): Promise<CommonsIdentityDescription | null>;
+  /**
+   * The public key of the identity Commons holds, or, with `accountId`, of that
+   * organization's key (ADR 0061 D6).
+   */
+  describe(accountId?: string): Promise<CommonsIdentityDescription | null>;
   /** Sign a server challenge (64 lowercase hex) for `POST /auth/verify`. */
   proveIdentity(challenge: string): Promise<CommonsIdentityProof | null>;
   /**
-   * HKDF-SHA256 over the identity key, 32 bytes as lowercase hex, identical to
-   * `KeyManager.deriveScopedSeed(info)` on the device that holds the key.
-   * Commons allows each caller package only its own `info` labels.
+   * HKDF-SHA256 over the identity key (or, with `accountId`, the organization's
+   * key), 32 bytes as lowercase hex, identical to `KeyManager.deriveScopedSeed`
+   * on the device that holds the key. Commons allows each caller package only
+   * its own `info` labels.
    */
-  deriveScopedSeed(info: string): Promise<string | null>;
+  deriveScopedSeed(info: string, accountId?: string): Promise<string | null>;
   /**
    * Sign a 32-byte digest (64 hex) with the social-receive child key `index`
-   * of the identity. Allowed for the wallet app only.
+   * of the identity, or with `accountId`, of that organization's key. Allowed
+   * for the wallet app only.
    */
-  signSocialReceive(index: number, digest: string): Promise<CommonsSocialReceiveSignature | null>;
+  signSocialReceive(
+    index: number,
+    digest: string,
+    accountId?: string,
+  ): Promise<CommonsSocialReceiveSignature | null>;
 }

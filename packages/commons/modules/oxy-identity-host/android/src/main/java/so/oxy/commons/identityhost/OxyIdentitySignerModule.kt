@@ -35,5 +35,20 @@ class OxyIdentitySignerModule : Module() {
     AsyncFunction("clear") {
       IdentitySignerStore.clear(context)
     }
+
+    // Organization keys (ADR 0061 D6), by the organization's account id.
+    AsyncFunction("readOrganization") { accountId: String ->
+      IdentitySignerStore.readOrganization(context, accountId)?.let { (priv, pub) ->
+        mapOf("privateKey" to priv, "publicKey" to pub)
+      }
+    }
+
+    AsyncFunction("writeOrganization") { accountId: String, privateKey: String, publicKey: String ->
+      IdentitySignerStore.writeOrganization(context, accountId, privateKey, publicKey)
+    }
+
+    AsyncFunction("clearOrganization") { accountId: String ->
+      IdentitySignerStore.clearOrganization(context, accountId)
+    }
   }
 }

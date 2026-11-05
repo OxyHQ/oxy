@@ -30,7 +30,8 @@ import {
 } from '@oxy.so/protocol/secp256k1';
 import { isDev, logger } from '../logger';
 import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
-import type { IdentitySignerStore } from './identitySigner';
+import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
+import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
 import {
   type IdentityMarker,
   clearIdentityMarker,
@@ -457,6 +458,7 @@ export class KeyManager {
    */
   static setIdentitySignerStore(store: IdentitySignerStore | null): void {
     KeyManager.identitySignerStore = store;
+    registerIdentitySignerStore(store);
     KeyManager.invalidateSharedCache();
   }
 
@@ -3237,13 +3239,25 @@ export class KeyManager {
    * Both reproduce from the user's Oxy recovery phrase, so the seed is
    * recoverable, and the IPC answer is byte-identical to the local one.
    *
+   * With `opts.accountId` the seed is derived from that ORGANIZATION's key
+   * instead (ADR 0061 D6), from the same places: Commons' own copy, the iOS
+   * keychain group, or Commons' identity host. It never falls back to the
+   * personal key.
+   *
    * @param info Context/domain-binding label (distinct labels → independent seeds).
+   * @param opts.accountId An organization's account id, for its key.
    * @returns 32 bytes of derived keying material, or `null` on web / when no
    *          identity key is available to this app.
    */
-  static async deriveScopedSeed(info: string): Promise<Uint8Array | null> {
+  static async deriveScopedSeed(
+    info: string,
+    opts?: { accountId?: string },
+  ): Promise<Uint8Array | null> {
     if (isWebPlatform()) {
       return null;
+    }
+    if (opts?.accountId !== undefined) {
+      return KeyManager._deriveOrganizationScopedSeed(info, opts.accountId);
     }
     if (isAndroid()) {
       if (KeyManager.identitySignerStore) {
@@ -3264,14 +3278,37 @@ export class KeyManager {
   }
 
   /**
+   * {@link deriveScopedSeed} over an ORGANIZATION key (ADR 0061 D6): Commons'
+   * own copy inside Commons and on iOS the keychain group, everywhere else on
+   * Android Commons' identity host. Never falls back to the personal key: an
+   * organization this device cannot reach is `null`.
+   */
+  private static async _deriveOrganizationScopedSeed(
+    info: string,
+    accountId: string,
+  ): Promise<Uint8Array | null> {
+    if (!isOrganizationAccountId(accountId)) {
+      return null;
+    }
+    if (isAndroid() && !KeyManager.identitySignerStore) {
+      const bridge = await loadCommonsIdentityBridge();
+      const seed = (await bridge?.deriveScopedSeed(info, accountId)) ?? null;
+      return seed ? hexToBytes(seed) : null;
+    }
+    const privateKey = await getOrganizationPrivateKey(accountId);
+    return privateKey ? deriveScopedSeedFromKey(privateKey, info) : null;
+  }
+
+  /**
    * Sign a 32-byte digest (a transaction sighash, lowercase hex) with the
    * identity's social-receive child key `index`: the non-hardened BIP32 child
    * that `@fairco.in/core`'s `deriveSocialReceiveSpendingKey` derives. The
    * signature is RFC 6979, low-S, DER hex; `publicKey` is the child's
    * compressed public key for the scriptSig.
    *
-   * Key source: as {@link deriveScopedSeed}. On Android outside Commons the
-   * signature comes from Commons, which allows it for the wallet app only.
+   * Key source: as {@link deriveScopedSeed}, including `opts.accountId` for an
+   * organization's key (ADR 0061 D6). On Android outside Commons the signature
+   * comes from Commons, which allows it for the wallet app only.
    *
    * @returns the signature, or `null` on web / when no identity key is
    *          available to this app.
@@ -3279,9 +3316,23 @@ export class KeyManager {
   static async signSocialReceive(
     index: number,
     digest: string,
+    opts?: { accountId?: string },
   ): Promise<CommonsSocialReceiveSignature | null> {
     if (isWebPlatform()) {
       return null;
+    }
+    const accountId = opts?.accountId;
+    if (accountId !== undefined) {
+      // An organization key (ADR 0061 D6); never the personal one in its place.
+      if (!isOrganizationAccountId(accountId)) {
+        return null;
+      }
+      if (isAndroid() && !KeyManager.identitySignerStore) {
+        const bridge = await loadCommonsIdentityBridge();
+        return (await bridge?.signSocialReceive(index, digest, accountId)) ?? null;
+      }
+      const organizationKey = await getOrganizationPrivateKey(accountId);
+      return organizationKey ? signSocialReceiveDigest(organizationKey, index, digest) : null;
     }
     if (isAndroid() && !KeyManager.identitySignerStore) {
       // Every app but Commons: Commons signs.

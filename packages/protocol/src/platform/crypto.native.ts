@@ -204,6 +204,19 @@ interface OxyIdentityNativeModule {
   proveIdentity(challenge: string): Promise<unknown>;
   deriveScopedSeed(info: string): Promise<unknown>;
   signSocialReceive(index: number, digest: string): Promise<unknown>;
+  /**
+   * Organization keys (ADR 0061 D6), added in `@oxy.so/services` after the four
+   * above: an older native module lacks them, and every organization request
+   * then answers `null`, never the personal identity. Each answer echoes the
+   * `accountId` Commons answered for.
+   */
+  describeOrganization?(accountId: string): Promise<unknown>;
+  deriveOrganizationScopedSeed?(info: string, accountId: string): Promise<unknown>;
+  signOrganizationSocialReceive?(
+    index: number,
+    digest: string,
+    accountId: string,
+  ): Promise<unknown>;
 }
 
 const LOWER_HEX = /^[0-9a-f]+$/;
@@ -224,6 +237,25 @@ function narrowDescription(value: unknown): CommonsIdentityDescription | null {
   const v = typeof r?.v === 'number' ? r.v : Number(r?.v);
   if (!publicKey || !Number.isInteger(v)) return null;
   return { v, publicKey };
+}
+
+/**
+ * The organization answer must name the organization asked for. A Commons that
+ * predates organization keys ignores the `accountId` extra and answers for the
+ * PERSONAL identity, without an echo; that answer is refused here, because a
+ * personal key taken for an organization's is money sent to the wrong person.
+ */
+function echoes(value: unknown, accountId: string): Record<string, unknown> | null {
+  const r = record(value);
+  return r && r.accountId === accountId ? r : null;
+}
+
+function narrowOrganizationDescription(
+  value: unknown,
+  accountId: string,
+): CommonsIdentityDescription | null {
+  const description = narrowDescription(echoes(value, accountId));
+  return description ? { ...description, accountId } : null;
 }
 
 function narrowProof(value: unknown): CommonsIdentityProof | null {
@@ -272,15 +304,41 @@ export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | nul
       }
       const m = native as OxyIdentityNativeModule;
       return {
-        describe: () => ask(() => m.describe(), narrowDescription),
+        describe: (accountId?: string) => {
+          if (accountId === undefined) return ask(() => m.describe(), narrowDescription);
+          const describeOrganization = m.describeOrganization;
+          if (typeof describeOrganization !== 'function') return Promise.resolve(null);
+          return ask(
+            () => describeOrganization.call(m, accountId),
+            (v) => narrowOrganizationDescription(v, accountId),
+          );
+        },
         proveIdentity: (challenge: string) => ask(() => m.proveIdentity(challenge), narrowProof),
-        deriveScopedSeed: (info: string) =>
-          ask(
-            () => m.deriveScopedSeed(info),
-            (v) => hexField(v, 64),
-          ),
-        signSocialReceive: (index: number, digest: string) =>
-          ask(() => m.signSocialReceive(index, digest), narrowSocialReceive),
+        deriveScopedSeed: (info: string, accountId?: string) => {
+          if (accountId === undefined) {
+            return ask(
+              () => m.deriveScopedSeed(info),
+              (v) => hexField(v, 64),
+            );
+          }
+          const derive = m.deriveOrganizationScopedSeed;
+          if (typeof derive !== 'function') return Promise.resolve(null);
+          return ask(
+            () => derive.call(m, info, accountId),
+            (v) => hexField(echoes(v, accountId)?.seed, 64),
+          );
+        },
+        signSocialReceive: (index: number, digest: string, accountId?: string) => {
+          if (accountId === undefined) {
+            return ask(() => m.signSocialReceive(index, digest), narrowSocialReceive);
+          }
+          const sign = m.signOrganizationSocialReceive;
+          if (typeof sign !== 'function') return Promise.resolve(null);
+          return ask(
+            () => sign.call(m, index, digest, accountId),
+            (v) => narrowSocialReceive(echoes(v, accountId)),
+          );
+        },
       } satisfies CommonsIdentityBridge;
     });
   }

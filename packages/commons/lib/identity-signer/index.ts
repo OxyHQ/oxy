@@ -20,6 +20,22 @@ interface OxyIdentitySignerNative {
   read(): Promise<{ privateKey?: unknown; publicKey?: unknown } | null>;
   write(privateKey: string, publicKey: string): Promise<boolean>;
   clear(): Promise<void>;
+  /** Organization keys (ADR 0061 D6); absent on a binary built before them. */
+  readOrganization?(
+    accountId: string,
+  ): Promise<{ privateKey?: unknown; publicKey?: unknown } | null>;
+  writeOrganization?(accountId: string, privateKey: string, publicKey: string): Promise<boolean>;
+  clearOrganization?(accountId: string): Promise<void>;
+}
+
+function pairOf(
+  value: { privateKey?: unknown; publicKey?: unknown } | null,
+): { privateKey: string; publicKey: string } | null {
+  const privateKey = value?.privateKey;
+  const publicKey = value?.publicKey;
+  return typeof privateKey === 'string' && typeof publicKey === 'string'
+    ? { privateKey, publicKey }
+    : null;
 }
 
 function loadNative(): OxyIdentitySignerNative | null {
@@ -34,18 +50,25 @@ function loadNative(): OxyIdentitySignerNative | null {
 export function createIdentitySignerStore(): IdentitySignerStore | null {
   const native = loadNative();
   if (!native) return null;
+  const { readOrganization, writeOrganization, clearOrganization } = native;
   return {
     name: 'android-identity-signer',
-    read: async () => {
-      const pair = await native.read();
-      const privateKey = pair?.privateKey;
-      const publicKey = pair?.publicKey;
-      return typeof privateKey === 'string' && typeof publicKey === 'string'
-        ? { privateKey, publicKey }
-        : null;
-    },
+    read: async () => pairOf(await native.read()),
     write: (privateKey, publicKey) => native.write(privateKey, publicKey),
     clear: () => native.clear(),
+    // Organization keys only when this binary's native module carries them;
+    // without them `storeOrganizationKey` refuses rather than half-storing.
+    ...(typeof readOrganization === 'function' &&
+    typeof writeOrganization === 'function' &&
+    typeof clearOrganization === 'function'
+      ? {
+          readOrganization: async (accountId: string) =>
+            pairOf(await readOrganization.call(native, accountId)),
+          writeOrganization: (accountId: string, privateKey: string, publicKey: string) =>
+            writeOrganization.call(native, accountId, privateKey, publicKey),
+          clearOrganization: (accountId: string) => clearOrganization.call(native, accountId),
+        }
+      : {}),
   };
 }
 

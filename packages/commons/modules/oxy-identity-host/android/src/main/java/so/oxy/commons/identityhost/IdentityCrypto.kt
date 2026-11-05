@@ -41,6 +41,17 @@ object IdentityCrypto {
   private val n: BigInteger = curve.n
   private val halfN: BigInteger = n.shiftRight(1)
 
+  /**
+   * An organization's account id as Commons keys its organization entries by
+   * (ADR 0061 D6): a legacy 24-hex id or a lowercase uuid. Anything else is
+   * refused before it reaches a storage key.
+   */
+  fun isOrganizationAccountId(value: String?): Boolean =
+    value != null && ORGANIZATION_ACCOUNT_ID.matches(value)
+
+  private val ORGANIZATION_ACCOUNT_ID =
+    Regex("^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
+
   fun authMessage(publicKey: String, challenge: String, timestamp: Long): String =
     "auth:$publicKey:$challenge:$timestamp"
 

@@ -93,4 +93,15 @@ class IdentityCryptoTest {
     }
     assertFalse(IdentityCrypto.isHealthyPair(priv, "04" + "00".repeat(64)))
   }
+
+  @Test
+  fun organizationAccountIdsAreLegacyHexOrUuid() {
+    assertTrue(IdentityCrypto.isOrganizationAccountId("0123456789abcdef01234567"))
+    assertTrue(IdentityCrypto.isOrganizationAccountId("e3d486b7-e529-4ba5-bf2f-63a20c6b948a"))
+    assertFalse(IdentityCrypto.isOrganizationAccountId(null))
+    assertFalse(IdentityCrypto.isOrganizationAccountId(""))
+    assertFalse(IdentityCrypto.isOrganizationAccountId("0123456789ABCDEF01234567"))
+    assertFalse(IdentityCrypto.isOrganizationAccountId("../oxy_identity_signer"))
+    assertFalse(IdentityCrypto.isOrganizationAccountId("0123456789abcdef01234567.priv"))
+  }
 }
