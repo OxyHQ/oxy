@@ -1,6 +1,7 @@
 # ADR 0061 — An organization has its own identity key, created and held in Commons by its owners and admins
 
-- Status: accepted
+- Status: accepted; D7 amended 2026-11-06, before any key existed, to keep Peable ADR 0002's
+  "no second address tree" (Commons holds only the current key)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06): organization accounts get a Peable wallet.
   Peable receives FairCoin for a merchant into the wallet of the Oxy account that
@@ -169,9 +170,10 @@ Replacing the key does not move money, following Peable ADR 0002:
 - Coins received under the previous key are spendable only with the previous
   key. Oxy and Peable cannot move them.
 - When a holder leaves the organization the owners must replace the key. A
-  voluntary replacement should move the funds first while the key is held.
-- The wallet keeps the previous key while its addresses hold coins and keeps
-  watching them; it compares the device's key with the DID's `#key-1` and stops
+  voluntary replacement moves the funds first while the key is held, and keeps
+  the previous phrase; Commons says so before it replaces, and afterwards holds
+  only the new key. There is no second address tree (ADR 0002).
+- The wallet compares the device's key with the DID's `#key-1` and stops
   offering to receive on a mismatch (ADR 0002); it reads the key history
   (`GET /accounts/:id/identity-key`) to know which keys were the organization's.
 
