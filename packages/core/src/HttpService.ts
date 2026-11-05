@@ -984,6 +984,7 @@ export class HttpService {
               });
             }
             // Refresh failed or no token — clear tokens
+            if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
             this.tokenStore.clearTokens();
             this.notifyTokenChange();
           }
@@ -1998,6 +1999,21 @@ export class HttpService {
    */
   getSessionEpoch(): number {
     return this.sessionEpoch;
+  }
+
+  /**
+   * Capture the current authentication context for asynchronous local effects.
+   * Check the returned function immediately before each effect; a context
+   * switch, sign-out or transition from guest to signed-in invalidates it.
+   * Ordinary token refreshes within the same context leave it valid.
+   *
+   * This is a local race guard, not authorization or request cancellation.
+   */
+  captureSessionGuard(): () => boolean {
+    const epoch = this.sessionEpoch;
+    const hasToken = this.tokenStore.getAccessToken() !== null;
+    return () =>
+      this.sessionEpoch === epoch && (this.tokenStore.getAccessToken() !== null) === hasToken;
   }
 
   /** Whether {@link endSession} ran and no token has been planted since. */
