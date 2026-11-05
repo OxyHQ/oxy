@@ -1,0 +1,47 @@
+# The native Android release of this repository's own apps, Accounts by Oxy
+# and Commons by Oxy, through THE reusable release workflow every Oxy app uses
+# (android-release.yml, docs/engineering/build-and-deploy.md#native-android-releases).
+#
+# A new binary is a new `version`, and a version lives in the app's
+# app.config.js, so a push to main runs this only when one of those changes;
+# anything else ships as an OTA update (publish-update.yml). A run whose
+# version is already released ends at "Is this version released?".
+# `workflow_dispatch` builds a version whose earlier run failed.
+#
+# Called by path at the pushed commit: the job's workflow ref is
+# `OxyHQ/oxy/.github/workflows/android-release.yml@refs/heads/main`, the only
+# one the `seldon` runner group accepts.
+
+name: Android release (Accounts, Commons)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/accounts/app.config.js
+      - packages/commons/app.config.js
+      - .github/workflows/android-release-apps.yml
+      - .github/workflows/android-release.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  accounts:
+    name: Accounts by Oxy
+    permissions:
+      contents: write
+    uses: ./.github/workflows/android-release.yml
+    with:
+      app-dir: packages/accounts
+      tag-prefix: accounts-android
+
+  commons:
+    name: Commons by Oxy
+    permissions:
+      contents: write
+    uses: ./.github/workflows/android-release.yml
+    with:
+      app-dir: packages/commons
+      tag-prefix: commons-android
