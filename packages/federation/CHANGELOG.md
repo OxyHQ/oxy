@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/federation`
 
+## 3.2.0
+
+- `@oxy.so/federation/network`: the network vocabulary (`FEDERATION_NETWORKS`)
+  and the network-identity rules (`parseUpstreamProfileUrl`,
+  `federatedUsernameFromUpstreamUrl`, …) from an entry that imports nothing from
+  Node. The root also exports HTTP signatures (`node:crypto`), so a web or React
+  Native bundle could not use these rules; it now imports them from here, and the
+  server and the client read one declaration. The root still exports all of it.
+
 ## 3.1.0
 
 - `sendFollow(…, { durable: true })` hands the Follow to the delivery queue
